@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Emit } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
 import { startInp } from "./inp.js";
@@ -55,9 +55,7 @@ function stubTiming() {
   vi.stubGlobal("performance", {
     now: () => 1_000_000,
     getEntriesByType: (type: string) =>
-      type === "paint"
-        ? [{ name: "first-contentful-paint", startTime: 50 }]
-        : [],
+      type === "paint" ? [{ name: "first-contentful-paint", startTime: 50 }] : [],
   });
 }
 
@@ -138,14 +136,9 @@ describe("INP", () => {
         // list).
         const count = Math.max(...ids) - Math.min(...ids) + 1;
         const sorted = [...durations].sort((a, b) => b - a);
-        const index = Math.min(
-          Math.min(10, ids.length) - 1,
-          Math.floor(count / 50),
-        );
+        const index = Math.min(Math.min(10, ids.length) - 1, Math.floor(count / 50));
         expect(vitals()).toHaveLength(1);
-        expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBe(
-          sorted[index],
-        );
+        expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBe(sorted[index]);
       }),
       { numRuns: 50 },
     );
@@ -185,24 +178,15 @@ describe("INP", () => {
 
         const a = spans[0]?.attrs ?? {};
         const inputDelay = a["everr.browser.interaction.input_delay"] as number;
-        const processing = a[
-          "everr.browser.interaction.processing_duration"
-        ] as number;
-        const presentation = a[
-          "everr.browser.interaction.presentation_delay"
-        ] as number;
+        const processing = a["everr.browser.interaction.processing_duration"] as number;
+        const presentation = a["everr.browser.interaction.presentation_delay"] as number;
         expect(inputDelay).toBeGreaterThanOrEqual(0);
         expect(processing).toBeGreaterThanOrEqual(0);
         expect(presentation).toBeGreaterThanOrEqual(0);
         // The phases fill the full window from the interaction to the next
         // paint.
-        const nextPaint = Math.max(
-          entry.startTime + entry.duration,
-          entry.processingStart,
-        );
-        expect(inputDelay + processing + presentation).toBe(
-          nextPaint - entry.startTime,
-        );
+        const nextPaint = Math.max(entry.startTime + entry.duration, entry.processingStart);
+        expect(inputDelay + processing + presentation).toBe(nextPaint - entry.startTime);
       }),
       { numRuns: 50 },
     );
@@ -260,10 +244,7 @@ describe("CLS", () => {
           worst = Math.max(worst, session.value);
         }
         expect(vitals()).toHaveLength(1);
-        expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
-          worst,
-          9,
-        );
+        expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(worst, 9);
       }),
       { numRuns: 50 },
     );

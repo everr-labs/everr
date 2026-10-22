@@ -33,19 +33,16 @@ type TelemetryState = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __everrAppTelemetry: TelemetryState | undefined;
 }
 
-const globalTelemetry = globalThis as typeof globalThis & {
+const globalTelemetry: typeof globalThis & {
   __everrAppTelemetry?: TelemetryState;
-};
+} = globalThis;
 
 if (!globalTelemetry.__everrAppTelemetry) {
   globalTelemetry.__everrAppTelemetry =
-    process.env.TSS_PRERENDERING === "true"
-      ? { sdk: null, shuttingDown: false }
-      : startTelemetry();
+    process.env.TSS_PRERENDERING === "true" ? { sdk: null, shuttingDown: false } : startTelemetry();
 }
 
 export function getTelemetryTracer(name = "everr-app.server") {
@@ -110,9 +107,7 @@ function startTelemetry(): TelemetryState {
   sdk.start();
 
   const state = { sdk, shuttingDown: false };
-  registerShutdownHook("telemetry", "telemetry", () =>
-    shutdownTelemetry(state),
-  );
+  registerShutdownHook("telemetry", "telemetry", () => shutdownTelemetry(state));
 
   return state;
 }

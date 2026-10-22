@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { normalizeError } from "./normalize.js";
 
 describe("normalizeError", () => {

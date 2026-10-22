@@ -2,7 +2,7 @@
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const content = <div data-testid="content" />;
 
@@ -14,9 +14,7 @@ describe("PreviewFrame", () => {
         {content}
       </PreviewFrame>,
     );
-    expect(
-      screen.queryByRole("button", { name: /dismiss/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /dismiss/i })).not.toBeInTheDocument();
 
     rerender(
       <PreviewFrame variant="info" message="hi" onDismiss={onDismiss}>

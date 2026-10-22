@@ -31,15 +31,11 @@ export function OrganizationCreation({
       mounted.current = false;
     };
   }, []);
-  const [plan, setPlan] = useState<"hobby" | "pro">(
-    canCreateHobby ? "hobby" : "pro",
-  );
+  const [plan, setPlan] = useState<"hobby" | "pro">(canCreateHobby ? "hobby" : "pro");
   const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [createdOrganizationId, setCreatedOrganizationId] = useState<
-    string | null
-  >(null);
+  const [createdOrganizationId, setCreatedOrganizationId] = useState<string | null>(null);
   const [activated, setActivated] = useState(false);
   const isCreating = startedAt !== null;
 
@@ -79,24 +75,16 @@ export function OrganizationCreation({
       if (!mounted.current) return;
       if (result.kind === "checkout") {
         await new Promise<void>((resolve) =>
-          setTimeout(
-            resolve,
-            Math.max(0, start + ORGANIZATION_SETUP_MINIMUM_MS - Date.now()),
-          ),
+          setTimeout(resolve, Math.max(0, start + ORGANIZATION_SETUP_MINIMUM_MS - Date.now())),
         );
-        if (mounted.current)
-          await router.navigate({ href: result.url, reloadDocument: true });
+        if (mounted.current) await router.navigate({ href: result.url, reloadDocument: true });
         return;
       }
       setCreatedOrganizationId(result.organization.id);
       await activateOrganization(result.organization.id);
     } catch (cause) {
       if (!mounted.current) return;
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "The organization could not be created.",
-      );
+      setError(cause instanceof Error ? cause.message : "The organization could not be created.");
     }
   }
 
@@ -110,10 +98,7 @@ export function OrganizationCreation({
             returnTo={returnTo}
           />
         ) : isCreating ? (
-          <OrganizationProvisioningContent
-            checkout={plan === "pro"}
-            pending={!error}
-          >
+          <OrganizationProvisioningContent checkout={plan === "pro"} pending={!error}>
             {error ? (
               <div className="space-y-3">
                 <p className="text-sm text-destructive" role="alert">
@@ -124,17 +109,15 @@ export function OrganizationCreation({
                   onClick={() => {
                     if (createdOrganizationId) {
                       setError(null);
-                      void activateOrganization(createdOrganizationId).catch(
-                        (cause: Error) => setError(cause.message),
+                      void activateOrganization(createdOrganizationId).catch((cause: Error) =>
+                        setError(cause.message),
                       );
                     } else {
                       setStartedAt(null);
                     }
                   }}
                 >
-                  {createdOrganizationId
-                    ? "Try selecting again"
-                    : "Back to organization details"}
+                  {createdOrganizationId ? "Try selecting again" : "Back to organization details"}
                 </Button>
                 <Link
                   to="/choose-organization"
@@ -148,16 +131,16 @@ export function OrganizationCreation({
           </OrganizationProvisioningContent>
         ) : (
           <form
-            onSubmit={handleSubmit}
+            onSubmit={(...args) => {
+              void handleSubmit?.(...args);
+            }}
             aria-label="Organization details"
             className="space-y-6"
           >
             <div className="space-y-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Your organization
-              </p>
+              <p className="text-xs font-medium text-muted-foreground">Your organization</p>
               <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-                Let's get you settled
+                Let&apos;s get you settled
               </h1>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 Give your organization a name and choose a plan to get started.
@@ -179,14 +162,10 @@ export function OrganizationCreation({
                   >
                     <div className="mb-2 flex items-center justify-between">
                       <UserRound className="size-5" />
-                      {plan === "hobby" ? (
-                        <Check className="size-4 text-primary" />
-                      ) : null}
+                      {plan === "hobby" ? <Check className="size-4 text-primary" /> : null}
                     </div>
                     <p className="font-medium">Hobby</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Free, for one Owner.
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">Free, for one Owner.</p>
                   </button>
                 ) : null}
                 <button
@@ -195,27 +174,20 @@ export function OrganizationCreation({
                   aria-pressed={plan === "pro"}
                   onClick={() => setPlan("pro")}
                   className={`rounded-lg border p-4 text-left transition-colors ${
-                    plan === "pro"
-                      ? "border-primary bg-primary/5"
-                      : "hover:border-foreground/30"
+                    plan === "pro" ? "border-primary bg-primary/5" : "hover:border-foreground/30"
                   }`}
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <Sparkles className="size-5" />
-                    {plan === "pro" ? (
-                      <Check className="size-4 text-primary" />
-                    ) : null}
+                    {plan === "pro" ? <Check className="size-4 text-primary" /> : null}
                   </div>
                   <p className="font-medium">Pro</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Paid, with team members.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">Paid, with team members.</p>
                 </button>
               </div>
               {!canCreateHobby ? (
                 <p className="text-xs text-muted-foreground">
-                  You already own a Hobby organization, so this organization
-                  must use Pro.
+                  You already own a Hobby organization, so this organization must use Pro.
                 </p>
               ) : null}
               <div className="space-y-2">
@@ -224,6 +196,7 @@ export function OrganizationCreation({
                   id="organization-name"
                   name="organizationName"
                   autoComplete="organization"
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus starts in the primary field when this user-opened dialog mounts.
                   autoFocus
                   maxLength={100}
                   value={organizationName}
@@ -233,11 +206,7 @@ export function OrganizationCreation({
                 />
               </div>
               {error || notice ? (
-                <p
-                  id="organization-create-error"
-                  className="text-sm text-destructive"
-                  role="alert"
-                >
+                <p id="organization-create-error" className="text-sm text-destructive" role="alert">
                   {error ?? notice}
                 </p>
               ) : null}

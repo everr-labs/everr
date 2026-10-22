@@ -28,14 +28,13 @@ export function parseAlertingInput<T>(schema: z.ZodType<T>, raw: unknown): T {
 
 function postgresCode(value: unknown): string | undefined {
   if (!value || typeof value !== "object") return undefined;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing error property reads without adding presence guards.
   const record = value as { code?: unknown; cause?: unknown };
   if (typeof record.code === "string") return record.code;
   return postgresCode(record.cause);
 }
 
-export async function translateAlertingConflict<T>(
-  operation: () => Promise<T>,
-): Promise<T> {
+export async function translateAlertingConflict<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (cause) {

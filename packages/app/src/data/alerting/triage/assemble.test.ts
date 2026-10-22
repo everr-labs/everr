@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Only so that importing the row modules for their pure halves does not build
 // a real database pool. Nothing here answers a query: the loaders are covered
@@ -9,10 +9,7 @@ vi.mock("#app/db/client.ts", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
-import type {
-  AlertInstanceRead,
-  AlertRuleRead,
-} from "#app/data/alerting/rules/read.ts";
+import type { AlertInstanceRead, AlertRuleRead } from "#app/data/alerting/rules/read.ts";
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import type { AlertingRuleSpec } from "#app/data/alerting/types.ts";
 import {
@@ -50,9 +47,7 @@ function spec(overrides: Partial<AlertingRuleSpec> = {}): AlertingRuleSpec {
   };
 }
 
-function definition(
-  overrides: Partial<AlertRuleRead> & { slug: string },
-): AlertRuleRead {
+function definition(overrides: Partial<AlertRuleRead> & { slug: string }): AlertRuleRead {
   return {
     id: `id-${overrides.slug}`,
     repoid: "acme/repo",
@@ -90,10 +85,7 @@ function instance(
 
 /** A silence on the rule with this row id, whole-rule unless given more
  *  matchers. Definitions here are built with `id-${slug}`. */
-function silence(
-  ruleId: string,
-  overrides: Partial<SilenceRow> = {},
-): SilenceRow {
+function silence(ruleId: string, overrides: Partial<SilenceRow> = {}): SilenceRow {
   return {
     id: `silence-${ruleId}`,
     organizationId: "org",
@@ -180,13 +172,7 @@ describe("assembleTriage", () => {
       silences: [silence("id-d")],
     });
 
-    expect(alerts.map((a) => a.path)).toEqual([
-      "demo/c",
-      "demo/e",
-      "demo/d",
-      "demo/a",
-      "demo/b",
-    ]);
+    expect(alerts.map((a) => a.path)).toEqual(["demo/c", "demo/e", "demo/d", "demo/a", "demo/b"]);
     // Every rule is in the inventory, in the order it arrived, with the states
     // the board never shows.
     expect(rules.map((r) => [r.path, r.state])).toEqual([
@@ -335,24 +321,14 @@ describe("assembleTriage", () => {
   it("reads the delivery story from the journal, not from the rule's state", () => {
     const cases: [string, Partial<NotificationFact> | null, string][] = [
       ["flushed", {}, "notified · Latency high · 3m ago"],
-      [
-        "resolved",
-        { eventType: "instance_resolved", title: "" },
-        "resolved · 3m ago",
-      ],
+      ["resolved", { eventType: "instance_resolved", title: "" }, "resolved · 3m ago"],
       ["queued", { flushed: false }, "queued · 3m ago"],
       ["unprocessed", { processedAt: null }, "queued · 3m ago"],
       ["suppressed", { suppressed: true }, "notification suppressed · 3m ago"],
-      [
-        "terminal",
-        { grouped: false, flushed: false },
-        "not sent · stopped firing first · 3m ago",
-      ],
+      ["terminal", { grouped: false, flushed: false }, "not sent · stopped firing first · 3m ago"],
       ["silent", null, "nothing sent yet"],
     ];
-    const definitions = cases.map(([slug]) =>
-      definition({ slug, currentState: "firing" }),
-    );
+    const definitions = cases.map(([slug]) => definition({ slug, currentState: "firing" }));
     const { alerts } = triage({
       definitions,
       notifications: new Map(
@@ -372,9 +348,7 @@ describe("assembleTriage", () => {
     const { alerts } = triage({
       definitions: [rule],
       defaultTiers: new Set(),
-      notifications: new Map([
-        [rule.id, fact({ grouped: false, flushed: false })],
-      ]),
+      notifications: new Map([[rule.id, fact({ grouped: false, flushed: false })]]),
     });
     expect(alerts[0].notification).toBe("not sent · no channel for this rule");
   });
@@ -669,9 +643,7 @@ describe("assembleAlertDetail", () => {
       ],
       lastSamples: [{ fingerprint: "d", labels: {}, value: 1 }],
       values: {
-        byPath: new Map([
-          ["demo/latency", { lanes: [lane("a"), lane("b")], hidden: 4 }],
-        ]),
+        byPath: new Map([["demo/latency", { lanes: [lane("a"), lane("b")], hidden: 4 }]]),
         bucketMs: 5 * MINUTE,
       },
     });

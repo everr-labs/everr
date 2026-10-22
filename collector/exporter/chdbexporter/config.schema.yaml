@@ -35,7 +35,7 @@ properties:
     description: ClusterName if set will append `ON CLUSTER` with the provided name when creating tables.
     type: string
   compress:
-    description: 'Compress controls the compression algorithm. Valid options: `none` (disabled), `zstd`, `lz4` (default), `gzip`, `deflate`, `br`, `true` (lz4).'
+    description: "Compress controls the compression algorithm. Valid options: `none` (disabled), `zstd`, `lz4` (default), `gzip`, `deflate`, `br`, `true` (lz4)."
     type: string
   connection_params:
     description: ConnectionParams is the extra connection parameters with map format. for example compression/dial_timeout
@@ -58,7 +58,7 @@ properties:
     description: LogsTableName is the table name for logs. default is `otel_logs`.
     type: string
   metrics_table_name:
-    description: 'MetricsTableName is the table name for metrics. default is `otel_metrics`. Deprecated: MetricsTableName exists for historical compatibility and should not be used. To set the metrics tables name, use the MetricsTables parameter instead.'
+    description: "MetricsTableName is the table name for metrics. default is `otel_metrics`. Deprecated: MetricsTableName exists for historical compatibility and should not be used. To set the metrics tables name, use the MetricsTables parameter instead."
     type: string
   metrics_tables:
     description: MetricsTables defines the table names for metric types.

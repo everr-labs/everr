@@ -1,0 +1,35 @@
+name: Lint & Format
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  check:
+    name: Check
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting, lint, and package boundaries
+        run: pnpm run check

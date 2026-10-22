@@ -2,7 +2,7 @@ vi.mock("#app/integrations/github/configuration.ts", () => ({
   getGithubConfiguration: () => ({}),
 }));
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/lib/github-install-state.ts", () => ({
   parseInstallState: vi.fn(),
@@ -73,10 +73,7 @@ function selectResult(rows: unknown[]) {
   return { from } as never;
 }
 
-function mockDbExistingLink(link: {
-  githubInstallationId: number;
-  organizationId: string;
-}) {
+function mockDbExistingLink(link: { githubInstallationId: number; organizationId: string }) {
   vi.mocked(db.select)
     .mockReturnValueOnce(selectResult([{ id: "member_1", role: "admin" }]))
     .mockReturnValueOnce(selectResult([link]));
@@ -175,9 +172,7 @@ describe("/api/github/install/callback", () => {
       user: { id: "user_1" },
       session: { activeOrganizationId: "org_1" },
     });
-    vi.mocked(db.select).mockReturnValueOnce(
-      selectResult([{ id: "member_1", role: "member" }]),
-    );
+    vi.mocked(db.select).mockReturnValueOnce(selectResult([{ id: "member_1", role: "member" }]));
 
     const response = await getHandler()({
       request: new Request(

@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { drawSpanBar, getFlamegraphRowMetrics } from "./draw-utils";
 import type { EventRect, FlamegraphSpan, SpanRect } from "./types";
 

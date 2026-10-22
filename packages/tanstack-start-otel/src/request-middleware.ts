@@ -3,10 +3,7 @@ import type { Attributes, TextMapGetter } from "@opentelemetry/api";
 import { context, propagation, SpanKind, trace } from "@opentelemetry/api";
 import { createMiddleware } from "@tanstack/react-start";
 import { type RouterLike, routeTemplate } from "./route-template.js";
-import {
-  runWithServerFunctionName,
-  type ServerFunctionName,
-} from "./server-fn-name.js";
+import { runWithServerFunctionName, type ServerFunctionName } from "./server-fn-name.js";
 
 export interface RequestTelemetryOptions {
   /**
@@ -60,10 +57,8 @@ export const createRequestTelemetryMiddleware = ({
     // does not hand the name to request middleware, so the function middleware
     // reports it into this holder mid-flight and the route can settle on
     // `/_serverFn/{name}` once the call returns.
-    const serverFn: ServerFunctionName | undefined =
-      handlerType === "serverFn" ? {} : undefined;
-    const resolved = () =>
-      serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
+    const serverFn: ServerFunctionName | undefined = handlerType === "serverFn" ? {} : undefined;
+    const resolved = () => (serverFn?.name ? `/_serverFn/${serverFn.name}` : route);
     // Reads `resolved()` rather than taking a route, so callers cannot pass a
     // route that has gone stale since the server function reported its name.
     const attrs = (extra?: Attributes): Attributes => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const telemetryMocks = vi.hoisted(() => {
   const span = {
@@ -57,12 +57,9 @@ describe("instrumentClickhouseOperation", () => {
     const error = new Error("database unavailable");
 
     await expect(
-      instrumentClickhouseOperation(
-        { client: "app", operation: "QUERY" },
-        async () => {
-          throw error;
-        },
-      ),
+      instrumentClickhouseOperation({ client: "app", operation: "QUERY" }, async () => {
+        throw error;
+      }),
     ).rejects.toThrow("database unavailable");
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
@@ -76,18 +73,15 @@ describe("instrumentClickhouseOperation", () => {
   });
 
   it("emits expected SQL API query errors as info instead of recording them", async () => {
-    const error = Object.assign(
-      new Error("Unknown table expression identifier 'alert_eventss'"),
-      { code: "60", type: "UNKNOWN_TABLE" },
-    );
+    const error = Object.assign(new Error("Unknown table expression identifier 'alert_eventss'"), {
+      code: "60",
+      type: "UNKNOWN_TABLE",
+    });
 
     await expect(
-      instrumentClickhouseOperation(
-        { client: "sql_api", operation: "QUERY" },
-        async () => {
-          throw error;
-        },
-      ),
+      instrumentClickhouseOperation({ client: "sql_api", operation: "QUERY" }, async () => {
+        throw error;
+      }),
     ).rejects.toThrow("Unknown table");
 
     expect(telemetryMocks.captureError).not.toHaveBeenCalled();
@@ -97,8 +91,7 @@ describe("instrumentClickhouseOperation", () => {
         "clickhouse.client": "sql_api",
         "db.operation.name": "QUERY",
         "db.system.name": "clickhouse",
-        "exception.message":
-          "Unknown table expression identifier 'alert_eventss'",
+        "exception.message": "Unknown table expression identifier 'alert_eventss'",
         "exception.type": "Error",
       },
     );
@@ -109,12 +102,9 @@ describe("instrumentClickhouseOperation", () => {
     const error = new Error("connection refused");
 
     await expect(
-      instrumentClickhouseOperation(
-        { client: "sql_api", operation: "QUERY" },
-        async () => {
-          throw error;
-        },
-      ),
+      instrumentClickhouseOperation({ client: "sql_api", operation: "QUERY" }, async () => {
+        throw error;
+      }),
     ).rejects.toThrow("connection refused");
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
@@ -131,12 +121,9 @@ it("defers one exception record to the job boundary while marking the child span
   telemetryMocks.captureError.mockClear();
   telemetryMocks.boundaryCapture = true;
   await expect(
-    instrumentClickhouseOperation(
-      { client: "admin", operation: "QUERY" },
-      async () => {
-        throw new Error("stall");
-      },
-    ),
+    instrumentClickhouseOperation({ client: "admin", operation: "QUERY" }, async () => {
+      throw new Error("stall");
+    }),
   ).rejects.toThrow("stall");
   expect(telemetryMocks.captureError).not.toHaveBeenCalled();
   expect(telemetryMocks.span.setStatus).toHaveBeenCalledWith({

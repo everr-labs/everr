@@ -9,29 +9,24 @@ export const alertingNonEmptyStringSchema = z.string().min(1);
 // URL (`new URL("/alerts/rules/default/..", base)` walks up a level).
 const alertingResourceSlugSchema = z
   .string()
-  .regex(
-    /^[A-Za-z0-9_.-]{1,128}$/,
-    "name must be 1-128 chars of [A-Za-z0-9_.-]",
-  )
+  .regex(/^[A-Za-z0-9_.-]{1,128}$/, "name must be 1-128 chars of [A-Za-z0-9_.-]")
   .refine((value) => value !== "." && value !== "..", {
     message: 'name must not be "." or ".."',
   });
 
-export const alertingResourceNameSchema = z
-  .string()
-  .superRefine((value, ctx) => {
-    const parts = value.split("/");
-    if (
-      parts.length !== 2 ||
-      !dashboardProjectSchema.safeParse(parts[0]).success ||
-      !alertingResourceSlugSchema.safeParse(parts[1]).success
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message: 'name must be "project/slug"',
-      });
-    }
-  });
+export const alertingResourceNameSchema = z.string().superRefine((value, ctx) => {
+  const parts = value.split("/");
+  if (
+    parts.length !== 2 ||
+    !dashboardProjectSchema.safeParse(parts[0]).success ||
+    !alertingResourceSlugSchema.safeParse(parts[1]).success
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: 'name must be "project/slug"',
+    });
+  }
+});
 
 const alertingResourceLabelsSchema = z.record(
   alertingNonEmptyStringSchema,

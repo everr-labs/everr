@@ -30,7 +30,7 @@ function rejectReservedProject(project: string, action: string): void {
 }
 
 export function isResourceKind(value: string): value is ResourceKind {
-  return (RESOURCE_KINDS as readonly string[]).includes(value);
+  return RESOURCE_KINDS.some((kind) => kind === value);
 }
 
 export interface ResourceSummary {
@@ -59,12 +59,7 @@ interface KindBackend {
   list(orgId: string, repoid: string | undefined): Promise<ResourceSummary[]>;
   get(orgId: string, project: string, slug: string): Promise<unknown | null>;
   delete(orgId: string, project: string, slug: string): Promise<boolean>;
-  adopt(
-    orgId: string,
-    project: string,
-    slug: string,
-    destRepoid: string,
-  ): Promise<AdoptResult>;
+  adopt(orgId: string, project: string, slug: string, destRepoid: string): Promise<AdoptResult>;
 }
 
 type PgTable = typeof dashboards | typeof runbooks;
@@ -82,16 +77,14 @@ type LiveTable = typeof dashboards;
  * implementation, parameterized by their table.
  */
 function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Both Postgres backends expose the same queried columns; Drizzle does not unify their distinct table identities.
   const table = pgTable as LiveTable;
 
   /**
    * Conditions scoping a query to a live row of the kind: the caller's org and
    * not a preview row.
    */
-  const liveScope = (orgId: string) => [
-    eq(table.organizationId, orgId),
-    isNull(table.previewId),
-  ];
+  const liveScope = (orgId: string) => [eq(table.organizationId, orgId), isNull(table.previewId)];
 
   /** The full `(org, live, project, slug)` identity match for one live row. */
   const scopedRow = (orgId: string, project: string, slug: string) =>
@@ -127,9 +120,7 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
       return row?.document ?? null;
     },
     async delete(orgId, project, slug) {
-      const result = await db
-        .delete(table)
-        .where(scopedRow(orgId, project, slug));
+      const result = await db.delete(table).where(scopedRow(orgId, project, slug));
       return (result.rowCount ?? 0) > 0;
     },
     async adopt(orgId, project, slug, destRepoid) {
@@ -140,9 +131,7 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
       const updated = await db
         .update(table)
         .set({ repoid: destRepoid })
-        .where(
-          and(where, or(isNull(table.repoid), ne(table.repoid, destRepoid))),
-        );
+        .where(and(where, or(isNull(table.repoid), ne(table.repoid, destRepoid))));
       if ((updated.rowCount ?? 0) > 0) {
         return { found: true, alreadyOwned: false };
       }
@@ -218,14 +207,7 @@ const alertBackend: KindBackend = {
     if (fromAlertingRule(rule).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
-    await alertRules.adoptRule(
-      orgId,
-      rule.id,
-      destRepoid,
-      rule.version,
-      undefined,
-      db,
-    );
+    await alertRules.adoptRule(orgId, rule.id, destRepoid, rule.version, undefined, db);
     return { found: true, alreadyOwned: false };
   },
 };
@@ -242,9 +224,7 @@ export async function listResources(
   filters: ListFilters,
 ): Promise<ResourceSummary[]> {
   const kinds = filters.kind ? [filters.kind] : [...RESOURCE_KINDS];
-  const perKind = await Promise.all(
-    kinds.map((k) => KIND_BACKENDS[k].list(orgId, filters.repoid)),
-  );
+  const perKind = await Promise.all(kinds.map((k) => KIND_BACKENDS[k].list(orgId, filters.repoid)));
   return perKind.flat();
 }
 

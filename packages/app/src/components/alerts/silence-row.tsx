@@ -34,12 +34,7 @@ export function SilenceWindow({
   className?: string;
 }) {
   return (
-    <span
-      className={cn(
-        "font-mono text-xs tabular-nums text-muted-foreground",
-        className,
-      )}
-    >
+    <span className={cn("font-mono text-xs tabular-nums text-muted-foreground", className)}>
       <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
       {" → "}
       <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
@@ -89,10 +84,7 @@ export function SilenceRowAction({
       variant="ghost"
       disabled={pending}
       aria-label={open ? cancelLabel(spoken) : silenceAgainLabel(spoken)}
-      className={cn(
-        className,
-        !open && "font-normal text-muted-foreground hover:text-foreground",
-      )}
+      className={cn(className, !open && "font-normal text-muted-foreground hover:text-foreground")}
       onClick={() =>
         open
           ? // Built by the command module, so every list cancels the same silence

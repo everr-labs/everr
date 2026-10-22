@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 
@@ -40,9 +40,7 @@ function row(overrides: Partial<ValueRow> = {}): ValueRow {
 /** The ClickHouse seam: the query is injected, so a test hands the loader
  *  the rows the table would have returned and reads the lanes it builds. */
 function queryReturning(rows: ValueRow[]) {
-  const query = vi.fn((_sql: string, _params?: Record<string, unknown>) =>
-    Promise.resolve(rows),
-  );
+  const query = vi.fn((_sql: string, _params?: Record<string, unknown>) => Promise.resolve(rows));
   return { query: query as unknown as ClickhouseQuery, calls: query.mock };
 }
 
@@ -181,11 +179,7 @@ describe("loadInstanceValues", () => {
       row({ slug: "demo/errors", fingerprint: "b", sample_labels: "{}" }),
     ]);
     const out = await loadInstanceValues(query, {
-      rules: [
-        LATENCY,
-        { ...LATENCY, path: "demo/errors" },
-        { ...LATENCY, path: "demo/quiet" },
-      ],
+      rules: [LATENCY, { ...LATENCY, path: "demo/errors" }, { ...LATENCY, path: "demo/quiet" }],
       ...WINDOW,
     });
     expect([...out.byPath.keys()]).toEqual(["demo/latency", "demo/errors"]);
@@ -195,9 +189,9 @@ describe("loadInstanceValues", () => {
 
 describe("parseSamples", () => {
   it("reads the sample array back and shrugs at rows written in an older shape", () => {
-    expect(parseSamples('[{"fingerprint":"a","labels":{},"value":1}]')).toEqual(
-      [{ fingerprint: "a", labels: {}, value: 1 }],
-    );
+    expect(parseSamples('[{"fingerprint":"a","labels":{},"value":1}]')).toEqual([
+      { fingerprint: "a", labels: {}, value: 1 },
+    ]);
     expect(parseSamples("")).toEqual([]);
     expect(parseSamples("{")).toEqual([]);
     expect(parseSamples('{"not":"an array"}')).toEqual([]);

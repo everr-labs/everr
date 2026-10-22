@@ -11,11 +11,7 @@ export interface WelcomeLayoutProps {
   children: ReactNode;
 }
 
-export function WelcomeLayout({
-  signedIn,
-  actions,
-  children,
-}: WelcomeLayoutProps) {
+export function WelcomeLayout({ signedIn, actions, children }: WelcomeLayoutProps) {
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground lg:grid lg:grid-cols-[1.15fr_1fr]">
       {signedIn && (

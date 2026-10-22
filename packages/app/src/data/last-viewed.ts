@@ -1,9 +1,5 @@
 import type { z } from "zod";
-import {
-  readLocalStorage,
-  removeLocalStorage,
-  writeLocalStorage,
-} from "#app/lib/local-storage.ts";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "#app/lib/local-storage.ts";
 
 /**
  * Where the reader last was in one kind of resource, so visiting its section
@@ -18,16 +14,11 @@ import {
  * `resource` names the key, so it is part of the storage contract: changing it
  * forgets everyone's place rather than reading the old value.
  */
-export function lastViewedStore<Schema extends z.ZodType>(
-  resource: string,
-  schema: Schema,
-) {
+export function lastViewedStore<Schema extends z.ZodType>(resource: string, schema: Schema) {
   const keyFor = (org: string) => `everr:last-${resource}:${org}`;
   return {
-    read: (org: string): z.infer<Schema> | null =>
-      readLocalStorage(keyFor(org), schema),
-    record: (org: string, value: z.infer<Schema>): void =>
-      writeLocalStorage(keyFor(org), value),
+    read: (org: string): z.infer<Schema> | null => readLocalStorage(keyFor(org), schema),
+    record: (org: string, value: z.infer<Schema>): void => writeLocalStorage(keyFor(org), value),
     clear: (org: string): void => removeLocalStorage(keyFor(org)),
   };
 }

@@ -7,8 +7,8 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint",
 )({
   staticData: { breadcrumb: "Detail", hideExploreBar: true },
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   component: ErrorDetailPage,
 });
 
@@ -24,7 +24,7 @@ function ErrorDetailPage() {
       search={search}
       detailTo="/errors/$fingerprint"
       onBack={() =>
-        navigate({
+        void navigate({
           to: "/errors",
           search: { ...search, occurrence: "" },
         })

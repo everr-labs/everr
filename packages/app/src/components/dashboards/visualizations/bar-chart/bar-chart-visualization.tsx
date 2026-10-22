@@ -1,21 +1,10 @@
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@everr/ui/components/chart";
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  Text,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, Text, XAxis, YAxis } from "recharts";
 import type { VisualizationProps } from "../index";
 import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
 import { createValueFormatter } from "../value-format";
@@ -109,10 +98,7 @@ function createTimeTickFormatter(spanMs: number) {
   };
 }
 
-export function BarChartVisualization({
-  spec,
-  data,
-}: VisualizationProps<BarChartSpec>) {
+export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
   const formatter = createValueFormatter(spec.valueFormat);
   const { showLegend, stacking, orientation, showValues, colors } = spec;
 
@@ -204,10 +190,7 @@ export function BarChartVisualization({
 
   // Dense (time-bucketed) data produces one category per bucket — thin the
   // tick labels instead of letting them overlap.
-  const tickInterval = Math.max(
-    0,
-    Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1,
-  );
+  const tickInterval = Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
 
   const categoryAxisProps = {
     dataKey: X_KEY,
@@ -216,11 +199,7 @@ export function BarChartVisualization({
     // Custom tick truncates long category labels to their available band so
     // they stop overlapping; it receives the raw value, so format here.
     tick: (tickProps: object) => (
-      <CategoryTick
-        axis={horizontal ? "y" : "x"}
-        formatter={formatXTick}
-        {...tickProps}
-      />
+      <CategoryTick axis={horizontal ? "y" : "x"} formatter={formatXTick} {...tickProps} />
     ),
   };
   const valueAxisProps = {
@@ -232,7 +211,6 @@ export function BarChartVisualization({
   const tooltipX = tooltipRow ? tooltipRow[X_KEY] : undefined;
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
       ref={containerRef}
       className="relative h-full w-full"
@@ -283,9 +261,7 @@ export function BarChartVisualization({
                   position={stacked ? "center" : horizontal ? "right" : "top"}
                   className="fill-foreground"
                   fontSize={10}
-                  formatter={(v: unknown) =>
-                    typeof v === "number" ? formatBarValue(v) : ""
-                  }
+                  formatter={(v: unknown) => (typeof v === "number" ? formatBarValue(v) : "")}
                 />
               )}
             </Bar>
@@ -295,11 +271,7 @@ export function BarChartVisualization({
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
-            title={
-              isTimeAxis
-                ? new Date(Number(tooltipX)).toLocaleString()
-                : String(tooltipX)
-            }
+            title={isTimeAxis ? new Date(Number(tooltipX)).toLocaleString() : String(tooltipX)}
             rows={valueKeys
               .filter((key) => typeof tooltipRow[key] === "number")
               .map((key) => ({

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubNarrowViewport } from "../../test-utils/viewport";
 import type { ErrorsRepositoryLike } from "../data/repository";
 
@@ -16,6 +16,7 @@ vi.mock("react-virtuoso", () => ({
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- The test virtualizer renders a fixed fixture in source order.
         <div key={i}>{itemContent(i, item)}</div>
       ))}
     </div>
@@ -85,9 +86,7 @@ afterEach(() => {
 
 describe("Errors page filter rail", () => {
   it("puts the persistent zone above the page filters in one rail", () => {
-    render(
-      <ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />,
-    );
+    render(<ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />);
 
     const rail = screen.getByRole("complementary", { name: "Error filters" });
     expect(within(rail).getByText("persistent zone")).toBeInTheDocument();
@@ -131,9 +130,7 @@ describe("Errors page filter rail", () => {
       />,
     );
 
-    await user.click(
-      screen.getByRole("button", { name: "Clear page filters" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Clear page filters" }));
 
     const patch = onSearchChange.mock.calls[0]?.[0];
     expect(patch).toEqual({ q: "", attributes: [] });
@@ -144,23 +141,15 @@ describe("Errors page filter rail", () => {
   it("below 1024px the rail moves into a sheet behind a Filters button", async () => {
     stubNarrowViewport();
     const user = userEvent.setup();
-    render(
-      <ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />,
-    );
+    render(<ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />);
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: /Filters/ }),
-      ).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
     );
-    expect(
-      screen.queryByRole("complementary", { name: "Error filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Error filters" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(
-      screen.getByRole("complementary", { name: "Error filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
   });
 
   it("the narrow Filters button counts the persistent filters it hides", async () => {
@@ -173,9 +162,7 @@ describe("Errors page filter rail", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent(
-        "3",
-      ),
+      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
   });
 });

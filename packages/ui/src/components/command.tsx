@@ -12,10 +12,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { CheckIcon, SearchIcon } from "lucide-react";
 import type * as React from "react";
 
-function Command({
-  className,
-  ...props
-}: React.ComponentProps<typeof CommandPrimitive>) {
+function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {
   return (
     <CommandPrimitive
       data-slot="command"
@@ -51,10 +48,7 @@ function CommandDialog({
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
       <DialogContent
-        className={cn(
-          "top-1/12 translate-y-0 overflow-hidden p-0 sm:max-w-xl",
-          className,
-        )}
+        className={cn("top-1/12 translate-y-0 overflow-hidden p-0 sm:max-w-xl", className)}
         showCloseButton={showCloseButton}
         style={style}
       >
@@ -74,10 +68,7 @@ function CommandInput({
   inputGroupClassName?: string;
 }) {
   return (
-    <div
-      data-slot="command-input-wrapper"
-      className={cn("p-1 pb-0", wrapperClassName)}
-    >
+    <div data-slot="command-input-wrapper" className={cn("p-1 pb-0", wrapperClassName)}>
       <InputGroup className={cn("bg-input/30", inputGroupClassName)}>
         <CommandPrimitive.Input
           data-slot="command-input"
@@ -177,10 +168,7 @@ function CommandItem({
   );
 }
 
-function CommandShortcut({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
+function CommandShortcut({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       data-slot="command-shortcut"

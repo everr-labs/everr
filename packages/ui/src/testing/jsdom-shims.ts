@@ -1,3 +1,4 @@
+import type {} from "./matchers";
 // Browser APIs that jsdom does not implement but @everr/ui components call.
 // Imported for its side effects from every package's vitest setup file, so the
 // package that owns the components also owns the shims they need.

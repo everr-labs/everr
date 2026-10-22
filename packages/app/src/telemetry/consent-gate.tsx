@@ -2,19 +2,14 @@ import { clearIdentity, setPersistence } from "@everr/otel-web";
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
 import { createContext, type ReactNode, useContext, useState } from "react";
-import {
-  CONSENT_COOKIE,
-  type ConsentDecision,
-} from "#app/telemetry/consent.ts";
+import { CONSENT_COOKIE, type ConsentDecision } from "#app/telemetry/consent.ts";
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 // This lets a component below `ConsentGate` show the settings dialog again. An
 // example is the "Privacy preferences" item in the user menu. Thus the app does
 // not send a property through all the routes.
-const OpenConsentSettingsContext = createContext<(() => void) | undefined>(
-  undefined,
-);
+const OpenConsentSettingsContext = createContext<(() => void) | undefined>(undefined);
 
 /** Shows the consent settings dialog again. Use it only below `ConsentGate`. */
 export function useOpenConsentSettings(): () => void {
@@ -29,7 +24,6 @@ function storeConsent(decision: ConsentDecision): void {
   // Safari and Firefox do not have the Cookie Store API, which the lint rule
   // gives as an alternative. A synchronous write of a first-party cookie is
   // correct here.
-  // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API has no cross-browser support yet
   document.cookie = `${CONSENT_COOKIE}=${decision}; path=/; max-age=${ONE_YEAR_SECONDS}; samesite=lax`;
 }
 
@@ -62,9 +56,7 @@ export function ConsentGate({
   // category is always on. The initial value comes from the current condition of
   // the SDK. Thus the dialog shows the true condition when the user opens it
   // again, and it does not show "no decision".
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(
-    initialConsent === "granted",
-  );
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(initialConsent === "granted");
 
   const decide = (next: ConsentDecision) => {
     storeConsent(next);

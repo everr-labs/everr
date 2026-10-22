@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@everr/app/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
@@ -37,9 +37,7 @@ it("verifies membership in the requested organization before restarting its fail
   expect(mocks.retry).toHaveBeenCalledWith("requested-org");
 });
 it("does not retry when organization membership has been revoked", async () => {
-  vi.mocked(auth.api.getFullOrganization).mockRejectedValue(
-    new Error("Not a member"),
-  );
+  vi.mocked(auth.api.getFullOrganization).mockRejectedValue(new Error("Not a member"));
   await expect(
     retryOrganizationProvisioning({
       data: { organizationId: "requested-org" },

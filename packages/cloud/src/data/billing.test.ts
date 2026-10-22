@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   start: vi.fn(),
@@ -48,11 +48,7 @@ vi.mock("../billing/server", () => ({
   },
 }));
 
-import {
-  confirmOrgCheckout,
-  getOrgPortalUrl,
-  startOrgCheckout,
-} from "./billing";
+import { confirmOrgCheckout, getOrgPortalUrl, startOrgCheckout } from "./billing";
 
 beforeEach(() => vi.resetAllMocks());
 it("passes the authenticated org and user to upgrade", async () => {

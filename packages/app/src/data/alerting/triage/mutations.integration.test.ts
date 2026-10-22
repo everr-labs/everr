@@ -1,14 +1,12 @@
 // @vitest-environment node
 
 /** The Alert rule state command, against a real PostgreSQL. */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -19,7 +17,7 @@ vi.mock("#app/lib/clickhouse.ts", async () => {
 
 import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 const SESSION_ORG = "test_org";
 const PATH = "default/checkout-latency";
 
@@ -30,9 +28,9 @@ describe("pausing an Alert rule from the Triage screen", () => {
       slug: "checkout-latency",
     });
 
-    expect(
-      await setAlertRulePaused({ data: { path: PATH, paused: true } }),
-    ).toEqual({ paused: true });
+    expect(await setAlertRulePaused({ data: { path: PATH, paused: true } })).toEqual({
+      paused: true,
+    });
   });
 
   it("pauses nothing for a path no Alert rule has", async () => {

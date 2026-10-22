@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
@@ -14,15 +15,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
-import type {
-  ListVariable,
-  TextVariable,
-  Variable,
-} from "#app/data/dashboards/schema.ts";
-import {
-  useDashboardVariables,
-  type VariableOptionsState,
-} from "./use-dashboard-variables";
+import type { ListVariable, TextVariable, Variable } from "#app/data/dashboards/schema.ts";
+import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
 
 // Inline fields carry their own left-hairline separator. Drawn as a border
 // (not an interleaved element) so a wrapped row can never start or end with a
@@ -61,22 +55,18 @@ export function useHasVisibleVariables(): boolean {
  */
 export type VariableBarLayout = "stacked" | "inline";
 
-export function VariableBar({
-  layout = "stacked",
-}: {
-  layout?: VariableBarLayout;
-}) {
+export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout }) {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
   const setValue = useCallback(
     (name: string, value: string | string[]) => {
-      navigate({
+      void navigate({
         to: ".",
         search: (prev) => ({
           ...prev,
           vars: {
-            ...(prev.vars ?? {}),
+            ...(prev.vars as Record<string, string | string[]> | undefined),
             [name]: value,
           },
         }),
@@ -102,17 +92,14 @@ export function VariableBar({
           : "mb-3 items-end",
       )}
     >
-      {visible.map((variable) =>
-        variable.kind === "TextVariable" ? (
+      {visible.map((variable) => {
+        const currentValue = values[variable.spec.name];
+        return variable.kind === "TextVariable" ? (
           <TextVariableField
             key={variable.spec.name}
             variable={variable}
             layout={layout}
-            value={
-              typeof values[variable.spec.name] === "string"
-                ? (values[variable.spec.name] as string)
-                : ""
-            }
+            value={typeof currentValue === "string" ? currentValue : ""}
             onCommit={(value) => setValue(variable.spec.name, value)}
           />
         ) : (
@@ -124,8 +111,8 @@ export function VariableBar({
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 
@@ -227,9 +214,7 @@ function ListVariableField({
               id={`var-${name}`}
               variant="outline"
               size="sm"
-              title={
-                error ?? (selected.length > 0 ? selected.join(", ") : undefined)
-              }
+              title={error ?? (selected.length > 0 ? selected.join(", ") : undefined)}
               className={cn(
                 "h-8 max-w-56 justify-between font-normal",
                 error && "border-destructive text-destructive",
@@ -256,16 +241,12 @@ function ListVariableField({
               {multi ? (
                 <DropdownMenuCheckboxItem
                   checked={isAll}
-                  onCheckedChange={(checked) =>
-                    onChange(checked ? ALL_VALUE : [])
-                  }
+                  onCheckedChange={(checked) => onChange(checked ? ALL_VALUE : [])}
                 >
                   All
                 </DropdownMenuCheckboxItem>
               ) : (
-                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>
-                  All
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>All</DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
             </>
@@ -291,14 +272,10 @@ function ListVariableField({
             ),
           )}
           {isPending && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              Loading options…
-            </div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading options…</div>
           )}
           {truncated && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
-              First 1000 shown
-            </div>
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">First 1000 shown</div>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

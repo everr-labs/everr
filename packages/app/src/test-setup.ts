@@ -1,17 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 import "@everr/ui/testing/jsdom-shims";
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
-import {
-  composeMiddleware,
-  type FunctionMiddlewareHandler,
-} from "./lib/test-middleware";
+import { afterEach, vi } from "vite-plus/test";
+import { composeMiddleware, type FunctionMiddlewareHandler } from "./lib/test-middleware";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: Shared test harness needs a loose function signature.
+// oxlint-disable-next-line typescript/no-explicit-any -- one alias covers both the handler (called with { data, context }) and the server-fn invoker (called with { data }); `unknown` params are contravariantly incompatible with both and break the mock chain.
 type AnyFn = (...args: any[]) => any;
 
 /** Build a fluent chain where handler(fn) wraps fn with `wrapHandler`. */
@@ -24,9 +21,8 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
     inputValidator: (schema: unknown) => {
       validate =
         typeof schema === "function"
-          ? (input) => (schema as AnyFn)(input)
-          : (input) =>
-              (schema as { parse: (input: unknown) => unknown }).parse(input);
+          ? (input) => schema(input)
+          : (input) => (schema as { parse: (input: unknown) => unknown }).parse(input);
       return chain;
     },
     handler: (fn: AnyFn) =>
@@ -45,16 +41,12 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
 vi.mock("@tanstack/react-start", () => ({
   createMiddleware: vi.fn(() => {
     const makeMiddleware = (handlers: FunctionMiddlewareHandler[] = []) => ({
-      middleware: (
-        definitions: Array<{ __handler?: FunctionMiddlewareHandler }>,
-      ) =>
+      middleware: (definitions: Array<{ __handler?: FunctionMiddlewareHandler }>) =>
         makeMiddleware([
           ...handlers,
           ...definitions
             .map((definition) => definition.__handler)
-            .filter((handler): handler is FunctionMiddlewareHandler =>
-              Boolean(handler),
-            ),
+            .filter((handler): handler is FunctionMiddlewareHandler => Boolean(handler)),
         ]),
       server: vi.fn((handler: FunctionMiddlewareHandler) => ({
         __handler: composeMiddleware(handlers, handler),
@@ -64,9 +56,7 @@ vi.mock("@tanstack/react-start", () => ({
     return makeMiddleware();
   }),
   createServerFn: vi.fn(() =>
-    makeServerFnChain(
-      (fn) => async (opts?: { data?: unknown }) => fn({ data: opts?.data }),
-    ),
+    makeServerFnChain((fn) => async (opts?: { data?: unknown }) => fn({ data: opts?.data })),
   ),
   createStart: vi.fn(() => ({})),
   getGlobalStartContext: vi.fn(),

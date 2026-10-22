@@ -15,10 +15,7 @@ function migrationFolder(name: "cloud" | "legacy") {
   const built = resolve(import.meta.dirname, "../../drizzle", name);
   if (existsSync(`${packaged}/meta/_journal.json`)) return packaged;
   if (existsSync(`${built}/meta/_journal.json`)) return built;
-  return resolve(
-    import.meta.dirname,
-    name === "cloud" ? "../drizzle" : "../drizzle-legacy",
-  );
+  return resolve(import.meta.dirname, name === "cloud" ? "../drizzle" : "../drizzle-legacy");
 }
 
 export async function migrateDatabase(database: MigrationDatabase) {

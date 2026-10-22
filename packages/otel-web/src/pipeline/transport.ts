@@ -25,11 +25,7 @@ export type Signal = "logs" | "traces";
  * path of the browser, and it has no function in a custom sender. Thus the
  * public option does not contain it.
  */
-export type Send = (
-  signal: Signal,
-  body: string,
-  keepalive?: boolean,
-) => unknown;
+export type Send = (signal: Signal, body: string, keepalive?: boolean) => unknown;
 
 /**
  * The public `send` option. It is the same, but it has no `keepalive` value.
@@ -79,12 +75,7 @@ export function resolveTransport(options: {
   const key = options.ingestKey?.trim();
   const endpoint = options.endpoint?.trim().replace(/\/+$/, "");
   const base =
-    endpoint ||
-    (key
-      ? "https://ingest.everr.dev"
-      : options.dev
-        ? "http://127.0.0.1:54418"
-        : null);
+    endpoint || (key ? "https://ingest.everr.dev" : options.dev ? "http://127.0.0.1:54418" : null);
   if (!base) return null;
   return [
     fetchSend(

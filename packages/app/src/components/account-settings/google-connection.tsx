@@ -19,22 +19,15 @@ export function GoogleConnection({ linked }: { linked: boolean }) {
         callbackURL: "/account",
         provider: "google",
       });
-      if (result.error)
-        throw new Error(result.error.message ?? "Google linking failed.");
+      if (result.error) throw new Error(result.error.message ?? "Google linking failed.");
     },
   });
-  const googleButtonLabel = link.isPending
-    ? "Connecting..."
-    : linked
-      ? "Linked"
-      : "Connect Google";
+  const googleButtonLabel = link.isPending ? "Connecting..." : linked ? "Linked" : "Connect Google";
   return (
     <Card>
       <CardHeader>
         <CardTitle>Google Connection</CardTitle>
-        <CardDescription>
-          Link Google to sign in to this account with Google.
-        </CardDescription>
+        <CardDescription>Link Google to sign in to this account with Google.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

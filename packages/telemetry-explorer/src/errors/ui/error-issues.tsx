@@ -72,10 +72,7 @@ export function ErrorIssues({
             timeRange={timeRange}
             value={search}
             persistentFilters={persistentFilters}
-            persistentFilterCount={countPersistentFilters(
-              search.service,
-              environment,
-            )}
+            persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
           <main className="min-h-0 min-w-0">
@@ -84,9 +81,11 @@ export function ErrorIssues({
                 issues={issues}
                 isPending={issuesQuery.isPending}
                 isError={issuesQuery.isError}
+                // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
                 onRetry={() => issuesQuery.refetch()}
                 hasNextPage={issuesQuery.hasNextPage}
                 isFetchingNextPage={issuesQuery.isFetchingNextPage}
+                // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
                 onLoadMore={() => issuesQuery.fetchNextPage()}
                 renderIssueLink={renderIssueLink}
               />

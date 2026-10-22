@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createTracer } from "../../pipeline/tracer.js";
 import { setRouteResolver } from "../../state/route.js";
 import { startNetwork } from "./network.js";
@@ -17,12 +17,7 @@ class TestXHR extends EventTarget {
   failHeader = false;
   openArgs: unknown[] = [];
 
-  open(
-    method: string,
-    url: string | URL,
-    async = true,
-    ...credentials: unknown[]
-  ) {
+  open(method: string, url: string | URL, async = true, ...credentials: unknown[]) {
     if (!method || String(url) === "http://")
       throw new DOMException("Invalid request", "SyntaxError");
     this.openArgs = [method, url, async, ...credentials];
@@ -48,8 +43,7 @@ class TestXHR extends EventTarget {
   send(body?: unknown) {
     if (this.readyState !== 1 || this.sent)
       throw new DOMException("Invalid state", "InvalidStateError");
-    if (this.failSend)
-      throw new DOMException("Transport failed", "NetworkError");
+    if (this.failSend) throw new DOMException("Transport failed", "NetworkError");
     this.body = body;
     this.sent = true;
     if (!this.async) this.complete();
@@ -79,19 +73,17 @@ const emit = vi.fn();
 let stop = () => {};
 const tracer = () => createTracer(emit);
 const spans = () =>
-  emit.mock.calls.map(
-    ([traceId, spanId, name, start, end, attrs, status, parent, kind]) => ({
-      traceId,
-      spanId,
-      name,
-      start,
-      end,
-      attrs,
-      error: status?.code === 2,
-      parent,
-      kind,
-    }),
-  );
+  emit.mock.calls.map(([traceId, spanId, name, start, end, attrs, status, parent, kind]) => ({
+    traceId,
+    spanId,
+    name,
+    start,
+    end,
+    attrs,
+    error: status?.code === 2,
+    parent,
+    kind,
+  }));
 function start(targets?: (string | RegExp)[]) {
   stop = startNetwork(tracer(), targets);
 }
@@ -133,36 +125,28 @@ describe("XHR network instrumentation", () => {
         "server.address": location.hostname,
       },
     });
-    expect(xhr.headers.get("traceparent")).toBe(
-      `00-${spans()[0].traceId}-${spans()[0].spanId}-01`,
-    );
+    expect(xhr.headers.get("traceparent")).toBe(`00-${spans()[0].traceId}-${spans()[0].spanId}-01`);
     expect(JSON.stringify(spans())).not.toContain("secret");
   });
 
-  it.each([
-    undefined,
-    ["backend.example"],
-    [/backend\.example/],
-  ])("uses propagation targets %j", (targets) => {
-    start(targets);
-    const xhr = request("https://backend.example/api");
-    expect(Boolean(xhr.headers.get("traceparent"))).toBe(Boolean(targets));
-    xhr.complete();
-    expect(spans()).toHaveLength(1);
-  });
+  it.each([undefined, ["backend.example"], [/backend\.example/]])(
+    "uses propagation targets %j",
+    (targets) => {
+      start(targets);
+      const xhr = request("https://backend.example/api");
+      expect(Boolean(xhr.headers.get("traceparent"))).toBe(Boolean(targets));
+      xhr.complete();
+      expect(spans()).toHaveLength(1);
+    },
+  );
 
-  it.each([
-    "g",
-    "y",
-  ])("preserves stateful regex targets with flag %s", (flag) => {
+  it.each(["g", "y"])("preserves stateful regex targets with flag %s", (flag) => {
     const target = new RegExp("https://api\\.backend\\.example/", flag);
     target.lastIndex = 7;
     start([target]);
     for (const matches of [true, true, false, true]) {
       const xhr = request(
-        matches
-          ? "https://api.backend.example/data"
-          : "https://other.example/data",
+        matches ? "https://api.backend.example/data" : "https://other.example/data",
       );
       expect(xhr.headers.has("traceparent")).toBe(matches);
       expect(target.lastIndex).toBe(7);
@@ -176,9 +160,7 @@ describe("XHR network instrumentation", () => {
     const xhr = request("data");
     xhr.complete();
     expect(xhr.headers.has("traceparent")).toBe(false);
-    expect(spans()[0].attrs["url.full"]).toBe(
-      "https://cdn.example/assets/data",
-    );
+    expect(spans()[0].attrs["url.full"]).toBe("https://cdn.example/assets/data");
   });
 
   it("preserves application headers, request body and open arguments", () => {
@@ -190,9 +172,7 @@ describe("XHR network instrumentation", () => {
     xhr.setRequestHeader("X-App", "value");
     xhr.send(body);
     xhr.complete();
-    expect(xhr.headers.get("traceparent")).toBe(
-      `00-${spans()[0].traceId}-${spans()[0].spanId}-01`,
-    );
+    expect(xhr.headers.get("traceparent")).toBe(`00-${spans()[0].traceId}-${spans()[0].spanId}-01`);
     expect(xhr.headers.get("X-App")).toBe("value");
     expect(xhr.body).toBe(body);
     expect(xhr.openArgs).toEqual(["post", "/api", true, "user", "password"]);
@@ -218,9 +198,7 @@ describe("XHR network instrumentation", () => {
     start();
     request().complete(status);
     expect(spans()[0].error).toBe(status >= 400);
-    expect(spans()[0].attrs["error.type"]).toBe(
-      status >= 400 ? String(status) : undefined,
-    );
+    expect(spans()[0].attrs["error.type"]).toBe(status >= 400 ? String(status) : undefined);
   });
 
   it.each([
@@ -318,9 +296,7 @@ describe("XHR network instrumentation", () => {
     xhr.complete(201);
     expect(spans().map((s) => s.name)).toEqual(["GET /first"]);
     xhr.complete(202);
-    expect(
-      spans().map((s) => [s.name, s.attrs["http.response.status_code"]]),
-    ).toEqual([
+    expect(spans().map((s) => [s.name, s.attrs["http.response.status_code"]])).toEqual([
       ["GET /first", 201],
       ["GET /second", 202],
     ]);
@@ -345,13 +321,7 @@ describe("XHR network instrumentation", () => {
     xhr.send();
     xhr.complete(503);
     xhr.complete(200);
-    expect(
-      spans().map((s) => [
-        s.name,
-        s.attrs["http.response.status_code"],
-        s.error,
-      ]),
-    ).toEqual([
+    expect(spans().map((s) => [s.name, s.attrs["http.response.status_code"], s.error])).toEqual([
       ["GET /first", 503, true],
       ["GET /second", 200, false],
     ]);
@@ -391,38 +361,38 @@ describe("XHR network instrumentation", () => {
     expect(spans()[1].attrs["http.response.status_code"]).toBe(200);
   });
 
-  it.each([
-    "sync",
-    "abort",
-  ])("keeps a nested %s retry separate from the original timeout", (retry) => {
-    start();
-    const xhr = new TestXHR();
-    let reopened = false;
-    xhr.addEventListener(
-      "readystatechange",
-      () => {
-        if (xhr.readyState !== 4 || reopened) return;
-        reopened = true;
-        xhr.open("GET", "/retry", retry !== "sync");
-        xhr.responseHeaders.set("x-everr-route", "/retry-route");
-        xhr.send();
-        if (retry === "abort") xhr.abort();
-      },
-      true,
-    );
-    xhr.open("GET", "/first");
-    xhr.send();
-    xhr.complete(0, "timeout");
-    expect(spans()).toHaveLength(2);
-    const first = spans().find((s) => s.name === "GET /first");
-    expect(first).toMatchObject({
-      error: true,
-      attrs: { "error.type": "TimeoutError" },
-    });
-    expect(first?.attrs["http.response.status_code"]).toBeUndefined();
-    expect(first?.attrs["url.template"]).toBeUndefined();
-    expect(spans().find((s) => s.name !== "GET /first")?.error).toBe(false);
-  });
+  it.each(["sync", "abort"])(
+    "keeps a nested %s retry separate from the original timeout",
+    (retry) => {
+      start();
+      const xhr = new TestXHR();
+      let reopened = false;
+      xhr.addEventListener(
+        "readystatechange",
+        () => {
+          if (xhr.readyState !== 4 || reopened) return;
+          reopened = true;
+          xhr.open("GET", "/retry", retry !== "sync");
+          xhr.responseHeaders.set("x-everr-route", "/retry-route");
+          xhr.send();
+          if (retry === "abort") xhr.abort();
+        },
+        true,
+      );
+      xhr.open("GET", "/first");
+      xhr.send();
+      xhr.complete(0, "timeout");
+      expect(spans()).toHaveLength(2);
+      const first = spans().find((s) => s.name === "GET /first");
+      expect(first).toMatchObject({
+        error: true,
+        attrs: { "error.type": "TimeoutError" },
+      });
+      expect(first?.attrs["http.response.status_code"]).toBeUndefined();
+      expect(first?.attrs["url.template"]).toBeUndefined();
+      expect(spans().find((s) => s.name !== "GET /first")?.error).toBe(false);
+    },
+  );
 
   it("continues requests when header injection fails", () => {
     start();

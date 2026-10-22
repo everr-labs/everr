@@ -7,47 +7,47 @@ Prerequisite: telemetry already flowing into Everr (traces, logs, or metrics).
 ## AlertRule Schema
 
 ```yaml
-kind: AlertRule              # required literal
+kind: AlertRule # required literal
 metadata:
-  name: <slug>               # required; stable alert identity
-  project: <slug>            # optional; namespace, default "default"
+  name: <slug> # required; stable alert identity
+  project: <slug> # optional; namespace, default "default"
 spec:
-  runbook: <slug>            # optional; links a runbook. "slug" = same
-                             #   project; "project/slug" = another project.
-  display:                   # optional
+  runbook: <slug> # optional; links a runbook. "slug" = same
+    #   project; "project/slug" = another project.
+  display: # optional
     name: <human name>
     description: <text>
-  evaluationInterval: 5m     # required; format: <int><s|m|h|d>, minimum 1m
-  for: 0s                    # optional; condition must hold this long before
-                             #   firing. Default 0s (fire immediately).
-  resolveAfter: 1            # optional; consecutive evaluations where an
-                             #   instance does not match before it resolves.
-                             #   Default 1, min 1.
+  evaluationInterval: 5m # required; format: <int><s|m|h|d>, minimum 1m
+  for: 0s # optional; condition must hold this long before
+    #   firing. Default 0s (fire immediately).
+  resolveAfter: 1 # optional; consecutive evaluations where an
+    #   instance does not match before it resolves.
+    #   Default 1, min 1.
   notificationMessage:
-    title: "${ServiceName} is failing"  # required; supports ${column} and ${value}
-    description: "${value} errors in the last window"  # optional; same templating
-  notifications:             # optional direct channels; overrides the
-    channels: [team-slack]   #   Organization's default destination. Existing
-                             #   channel names, unique
-  query: |                   # required ClickHouse SQL, no ${...} templating.
+    title: "${ServiceName} is failing" # required; supports ${column} and ${value}
+    description: "${value} errors in the last window" # optional; same templating
+  notifications: # optional direct channels; overrides the
+    channels: [team-slack] #   Organization's default destination. Existing
+      #   channel names, unique
+  query: | # required ClickHouse SQL, no ${...} templating.
     SELECT ..., error_rate AS value
-  condition:                 # required numeric threshold, evaluated per row
-    operator: gt             # gt | gte | lt | lte | eq | neq
+  condition: # required numeric threshold, evaluated per row
+    operator: gt # gt | gte | lt | lte | eq | neq
     threshold: 0.05
-  instanceLabels: [ServiceName]  # optional instance identity columns. When
-                                 #   omitted, apply infers identity from the
-                                 #   query's string-typed result columns; set it
-                                 #   explicitly to pin identity, or to [] to make
-                                 #   the whole result one instance.
-  maxInterval: 15m           # optional; duration string, ceiling for the engine's
-                             #   adaptive retry backoff. Evaluation health becomes
-                             #   degraded on the first failure. Must be >= evaluationInterval
-                             #   when both parse. Defaults to the engine's own value.
-  annotations:               # optional; free string map passed through to the
-    team: core               #   alert rule. Keys starting with `everr.`,
-                             #   and the exact keys `summary`, `description`,
-                             #   `link.alert`, `link.runbook`, are reserved for
-                             #   Everr's generated annotations and rejected.
+  instanceLabels: [ServiceName] # optional instance identity columns. When
+    #   omitted, apply infers identity from the
+    #   query's string-typed result columns; set it
+    #   explicitly to pin identity, or to [] to make
+    #   the whole result one instance.
+  maxInterval: 15m # optional; duration string, ceiling for the engine's
+    #   adaptive retry backoff. Evaluation health becomes
+    #   degraded on the first failure. Must be >= evaluationInterval
+    #   when both parse. Defaults to the engine's own value.
+  annotations: # optional; free string map passed through to the
+    team: core #   alert rule. Keys starting with `everr.`,
+      #   and the exact keys `summary`, `description`,
+      #   `link.alert`, `link.runbook`, are reserved for
+      #   Everr's generated annotations and rejected.
 ```
 
 All fields are strict: unknown keys are rejected.
@@ -62,12 +62,12 @@ Do not create alert rules for interesting, weird, or purely diagnostic signals; 
 
 For user-facing services, start with the four golden signals:
 
-| Signal | Prefer alerting on | Avoid |
-| --- | --- | --- |
-| Latency | Tail latency such as p95/p99 over a recent window, separated by success/failure when possible | Mean latency, or mixing fast failures into successful request latency |
-| Traffic | Sudden drop to near-zero when traffic is expected, impossible spikes, or missing expected work | Raw high traffic unless it is causing a user-visible problem |
-| Errors | Error rate with a minimum-volume guard | A single error log row or every error occurrence |
-| Saturation | Resource near exhaustion, or expected to exhaust soon | Short CPU/memory blips without user impact |
+| Signal     | Prefer alerting on                                                                             | Avoid                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Latency    | Tail latency such as p95/p99 over a recent window, separated by success/failure when possible  | Mean latency, or mixing fast failures into successful request latency |
+| Traffic    | Sudden drop to near-zero when traffic is expected, impossible spikes, or missing expected work | Raw high traffic unless it is causing a user-visible problem          |
+| Errors     | Error rate with a minimum-volume guard                                                         | A single error log row or every error occurrence                      |
+| Saturation | Resource near exhaustion, or expected to exhaust soon                                          | Short CPU/memory blips without user impact                            |
 
 Keep notification rules simple. A future reader should be able to understand why the query fires, what value crossed the threshold, and what made it stop firing.
 
@@ -101,7 +101,7 @@ metadata:
   name: db-pool-exhausted
   project: platform
 spec:
-  runbook: db-pool-runbook         # → platform/db-pool-runbook
+  runbook: db-pool-runbook # → platform/db-pool-runbook
   evaluationInterval: 1m
   notificationMessage:
     title: "DB connection pool exhausted"
@@ -173,7 +173,7 @@ Each row that matches the condition becomes a firing-instance candidate, identif
 Pick stable identities. A column whose value changes between evaluations (a host or pod name, a sample message) fragments the identity and churns: the old instance resolves and a new one fires every time the value changes, even though the service never recovered.
 
 ```yaml
-instanceLabels: [ServiceName]  # identity is exactly these columns
+instanceLabels: [ServiceName] # identity is exactly these columns
 ```
 
 Every listed column must exist in the result set.
@@ -243,19 +243,19 @@ condition: { operator: gt, threshold: 100 }
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
-| `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
-| `instanceLabels` references a missing column | Every referenced column must exist in the query result set |
-| Adding a column to `instanceLabels` only so a message can reference it | Not needed: `${...}` resolves instance labels first, then `${value}`, then any other returned column via event evidence (capped at 16 non-label columns). Reserve `instanceLabels` for identity; extra entries change alert identity and churn instances |
-| Query has no numeric `value` column | Alias the numeric signal used by the condition to `value` |
-| `evaluationInterval` below `1m` | Use `1m` or higher |
-| Query returns thousands of rows | Add `LIMIT`, tighten the time window, or aggregate harder |
-| Error-rate alert without a minimum-volume guard | Return a guarded signal such as `if(total >= baseline, error_rate, 0)` and threshold it |
-| Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
-| Template variable `${Foo}` but the label column is `foo` (case mismatch) | Match column names exactly |
-| Alert flaps on gappy data | Raise `resolveAfter` (and consider `for`) instead of loosening the query |
-| A rule names a channel that does not exist | Create the channel with that exact name on the Notifications page, or fix the name in `spec.notifications.channels`: an unresolved name delivers to nobody |
-| Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |
-| `maxInterval` shorter than `evaluationInterval` | Raise `maxInterval` to at least `evaluationInterval`, or drop it to use the default |
-| `annotations` key rejected at apply time | Rename it: `everr.*` and the exact keys `summary`, `description`, `link.alert`, `link.runbook` are reserved for generated annotations |
+| Mistake                                                                  | Fix                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `${...}` in the query                                                    | Queries are plain SQL; use `${...}` only in `notificationMessage`                                                                                                                                                                                        |
+| `instanceLabels` references a missing column                             | Every referenced column must exist in the query result set                                                                                                                                                                                               |
+| Adding a column to `instanceLabels` only so a message can reference it   | Not needed: `${...}` resolves instance labels first, then `${value}`, then any other returned column via event evidence (capped at 16 non-label columns). Reserve `instanceLabels` for identity; extra entries change alert identity and churn instances |
+| Query has no numeric `value` column                                      | Alias the numeric signal used by the condition to `value`                                                                                                                                                                                                |
+| `evaluationInterval` below `1m`                                          | Use `1m` or higher                                                                                                                                                                                                                                       |
+| Query returns thousands of rows                                          | Add `LIMIT`, tighten the time window, or aggregate harder                                                                                                                                                                                                |
+| Error-rate alert without a minimum-volume guard                          | Return a guarded signal such as `if(total >= baseline, error_rate, 0)` and threshold it                                                                                                                                                                  |
+| Alerting on mean latency                                                 | Prefer p95/p99 or another tail-latency signal                                                                                                                                                                                                            |
+| Template variable `${Foo}` but the label column is `foo` (case mismatch) | Match column names exactly                                                                                                                                                                                                                               |
+| Alert flaps on gappy data                                                | Raise `resolveAfter` (and consider `for`) instead of loosening the query                                                                                                                                                                                 |
+| A rule names a channel that does not exist                               | Create the channel with that exact name on the Notifications page, or fix the name in `spec.notifications.channels`: an unresolved name delivers to nobody                                                                                               |
+| Expecting re-notification on every evaluation                            | Notifications fire on transitions, not every tick                                                                                                                                                                                                        |
+| `maxInterval` shorter than `evaluationInterval`                          | Raise `maxInterval` to at least `evaluationInterval`, or drop it to use the default                                                                                                                                                                      |
+| `annotations` key rejected at apply time                                 | Rename it: `everr.*` and the exact keys `summary`, `description`, `link.alert`, `link.runbook` are reserved for generated annotations                                                                                                                    |

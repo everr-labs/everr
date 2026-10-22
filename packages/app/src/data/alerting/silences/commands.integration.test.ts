@@ -13,15 +13,13 @@
  * and that is the Organization it says is active.
  */
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { alertSilences } from "#app/db/schema/index.ts";
 import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -32,7 +30,7 @@ vi.mock("#app/lib/clickhouse.ts", async () => {
 
 import { createAlertSilence } from "#app/data/alerting/silences/server.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 /** The Organization the mocked session is acting as. */
 const SESSION_ORG = "test_org";
@@ -40,10 +38,7 @@ const SESSION_ORG = "test_org";
 const PATH = "default/checkout-latency";
 
 async function storedSilence(id: string) {
-  const [row] = await harness()
-    .db.select()
-    .from(alertSilences)
-    .where(eq(alertSilences.id, id));
+  const [row] = await harness().db.select().from(alertSilences).where(eq(alertSilences.id, id));
   return row;
 }
 

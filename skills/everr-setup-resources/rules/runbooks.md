@@ -3,12 +3,13 @@
 An Everr **runbook** is an\markdown document with visualizations embedded directly in the prose.
 
 Don't ask the user to (unless explicitly requested):
+
 - run a SQL query themselves
 - go to a given dashboard or check a telemetry manually
 
 Instead, bake into the runbook visualizations needed to do the investigations/analysis steps.
 
-A runbook is one `kind: Runbook` YAML file plus the `.md` files it points at, named `<slug>.runbook.yaml` in the apply tree. 
+A runbook is one `kind: Runbook` YAML file plus the `.md` files it points at, named `<slug>.runbook.yaml` in the apply tree.
 It renders read-only in the webapp at `/runbooks/<project>/<slug>`.
 
 Runbooks reuse the exact same panel, variable, and query model as dashboards, a panel object inside a runbook **is** a dashboard panel, byte for byte. Read `rules/queries.md` for that model; this file covers the runbook-specific schema and the ```panel embed syntax.
@@ -24,26 +25,26 @@ Each ```panel fence contains a runnable panel whose query is **ClickHouse SQL**.
 ```yaml
 kind: Runbook
 metadata:
-  name: high-error-rate          # slug + URL segment; set it explicitly. File stem mirrors it: high-error-rate.runbook.yaml
-  project: demo                  # optional; defaults to "default"; namespaces identity + URL
+  name: high-error-rate # slug + URL segment; set it explicitly. File stem mirrors it: high-error-rate.runbook.yaml
+  project: demo # optional; defaults to "default"; namespaces identity + URL
 spec:
   display:
     name: "High error rate runbook"
     description: "Triage steps for 5xx spikes"
-  duration: 24h                  # optional; seeds the time-range picker (same as dashboards)
-  refreshInterval: 1m            # optional; seeds auto-refresh
-  variables: [ ... ]             # optional; identical schema to dashboard variables
-  panels:                        # optional; shared panels referenced from markdown via `ref:`
+  duration: 24h # optional; seeds the time-range picker (same as dashboards)
+  refreshInterval: 1m # optional; seeds auto-refresh
+  variables: [...] # optional; identical schema to dashboard variables
+  panels: # optional; shared panels referenced from markdown via `ref:`
     error-rate:
       kind: Panel
-      spec: { ... }              # exactly a dashboard Panel spec
-  markdown:                      # REQUIRED, the index page
-    file: ./high-error-rate.runbook.md  # path relative to this YAML; inlined by the CLI at apply time
-  pages:                         # optional; recursive child pages
-    - name: triage               # page slug; unique among its siblings
+      spec: { ... } # exactly a dashboard Panel spec
+  markdown: # REQUIRED, the index page
+    file: ./high-error-rate.runbook.md # path relative to this YAML; inlined by the CLI at apply time
+  pages: # optional; recursive child pages
+    - name: triage # page slug; unique among its siblings
       display: { name: Triage }
       markdown: { file: ./triage/index.runbook.md }
-      pages:                     # pages nest arbitrarily deep
+      pages: # pages nest arbitrarily deep
         - name: network
           markdown: { file: ./triage/network.runbook.md }
     - name: rollback
@@ -57,7 +58,7 @@ Rules:
 - **`markdown` is `{ file: <path> }`.** Always write each page as its own markdown file next to the YAML, named with the `.runbook.md` suffix, never inline markdown in the YAML. Paths resolve **relative to the YAML** and must stay **inside the apply directory**. The CLI reads each file and inlines its content at apply time. A missing file fails the apply, naming both the YAML and the markdown path.
 - **Link between pages** with a relative path to the sibling page's markdown file (resolved against the current file, e.g. `[Triage](./triage.runbook.md)` or `[Network](./triage/network.runbook.md)`), or by the page's path (`[Triage](triage)`, `[Network](triage/network)`). The viewer rewrites these into in-app navigation. Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 - **`spec.variables` and `spec.panels` are the dashboard schema, reused verbatim.** Variables interpolate `$name` into panel queries server-side, identically to dashboards.
-- **Never put raw ```sql blocks in the prose for someone to run by hand.** If a query is worth showing, embed it as a ```panel, panels render live against the selected time range, while SQL blocks in prose are dead text.
+- **Never put raw `sql blocks in the prose for someone to run by hand.** If a query is worth showing, embed it as a `panel, panels render live against the selected time range, while SQL blocks in prose are dead text.
 
 ## The two ```panel embed forms
 

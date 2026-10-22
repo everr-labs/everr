@@ -11,10 +11,7 @@ const HISTORY_TABLE = "app.alert_events";
 
 function clickhouseRoot(): string {
   // testing/ -> src/ -> package -> packages/ -> repo root
-  return join(
-    dirname(fileURLToPath(import.meta.url)),
-    "../../../../clickhouse",
-  );
+  return join(dirname(fileURLToPath(import.meta.url)), "../../../../clickhouse");
 }
 
 // Strip line comments before splitting statements: comments can contain semicolons.
@@ -78,6 +75,7 @@ interface SqlApiLikeResult {
 }
 
 function readJsonEachRow(out: unknown): Record<string, unknown>[] {
+  // oxlint-disable-next-line typescript/no-base-to-string -- Preserve the embedded driver output coercion.
   const text = String(out ?? "").trim();
   if (text.length === 0) return [];
   return text.split("\n").map((line) => JSON.parse(line));
@@ -193,11 +191,7 @@ export function createChdbDatabase(): ChdbDatabase {
       createSignalTable(
         Object.entries(rows[0]).map(([name, value]) => [
           name,
-          typeof value === "number"
-            ? "Float64"
-            : typeof value === "boolean"
-              ? "Bool"
-              : "String",
+          typeof value === "number" ? "Float64" : typeof value === "boolean" ? "Bool" : "String",
         ]),
       );
       run(
@@ -213,8 +207,7 @@ export function createChdbDatabase(): ChdbDatabase {
       const stamped = rows.map((row) => {
         const eventType = "event_type" in row ? row.event_type : undefined;
         const isEvaluation =
-          eventType === "evaluation_succeeded" ||
-          eventType === "evaluation_failed";
+          eventType === "evaluation_succeeded" || eventType === "evaluation_failed";
         return {
           retention_days: isEvaluation
             ? retention.alertEvaluationDays
@@ -230,15 +223,11 @@ export function createChdbDatabase(): ChdbDatabase {
         deduplicationToken === undefined
           ? ""
           : ` SETTINGS insert_deduplication_token = '${deduplicationToken.replace(/'/g, "\\'")}'`;
-      run(
-        `INSERT INTO ${HISTORY_TABLE}${settings} FORMAT JSONEachRow\n${values}`,
-      );
+      run(`INSERT INTO ${HISTORY_TABLE}${settings} FORMAT JSONEachRow\n${values}`);
     },
     queryRows(statement, params) {
       bindParams(statement, params);
-      return readJsonEachRow(
-        session.query(`${statement} FORMAT JSONEachRow`, "JSONEachRow"),
-      );
+      return readJsonEachRow(session.query(`${statement} FORMAT JSONEachRow`, "JSONEachRow"));
     },
     historyRows() {
       // Insert order is not a property of a MergeTree, so order by the write

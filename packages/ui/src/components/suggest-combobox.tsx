@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "../lib/utils";
@@ -58,8 +59,7 @@ export function SuggestCombobox<TData>({
   disabled,
   displayValue,
 }: SuggestComboboxProps<TData>) {
-  const { open, onOpenChange, search, setSearch, query, offerCustom } =
-    useComboboxCustomEntry();
+  const { open, onOpenChange, search, setSearch, query, offerCustom } = useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -83,6 +83,7 @@ export function SuggestCombobox<TData>({
         render={
           <Button
             variant="outline"
+            // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger supplies aria-controls with the rendered popup's ID.
             role="combobox"
             aria-expanded={open}
             aria-label={label}
@@ -105,10 +106,7 @@ export function SuggestCombobox<TData>({
             {placeholder}
           </span>
         )}
-        <ChevronDownIcon
-          className="text-muted-foreground size-3.5 shrink-0"
-          aria-hidden="true"
-        />
+        <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-(--anchor-width) min-w-48 p-0">
         <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
@@ -124,9 +122,7 @@ export function SuggestCombobox<TData>({
               {isLoading ? "Loading..." : "No suggestions. Type a value."}
             </CommandEmpty>
             <CommandGroup>
-              {showCustom && (
-                <CustomValueItem query={query} onSelect={() => commit(query)} />
-              )}
+              {showCustom && <CustomValueItem query={query} onSelect={() => commit(query)} />}
               {items.map((item) => (
                 <CommandItem
                   key={item.value}
@@ -138,12 +134,7 @@ export function SuggestCombobox<TData>({
                   onSelect={() => commit(item.value)}
                 >
                   <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        "block truncate",
-                        !item.label && "font-mono",
-                      )}
-                    >
+                    <span className={cn("block truncate", !item.label && "font-mono")}>
                       {item.label ?? item.value}
                     </span>
                     {item.hint && (

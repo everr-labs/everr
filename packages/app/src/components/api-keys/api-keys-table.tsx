@@ -20,11 +20,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@everr/ui/components/empty";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
@@ -112,9 +108,7 @@ function ScopeBadges({ row }: { row: ApiKey }) {
         if (!meta) return null;
         return (
           <Tooltip key={scope}>
-            <TooltipTrigger
-              render={<Badge variant="outline" className="gap-1" />}
-            >
+            <TooltipTrigger render={<Badge variant="outline" className="gap-1" />}>
               {Icon ? <Icon /> : null}
               {meta.label}
             </TooltipTrigger>
@@ -148,9 +142,7 @@ function AllowedOrigins({ row }: { row: ApiKey }) {
       {rest.length > 0 && (
         <Tooltip>
           <TooltipTrigger
-            render={
-              <span className="text-muted-foreground cursor-default text-xs" />
-            }
+            render={<span className="text-muted-foreground cursor-default text-xs" />}
           >
             +{rest.length}
           </TooltipTrigger>
@@ -175,9 +167,7 @@ function LastUsed({ row }: { row: ApiKey }) {
   }
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="cursor-default" />}>
-        {relative}
-      </TooltipTrigger>
+      <TooltipTrigger render={<span className="cursor-default" />}>{relative}</TooltipTrigger>
       <TooltipContent>{exactDate(value)}</TooltipContent>
     </Tooltip>
   );
@@ -190,11 +180,7 @@ function Expiry({ row }: { row: ApiKey }) {
   if (expired) {
     return (
       <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="text-destructive cursor-default font-medium" />
-          }
-        >
+        <TooltipTrigger render={<span className="text-destructive cursor-default font-medium" />}>
           Expired
         </TooltipTrigger>
         <TooltipContent>{exactDate(value)}</TooltipContent>
@@ -240,12 +226,10 @@ function RevokeAction({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>
-            Revoke “{row.name ?? "this key"}”?
-          </AlertDialogTitle>
+          <AlertDialogTitle>Revoke “{row.name ?? "this key"}”?</AlertDialogTitle>
           <AlertDialogDescription>
-            Any {audience} still using this key will start getting 401s within
-            about 30 seconds. This cannot be undone.
+            Any {audience} still using this key will start getting 401s within about 30 seconds.
+            This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -273,9 +257,7 @@ function secretColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
     { header: "Created", cell: (row) => <Created row={row} /> },
     {
       header: <span className="sr-only">Actions</span>,
-      cell: (row) => (
-        <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />
-      ),
+      cell: (row) => <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />,
       cellClassName: "py-2 pr-3 text-right",
       className: "pb-2 pr-3",
     },
@@ -291,9 +273,7 @@ function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
     { header: "Created", cell: (row) => <Created row={row} /> },
     {
       header: <span className="sr-only">Actions</span>,
-      cell: (row) => (
-        <RevokeAction row={row} kind="public" onRevoke={onRevoke} />
-      ),
+      cell: (row) => <RevokeAction row={row} kind="public" onRevoke={onRevoke} />,
       cellClassName: "py-2 pr-3 text-right",
       className: "pb-2 pr-3",
     },
@@ -338,8 +318,7 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
 
   const handleRevoke: RevokeFn = (id, name) => {
     revoke.mutate(id, {
-      onSuccess: () =>
-        toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
+      onSuccess: () => toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
       onError: (err) => toast.error(err.message),
     });
   };
@@ -359,8 +338,8 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
             />
           ) : (
             <SectionEmpty icon={KeyRound} title="No organization keys yet">
-              Create one to send OpenTelemetry data from servers, CLIs, and
-              collectors, or to manage dashboards, runbooks, and alerts with{" "}
+              Create one to send OpenTelemetry data from servers, CLIs, and collectors, or to manage
+              dashboards, runbooks, and alerts with{" "}
               <code className="font-mono text-[0.7rem]">everr apply</code>.
             </SectionEmpty>
           )}
@@ -375,9 +354,9 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
               Public keys
             </h2>
             <p className="text-muted-foreground max-w-prose text-sm/relaxed">
-              Safe to put in a web page. A public key can only send telemetry,
-              and only from the browser origins you allow. It can't read data or
-              run <code className="font-mono text-xs">everr apply</code>.
+              Safe to put in a web page. A public key can only send telemetry, and only from the
+              browser origins you allow. It can&apos;t read data or run{" "}
+              <code className="font-mono text-xs">everr apply</code>.
             </p>
           </div>
           <CreateApiKeyDialog
@@ -397,8 +376,8 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
               />
             ) : (
               <SectionEmpty icon={Globe} title="No public keys yet">
-                Create one to send telemetry straight from a web page: page
-                views, web vitals, and front-end errors.
+                Create one to send telemetry straight from a web page: page views, web vitals, and
+                front-end errors.
               </SectionEmpty>
             )}
           </CardContent>

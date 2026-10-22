@@ -48,16 +48,12 @@ function guarded<Args extends unknown[], Result>(
     try {
       return await run(...args);
     } catch (cause) {
-      const details = z
-        .object({ statusCode: z.number().optional() })
-        .safeParse(cause);
+      const details = z.object({ statusCode: z.number().optional() }).safeParse(cause);
       const status = details.success ? details.data.statusCode : undefined;
       serverLogger.error("billing.provider.failed", {
         "everr.billing.operation": operation,
         "error.type": cause instanceof Error ? cause.name : "UnknownError",
-        ...(status === undefined
-          ? {}
-          : { "http.response.status_code": status }),
+        ...(status === undefined ? {} : { "http.response.status_code": status }),
       });
       if (cause instanceof BillingError) throw cause;
       throw new BillingError(
@@ -72,8 +68,7 @@ function guarded<Args extends unknown[], Result>(
 }
 export function createPolarGateway(client: Polar = polarClient): PolarGateway {
   const gateway: PolarGateway = {
-    findCustomer: (externalId) =>
-      missing(() => client.customers.getExternal({ externalId })),
+    findCustomer: (externalId) => missing(() => client.customers.getExternal({ externalId })),
     getCustomer: (id) => client.customers.get({ id }),
     createTeam: ({ orgId, name, owner }) =>
       client.customers.create({
@@ -105,25 +100,20 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
       // The installed SDK omits email from MemberUpdate. Use the documented
       // endpoint with a validated response rather than casting away that contract.
       if (input.email === undefined)
-        return normalizeMember(
-          await client.members.updateMember({ id, memberUpdate: input }),
-        );
+        return normalizeMember(await client.members.updateMember({ id, memberUpdate: input }));
       const base =
         cloudEnv.POLAR_SERVER === "sandbox"
           ? "https://sandbox-api.polar.sh"
           : "https://api.polar.sh";
-      const response = await fetch(
-        `${base}/v1/members/${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${cloudEnv.POLAR_ACCESS_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(input),
-          signal: AbortSignal.timeout(15000),
+      const response = await fetch(`${base}/v1/members/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${cloudEnv.POLAR_ACCESS_TOKEN}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(15000),
+      });
       if (!response.ok)
         throw new BillingError(
           response.status === 422 ? "identity_conflict" : "unavailable",
@@ -143,8 +133,7 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
       await missing(() => client.members.deleteMember({ id }));
     },
     async portal(customerId, memberId) {
-      return (await client.customerSessions.create({ customerId, memberId }))
-        .customerPortalUrl;
+      return (await client.customerSessions.create({ customerId, memberId })).customerPortalUrl;
     },
     checkout: (id) => client.checkouts.get({ id }),
     async checkouts(customerId) {
@@ -172,11 +161,7 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
       client.checkouts.update({ id, checkoutUpdate: { successUrl } }),
     async checkoutSubscription(checkout) {
       if (!checkout.customerId || !checkout.productId) return null;
-      const matches = (s: {
-        checkoutId?: string | null;
-        customerId: string;
-        productId: string;
-      }) =>
+      const matches = (s: { checkoutId?: string | null; customerId: string; productId: string }) =>
         s.checkoutId === checkout.id &&
         s.customerId === checkout.customerId &&
         s.productId === checkout.productId;
@@ -218,18 +203,9 @@ export function createPolarGateway(client: Polar = polarClient): PolarGateway {
     checkout: guarded("checkout", gateway.checkout),
     checkouts: guarded("checkouts", gateway.checkouts),
     createCheckout: guarded("createCheckout", gateway.createCheckout),
-    updateCheckoutSuccessUrl: guarded(
-      "updateCheckoutSuccessUrl",
-      gateway.updateCheckoutSuccessUrl,
-    ),
+    updateCheckoutSuccessUrl: guarded("updateCheckoutSuccessUrl", gateway.updateCheckoutSuccessUrl),
     subscription: guarded("subscription", gateway.subscription),
-    checkoutSubscription: guarded(
-      "checkoutSubscription",
-      gateway.checkoutSubscription,
-    ),
-    revokeSubscription: guarded(
-      "revokeSubscription",
-      gateway.revokeSubscription,
-    ),
+    checkoutSubscription: guarded("checkoutSubscription", gateway.checkoutSubscription),
+    revokeSubscription: guarded("revokeSubscription", gateway.revokeSubscription),
   };
 }

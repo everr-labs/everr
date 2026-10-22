@@ -2,7 +2,7 @@ import { QUICK_RANGE_GROUPS } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { TimeRangePicker } from "./time-range-picker";
 
 const mockSetTimeRange = vi.fn();
@@ -23,9 +23,7 @@ function renderPicker(
   mockTimeRange = value;
   mockSetTimeRange.mockReset();
   if (onChange !== mockSetTimeRange) {
-    mockSetTimeRange.mockImplementation((...args: unknown[]) =>
-      onChange(...args),
-    );
+    mockSetTimeRange.mockImplementation((...args: unknown[]) => onChange(...args));
   }
   const user = userEvent.setup({ skipHover: true });
   render(<TimeRangePicker />);
@@ -44,9 +42,7 @@ function setInputValue(input: HTMLElement, value: string) {
 describe("TimeRangePicker", () => {
   it("renders the trigger with the current range label", () => {
     renderPicker();
-    expect(
-      screen.getByRole("button", { name: /last 7 days/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /last 7 days/i })).toBeInTheDocument();
   });
 
   it("shows group labels when opened", async () => {
@@ -65,9 +61,7 @@ describe("TimeRangePicker", () => {
     const dialog = within(screen.getByRole("dialog"));
     for (const group of QUICK_RANGE_GROUPS) {
       for (const range of group.ranges) {
-        expect(
-          dialog.getByRole("button", { name: range.label }),
-        ).toBeInTheDocument();
+        expect(dialog.getByRole("button", { name: range.label })).toBeInTheDocument();
       }
     }
   });
@@ -87,18 +81,10 @@ describe("TimeRangePicker", () => {
 
       setInputValue(screen.getByRole("searchbox", { name: "search" }), "hour");
 
-      expect(
-        screen.getByRole("button", { name: "Last 1 hour" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Last 6 hours" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Last 7 days" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Today" }),
-      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Last 1 hour" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Last 6 hours" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Last 7 days" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Today" })).not.toBeInTheDocument();
     });
 
     it("shows 'No matches' when search has no results", async () => {
@@ -125,14 +111,9 @@ describe("TimeRangePicker", () => {
       const { user } = renderPicker();
       await openPicker(user);
 
-      setInputValue(
-        screen.getByRole("searchbox", { name: "search" }),
-        "YESTERDAY",
-      );
+      setInputValue(screen.getByRole("searchbox", { name: "search" }), "YESTERDAY");
 
-      expect(
-        screen.getByRole("button", { name: "Yesterday" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Yesterday" })).toBeInTheDocument();
     });
   });
 
@@ -170,18 +151,14 @@ describe("TimeRangePicker", () => {
       const fromInput = screen.getByLabelText("From");
       setInputValue(fromInput, "invalid");
 
-      expect(
-        screen.getByRole("button", { name: "Apply time range" }),
-      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Apply time range" })).toBeDisabled();
     });
 
     it("enables Apply button with valid expressions", async () => {
       const { user } = renderPicker();
       await openPicker(user);
 
-      expect(
-        screen.getByRole("button", { name: "Apply time range" }),
-      ).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "Apply time range" })).not.toBeDisabled();
     });
 
     it("shows error and disables Apply when from is after to", async () => {
@@ -194,12 +171,8 @@ describe("TimeRangePicker", () => {
       const toInput = screen.getByLabelText("To");
       setInputValue(toInput, "now-7d");
 
-      expect(
-        screen.getByText(/"From" must be before "To"/),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Apply time range" }),
-      ).toBeDisabled();
+      expect(screen.getByText(/"From" must be before "To"/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Apply time range" })).toBeDisabled();
     });
 
     it("calls onChange with custom values on Apply", async () => {
@@ -209,9 +182,7 @@ describe("TimeRangePicker", () => {
       const fromInput = screen.getByLabelText("From");
       setInputValue(fromInput, "now-3h");
 
-      await user.click(
-        screen.getByRole("button", { name: "Apply time range" }),
-      );
+      await user.click(screen.getByRole("button", { name: "Apply time range" }));
 
       expect(onChange).toHaveBeenCalledWith({ from: "now-3h", to: "now" });
     });

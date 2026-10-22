@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   cancelSilenceById,
   cancelSilenceTarget,
@@ -77,12 +77,7 @@ describe("Silence cancel commands", () => {
   });
 
   it("offers no recreation for an unknown scope or a future window", () => {
-    expect(
-      recreateCancelledSilence(
-        cancelSilenceById("silence-1", "API latency"),
-        NOW,
-      ),
-    ).toBeNull();
+    expect(recreateCancelledSilence(cancelSilenceById("silence-1", "API latency"), NOW)).toBeNull();
     expect(
       recreateCancelledSilence(
         cancelSilenceTarget(
@@ -101,10 +96,7 @@ describe("Silence cancel commands", () => {
   it("offers no recreation after the original window has closed", () => {
     expect(
       recreateCancelledSilence(
-        cancelSilenceTarget(
-          { ...record, endsAt: "2026-09-04T11:59:59Z" },
-          "API latency",
-        ),
+        cancelSilenceTarget({ ...record, endsAt: "2026-09-04T11:59:59Z" }, "API latency"),
         NOW,
       ),
     ).toBeNull();

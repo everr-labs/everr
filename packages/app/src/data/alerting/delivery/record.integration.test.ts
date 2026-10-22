@@ -6,19 +6,17 @@
  * production writers in `server/alerting/history/clickhouse.ts` and put in
  * directly, the way `triage/history.integration.test.ts` does it.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import {
   type AlertHistoryDefinition,
   journalTerminalRow,
 } from "#app/server/alerting/history/clickhouse.ts";
 import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -29,7 +27,7 @@ vi.mock("#app/lib/clickhouse.ts", async () => {
 
 import { loadUndeliveredRecords } from "#app/data/alerting/delivery/record.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const MINUTE = 60_000;
 const PATH = "default/checkout-latency";
@@ -48,9 +46,7 @@ function windowOf(fromMinutes: number, toMinutes = 0) {
   };
 }
 
-function definition(
-  overrides: Partial<AlertHistoryDefinition> = {},
-): AlertHistoryDefinition {
+function definition(overrides: Partial<AlertHistoryDefinition> = {}): AlertHistoryDefinition {
   return {
     id: "8b2f2f5e-1f2a-4d8b-9a3c-2f6b1c4d5e60",
     organizationId: TEST_ORG,
@@ -88,10 +84,9 @@ describe("what reached delivery with nothing to carry it", () => {
     write(
       journalTerminalRow(chain(minutesAgo(10)), { reason: "no_channels" }),
       journalTerminalRow(chain(minutesAgo(9)), { reason: "no_channels" }),
-      journalTerminalRow(
-        chain(minutesAgo(8), { slug: "default/other", severity: "info" }),
-        { reason: "no_channels" },
-      ),
+      journalTerminalRow(chain(minutesAgo(8), { slug: "default/other", severity: "info" }), {
+        reason: "no_channels",
+      }),
       // Ended for another reason: not a delivery gap.
       journalTerminalRow(chain(minutesAgo(7)), { reason: "no_longer_firing" }),
       // Outside the window.

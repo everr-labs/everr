@@ -1,51 +1,21 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
-import type { ApiKeyRow } from "#app/db/schema/auth.ts";
 import { auth } from "#app/identity/server.ts";
-import {
-  ALL_API_KEY_SCOPES,
-  API_KEY_SCOPES,
-  type ApiKeyPermissions,
-  type ApiKeyScope,
-} from "#app/lib/api-key-scopes.ts";
-import {
-  buildPublicKeyMetadata,
-  type PublicKeyMetadata,
-  publicKeyInputError,
-} from "#app/lib/public-ingest-keys.ts";
+import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
+import { buildPublicKeyMetadata, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
 
-/**
- * The shape of an `ek_` key as the UI receives it. Derived from the DB row
- * (`ApiKeyRow`) so column names stay in lock-step with the schema, but the
- * list endpoint transforms two groups of fields on the way out: JSON
- * serializes `timestamp` columns to ISO strings, and better-auth parses the
- * `permissions` text column into an object. Override exactly those fields.
- */
-export type ApiKey = Omit<
-  ApiKeyRow,
-  "createdAt" | "expiresAt" | "lastRequest" | "permissions" | "metadata"
-> & {
-  createdAt?: string | Date | null;
-  expiresAt?: string | Date | null;
-  lastRequest?: string | Date | null;
-  permissions?: ApiKeyPermissions;
-  metadata?: PublicKeyMetadata | string | null;
-};
+import type { ApiKey } from "./api-key-schemas";
+
+export type { ApiKey } from "./api-key-schemas";
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
 
 const CreateApiKeyInput = z
   .object({
     name: z.string().trim().min(1, "Name is required"),
-    expiresInDays: z
-      .number()
-      .int()
-      .positive("Expiry must be a positive number of days")
-      .optional(),
-    scopes: z
-      .array(SCOPE_INPUT)
-      .min(1, "Pick at least one capability for the key"),
+    expiresInDays: z.number().int().positive("Expiry must be a positive number of days").optional(),
+    scopes: z.array(SCOPE_INPUT).min(1, "Pick at least one capability for the key"),
     public: z.boolean().optional(),
     allowedOrigins: z
       .array(z.string().trim().min(1))
@@ -91,13 +61,9 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
     const permissions = permissionsForScopes(data.scopes);
 
     const expiresIn =
-      data.expiresInDays !== undefined
-        ? data.expiresInDays * 24 * 60 * 60
-        : undefined;
+      data.expiresInDays !== undefined ? data.expiresInDays * 24 * 60 * 60 : undefined;
 
-    const metadata = data.public
-      ? buildPublicKeyMetadata(data.allowedOrigins ?? [])
-      : undefined;
+    const metadata = data.public ? buildPublicKeyMetadata(data.allowedOrigins ?? []) : undefined;
 
     // `permissions` is a server-only field: better-auth rejects it when the
     // create call carries a request/headers (it treats that as a client
@@ -116,6 +82,7 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       },
     });
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the provider creation response contract without new runtime validation.
     const created = result as {
       key?: string | null;
       id?: string;
@@ -149,6 +116,7 @@ export const listApiKeys = createOrganizationAdminServerFn({
     },
     headers: getRequestHeaders(),
   });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider rows and metadata verbatim rather than projecting or validating them.
   const keys = (result?.apiKeys ?? []) as ApiKey[];
   // Defense-in-depth: the query already scopes to our configId, but pin it.
   return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);

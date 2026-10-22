@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
@@ -33,9 +34,7 @@ function PreviewableLayout() {
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
     fullBleed ||= match.staticData.fullBleed ?? false;
-    const data = match.loaderData as
-      | { previewStatus?: PreviewStatus }
-      | undefined;
+    const data = match.loaderData as { previewStatus?: PreviewStatus } | undefined;
     if (data?.previewStatus !== undefined) status = data.previewStatus;
     if (match.staticData?.hidePreviewFrame !== undefined) {
       hidePreviewFrame = match.staticData.hidePreviewFrame;
@@ -62,13 +61,7 @@ function PreviewableLayout() {
       dismissed={dismissed}
       onDismiss={dismiss}
       actions={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          onClick={exit}
-        >
+        <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={exit}>
           <LogOut data-icon="inline-start" />
           Exit preview
         </Button>

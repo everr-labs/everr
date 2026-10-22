@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const applyResources = vi.fn();
 vi.mock("#app/data/as-code/registry.ts", () => ({
@@ -60,9 +60,7 @@ describe("POST /api/apply", () => {
   it("applies and returns the per-kind summary with the org", async () => {
     applyResources.mockResolvedValueOnce({
       dryRun: true,
-      results: [
-        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-      ],
+      results: [{ kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] }],
     });
     const res = await POST({
       request: req({
@@ -93,9 +91,7 @@ describe("POST /api/apply", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       dryRun: true,
-      results: [
-        { kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] },
-      ],
+      results: [{ kind: "Dashboard", created: ["cpu"], updated: [], deleted: [] }],
       preview: "",
       organization: { id: "org-1", name: "Acme" },
     });
@@ -171,9 +167,7 @@ describe("POST /api/apply", () => {
 
   it("returns an opaque 500 on an infrastructure error (no leak)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-    applyResources.mockRejectedValueOnce(
-      new Error("connect ECONNREFUSED 10.0.0.5:5432"),
-    );
+    applyResources.mockRejectedValueOnce(new Error("connect ECONNREFUSED 10.0.0.5:5432"));
     const res = await POST({
       request: req({
         repoid: "repo-1",
@@ -239,9 +233,7 @@ describe("POST /api/apply", () => {
         context: { ...ctx, applyActions: ["read"] },
       });
       expect(res.status).toBe(200);
-      expect(applyResources).toHaveBeenCalledWith(
-        expect.objectContaining({ dryRun: true }),
-      );
+      expect(applyResources).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     });
 
     it("lets a write key run a mutative apply", async () => {
@@ -293,9 +285,7 @@ describe("POST /api/apply", () => {
       context: ctx,
     });
     expect(res.status).toBe(200);
-    expect(applyResources).toHaveBeenCalledWith(
-      expect.objectContaining({ preview: "gio/x" }),
-    );
+    expect(applyResources).toHaveBeenCalledWith(expect.objectContaining({ preview: "gio/x" }));
     expect(await res.json()).toMatchObject({ preview: "gio/x" });
   });
 

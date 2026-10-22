@@ -9,10 +9,7 @@ import {
   TraceFlags,
   trace,
 } from "@opentelemetry/api";
-import {
-  mergeTelemetryIdentity,
-  withTelemetryIdentityScope,
-} from "#app/telemetry/identity.ts";
+import { mergeTelemetryIdentity, withTelemetryIdentityScope } from "#app/telemetry/identity.ts";
 
 /**
  * Every alerting hop is a queue hop, so a job's span links to its enqueuer
@@ -48,14 +45,10 @@ const notifications = meter.createCounter("alerts.notifications", {
 // The only duration kept as a metric. A job's own elapsed time is already the
 // span's Duration, measured better (percentiles, and per tenant); this one
 // spans four jobs and two queue waits, so no single span holds it.
-const notificationLatency = meter.createHistogram(
-  "alerts.notification.latency",
-  {
-    description:
-      "Time from the observation that opened an alert to its notification being delivered",
-    unit: "s",
-  },
-);
+const notificationLatency = meter.createHistogram("alerts.notification.latency", {
+  description: "Time from the observation that opened an alert to its notification being delivered",
+  unit: "s",
+});
 
 /**
  * Metric attributes stay bounded on purpose: no rule id, no organization, no
@@ -65,11 +58,7 @@ const notificationLatency = meter.createHistogram(
  */
 type EvaluationOutcome = "ok" | "query_failed" | "invalid_payload" | "skipped";
 
-type NotificationOutcome =
-  | "delivered"
-  | "failed_transient"
-  | "failed_permanent"
-  | "withheld";
+type NotificationOutcome = "delivered" | "failed_transient" | "failed_permanent" | "withheld";
 
 export function recordAlertEvaluation(outcome: EvaluationOutcome): void {
   evaluations.add(1, { "everr.alert.outcome": outcome });
@@ -213,18 +202,10 @@ export function setAlertSpanAttributes(opts: {
     ...(opts.slug ? { "everr.alert.rule": opts.slug } : {}),
     ...(opts.episodeId ? { "everr.alert.episode_id": opts.episodeId } : {}),
     ...(opts.eventId ? { "everr.alert.event_id": opts.eventId } : {}),
-    ...(opts.channelType
-      ? { "everr.alert.channel.type": opts.channelType }
-      : {}),
-    ...(opts.batchSize === undefined
-      ? {}
-      : { "everr.alert.batch.size": opts.batchSize }),
-    ...(opts.batchCapped === undefined
-      ? {}
-      : { "everr.alert.batch.capped": opts.batchCapped }),
-    ...(opts.deliveries === undefined
-      ? {}
-      : { "everr.alert.deliveries": opts.deliveries }),
+    ...(opts.channelType ? { "everr.alert.channel.type": opts.channelType } : {}),
+    ...(opts.batchSize === undefined ? {} : { "everr.alert.batch.size": opts.batchSize }),
+    ...(opts.batchCapped === undefined ? {} : { "everr.alert.batch.capped": opts.batchCapped }),
+    ...(opts.deliveries === undefined ? {} : { "everr.alert.deliveries": opts.deliveries }),
     ...(opts.scheduleLagMs === undefined
       ? {}
       : { "everr.alert.schedule_lag_ms": opts.scheduleLagMs }),
@@ -233,8 +214,6 @@ export function setAlertSpanAttributes(opts: {
       : { "everr.alert.fire_to_page_ms": opts.fireToPageMs }),
     ...(opts.outcome ? { "everr.alert.outcome": opts.outcome } : {}),
     ...(opts.fired === undefined ? {} : { "everr.alert.fired": opts.fired }),
-    ...(opts.resolved === undefined
-      ? {}
-      : { "everr.alert.resolved": opts.resolved }),
+    ...(opts.resolved === undefined ? {} : { "everr.alert.resolved": opts.resolved }),
   });
 }

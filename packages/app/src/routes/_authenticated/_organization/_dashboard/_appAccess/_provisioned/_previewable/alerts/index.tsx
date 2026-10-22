@@ -13,14 +13,8 @@ import { RuleInventory } from "#app/components/alerts/rule-inventory.tsx";
 import { SilenceDialog } from "#app/components/alerts/silence-dialog.tsx";
 import { TriageList } from "#app/components/alerts/triage-list.tsx";
 import { ResourceEmptyState } from "#app/components/resource-empty-state.tsx";
-import {
-  cancelSilenceById,
-  ruleSilenceSeed,
-} from "#app/data/alerting/silences/commands.ts";
-import {
-  alertTriageOptions,
-  ruleStateHistoryOptions,
-} from "#app/data/alerting/triage/options.ts";
+import { cancelSilenceById, ruleSilenceSeed } from "#app/data/alerting/silences/commands.ts";
+import { alertTriageOptions, ruleStateHistoryOptions } from "#app/data/alerting/triage/options.ts";
 import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
@@ -117,9 +111,7 @@ function AlertingTriagePage() {
                   // not how it was written, and an Undo that guessed the scope
                   // would mute more than the reader muted.
                   if (alert?.silence)
-                    silence.cancel(
-                      cancelSilenceById(alert.silence.id, alert.name),
-                    );
+                    silence.cancel(cancelSilenceById(alert.silence.id, alert.name));
                 }}
               />
             )
@@ -138,10 +130,7 @@ function AlertingTriagePage() {
           )}
         </ScrollArea>
       </AlertDetailShell>
-      <SilenceDialog
-        {...silence.dialogProps}
-        instanceCount={silenceAlert?.instances ?? 0}
-      />
+      <SilenceDialog {...silence.dialogProps} instanceCount={silenceAlert?.instances ?? 0} />
     </>
   );
 }

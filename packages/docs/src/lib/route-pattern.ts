@@ -13,9 +13,7 @@ import { setRouteResolver } from "@everr/otel-web";
 // imports nothing from the router.
 
 type RouterLike = {
-  matchRoutes(
-    pathname: string,
-  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
+  matchRoutes(pathname: string): ReadonlyArray<{ routeId: string; fullPath: string }>;
 };
 
 /** Call this from `getRouter()` immediately after you make the router. */
@@ -26,9 +24,7 @@ export function registerRouter(router: RouterLike): void {
       // matchRoutes falls through to the root match on unknown paths; an
       // unmatched page has no pattern rather than a fake one. The fullPath
       // keeps pathless layout segments out of the pattern.
-      return match === undefined || match.routeId === "__root__"
-        ? undefined
-        : match.fullPath;
+      return match === undefined || match.routeId === "__root__" ? undefined : match.fullPath;
     },
   });
 }

@@ -49,7 +49,7 @@ spec:
           description: "nameColumn: route · valueColumn: requests · unit: {request}"
         plugin:
           kind: Treemap
-          spec: { nameColumn: route, valueColumn: requests, valueFormat: { unit: '{request}' } }
+          spec: { nameColumn: route, valueColumn: requests, valueFormat: { unit: "{request}" } }
         queries:
           - kind: TestData
             spec:
@@ -72,7 +72,7 @@ spec:
           description: "groupColumn: service → one color per group · showLegend: true"
         plugin:
           kind: Treemap
-          spec: { groupColumn: service, showLegend: true, valueFormat: { unit: '{request}' } }
+          spec: { groupColumn: service, showLegend: true, valueFormat: { unit: "{request}" } }
         queries:
           - kind: TestData
             spec:
@@ -216,7 +216,7 @@ spec:
           description: "maxTiles: 6 → top 5 tiles + muted 'Other (7)' tile for the long tail"
         plugin:
           kind: Treemap
-          spec: { maxTiles: 6, valueFormat: { unit: '{request}' } }
+          spec: { maxTiles: 6, valueFormat: { unit: "{request}" } }
         queries:
           - kind: TestData
             spec:
@@ -261,7 +261,7 @@ spec:
           description: "valueFormat: none, unit: {connection}, decimals: 2"
         plugin:
           kind: Treemap
-          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 } }
+          spec: { valueFormat: { unit: "{connection}", scale: none, decimals: 2 } }
         queries:
           - kind: TestData
             spec:
@@ -270,7 +270,8 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, values: [api, worker, web] }, { name: value, const: 12500 }]
+                  columns:
+                    [{ name: name, values: [api, worker, web] }, { name: value, const: 12500 }]
     format-decimal:
       kind: Panel
       spec:
@@ -288,7 +289,8 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, values: [api, worker, web] }, { name: value, const: 12500 }]
+                  columns:
+                    [{ name: name, values: [api, worker, web] }, { name: value, const: 12500 }]
     format-binary:
       kind: Panel
       spec:
@@ -306,7 +308,8 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, values: [api, worker, web] }, { name: value, const: 2621440 }]
+                  columns:
+                    [{ name: name, values: [api, worker, web] }, { name: value, const: 2621440 }]
     format-duration:
       kind: Panel
       spec:
@@ -324,7 +327,8 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, values: [api, worker, web] }, { name: value, const: 0.025 }]
+                  columns:
+                    [{ name: name, values: [api, worker, web] }, { name: value, const: 0.025 }]
     format-percent:
       kind: Panel
       spec:
@@ -385,19 +389,85 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 24, height: 12, content: { $ref: "#/spec/panels/treemap-grouped" } }
-          - { x: 0,  y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-defaults" } }
-          - { x: 12, y: 12, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-columns-unit" } }
-          - { x: 0,  y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-grouped-nolegend" } }
-          - { x: 12, y: 21, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-novalues" } }
-          - { x: 0,  y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-multiquery" } }
-          - { x: 12, y: 30, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-duplicates" } }
-          - { x: 0,  y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-maxtiles" } }
-          - { x: 12, y: 39, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-dropped" } }
-          - { x: 0,  y: 48, width: 12, height: 9,  content: { $ref: "#/spec/panels/treemap-empty" } }
+          - {
+              x: 0,
+              y: 0,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/treemap-grouped" },
+            }
+          - {
+              x: 0,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-defaults" },
+            }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-columns-unit" },
+            }
+          - {
+              x: 0,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-grouped-nolegend" },
+            }
+          - {
+              x: 12,
+              y: 21,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-novalues" },
+            }
+          - {
+              x: 0,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-multiquery" },
+            }
+          - {
+              x: 12,
+              y: 30,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-duplicates" },
+            }
+          - {
+              x: 0,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-maxtiles" },
+            }
+          - {
+              x: 12,
+              y: 39,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/treemap-dropped" },
+            }
+          - { x: 0, y: 48, width: 12, height: 9, content: { $ref: "#/spec/panels/treemap-empty" } }
           - { x: 0, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
-          - { x: 12, y: 57, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - {
+              x: 12,
+              y: 57,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-decimal" },
+            }
           - { x: 0, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
-          - { x: 12, y: 66, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - {
+              x: 12,
+              y: 66,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-duration" },
+            }
           - { x: 0, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildHistogramQuery, fillHistogramBuckets } from "./histogram";
 
 // Bucket-width selection (`bucketSeconds`) is shared with the dashboards panel

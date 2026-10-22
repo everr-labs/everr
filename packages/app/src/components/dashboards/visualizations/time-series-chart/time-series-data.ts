@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+/* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
@@ -16,10 +18,10 @@ function detectInterval(timestamps: number[]): number | null {
   if (timestamps.length < 2) return null;
   const diffs: number[] = [];
   for (let i = 1; i < timestamps.length; i++) {
-    diffs.push(timestamps[i]! - timestamps[i - 1]!);
+    diffs.push(timestamps[i] - timestamps[i - 1]);
   }
   diffs.sort((a, b) => a - b);
-  return diffs[Math.floor(diffs.length / 2)]!;
+  return diffs[Math.floor(diffs.length / 2)];
 }
 
 /** Sort the merged timeline and clamp it to the domain (no gap markers — this
@@ -72,9 +74,9 @@ function buildSeriesData(
 
   const result: Array<Record<string, unknown>> = [];
   for (let i = 0; i < points.length; i++) {
-    const [ts, value] = points[i]!;
+    const [ts, value] = points[i];
     if (i > 0 && interval && gapThreshold) {
-      const prevTs = points[i - 1]![0];
+      const prevTs = points[i - 1][0];
       if (ts - prevTs > gapThreshold) {
         result.push({ [TS_KEY]: prevTs + interval, [renderKey]: null });
       }
@@ -157,7 +159,8 @@ export function buildChartModel(
         ...row,
         [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
       }));
-      const piv = pivotByGroup(keyed, tk, compositeKey, rawValueKeys[0]!);
+      const [valueKey] = rawValueKeys;
+      const piv = pivotByGroup(keyed, tk, compositeKey, valueKey);
       rows = piv.pivoted;
       seriesNames = piv.seriesKeys;
     } else {
@@ -194,9 +197,7 @@ export function buildChartModel(
         if (!(name in row)) continue;
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        samplesByKey
-          .get(renderKeyByName.get(name)!)!
-          .set(ts, toNumber(row[name]));
+        samplesByKey.get(renderKeyByName.get(name)!)!.set(ts, toNumber(row[name]));
       }
     }
   });

@@ -45,17 +45,12 @@ export class ChannelSendError extends Error {
  * costs one attempt rather than the whole retry budget.
  */
 export function isPermanentStatus(status: number): boolean {
-  return (
-    status >= 400 &&
-    status < 500 &&
-    !RETRYABLE_CLIENT_ERROR_STATUSES.has(status)
-  );
+  return status >= 400 && status < 500 && !RETRYABLE_CLIENT_ERROR_STATUSES.has(status);
 }
 
 function blockedIpv4(address: string): boolean {
   const octets = address.split(".").map(Number);
-  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value)))
-    return true;
+  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value))) return true;
   const [a, b, c] = octets;
   return (
     a === 0 ||
@@ -126,18 +121,13 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
   // and falls through to a DNS lookup for "[::1]". That fails with a name
   // error instead of saying the address is internal.
   const literal =
-    hostname.startsWith("[") && hostname.endsWith("]")
-      ? hostname.slice(1, -1)
-      : hostname;
+    hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
   if (isIP(literal) && blockedAddress(literal)) {
     throw new Error("notification URL must not target an internal address");
   }
   if (!isIP(literal)) {
     const addresses = await lookup(hostname, { all: true, verbatim: true });
-    if (
-      addresses.length === 0 ||
-      addresses.some((item) => blockedAddress(item.address))
-    ) {
+    if (addresses.length === 0 || addresses.some((item) => blockedAddress(item.address))) {
       throw new Error("notification URL resolved to an internal address");
     }
   }
@@ -158,13 +148,10 @@ export async function postJson(urlRaw: string, body: unknown): Promise<void> {
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new ChannelSendError(
-      `notification webhook failed: ${response.status}`,
-      {
-        permanent: isPermanentStatus(response.status),
-        status: response.status,
-        responseBody: await response.text().catch(() => ""),
-      },
-    );
+    throw new ChannelSendError(`notification webhook failed: ${response.status}`, {
+      permanent: isPermanentStatus(response.status),
+      status: response.status,
+      responseBody: await response.text().catch(() => ""),
+    });
   }
 }

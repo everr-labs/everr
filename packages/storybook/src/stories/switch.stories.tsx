@@ -37,15 +37,13 @@ export const WithLabel: Story = {
 };
 
 export const Controlled: Story = {
-  render: (args) => {
+  render: function SwitchStory(args) {
     const [checked, setChecked] = React.useState(false);
 
     return (
       <div className="flex items-center gap-3">
         <Switch {...args} checked={checked} onCheckedChange={setChecked} />
-        <span className="text-muted-foreground text-xs">
-          {checked ? "Enabled" : "Disabled"}
-        </span>
+        <span className="text-muted-foreground text-xs">{checked ? "Enabled" : "Disabled"}</span>
       </div>
     );
   },

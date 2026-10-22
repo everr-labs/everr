@@ -1,14 +1,9 @@
 import { cn } from "@everr/ui/lib/utils";
-import {
-  createLink,
-  type LinkComponentProps,
-  type RegisteredRouter,
-} from "@tanstack/react-router";
+import { createLink, type LinkComponentProps, type RegisteredRouter } from "@tanstack/react-router";
 import type { ComponentPropsWithRef, ReactElement } from "react";
 
 /** The look every navigable row in a rail shares. */
-export const railRowClass =
-  "rounded-md py-1.5 transition-colors hover:bg-muted/50";
+export const railRowClass = "rounded-md py-1.5 transition-colors hover:bg-muted/50";
 export const railRowActiveProps = {
   className: "bg-muted text-foreground [&>svg]:text-primary",
 };
@@ -38,12 +33,7 @@ type RailRowAnchorProps = ComponentPropsWithRef<"a"> & {
   activeProps?: never;
 };
 
-function RailRowAnchor({
-  label,
-  icon: Icon,
-  className,
-  ...anchorProps
-}: RailRowAnchorProps) {
+function RailRowAnchor({ label, icon: Icon, className, ...anchorProps }: RailRowAnchorProps) {
   return (
     <a
       {...anchorProps}

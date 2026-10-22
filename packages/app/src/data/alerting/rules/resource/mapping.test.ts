@@ -1,14 +1,6 @@
-import { describe, expect, it } from "vitest";
-import type {
-  AlertingRule,
-  AlertingRuleInput,
-} from "#app/data/alerting/types.ts";
-import {
-  fromAlertingRule,
-  isOwnedRule,
-  toAlertRuleDocument,
-  toRuleInput,
-} from "./mapping";
+import { describe, expect, it } from "vite-plus/test";
+import type { AlertingRule, AlertingRuleInput } from "#app/data/alerting/types.ts";
+import { fromAlertingRule, isOwnedRule, toAlertRuleDocument, toRuleInput } from "./mapping";
 import { AlertRuleYamlSchema } from "./schema";
 
 // Concatenation avoids the no-template-curly-in-string lint.
@@ -30,10 +22,7 @@ const baseInput = {
 };
 
 // Parse fixtures so mapping receives normalized input.
-function parseRule(
-  spec: Record<string, unknown> = {},
-  metadata: Record<string, unknown> = {},
-) {
+function parseRule(spec: Record<string, unknown> = {}, metadata: Record<string, unknown> = {}) {
   return AlertRuleYamlSchema.parse({
     ...baseInput,
     metadata: { ...baseInput.metadata, ...metadata },
@@ -85,28 +74,19 @@ describe("toRuleInput", () => {
   // carries no identity meaning; storing it as-authored would make a
   // reorder-only edit look like a membership change to the spec diff.
   it("sorts label_columns regardless of authored or inferred order", () => {
-    const explicit = toRuleInput(
-      parseRule({ instanceLabels: ["zone", "route"] }),
-      "repo-1",
-    );
+    const explicit = toRuleInput(parseRule({ instanceLabels: ["zone", "route"] }), "repo-1");
     expect(explicit.label_columns).toEqual(["route", "zone"]);
 
-    const inferred = toRuleInput(
-      parseRule({ instanceLabels: undefined }),
-      "repo-1",
-      {
-        instanceLabels: ["zone", "route"],
-      },
-    );
+    const inferred = toRuleInput(parseRule({ instanceLabels: undefined }), "repo-1", {
+      instanceLabels: ["zone", "route"],
+    });
     expect(inferred.label_columns).toEqual(["route", "zone"]);
   });
 
   it("carries a linked runbook via everr.runbook, and link.runbook when appBaseUrl is set", () => {
-    const scoped = toRuleInput(
-      parseRule({ runbook: "payments/triage-5xx" }),
-      "repo-1",
-      { appBaseUrl: "https://app.example.com" },
-    );
+    const scoped = toRuleInput(parseRule({ runbook: "payments/triage-5xx" }), "repo-1", {
+      appBaseUrl: "https://app.example.com",
+    });
     expect(scoped.annotations["everr.runbook"]).toBe("payments/triage-5xx");
     expect(scoped.annotations["link.runbook"]).toBe(
       "https://app.example.com/runbooks/payments/triage-5xx",
@@ -134,10 +114,7 @@ describe("toRuleInput", () => {
   });
 
   it("round-trips through fromAlertingRule with its qualified identity", () => {
-    const input = toRuleInput(
-      parseRule({ for: "1d", resolveAfter: 2 }),
-      "repo-1",
-    );
+    const input = toRuleInput(parseRule({ for: "1d", resolveAfter: 2 }), "repo-1");
     expect(fromAlertingRule(asRule(input))).toMatchObject({
       project: "default",
       slug: "high-5xx",
@@ -152,12 +129,7 @@ describe("toRuleInput", () => {
       condition: { operator: "gt", threshold: 5 },
     });
 
-    const {
-      name: _name,
-      repoid: _repoid,
-      previewId: _previewId,
-      ...spec
-    } = input;
+    const { name: _name, repoid: _repoid, previewId: _previewId, ...spec } = input;
     const view = fromAlertingRule({
       previewId: null,
       repoid: "repo-1",
@@ -192,10 +164,7 @@ describe("toRuleInput", () => {
     );
 
     expect(input.notifications?.channels).toEqual(["team-slack", "pager"]);
-    expect(fromAlertingRule(asRule(input)).notificationChannels).toEqual([
-      "team-slack",
-      "pager",
-    ]);
+    expect(fromAlertingRule(asRule(input)).notificationChannels).toEqual(["team-slack", "pager"]);
   });
 
   it("merges user annotations, generated keys always winning", () => {
@@ -257,9 +226,7 @@ describe("toAlertRuleDocument", () => {
     // Qualified names preserve non-default projects.
     const scoped = JSON.parse(
       JSON.stringify(
-        toAlertRuleDocument(
-          asRule(toRuleInput(parseRule({}, { project: "payments" }), "repo-1")),
-        ),
+        toAlertRuleDocument(asRule(toRuleInput(parseRule({}, { project: "payments" }), "repo-1"))),
       ),
     );
     expect(scoped.metadata.project).toBe("payments");
@@ -281,8 +248,7 @@ describe("toAlertRuleDocument", () => {
 
     const reparsed = AlertRuleYamlSchema.parse(JSON.parse(JSON.stringify(doc)));
     expect(
-      toRuleInput(reparsed, "repo-1", { instanceLabels: ["last_event"] })
-        .label_columns,
+      toRuleInput(reparsed, "repo-1", { instanceLabels: ["last_event"] }).label_columns,
     ).toEqual([]);
   });
 

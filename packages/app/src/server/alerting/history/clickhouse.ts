@@ -7,20 +7,13 @@ import {
   uuidv7Time,
 } from "#app/data/alerting/history/ids.ts";
 import { ALERTING_SILENCE_COMMENT_MAX } from "#app/data/alerting/schema.ts";
-import type {
-  AlertingEvaluationSample,
-  AlertingMatcher,
-} from "#app/data/alerting/types.ts";
+import type { AlertingEvaluationSample, AlertingMatcher } from "#app/data/alerting/types.ts";
 import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
 import { formatResourceName } from "#app/data/as-code/identity.ts";
 import { insertRows } from "#app/lib/clickhouse-writer.ts";
 import { retentionForOrg } from "#app/lib/retention.server.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
-import {
-  capAlertLabels,
-  resolveAlertServiceName,
-  sanitizeAlertError,
-} from "./content";
+import { capAlertLabels, resolveAlertServiceName, sanitizeAlertError } from "./content";
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -144,9 +137,7 @@ export type AlertHistoryRow = {
 };
 
 function isEvaluationHistoryEvent(eventType: AlertHistoryEventType): boolean {
-  return (
-    eventType === "evaluation_succeeded" || eventType === "evaluation_failed"
-  );
+  return eventType === "evaluation_succeeded" || eventType === "evaluation_failed";
 }
 
 function baseHistoryRow(opts: {
@@ -192,10 +183,7 @@ function baseHistoryRow(opts: {
 
 // Every instance-scoped row inherits the label cap and write-time service
 // resolution from here, so no builder can bypass either.
-function instanceRowFields(
-  fingerprint: string,
-  labels: Record<string, string>,
-) {
+function instanceRowFields(fingerprint: string, labels: Record<string, string>) {
   const capped = capAlertLabels(labels);
   return {
     instance_fingerprint: fingerprint,
@@ -267,9 +255,7 @@ export function instanceHistoryRow(opts: {
   // Only the notifying transitions head a notification chain: the suppression
   // and delivery rows written by later jobs point back here. Pending and
   // closed rows never notify, so their chain id stays zero.
-  const notifies =
-    opts.eventType === "instance_fired" ||
-    opts.eventType === "instance_resolved";
+  const notifies = opts.eventType === "instance_fired" || opts.eventType === "instance_resolved";
   return {
     ...baseHistoryRow({
       def: opts.def,
@@ -506,9 +492,7 @@ async function insertAlertHistoryRows(
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",
-    ...(convergesOnRetry
-      ? { insert_deduplication_token: alertHistoryDedupToken(rows) }
-      : {}),
+    ...(convergesOnRetry ? { insert_deduplication_token: alertHistoryDedupToken(rows) } : {}),
   });
 }
 
@@ -521,9 +505,7 @@ async function insertAlertHistoryRows(
  * sorted row ids, so a retry that resends the same batch converges on one
  * write instead of duplicating terminals.
  */
-export async function recordAlertHistoryStrict(
-  rows: AlertHistoryRow[],
-): Promise<void> {
+export async function recordAlertHistoryStrict(rows: AlertHistoryRow[]): Promise<void> {
   if (rows.length === 0) return;
   // Its one caller projects rows whose ids it read from the PostgreSQL
   // journal, so a retry rebuilds the same ids and the token converges.

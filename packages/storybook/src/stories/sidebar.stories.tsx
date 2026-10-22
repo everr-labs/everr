@@ -75,10 +75,7 @@ function Nav() {
             <SidebarMenu>
               {navigation.map((item, index) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    isActive={index === 0}
-                  >
+                  <SidebarMenuButton tooltip={item.title} isActive={index === 0}>
                     <item.icon />
                     <span>{item.title}</span>
                   </SidebarMenuButton>

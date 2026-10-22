@@ -42,9 +42,7 @@ import { getRouter } from "@/router";
 import { isExpectedServerFunctionError } from "@/telemetry/expected-errors";
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [
-    createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() }),
-  ],
+  requestMiddleware: [createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() })],
   functionMiddleware: [
     createServerFnTelemetryMiddleware({
       isExpectedError: isExpectedServerFunctionError,

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ApiTypes from "@opentelemetry/api";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const telemetryMocks = vi.hoisted(() => {
   const span = {
@@ -14,10 +15,7 @@ const telemetryMocks = vi.hoisted(() => {
         _name: string,
         _options: unknown,
         _context: unknown,
-        run: (span: {
-          end: () => void;
-          setAttribute: () => void;
-        }) => Promise<Response>,
+        run: (span: { end: () => void; setAttribute: () => void }) => Promise<Response>,
       ) => run(span),
     ),
     span,
@@ -29,7 +27,7 @@ vi.mock("@everr/otel-errors", () => ({
 }));
 
 vi.mock("@opentelemetry/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@opentelemetry/api")>()),
+  ...(await importOriginal<typeof ApiTypes>()),
   trace: {
     getTracer: () => ({ startActiveSpan: telemetryMocks.startActiveSpan }),
   },
@@ -86,16 +84,13 @@ describe("createRequestTelemetryMiddleware", () => {
 
     expect(response.status).toBe(500);
     expect(response.headers.get("x-everr-route")).toBe("/api/cli/sql");
-    expect(telemetryMocks.captureError).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        "everr.error.source": "server.response",
-        "http.request.method": "POST",
-        "http.response.status_code": 500,
-        "http.route": "/api/cli/sql",
-        "url.path": "/api/cli/sql",
-      },
-    );
+    expect(telemetryMocks.captureError).toHaveBeenCalledWith(expect.any(Error), {
+      "everr.error.source": "server.response",
+      "http.request.method": "POST",
+      "http.response.status_code": 500,
+      "http.route": "/api/cli/sql",
+      "url.path": "/api/cli/sql",
+    });
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
@@ -159,9 +154,7 @@ describe("createRequestTelemetryMiddleware", () => {
       },
     );
 
-    expect(telemetryMocks.span.updateName).toHaveBeenCalledWith(
-      "POST /_serverFn/getSession",
-    );
+    expect(telemetryMocks.span.updateName).toHaveBeenCalledWith("POST /_serverFn/getSession");
     expect(telemetryMocks.span.setAttribute).toHaveBeenCalledWith(
       "http.route",
       "/_serverFn/getSession",

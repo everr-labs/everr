@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { LifecycleEventType, LifecycleRow } from "./segments";
 import { ruleStateSegments } from "./segments";
 
@@ -109,9 +109,11 @@ describe("the stretches the state chart paints", () => {
       fc.property(rowsArb, priorArb, (rows, prior) => {
         const segments = segmentsOf(rows, prior);
         for (let i = 1; i < segments.length; i++) {
+          /* oxlint-disable vitest/no-conditional-expect -- The adjacency invariant applies only to touching segments; other segment properties are checked separately. */
           if (segments[i - 1].to === segments[i].from) {
             expect(segments[i - 1].state).not.toBe(segments[i].state);
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }
       }),
     );
@@ -144,9 +146,7 @@ describe("what outranks what", () => {
           const instant = failedAt + INTERVAL_MS / 2;
           const minutesBeforeEnd = (WINDOW_TO - instant) / 60_000;
           const covering = segmentsOf(withFailure, prior).find(
-            (segment) =>
-              segment.from >= minutesBeforeEnd &&
-              segment.to <= minutesBeforeEnd,
+            (segment) => segment.from >= minutesBeforeEnd && segment.to <= minutesBeforeEnd,
           );
           // A rule we cannot evaluate hides an unknown number of Firing
           // instances, so nothing may show through it.

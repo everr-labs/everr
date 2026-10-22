@@ -1,8 +1,5 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { GitBranch, LogOut } from "lucide-react";
 import { usePreview } from "#app/hooks/use-preview.ts";
 
@@ -36,7 +33,7 @@ export function PreviewIndicator() {
           <LogOut className="size-3.5" />
         </button>
       </TooltipTrigger>
-      <TooltipContent>Previewing "{preview}" — not live</TooltipContent>
+      <TooltipContent>Previewing &quot;{preview}&quot; — not live</TooltipContent>
     </Tooltip>
   );
 }

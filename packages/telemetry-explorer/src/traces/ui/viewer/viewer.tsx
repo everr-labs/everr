@@ -28,35 +28,17 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import {
-  type ComponentProps,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
 import { serviceColor } from "../shared/service-color";
-import {
-  type FlamegraphHandle,
-  TraceFlamegraph,
-  type ViewRange,
-} from "./flamegraph";
-import {
-  matchesSpan,
-  SPAN_CATEGORIES,
-  type SpanCategory,
-  type TraceModel,
-} from "./model";
+import { type FlamegraphHandle, TraceFlamegraph, type ViewRange } from "./flamegraph";
+import { matchesSpan, SPAN_CATEGORIES, type SpanCategory, type TraceModel } from "./model";
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
 import { spanColorGroup } from "./rendering/types";
-import {
-  getAncestorSpanIds,
-  getVisibleSpans,
-} from "./rendering/waterfall-utils";
+import { getAncestorSpanIds, getVisibleSpans } from "./rendering/waterfall-utils";
 import { SpanDetails } from "./span-details";
 import { TraceWaterfall } from "./waterfall";
 
@@ -100,9 +82,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
         <h1 className="font-medium">Trace not found</h1>
-        <p className="text-muted-foreground text-sm">
-          No spans were found for this trace.
-        </p>
+        <p className="text-muted-foreground text-sm">No spans were found for this trace.</p>
         <Button variant="outline" onClick={props.onBack}>
           Back to traces
         </Button>
@@ -125,6 +105,7 @@ function PreparedTraceViewer({
   queryKey,
   ...props
 }: Props & { spans: Span[]; version: number; queryKey: string[] }) {
+  // oxlint-disable-next-line query/exhaustive-deps -- The caller-provided trace key and version identify this immutable model input without hashing the full span dataset.
   const { data, error, refetch } = useQuery({
     queryKey: [...queryKey, "model", version],
     queryFn: async ({ signal }) => ({
@@ -143,14 +124,9 @@ function PreparedTraceViewer({
         onRetry={() => void refetch()}
       />
     );
-  if (!data)
-    return <Skeleton className="m-4 h-96" aria-label="Preparing trace" />;
+  if (!data) return <Skeleton className="m-4 h-96" aria-label="Preparing trace" />;
   return (
-    <TraceViewer
-      {...props}
-      model={data.model}
-      layoutKey={[...queryKey, "layout", data.version]}
-    />
+    <TraceViewer {...props} model={data.model} layoutKey={[...queryKey, "layout", data.version]} />
   );
 }
 
@@ -161,6 +137,7 @@ function PreparedFlamegraph({
 }: Omit<ComponentProps<typeof TraceFlamegraph>, "layout"> & {
   queryKey: (string | number)[];
 }) {
+  // oxlint-disable-next-line query/exhaustive-deps -- The caller-provided trace key and version identify this immutable model input without hashing the full span dataset.
   const { data, error, refetch } = useQuery({
     queryKey,
     queryFn: ({ signal }) => prepareTraceLayout(model.waterfall, signal),
@@ -175,10 +152,7 @@ function PreparedFlamegraph({
         onRetry={() => void refetch()}
       />
     );
-  if (!data)
-    return (
-      <Skeleton className="m-4 h-full" aria-label="Preparing flamegraph" />
-    );
+  if (!data) return <Skeleton className="m-4 h-full" aria-label="Preparing flamegraph" />;
   return <TraceFlamegraph {...props} model={model} layout={data} />;
 }
 
@@ -212,32 +186,19 @@ function TraceViewer({
   const waterfallRef = useRef<VirtuosoHandle>(null);
   const selectedId = search.span;
   const selected = selectedId ? model.byId.get(selectedId) : undefined;
-  const filterActive = Boolean(
-    query.trim() || category !== "All" || errorsOnly,
-  );
+  const filterActive = Boolean(query.trim() || category !== "All" || errorsOnly);
   const matches = useMemo(
-    () =>
-      model.waterfall.filter((node) =>
-        matchesSpan(node, query, category, errorsOnly),
-      ),
+    () => model.waterfall.filter((node) => matchesSpan(node, query, category, errorsOnly)),
     [model, query, category, errorsOnly],
   );
-  const matchingSet = useMemo(
-    () => new Set(matches.map((span) => span.spanId)),
-    [matches],
-  );
+  const matchingSet = useMemo(() => new Set(matches.map((span) => span.spanId)), [matches]);
   const visibleRows = useMemo(
     () => getVisibleSpans(model.waterfall, openNodes),
     [model, openNodes],
   );
   const root = model.roots[0];
   const previewFields = useMemo(
-    () =>
-      [
-        ...new Set(
-          model.waterfall.flatMap((node) => Object.keys(node.attributes)),
-        ),
-      ].sort(),
+    () => [...new Set(model.waterfall.flatMap((node) => Object.keys(node.attributes)))].sort(),
     [model],
   );
   const services = useMemo(
@@ -246,11 +207,7 @@ function TraceViewer({
   );
   const colorGroups = useMemo(
     () => [
-      ...new Set(
-        model.waterfall.map((node) =>
-          spanColorGroup(node, colorBy ?? "service.name"),
-        ),
-      ),
+      ...new Set(model.waterfall.map((node) => spanColorGroup(node, colorBy ?? "service.name"))),
     ],
     [model, colorBy],
   );
@@ -270,8 +227,7 @@ function TraceViewer({
       const rows = getVisibleSpans(model.waterfall, expanded);
       const index = rows.findIndex((s) => s.spanId === id);
       requestAnimationFrame(() => {
-        if (index >= 0)
-          waterfallRef.current?.scrollToIndex({ index, align: "center" });
+        if (index >= 0) waterfallRef.current?.scrollToIndex({ index, align: "center" });
       });
     },
     [model, openNodes, onSpanChange],
@@ -291,10 +247,7 @@ function TraceViewer({
   const zoom = (factor: number) => {
     const width = Math.min(
       model.durationMs,
-      Math.max(
-        Math.min(model.durationMs, 0.001),
-        (range.end - range.start) * factor,
-      ),
+      Math.max(Math.min(model.durationMs, 0.001), (range.end - range.start) * factor),
     );
     const start = Math.max(
       0,
@@ -309,29 +262,18 @@ function TraceViewer({
       aria-label="Trace explorer detail"
     >
       <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Back to traces"
-          onClick={onBack}
-        >
+        <Button variant="ghost" size="icon-sm" aria-label="Back to traces" onClick={onBack}>
           <ArrowLeft />
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-medium">
-            {root?.name ?? "Trace"}
-          </h1>
+          <h1 className="truncate text-sm font-medium">{root?.name ?? "Trace"}</h1>
           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span>{root?.source.serviceName}</span>
-            <span className="font-mono">
-              {formatDuration(model.durationMs, "ms")}
-            </span>
+            <span className="font-mono">{formatDuration(model.durationMs, "ms")}</span>
             <span>{model.waterfall.length} spans</span>
             <span>{services.length} services</span>
             {model.errorCount > 0 && (
-              <span className="text-destructive">
-                {model.errorCount} errors
-              </span>
+              <span className="text-destructive">{model.errorCount} errors</span>
             )}
             <span className="truncate font-mono text-[10px]" title={traceId}>
               {traceId}
@@ -341,8 +283,8 @@ function TraceViewer({
       </div>
       {model.missingParents > 0 && (
         <div className="shrink-0 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          {model.missingParents} spans have parents outside the loaded trace.
-          They appear as separate roots.
+          {model.missingParents} spans have parents outside the loaded trace. They appear as
+          separate roots.
         </div>
       )}
       {search.span && !selected && (
@@ -372,10 +314,7 @@ function TraceViewer({
             </Button>
           )}
         </div>
-        <div
-          className="text-muted-foreground min-w-16 text-center text-xs"
-          aria-live="polite"
-        >
+        <div className="text-muted-foreground min-w-16 text-center text-xs" aria-live="polite">
           {matches.length} matches
         </div>
         <Button
@@ -434,11 +373,7 @@ function TraceViewer({
         </Select>
         <span className="text-muted-foreground ml-2 text-xs">Preview</span>
         <Select value={previewField} onValueChange={setPreviewField}>
-          <SelectTrigger
-            size="sm"
-            aria-label="Preview span attribute"
-            className="max-w-56"
-          >
+          <SelectTrigger size="sm" aria-label="Preview span attribute" className="max-w-56">
             <SelectValue placeholder="None" />
           </SelectTrigger>
           <SelectContent>
@@ -465,30 +400,16 @@ function TraceViewer({
             aria-label="Collapse all spans"
             onClick={() =>
               setCollapsedNodes(
-                new Set(
-                  model.waterfall
-                    .filter((s) => s.hasChildren)
-                    .map((s) => s.spanId),
-                ),
+                new Set(model.waterfall.filter((s) => s.hasChildren).map((s) => s.spanId)),
               )
             }
           >
             <ChevronsDownUp />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Zoom in"
-            onClick={() => zoom(0.5)}
-          >
+          <Button variant="ghost" size="icon-xs" aria-label="Zoom in" onClick={() => zoom(0.5)}>
             <ZoomIn />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Zoom out"
-            onClick={() => zoom(2)}
-          >
+          <Button variant="ghost" size="icon-xs" aria-label="Zoom out" onClick={() => zoom(2)}>
             <ZoomOut />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setZoomRange(null)}>
@@ -515,10 +436,7 @@ function TraceViewer({
                 Pinch to zoom · drag to pan
               </span>
             </button>
-            <ResizablePanelGroup
-              orientation="vertical"
-              className="min-h-0 flex-1"
-            >
+            <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
               {flamegraphOpen && (
                 <>
                   <ResizablePanel defaultSize="35%" minSize="15%">
@@ -535,10 +453,7 @@ function TraceViewer({
                       onSelect={(id) => selectSpan(id, "flamegraph")}
                     />
                   </ResizablePanel>
-                  <ResizableHandle
-                    withHandle
-                    aria-label="Resize flamegraph and waterfall"
-                  />
+                  <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
                 </>
               )}
               <ResizablePanel minSize="20%">
@@ -594,17 +509,12 @@ function TraceViewer({
                 durationMs={model.durationMs}
                 onClose={() => onSpanChange(undefined)}
                 onFocus={() => {
-                  const padding = Math.max(
-                    (selected.durationNano / 1e6) * 0.1,
-                    0.001,
-                  );
+                  const padding = Math.max((selected.durationNano / 1e6) * 0.1, 0.001);
                   setZoomRange({
                     start: Math.max(0, selected.timestamp - padding),
                     end: Math.min(
                       model.durationMs,
-                      selected.timestamp +
-                        selected.durationNano / 1e6 +
-                        padding,
+                      selected.timestamp + selected.durationNano / 1e6 + padding,
                     ),
                   });
                   flamegraphRef.current?.scrollToSpan(selected.spanId);

@@ -1,11 +1,6 @@
 import { getAttributes } from "../state/attributes.js";
 import { routePattern } from "../state/route.js";
-import {
-  type CurrentPage,
-  type PageContext,
-  sessionId,
-  visitorId,
-} from "../state/session.js";
+import { type CurrentPage, type PageContext, sessionId, visitorId } from "../state/session.js";
 import type { AttrValue } from "./emitter.js";
 
 // The context envelope. The SDK writes it on EACH record that it sends, the
@@ -19,9 +14,7 @@ import type { AttrValue } from "./emitter.js";
  * page, and it uses these keys. For example, page_leave replaces the envelope
  * with the context of the page that the user leaves.
  */
-export function pageAttrs(
-  page: PageContext,
-): Record<string, string | null | undefined> {
+export function pageAttrs(page: PageContext): Record<string, string | null | undefined> {
   return {
     "everr.page_view.id": page.pageViewId,
     "url.full": page.url,

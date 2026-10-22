@@ -21,13 +21,13 @@ Everr resources are **as-code**: dashboards, runbooks, and alert rules are YAML 
 
 Always read the relevant rule files before authoring or editing a resource. Load the minimum guidance for the resource kind being changed.
 
-| Rule | Description |
-| --- | --- |
-| `queries` | The shared panel and query model: ClickHouse SQL, time params, bucketing, variables, data shapes, testing and `EXPLAIN` optimization. Read for any dashboard, runbook, or alert query. |
-| `dashboards` | Dashboard schema, grid layout, worked example |
-| `runbooks` | Runbook schema, pages, ```panel embeds, reading runbooks as an agent |
-| `alerts` | AlertRule schema, alert design, thresholds, notification messages, verification |
-| `timeseries`, `barchart`, `table`, `statchart`, `gaugechart`, `geomap`, `treemap`, `statetimeline`, `statushistory`, `heatmap`, `nodegraph` | One file per visualization kind: the complete option set, expected data shape, and footguns |
+| Rule                                                                                                                                        | Description                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queries`                                                                                                                                   | The shared panel and query model: ClickHouse SQL, time params, bucketing, variables, data shapes, testing and `EXPLAIN` optimization. Read for any dashboard, runbook, or alert query. |
+| `dashboards`                                                                                                                                | Dashboard schema, grid layout, worked example                                                                                                                                          |
+| `runbooks`                                                                                                                                  | Runbook schema, pages, ```panel embeds, reading runbooks as an agent                                                                                                                   |
+| `alerts`                                                                                                                                    | AlertRule schema, alert design, thresholds, notification messages, verification                                                                                                        |
+| `timeseries`, `barchart`, `table`, `statchart`, `gaugechart`, `geomap`, `treemap`, `statetimeline`, `statushistory`, `heatmap`, `nodegraph` | One file per visualization kind: the complete option set, expected data shape, and footguns                                                                                            |
 
 For a dashboard task read `queries`, `dashboards`, and the viz rules you use. For a runbook read `queries` and `runbooks`. For an alert read `alerts`, plus `runbooks` when creating the linked runbook.
 
@@ -101,12 +101,12 @@ Never stage changes with a scratch repoid or a second apply directory; `--previe
 
 ## Common Mistakes
 
-| Mistake | Fix |
-| --- | --- |
-| No `origin` remote and no `everr.yaml` manifest | Apply infers the repoid from the `origin` remote. If there is neither, create `everr.yaml` with a `repoid:` or add a remote. An `everr.yaml` always wins over the inferred slug. |
-| Empty `repoid` or reusing across repos | Use one stable id per repository; a UUID is a good default for new repos |
-| `everr dashboard apply -f file.yaml` or applying a single file | The command is `everr apply <dir>` against a directory |
-| Splitting one repoid across two apply directories | One tree per repoid; apply prunes everything not in the tree, across all kinds |
-| Inventing metric/label/column names | Discover real columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill |
-| Staging unreviewed changes via a scratch repoid, or sharing them with only `--dry-run` output | `everr apply --preview` deploys a viewable copy into the UI without touching live |
-| Trying to delete or clean up a preview | Previews expire on their own after the retention window; just stop applying them |
+| Mistake                                                                                       | Fix                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `origin` remote and no `everr.yaml` manifest                                               | Apply infers the repoid from the `origin` remote. If there is neither, create `everr.yaml` with a `repoid:` or add a remote. An `everr.yaml` always wins over the inferred slug. |
+| Empty `repoid` or reusing across repos                                                        | Use one stable id per repository; a UUID is a good default for new repos                                                                                                         |
+| `everr dashboard apply -f file.yaml` or applying a single file                                | The command is `everr apply <dir>` against a directory                                                                                                                           |
+| Splitting one repoid across two apply directories                                             | One tree per repoid; apply prunes everything not in the tree, across all kinds                                                                                                   |
+| Inventing metric/label/column names                                                           | Discover real columns with `everr cloud query "DESCRIBE TABLE traces"` or the `everr-use-telemetry` skill                                                                        |
+| Staging unreviewed changes via a scratch repoid, or sharing them with only `--dry-run` output | `everr apply --preview` deploys a viewable copy into the UI without touching live                                                                                                |
+| Trying to delete or clean up a preview                                                        | Previews expire on their own after the retention window; just stop applying them                                                                                                 |

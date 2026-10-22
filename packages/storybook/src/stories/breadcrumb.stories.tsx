@@ -85,9 +85,8 @@ export const CustomLinkRender: Story = {
     <Breadcrumb {...args}>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink render={<button type="button" />}>
-            Workspace
-          </BreadcrumbLink>
+          {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- BreadcrumbLink provides the rendered button children, preserving its visible accessible name. */}
+          <BreadcrumbLink render={<button type="button" />}>Workspace</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>

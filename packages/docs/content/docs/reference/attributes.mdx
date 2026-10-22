@@ -29,7 +29,7 @@ WHERE toString(SpanAttributes.`http.request.method`) = 'POST'
 WHERE toUInt16OrZero(toString(SpanAttributes.`http.response.status_code`)) >= 500
 ```
 
-A numeric comparison on the raw path, `` SpanAttributes.`http.response.status_code` >= 500 ``, works while every row it runs over holds a number. It fails with `NO_COMMON_TYPE` when a row holds text, which is what a `String` column does too. A query runs over your own rows only. Another tenant's types do not affect you. Two versions of your own SDK that disagree on the type do. The converted form works in every case. A typed read such as `` SpanAttributes.`k`.:Int64 `` is the one form to avoid: it returns `NULL` for every row whose stored type is different, silently.
+A numeric comparison on the raw path, ``SpanAttributes.`http.response.status_code` >= 500``, works while every row it runs over holds a number. It fails with `NO_COMMON_TYPE` when a row holds text, which is what a `String` column does too. A query runs over your own rows only. Another tenant's types do not affect you. Two versions of your own SDK that disagree on the type do. The converted form works in every case. A typed read such as ``SpanAttributes.`k`.:Int64`` is the one form to avoid: it returns `NULL` for every row whose stored type is different, silently.
 
 ## Presence
 
@@ -51,11 +51,11 @@ ORDER BY key
 
 ## Moving from the map syntax
 
-| Before | After |
-|---|---|
-| `LogAttributes['k']` | `` toString(LogAttributes.`k`) `` |
-| `mapContains(LogAttributes, 'k')` | `has(LogAttributesKeys, 'k')` |
-| `toFloat64OrZero(LogAttributes['k'])` | `` toFloat64OrZero(toString(LogAttributes.`k`)) `` |
-| `mapKeys(LogAttributes)` | `LogAttributesKeys` |
+| Before                                | After                                            |
+| ------------------------------------- | ------------------------------------------------ |
+| `LogAttributes['k']`                  | ``toString(LogAttributes.`k`)``                  |
+| `mapContains(LogAttributes, 'k')`     | `has(LogAttributesKeys, 'k')`                    |
+| `toFloat64OrZero(LogAttributes['k'])` | ``toFloat64OrZero(toString(LogAttributes.`k`))`` |
+| `mapKeys(LogAttributes)`              | `LogAttributesKeys`                              |
 
 A map read on a JSON column is an error, not an empty result, so a saved query that still uses it fails loudly.

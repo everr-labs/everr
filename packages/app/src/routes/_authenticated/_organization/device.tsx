@@ -25,8 +25,7 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
   loader: async ({ deps, context: { session } }) => {
     const organizations = await getOrganizations();
 
-    const firstName =
-      session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
+    const firstName = session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
 
     return {
       deviceCode: deps.code.toUpperCase(),
@@ -44,16 +43,11 @@ function formatCodeForDisplay(code: string): string {
 }
 
 function CliDeviceApprovalPage() {
-  const { deviceCode, userName, organizations, activeOrganizationId } =
-    Route.useLoaderData();
+  const { deviceCode, userName, organizations, activeOrganizationId } = Route.useLoaderData();
   const [selection, setSelection] = useState<string | null>(null);
   const selectedOrganization =
-    organizations.find(
-      (org) => org.id === (selection ?? activeOrganizationId),
-    ) ?? organizations[0];
-  const [status, setStatus] = useState<
-    "idle" | "approved" | "denied" | "error"
-  >("idle");
+    organizations.find((org) => org.id === (selection ?? activeOrganizationId)) ?? organizations[0];
+  const [status, setStatus] = useState<"idle" | "approved" | "denied" | "error">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -81,11 +75,7 @@ function CliDeviceApprovalPage() {
 
       setStatus(action === "approve" ? "approved" : "denied");
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not authorize the device.",
-      );
+      setErrorMessage(error instanceof Error ? error.message : "Could not authorize the device.");
       setStatus("error");
     } finally {
       setIsSubmitting(false);
@@ -95,13 +85,9 @@ function CliDeviceApprovalPage() {
   return (
     <main className="bg-muted/20 flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
-        <h1 className="text-center text-4xl font-semibold tracking-tight">
-          Authenticate Device
-        </h1>
+        <h1 className="text-center text-4xl font-semibold tracking-tight">Authenticate Device</h1>
         <p className="text-muted-foreground mt-3 text-center text-base">
-          {selectedOrganization
-            ? `${userName} · ${selectedOrganization.name}`
-            : userName}
+          {selectedOrganization ? `${userName} · ${selectedOrganization.name}` : userName}
         </p>
 
         <section className="bg-background mt-10 rounded-2xl border px-6 py-10 sm:px-12">
@@ -138,7 +124,7 @@ function CliDeviceApprovalPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-muted-foreground text-sm">
-                    Your device will access this organization's data.
+                    Your device will access this organization&apos;s data.
                   </p>
                 </div>
               ) : null}
@@ -160,10 +146,7 @@ function CliDeviceApprovalPage() {
               </div>
 
               {status === "error" ? (
-                <p
-                  role="alert"
-                  className="text-destructive mt-4 text-center text-sm"
-                >
+                <p role="alert" className="text-destructive mt-4 text-center text-sm">
                   {errorMessage} <productUI.DeviceLoginRecovery />
                 </p>
               ) : null}

@@ -2,10 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ErrorIssueSummary } from "../data/types";
-import {
-  ERROR_FINGERPRINT_SQL,
-  EXCEPTION_LOG_FILTER_SQL,
-} from "../sql/fingerprint";
+import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "../sql/fingerprint";
 
 // A ready-to-run query that lists this Error's Occurrences: the same
 // exception-log filter and fingerprint expression the app groups Errors by
@@ -69,13 +66,10 @@ export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
       variant="outline"
       size="sm"
       title="Copy a prompt that hands this Error to an agent"
+      // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
       onClick={handleCopy}
     >
-      {copied ? (
-        <Check data-icon="inline-start" />
-      ) : (
-        <Copy data-icon="inline-start" />
-      )}
+      {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
       {copied ? "Copied" : "Copy agent prompt"}
     </Button>
   );

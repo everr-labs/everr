@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -28,10 +28,7 @@ it("publishes the configured public ingestion endpoint", async () => {
   expect(deployment.ingestEndpoint).toBe("https://telemetry.example.test/otlp");
 });
 
-it.each([
-  true,
-  false,
-])("stamps self-hosted telemetry only in development (%s)", async (dev) => {
+it.each([true, false])("stamps self-hosted telemetry only in development (%s)", async (dev) => {
   vi.resetModules();
   vi.stubEnv("DEV", dev);
   const { storage } = await import("@composition/storage");

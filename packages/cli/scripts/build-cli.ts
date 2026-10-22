@@ -1,9 +1,5 @@
 import { $ } from "zx";
-import {
-  installCliBinary,
-  prepareCliEmbeddedAssets,
-  publishCliArtifact,
-} from "./build-support.ts";
+import { installCliBinary, prepareCliEmbeddedAssets, publishCliArtifact } from "./build-support.ts";
 import { compileCli, resolveCliBuild } from "./cli-build.ts";
 import { withBuildTelemetry } from "./build-telemetry.ts";
 
@@ -49,5 +45,7 @@ await withBuildTelemetry("cli build", async (telemetry) => {
     await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
   }
 
-  console.log(`Run '${installBin ? (mode === "debug" ? "everr-dev" : "everr") : installSource} --help' to get started.`);
+  console.log(
+    `Run '${installBin ? (mode === "debug" ? "everr-dev" : "everr") : installSource} --help' to get started.`,
+  );
 });

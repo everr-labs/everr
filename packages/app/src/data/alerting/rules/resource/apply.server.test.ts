@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/data/alerting/rules/repository.ts", () => ({
   listAllRules: vi.fn(),
@@ -30,9 +30,8 @@ import { applyAlertSpecs as reconcileAlerts } from "./apply.server";
 const db = {} as unknown as DbExecutor;
 
 const ch = vi.fn();
-const applyAlertSpecs = (
-  opts: Omit<Parameters<typeof reconcileAlerts>[0], "sql">,
-) => reconcileAlerts({ ...opts, sql: { queryWithMeta: ch } });
+const applyAlertSpecs = (opts: Omit<Parameters<typeof reconcileAlerts>[0], "sql">) =>
+  reconcileAlerts({ ...opts, sql: { queryWithMeta: ch } });
 const mockedListRules = alerting.listAllRules as ReturnType<typeof vi.fn>;
 const mockedListChannels = listChannels as ReturnType<typeof vi.fn>;
 const mockedCreateRule = alerting.createRule as ReturnType<typeof vi.fn>;
@@ -102,11 +101,7 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
 }
 
 // A preview copy of the alert fixture.
-function previewRule(
-  name: string,
-  previewId: string,
-  over: Record<string, unknown> = {},
-) {
+function previewRule(name: string, previewId: string, over: Record<string, unknown> = {}) {
   const base = managedRule(name);
   return {
     ...base,
@@ -121,8 +116,7 @@ function previewRule(
 
 // The stored rule with a different query, so its fingerprint differs from the
 // alert() fixture and the reconcile plans an update.
-const CHANGED_SQL =
-  "SELECT service, count() AS count FROM old_logs GROUP BY service";
+const CHANGED_SQL = "SELECT service, count() AS count FROM old_logs GROUP BY service";
 
 describe("applyAlertSpecs", () => {
   it("creates a managed rule with its identity and links", async () => {
@@ -210,13 +204,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).toHaveBeenCalledTimes(1);
     expect(mockedCreateRule).toHaveBeenCalledWith("o", expect.anything(), db);
     expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
-    expect(mockedUpdateRule).toHaveBeenCalledWith(
-      "o",
-      "rule-changed",
-      expect.anything(),
-      3,
-      db,
-    );
+    expect(mockedUpdateRule).toHaveBeenCalledWith("o", "rule-changed", expect.anything(), 3, db);
     expect(mockedAdoptRule).toHaveBeenCalledTimes(1);
     expect(mockedAdoptRule).toHaveBeenCalledWith(
       "o",
@@ -280,9 +268,7 @@ describe("applyAlertSpecs", () => {
       }),
       db,
     );
-    expect(res.note).toContain(
-      "direct.alert.yaml: unknown notification channels skipped: missing",
-    );
+    expect(res.note).toContain("direct.alert.yaml: unknown notification channels skipped: missing");
   });
 
   it("dry-run plans without mutating", async () => {
@@ -446,9 +432,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).not.toHaveBeenCalled();
     expect(mockedUpdateRule).not.toHaveBeenCalled();
 
-    mockedListRules.mockResolvedValue([
-      previewRule("high-errors", "p1", { sql: CHANGED_SQL }),
-    ]);
+    mockedListRules.mockResolvedValue([previewRule("high-errors", "p1", { sql: CHANGED_SQL })]);
     const changed = await applyAlertSpecs({
       namespace: preview("p1"),
       db,
@@ -501,28 +485,24 @@ describe("applyAlertSpecs", () => {
   it("fails a preview apply whose template references a column the query does not return", async () => {
     // The result-dependent validation is not skipped for previews: a broken
     // config fails before the change is ever merged.
-    try {
-      await applyAlertSpecs({
-        namespace: preview("p1"),
-        db,
-        resources: [
-          {
-            path: "labels.yaml",
-            resource: alert("bad-ref", {
-              notificationMessage: { title: `\${nope} errors` },
-            }),
-          },
-        ],
-      });
-      expect.fail("expected preview validation to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, value\)/,
-        ),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: preview("p1"),
+      db,
+      resources: [
+        {
+          path: "labels.yaml",
+          resource: alert("bad-ref", {
+            notificationMessage: { title: `\${nope} errors` },
+          }),
+        },
+      ],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, value\)/,
+      ),
+    });
 
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
@@ -588,10 +568,7 @@ describe("applyAlertSpecs", () => {
     });
     // Sorted, not query order: label_columns carries no authored order once
     // an inference pass produces it either. bucket never becomes identity.
-    expect(mockedCreateRule.mock.calls[0][1].label_columns).toEqual([
-      "region",
-      "service",
-    ]);
+    expect(mockedCreateRule.mock.calls[0][1].label_columns).toEqual(["region", "service"]);
 
     // Same query result, but the spec names its own identity: the inferred
     // columns are ignored entirely.
@@ -658,9 +635,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedUpdateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
 
-    mockedListRules.mockResolvedValue([
-      managedRule("high-errors", { sql: CHANGED_SQL }),
-    ]);
+    mockedListRules.mockResolvedValue([managedRule("high-errors", { sql: CHANGED_SQL })]);
     const changed = await applyAlertSpecs({
       namespace: live,
       db,
@@ -681,9 +656,7 @@ describe("applyAlertSpecs", () => {
     expect(org).toBe("o");
     expect(id).toBe("rule-high-errors");
     expect(version).toBe(3);
-    expect(spec.sql).toBe(
-      "SELECT service, count() AS value FROM logs GROUP BY service",
-    );
+    expect(spec.sql).toBe("SELECT service, count() AS value FROM logs GROUP BY service");
     expect(spec.annotations["link.alert"]).toBe(
       "https://app.example.com/alerts/rules/default/high-errors",
     );
@@ -692,32 +665,22 @@ describe("applyAlertSpecs", () => {
   });
 
   it("fails the resource clearly on a version conflict", async () => {
-    mockedListRules.mockResolvedValue([
-      managedRule("high-errors", { sql: CHANGED_SQL }),
-    ]);
+    mockedListRules.mockResolvedValue([managedRule("high-errors", { sql: CHANGED_SQL })]);
     mockedUpdateRule.mockRejectedValueOnce(
-      new AlertingError(
-        409,
-        "conflict",
-        "rule version mismatch: expected 3, current 4",
-      ),
+      new AlertingError(409, "conflict", "rule version mismatch: expected 3, current 4"),
     );
 
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [{ path: "a.yaml", resource: alert() }],
-      });
-      expect.fail("expected the version conflict to fail the apply");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /a\.yaml: alert "default\/high-errors" was modified concurrently .* re-run apply/,
-        ),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(
+        /a\.yaml: alert "default\/high-errors" was modified concurrently .* re-run apply/,
+      ),
+    });
   });
 
   it("prunes this repo's rules absent from config, never other repos' rules", async () => {
@@ -818,20 +781,16 @@ describe("applyAlertSpecs", () => {
       new AlertingError(409, "conflict", "rule name already exists"),
     );
 
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [{ path: "a.yaml", resource: alert() }],
-      });
-      expect.fail("expected the create race to fail as a validation error");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).not.toBeInstanceOf(AlertingError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(/a\.yaml:.*default\/high-errors/),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.not.toBeInstanceOf(AlertingError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(/a\.yaml:.*default\/high-errors/),
+    });
   });
 
   it("keys duplicate detection on project/slug, rejecting dupes before querying ClickHouse", async () => {
@@ -856,31 +815,22 @@ describe("applyAlertSpecs", () => {
         },
       ],
     });
-    expect(res.created).toEqual([
-      "payments/high-errors",
-      "checkout/high-errors",
-    ]);
+    expect(res.created).toEqual(["payments/high-errors", "checkout/high-errors"]);
     expect(mockedCreateRule).toHaveBeenCalledTimes(2);
 
     vi.clearAllMocks();
-    try {
-      await applyAlertSpecs({
-        namespace: live,
-        db,
-        resources: [
-          { path: "a.yaml", resource: alert("same") },
-          { path: "b.yaml", resource: alert("same") },
-        ],
-      });
-      expect.fail("expected duplicate names to fail");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect(error).toMatchObject({
-        message: expect.stringMatching(
-          /duplicate alert "default\/same" \(a\.yaml and b\.yaml\)/,
-        ),
-      });
-    }
+    const attempt = applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [
+        { path: "a.yaml", resource: alert("same") },
+        { path: "b.yaml", resource: alert("same") },
+      ],
+    });
+    await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(attempt).rejects.toMatchObject({
+      message: expect.stringMatching(/duplicate alert "default\/same" \(a\.yaml and b\.yaml\)/),
+    });
     expect(ch).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
@@ -935,8 +885,7 @@ describe("applyAlertSpecs", () => {
         path: "value.yaml",
         resource: alert(),
         columns: [["service"], ["String"]],
-        pattern:
-          /value\.yaml: alert query must return a numeric column named "value"/,
+        pattern: /value\.yaml: alert query must return a numeric column named "value"/,
       },
       {
         path: "condition-type.yaml",
@@ -945,8 +894,7 @@ describe("applyAlertSpecs", () => {
           instanceLabels: undefined,
           notificationMessage: { title: "plain title" },
         }),
-        pattern:
-          /condition-type\.yaml: alert query column "value" must be numeric, got String/,
+        pattern: /condition-type\.yaml: alert query column "value" must be numeric, got String/,
         columns: [["value"], ["String"]],
       },
       {
@@ -966,19 +914,15 @@ describe("applyAlertSpecs", () => {
           columnTypes: columns[1],
         });
       }
-      try {
-        await applyAlertSpecs({
-          namespace: live,
-          db,
-          resources: [{ path, resource }],
-        });
-        expect.fail(`expected ${path} to fail validation`);
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApplyValidationError);
-        expect(error).toMatchObject({
-          message: expect.stringMatching(pattern),
-        });
-      }
+      const attempt = applyAlertSpecs({
+        namespace: live,
+        db,
+        resources: [{ path, resource }],
+      });
+      await expect(attempt).rejects.toBeInstanceOf(ApplyValidationError);
+      await expect(attempt).rejects.toMatchObject({
+        message: expect.stringMatching(pattern),
+      });
     }
 
     expect(mockedCreateRule).not.toHaveBeenCalled();

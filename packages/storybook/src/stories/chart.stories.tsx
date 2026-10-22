@@ -20,9 +20,7 @@ import {
   YAxis,
 } from "recharts";
 
-const requestRate = [
-  1240, 1180, 1310, 1490, 1720, 1980, 2140, 2060, 1890, 1650, 1420, 1290,
-];
+const requestRate = [1240, 1180, 1310, 1490, 1720, 1980, 2140, 2060, 1890, 1650, 1420, 1290];
 const p95Latency = [182, 176, 191, 214, 268, 342, 401, 377, 310, 254, 208, 190];
 const errorRate = [0.4, 0.3, 0.5, 0.8, 1.4, 2.6, 3.9, 3.1, 1.9, 1.1, 0.6, 0.4];
 
@@ -76,12 +74,7 @@ export const Bars: Story = {
         <XAxis dataKey="time" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} width={40} />
         <ChartTooltip content={<ChartTooltipContent />} />
-        <Bar
-          dataKey="latency"
-          fill="var(--color-latency)"
-          radius={4}
-          isAnimationActive={false}
-        />
+        <Bar dataKey="latency" fill="var(--color-latency)" radius={4} isAnimationActive={false} />
       </BarChart>
     ),
   },
@@ -152,16 +145,8 @@ export const LegendOnTop: Story = {
         <XAxis dataKey="time" tickLine={false} axisLine={false} />
         <YAxis tickLine={false} axisLine={false} width={40} />
         <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-        <ChartLegend
-          verticalAlign="top"
-          content={<ChartLegendContent verticalAlign="top" />}
-        />
-        <Bar
-          dataKey="errors"
-          fill="var(--color-errors)"
-          radius={4}
-          isAnimationActive={false}
-        />
+        <ChartLegend verticalAlign="top" content={<ChartLegendContent verticalAlign="top" />} />
+        <Bar dataKey="errors" fill="var(--color-errors)" radius={4} isAnimationActive={false} />
       </BarChart>
     ),
   },
@@ -173,10 +158,7 @@ export const TooltipIndicators: Story = {
       {(["dot", "line", "dashed"] as const).map((indicator) => (
         <div key={indicator} className="flex flex-col gap-2">
           <span className="text-muted-foreground text-xs">{indicator}</span>
-          <ChartContainer
-            config={config}
-            className="aspect-auto h-[160px] w-[640px]"
-          >
+          <ChartContainer config={config} className="aspect-auto h-[160px] w-[640px]">
             <LineChart data={series}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="time" tickLine={false} axisLine={false} />

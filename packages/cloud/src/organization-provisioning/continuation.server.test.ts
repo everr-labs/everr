@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { GenericEndpointContext } from "better-auth";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import {
   getOrganizationEntryRedirect,
   markOrganizationCreated,
@@ -18,10 +18,9 @@ afterEach(() => {
 });
 async function marker() {
   const setCookie = vi.fn();
-  await markOrganizationCreated(
-    { id: "session", activeOrganizationId: "org" },
-    { setCookie } as unknown as GenericEndpointContext,
-  );
+  await markOrganizationCreated({ id: "session", activeOrganizationId: "org" }, {
+    setCookie,
+  } as unknown as GenericEndpointContext);
   expect(setCookie).toHaveBeenCalledWith(
     ORGANIZATION_CREATION_COOKIE,
     expect.any(String),

@@ -1,14 +1,6 @@
-import {
-  createFileRoute,
-  Outlet,
-  retainSearchParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet, retainSearchParams, useSearch } from "@tanstack/react-router";
 import { DashboardsList } from "#app/components/dashboards/dashboards-list.tsx";
-import {
-  RailFrame,
-  railFrameRouteOptions,
-} from "#app/components/rail/rail-frame.tsx";
+import { RailFrame, railFrameRouteOptions } from "#app/components/rail/rail-frame.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards",

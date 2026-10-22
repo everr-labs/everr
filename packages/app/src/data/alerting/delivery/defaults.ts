@@ -8,10 +8,7 @@ export const ALERTING_DEFAULT_GROUP_INTERVAL_SECS = 300;
 export const ALERTING_SEVERITY_TIERS = ["critical", "warning", "info"] as const;
 
 /** Every tier the default destination can hold, "all" first. */
-export const ALERTING_DEFAULT_TIERS = [
-  "all",
-  ...ALERTING_SEVERITY_TIERS,
-] as const;
+export const ALERTING_DEFAULT_TIERS = ["all", ...ALERTING_SEVERITY_TIERS] as const;
 
 /** A default-destination tier: "all" is the unsplit mode. */
 export type AlertingDefaultTier = (typeof ALERTING_DEFAULT_TIERS)[number];

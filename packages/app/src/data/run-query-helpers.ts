@@ -68,14 +68,10 @@ export function runSummarySubquery({
     selects.push(`max(Duration) / 1000000 as duration`);
   }
   if (includeSender) {
-    selects.push(
-      `max(${resourceAttribute("cicd.pipeline.task.run.sender.login")}) as sender`,
-    );
+    selects.push(`max(${resourceAttribute("cicd.pipeline.task.run.sender.login")}) as sender`);
   }
   if (includeHeadSha) {
-    selects.push(
-      `anyLast(${resourceAttribute("vcs.ref.head.revision")}) as headSha`,
-    );
+    selects.push(`anyLast(${resourceAttribute("vcs.ref.head.revision")}) as headSha`);
   }
   if (includeJobCount) {
     selects.push("count(*) as jobCount");

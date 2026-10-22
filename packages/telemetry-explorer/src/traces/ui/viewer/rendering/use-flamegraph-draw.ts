@@ -11,12 +11,7 @@ import {
   type FlamegraphRowMetrics,
   getFlamegraphRowMetrics,
 } from "./draw-utils";
-import {
-  type EventRect,
-  type FlamegraphSpan,
-  type SpanRect,
-  spanColorGroup,
-} from "./types";
+import { type EventRect, type FlamegraphSpan, type SpanRect, spanColorGroup } from "./types";
 
 interface UseFlamegraphDrawArgs {
   colorBy: string;
@@ -105,8 +100,7 @@ function drawLevel(args: DrawLevelArgs): void {
     width = clamp(width, 1, Infinity);
 
     const color = canvasServiceColor(spanColorGroup(span, colorBy));
-    const isDimmedByFilter =
-      matchingSpanIds !== null && !matchingSpanIds.has(span.spanId);
+    const isDimmedByFilter = matchingSpanIds !== null && !matchingSpanIds.has(span.spanId);
 
     drawSpanBar({
       ctx,
@@ -178,19 +172,14 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
       scrollTop +
       metrics.SPAN_BAR_Y_OFFSET +
       metrics.SPAN_BAR_HEIGHT;
-    const childY =
-      conn.childRow * metrics.ROW_HEIGHT -
-      scrollTop +
-      metrics.SPAN_BAR_Y_OFFSET;
+    const childY = conn.childRow * metrics.ROW_HEIGHT - scrollTop + metrics.SPAN_BAR_Y_OFFSET;
 
     // Skip if entirely outside viewport
     if (parentY > viewportHeight || childY < 0) {
       continue;
     }
 
-    ctx.strokeStyle = canvasServiceColor(
-      spanColorGroup({ resource: conn.resource }, colorBy),
-    );
+    ctx.strokeStyle = canvasServiceColor(spanColorGroup({ resource: conn.resource }, colorBy));
 
     const x = clamp(xFrac * cssWidth, 0, cssWidth);
     ctx.beginPath();
@@ -247,26 +236,17 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     const viewportHeight = container.clientHeight;
 
     //starts drawing OVERSCAN_ROWS(4) rows above the visible area.
-    const firstLevel = Math.max(
-      0,
-      Math.floor(scrollTop / metrics.ROW_HEIGHT) - OVERSCAN_ROWS,
-    );
+    const firstLevel = Math.max(0, Math.floor(scrollTop / metrics.ROW_HEIGHT) - OVERSCAN_ROWS);
     // adds 2*OVERSCAN_ROWS extra rows above and below the visible area.
-    const visibleLevelCount =
-      Math.ceil(viewportHeight / metrics.ROW_HEIGHT) + 2 * OVERSCAN_ROWS;
+    const visibleLevelCount = Math.ceil(viewportHeight / metrics.ROW_HEIGHT) + 2 * OVERSCAN_ROWS;
 
-    const lastLevel = Math.min(
-      spans.length - 1,
-      firstLevel + visibleLevelCount,
-    );
+    const lastLevel = Math.min(spans.length - 1, firstLevel + visibleLevelCount);
 
     ctx.clearRect(0, 0, cssWidth, viewportHeight);
 
     // ---- Draw connector lines (behind span bars) ----
     drawConnectorLines({
-      focusedSpanIds: new Set(
-        [selectedSpanId, hoveredSpanId].filter((id): id is string => !!id),
-      ),
+      focusedSpanIds: new Set([selectedSpanId, hoveredSpanId].filter((id): id is string => !!id)),
       ctx,
       connectors,
       scrollTop,

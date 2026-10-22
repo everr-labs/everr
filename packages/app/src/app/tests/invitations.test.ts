@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import type { PoolClient } from "pg";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createInstallationIdentity } from "#app/app/identity.ts";
 import { setupWorkspace } from "#app/app/installation.server.ts";
 import { createWorkspaceIdentityRequests } from "#app/app/request.ts";
@@ -94,16 +94,11 @@ it.each([
       },
     });
   }
-  for (const query of [
-    "",
-    `?organizationId=${organizationId}`,
-    "?organizationSlug=workspace",
-  ]) {
+  for (const query of ["", `?organizationId=${organizationId}`, "?organizationSlug=workspace"]) {
     const response = await auth.handler(
-      new Request(
-        `http://localhost:3000/api/auth/organization/get-full-organization${query}`,
-        { headers },
-      ),
+      new Request(`http://localhost:3000/api/auth/organization/get-full-organization${query}`, {
+        headers,
+      }),
     );
     expect(response.status).toBe(200);
     const organization = await response.json();
@@ -118,10 +113,9 @@ it.each([
   }
   for (const query of ["", `?organizationId=${organizationId}`]) {
     const response = await auth.handler(
-      new Request(
-        `http://localhost:3000/api/auth/organization/list-invitations${query}`,
-        { headers },
-      ),
+      new Request(`http://localhost:3000/api/auth/organization/list-invitations${query}`, {
+        headers,
+      }),
     );
     expect(response.status).toBe(200);
     const invitations = await response.json();
@@ -134,67 +128,69 @@ it.each([
   }
 });
 
-it.each([
-  false,
-  true,
-])("replaces invitations and enforces signup and verification with email enabled: %s", async (emailEnabled) => {
-  const auth = createAuth(emailEnabled);
-  const { organizationId } = await setupWorkspace(input, database);
-  const owner = await auth.api.signInEmail({ body: input, asResponse: true });
-  const headers = new Headers({
-    cookie: owner.headers.get("set-cookie") ?? "",
-  });
-  const recipient = {
-    name: "Recipient",
-    email: "recipient@example.test",
-    password: "recipient-test-password",
-  };
-  const body = { email: recipient.email, role: "member", organizationId };
-  const first = await auth.api.createInvitation({ headers, body });
-  const replacement = await auth.api.createInvitation({ headers, body });
-  await expect(
-    auth.api.signUpEmail({
-      body: { ...recipient, callbackURL: `/invite/${first.id}` },
-    }),
-  ).rejects.toThrow("invitation");
-  const forgedVerification = await auth.handler(
-    new Request("http://localhost:3000/api/auth/sign-up/email", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: "http://localhost:3000",
-      },
-      body: JSON.stringify({ ...recipient, emailVerified: true }),
-    }),
-  );
-  expect(forgedVerification.status).toBe(403);
-  const response = await auth.api.signUpEmail({
-    body: { ...recipient, callbackURL: `/invite/${replacement.id}` },
-    asResponse: true,
-  });
-  let inviteeHeaders = new Headers({
-    cookie: response.headers.get("set-cookie") ?? "",
-  });
-  const accept = (invitationId: string) =>
-    auth.api.acceptInvitation({
-      headers: inviteeHeaders,
-      body: { invitationId },
+it.each([false, true])(
+  "replaces invitations and enforces signup and verification with email enabled: %s",
+  async (emailEnabled) => {
+    const auth = createAuth(emailEnabled);
+    const { organizationId } = await setupWorkspace(input, database);
+    const owner = await auth.api.signInEmail({ body: input, asResponse: true });
+    const headers = new Headers({
+      cookie: owner.headers.get("set-cookie") ?? "",
     });
-  await expect(accept(first.id)).rejects.toThrow();
-  if (emailEnabled) {
-    await expect(accept(replacement.id)).rejects.toThrow("verification");
-    const token = new URL(state.verificationUrl).searchParams.get("token");
-    if (!token) throw new Error("Missing verification token");
-    const verified = await auth.api.verifyEmail({
-      query: { token },
+    const recipient = {
+      name: "Recipient",
+      email: "recipient@example.test",
+      password: "recipient-test-password",
+    };
+    const body = { email: recipient.email, role: "member", organizationId };
+    const first = await auth.api.createInvitation({ headers, body });
+    const replacement = await auth.api.createInvitation({ headers, body });
+    await expect(
+      auth.api.signUpEmail({
+        body: { ...recipient, callbackURL: `/invite/${first.id}` },
+      }),
+    ).rejects.toThrow("invitation");
+    const forgedVerification = await auth.handler(
+      new Request("http://localhost:3000/api/auth/sign-up/email", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({ ...recipient, emailVerified: true }),
+      }),
+    );
+    expect(forgedVerification.status).toBe(403);
+    const response = await auth.api.signUpEmail({
+      body: { ...recipient, callbackURL: `/invite/${replacement.id}` },
       asResponse: true,
     });
-    inviteeHeaders = new Headers({
-      cookie: verified.headers.get("set-cookie") ?? "",
+    let inviteeHeaders = new Headers({
+      cookie: response.headers.get("set-cookie") ?? "",
     });
-  }
-  await expect(accept(replacement.id)).resolves.toBeTruthy();
-});
+    const accept = (invitationId: string) =>
+      auth.api.acceptInvitation({
+        headers: inviteeHeaders,
+        body: { invitationId },
+      });
+    await expect(accept(first.id)).rejects.toThrow();
+    /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
+    if (emailEnabled) {
+      await expect(accept(replacement.id)).rejects.toThrow("verification");
+      const token = new URL(state.verificationUrl).searchParams.get("token");
+      if (!token) throw new Error("Missing verification token");
+      const verified = await auth.api.verifyEmail({
+        query: { token },
+        asResponse: true,
+      });
+      inviteeHeaders = new Headers({
+        cookie: verified.headers.get("set-cookie") ?? "",
+      });
+    }
+    /* oxlint-enable vitest/no-conditional-expect */
+    await expect(accept(replacement.id)).resolves.toBeTruthy();
+  },
+);
 
 it.each([
   {
@@ -215,11 +211,7 @@ it.each([
     email: undefined,
     allowed: false,
   },
-])("holds and releases identity locks when $name", async ({
-  path,
-  email,
-  allowed,
-}) => {
+])("holds and releases identity locks when $name", async ({ path, email, allowed }) => {
   const auth = createAuth();
   const { organizationId } = await setupWorkspace(input, database);
   await client.exec(
@@ -235,6 +227,7 @@ it.each([
     "content-type": "application/json",
     origin: "http://localhost:3000",
   };
+  /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
   if (path === "delete-user") {
     await expect(
       auth.api.createOrganization({
@@ -253,18 +246,16 @@ it.each([
     expect(await deletion.json()).toMatchObject({
       message: "The installation workspace cannot be deleted.",
     });
-    expect(
-      (await client.query("SELECT id FROM organization")).rows,
-    ).toHaveLength(1);
+    expect((await client.query("SELECT id FROM organization")).rows).toHaveLength(1);
   }
+  /* oxlint-enable vitest/no-conditional-expect */
   state.lockQuery.mockClear();
   state.releaseLock.mockClear();
   let membersAtUnlock: number | undefined;
   state.lockQuery.mockImplementation(async (sql: string) => {
     expect(state.releaseLock).not.toHaveBeenCalled();
     if (sql.includes("pg_advisory_unlock")) {
-      membersAtUnlock = (await client.query("SELECT id FROM member")).rows
-        .length;
+      membersAtUnlock = (await client.query("SELECT id FROM member")).rows.length;
     }
     return { rows: [{ locked: true }] };
   });
@@ -273,9 +264,7 @@ it.each([
       method: "POST",
       headers,
       body: JSON.stringify(
-        email
-          ? { organizationId, memberIdOrEmail: email }
-          : { password: input.password },
+        email ? { organizationId, memberIdOrEmail: email } : { password: input.password },
       ),
     }),
   );
@@ -283,34 +272,33 @@ it.each([
   expect(membersAtUnlock).toBe(allowed ? 1 : 2);
   expect(state.lockQuery).toHaveBeenCalledTimes(2);
   expect(state.releaseLock).toHaveBeenCalledOnce();
+  /* oxlint-disable vitest/no-conditional-expect -- The test table covers each auth mode or endpoint, with shared success and lock assertions afterward. */
   if (path === "delete-user") {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({
-      message: expect.stringContaining(
-        "Transfer ownership before deleting your account.",
-      ),
+      message: expect.stringContaining("Transfer ownership before deleting your account."),
     });
     expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(2);
   }
+  /* oxlint-enable vitest/no-conditional-expect */
 });
 
-it.each([
-  false,
-  true,
-])("owns account deletion checks and locks with contention: %s", async (busy) => {
-  const auth = createAuth();
-  await setupWorkspace(input, database);
-  const owner = await auth.api.signInEmail({ body: input, asResponse: true });
-  const headers = new Headers({
-    cookie: owner.headers.get("set-cookie") ?? "",
-  });
-  if (busy)
-    state.lockQuery.mockResolvedValueOnce({ rows: [{ locked: false }] });
-  await expect(auth.deleteAccount({ headers })).rejects.toMatchObject({
-    status: busy ? "CONFLICT" : "FORBIDDEN",
-    message: expect.stringContaining(busy ? "Please try again" : "only owner"),
-  });
-  expect(state.lockQuery).toHaveBeenCalledTimes(busy ? 1 : 2);
-  expect(state.releaseLock).toHaveBeenCalledOnce();
-  expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(1);
-});
+it.each([false, true])(
+  "owns account deletion checks and locks with contention: %s",
+  async (busy) => {
+    const auth = createAuth();
+    await setupWorkspace(input, database);
+    const owner = await auth.api.signInEmail({ body: input, asResponse: true });
+    const headers = new Headers({
+      cookie: owner.headers.get("set-cookie") ?? "",
+    });
+    if (busy) state.lockQuery.mockResolvedValueOnce({ rows: [{ locked: false }] });
+    await expect(auth.deleteAccount({ headers })).rejects.toMatchObject({
+      status: busy ? "CONFLICT" : "FORBIDDEN",
+      message: expect.stringContaining(busy ? "Please try again" : "only owner"),
+    });
+    expect(state.lockQuery).toHaveBeenCalledTimes(busy ? 1 : 2);
+    expect(state.releaseLock).toHaveBeenCalledOnce();
+    expect((await client.query('SELECT id FROM "user"')).rows).toHaveLength(1);
+  },
+);

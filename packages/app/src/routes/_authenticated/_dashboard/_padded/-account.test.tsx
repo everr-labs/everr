@@ -1,7 +1,8 @@
+import type * as ReactRouter from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   googleEnabled: true,
@@ -19,8 +20,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@tanstack/react-router")>();
+  const actual = await importOriginal<typeof ReactRouter>();
   return {
     ...actual,
     createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
@@ -124,9 +124,7 @@ describe("/account route", () => {
     renderPage();
     expect(screen.getByText("Account Settings")).toBeInTheDocument();
     expect(screen.queryByText("GitHub Connection")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Manage GitHub" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Manage GitHub" })).not.toBeInTheDocument();
     const name = screen.getByLabelText("Name");
     expect(screen.getByLabelText("Email")).toHaveAttribute("readonly");
     expect(screen.getByRole("button", { name: "Save profile" })).toBeDisabled();
@@ -153,16 +151,12 @@ describe("/account route", () => {
     await user.type(password, "new-password");
     await user.type(confirmation, "different-password");
     await user.click(screen.getByRole("button", { name: "Change password" }));
-    expect(
-      await screen.findByText("New passwords do not match."),
-    ).toBeVisible();
+    expect(await screen.findByText("New passwords do not match.")).toBeVisible();
     expect(mocks.changePassword).not.toHaveBeenCalled();
     await user.clear(confirmation);
     await user.type(confirmation, "new-password");
     await user.click(screen.getByRole("button", { name: "Change password" }));
-    expect(
-      await screen.findByText("Current password is incorrect"),
-    ).toBeVisible();
+    expect(await screen.findByText("Current password is incorrect")).toBeVisible();
     expect(current).toHaveValue("old-password");
     await user.click(screen.getByRole("button", { name: "Change password" }));
     expect(await screen.findByText("Password changed.")).toBeVisible();
@@ -171,8 +165,7 @@ describe("/account route", () => {
       newPassword: "new-password",
       revokeOtherSessions: false,
     });
-    for (const input of [current, password, confirmation])
-      expect(input).toHaveValue("");
+    for (const input of [current, password, confirmation]) expect(input).toHaveValue("");
     expect(mocks.revokeSession).not.toHaveBeenCalled();
     expect(mocks.revokeOtherSessions).not.toHaveBeenCalled();
   });
@@ -203,24 +196,14 @@ describe("/account route", () => {
     expect(within(current).queryByRole("button")).not.toBeInTheDocument();
     const other = screen.getByText("Device other").closest("li");
     if (!other) throw new Error("Other session row is missing");
-    await user.click(
-      within(other).getByRole("button", { name: "Sign out session" }),
-    );
+    await user.click(within(other).getByRole("button", { name: "Sign out session" }));
     expect(mocks.revokeSession).toHaveBeenCalledWith({ token: "secret-other" });
-    await waitFor(() =>
-      expect(screen.queryByText("Device other")).not.toBeInTheDocument(),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Sign out other sessions" }),
-    );
+    await waitFor(() => expect(screen.queryByText("Device other")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Sign out other sessions" }));
     expect(mocks.revokeOtherSessions).toHaveBeenCalledOnce();
-    await waitFor(() =>
-      expect(screen.queryByText("Device cli")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.queryByText("Device cli")).not.toBeInTheDocument());
     expect(screen.getByText("Current session")).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Sign out other sessions" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign out other sessions" })).toBeDisabled();
     expect(document.body.innerHTML).not.toContain("secret-");
   });
 
@@ -237,33 +220,27 @@ describe("/account route", () => {
       error: { message: "Could not sign out" },
     });
     renderPage();
-    expect(
-      await screen.findByText(/Could not load sessions: Could not load/),
-    ).toBeVisible();
+    expect(await screen.findByText(/Could not load sessions: Could not load/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Retry" }));
-    await user.click(
-      await screen.findByRole("button", { name: "Sign out session" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Sign out session" }));
     expect(await screen.findByText("Could not sign out")).toBeVisible();
     expect(screen.getByText("Device other")).toBeVisible();
   });
 
-  it.each([
-    true,
-    false,
-  ])("only links Google accounts when configured (%s)", async (enabled) => {
-    const user = userEvent.setup();
-    mocks.googleEnabled = enabled;
+  it("hides Google linking when unconfigured", async () => {
+    mocks.googleEnabled = false;
     renderPage();
     await screen.findByLabelText("Current password");
-    if (!enabled) {
-      expect(screen.queryByText("Google Connection")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Connect Google" }),
-      ).not.toBeInTheDocument();
-      expect(mocks.linkSocial).not.toHaveBeenCalled();
-      return;
-    }
+    expect(screen.queryByText("Google Connection")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connect Google" })).not.toBeInTheDocument();
+    expect(mocks.linkSocial).not.toHaveBeenCalled();
+  });
+
+  it("links Google accounts when configured", async () => {
+    const user = userEvent.setup();
+    mocks.googleEnabled = true;
+    renderPage();
+    await screen.findByLabelText("Current password");
     await user.click(screen.getByRole("button", { name: "Connect Google" }));
     expect(mocks.linkSocial).toHaveBeenCalledWith({
       callbackURL: "/account",
@@ -279,9 +256,7 @@ describe("/account route", () => {
     renderPage();
     expect(await screen.findByText("Connected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Linked" })).toBeDisabled();
-    expect(
-      screen.getByText("Your password is managed by your sign-in provider."),
-    ).toBeVisible();
+    expect(screen.getByText("Your password is managed by your sign-in provider.")).toBeVisible();
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
     expect(mocks.changePassword).not.toHaveBeenCalled();
   });
@@ -294,9 +269,7 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
-    await user.click(
-      screen.getByRole("button", { name: "Delete permanently" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     await waitFor(() => {
       expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
@@ -316,9 +289,7 @@ describe("/account route", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete account" }));
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
-    await user.click(
-      screen.getByRole("button", { name: "Delete permanently" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 
     expect(
       await screen.findByRole("alert", {

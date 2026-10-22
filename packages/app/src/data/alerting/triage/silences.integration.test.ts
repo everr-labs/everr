@@ -8,18 +8,12 @@
  * evaluated by PostgreSQL, not by the caller, and the harness shadows it with
  * the suite's own clock so a case can place a Silence on either side of it.
  */
-import { describe, expect, it, vi } from "vitest";
-import {
-  insertRule,
-  insertSilence,
-  TEST_ORG,
-} from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { insertRule, insertSilence, TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -33,12 +27,9 @@ import {
   loadSilencesForPage,
   loadSilencesInWindow,
 } from "#app/data/alerting/silences/repository.ts";
-import {
-  silenceFor,
-  silenceRecord,
-} from "#app/data/alerting/triage/silences.ts";
+import { silenceFor, silenceRecord } from "#app/data/alerting/triage/silences.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const HOUR = 3_600_000;
 const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
@@ -51,9 +42,7 @@ const RULE_NAME = "Checkout latency";
  *  rows, id and all, which is why the record has to project rather than pass
  *  them through. */
 const ruleFor = (id: string) =>
-  id === RULE_ID
-    ? { id: RULE_ID, path: RULE_PATH, project: "default", name: RULE_NAME }
-    : null;
+  id === RULE_ID ? { id: RULE_ID, path: RULE_PATH, project: "default", name: RULE_NAME } : null;
 
 /** Selects the whole Alert rule, the way the Triage screen writes a Silence. */
 const ruleMatcher = [{ label: "rule", op: "eq" as const, value: RULE_ID }];
@@ -116,13 +105,7 @@ describe("the Silences the Triage screen reads", () => {
       matchers: ruleMatcher,
     });
 
-    const silences = await loadSilencesInWindow(
-      TEST_ORG,
-      RULE_ID,
-      "warning",
-      from,
-      to,
-    );
+    const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", from, to);
 
     expect(new Set(silences.map((row) => row.id))).toEqual(
       new Set([endedInside.id, spansTheWindow.id]),
@@ -141,13 +124,7 @@ describe("the Silences the Triage screen reads", () => {
       matchers: ruleMatcher,
     });
 
-    const silences = await loadSilencesInWindow(
-      TEST_ORG,
-      RULE_ID,
-      "warning",
-      at(-4),
-      at(0),
-    );
+    const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", at(-4), at(0));
 
     expect(silences.map((row) => row.id)).toEqual([newer.id, older.id]);
   });
@@ -164,13 +141,7 @@ describe("the Silences the Triage screen reads", () => {
       matchers: [{ label: "rule", op: "eq", value: "default/some-other-rule" }],
     });
 
-    const silences = await loadSilencesInWindow(
-      TEST_ORG,
-      RULE_ID,
-      "warning",
-      at(-2),
-      at(0),
-    );
+    const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", at(-2), at(0));
 
     expect(silences.map((row) => row.id)).toEqual([mine.id]);
   });
@@ -183,20 +154,8 @@ describe("the Silences the Triage screen reads", () => {
       matchers: [{ label: "severity", op: "eq", value: "critical" }],
     });
 
-    const critical = await loadSilencesInWindow(
-      TEST_ORG,
-      RULE_ID,
-      "critical",
-      at(-2),
-      at(0),
-    );
-    const warning = await loadSilencesInWindow(
-      TEST_ORG,
-      RULE_ID,
-      "warning",
-      at(-2),
-      at(0),
-    );
+    const critical = await loadSilencesInWindow(TEST_ORG, RULE_ID, "critical", at(-2), at(0));
+    const warning = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", at(-2), at(0));
 
     expect(critical.map((row) => row.id)).toEqual([bySeverity.id]);
     expect(warning).toEqual([]);
@@ -255,12 +214,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(
-      row,
-      new Date(),
-      { held: 2, dropped: 0 },
-      ruleFor,
-    );
+    const page = silenceRecord(row, new Date(), { held: 2, dropped: 0 }, ruleFor);
 
     expect(page.state).toBe("active");
     expect(page.rule).toEqual({ path: RULE_PATH, name: RULE_NAME });
@@ -281,12 +235,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(
-      row,
-      new Date(),
-      { held: 0, dropped: 0 },
-      ruleFor,
-    );
+    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, ruleFor);
 
     expect(page.rule).toBeNull();
     expect(page.scope).toBe("environment=staging");
@@ -306,12 +255,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(
-      row,
-      new Date(),
-      { held: 0, dropped: 0 },
-      () => null,
-    );
+    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, () => null);
 
     expect(page.rule).toBeNull();
     // The row leads with that rather than reprinting the window it already
@@ -332,12 +276,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silenceRecord(
-      row,
-      new Date(),
-      { held: 0, dropped: 0 },
-      ruleFor,
-    );
+    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, ruleFor);
 
     expect(page.rule).toBeNull();
     expect(page.deletedRule).toBe(false);

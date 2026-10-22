@@ -40,12 +40,12 @@ To make the bundled Everr CLI available to later workflow steps on a
 supported runner, enable `install-cli`:
 
 ```yaml
-      - uses: everr-labs/everr-action@v0
-        with:
-          install-cli: "true"
-          check-run-id: ${{ job.check_run_id }}
+- uses: everr-labs/everr-action@v0
+  with:
+    install-cli: "true"
+    check-run-id: ${{ job.check_run_id }}
 
-      - run: everr --help
+- run: everr --help
 ```
 
 That's it. The action samples while your job runs and uploads the
@@ -68,11 +68,11 @@ get a no-op start and a warning at finalize time.
 
 ## Inputs
 
-| Name             | Required | Default  | Description                                                                                                                            |
-| ---------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Name             | Required | Default   | Description                                                                                                                                                            |
+| ---------------- | -------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `install-cli`    | no       | `"false"` | Whether to add the bundled Everr CLI to `PATH` for later workflow steps. Supports macOS arm64, Linux arm64, and Linux x64 runners when the matching binary is bundled. |
-| `resource-usage` | no       | `"true"` | Whether to sample per-job resource usage. Set to `"false"` to opt out without removing the step.                                       |
-| `check-run-id`   | no       | `""`     | Check run id for the current workflow job, e.g. `${{ job.check_run_id }}`. The action no-ops with a warning when it is missing.        |
+| `resource-usage` | no       | `"true"`  | Whether to sample per-job resource usage. Set to `"false"` to opt out without removing the step.                                                                       |
+| `check-run-id`   | no       | `""`      | Check run id for the current workflow job, e.g. `${{ job.check_run_id }}`. The action no-ops with a warning when it is missing.                                        |
 
 ## Failure modes
 

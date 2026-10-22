@@ -1,4 +1,5 @@
-/// <reference path="../../dom.d.ts" />
+/* oxlint-disable typescript/consistent-type-assertions -- PerformanceObserver erases entry subtypes; each observer is registered for the matching event or long-animation-frame entry type. */
+import type {} from "../../dom.js";
 import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue, Emit } from "../../pipeline/emitter.js";
 import { epoch } from "../../time.js";
@@ -94,18 +95,8 @@ type Interaction = {
 // The `vital` flag and the `slow` flag control the two outputs separately, and
 // the two outputs use this one observer. A caller does not call startInp when
 // the two flags are false.
-export function startInp(
-  emit: Emit,
-  tracer: Tracer,
-  vital: boolean,
-  slow: boolean,
-): () => void {
-  if (
-    !(
-      globalThis.PerformanceEventTiming &&
-      "interactionId" in PerformanceEventTiming.prototype
-    )
-  ) {
+export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boolean): () => void {
+  if (!(globalThis.PerformanceEventTiming && "interactionId" in PerformanceEventTiming.prototype)) {
     return () => {};
   }
 
@@ -117,8 +108,7 @@ export function startInp(
   let minKnownId = Infinity;
   let maxKnownId = 0;
   const interactionCount = () =>
-    (performance as { interactionCount?: number }).interactionCount ??
-    (maxKnownId ? (maxKnownId - minKnownId) / 7 + 1 : 0);
+    performance.interactionCount ?? (maxKnownId ? (maxKnownId - minKnownId) / 7 + 1 : 0);
   // The p98 calculation uses only the current navigation. When the browser
   // gives the page from the bfcache, the code records the count and starts a new
   // list of the candidates.
@@ -159,14 +149,8 @@ export function startInp(
       const frame = frames[i];
       if (Math.abs(renderTime - frame.renderTime) <= 8) {
         frame.startTime = Math.min(entry.startTime, frame.startTime);
-        frame.processingStart = Math.min(
-          entry.processingStart,
-          frame.processingStart,
-        );
-        frame.processingEnd = Math.max(
-          entry.processingEnd,
-          frame.processingEnd,
-        );
+        frame.processingStart = Math.min(entry.processingStart, frame.processingStart);
+        frame.processingEnd = Math.max(entry.processingEnd, frame.processingEnd);
         return frame;
       }
     }
@@ -197,8 +181,7 @@ export function startInp(
     // record that waits. It also keeps the most recent MAX_PENDING_FRAMES
     // frames, for the entries that come late or in an incorrect sequence.
     const live = new Set<Frame>(candidates.map((i) => i.frame));
-    for (const { interaction } of pendingSlow.values())
-      live.add(interaction.frame);
+    for (const { interaction } of pendingSlow.values()) live.add(interaction.frame);
     const minIndexToKeep = frames.length - MAX_PENDING_FRAMES;
     frames = frames.filter((f, i) => i >= minIndexToKeep || live.has(f));
     // The code keeps a LoAF entry that is in a frame that it keeps. It also
@@ -354,7 +337,7 @@ export function startInp(
       type: "event",
       buffered: true,
       durationThreshold: OBSERVE_THRESHOLD,
-    } as PerformanceObserverInit);
+    });
     // The observer also receives the first-input entry. Thus it gets a first
     // interaction with a duration below the limit.
     po.observe({ type: "first-input", buffered: true });
@@ -381,6 +364,7 @@ export function startInp(
     // emitter does the exit flush, because the SDK registers that listener
     // later.
     handleEntries(po.takeRecords() as PerformanceEventTiming[]);
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Preserve the original snapshot while finalizeSlow removes entries and invokes tracer callbacks.
     for (const [id, pending] of [...pendingSlow]) finalizeSlow(id, pending);
     reportVital();
   };
@@ -420,10 +404,7 @@ export function startInp(
 function phaseAttrs(
   entry: PerformanceEventTiming,
   frame: Frame,
-  intersecting: (
-    start: number,
-    end: number,
-  ) => PerformanceLongAnimationFrameTiming[],
+  intersecting: (start: number, end: number) => PerformanceLongAnimationFrameTiming[],
 ): Attrs {
   const interactionTime = entry.startTime;
   const processingStart = entry.processingStart;
@@ -432,22 +413,16 @@ function phaseAttrs(
   // the end of the processing earlier than the next paint. Thus synchronous
   // work that continues after the duration of the event, for example a call to
   // alert(), is never longer than the latency.
-  const nextPaintTime = Math.max(
-    entry.startTime + entry.duration,
-    processingStart,
-  );
+  const nextPaintTime = Math.max(entry.startTime + entry.duration, processingStart);
   const processingEnd = Math.min(frame.processingEnd, nextPaintTime);
   const inputDelay = processingStart - interactionTime;
   const processingDuration = processingEnd - processingStart;
 
   const attrs: Attrs = {
-    "everr.browser.interaction.type": entry.name.startsWith("key")
-      ? "keyboard"
-      : "pointer",
+    "everr.browser.interaction.type": entry.name.startsWith("key") ? "keyboard" : "pointer",
     "everr.browser.interaction.input_delay": inputDelay,
     "everr.browser.interaction.processing_duration": processingDuration,
-    "everr.browser.interaction.presentation_delay":
-      nextPaintTime - processingEnd,
+    "everr.browser.interaction.presentation_delay": nextPaintTime - processingEnd,
   };
 
   // The LoAF calculation. It gives the duration of each category in the frames
@@ -464,20 +439,17 @@ function phaseAttrs(
   let longestDuration = 0;
   let longest: PerformanceScriptTiming | undefined;
   for (const loaf of loafs) {
-    totalStyleAndLayout +=
-      loaf.startTime + loaf.duration - loaf.styleAndLayoutStart;
+    totalStyleAndLayout += loaf.startTime + loaf.duration - loaf.styleAndLayoutStart;
     for (const script of loaf.scripts) {
       const scriptEnd = script.startTime + script.duration;
       if (scriptEnd < interactionTime) continue;
-      const intersectingDuration =
-        scriptEnd - Math.max(interactionTime, script.startTime);
+      const intersectingDuration = scriptEnd - Math.max(interactionTime, script.startTime);
       // The forcedStyleAndLayout value has no timestamps. Thus the code divides
       // it by the part of the script that is in the interaction. It counts that
       // duration as style and layout, the same as DevTools, and not as script
       // time.
       const forced = script.duration
-        ? (intersectingDuration / script.duration) *
-          script.forcedStyleAndLayoutDuration
+        ? (intersectingDuration / script.duration) * script.forcedStyleAndLayoutDuration
         : 0;
       totalScript += intersectingDuration - forced;
       totalStyleAndLayout += forced;
@@ -497,17 +469,11 @@ function phaseAttrs(
     attrs,
     {
       "everr.browser.interaction.total_script_duration": totalScript,
-      "everr.browser.interaction.total_style_and_layout_duration":
-        totalStyleAndLayout,
+      "everr.browser.interaction.total_style_and_layout_duration": totalStyleAndLayout,
       "everr.browser.interaction.total_paint_duration": totalPaint,
       "everr.browser.interaction.total_unattributed_duration":
-        nextPaintTime -
-        interactionTime -
-        totalScript -
-        totalStyleAndLayout -
-        totalPaint,
+        nextPaintTime - interactionTime - totalScript - totalStyleAndLayout - totalPaint,
     },
-    longest &&
-      scriptAttrs("everr.browser.interaction", longest, longestDuration),
+    longest && scriptAttrs("everr.browser.interaction", longest, longestDuration),
   );
 }

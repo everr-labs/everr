@@ -9,18 +9,13 @@ interface OnboardingScope {
   userId: string;
 }
 
-export function createOnboardingStore(
-  database: Pick<Database, "select" | "update">,
-) {
+export function createOnboardingStore(database: Pick<Database, "select" | "update">) {
   // Metadata is stored as JSON text. Both SQL NULL and JSON null represent an
   // organization without metadata; malformed JSON must surface as an error.
   const metadata = sql`coalesce(nullif(nullif(${organization.metadata}, '')::jsonb, 'null'::jsonb), '{}'::jsonb)`;
   const onboardingCompleted = sql<boolean>`coalesce(${metadata} -> 'onboardingCompleted' = 'true'::jsonb, false)`;
   const membershipIdentity = (scope: OnboardingScope) =>
-    and(
-      eq(member.organizationId, scope.organizationId),
-      eq(member.userId, scope.userId),
-    );
+    and(eq(member.organizationId, scope.organizationId), eq(member.userId, scope.userId));
 
   return {
     async getStatus(
@@ -35,8 +30,7 @@ export function createOnboardingStore(
         .innerJoin(organization, eq(member.organizationId, organization.id))
         .where(membershipIdentity(scope))
         .limit(1);
-      if (!row)
-        throw new Error("You are no longer a member of this organization.");
+      if (!row) throw new Error("You are no longer a member of this organization.");
       return {
         canCreateKeys: isOrganizationAdmin(row.role),
         onboardingCompleted: row.onboardingCompleted,
@@ -58,12 +52,9 @@ export function createOnboardingStore(
         .set({
           metadata: sql`jsonb_set(${metadata}, '{onboardingCompleted}', 'true'::jsonb)::text`,
         })
-        .where(
-          and(eq(organization.id, scope.organizationId), exists(membership)),
-        )
+        .where(and(eq(organization.id, scope.organizationId), exists(membership)))
         .returning({ onboardingCompleted });
-      if (!row)
-        throw new Error("You are no longer a member of this organization.");
+      if (!row) throw new Error("You are no longer a member of this organization.");
       return row;
     },
   };

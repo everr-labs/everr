@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { SuggestCombobox, type SuggestItem } from "./suggest-combobox";
 
 function renderCombobox({
@@ -97,9 +97,9 @@ it("shows a friendly label while committing the underlying value", async () => {
   await user.click(screen.getByText("Always firing (demo)"));
 
   expect(onChange).toHaveBeenCalledWith("rule-3186");
-  expect(
-    screen.getByRole("combobox", { name: "Matcher value" }),
-  ).toHaveTextContent("Always firing (demo)");
+  expect(screen.getByRole("combobox", { name: "Matcher value" })).toHaveTextContent(
+    "Always firing (demo)",
+  );
 });
 
 it("can display a known label before loading suggestions", () => {
@@ -108,9 +108,9 @@ it("can display a known label before loading suggestions", () => {
     displayValue: "Always firing (demo)",
   });
 
-  expect(
-    screen.getByRole("combobox", { name: "Matcher value" }),
-  ).toHaveTextContent("Always firing (demo)");
+  expect(screen.getByRole("combobox", { name: "Matcher value" })).toHaveTextContent(
+    "Always firing (demo)",
+  );
   expect(queryFn).not.toHaveBeenCalled();
 });
 
@@ -119,10 +119,7 @@ it("offers a Use row for typed text that matches no suggestion", async () => {
   const { onChange } = renderCombobox({ items: [{ value: "critical" }] });
 
   await user.click(screen.getByRole("combobox", { name: "Matcher value" }));
-  await user.type(
-    screen.getByPlaceholderText("Search or type..."),
-    "custom-thing",
-  );
+  await user.type(screen.getByPlaceholderText("Search or type..."), "custom-thing");
   await user.click(screen.getByText('"custom-thing"'));
 
   expect(onChange).toHaveBeenCalledWith("custom-thing");

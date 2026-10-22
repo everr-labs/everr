@@ -24,9 +24,7 @@ const set: Record<string, AttrValue> = {};
  * keys belong to `identify()`. If you use one of those keys here, you are
  * responsible for the result.
  */
-export function setAttributes(
-  attributes: Record<string, AttrValue | null>,
-): void {
+export function setAttributes(attributes: Record<string, AttrValue | null>): void {
   for (const [key, value] of Object.entries(attributes)) {
     if (value === null) delete set[key];
     else set[key] = value;

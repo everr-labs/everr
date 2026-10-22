@@ -78,9 +78,7 @@ function serverFunctionAttributes(
   serverFnMeta: ServerFunctionMeta | undefined,
 ): Attributes {
   return {
-    ...(serverFnMeta
-      ? { "everr.server_function.name": serverFnMeta.name }
-      : {}),
+    ...(serverFnMeta ? { "everr.server_function.name": serverFnMeta.name } : {}),
     "everr.server_function.transport": request ? "http" : "in-process",
   };
 }

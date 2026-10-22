@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Importing the Alert rule module for its pure ordering function and the
 // assembler for its board order must not build a real database pool.
@@ -9,10 +9,7 @@ vi.mock("#app/db/client.ts", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
-import {
-  compareRuleLabels,
-  type TriageStatus,
-} from "#app/data/alerting/rules/read.ts";
+import { compareRuleLabels, type TriageStatus } from "#app/data/alerting/rules/read.ts";
 import type { AlertingSeverity } from "#app/data/alerting/types.ts";
 import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
 import { byTriageOrder } from "./assemble";
@@ -54,11 +51,7 @@ const alertArb = fc
       }) as TriageAlert,
   );
 
-function laws<T>(
-  name: string,
-  arb: fc.Arbitrary<T>,
-  cmp: (a: T, b: T) => number,
-) {
+function laws<T>(name: string, arb: fc.Arbitrary<T>, cmp: (a: T, b: T) => number) {
   describe(name, () => {
     it("reverses sign when its two sides are swapped", () => {
       fc.assert(
@@ -71,9 +64,11 @@ function laws<T>(
     it("carries through a chain of three", () => {
       fc.assert(
         fc.property(arb, arb, arb, (a, b, c) => {
+          /* oxlint-disable vitest/no-conditional-expect -- These comparator laws apply only when the generated inputs satisfy the stated premise. */
           if (cmp(a, b) <= 0 && cmp(b, c) <= 0) {
             expect(cmp(a, c)).toBeLessThanOrEqual(0);
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }),
       );
     });
@@ -81,9 +76,11 @@ function laws<T>(
     it("treats two things it calls equal as interchangeable against a third", () => {
       fc.assert(
         fc.property(arb, arb, arb, (a, b, c) => {
+          /* oxlint-disable vitest/no-conditional-expect -- These comparator laws apply only when the generated inputs satisfy the stated premise. */
           if (cmp(a, b) === 0) {
             expect(sign(cmp(a, c))).toBe(sign(cmp(b, c)));
           }
+          /* oxlint-enable vitest/no-conditional-expect */
         }),
       );
     });

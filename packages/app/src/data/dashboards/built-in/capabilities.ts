@@ -69,9 +69,10 @@ export function probeKey({ signal, match }: CapabilityProbe): string {
  */
 export const CATALOG_PROBES: CapabilityProbe[] = [
   ...new Map(
-    BUILTIN_DASHBOARDS.flatMap((builtin) => builtin.requires).map(
-      ({ signal, match }) => [probeKey({ signal, match }), { signal, match }],
-    ),
+    BUILTIN_DASHBOARDS.flatMap((builtin) => builtin.requires).map(({ signal, match }) => [
+      probeKey({ signal, match }),
+      { signal, match },
+    ]),
   ).values(),
 ];
 
@@ -113,9 +114,7 @@ function prefixTest(column: string, match: string): string {
  * lets ClickHouse stop at the first matching granule instead of reading the
  * range.
  */
-export function buildCapabilitiesQuery(
-  probes: CapabilityProbe[] = CATALOG_PROBES,
-): string {
+export function buildCapabilitiesQuery(probes: CapabilityProbe[] = CATALOG_PROBES): string {
   const branches: string[] = [];
 
   for (const probe of probes) {
@@ -142,17 +141,13 @@ export function buildCapabilitiesQuery(
         const where = match
           ? `${METRICS_WINDOW} AND ${prefixTest("MetricName", match)}`
           : METRICS_WINDOW;
-        branches.push(
-          `SELECT ${key} AS key FROM ${table} WHERE ${where} LIMIT 1`,
-        );
+        branches.push(`SELECT ${key} AS key FROM ${table} WHERE ${where} LIMIT 1`);
       }
       continue;
     }
 
     if (match?.endsWith(".")) {
-      throw new Error(
-        `Attribute matches must name an exact key, not a prefix: ${match}`,
-      );
+      throw new Error(`Attribute matches must name an exact key, not a prefix: ${match}`);
     }
 
     const { window, attributes } = ATTRIBUTE_SOURCES[signal];
@@ -162,24 +157,18 @@ export function buildCapabilitiesQuery(
         `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND ${attributeExists(attributes, match)} LIMIT 1`,
       );
     } else {
-      branches.push(
-        `SELECT ${key} AS key FROM ${signal} WHERE ${window} LIMIT 1`,
-      );
+      branches.push(`SELECT ${key} AS key FROM ${signal} WHERE ${window} LIMIT 1`);
     }
   }
 
   return `SELECT DISTINCT key FROM (\n  ${branches.join("\n  UNION ALL\n  ")}\n)`;
 }
 
-export function decodeCapabilityRows(
-  rows: CapabilityRow[],
-): TelemetryCapabilities {
+export function decodeCapabilityRows(rows: CapabilityRow[]): TelemetryCapabilities {
   return [...new Set(rows.map((row) => row.key))].sort();
 }
 
-export type BuiltinReadiness =
-  | { status: "ready" }
-  | { status: "needs-setup"; missing: string[] };
+export type BuiltinReadiness = { status: "ready" } | { status: "needs-setup"; missing: string[] };
 
 /**
  * Grade one builtin against the probe. Ready means every requirement is met,

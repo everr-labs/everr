@@ -33,8 +33,7 @@ export function buildAttributeValuesQuery(
 ): BuiltQuery {
   validateTableName(opts.tableName);
   const timeColumn = opts.timeColumn ?? "Timestamp";
-  const timeBound =
-    opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
+  const timeBound = opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
   const value = attributeText(column, input.key);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
@@ -69,8 +68,6 @@ export function buildAttributeValuesQuery(
   return { sql, params };
 }
 
-export function decodeAttributeValueRows(
-  rows: AttributeValueRowRaw[],
-): string[] {
+export function decodeAttributeValueRows(rows: AttributeValueRowRaw[]): string[] {
   return rows.map((row) => row.v);
 }

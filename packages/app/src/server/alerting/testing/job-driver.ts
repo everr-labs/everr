@@ -54,13 +54,10 @@ async function claimNextDueJob(db: Db): Promise<DueJob | undefined> {
  * enqueues more work is picked up by the same loop, so one call drains a
  * whole cascade: evaluate, then process event, then flush group, then send.
  */
-export async function runDueJobs(
-  db: Db,
-  opts: { limit?: number } = {},
-): Promise<number> {
+export async function runDueJobs(db: Db, opts: { limit?: number } = {}): Promise<number> {
   const limit = opts.limit ?? 500;
   let ran = 0;
-  for (; ran < limit; ) {
+  for (; ran < limit;) {
     const job = await claimNextDueJob(db);
     if (!job) return ran;
     ran += 1;
@@ -70,9 +67,7 @@ export async function runDueJobs(
     }
     try {
       await handler(job.payload, {} as never);
-      await db.execute(
-        sql`DELETE FROM graphile_worker._private_jobs WHERE id = ${job.id}::bigint`,
-      );
+      await db.execute(sql`DELETE FROM graphile_worker._private_jobs WHERE id = ${job.id}::bigint`);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       // graphile's own retry expression, copied from `dist/sql/failJob.js`, so
@@ -103,8 +98,7 @@ export async function runDueJobs(
  * out of the installed package fails, which is the only warning a copied
  * expression can give.
  */
-export const BACKOFF_EXPRESSION_TEST =
-  "exp(least(attempts, 10)) * interval '1 second'";
+export const BACKOFF_EXPRESSION_TEST = "exp(least(attempts, 10)) * interval '1 second'";
 
 export async function pendingJobs(db: Db) {
   const result = await db.execute<{

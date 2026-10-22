@@ -1,9 +1,6 @@
 const DEVICE_ORG_SCOPE_PREFIX = "everr:org:";
 
-export function withDeviceOrgScope(
-  scope: string | null | undefined,
-  organizationId: string,
-) {
+export function withDeviceOrgScope(scope: string | null | undefined, organizationId: string) {
   const orgScope = `${DEVICE_ORG_SCOPE_PREFIX}${encodeURIComponent(organizationId)}`;
   const existingScopes = (scope ?? "")
     .split(/\s+/)
@@ -34,14 +31,11 @@ export function getDeviceOrgIdFromScope(scope: string | null | undefined) {
   }
 }
 
+type AuthSessionOrganization = { session?: { activeOrganizationId?: unknown } } | null;
+
 export function getActiveOrganizationIdFromAuthSession(session: unknown) {
-  const activeOrganizationId = (
-    session as {
-      session?: {
-        activeOrganizationId?: unknown;
-      };
-    } | null
-  )?.session?.activeOrganizationId;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve optional property access without adding input shape guards.
+  const activeOrganizationId = (session as AuthSessionOrganization)?.session?.activeOrganizationId;
 
   return typeof activeOrganizationId === "string" && activeOrganizationId
     ? activeOrganizationId

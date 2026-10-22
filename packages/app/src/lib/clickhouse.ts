@@ -19,14 +19,9 @@ const clickhouse = createClient({
   keep_alive: clickhouseKeepAlive,
 });
 
-export type ClickhouseQuery = <T>(
-  sql: string,
-  params?: Record<string, unknown>,
-) => Promise<T[]>;
+export type ClickhouseQuery = <T>(sql: string, params?: Record<string, unknown>) => Promise<T[]>;
 
-type AppQuerySettings = NonNullable<
-  Parameters<typeof clickhouse.query>[0]["clickhouse_settings"]
->;
+type AppQuerySettings = NonNullable<Parameters<typeof clickhouse.query>[0]["clickhouse_settings"]>;
 
 export async function query<T>(
   query: string,
@@ -40,18 +35,13 @@ export async function query<T>(
     throw new Error("Missing workspace context");
   }
 
-  const result = await instrumentClickhouseOperation(
-    { client: "app", operation: "QUERY" },
-    () =>
-      clickhouse.query({
-        query,
-        query_params,
-        format: "JSONEachRow",
-        clickhouse_settings: appQuerySettings(
-          organizationId,
-          clickhouse_settings,
-        ),
-      }),
+  const result = await instrumentClickhouseOperation({ client: "app", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format: "JSONEachRow",
+      clickhouse_settings: appQuerySettings(organizationId, clickhouse_settings),
+    }),
   );
 
   return result.json<T>();
@@ -70,16 +60,14 @@ export function runSqlApiQuery<Format extends DataFormat>(
 
   const access = sqlApiAccess(organizationId);
 
-  return instrumentClickhouseOperation(
-    { client: "sql_api", operation: "QUERY" },
-    () =>
-      clickhouse.query({
-        query,
-        query_params,
-        format,
-        ...(abort_signal ? { abort_signal } : {}),
-        ...access,
-      }),
+  return instrumentClickhouseOperation({ client: "sql_api", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format,
+      ...(abort_signal ? { abort_signal } : {}),
+      ...access,
+    }),
   );
 }
 
@@ -89,12 +77,7 @@ export async function querySqlApi<T>(
   query_params?: Record<string, unknown>,
 ): Promise<T[]> {
   if (!organizationId) throw new Error("Missing workspace context");
-  const result = await runSqlApiQuery(
-    query,
-    organizationId,
-    query_params,
-    "JSONEachRow",
-  );
+  const result = await runSqlApiQuery(query, organizationId, query_params, "JSONEachRow");
   return result.json<T>();
 }
 
@@ -112,17 +95,9 @@ export async function querySqlApiWithMeta<T>(
 ): Promise<SqlApiResult<T>> {
   if (!organizationId) throw new Error("Missing workspace context");
   // JSON (not JSONEachRow) so column metadata is present even for empty results.
-  const result = await runSqlApiQuery(
-    query,
-    organizationId,
-    query_params,
-    "JSON",
-  );
+  const result = await runSqlApiQuery(query, organizationId, query_params, "JSON");
 
-  const body = (await result.json()) as {
-    meta?: { name: string; type?: string }[];
-    data?: T[];
-  };
+  const body = await result.json<T>();
   return {
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),
@@ -172,11 +147,8 @@ export async function previewSqlApi(
     abort.abort();
   }
 
-  const [columns, columnTypes, ...rows] = lines as [
-    string[],
-    string[],
-    ...unknown[][],
-  ];
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve header values and missing-header behavior from the existing SQL transport.
+  const [columns, columnTypes, ...rows] = lines as [string[], string[], ...unknown[][]];
   return { columns, columnTypes, rows, truncated };
 }
 

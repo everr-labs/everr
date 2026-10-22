@@ -28,9 +28,7 @@ export function DashboardBreadcrumb() {
       for (const seg of result) {
         crumbs.push({
           label: seg.label,
-          link: seg.link ?? (
-            <Link from={match.fullPath} to="." params={match.params} />
-          ),
+          link: seg.link ?? <Link from={match.fullPath} to="." params={match.params} />,
         });
       }
     }
@@ -46,15 +44,11 @@ export function DashboardBreadcrumb() {
           return (
             <Fragment key={`${crumb.label}-${String(i)}`}>
               {i > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-              <BreadcrumbItem
-                className={isLast ? undefined : "hidden md:block"}
-              >
+              <BreadcrumbItem className={isLast ? undefined : "hidden md:block"}>
                 {isLast ? (
                   <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink render={crumb.link}>
-                    {crumb.label}
-                  </BreadcrumbLink>
+                  <BreadcrumbLink render={crumb.link}>{crumb.label}</BreadcrumbLink>
                 )}
               </BreadcrumbItem>
             </Fragment>

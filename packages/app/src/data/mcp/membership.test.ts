@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const { selectMock } = vi.hoisted(() => ({ selectMock: vi.fn() }));
 vi.mock("#app/db/client.ts", () => ({
@@ -27,16 +27,12 @@ describe("assertCurrentMember", () => {
   });
   it("throws when no membership", async () => {
     selectMock.mockReturnValueOnce(returning([]));
-    await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(
-      McpMembershipError,
-    );
+    await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(McpMembershipError);
   });
 });
 
 it("returns pending readiness with verified membership", async () => {
-  selectMock.mockReturnValueOnce(
-    returning([{ metadata: '{"clickhouseReady":false}' }]),
-  );
+  selectMock.mockReturnValueOnce(returning([{ metadata: '{"clickhouseReady":false}' }]));
   expect(await assertCurrentMember("u", "org-1")).toEqual({
     metadata: '{"clickhouseReady":false}',
   });

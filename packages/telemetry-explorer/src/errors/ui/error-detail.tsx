@@ -18,14 +18,8 @@ import type { ErrorOccurrence } from "../data/types";
 import { ErrorDetailHeader } from "./error-detail-header";
 import { ErrorHandoffButton } from "./error-handoff-button";
 import { ErrorLatestOccurrence } from "./error-latest-occurrence";
-import {
-  findErrorOccurrenceByKey,
-  getErrorOccurrenceKey,
-} from "./error-occurrence-key";
-import {
-  ErrorOccurrencesList,
-  type RenderOccurrenceLink,
-} from "./error-occurrences-list";
+import { findErrorOccurrenceByKey, getErrorOccurrenceKey } from "./error-occurrence-key";
+import { ErrorOccurrencesList, type RenderOccurrenceLink } from "./error-occurrences-list";
 import { ErrorStacktrace } from "./error-stacktrace";
 
 const OCCURRENCE_LIMIT = 50;
@@ -92,6 +86,7 @@ export function ErrorDetail({
             <Button
               type="button"
               variant="outline"
+              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the original callback promise result.
               onClick={() => issueQuery.refetch()}
             >
               <RefreshCw data-icon="inline-start" />
@@ -109,8 +104,7 @@ export function ErrorDetail({
   }
 
   const detail = issueQuery.data;
-  const selected =
-    findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
+  const selected = findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
   const selectedOccurrenceKey = getErrorOccurrenceKey(selected);
 
   return (

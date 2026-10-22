@@ -8,9 +8,8 @@ export const entry: ApplicationEntry = {
     return true;
   },
   async getOrganizationEntryRedirect(session) {
-    const { getOrganizationEntryRedirect } = await import(
-      "../../organization-provisioning/continuation.server"
-    );
+    const { getOrganizationEntryRedirect } =
+      await import("../../organization-provisioning/continuation.server");
     return getOrganizationEntryRedirect(session);
   },
 };

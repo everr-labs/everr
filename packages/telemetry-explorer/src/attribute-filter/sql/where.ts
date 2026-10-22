@@ -37,9 +37,7 @@ export function buildAttributeClauses(
         // exists.
         if (filter.values.length === 0) return;
         params[keyParam] = filter.key;
-        clauses.push(
-          `(${exists} AND ${text} NOT IN {${valsParam}:Array(String)})`,
-        );
+        clauses.push(`(${exists} AND ${text} NOT IN {${valsParam}:Array(String)})`);
         params[valsParam] = filter.values;
         break;
       case "exists":

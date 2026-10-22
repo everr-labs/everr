@@ -18,10 +18,7 @@ import { useEffect, useEffectEvent } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
-import {
-  alertDetailOptions,
-  invalidateAlertTriage,
-} from "#app/data/alerting/triage/options.ts";
+import { alertDetailOptions, invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 import { useSilenceControls } from "#app/hooks/use-silence-controls.ts";
 import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { AlertDetailPanel } from "./alert-detail-panel";
@@ -59,9 +56,7 @@ function useAlertRulePause() {
     mutationFn: setAlertRulePaused,
     onSuccess: async (result, variables) => {
       await invalidateAlertTriage(queryClient);
-      toast.success(
-        `${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`,
-      );
+      toast.success(`${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -109,8 +104,9 @@ export function useAlertDetail() {
   const navigate = useNavigate();
   // Loose search read: the hook mounts under two routes, and a `from`-bound
   // read would tie it to one of them.
-  const { alert: openPath }: Partial<z.infer<typeof ALERT_PANEL_SEARCH>> =
-    useSearch({ strict: false });
+  const { alert: openPath }: Partial<z.infer<typeof ALERT_PANEL_SEARCH>> = useSearch({
+    strict: false,
+  });
   const { timeRange } = useTimeRange();
   // Under `lg` there is no width to split: a detail column narrow enough to
   // fit would leave the list unreadable, so the panel arrives as a sheet.
@@ -138,10 +134,7 @@ export function useAlertDetail() {
   };
   const closePanel = () => void setOpen(undefined);
 
-  useEscapeClosesPanel(
-    Boolean(openPath) && !isNarrow && silence.seed === null,
-    closePanel,
-  );
+  useEscapeClosesPanel(Boolean(openPath) && !isNarrow && silence.seed === null, closePanel);
 
   // Built once, in one subtree, so the same panel moves between the column and
   // the sheet rather than being mounted twice.
@@ -154,9 +147,7 @@ export function useAlertDetail() {
       onSilence={silence.openSilence}
       silencePending={silence.pending}
       pausePending={setPaused.isPending}
-      onTogglePaused={(paused) =>
-        setPaused.mutate({ data: { path: openPath, paused } })
-      }
+      onTogglePaused={(paused) => setPaused.mutate({ data: { path: openPath, paused } })}
     />
   ) : null;
 

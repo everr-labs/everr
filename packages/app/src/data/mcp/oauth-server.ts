@@ -13,9 +13,8 @@ import { AUTH_BASE, AUTH_ISSUER } from "#app/lib/mcp-resource.ts";
 // (error_description for OAuth errors); surface that instead of an empty string.
 function oauthFlowError(error: unknown, fallback: string): string {
   if (error && typeof error === "object") {
-    const body = (
-      error as { body?: { error_description?: string; message?: string } }
-    ).body;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider error field passthrough without adding runtime validation.
+    const body = (error as { body?: { error_description?: string; message?: string } }).body;
     if (body?.error_description) return body.error_description;
     if (body?.message) return body.message;
   }
@@ -53,16 +52,14 @@ function serverAuthContext(incoming: Headers, endpointPath: string) {
  * org switcher: the chosen org is what `consentReferenceId` binds into the token
  * when the user approves, so switching is just set-active before Approve.
  */
-export async function setActiveOrg(
-  incoming: Headers,
-  organizationId: string,
-): Promise<void> {
+export async function setActiveOrg(incoming: Headers, organizationId: string): Promise<void> {
   try {
     await auth.api.setActiveOrganization({
       headers: trustedHeaders(incoming),
       body: { organizationId },
     });
   } catch (error) {
+    // oxlint-disable-next-line preserve-caught-error -- Preserve the existing public OAuth error shape.
     throw new Error(oauthFlowError(error, "Failed to switch organization"));
   }
 }
@@ -90,6 +87,7 @@ export async function submitConsent(
     }
     return { url: result.url };
   } catch (error) {
+    // oxlint-disable-next-line preserve-caught-error -- Preserve the existing public OAuth error shape.
     throw new Error(oauthFlowError(error, "Failed to record consent"));
   }
 }

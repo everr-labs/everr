@@ -33,11 +33,7 @@ import {
   nextGroupFlushState,
 } from "./grouping";
 import { deliverableGroupMemberQuery } from "./journal-reader";
-import {
-  deferSuppressedEvent,
-  loadFiringInstanceKeys,
-  matchSilence,
-} from "./suppression";
+import { deferSuppressedEvent, loadFiringInstanceKeys, matchSilence } from "./suppression";
 import { alertDeliveryHash } from "./targeting";
 
 // The body budgets against the tightest channel limit, keeping a margin for
@@ -60,24 +56,13 @@ export const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
 
 export type NotificationEvent = Pick<
   typeof alertEvents.$inferSelect,
-  | "eventType"
-  | "slug"
-  | "instanceLabels"
-  | "notificationTitle"
-  | "notificationDescription"
+  "eventType" | "slug" | "instanceLabels" | "notificationTitle" | "notificationDescription"
 >;
 
-export function formatNotification(
-  events: NotificationEvent[],
-): ChannelNotification {
-  const firing = events.filter(
-    (event) => event.eventType !== "instance_resolved",
-  ).length;
+export function formatNotification(events: NotificationEvent[]): ChannelNotification {
+  const firing = events.filter((event) => event.eventType !== "instance_resolved").length;
   const resolved = events.length - firing;
-  const title = [
-    firing > 0 ? `${firing} firing` : "",
-    resolved > 0 ? `${resolved} resolved` : "",
-  ]
+  const title = [firing > 0 ? `${firing} firing` : "", resolved > 0 ? `${resolved} resolved` : ""]
     .filter(Boolean)
     .join(", ");
   const lines: string[] = [];
@@ -89,9 +74,7 @@ export function formatNotification(
       .map(([key, value]) => `${key}=${value}`)
       .join(", ");
     const heading = event.notificationTitle || event.slug;
-    const detail = event.notificationDescription
-      ? `: ${event.notificationDescription}`
-      : "";
+    const detail = event.notificationDescription ? `: ${event.notificationDescription}` : "";
     const full = `${event.eventType === "instance_resolved" ? "Resolved" : "Firing"}: ${heading}${labels ? ` (${labels})` : ""}${detail}`;
     const line = truncateWithEllipsis(full, LINE_MAX_CHARS);
     const cost = line.length + (lines.length > 0 ? 1 : 0);
@@ -130,10 +113,7 @@ async function directRuleChannels(
     .select({ channel: alertChannels })
     .from(alertChannels)
     .where(
-      and(
-        eq(alertChannels.organizationId, organizationId),
-        inArray(alertChannels.name, names),
-      ),
+      and(eq(alertChannels.organizationId, organizationId), inArray(alertChannels.name, names)),
     )
     .orderBy(asc(alertChannels.name));
 }
@@ -152,11 +132,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
     setAlertSpanAttributes({ tenant: group.organizationId });
-    const rows = await deliverableGroupMemberQuery(
-      tx,
-      group.id,
-      FLUSH_GROUP_MEMBER_CLAIM_CAP,
-    );
+    const rows = await deliverableGroupMemberQuery(tx, group.id, FLUSH_GROUP_MEMBER_CLAIM_CAP);
     if (rows.length === 0) {
       // Nothing claimed. Park on the idle sentinel rather than leave
       // nextFlushAt in the past, or the next event dispatched here skips its
@@ -195,9 +171,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   const candidateRows: typeof rows = [];
   const firingKeys = await loadFiringInstanceKeys(
     group.organizationId,
-    rows
-      .filter(({ event }) => event.eventType !== "instance_resolved")
-      .map(({ event }) => event),
+    rows.filter(({ event }) => event.eventType !== "instance_resolved").map(({ event }) => event),
   );
   const resolvedKeys = new Set(
     rows
@@ -224,9 +198,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // hundreds of identical scans.
   const now = new Date();
   const silences =
-    candidateRows.length > 0
-      ? await loadActiveSilences(group.organizationId, now)
-      : [];
+    candidateRows.length > 0 ? await loadActiveSilences(group.organizationId, now) : [];
   for (const row of candidateRows) {
     const { event, flushedAt } = row;
     const silence = matchSilence(event, silences, now);
@@ -248,27 +220,17 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       continue;
     }
     if (event.silenceId) {
-      await db
-        .update(alertEvents)
-        .set({ silenceId: null })
-        .where(eq(alertEvents.id, event.id));
+      await db.update(alertEvents).set({ silenceId: null }).where(eq(alertEvents.id, event.id));
     }
     members.push({ event, flushedAt });
   }
-  const {
-    active,
-    notify: notificationEvents,
-    droppedUnannounced,
-  } = groupNotificationPlan(members);
+  const { active, notify: notificationEvents, droppedUnannounced } = groupNotificationPlan(members);
   // A direct group's channels resolve by name at flush time: the rule's spec
   // is the truth for what it declared, and only the names that exist as
   // channels right now deliver. A name with no channel simply drops out, the
   // same as if the spec had never mentioned it.
   const channels = group.directAlertDefinitionId
-    ? await directRuleChannels(
-        group.organizationId,
-        group.directAlertDefinitionId,
-      )
+    ? await directRuleChannels(group.organizationId, group.directAlertDefinitionId)
     : group.defaultTier
       ? await db
           .select({ channel: alertChannels })
@@ -276,10 +238,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           .innerJoin(
             alertChannels,
             and(
-              eq(
-                alertDefaultChannels.organizationId,
-                alertChannels.organizationId,
-              ),
+              eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
               eq(alertDefaultChannels.channelId, alertChannels.id),
             ),
           )
@@ -297,9 +256,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // nothing went out. Guarded on repo-level channel requirements today, but
   // the invariant ("chains end in an outcome") must hold regardless.
   const noChannelDrops =
-    channels.length === 0 && notificationEvents.length > 0
-      ? notificationEvents
-      : [];
+    channels.length === 0 && notificationEvents.length > 0 ? notificationEvents : [];
   const notification = formatNotification(notificationEvents);
   await db.transaction(async (tx) => {
     // Re-read under lock: another writer may have moved nextFlushAt while this
@@ -404,26 +361,18 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     // deliveries that were never committed.
     setAlertSpanAttributes({ deliveries: created });
   });
-  if (
-    droppedRows.length > 0 ||
-    droppedUnannounced.length > 0 ||
-    noChannelDrops.length > 0
-  ) {
+  if (droppedRows.length > 0 || droppedUnannounced.length > 0 || noChannelDrops.length > 0) {
     await recordAlertHistory(
       null,
       [
-        ...droppedRows.map(({ row: { event }, reason }) =>
-          journalTerminalRow(event, { reason }),
-        ),
+        ...droppedRows.map(({ row: { event }, reason }) => journalTerminalRow(event, { reason })),
         // A resolve whose fire never went out. Nobody was told this instance
         // was firing, so the resolve does not notify either. Its chain still
         // needs a terminal, or it reads as forever in flight.
         ...droppedUnannounced.map((event) => journalTerminalRow(event)),
         // A rule or tier with no channels attached: nothing was sent, but
         // the flush still marked these flushed.
-        ...noChannelDrops.map((event) =>
-          journalTerminalRow(event, { reason: "no_channels" }),
-        ),
+        ...noChannelDrops.map((event) => journalTerminalRow(event, { reason: "no_channels" })),
       ],
       { convergesOnRetry: true },
     );

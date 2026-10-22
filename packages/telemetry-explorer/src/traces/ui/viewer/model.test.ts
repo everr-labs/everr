@@ -1,19 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Span } from "../../data/types";
 import { buildTraceModel, matchesSpan } from "./model";
 import { computeVisualLayout } from "./rendering/compute-visual-layout";
-import {
-  getAncestorSpanIds,
-  getVisibleSpans,
-} from "./rendering/waterfall-utils";
+import { getAncestorSpanIds, getVisibleSpans } from "./rendering/waterfall-utils";
 
 const start = 1_790_251_200_000_000_000n;
-function span(
-  id: string,
-  parent = "",
-  offset = 0n,
-  duration = 1_000_000n,
-): Span {
+function span(id: string, parent = "", offset = 0n, duration = 1_000_000n): Span {
   return {
     traceId: "trace",
     spanId: id,
@@ -64,12 +56,8 @@ describe("Trace model", () => {
     ]);
     const layout = computeVisualLayout([model.waterfall]);
     expect(layout.spanToVisualRow.a).not.toBe(layout.spanToVisualRow.b);
-    expect(layout.spanToVisualRow.a).toBeGreaterThan(
-      layout.spanToVisualRow.root,
-    );
-    expect(layout.spanToVisualRow.b).toBeGreaterThan(
-      layout.spanToVisualRow.root,
-    );
+    expect(layout.spanToVisualRow.a).toBeGreaterThan(layout.spanToVisualRow.root);
+    expect(layout.spanToVisualRow.b).toBeGreaterThan(layout.spanToVisualRow.root);
   });
 
   it("collapsing a subtree retains its siblings and expands ancestors for cross-view selection", () => {
@@ -79,13 +67,15 @@ describe("Trace model", () => {
       span("grandchild", "a"),
       span("b", "root"),
     ]);
-    expect(
-      getVisibleSpans(model.waterfall, new Set(["root"])).map((s) => s.spanId),
-    ).toEqual(["root", "a", "b"]);
+    expect(getVisibleSpans(model.waterfall, new Set(["root"])).map((s) => s.spanId)).toEqual([
+      "root",
+      "a",
+      "b",
+    ]);
     const ancestors = getAncestorSpanIds(model.waterfall, "grandchild");
-    expect(
-      getVisibleSpans(model.waterfall, ancestors).map((s) => s.spanId),
-    ).toContain("grandchild");
+    expect(getVisibleSpans(model.waterfall, ancestors).map((s) => s.spanId)).toContain(
+      "grandchild",
+    );
   });
 
   it("converts event timestamps without discarding sub-millisecond precision", () => {
@@ -111,9 +101,7 @@ describe("Trace model", () => {
     };
     request.statusCode = "Error";
     const node = buildTraceModel([request]).waterfall[0];
-    expect(
-      matchesSpan(node, "http.response.status_code=503", "HTTP", true),
-    ).toBe(true);
+    expect(matchesSpan(node, "http.response.status_code=503", "HTTP", true)).toBe(true);
     expect(matchesSpan(node, "200", "HTTP", true)).toBe(false);
     expect(matchesSpan(node, "", "Database", false)).toBe(false);
   });
@@ -121,9 +109,7 @@ describe("Trace model", () => {
   it("packs a wide group of non-overlapping siblings without inflating row count", () => {
     const model = buildTraceModel([
       span("root", "", 0n, 600_000_000n),
-      ...Array.from({ length: 550 }, (_, i) =>
-        span(`child-${i}`, "root", BigInt(i) * 1_000_000n),
-      ),
+      ...Array.from({ length: 550 }, (_, i) => span(`child-${i}`, "root", BigInt(i) * 1_000_000n)),
     ]);
     expect(model.waterfall).toHaveLength(551);
     expect(computeVisualLayout([model.waterfall]).totalVisualRows).toBe(2);

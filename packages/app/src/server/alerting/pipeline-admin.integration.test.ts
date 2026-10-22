@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {
   createChannel,
@@ -21,12 +21,10 @@ import {
   TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -39,7 +37,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
 
@@ -79,12 +77,8 @@ describe("the alert rules the resource list reports", () => {
   it("narrows to the rules one repository owns", async () => {
     await insertRule(harness().db, { slug: "ours" });
 
-    expect(
-      await listResources(TEST_ORG, { kind: "alert", repoid: "repo_test" }),
-    ).toHaveLength(1);
-    expect(
-      await listResources(TEST_ORG, { kind: "alert", repoid: "other_repo" }),
-    ).toHaveLength(0);
+    expect(await listResources(TEST_ORG, { kind: "alert", repoid: "repo_test" })).toHaveLength(1);
+    expect(await listResources(TEST_ORG, { kind: "alert", repoid: "other_repo" })).toHaveLength(0);
   });
 
   it("reports nothing for an organization with no rules", async () => {
@@ -115,9 +109,7 @@ describe("the silences the CLI manages", () => {
         canceled_at: null,
       }),
     );
-    expect(silences[0]?.matchers).toEqual([
-      { label: "service", op: "eq", value: "checkout" },
-    ]);
+    expect(silences[0]?.matchers).toEqual([{ label: "service", op: "eq", value: "checkout" }]);
   });
 
   it("keeps an expired silence listed, with its window closed", async () => {
@@ -131,9 +123,7 @@ describe("the silences the CLI manages", () => {
 
     const [listed] = await listSilences(TEST_ORG, PAGE);
     expect(listed?.canceled_at).not.toBeNull();
-    expect(new Date(listed?.ends_at ?? "")).toEqual(
-      new Date("2026-08-20T10:00:00.000Z"),
-    );
+    expect(new Date(listed?.ends_at ?? "")).toEqual(new Date("2026-08-20T10:00:00.000Z"));
   });
 
   it("finds the silences whose window overlapped the one asked about", async () => {
@@ -152,26 +142,14 @@ describe("the silences the CLI manages", () => {
       ).length;
 
     // Straddling either edge, and contained within, all overlap.
-    expect(
-      await overlapping("2026-08-20T07:00:00Z", "2026-08-20T09:00:00Z"),
-    ).toBe(1);
-    expect(
-      await overlapping("2026-08-20T09:00:00Z", "2026-08-20T11:00:00Z"),
-    ).toBe(1);
-    expect(
-      await overlapping("2026-08-20T09:00:00Z", "2026-08-20T09:00:00Z"),
-    ).toBe(1);
+    expect(await overlapping("2026-08-20T07:00:00Z", "2026-08-20T09:00:00Z")).toBe(1);
+    expect(await overlapping("2026-08-20T09:00:00Z", "2026-08-20T11:00:00Z")).toBe(1);
+    expect(await overlapping("2026-08-20T09:00:00Z", "2026-08-20T09:00:00Z")).toBe(1);
 
     // Half-open at both ends: touching an edge is not covering it.
-    expect(
-      await overlapping("2026-08-20T10:00:00Z", "2026-08-20T11:00:00Z"),
-    ).toBe(0);
-    expect(
-      await overlapping("2026-08-20T06:00:00Z", "2026-08-20T08:00:00Z"),
-    ).toBe(0);
-    expect(
-      await overlapping("2026-08-20T11:00:00Z", "2026-08-20T12:00:00Z"),
-    ).toBe(0);
+    expect(await overlapping("2026-08-20T10:00:00Z", "2026-08-20T11:00:00Z")).toBe(0);
+    expect(await overlapping("2026-08-20T06:00:00Z", "2026-08-20T08:00:00Z")).toBe(0);
+    expect(await overlapping("2026-08-20T11:00:00Z", "2026-08-20T12:00:00Z")).toBe(0);
   });
 
   it("takes each bound on its own", async () => {
@@ -225,9 +203,7 @@ describe("the silences the CLI manages", () => {
     const page = await listSilences(TEST_ORG, { limit: 1, offset: 1 });
 
     expect(page).toHaveLength(1);
-    expect(page[0]?.matchers).toEqual([
-      { label: "service", op: "eq", value: "second" },
-    ]);
+    expect(page[0]?.matchers).toEqual([{ label: "service", op: "eq", value: "second" }]);
   });
 
   it("stamps the author from the session, not from the input", async () => {
@@ -241,9 +217,10 @@ describe("the silences the CLI manages", () => {
   });
 
   it("refuses a silence that selects everything", async () => {
-    await expect(
-      createSilence(scope, { ...window, matchers: [] }),
-    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    await expect(createSilence(scope, { ...window, matchers: [] })).rejects.toMatchObject({
+      status: 422,
+      code: "validation",
+    });
   });
 
   it("refuses an id that is not a silence id", async () => {
@@ -271,11 +248,7 @@ describe("the delivery channels the CLI manages", () => {
   async function storedConfig() {
     const [row] = await harness().db.select().from(alertChannels);
     if (!row) throw new Error("no channel stored");
-    return decryptChannelConfig(
-      row.organizationId,
-      row.id,
-      row.encryptedConfig,
-    );
+    return decryptChannelConfig(row.organizationId, row.id, row.encryptedConfig);
   }
 
   it("never hands a stored secret back", async () => {
@@ -343,9 +316,10 @@ describe("the delivery channels the CLI manages", () => {
   });
 
   it("refuses a blank name, which no rule could address", async () => {
-    await expect(
-      createChannel(scope, { name: "   ", config: slack }),
-    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    await expect(createChannel(scope, { name: "   ", config: slack })).rejects.toMatchObject({
+      status: 422,
+      code: "validation",
+    });
   });
 
   it("refuses a config whose type is not a transport", async () => {
@@ -382,15 +356,13 @@ describe("the delivery channels the CLI manages", () => {
   it("refuses a name another channel already has", async () => {
     await createChannel(scope, { name: "oncall", config: slack });
 
-    await expect(
-      createChannel(scope, { name: "oncall", config: slack }),
-    ).rejects.toThrow(/conflicts/);
+    await expect(createChannel(scope, { name: "oncall", config: slack })).rejects.toThrow(
+      /conflicts/,
+    );
   });
 
   it("refuses to update a channel that does not exist", async () => {
-    await expect(
-      updateChannel(scope, "nope", { config: slack }),
-    ).rejects.toThrow(/not found/);
+    await expect(updateChannel(scope, "nope", { config: slack })).rejects.toThrow(/not found/);
   });
 
   it("deletes a channel nothing is still sending to", async () => {

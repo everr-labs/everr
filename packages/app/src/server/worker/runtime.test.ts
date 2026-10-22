@@ -1,6 +1,7 @@
+import type * as RuntimeTypes from "./runtime";
 // @vitest-environment node
 import type { EventEmitter } from "node:events";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 
 type MockRunOptions = {
   events: EventEmitter;
@@ -55,25 +56,21 @@ vi.mock("#app/telemetry/logger.ts", () => ({
       "exception.type": error.name,
     };
   },
-  errorMessage: (reason: unknown) =>
-    reason instanceof Error ? reason.message : String(reason),
+  errorMessage: (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
   serverLogger: {
     error: runtimeMocks.serverLoggerError,
     info: runtimeMocks.serverLoggerInfo,
   },
 }));
 
-let activeRuntime:
-  | Awaited<ReturnType<typeof import("./runtime")["startWorkerRuntime"]>>
-  | undefined;
+let activeRuntime: Awaited<ReturnType<(typeof RuntimeTypes)["startWorkerRuntime"]>> | undefined;
 afterEach(async () => {
   await activeRuntime?.stop();
   activeRuntime = undefined;
 });
 async function loadRuntime() {
   vi.resetModules();
-  delete (globalThis as { __everrHotSingletons?: unknown })
-    .__everrHotSingletons;
+  delete (globalThis as { __everrHotSingletons?: unknown }).__everrHotSingletons;
   runtimeMocks.runOptions.length = 0;
   runtimeMocks.serverLoggerError.mockClear();
   runtimeMocks.serverLoggerInfo.mockClear();
@@ -86,38 +83,38 @@ async function loadRuntime() {
     },
   };
 }
-it.each([
-  true,
-  false,
-])("registers scheduled tasks with optional GitHub jobs (enabled: %s)", async (enabled) => {
-  runtimeMocks.githubEnabled = enabled;
-  const runtime = await loadRuntime();
-  expect(runtimeMocks.runOptions).toHaveLength(0);
-  await runtime.startWorkerRuntime();
-  expect(runtimeMocks.runOptions).toHaveLength(1);
-  const [general] = runtimeMocks.runOptions;
-  expect(general).toMatchObject({
-    concurrency: 2,
-    noHandleSignals: true,
-    pgPool: runtimeMocks.pool,
-    parsedCronItems: expect.arrayContaining([
-      expect.objectContaining({ task: "alerts/scan" }),
-      expect.objectContaining({ task: "alerts/retention" }),
-      ...runtimeMocks.previewsCronItems,
-    ]),
-  });
-  expect(Object.keys(general.taskList).sort()).toEqual([
-    "alerts/evaluate",
-    "alerts/flush-group",
-    "alerts/process-event",
-    "alerts/project-lifecycle",
-    "alerts/retention",
-    "alerts/scan",
-    "alerts/send-delivery",
-    ...(enabled ? Object.keys(runtimeMocks.githubEventsTaskList) : []),
-    "previews/retention",
-  ]);
-});
+it.each([true, false])(
+  "registers scheduled tasks with optional GitHub jobs (enabled: %s)",
+  async (enabled) => {
+    runtimeMocks.githubEnabled = enabled;
+    const runtime = await loadRuntime();
+    expect(runtimeMocks.runOptions).toHaveLength(0);
+    await runtime.startWorkerRuntime();
+    expect(runtimeMocks.runOptions).toHaveLength(1);
+    const [general] = runtimeMocks.runOptions;
+    expect(general).toMatchObject({
+      concurrency: 2,
+      noHandleSignals: true,
+      pgPool: runtimeMocks.pool,
+      parsedCronItems: expect.arrayContaining([
+        expect.objectContaining({ task: "alerts/scan" }),
+        expect.objectContaining({ task: "alerts/retention" }),
+        ...runtimeMocks.previewsCronItems,
+      ]),
+    });
+    expect(Object.keys(general.taskList).sort()).toEqual([
+      "alerts/evaluate",
+      "alerts/flush-group",
+      "alerts/process-event",
+      "alerts/project-lifecycle",
+      "alerts/retention",
+      "alerts/scan",
+      "alerts/send-delivery",
+      ...(enabled ? Object.keys(runtimeMocks.githubEventsTaskList) : []),
+      "previews/retention",
+    ]);
+  },
+);
 it("logs meaningful Graphile Worker runner failures", async () => {
   const runtime = await loadRuntime();
   await runtime.startWorkerRuntime();

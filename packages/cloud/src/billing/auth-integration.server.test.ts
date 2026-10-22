@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { betterAuth } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   beforeUserUpdate: vi.fn(),

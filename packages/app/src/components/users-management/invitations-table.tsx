@@ -14,7 +14,8 @@ import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { toast } from "sonner";
 import { formatDate } from "./format-date";
-import { type Invitation, useRevokeInvitation } from "./queries";
+import { useRevokeInvitation } from "./queries";
+import type { Invitation } from "./queries";
 
 interface InvitationsTableProps {
   invitations: Invitation[];
@@ -56,15 +57,13 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Revoke invitation</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will cancel the invitation to {row.email}. They won't be
-                  able to join using this link.
+                  This will cancel the invitation to {row.email}. They won&apos;t be able to join
+                  using this link.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => handleRevoke(row.id, row.email)}
-                >
+                <AlertDialogAction onClick={() => handleRevoke(row.id, row.email)}>
                   Revoke
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -77,7 +76,5 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
     },
   ];
 
-  return (
-    <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />
-  );
+  return <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />;
 }

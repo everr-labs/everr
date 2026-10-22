@@ -6,17 +6,11 @@ import * as coreSchema from "@everr/app/db/schema";
 import { serverLogger } from "@everr/app/telemetry/logger";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import * as cloudSchema from "../db/schema";
 import { createBillingModule } from "./module";
 import { beforeCreateCheckoutOrganization } from "./organization-context.server";
-import type {
-  BillingMember,
-  Checkout,
-  Customer,
-  PolarGateway,
-  Subscription,
-} from "./types";
+import type { BillingMember, Checkout, Customer, PolarGateway, Subscription } from "./types";
 
 vi.mock("@everr/app/env", () => ({ env: { POLAR_PRO_PRODUCT_ID: "pro" } }));
 vi.mock("./server", () => ({ billing: {} }));
@@ -49,8 +43,7 @@ const subscriptions = new Map<string, Subscription>();
 const locks = new Set<string>();
 const gateway = {
   findCustomer: vi.fn(
-    async (orgId) =>
-      [...customers.values()].find((c) => c.externalId === orgId) ?? null,
+    async (orgId) => [...customers.values()].find((c) => c.externalId === orgId) ?? null,
   ),
   getCustomer: vi.fn(async (id) => {
     const c = customers.get(id);
@@ -72,9 +65,7 @@ const gateway = {
     return c;
   }),
   members: vi.fn(async (id) =>
-    [...members.values()]
-      .filter((m) => m.customerId === id)
-      .map((m) => ({ ...m })),
+    [...members.values()].filter((m) => m.customerId === id).map((m) => ({ ...m })),
   ),
   createMember: vi.fn(async (customerId, p) => {
     const m: BillingMember = {
@@ -93,8 +84,7 @@ const gateway = {
     if (!m) throw new Error("missing member");
     if (update.role === "owner")
       for (const v of members.values())
-        if (v.customerId === m.customerId && v.role === "owner")
-          v.role = "billing_manager";
+        if (v.customerId === m.customerId && v.role === "owner") v.role = "billing_manager";
     Object.assign(m, update);
     return m;
   }),
@@ -102,8 +92,7 @@ const gateway = {
     members.delete(id);
   }),
   portal: vi.fn(async (customerId, memberId) => {
-    if (members.get(memberId)?.customerId !== customerId)
-      throw new Error("revoked");
+    if (members.get(memberId)?.customerId !== customerId) throw new Error("revoked");
     return `https://polar.example/portal/${memberId}`;
   }),
   checkout: vi.fn(async (id) => {
@@ -111,9 +100,7 @@ const gateway = {
     if (!c) throw new Error("missing checkout");
     return c;
   }),
-  checkouts: vi.fn(async (id) =>
-    [...checkouts.values()].filter((c) => c.customerId === id),
-  ),
+  checkouts: vi.fn(async (id) => [...checkouts.values()].filter((c) => c.customerId === id)),
   createCheckout: vi.fn(async ({ customerId, orgId, metadata, successUrl }) => {
     const c: Checkout = {
       id: randomUUID(),
@@ -142,8 +129,7 @@ const gateway = {
     return s;
   }),
   checkoutSubscription: vi.fn(
-    async (c) =>
-      [...subscriptions.values()].find((s) => s.checkoutId === c.id) ?? null,
+    async (c) => [...subscriptions.values()].find((s) => s.checkoutId === c.id) ?? null,
   ),
   revokeSubscription: vi.fn(async () => {}),
 } satisfies PolarGateway;
@@ -162,11 +148,7 @@ const billing = createBillingModule({
   },
 });
 const createOrganization = vi.fn(
-  async ({
-    body,
-  }: {
-    body: { name: string; slug: string; userId: string };
-  }) => {
+  async ({ body }: { body: { name: string; slug: string; userId: string } }) => {
     const context = await beforeCreateCheckoutOrganization({
       organization: body,
       user: { id: body.userId },
@@ -267,10 +249,9 @@ it("recovers a Pro organization's missing customer reference through Polar", asy
   vi.clearAllMocks();
   await billing.afterMembershipChange("org");
   expect(gateway.findCustomer).toHaveBeenCalledWith("org");
-  expect(
-    (await database.select().from(schema.organizationBilling))[0]
-      .polarCustomerId,
-  ).toBe(customer.id);
+  expect((await database.select().from(schema.organizationBilling))[0].polarCustomerId).toBe(
+    customer.id,
+  );
   expect(gateway.createTeam).not.toHaveBeenCalled();
 });
 
@@ -281,16 +262,14 @@ it("uses the designated owner despite multiple owners and an admin initiating ch
       owner: expect.objectContaining({ id: "owner" }),
     }),
   );
-  expect(
-    [...members.values()]
-      .filter((m) => m.role === "owner")
-      .map((m) => m.externalId),
-  ).toEqual(["owner"]);
-  expect([...members.values()].map((m) => m.externalId).sort()).toEqual([
-    "admin",
-    "other",
+  expect([...members.values()].filter((m) => m.role === "owner").map((m) => m.externalId)).toEqual([
     "owner",
   ]);
+  expect(
+    [...members.values()]
+      .map((m) => m.externalId)
+      .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+  ).toEqual(["admin", "other", "owner"]);
   expect([...checkouts.values()][0].customerId).toBe([...customers.keys()][0]);
 });
 it("uses a member-scoped portal and never provisions missing customers", async () => {
@@ -316,20 +295,14 @@ it("lets the same person own different customers without using their email as cu
   await upgrade();
   await billing.startNewOrganizationCheckout("owner", "New");
   expect(customers.size).toBe(2);
-  expect(
-    [...members.values()].filter((m) => m.externalId === "owner").length,
-  ).toBe(2);
+  expect([...members.values()].filter((m) => m.externalId === "owner").length).toBe(2);
 });
 it("resumes new Pro checkout and does not create the org before payment", async () => {
   const first = await billing.startNewOrganizationCheckout("owner", "New");
-  const [attempt] = await database
-    .select()
-    .from(schema.proOrganizationCheckout);
+  const [attempt] = await database.select().from(schema.proOrganizationCheckout);
   expect(attempt.orgId).toMatch(/^[a-zA-Z0-9]{32}$/);
   expect([...checkouts.values()][0].externalCustomerId).toBe(attempt.orgId);
-  expect(await billing.startNewOrganizationCheckout("owner", "New")).toEqual(
-    first,
-  );
+  expect(await billing.startNewOrganizationCheckout("owner", "New")).toEqual(first);
   expect(gateway.createCheckout).toHaveBeenCalledTimes(1);
   expect(await database.select().from(schema.organization)).toHaveLength(1);
 });
@@ -341,39 +314,31 @@ it("preserves the destination in Polar's success URL and refreshes it when reusi
   expect(successUrl.pathname).toBe("/organizations/checkout/success");
   expect(successUrl.searchParams.get("checkout_id")).toBe(checkout.id);
   expect(successUrl.searchParams.get("returnTo")).toBe(returnTo);
-  expect(gateway.createCheckout.mock.calls[0][0].successUrl).toContain(
-    "checkout_id={CHECKOUT_ID}",
-  );
+  expect(gateway.createCheckout.mock.calls[0][0].successUrl).toContain("checkout_id={CHECKOUT_ID}");
 
   await billing.startNewOrganizationCheckout("owner", "New", returnTo);
   expect(gateway.updateCheckoutSuccessUrl).not.toHaveBeenCalled();
   await billing.startNewOrganizationCheckout("owner", "New", "/logs");
-  expect(
-    new URL(required(checkout.successUrl)).searchParams.get("returnTo"),
-  ).toBe("/logs");
+  expect(new URL(required(checkout.successUrl)).searchParams.get("returnTo")).toBe("/logs");
   expect(gateway.updateCheckoutSuccessUrl).toHaveBeenCalledOnce();
   expect(gateway.createCheckout).toHaveBeenCalledOnce();
 });
 
-it.each([
-  "confirmed",
-  "succeeded",
-])("preserves the destination when resuming a %s checkout", async (status) => {
-  await billing.startNewOrganizationCheckout("owner", "New");
-  const checkout = required([...checkouts.values()][0]);
-  checkout.status = status;
-  const result = await billing.startNewOrganizationCheckout(
-    "owner",
-    "New",
-    "/logs?service=api",
-  );
-  const url = new URL(result.url);
-  expect(url.pathname).toBe("/organizations/checkout/success");
-  expect(url.searchParams.get("checkout_id")).toBe(checkout.id);
-  expect(url.searchParams.get("returnTo")).toBe("/logs?service=api");
-  expect(gateway.updateCheckoutSuccessUrl).not.toHaveBeenCalled();
-  expect(gateway.createCheckout).toHaveBeenCalledOnce();
-});
+it.each(["confirmed", "succeeded"])(
+  "preserves the destination when resuming a %s checkout",
+  async (status) => {
+    await billing.startNewOrganizationCheckout("owner", "New");
+    const checkout = required([...checkouts.values()][0]);
+    checkout.status = status;
+    const result = await billing.startNewOrganizationCheckout("owner", "New", "/logs?service=api");
+    const url = new URL(result.url);
+    expect(url.pathname).toBe("/organizations/checkout/success");
+    expect(url.searchParams.get("checkout_id")).toBe(checkout.id);
+    expect(url.searchParams.get("returnTo")).toBe("/logs?service=api");
+    expect(gateway.updateCheckoutSuccessUrl).not.toHaveBeenCalled();
+    expect(gateway.createCheckout).toHaveBeenCalledOnce();
+  },
+);
 
 it("recovers an uncertain checkout creation without duplicating it", async () => {
   const original = required(gateway.createCheckout.getMockImplementation());
@@ -381,9 +346,9 @@ it("recovers an uncertain checkout creation without duplicating it", async () =>
     await original(input);
     throw new Error("lost response");
   });
-  await expect(
-    billing.startNewOrganizationCheckout("owner", "New"),
-  ).rejects.toThrow("lost response");
+  await expect(billing.startNewOrganizationCheckout("owner", "New")).rejects.toThrow(
+    "lost response",
+  );
   await billing.startNewOrganizationCheckout("owner", "New");
   expect(gateway.createCheckout).toHaveBeenCalledTimes(1);
 });
@@ -402,20 +367,14 @@ it("retains reserved identity when replacing an expired checkout", async () => {
   old.status = "expired";
   await billing.startNewOrganizationCheckout("owner", "New");
   expect(checkouts.size).toBe(2);
-  expect(
-    new Set([...checkouts.values()].map((c) => c.externalCustomerId)).size,
-  ).toBe(1);
+  expect(new Set([...checkouts.values()].map((c) => c.externalCustomerId)).size).toBe(1);
 });
 it("finalizes from a webhook without redirect and tolerates duplicates and later redirects", async () => {
   const { c, event } = await paidNew();
   await billing.syncSubscription(event, createOrganization);
   await billing.syncSubscription(event, createOrganization);
   expect(
-    await billing.completeNewOrganizationCheckout(
-      c.id,
-      "owner",
-      createOrganization,
-    ),
+    await billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
   ).toMatchObject({ status: "completed" });
   expect(createOrganization).toHaveBeenCalledTimes(1);
   expect(await database.select().from(schema.orgSubscription)).toHaveLength(1);
@@ -444,19 +403,12 @@ it("keeps processing subscription events after the original creator transfers ow
     modifiedAt: new Date(s.createdAt.getTime() + 1000),
   };
   subscriptions.set(s.id, canceled);
-  await billing.syncSubscription(
-    { data: { ...event.data, ...canceled } },
-    createOrganization,
-  );
-  expect(
-    (await database.select().from(schema.orgSubscription))[0],
-  ).toMatchObject({
+  await billing.syncSubscription({ data: { ...event.data, ...canceled } }, createOrganization);
+  expect((await database.select().from(schema.orgSubscription))[0]).toMatchObject({
     orgId,
     status: "canceled",
   });
-  expect(
-    await database.select().from(schema.proOrganizationCheckout),
-  ).toHaveLength(1);
+  expect(await database.select().from(schema.proOrganizationCheckout)).toHaveLength(1);
   expect(createOrganization).toHaveBeenCalledOnce();
 });
 
@@ -487,13 +439,9 @@ it("rejects foreign checkout ownership, wrong customer and version 1", async () 
 it("does not grant Pro for incomplete payment or wrong product", async () => {
   await billing.startNewOrganizationCheckout("owner", "New");
   const c = [...checkouts.values()][0];
-  expect(
-    await billing.completeNewOrganizationCheckout(
-      c.id,
-      "owner",
-      createOrganization,
-    ),
-  ).toEqual({ status: "processing" });
+  expect(await billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization)).toEqual({
+    status: "processing",
+  });
   c.productId = "foreign";
   await expect(
     billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
@@ -514,23 +462,19 @@ it("preserves newer canceled subscription state against an old active event", as
     createOrganization,
   );
   await billing.syncSubscription(event, createOrganization);
-  expect((await database.select().from(schema.orgSubscription))[0].status).toBe(
-    "canceled",
-  );
+  expect((await database.select().from(schema.orgSubscription))[0].status).toBe("canceled");
 });
 it("transfers billing to another owner and prevents owner removal before transfer", async () => {
   await upgrade();
-  await expect(
-    billing.beforeMembershipChange("org", "owner", null),
-  ).rejects.toMatchObject({ code: "owner_required" });
+  await expect(billing.beforeMembershipChange("org", "owner", null)).rejects.toMatchObject({
+    code: "owner_required",
+  });
   await billing.changeOwner("org", "other", "other");
   expect((await billing.getSettings("org", "owner")).owner?.id).toBe("other");
-  expect(
-    [...members.values()].find((m) => m.role === "owner")?.externalId,
-  ).toBe("other");
-  await expect(
-    billing.changeOwner("org", "admin", "owner"),
-  ).rejects.toMatchObject({ code: "forbidden" });
+  expect([...members.values()].find((m) => m.role === "owner")?.externalId).toBe("other");
+  await expect(billing.changeOwner("org", "admin", "owner")).rejects.toMatchObject({
+    code: "forbidden",
+  });
 });
 it("revokes managed access before committing removal and preserves independent contacts", async () => {
   await upgrade();
@@ -543,14 +487,10 @@ it("revokes managed access before committing removal and preserves independent c
     role: "billing_manager",
   };
   members.set(external.id, external);
-  const admin = required(
-    [...members.values()].find((m) => m.externalId === "admin"),
-  );
+  const admin = required([...members.values()].find((m) => m.externalId === "admin"));
   await billing.beforeMembershipChange("org", "admin", null);
   expect(members.has(admin.id)).toBe(false);
-  await expect(gateway.portal(admin.customerId, admin.id)).rejects.toThrow(
-    "revoked",
-  );
+  await expect(gateway.portal(admin.customerId, admin.id)).rejects.toThrow("revoked");
   await database.delete(schema.member).where(eq(schema.member.userId, "admin"));
   await billing.afterMembershipChange("org");
   expect(members.get(external.id)).toEqual(external);
@@ -561,40 +501,27 @@ it("revokes managed access before committing removal and preserves independent c
 it("blocks a failed revocation without leaving a persistent portal block", async () => {
   await upgrade();
   gateway.deleteMember.mockRejectedValueOnce(new Error("offline"));
-  await expect(
-    billing.beforeMembershipChange("org", "admin", null),
-  ).rejects.toThrow("offline");
-  expect(
-    (await database.select().from(schema.member)).some(
-      (m) => m.userId === "admin",
-    ),
-  ).toBe(true);
+  await expect(billing.beforeMembershipChange("org", "admin", null)).rejects.toThrow("offline");
+  expect((await database.select().from(schema.member)).some((m) => m.userId === "admin")).toBe(
+    true,
+  );
   await expect(billing.openPortal("org", "owner")).resolves.toMatchObject({
     url: expect.stringContaining("https://polar.example/portal/"),
   });
 });
 it.each([
-  [
-    "membership removal",
-    () => billing.beforeMembershipChange("org", "admin", null),
-  ],
+  ["membership removal", () => billing.beforeMembershipChange("org", "admin", null)],
   ["account deletion", () => billing.beforeUserDelete("admin")],
 ])("reconciles on the next portal access when %s never commits", async (_name, revoke) => {
   await upgrade();
   await revoke();
-  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(
-    false,
-  );
+  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(false);
   await billing.openPortal("org", "owner");
-  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(
-    true,
-  );
+  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(true);
 });
 it("updates email by member ID and refuses to adopt an independent contact", async () => {
   await upgrade();
-  const before = required(
-    [...members.values()].find((m) => m.externalId === "admin"),
-  );
+  const before = required([...members.values()].find((m) => m.externalId === "admin"));
   await billing.beforeUserUpdate("admin", {
     email: "changed@example.com",
     emailVerified: true,
@@ -649,9 +576,7 @@ it("resumes a paid upgrade before the webhook instead of selling another subscri
     `/checkout/success?checkout_id=${c.id}`,
   );
   await billing.confirmUpgradeCheckout("org", "owner", c.id);
-  await expect(
-    billing.startUpgradeCheckout("org", "owner"),
-  ).rejects.toMatchObject({
+  await expect(billing.startUpgradeCheckout("org", "owner")).rejects.toMatchObject({
     code: "already_active",
   });
   expect(gateway.createCheckout).toHaveBeenCalledTimes(1);
@@ -670,9 +595,7 @@ it("allows another organization with the same name after completing the first", 
   const { event } = await paidNew();
   await billing.syncSubscription(event, createOrganization);
   await billing.startNewOrganizationCheckout("owner", "New");
-  expect(
-    await database.select().from(schema.proOrganizationCheckout),
-  ).toHaveLength(2);
+  expect(await database.select().from(schema.proOrganizationCheckout)).toHaveLength(2);
   expect(customers.size).toBe(2);
 });
 it("synchronizes promotions and rejects demotion or deletion of the billing owner", async () => {
@@ -683,12 +606,12 @@ it("synchronizes promotions and rejects demotion or deletion of the billing owne
     .set({ role: "admin" })
     .where(eq(schema.member.userId, "regular"));
   await billing.afterMembershipChange("org");
-  expect(
-    [...members.values()].find((m) => m.externalId === "regular")?.role,
-  ).toBe("billing_manager");
-  await expect(
-    billing.beforeMembershipChange("org", "owner", "admin"),
-  ).rejects.toMatchObject({ code: "owner_required" });
+  expect([...members.values()].find((m) => m.externalId === "regular")?.role).toBe(
+    "billing_manager",
+  );
+  await expect(billing.beforeMembershipChange("org", "owner", "admin")).rejects.toMatchObject({
+    code: "owner_required",
+  });
   await expect(billing.beforeUserDelete("owner")).rejects.toMatchObject({
     code: "owner_required",
   });
@@ -724,9 +647,7 @@ it("keeps one owner when two owners downgrade concurrently without a billing cus
   await entered;
   const secondCommit = vi.fn();
   try {
-    await expect(
-      billing.downgrade("org", "other", secondCommit),
-    ).rejects.toThrow("busy");
+    await expect(billing.downgrade("org", "other", secondCommit)).rejects.toThrow("busy");
     expect(secondCommit).not.toHaveBeenCalled();
   } finally {
     proceed();
@@ -742,11 +663,9 @@ it("keeps one owner when two owners downgrade concurrently without a billing cus
 it("rechecks local ownership inside the downgrade lock", async () => {
   await database.delete(schema.member).where(eq(schema.member.userId, "other"));
   const commit = vi.fn();
-  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject(
-    {
-      code: "forbidden",
-    },
-  );
+  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject({
+    code: "forbidden",
+  });
   expect(commit).not.toHaveBeenCalled();
   expect(gateway.revokeSubscription).not.toHaveBeenCalled();
 });
@@ -754,11 +673,9 @@ it("rechecks local ownership inside the downgrade lock", async () => {
 it("requires the current Polar team owner before downgrading", async () => {
   await upgrade();
   const commit = vi.fn();
-  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject(
-    {
-      code: "owner_required",
-    },
-  );
+  await expect(billing.downgrade("org", "other", commit)).rejects.toMatchObject({
+    code: "owner_required",
+  });
   expect(commit).not.toHaveBeenCalled();
   expect(gateway.revokeSubscription).not.toHaveBeenCalled();
 });
@@ -768,9 +685,9 @@ it("rejects an individual customer without conversion", async () => {
     type: "individual",
     externalId: "org",
   });
-  await expect(
-    billing.startUpgradeCheckout("org", "owner"),
-  ).rejects.toMatchObject({ code: "identity_conflict" });
+  await expect(billing.startUpgradeCheckout("org", "owner")).rejects.toMatchObject({
+    code: "identity_conflict",
+  });
   expect(gateway.createTeam).not.toHaveBeenCalled();
   expect(gateway.createCheckout).not.toHaveBeenCalled();
 });
@@ -779,10 +696,7 @@ it("refuses a mismatched subscription after its organization is finalized", asyn
   await billing.syncSubscription(event, createOrganization);
   c.subscriptionId = "sub";
   await expect(
-    billing.syncSubscription(
-      { data: { ...event.data, id: "other-sub" } },
-      createOrganization,
-    ),
+    billing.syncSubscription({ data: { ...event.data, id: "other-sub" } }, createOrganization),
   ).rejects.toMatchObject({ code: "identity_conflict" });
 });
 it("does not grant Pro from an upgrade webhook before payment succeeds", async () => {
@@ -810,9 +724,7 @@ it("does not grant Pro from an upgrade webhook before payment succeeds", async (
     },
     createOrganization,
   );
-  expect(
-    (await database.select().from(schema.organizationBilling))[0].plan,
-  ).toBe("hobby");
+  expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("hobby");
   expect(await database.select().from(schema.orgSubscription)).toHaveLength(0);
 });
 
@@ -830,15 +742,13 @@ it("does not revoke billing when the local downgrade eligibility check fails", a
 
 it("reflects ownership changes made directly in Polar", async () => {
   await upgrade();
-  const other = required(
-    [...members.values()].find((m) => m.externalId === "other"),
-  );
+  const other = required([...members.values()].find((m) => m.externalId === "other"));
   await gateway.updateMember(other.id, { role: "owner" });
   expect((await billing.getSettings("org", "owner")).owner?.id).toBe("other");
   await billing.beforeMembershipChange("org", "owner", "member");
-  await expect(
-    billing.beforeMembershipChange("org", "other", "member"),
-  ).rejects.toMatchObject({ code: "owner_required" });
+  await expect(billing.beforeMembershipChange("org", "other", "member")).rejects.toMatchObject({
+    code: "owner_required",
+  });
 });
 it("reconciles external IDs without local member mappings and preserves independent contacts", async () => {
   await upgrade();
@@ -867,15 +777,9 @@ it("reconciles external IDs without local member mappings and preserves independ
 it("does not block checkout after a failed local membership write", async () => {
   await upgrade();
   await billing.beforeMembershipChange("org", "admin", null);
-  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(
-    false,
-  );
-  await expect(
-    billing.startUpgradeCheckout("org", "owner"),
-  ).resolves.toHaveProperty("url");
-  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(
-    true,
-  );
+  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(false);
+  await expect(billing.startUpgradeCheckout("org", "owner")).resolves.toHaveProperty("url");
+  expect([...members.values()].some((m) => m.externalId === "admin")).toBe(true);
 });
 
 it("stores the verified billing customer and reuses its ID", async () => {
@@ -892,14 +796,13 @@ it("does not replace a stored customer whose external ID belongs to another org"
   const customer = required([...customers.values()][0]);
   customer.externalId = "foreign-org";
   gateway.findCustomer.mockClear();
-  await expect(
-    billing.startUpgradeCheckout("org", "owner"),
-  ).rejects.toMatchObject({ code: "identity_conflict" });
+  await expect(billing.startUpgradeCheckout("org", "owner")).rejects.toMatchObject({
+    code: "identity_conflict",
+  });
   expect(gateway.findCustomer).not.toHaveBeenCalled();
-  expect(
-    (await database.select().from(schema.organizationBilling))[0]
-      .polarCustomerId,
-  ).toBe(customer.id);
+  expect((await database.select().from(schema.organizationBilling))[0].polarCustomerId).toBe(
+    customer.id,
+  );
 });
 it("links the reserved billing customer to the new Pro organization after payment", async () => {
   const { c, event } = await paidNew();
@@ -907,9 +810,7 @@ it("links the reserved billing customer to the new Pro organization after paymen
   const [org] = await database
     .select()
     .from(schema.organizationBilling)
-    .where(
-      eq(schema.organizationBilling.orgId, required(c.externalCustomerId)),
-    );
+    .where(eq(schema.organizationBilling.orgId, required(c.externalCustomerId)));
   expect(org.polarCustomerId).toBe(c.customerId);
 });
 

@@ -15,15 +15,7 @@ const MARGIN = 4;
  * measure that squeezed size, and the box would jitter between the two
  * shapes. Untransformed layout keeps the measurement stable.
  */
-export function CursorTooltip({
-  x,
-  y,
-  children,
-}: {
-  x: number;
-  y: number;
-  children: ReactNode;
-}) {
+export function CursorTooltip({ x, y, children }: { x: number; y: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {

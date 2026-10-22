@@ -9,7 +9,7 @@ Once you've [verified telemetry locally](/docs/learn/instrument-your-app), use t
 
 Under [API Keys](https://app.everr.dev/api-keys), choose the key for your runtime:
 
-- **Server:**  create a new API Key selecting the **Send telemetry** flag
+- **Server:** create a new API Key selecting the **Send telemetry** flag
 - **Browser:** create a new Public Key and restrict it to your app's origins. Follow [Browser telemetry](/docs/guides/browser-telemetry) for client configuration.
 
 API Keys are shared within the organization, and only admins can create them.
@@ -23,6 +23,7 @@ If your agent set up telemetry, you should find a **Telemetry** section in your 
 ```
 
 If you're configuring production manually, here are the common environment variables:
+
 ```sh
 export OTEL_EXPORTER_OTLP_ENDPOINT=https://ingest.everr.dev/
 export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <ingestion-key>"

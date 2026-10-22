@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
@@ -74,9 +75,7 @@ function createTransport() {
             };
           }
           return {
-            content: [
-              { type: "text", text: JSON.stringify(identity, null, 2) },
-            ],
+            content: [{ type: "text", text: JSON.stringify(identity, null, 2) }],
           };
         },
       );
@@ -103,11 +102,11 @@ async function verifyToken(_req: Request, bearerToken?: string) {
     // issuer/jwksUrl must be passed explicitly: the resource client derives them
     // from auth.options.baseURL, which omits the /api/auth mount path, so it
     // would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks (404).
-    payload = (await mcpResourceClient().verifyAccessToken(bearerToken, {
+    payload = await mcpResourceClient().verifyAccessToken(bearerToken, {
       jwksUrl: `${AUTH_ISSUER}/jwks`,
       verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
       scopes: ["observability:read"],
-    })) as Record<string, unknown>;
+    });
   } catch {
     return undefined; // bad sig/aud/iss/scope/expiry
   }
@@ -124,10 +123,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
   return {
     token: bearerToken,
     clientId: typeof payload.azp === "string" ? payload.azp : "",
-    scopes:
-      typeof payload.scope === "string"
-        ? payload.scope.split(" ")
-        : ["observability:read"],
+    scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
     extra: { orgId, userId, metadata } satisfies McpContext,
   };
@@ -135,8 +131,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
 
 // The MCP cleanup timer would keep the prerender process alive after rendering.
 // Initialize at module load during normal runtime.
-const authedTransport =
-  process.env.TSS_PRERENDERING === "true" ? undefined : createTransport();
+const authedTransport = process.env.TSS_PRERENDERING === "true" ? undefined : createTransport();
 
 // Browser-based MCP clients (e.g. the MCP Inspector) hit /mcp cross-origin, so
 // every response — including withMcpAuth's 401 challenge — needs CORS, and the
@@ -165,8 +160,7 @@ function preflight(): Response {
     headers: {
       ...CORS_HEADERS,
       "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-      "access-control-allow-headers":
-        "authorization, content-type, mcp-session-id",
+      "access-control-allow-headers": "authorization, content-type, mcp-session-id",
     },
   });
 }

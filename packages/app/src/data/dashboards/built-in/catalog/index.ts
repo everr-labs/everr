@@ -20,13 +20,10 @@ const sources = import.meta.glob<string>("./*/*.yaml", {
   eager: true,
 });
 
-export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = assembleBuiltinCatalog(
-  BUILTIN_MANIFEST,
-  [
-    ...Object.values(sources).map(parseBuiltinDashboard),
-    ...additionalBuiltinDashboards,
-  ],
-);
+export const BUILTIN_DASHBOARDS: BuiltinDashboard[] = assembleBuiltinCatalog(BUILTIN_MANIFEST, [
+  ...Object.values(sources).map(parseBuiltinDashboard),
+  ...additionalBuiltinDashboards,
+]);
 
 const BY_ID = new Map(BUILTIN_DASHBOARDS.map((t) => [t.id, t]));
 

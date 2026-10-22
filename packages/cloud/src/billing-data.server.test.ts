@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 const selectLimit = vi.fn();
 
@@ -31,9 +31,7 @@ function subscription(
   plan: "hobby" | "pro" = "pro",
 ) {
   selectLimit.mockResolvedValueOnce([{ plan }]);
-  selectLimit.mockResolvedValueOnce([
-    { polarProductId: "product_pro", ...row },
-  ]);
+  selectLimit.mockResolvedValueOnce([{ polarProductId: "product_pro", ...row }]);
   return readOrgEntitlement("org42");
 }
 
@@ -114,9 +112,7 @@ describe("readOrgEntitlement", () => {
         currentPeriodEnd: IN_THE_PERIOD,
         cancelAtPeriodEnd: false,
       }),
-    ).rejects.toThrow(
-      "Polar Product product_unknown is not configured for this deployment",
-    );
+    ).rejects.toThrow("Polar Product product_unknown is not configured for this deployment");
   });
 });
 

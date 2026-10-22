@@ -1,11 +1,6 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
 import { ChevronDownIcon } from "lucide-react";
-import {
-  type ComponentType,
-  type ReactNode,
-  type SVGProps,
-  useMemo,
-  useState,
-} from "react";
+import { type ComponentType, type ReactNode, type SVGProps, useMemo, useState } from "react";
 import { Button } from "./button";
 import {
   Command,
@@ -92,6 +87,7 @@ export function OptionCombobox({
             <Button
               id={id}
               variant="outline"
+              // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger role and its original popup association.
               role="combobox"
               aria-expanded={open}
               aria-label={label}
@@ -115,10 +111,7 @@ export function OptionCombobox({
               {placeholder}
             </span>
           )}
-          <ChevronDownIcon
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
+          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
         </PopoverTrigger>
         <PopoverContent align="start" className="w-(--anchor-width) p-0">
           <Command className="p-0">
@@ -133,9 +126,7 @@ export function OptionCombobox({
                       value={o.value}
                       // cmdk matches the value alone; the word on the row is
                       // what a reader types.
-                      keywords={
-                        typeof o.label === "string" ? [o.label] : undefined
-                      }
+                      keywords={typeof o.label === "string" ? [o.label] : undefined}
                       data-checked={o.value === value || undefined}
                       onSelect={() => {
                         onChange(o.value);
@@ -143,10 +134,7 @@ export function OptionCombobox({
                       }}
                     >
                       {o.icon && (
-                        <o.icon
-                          className="text-muted-foreground mt-0.5 self-start"
-                          aria-hidden
-                        />
+                        <o.icon className="text-muted-foreground mt-0.5 self-start" aria-hidden />
                       )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{o.label}</span>

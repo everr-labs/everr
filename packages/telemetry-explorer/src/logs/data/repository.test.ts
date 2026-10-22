@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { SqlClient } from "./client";
 import { LogsRepository } from "./repository";
 
@@ -35,9 +35,7 @@ describe("LogsRepository.explorer", () => {
 
 describe("LogsRepository.totals", () => {
   it("decodes totals using selected levels", async () => {
-    const client = fakeClient([
-      { error: 1, warning: 0, info: 0, debug: 0, trace: 0, unknown: 0 },
-    ]);
+    const client = fakeClient([{ error: 1, warning: 0, info: 0, debug: 0, trace: 0, unknown: 0 }]);
     const repo = new LogsRepository(client);
     const result = await repo.totals({
       timeRange: { from: "now-1h", to: "now" },

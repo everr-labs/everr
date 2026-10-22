@@ -31,11 +31,7 @@ type SqlQueryClassification = {
 // collapses them into one uniform message. For telemetry they are a user error
 // (querying something they can't read), not an outage.
 const SCHEMA_PROBE_CODES = new Set(["497", "60", "81"]);
-const SCHEMA_PROBE_TYPES = new Set([
-  "ACCESS_DENIED",
-  "UNKNOWN_TABLE",
-  "UNKNOWN_DATABASE",
-]);
+const SCHEMA_PROBE_TYPES = new Set(["ACCESS_DENIED", "UNKNOWN_TABLE", "UNKNOWN_DATABASE"]);
 
 // ClickHouse error codes that mean our infrastructure failed, not the user's
 // SQL. Everything else from ClickHouse is treated as a malformed query
@@ -71,10 +67,7 @@ export function classifySqlQueryError(error: unknown): SqlQueryClassification {
   }
 
   if (error instanceof ClickHouseError) {
-    if (
-      SCHEMA_PROBE_CODES.has(error.code) ||
-      SCHEMA_PROBE_TYPES.has(error.type ?? "")
-    ) {
+    if (SCHEMA_PROBE_CODES.has(error.code) || SCHEMA_PROBE_TYPES.has(error.type ?? "")) {
       return { outcome: "user_error", kind: "schema_probe" };
     }
     const systemKind = SYSTEM_ERROR_CODES[error.code];

@@ -12,36 +12,19 @@ export async function restrictOrganizationToOwner(
   const [retained] = await transaction
     .select({ role: member.role })
     .from(member)
-    .where(
-      and(
-        eq(member.organizationId, organizationId),
-        eq(member.userId, ownerId),
-      ),
-    )
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, ownerId)))
     .limit(1);
   if (!retained || !isOrganizationOwner(retained.role)) {
-    throw new IdentityPolicyError(
-      "The retained member must be an organization owner.",
-    );
+    throw new IdentityPolicyError("The retained member must be an organization owner.");
   }
   const removed = await transaction
     .delete(member)
-    .where(
-      and(
-        eq(member.organizationId, organizationId),
-        ne(member.userId, ownerId),
-      ),
-    )
+    .where(and(eq(member.organizationId, organizationId), ne(member.userId, ownerId)))
     .returning({ id: member.id });
   const canceled = await transaction
     .update(invitation)
     .set({ status: "canceled" })
-    .where(
-      and(
-        eq(invitation.organizationId, organizationId),
-        eq(invitation.status, "pending"),
-      ),
-    )
+    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, "pending")))
     .returning({ id: invitation.id });
   return {
     removedMembers: removed.length,

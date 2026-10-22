@@ -17,26 +17,18 @@ export function boundEventEvidence(
   const kept = entries.slice(0, MAX_EVENT_EVIDENCE_COLUMNS);
   const evidence = Object.fromEntries(kept);
   const truncated = kept.length < entries.length;
-  if (
-    Buffer.byteLength(JSON.stringify(evidence), "utf8") >
-    MAX_EVENT_EVIDENCE_BYTES
-  ) {
+  if (Buffer.byteLength(JSON.stringify(evidence), "utf8") > MAX_EVENT_EVIDENCE_BYTES) {
     return { evidence: {}, truncated: true };
   }
   return { evidence, truncated };
 }
 
-export function boundEvidence(
-  rows: Record<string, unknown>[],
-): BoundedEvidence {
+export function boundEvidence(rows: Record<string, unknown>[]): BoundedEvidence {
   let kept = rows.slice(0, MAX_EVIDENCE_ROWS);
   let truncated = rows.length > MAX_EVIDENCE_ROWS;
   let json = JSON.stringify(kept);
 
-  while (
-    Buffer.byteLength(json, "utf8") > MAX_EVIDENCE_BYTES &&
-    kept.length > 1
-  ) {
+  while (Buffer.byteLength(json, "utf8") > MAX_EVIDENCE_BYTES && kept.length > 1) {
     kept = kept.slice(0, Math.ceil(kept.length / 2));
     truncated = true;
     json = JSON.stringify(kept);

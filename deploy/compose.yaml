@@ -40,7 +40,13 @@ services:
       EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
       EVERR_GITHUB_ENABLED: "false"
     healthcheck:
-      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "/nodejs/bin/node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       start_period: 60s
@@ -78,7 +84,11 @@ services:
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --host clickhouse --user default --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1 FROM app.alert_events LIMIT 0'"]
+      test:
+        [
+          "CMD-SHELL",
+          'clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --query ''SELECT 1 FROM app.alert_events LIMIT 0''',
+        ]
       interval: 5s
       timeout: 5s
       start_period: 30s

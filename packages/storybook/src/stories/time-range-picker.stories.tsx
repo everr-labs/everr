@@ -16,7 +16,7 @@ const meta = {
     value: DEFAULT_TIME_RANGE,
     onChange: () => {},
   },
-  render: (args) => {
+  render: function TimeRangePickerStory(args) {
     const [range, setRange] = useState<TimeRange>(args.value);
     return (
       <div className="flex flex-col items-start gap-3">
@@ -55,9 +55,7 @@ export const PresetLabels: Story = {
     <div className="flex flex-col gap-4">
       {QUICK_RANGE_GROUPS.map((group) => (
         <div key={group.label} className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs font-medium">
-            {group.label}
-          </span>
+          <span className="text-muted-foreground text-xs font-medium">{group.label}</span>
           {group.ranges.map((range) => (
             <code key={range.label} className="text-xs">
               {formatTimeRangeDisplay(range)}: {range.from} → {range.to}
@@ -72,13 +70,11 @@ export const PresetLabels: Story = {
 export const DatemathValidation: Story = {
   render: () => (
     <ul className="text-sm font-mono">
-      {["now", "now-15m", "now/w", "now-1d/d", "yesterday", "5 minutes"].map(
-        (expr) => (
-          <li key={expr}>
-            {expr} → {isValidDatemath(expr) ? "valid" : "invalid"}
-          </li>
-        ),
-      )}
+      {["now", "now-15m", "now/w", "now-1d/d", "yesterday", "5 minutes"].map((expr) => (
+        <li key={expr}>
+          {expr} → {isValidDatemath(expr) ? "valid" : "invalid"}
+        </li>
+      ))}
     </ul>
   ),
 };

@@ -1,7 +1,4 @@
-export function formatDuration(
-  value: number,
-  unit: "ms" | "s" | "ns" = "s",
-): string {
+export function formatDuration(value: number, unit: "ms" | "s" | "ns" = "s"): string {
   const ms = unit === "ns" ? value / 1e6 : unit === "s" ? value * 1000 : value;
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const seconds = ms / 1000;
@@ -11,10 +8,7 @@ export function formatDuration(
   return `${minutes}m ${remainingSeconds}s`;
 }
 
-export function formatDurationCompact(
-  value: number,
-  unit: "ms" | "s" = "ms",
-): string {
+export function formatDurationCompact(value: number, unit: "ms" | "s" = "ms"): string {
   const ms = unit === "s" ? value * 1000 : value;
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;

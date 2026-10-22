@@ -14,10 +14,9 @@ const PRICING_FAQS: FaqItem[] = [
     q: "How does the query allowance work?",
     a: (
       <>
-        We don't charge separately for data storage, so each plan has a query
-        allowance to keep usage fair for everyone. It measures the data your
-        queries scan, not the number of queries you run. If you need a different
-        allowance,{" "}
+        We don&apos;t charge separately for data storage, so each plan has a query allowance to keep
+        usage fair for everyone. It measures the data your queries scan, not the number of queries
+        you run. If you need a different allowance,{" "}
         <a
           href="https://calendar.app.google/kgnoxBsk4QyoLywG8"
           className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
@@ -32,10 +31,9 @@ const PRICING_FAQS: FaqItem[] = [
     q: "How does retention work?",
     a: (
       <>
-        Hobby keeps logs, traces, and metrics for 14 days; Pro keeps them for 12
-        months. Each event gets the retention period of your plan when it
-        arrives, so changing plans affects new data, not data already stored.
-        Read the{" "}
+        Hobby keeps logs, traces, and metrics for 14 days; Pro keeps them for 12 months. Each event
+        gets the retention period of your plan when it arrives, so changing plans affects new data,
+        not data already stored. Read the{" "}
         <a
           href="/docs/reference/retention"
           className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"

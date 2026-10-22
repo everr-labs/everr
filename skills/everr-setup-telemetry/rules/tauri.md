@@ -275,8 +275,8 @@ Capture Rust backend failures and panics per `rust.md`'s "Errors And Panics": em
 
 ```ts
 // src/telemetry.ts, imported once before the app renders
-import { errors, WebSDK } from '@everr/otel-web';
-import { invoke } from '@tauri-apps/api/core';
+import { errors, WebSDK } from "@everr/otel-web";
+import { invoke } from "@tauri-apps/api/core";
 
 type TelemetryContext = {
   serviceName: string;
@@ -288,7 +288,7 @@ type TelemetryContext = {
 let client: WebSDK | null = null;
 
 async function initBrowserTelemetry() {
-  const context = await invoke<TelemetryContext>('get_telemetry_context');
+  const context = await invoke<TelemetryContext>("get_telemetry_context");
 
   client = new WebSDK({
     serviceName: context.serviceName,
@@ -297,7 +297,7 @@ async function initBrowserTelemetry() {
     deploymentEnvironment: context.deploymentEnvironment,
     // Only Rust reads exporter configuration: ingestKey, endpoint, and dev are
     // unused, and the SDK issues no request of its own.
-    send: (signal, body) => invoke('proxy_otlp', { signal, body }),
+    send: (signal, body) => invoke("proxy_otlp", { signal, body }),
     // Capture is opt-in. errors() owns the window error/unhandledrejection
     // handlers; never register your own alongside it, that double-captures.
     instrumentations: [errors()],
@@ -311,7 +311,7 @@ initBrowserTelemetry().catch(console.error);
 // The SDK flushes on pagehide and on visibilitychange-hidden. A Tauri window
 // close does not reliably fire either, so flush here too. flush, not shutdown:
 // capture stays alive if the close is aborted.
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   void client?.flush();
 });
 ```
@@ -325,7 +325,7 @@ window.addEventListener('beforeunload', () => {
 If the webview genuinely needs its own metrics, run an OpenTelemetry `MeterProvider` alongside the SDK (they do not conflict) with a `PushMetricExporter` that calls the same command:
 
 ```ts
-void invoke('proxy_otlp', { signal: 'metrics', body });
+void invoke("proxy_otlp", { signal: "metrics", body });
 ```
 
 `proxy_otlp` already accepts `metrics`, so no Rust change is needed.

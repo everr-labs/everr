@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
@@ -128,13 +128,10 @@ function makeRun(overrides: Record<string, unknown> = {}) {
     jobs_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/jobs",
     logs_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/logs",
     check_suite_url: "https://api.github.com/repos/acme/repo/check-suites/5001",
-    artifacts_url:
-      "https://api.github.com/repos/acme/repo/actions/runs/1001/artifacts",
-    cancel_url:
-      "https://api.github.com/repos/acme/repo/actions/runs/1001/cancel",
+    artifacts_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/artifacts",
+    cancel_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/cancel",
     rerun_url: "https://api.github.com/repos/acme/repo/actions/runs/1001/rerun",
-    workflow_url:
-      "https://api.github.com/repos/acme/repo/actions/workflows/100",
+    workflow_url: "https://api.github.com/repos/acme/repo/actions/workflows/100",
     previous_attempt_url: null,
     pull_requests: [],
     created_at: "2026-03-01T00:00:00Z",
@@ -333,17 +330,13 @@ describe("backfillRepo", () => {
     expect(runListUrls.every((url) => !url.includes("branch="))).toBe(true);
 
     // 1 initial + 1 per replayed run + 1 done
-    expect(
-      progress.map((e) => [e.status, e.runsProcessed, e.jobsEnqueued]),
-    ).toEqual([
+    expect(progress.map((e) => [e.status, e.runsProcessed, e.jobsEnqueued])).toEqual([
       ["importing", 0, 0],
       ["importing", 1, 1],
       ["importing", 2, 2],
       ["done", 2, 2],
     ]);
-    expect(progress.every((e) => e.jobsQuota === JOB_QUOTA_PER_REPO)).toBe(
-      true,
-    );
+    expect(progress.every((e) => e.jobsQuota === JOB_QUOTA_PER_REPO)).toBe(true);
   });
 
   it("filters out cancelled conclusions", async () => {
@@ -365,13 +358,9 @@ describe("backfillRepo", () => {
 
   it("stops after the per-repo job quota", async () => {
     // 60 runs with 5 jobs each = 300 jobs, should stop at 250 (50 runs)
-    const runs = Array.from({ length: 60 }, (_, i) =>
-      makeRun({ id: i + 1, run_number: i + 1 }),
-    );
+    const runs = Array.from({ length: 60 }, (_, i) => makeRun({ id: i + 1, run_number: i + 1 }));
     const jobsPerRun = runs.map((r) =>
-      Array.from({ length: 5 }, (_, j) =>
-        makeJob({ id: r.id * 100 + j, run_id: r.id }),
-      ),
+      Array.from({ length: 5 }, (_, j) => makeJob({ id: r.id * 100 + j, run_id: r.id })),
     );
     setupFetch(runs, jobsPerRun);
 

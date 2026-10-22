@@ -42,9 +42,7 @@ export async function readCreatedOrganizationId(
   if (!cookie || !session) return null;
   try {
     const continuation = ContinuationSchema.parse(
-      JSON.parse(
-        await symmetricDecrypt({ key: env.BETTER_AUTH_SECRET, data: cookie }),
-      ),
+      JSON.parse(await symmetricDecrypt({ key: env.BETTER_AUTH_SECRET, data: cookie })),
     );
     return continuation.sessionId === session.id &&
       continuation.organizationId === session.activeOrganizationId &&
@@ -62,6 +60,5 @@ export const getOrganizationEntryRedirect: ApplicationEntry["getOrganizationEntr
       getCookie(ORGANIZATION_CREATION_COOKIE),
       session,
     );
-    if (createdId === session.activeOrganizationId)
-      return { to: "/organization-setup" };
+    if (createdId === session.activeOrganizationId) return { to: "/organization-setup" };
   };

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { LogsRepositoryLike } from "../data/repository";
 import { LogFiltersBar } from "./log-filters";
 
@@ -9,9 +9,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 const repo = {
@@ -32,9 +30,7 @@ const baseProps = {
 describe("LogFiltersBar", () => {
   it("renders Search, Severity, Trace and the attribute section in the rail", () => {
     renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
-    expect(
-      screen.getByRole("complementary", { name: "Log filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
     expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Severity")).toBeInTheDocument();
     expect(screen.getByText("Trace")).toBeInTheDocument();
@@ -50,9 +46,7 @@ describe("LogFiltersBar", () => {
   it("renders the message search inside the rail", () => {
     renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
     const rail = screen.getByRole("complementary", { name: "Log filters" });
-    expect(rail).toContainElement(
-      screen.getByPlaceholderText("Search messages, errors, IDs"),
-    );
+    expect(rail).toContainElement(screen.getByPlaceholderText("Search messages, errors, IDs"));
   });
 
   it("clear resets the search, levels, attributes and trace id", () => {
@@ -103,15 +97,9 @@ describe("LogFiltersBar", () => {
 
   it("an active persistent filter alone does not surface the clear control", () => {
     renderWithQueryClient(
-      <LogFiltersBar
-        {...baseProps}
-        persistentFilterCount={2}
-        onChange={vi.fn()}
-      />,
+      <LogFiltersBar {...baseProps} persistentFilterCount={2} onChange={vi.fn()} />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear page filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
   });
 
   it("shows a legacy deployment.environment attribute as a removable pill", () => {
@@ -134,9 +122,7 @@ describe("LogFiltersBar", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Remove Environment filter" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
   });
 
   it("syncs the Trace input when the traceId prop is cleared externally", () => {

@@ -1,5 +1,5 @@
 import { auth } from "@everr/app/identity/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { completeProOrganizationCheckout } from "./organization-checkout";
 import { createOrganization } from "./organizations";
 
@@ -104,10 +104,7 @@ describe("createOrganization", () => {
         userId: "test_user",
       },
     });
-    expect(mocks.lockOrganizationOwnership).toHaveBeenCalledWith(
-      expect.anything(),
-      "test_user",
-    );
+    expect(mocks.lockOrganizationOwnership).toHaveBeenCalledWith(expect.anything(), "test_user");
   });
 
   it("rejects a second owned Hobby organization", async () => {
@@ -135,28 +132,22 @@ describe("createOrganization", () => {
       kind: "checkout",
       url: "https://polar.example/checkout_1",
     });
-    expect(mocks.startCheckout).toHaveBeenCalledWith(
-      "test_user",
-      "Acme",
-      "/logs?service=api",
-    );
+    expect(mocks.startCheckout).toHaveBeenCalledWith("test_user", "Acme", "/logs?service=api");
     expect(auth.api.createOrganization).not.toHaveBeenCalled();
   });
-  it.each([
-    undefined,
-    "https://other.example",
-    "//other.example",
-    "/organization-setup",
-  ])("defaults a missing or unsafe checkout destination (%s) to home", async (returnTo) => {
-    await createOrganization({
-      data: { plan: "pro", organizationName: "Acme", returnTo },
-    });
-    expect(mocks.startCheckout).toHaveBeenCalledWith(
-      "test_user",
-      "Acme",
-      returnTo === undefined ? undefined : "/",
-    );
-  });
+  it.each([undefined, "https://other.example", "//other.example", "/organization-setup"])(
+    "defaults a missing or unsafe checkout destination (%s) to home",
+    async (returnTo) => {
+      await createOrganization({
+        data: { plan: "pro", organizationName: "Acme", returnTo },
+      });
+      expect(mocks.startCheckout).toHaveBeenCalledWith(
+        "test_user",
+        "Acme",
+        returnTo === undefined ? undefined : "/",
+      );
+    },
+  );
   it("reports a retryable checkout failure", async () => {
     mocks.startCheckout.mockRejectedValueOnce(new Error("unavailable"));
     await expect(

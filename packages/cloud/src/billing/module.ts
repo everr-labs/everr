@@ -38,8 +38,7 @@ export function createBillingModule(deps: BillingDependencies) {
       return {
         owner: await identity.owner(orgId),
         candidates: people.filter((p) => isOrganizationOwner(p.role)),
-        canChangeOwner:
-          Boolean(customer?.id) && isOrganizationOwner(actor?.role),
+        canChangeOwner: Boolean(customer?.id) && isOrganizationOwner(actor?.role),
         connected: Boolean(customer?.id),
       };
     },
@@ -53,10 +52,7 @@ export function createBillingModule(deps: BillingDependencies) {
           );
       });
     },
-    async beforeUserUpdate(
-      userId: string,
-      update: Partial<Person> & { emailVerified?: boolean },
-    ) {
+    async beforeUserUpdate(userId: string, update: Partial<Person> & { emailVerified?: boolean }) {
       if (update.name === undefined && update.email === undefined) return;
       const person = await store.person(userId);
       if (
@@ -103,16 +99,13 @@ export function createBillingModule(deps: BillingDependencies) {
         // before invoking revocation, then commits the local downgrade.
         const result = await commit(async () => {
           await identity.reconcile(orgId, {
-            remove: (await store.people(orgId))
-              .filter((p) => p.id !== actorId)
-              .map((p) => p.id),
+            remove: (await store.people(orgId)).filter((p) => p.id !== actorId).map((p) => p.id),
           });
           const [subscription] = await db
             .select()
             .from(orgSubscription)
             .where(eq(orgSubscription.orgId, orgId));
-          if (subscription)
-            await polar.revokeSubscription(subscription.polarSubscriptionId);
+          if (subscription) await polar.revokeSubscription(subscription.polarSubscriptionId);
         });
         await identity.reconcile(orgId);
         return result;

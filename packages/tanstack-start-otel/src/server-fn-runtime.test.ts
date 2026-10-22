@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ApiTypes from "@opentelemetry/api";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const telemetryMocks = vi.hoisted(() => {
   const span = {
@@ -12,10 +13,7 @@ const telemetryMocks = vi.hoisted(() => {
       async (
         _name: string,
         _options: unknown,
-        run: (span: {
-          end: () => void;
-          setAttribute: () => void;
-        }) => Promise<unknown>,
+        run: (span: { end: () => void; setAttribute: () => void }) => Promise<unknown>,
       ) => run(span),
     ),
     span,
@@ -27,7 +25,7 @@ vi.mock("@everr/otel-errors", () => ({
 }));
 
 vi.mock("@opentelemetry/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@opentelemetry/api")>()),
+  ...(await importOriginal<typeof ApiTypes>()),
   trace: {
     getTracer: () => ({ startActiveSpan: telemetryMocks.startActiveSpan }),
   },
@@ -37,7 +35,7 @@ import { instrumentServerFunction } from "./server-fn-runtime.js";
 
 const tracer = {
   startActiveSpan: telemetryMocks.startActiveSpan,
-} as unknown as import("@opentelemetry/api").Tracer;
+} as unknown as ApiTypes.Tracer;
 
 describe("instrumentServerFunction", () => {
   beforeEach(() => {
@@ -57,9 +55,7 @@ describe("instrumentServerFunction", () => {
         },
         {
           tracer,
-          request: new Request(
-            "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
-          ),
+          request: new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
           serverFnMeta: {
             filename: "src/lib/auth.server.ts",
             id: "c4d3d0c28997f144965eeaca",
@@ -98,9 +94,7 @@ describe("instrumentServerFunction", () => {
         },
         {
           tracer,
-          request: new Request(
-            "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
-          ),
+          request: new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
           serverFnMeta: {
             filename: "src/lib/auth.server.ts",
             id: "c4d3d0c28997f144965eeaca",

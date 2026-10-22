@@ -121,8 +121,7 @@
     @apply font-sans bg-background text-foreground;
   }
   code {
-    font-family:
-      source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
   th {
     @apply font-medium;

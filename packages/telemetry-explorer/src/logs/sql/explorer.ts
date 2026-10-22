@@ -68,13 +68,7 @@ export function mapExplorerRow(row: ExplorerRowRaw): LogExplorerRow {
     bodyHash: row.bodyHash,
   };
   return {
-    id: [
-      row.timestampRaw,
-      row.traceId,
-      row.spanId,
-      row.serviceName,
-      row.bodyHash,
-    ].join("|"),
+    id: [row.timestampRaw, row.traceId, row.spanId, row.serviceName, row.bodyHash].join("|"),
     identity,
     timestamp: normalizeTimestampToUtc(row.timestampRaw),
     level: row.level,

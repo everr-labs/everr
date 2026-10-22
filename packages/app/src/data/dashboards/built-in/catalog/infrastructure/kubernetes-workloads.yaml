@@ -151,7 +151,7 @@ document:
             spec:
               showLegend: true
               valueFormat:
-                unit: '{core}'
+                unit: "{core}"
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -212,7 +212,7 @@ document:
               showLegend: true
               stacked: true
               valueFormat:
-                unit: '{core}'
+                unit: "{core}"
           queries:
             - kind: ClickHouseSQL
               spec:

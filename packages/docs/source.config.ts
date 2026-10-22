@@ -1,9 +1,9 @@
-import { defineConfig, defineDocs, defineCollections } from 'fumadocs-mdx/config';
-import { z } from 'zod';
+import { defineConfig, defineDocs, defineCollections } from "fumadocs-mdx/config";
+import { z } from "zod";
 
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const docs = defineDocs({
-  dir: 'content/docs',
+  dir: "content/docs",
   docs: {
     postprocess: {
       includeProcessedMarkdown: true,
@@ -13,8 +13,8 @@ export const docs = defineDocs({
 
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const devlog = defineCollections({
-  type: 'doc',
-  dir: 'content/devlog',
+  type: "doc",
+  dir: "content/devlog",
   schema: z.object({
     title: z.string(),
     description: z.string(),
@@ -30,8 +30,8 @@ export const devlog = defineCollections({
 
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export const blog = defineCollections({
-  type: 'doc',
-  dir: 'content/blog',
+  type: "doc",
+  dir: "content/blog",
   schema: z.object({
     title: z.string(),
     description: z.string(),

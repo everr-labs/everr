@@ -34,9 +34,12 @@ spec:
                   seed: 41
                   rows: 100
                   columns:
-                    - { name: Timestamp,  time: true }
-                    - { name: SpanName,   values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics] }
-                    - { name: SpanKind,   values: [Server, Client, Internal] }
+                    - { name: Timestamp, time: true }
+                    - {
+                        name: SpanName,
+                        values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics],
+                      }
+                    - { name: SpanKind, values: [Server, Client, Internal] }
                     - { name: StatusCode, values: [Ok, Error, Unset] }
                     - { name: duration_ms, walk: { start: 50, noise: 30, min: 0, round: 1 } }
     table-multi-query:
@@ -59,9 +62,12 @@ spec:
                   seed: 42
                   rows: 20
                   columns:
-                    - { name: SpanName, values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics] }
-                    - { name: spans,    walk: { start: 200, noise: 50, min: 0, round: 0 } }
-                    - { name: p95_ms,   walk: { start: 120, noise: 20, min: 0, round: 1 } }
+                    - {
+                        name: SpanName,
+                        values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics],
+                      }
+                    - { name: spans, walk: { start: 200, noise: 50, min: 0, round: 0 } }
+                    - { name: p95_ms, walk: { start: 120, noise: 20, min: 0, round: 1 } }
           - kind: TestData
             spec:
               plugin:
@@ -128,7 +134,11 @@ spec:
           description: "valueFormat: none, unit: {connection}, decimals: 2, latency column override"
         plugin:
           kind: Table
-          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+          spec:
+            {
+              valueFormat: { unit: "{connection}", scale: none, decimals: 2 },
+              columns: { latency: { valueFormat: { unit: s, scale: duration } } },
+            }
         queries:
           - kind: TestData
             spec:
@@ -137,7 +147,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, const: api }, { name: value, const: 12500 }, { name: latency, const: 0.025 }]
+                  columns:
+                    [
+                      { name: name, const: api },
+                      { name: value, const: 12500 },
+                      { name: latency, const: 0.025 },
+                    ]
     format-decimal:
       kind: Panel
       spec:
@@ -146,7 +161,11 @@ spec:
           description: "valueFormat: decimal, unit: widgets/s, decimals: 2, latency column override"
         plugin:
           kind: Table
-          spec: { valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+          spec:
+            {
+              valueFormat: { unit: widgets/s, scale: decimal, decimals: 2 },
+              columns: { latency: { valueFormat: { unit: s, scale: duration } } },
+            }
         queries:
           - kind: TestData
             spec:
@@ -155,7 +174,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, const: api }, { name: value, const: 12500 }, { name: latency, const: 0.025 }]
+                  columns:
+                    [
+                      { name: name, const: api },
+                      { name: value, const: 12500 },
+                      { name: latency, const: 0.025 },
+                    ]
     format-binary:
       kind: Panel
       spec:
@@ -164,7 +188,11 @@ spec:
           description: "valueFormat: binary, unit: By/s, decimals: 2, latency column override"
         plugin:
           kind: Table
-          spec: { valueFormat: { unit: By/s, scale: binary, decimals: 2 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+          spec:
+            {
+              valueFormat: { unit: By/s, scale: binary, decimals: 2 },
+              columns: { latency: { valueFormat: { unit: s, scale: duration } } },
+            }
         queries:
           - kind: TestData
             spec:
@@ -173,7 +201,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, const: api }, { name: value, const: 2621440 }, { name: latency, const: 0.025 }]
+                  columns:
+                    [
+                      { name: name, const: api },
+                      { name: value, const: 2621440 },
+                      { name: latency, const: 0.025 },
+                    ]
     format-duration:
       kind: Panel
       spec:
@@ -182,7 +215,11 @@ spec:
           description: "valueFormat: duration, unit: s, decimals: 1, latency column override"
         plugin:
           kind: Table
-          spec: { valueFormat: { unit: s, scale: duration, decimals: 1 }, columns: { latency: { valueFormat: { unit: s, scale: duration } } } }
+          spec:
+            {
+              valueFormat: { unit: s, scale: duration, decimals: 1 },
+              columns: { latency: { valueFormat: { unit: s, scale: duration } } },
+            }
         queries:
           - kind: TestData
             spec:
@@ -191,7 +228,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 3
-                  columns: [{ name: name, const: api }, { name: value, const: 0.025 }, { name: latency, const: 0.025 }]
+                  columns:
+                    [
+                      { name: name, const: api },
+                      { name: value, const: 0.025 },
+                      { name: latency, const: 0.025 },
+                    ]
     format-ucum:
       kind: Panel
       spec:
@@ -286,14 +328,38 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 24, height: 10, content: { $ref: "#/spec/panels/table-sticky" } }
-          - { x: 0,  y: 10, width: 24, height: 8,  content: { $ref: "#/spec/panels/table-multi-query" } }
-          - { x: 0,  y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-empty" } }
-          - { x: 12, y: 18, width: 12, height: 6,  content: { $ref: "#/spec/panels/table-multi-empty" } }
+          - { x: 0, y: 0, width: 24, height: 10, content: { $ref: "#/spec/panels/table-sticky" } }
+          - {
+              x: 0,
+              y: 10,
+              width: 24,
+              height: 8,
+              content: { $ref: "#/spec/panels/table-multi-query" },
+            }
+          - { x: 0, y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/table-empty" } }
+          - {
+              x: 12,
+              y: 18,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/table-multi-empty" },
+            }
           - { x: 0, y: 24, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
-          - { x: 12, y: 24, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - {
+              x: 12,
+              y: 24,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-decimal" },
+            }
           - { x: 0, y: 33, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
-          - { x: 12, y: 33, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - {
+              x: 12,
+              y: 33,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-duration" },
+            }
           - { x: 0, y: 42, width: 24, height: 6, content: { $ref: "#/spec/panels/format-ucum" } }
           - { x: 0, y: 48, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 48, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

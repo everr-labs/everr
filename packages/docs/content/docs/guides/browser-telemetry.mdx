@@ -29,10 +29,7 @@ Point any OpenTelemetry web SDK at Everr with the key as a bearer token:
 
 ```ts
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import {
-  BatchSpanProcessor,
-  WebTracerProvider,
-} from "@opentelemetry/sdk-trace-web";
+import { BatchSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 
 const exporter = new OTLPTraceExporter({
   url: "https://ingest.everr.dev/v1/traces",

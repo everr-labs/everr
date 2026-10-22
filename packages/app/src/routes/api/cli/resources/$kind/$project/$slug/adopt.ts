@@ -1,9 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import {
-  adoptResource,
-  isResourceKind,
-} from "#app/data/as-code/resource-admin.server.ts";
+import { adoptResource, isResourceKind } from "#app/data/as-code/resource-admin.server.ts";
 import {
   notFoundResponse,
   reservedProjectResponse,
@@ -14,9 +11,7 @@ const BodySchema = z.object({ repoid: z.string().min(1) });
 
 // Auth + org context comes from the parent `/api/cli` route
 // (requireOrgMiddleware); this is a session-authenticated CLI endpoint.
-export const Route = createFileRoute(
-  "/api/cli/resources/$kind/$project/$slug/adopt",
-)({
+export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug/adopt")({
   server: {
     handlers: {
       POST: async ({ request, params, context }) => {

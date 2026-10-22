@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   linkedRows: [] as Record<string, unknown>[],
@@ -31,9 +31,7 @@ vi.mock("#app/db/client.ts", () => ({
         innerJoin: vi.fn(() => chain),
         leftJoin: vi.fn(() => chain),
         where: vi.fn(() =>
-          mocks.selectError
-            ? Promise.reject(mocks.selectError)
-            : Promise.resolve(mocks.linkedRows),
+          mocks.selectError ? Promise.reject(mocks.selectError) : Promise.resolve(mocks.linkedRows),
         ),
       };
       return chain;

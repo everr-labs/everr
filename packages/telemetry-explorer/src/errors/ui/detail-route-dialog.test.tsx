@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { DetailRouteDialog } from "./detail-route-dialog";
 
 vi.mock("@everr/ui/components/dialog", () => ({
@@ -20,25 +20,19 @@ vi.mock("@everr/ui/components/dialog", () => ({
       {children}
     </section>
   ),
-  DialogContent: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
-  DialogDescription: ({ children }: { children: ReactNode }) => (
-    <p>{children}</p>
-  ),
-  DialogHeader: ({ children }: { children: ReactNode }) => (
-    <div>{children}</div>
-  ),
+  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
 }));
 
 function createDeferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise;
+  let resolveFn!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    resolveFn = resolve;
   });
 
-  return { promise, resolve };
+  return { promise, resolve: resolveFn };
 }
 
 describe("DetailRouteDialog", () => {
@@ -55,10 +49,7 @@ describe("DetailRouteDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Primitive close" }));
 
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("dialog-root")).toHaveAttribute(
-      "data-open",
-      "true",
-    );
+    expect(screen.getByTestId("dialog-root")).toHaveAttribute("data-open", "true");
 
     await act(async () => {
       closeDeferred.resolve();
@@ -66,9 +57,6 @@ describe("DetailRouteDialog", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByTestId("dialog-root")).toHaveAttribute(
-      "data-open",
-      "true",
-    );
+    expect(screen.getByTestId("dialog-root")).toHaveAttribute("data-open", "true");
   });
 });

@@ -10,10 +10,7 @@ type SilenceState = AlertSilenceRecord["state"];
 /** What a person may still do to a silence in each state. A window that has
  *  closed cannot be reopened, so the only move left on a past silence is to
  *  write a new one shaped like it. */
-export const STATE_META: Record<
-  SilenceState,
-  { label: string; dot: string; text: string }
-> = {
+export const STATE_META: Record<SilenceState, { label: string; dot: string; text: string }> = {
   active: {
     label: "Active",
     dot: "bg-chart-2",
@@ -42,8 +39,7 @@ export const STATE_META: Record<
   },
 };
 
-export const isOpen = (state: SilenceState) =>
-  state === "active" || state === "scheduled";
+export const isOpen = (state: SilenceState) => state === "active" || state === "scheduled";
 
 // Built once: a formatter is a locale lookup and a table, and a page of two
 // hundred rows printing two bounds each would otherwise build hundreds per
@@ -91,9 +87,7 @@ export function windowBounds(
     },
     end: {
       iso: endIso,
-      text: sameDay
-        ? CLOCK.format(end)
-        : `${DAY.format(end)}, ${CLOCK.format(end)}`,
+      text: sameDay ? CLOCK.format(end) : `${DAY.format(end)}, ${CLOCK.format(end)}`,
     },
   };
 }
@@ -104,8 +98,7 @@ export function windowBounds(
 const DELETED_RULE = "Deleted rule";
 
 /** The window as one phrase, for a label or a toast. */
-export const windowText = (bounds: WindowBounds) =>
-  `${bounds.start.text} to ${bounds.end.text}`;
+export const windowText = (bounds: WindowBounds) => `${bounds.start.text} to ${bounds.end.text}`;
 
 /**
  * What names one silence out loud, on either screen.

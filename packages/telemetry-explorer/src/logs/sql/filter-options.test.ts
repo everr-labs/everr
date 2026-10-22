@@ -1,8 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  buildFilterOptionsQuery,
-  decodeFilterOptionsRows,
-} from "./filter-options";
+import { describe, expect, it } from "vite-plus/test";
+import { buildFilterOptionsQuery, decodeFilterOptionsRows } from "./filter-options";
 
 describe("buildFilterOptionsQuery", () => {
   it("queries distinct services within range", () => {

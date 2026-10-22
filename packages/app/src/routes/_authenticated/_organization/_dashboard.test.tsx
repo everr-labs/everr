@@ -1,7 +1,8 @@
+import type * as ReactRouterTypes from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { HomeStatus } from "#app/common/onboarding.ts";
 import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
 
@@ -15,8 +16,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@tanstack/react-router")>();
+  const actual = await importOriginal<typeof ReactRouterTypes>();
 
   return {
     ...actual,
@@ -99,11 +99,7 @@ afterEach(() => {
 function renderLayout(status?: HomeStatus) {
   const client = new QueryClient();
   clients.push(client);
-  if (status)
-    client.setQueryData(
-      homeStatusQueryOptions("test_user", "test_org").queryKey,
-      status,
-    );
+  if (status) client.setQueryData(homeStatusQueryOptions("test_user", "test_org").queryKey, status);
   const Component = Route.options.component as React.ComponentType;
   return render(
     <QueryClientProvider client={client}>
@@ -130,31 +126,25 @@ describe("dashboard layout", () => {
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
 
-  it.each([
-    "onboarding",
-    "dashboard",
-    "reopened",
-  ])("keeps navigation and shows time controls only for the ordinary Home (%s)", (view) => {
-    mocks.matches = [
-      {
-        routeId:
-          "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
-        staticData: { showDataControls: true },
-        search: view === "reopened" ? { setup: 1 } : {},
-      },
-    ];
-    const status: HomeStatus = {
-      appUrl: "https://app.example.test",
-      canCreateKeys: false,
-      onboardingCompleted: ["dashboard", "reopened"].includes(view),
-    };
-    renderLayout(status);
-    expect(screen.getByText("Organization navigation")).toBeInTheDocument();
-    expect(Boolean(screen.queryByText("Time range picker"))).toBe(
-      view === "dashboard",
-    );
-    expect(Boolean(screen.queryByText("Refresh picker"))).toBe(
-      view === "dashboard",
-    );
-  });
+  it.each(["onboarding", "dashboard", "reopened"])(
+    "keeps navigation and shows time controls only for the ordinary Home (%s)",
+    (view) => {
+      mocks.matches = [
+        {
+          routeId: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
+          staticData: { showDataControls: true },
+          search: view === "reopened" ? { setup: 1 } : {},
+        },
+      ];
+      const status: HomeStatus = {
+        appUrl: "https://app.example.test",
+        canCreateKeys: false,
+        onboardingCompleted: ["dashboard", "reopened"].includes(view),
+      };
+      renderLayout(status);
+      expect(screen.getByText("Organization navigation")).toBeInTheDocument();
+      expect(Boolean(screen.queryByText("Time range picker"))).toBe(view === "dashboard");
+      expect(Boolean(screen.queryByText("Refresh picker"))).toBe(view === "dashboard");
+    },
+  );
 });

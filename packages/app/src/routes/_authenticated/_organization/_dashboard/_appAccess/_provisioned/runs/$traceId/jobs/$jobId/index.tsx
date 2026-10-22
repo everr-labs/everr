@@ -20,9 +20,7 @@ function JobDetailPage() {
   return (
     <Card size="sm" className="h-full">
       <CardContent className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-sm">
-          Select a step to view logs
-        </p>
+        <p className="text-muted-foreground text-sm">Select a step to view logs</p>
       </CardContent>
     </Card>
   );

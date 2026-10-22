@@ -9,13 +9,7 @@ import {
 import { Kbd } from "@everr/ui/components/kbd";
 import { Label } from "@everr/ui/components/label";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-  ArrowUpIcon,
-  CopyIcon,
-  SearchIcon,
-  SendIcon,
-  XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, CopyIcon, SearchIcon, SendIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
 const meta = {
@@ -177,7 +171,7 @@ export const Invalid: Story = {
 };
 
 export const Controlled: Story = {
-  render: () => {
+  render: function InputGroupStory() {
     const [value, setValue] = React.useState("checkout");
 
     return (
@@ -192,18 +186,12 @@ export const Controlled: Story = {
             placeholder="Search alerts"
           />
           <InputGroupAddon align="inline-end">
-            <InputGroupButton
-              size="icon-xs"
-              aria-label="Clear"
-              onClick={() => setValue("")}
-            >
+            <InputGroupButton size="icon-xs" aria-label="Clear" onClick={() => setValue("")}>
               <XIcon />
             </InputGroupButton>
           </InputGroupAddon>
         </InputGroup>
-        <p className="text-muted-foreground text-xs">
-          Query: {value || "None"}
-        </p>
+        <p className="text-muted-foreground text-xs">Query: {value || "None"}</p>
       </div>
     );
   },

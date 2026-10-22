@@ -6,11 +6,11 @@ inferring it from which code path could have written it.
 
 **The gap:** measured on the dev tenant, 30 days of terminal rows:
 
-| `reason` | `silenced` | rows |
-| --- | --- | --- |
-| `""` | false | 34 |
-| `no_longer_firing` | false | 23 |
-| `""` | true | 10 |
+| `reason`           | `silenced` | rows |
+| ------------------ | ---------- | ---- |
+| `""`               | false      | 34   |
+| `no_longer_firing` | false      | 23   |
+| `""`               | true       | 10   |
 
 The 10 silenced rows are self-explaining: `silenced` and `silence_id` carry
 the story, and the vocabulary has no silence reason.

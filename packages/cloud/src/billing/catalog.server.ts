@@ -12,9 +12,7 @@ class PolarProductPlanMismatchError extends Error {
   name = "PolarProductPlanMismatchError";
 
   constructor(productId: string, expectedPlan: BillablePlan) {
-    super(
-      `Polar Product ${productId} does not grant the ${expectedPlan} Plan.`,
-    );
+    super(`Polar Product ${productId} does not grant the ${expectedPlan} Plan.`);
   }
 }
 
@@ -56,10 +54,7 @@ export function planForPolarProductId(productId: string): BillablePlan {
   return entry.plan;
 }
 
-export function assertPolarProductGrantsPlan(
-  productId: string,
-  expectedPlan: BillablePlan,
-) {
+export function assertPolarProductGrantsPlan(productId: string, expectedPlan: BillablePlan) {
   if (planForPolarProductId(productId) !== expectedPlan) {
     throw new PolarProductPlanMismatchError(productId, expectedPlan);
   }

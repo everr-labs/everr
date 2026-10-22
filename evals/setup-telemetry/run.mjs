@@ -25,10 +25,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const SKILL_DIR = join(
-  REPO_ROOT,
-  "skills/everr-setup-telemetry",
-);
+const SKILL_DIR = join(REPO_ROOT, "skills/everr-setup-telemetry");
 const AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 const REGISTRY_PORT = 4873;
 const REGISTRY = `http://localhost:${REGISTRY_PORT}/`;
@@ -57,8 +54,7 @@ const FRAMEWORKS = {
     serve: "npm run dev",
   },
   "vite-ssr": {
-    scaffold: (dir) =>
-      run(`npm create vite-extra@latest app -- --template ssr-react-ts`, dir),
+    scaffold: (dir) => run(`npm create vite-extra@latest app -- --template ssr-react-ts`, dir),
     build: "npm run build",
     serve: "npm run dev",
   },
@@ -124,13 +120,20 @@ async function ensureLocalRegistry() {
     );
     spawn(
       "npx",
-      ["--yes", "verdaccio", "--config", join(configDir, "config.yaml"), "--listen", String(REGISTRY_PORT)],
+      [
+        "--yes",
+        "verdaccio",
+        "--config",
+        join(configDir, "config.yaml"),
+        "--listen",
+        String(REGISTRY_PORT),
+      ],
       { stdio: "ignore", detached: true },
     ).unref();
     const deadline = Date.now() + 60 * 1000;
     while (!(await registryUp())) {
       if (Date.now() > deadline) throw new Error("verdaccio did not start");
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
 
@@ -142,9 +145,7 @@ async function ensureLocalRegistry() {
     // The registry persists across runs, so the version can hold a stale
     // artifact from an earlier build. Drop it first; the unpublish fails
     // harmlessly when the version is not there yet.
-    const { name, version } = JSON.parse(
-      readFileSync(join(dir, "package.json"), "utf8"),
-    );
+    const { name, version } = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
     try {
       run(`npm unpublish ${name}@${version} --force --registry ${REGISTRY}`, dir, {
         capture: true,
@@ -175,7 +176,7 @@ async function waitForBoot(url) {
       const res = await fetch(url);
       if (res.ok) return;
     } catch {}
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
   }
   throw new Error(`app did not boot at ${url}`);
 }
@@ -184,14 +185,11 @@ async function main() {
   const args = process.argv.slice(2);
   const framework = args[args.indexOf("--framework") + 1];
   const keep = args.includes("--keep");
-  const model = args.includes("--model")
-    ? args[args.indexOf("--model") + 1]
-    : undefined;
-  const PORT = args.includes("--port")
-    ? Number(args[args.indexOf("--port") + 1])
-    : DEFAULT_PORT;
+  const model = args.includes("--model") ? args[args.indexOf("--model") + 1] : undefined;
+  const PORT = args.includes("--port") ? Number(args[args.indexOf("--port") + 1]) : DEFAULT_PORT;
   const fw = FRAMEWORKS[framework];
   if (!fw) {
+    // oxlint-disable-next-line typescript/restrict-template-expressions -- Preserve the existing comma-delimited error output during the tooling migration.
     console.error(`--framework must be one of: ${Object.keys(FRAMEWORKS)}`);
     process.exit(2);
   }
@@ -220,10 +218,7 @@ async function main() {
     console.log(`[eval] scaffolding ${framework} in ${appDir}`);
     fw.scaffold(workDir);
     // Some scaffolders (create-next-app) git-init and commit on their own.
-    run(
-      "git init -q; git add -A; git diff --cached --quiet || git commit -qm scaffold",
-      appDir,
-    );
+    run("git init -q; git add -A; git diff --cached --quiet || git commit -qm scaffold", appDir);
     verdict.scaffold = true;
 
     cpSync(SKILL_DIR, join(appDir, ".claude/skills/everr-setup-telemetry"), {
@@ -264,7 +259,7 @@ async function main() {
     run(`agent-browser open http://localhost:${PORT}/ ${session}`, appDir);
     run(`agent-browser wait --load networkidle ${session}`, appDir);
     run(`agent-browser reload ${session}`, appDir);
-    await new Promise((r) => setTimeout(r, FLUSH_WAIT_MS));
+    await new Promise((resolve) => setTimeout(resolve, FLUSH_WAIT_MS));
     run(`agent-browser close ${session}`, appDir);
 
     // Browser rows can be logs (pageviews, errors) or spans depending on the
@@ -272,13 +267,12 @@ async function main() {
     const counts = localQuery(
       `SELECT ServiceName, sum(c) AS c FROM (SELECT ServiceName, count() AS c FROM traces WHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName IN ('${runId}-web','${runId}-server') GROUP BY ServiceName UNION ALL SELECT ServiceName, count() AS c FROM logs WHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName IN ('${runId}-web','${runId}-server') GROUP BY ServiceName) GROUP BY ServiceName`,
     );
-    verdict.browserRows =
-      counts.find((r) => r.ServiceName === `${runId}-web`)?.c ?? 0;
-    verdict.serverRows =
-      counts.find((r) => r.ServiceName === `${runId}-server`)?.c ?? 0;
-    verdict.joinedTraces = localQuery(
-      `SELECT count() AS c FROM (SELECT TraceId, groupUniqArray(ServiceName) AS s FROM traces WHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName IN ('${runId}-web','${runId}-server') GROUP BY TraceId HAVING length(s) > 1)`,
-    )[0]?.c ?? 0;
+    verdict.browserRows = counts.find((r) => r.ServiceName === `${runId}-web`)?.c ?? 0;
+    verdict.serverRows = counts.find((r) => r.ServiceName === `${runId}-server`)?.c ?? 0;
+    verdict.joinedTraces =
+      localQuery(
+        `SELECT count() AS c FROM (SELECT TraceId, groupUniqArray(ServiceName) AS s FROM traces WHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName IN ('${runId}-web','${runId}-server') GROUP BY TraceId HAVING length(s) > 1)`,
+      )[0]?.c ?? 0;
 
     verdict.pass =
       verdict.build &&
@@ -289,6 +283,7 @@ async function main() {
   } catch (error) {
     verdict.error = String(error?.message ?? error);
   } finally {
+    // oxlint-disable-next-line typescript/no-unsafe-unary-minus -- Preserve the existing child-process cleanup behavior during the tooling migration.
     if (server) process.kill(-server.pid, "SIGTERM");
     if (keep || !verdict.pass) {
       console.log(`[eval] project kept at ${appDir}`);

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import { ErrorFilters } from "./error-filters";
 
@@ -9,9 +9,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 const repo = {
@@ -37,9 +35,7 @@ describe("ErrorFilters", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole("complementary", { name: "Error filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
     expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Order")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
@@ -94,9 +90,7 @@ describe("ErrorFilters", () => {
     // param. An older entry, for example from a saved link, must stay visible
     // and the user must be able to remove it. The query still applies that
     // entry, so a hidden entry narrows the results for no visible reason.
-    expect(
-      screen.getByRole("button", { name: "Remove Environment filter" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
   });
 
   it("clear resets the search and attributes but not the sort order", () => {
@@ -152,9 +146,7 @@ describe("ErrorFilters", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear page filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
   });
 
   it("the sort control alone does not surface the clear control", () => {
@@ -166,8 +158,6 @@ describe("ErrorFilters", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear page filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
   });
 });

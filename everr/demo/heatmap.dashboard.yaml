@@ -37,9 +37,9 @@ spec:
                   labelColumn: route
                   series:
                     - { name: /checkout, start: 60, noise: 20, min: 0 }
-                    - { name: /search,   start: 40, noise: 15, min: 0 }
-                    - { name: /api,      start: 80, noise: 25, min: 0 }
-                    - { name: /static,   start: 20, noise: 10, min: 0 }
+                    - { name: /search, start: 40, noise: 15, min: 0 }
+                    - { name: /api, start: 80, noise: 25, min: 0 }
+                    - { name: /static, start: 20, noise: 10, min: 0 }
     hm-values-unit:
       kind: Panel
       spec:
@@ -52,7 +52,7 @@ spec:
             showValues: true
             colorScheme: greens
             valueFormat:
-              unit: '{request}'
+              unit: "{request}"
         queries:
           - kind: TestData
             spec:
@@ -87,9 +87,9 @@ spec:
                   seed: 112
                   labelColumn: queue
                   series:
-                    - { name: ingest,  start: 90, noise: 40, min: 0 }
+                    - { name: ingest, start: 90, noise: 40, min: 0 }
                     - { name: exports, start: 15, noise: 10, min: 0 }
-                    - { name: emails,  start: 40, noise: 20, min: 0 }
+                    - { name: emails, start: 40, noise: 20, min: 0 }
     hm-log:
       kind: Panel
       spec:
@@ -112,8 +112,8 @@ spec:
                   labelColumn: status
                   series:
                     - { name: "2xx", start: 5000, noise: 800, min: 1 }
-                    - { name: "4xx", start: 60,   noise: 25,  min: 1 }
-                    - { name: "5xx", start: 8,    noise: 5,   min: 1 }
+                    - { name: "4xx", start: 60, noise: 25, min: 1 }
+                    - { name: "5xx", start: 8, noise: 5, min: 1 }
     hm-columns:
       kind: Panel
       spec:
@@ -162,10 +162,10 @@ spec:
                   seed: 115
                   labelColumn: bucket
                   series:
-                    - { name: "50",   start: 80, noise: 30, min: 0 }
-                    - { name: "500",  start: 10, noise: 8,  min: 0 }
-                    - { name: "100",  start: 50, noise: 20, min: 0 }
-                    - { name: "250",  start: 25, noise: 12, min: 0 }
+                    - { name: "50", start: 80, noise: 30, min: 0 }
+                    - { name: "500", start: 10, noise: 8, min: 0 }
+                    - { name: "100", start: 50, noise: 20, min: 0 }
+                    - { name: "250", start: 25, noise: 12, min: 0 }
     hm-domain:
       kind: Panel
       spec:
@@ -245,7 +245,7 @@ spec:
                   seed: 119
                   labelColumn: source
                   series:
-                    - { name: web,     start: 40, noise: 20, min: 0 }
+                    - { name: web, start: 40, noise: 20, min: 0 }
                     - { name: android, start: 20, noise: 10, min: 0 }
     hm-empty:
       kind: Panel
@@ -293,7 +293,8 @@ spec:
           description: "valueFormat: none, unit: {connection}, decimals: 2"
         plugin:
           kind: Heatmap
-          spec: { valueFormat: { unit: '{connection}', scale: none, decimals: 2 }, showValues: true }
+          spec:
+            { valueFormat: { unit: "{connection}", scale: none, decimals: 2 }, showValues: true }
         queries:
           - kind: TestData
             spec:
@@ -302,7 +303,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 12
-                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+                  columns:
+                    [
+                      { name: ts, time: true },
+                      { name: bucket, const: api },
+                      { name: value, walk: { start: 12500, noise: 1250, min: 0 } },
+                    ]
     format-decimal:
       kind: Panel
       spec:
@@ -320,7 +326,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 12
-                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 12500, noise: 1250, min: 0 } }]
+                  columns:
+                    [
+                      { name: ts, time: true },
+                      { name: bucket, const: api },
+                      { name: value, walk: { start: 12500, noise: 1250, min: 0 } },
+                    ]
     format-binary:
       kind: Panel
       spec:
@@ -338,7 +349,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 12
-                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 2621440, noise: 262144, min: 0 } }]
+                  columns:
+                    [
+                      { name: ts, time: true },
+                      { name: bucket, const: api },
+                      { name: value, walk: { start: 2621440, noise: 262144, min: 0 } },
+                    ]
     format-duration:
       kind: Panel
       spec:
@@ -356,7 +372,12 @@ spec:
                 spec:
                   scenario: table
                   rows: 12
-                  columns: [{ name: ts, time: true }, { name: bucket, const: api }, { name: value, walk: { start: 0.025, noise: 0.0025, min: 0 } }]
+                  columns:
+                    [
+                      { name: ts, time: true },
+                      { name: bucket, const: api },
+                      { name: value, walk: { start: 0.025, noise: 0.0025, min: 0 } },
+                    ]
     format-percent:
       kind: Panel
       spec:
@@ -417,20 +438,44 @@ spec:
     - kind: Grid
       spec:
         items:
-          - { x: 0,  y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-defaults" } }
-          - { x: 12, y: 0,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-values-unit" } }
-          - { x: 0,  y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-sqrt" } }
-          - { x: 12, y: 6,  width: 12, height: 6, content: { $ref: "#/spec/panels/hm-log" } }
-          - { x: 0,  y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-columns" } }
-          - { x: 12, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-numeric-buckets" } }
-          - { x: 0,  y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-domain" } }
-          - { x: 12, y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-gap-no-legend" } }
-          - { x: 0,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-multi-query" } }
-          - { x: 8,  y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-empty" } }
-          - { x: 16, y: 24, width: 8,  height: 5, content: { $ref: "#/spec/panels/hm-no-time" } }
+          - { x: 0, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-defaults" } }
+          - { x: 12, y: 0, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-values-unit" } }
+          - { x: 0, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-sqrt" } }
+          - { x: 12, y: 6, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-log" } }
+          - { x: 0, y: 12, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-columns" } }
+          - {
+              x: 12,
+              y: 12,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/hm-numeric-buckets" },
+            }
+          - { x: 0, y: 18, width: 12, height: 6, content: { $ref: "#/spec/panels/hm-domain" } }
+          - {
+              x: 12,
+              y: 18,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/hm-gap-no-legend" },
+            }
+          - { x: 0, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-multi-query" } }
+          - { x: 8, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-empty" } }
+          - { x: 16, y: 24, width: 8, height: 5, content: { $ref: "#/spec/panels/hm-no-time" } }
           - { x: 0, y: 29, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
-          - { x: 12, y: 29, width: 12, height: 9, content: { $ref: "#/spec/panels/format-decimal" } }
+          - {
+              x: 12,
+              y: 29,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-decimal" },
+            }
           - { x: 0, y: 38, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
-          - { x: 12, y: 38, width: 12, height: 9, content: { $ref: "#/spec/panels/format-duration" } }
+          - {
+              x: 12,
+              y: 38,
+              width: 12,
+              height: 9,
+              content: { $ref: "#/spec/panels/format-duration" },
+            }
           - { x: 0, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

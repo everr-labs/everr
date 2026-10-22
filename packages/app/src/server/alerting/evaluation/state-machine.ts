@@ -68,14 +68,7 @@ export function advanceAlertInstance(input: {
   resolveAfter: number;
   intervalSeconds: number;
 }): AlertInstanceTransition {
-  const {
-    previous,
-    present,
-    evaluatedAt,
-    forSeconds,
-    resolveAfter,
-    intervalSeconds,
-  } = input;
+  const { previous, present, evaluatedAt, forSeconds, resolveAfter, intervalSeconds } = input;
   if (present) {
     const reappeared = previous.absentCount > 0;
     // An evaluation landing far later than the cadence promises means nothing
@@ -87,12 +80,9 @@ export function advanceAlertInstance(input: {
     // restarts the clock. Without this, an outage longer than `for` fires the
     // rule on the first evaluation after it.
     const gapMs =
-      previous.lastSeenAt === null
-        ? null
-        : evaluatedAt.getTime() - previous.lastSeenAt.getTime();
+      previous.lastSeenAt === null ? null : evaluatedAt.getTime() - previous.lastSeenAt.getTime();
     const unobserved =
-      gapMs !== null &&
-      gapMs > intervalSeconds * MISSED_EVALUATION_TOLERANCE * 1000;
+      gapMs !== null && gapMs > intervalSeconds * MISSED_EVALUATION_TOLERANCE * 1000;
     // Only a pending instance loses anything to it. An inactive one starts
     // its clock at this evaluation regardless, and a firing one keeps
     // activeSince whatever pendingSince becomes. Reporting those too would
@@ -109,14 +99,11 @@ export function advanceAlertInstance(input: {
       status: previous.status === "inactive" ? "pending" : previous.status,
       pendingSince,
       activeSince:
-        previous.status === "firing"
-          ? (previous.activeSince ?? evaluatedAt)
-          : previous.activeSince,
+        previous.status === "firing" ? (previous.activeSince ?? evaluatedAt) : previous.activeSince,
       lastSeenAt: evaluatedAt,
       absentCount: 0,
     };
-    const elapsedSeconds =
-      (evaluatedAt.getTime() - pendingSince.getTime()) / 1000;
+    const elapsedSeconds = (evaluatedAt.getTime() - pendingSince.getTime()) / 1000;
     if (next.status !== "firing" && elapsedSeconds >= forSeconds) {
       return {
         next: {
@@ -154,9 +141,7 @@ export function advanceAlertInstance(input: {
   };
 }
 
-export function newInactiveInstance(
-  present: PresentAlertInstance,
-): StoredAlertInstance {
+export function newInactiveInstance(present: PresentAlertInstance): StoredAlertInstance {
   return {
     ...present,
     status: "inactive",

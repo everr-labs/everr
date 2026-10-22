@@ -1,10 +1,7 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
 
-import {
-  ChannelSendError,
-  sendChannelNotification,
-} from "./channel-sender.server";
+import { ChannelSendError, sendChannelNotification } from "./channel-sender.server";
 
 // A public IP so validateOutboundUrl passes without a DNS lookup.
 const HOOK_URL = "https://8.8.8.8/hook";
@@ -16,8 +13,7 @@ const oversized = {
 };
 
 const fetchMock = vi.fn(
-  async (_input: RequestInfo | URL, _init?: RequestInit) =>
-    new Response("", { status: 200 }),
+  async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("", { status: 200 }),
 );
 
 beforeEach(() => {
@@ -31,7 +27,8 @@ afterEach(() => {
 
 function sentDiscordContent(): string {
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  return (JSON.parse(String(body)) as { content: string }).content;
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  return (JSON.parse(body) as { content: string }).content;
 }
 
 it("fits discord's limit by cutting the body, never the url", async () => {
@@ -47,7 +44,8 @@ it("fits slack's section limit the same way", async () => {
   await sendChannelNotification({ type: "slack", url: HOOK_URL }, oversized);
 
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  const message = JSON.parse(String(body)) as {
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  const message = JSON.parse(body) as {
     attachments: { blocks: { text: { text: string } }[] }[];
   };
   const text = message.attachments[0].blocks[0].text.text;
@@ -59,7 +57,8 @@ type SlackMessage = { attachments: { color: string }[] };
 
 function sentSlackMessage(): SlackMessage {
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  return JSON.parse(String(body)) as SlackMessage;
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  return JSON.parse(body) as SlackMessage;
 }
 
 it.each([
@@ -106,9 +105,7 @@ it("marks a 500 transient: worth retrying", async () => {
   expect((error as ChannelSendError).permanent).toBe(false);
 });
 
-it.each([
-  408, 429,
-])("keeps %d retryable even though it is a 4xx", async (status) => {
+it.each([408, 429])("keeps %d retryable even though it is a 4xx", async (status) => {
   fetchMock.mockResolvedValueOnce(new Response("", { status }));
 
   const error = await sendChannelNotification(
@@ -205,9 +202,7 @@ it("names no chat id and no bot token in the error it hands the history row", as
 // in a field of its own is what lets the test report the failure without
 // reporting the response.
 it("keeps the endpoint's answer out of the error message", async () => {
-  fetchMock.mockResolvedValueOnce(
-    new Response("who=root&password=hunter2", { status: 403 }),
-  );
+  fetchMock.mockResolvedValueOnce(new Response("who=root&password=hunter2", { status: 403 }));
 
   const error = (await sendChannelNotification(
     { type: "webhook", url: HOOK_URL },
@@ -240,7 +235,8 @@ it("never lets alert text address a discord server", async () => {
   );
 
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  const message = JSON.parse(String(body)) as {
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  const message = JSON.parse(body) as {
     allowed_mentions: { parse: string[] };
   };
   expect(message.allowed_mentions.parse).toEqual([]);
@@ -256,7 +252,8 @@ it("never lets alert text become slack markup", async () => {
   );
 
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  const message = JSON.parse(String(body)) as {
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  const message = JSON.parse(body) as {
     attachments: { blocks: { text: { text: string } }[] }[];
   };
   const text = message.attachments[0].blocks[0].text.text;
@@ -274,7 +271,8 @@ it("keeps an escaped slack message inside slack's limit", async () => {
   );
 
   const body = fetchMock.mock.calls[0]?.[1]?.body;
-  const message = JSON.parse(String(body)) as {
+  if (typeof body !== "string") throw new TypeError("Expected a text request body");
+  const message = JSON.parse(body) as {
     attachments: { blocks: { text: { text: string } }[] }[];
   };
   expect(message.attachments[0].blocks[0].text.text.length).toBeLessThanOrEqual(

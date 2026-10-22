@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 import { WebSDK } from "./client.js";
 import { errors } from "./instrumentations/errors/index.js";
 import { interactions } from "./instrumentations/interactions/index.js";
@@ -66,11 +66,12 @@ function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body));
+      if (typeof init?.body !== "string") throw new TypeError("Expected a text request body");
+      const payload = JSON.parse(init?.body);
       const resourceLog = payload.resourceLogs?.[0];
       const resourceSpan = payload.resourceSpans?.[0];
       batches.push({
-        url: String(url),
+        url: url instanceof Request ? url.url : url?.toString(),
         keepalive: Boolean(init?.keepalive),
         resource: (resourceLog ?? resourceSpan).resource.attributes,
         records: resourceLog?.scopeLogs[0].logRecords ?? [],
@@ -99,10 +100,7 @@ export function startClient(
   options?: Partial<WebSDKOptions>,
 ): [client: WebSDK, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  return [
-    new WebSDK({ persistence: "memory", ...DEFAULTS, ...options }),
-    batches,
-  ];
+  return [new WebSDK({ persistence: "memory", ...DEFAULTS, ...options }), batches];
 }
 
 /**

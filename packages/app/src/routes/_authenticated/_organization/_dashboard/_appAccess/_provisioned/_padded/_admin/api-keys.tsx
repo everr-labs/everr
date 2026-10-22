@@ -22,6 +22,7 @@ function KeysSkeleton() {
   return (
     <div className="space-y-2 px-3 py-2">
       {Array.from({ length: 3 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- Loading placeholders occupy fixed positions and hold no row state.
         <Skeleton key={i} className="h-9 w-full" />
       ))}
     </div>
@@ -38,8 +39,8 @@ function ApiKeysPage() {
         lede={
           <>
             Organization-scoped keys for sending telemetry to Everr and running{" "}
-            <code className="font-mono text-xs">everr apply</code>. Choose each
-            key's capabilities when you create it.
+            <code className="font-mono text-xs">everr apply</code>. Choose each key&apos;s
+            capabilities when you create it.
           </>
         }
         // Sits outside every data-dependent branch below. The dialog shows a
@@ -66,7 +67,7 @@ function ApiKeysPage() {
                   ? keys.error.message
                   : "Something went wrong fetching your keys."
               }
-              onRetry={() => keys.refetch()}
+              onRetry={() => void keys.refetch()}
             />
           </CardContent>
         </Card>

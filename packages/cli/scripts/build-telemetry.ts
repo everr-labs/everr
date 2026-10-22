@@ -124,8 +124,7 @@ export function resolveBuildTelemetryExport(env: BuildTelemetryEnv): BuildTeleme
   const explicitEndpoint = cleanEnvValue(env.OTEL_EXPORTER_OTLP_ENDPOINT);
   // Hosted ingest only in CI: local CLI builds can have EVERR_INGEST_KEY in
   // .env for bundling into the app, and their build spans must stay local.
-  const ingestKey =
-    env.GITHUB_ACTIONS === "true" ? cleanEnvValue(env.EVERR_INGEST_KEY) : undefined;
+  const ingestKey = env.GITHUB_ACTIONS === "true" ? cleanEnvValue(env.EVERR_INGEST_KEY) : undefined;
 
   // In CI without an ingest key or explicit endpoint there is nothing to export
   // to; skip instead of warning about an unreachable local collector.
@@ -184,17 +183,14 @@ export function buildTelemetryResourceAttributes(env: BuildTelemetryEnv) {
 
 function toOtlpAttributes(attributes: Record<string, SpanAttributeValue>) {
   return Object.entries(attributes).map(([key, value]) => {
-    switch (typeof value) {
-      case "boolean":
-        return { key, value: { boolValue: value } };
-      case "number":
-        return {
-          key,
-          value: Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value },
-        };
-      default:
-        return { key, value: { stringValue: value } };
+    if (typeof value === "boolean") return { key, value: { boolValue: value } };
+    if (typeof value === "number") {
+      return {
+        key,
+        value: Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value },
+      };
     }
+    return { key, value: { stringValue: value } };
   });
 }
 
@@ -224,7 +220,7 @@ export const noopBuildPhases: BuildPhases = {
 
 export function createBuildTelemetry({
   buildName,
-  env = process.env as BuildTelemetryEnv,
+  env = process.env satisfies BuildTelemetryEnv,
 }: {
   buildName: string;
   env?: BuildTelemetryEnv;

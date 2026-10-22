@@ -34,8 +34,8 @@ export const Route = createFileRoute(
     breadcrumb: "Subscription suspended",
     hideTimeRangePicker: true,
   },
-  head: () => ({ meta: [{ title: "Everr - Subscription suspended" }] }),
   loader: loadSuspendedOrganization,
+  head: () => ({ meta: [{ title: "Everr - Subscription suspended" }] }),
   component: SuspendedOrganizationPage,
 });
 
@@ -65,9 +65,7 @@ function SuspendedOrganizationPage(): ReactElement {
       window.location.assign("/");
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "The organization could not be downgraded.",
+        cause instanceof Error ? cause.message : "The organization could not be downgraded.",
       );
       setDowngrading(false);
     }
@@ -89,18 +87,11 @@ function SuspendedOrganizationPage(): ReactElement {
           {recovery.canManageBilling ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Manage the subscription in Polar, or repair missing billing
-                details in Plan & Billing, to restore the organization.
+                Manage the subscription in Polar, or repair missing billing details in Plan &
+                Billing, to restore the organization.
               </p>
-              <Button
-                onClick={() => void openPortal()}
-                disabled={openingPortal}
-              >
-                {openingPortal ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <CreditCard />
-                )}
+              <Button onClick={() => void openPortal()} disabled={openingPortal}>
+                {openingPortal ? <Loader2 className="animate-spin" /> : <CreditCard />}
                 {openingPortal ? "Opening billing..." : "Manage billing"}
                 {!openingPortal ? <ArrowUpRight /> : null}
               </Button>
@@ -118,45 +109,33 @@ function SuspendedOrganizationPage(): ReactElement {
           <CardHeader>
             <CardTitle className="text-base">Downgrade to Hobby</CardTitle>
             <CardDescription>
-              Hobby is an individual plan. You will remain as the only member;
-              every other member will be removed and pending invitations will be
-              canceled.
+              Hobby is an individual plan. You will remain as the only member; every other member
+              will be removed and pending invitations will be canceled.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {recovery.ownsAnotherHobby ? (
               <p className="text-sm text-muted-foreground">
-                You already own a Hobby organization. Upgrade that organization
-                to Pro before downgrading this one.
+                You already own a Hobby organization. Upgrade that organization to Pro before
+                downgrading this one.
               </p>
             ) : (
               <AlertDialog>
-                <AlertDialogTrigger
-                  render={<Button variant="outline" disabled={downgrading} />}
-                >
+                <AlertDialogTrigger render={<Button variant="outline" disabled={downgrading} />}>
                   Downgrade to Hobby
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Remove all other members?
-                    </AlertDialogTitle>
+                    <AlertDialogTitle>Remove all other members?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This immediately removes every other member and cancels
-                      all pending invitations. You will remain the sole Owner.
+                      This immediately removes every other member and cancels all pending
+                      invitations. You will remain the sole Owner.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel disabled={downgrading}>
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      disabled={downgrading}
-                      onClick={() => void downgrade()}
-                    >
-                      {downgrading ? (
-                        <Loader2 className="animate-spin" />
-                      ) : null}
+                    <AlertDialogCancel disabled={downgrading}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction disabled={downgrading} onClick={() => void downgrade()}>
+                      {downgrading ? <Loader2 className="animate-spin" /> : null}
                       Confirm downgrade
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -180,7 +159,6 @@ async function loadSuspendedOrganization(): Promise<
   Awaited<ReturnType<typeof getSuspendedOrgRecovery>>
 > {
   const recovery = await getSuspendedOrgRecovery();
-  if (recovery.entitlement.appState !== "suspended")
-    throw redirect({ to: "/" });
+  if (recovery.entitlement.appState !== "suspended") throw redirect({ to: "/" });
   return recovery;
 }

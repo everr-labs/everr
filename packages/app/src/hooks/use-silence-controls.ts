@@ -7,10 +7,7 @@ import {
   type SilenceDraft,
   type SilenceSeed,
 } from "#app/data/alerting/silences/commands.ts";
-import {
-  cancelAlertSilence,
-  createAlertSilence,
-} from "#app/data/alerting/silences/server.ts";
+import { cancelAlertSilence, createAlertSilence } from "#app/data/alerting/silences/server.ts";
 import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 
 /**
@@ -60,6 +57,7 @@ export function useSilenceControls() {
         // cannot see the failure any other way: the row comes back exactly as
         // it went in.
         onError: () => onFailed?.(),
+        // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the callback promise returned while refreshing cancelled silences.
         onSuccess: async () => {
           // Measured before the refetch, not after: the window Undo recreates
           // is what was left when the reader cancelled, and awaiting the reads

@@ -63,11 +63,7 @@ const CARDS: PlanCard[] = [
       // { signal: "Uptime monitors", included: "10", overage: "then €1 each" },
       { signal: "Users", included: "Unlimited" },
     ],
-    features: [
-      "12-month retention",
-      "Unlimited alerts",
-      "Organization management",
-    ],
+    features: ["12-month retention", "Unlimited alerts", "Organization management"],
     cta: "Get started",
     href: "https://app.everr.dev/auth/sign-up",
     recommended: true,
@@ -88,7 +84,7 @@ function PricingCta({
       variant={primary ? "default" : "outline"}
       nativeButton={false}
       render={
-        // biome-ignore lint/a11y/useAnchorContent: content is injected by Button
+        // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
         <a href={href} />
       }
       className="w-full"
@@ -112,8 +108,8 @@ export function PricingCards() {
             Pricing that grows with you.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Start with a solo project, scale with your team, or contact us for
-            higher volumes and dedicated instances.
+            Start with a solo project, scale with your team, or contact us for higher volumes and
+            dedicated instances.
           </p>
         </div>
 
@@ -154,10 +150,7 @@ export function PricingCards() {
               </p>
               <dl className="mt-4 space-y-3">
                 {card.data.map((row) => (
-                  <div
-                    key={row.signal}
-                    className="flex items-baseline justify-between gap-4"
-                  >
+                  <div key={row.signal} className="flex items-baseline justify-between gap-4">
                     <dt className="text-sm text-fd-foreground">{row.signal}</dt>
                     <dd className="text-right">
                       <span className="font-mono text-sm font-medium text-fd-foreground">
@@ -177,10 +170,7 @@ export function PricingCards() {
               </p>
               <ul className="mt-4 flex-1 space-y-3">
                 {card.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex items-start gap-3 text-sm text-fd-foreground"
-                  >
+                  <li key={f} className="flex items-start gap-3 text-sm text-fd-foreground">
                     <Check
                       className="mt-0.5 size-4 shrink-0 text-primary"
                       strokeWidth={2.5}
@@ -210,12 +200,11 @@ export function PricingCards() {
               Custom
             </h2>
             <p className="mt-5 max-w-xs text-sm leading-relaxed text-fd-muted-foreground">
-              Higher volumes or dedicated instances? Let us build a plan around
-              your needs.
+              Higher volumes or dedicated instances? Let us build a plan around your needs.
             </p>
             <div className="mt-auto pt-12">
               <PricingCta href="https://calendar.app.google/kgnoxBsk4QyoLywG8">
-                Let's talk
+                Let&apos;s talk
               </PricingCta>
             </div>
           </motion.article>

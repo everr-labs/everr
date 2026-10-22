@@ -55,12 +55,7 @@ export interface Span {
   htmlUrl?: string;
 }
 
-const IN_PROGRESS_CONCLUSIONS = new Set([
-  "in_progress",
-  "queued",
-  "waiting",
-  "requested",
-]);
+const IN_PROGRESS_CONCLUSIONS = new Set(["in_progress", "queued", "waiting", "requested"]);
 
 export function isInProgressConclusion(conclusion: string): boolean {
   return !conclusion || IN_PROGRESS_CONCLUSIONS.has(conclusion);

@@ -1,11 +1,4 @@
-import {
-  errors,
-  interactions,
-  network,
-  pageviews,
-  performance,
-  WebSDK,
-} from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 import { readConsent } from "#app/telemetry/consent.ts";
 import { resolveBrowserTelemetryConfig } from "./config";
 

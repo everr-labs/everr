@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 const FORBIDDEN = ["@opentelemetry/", "@everr/otel-errors"];
 
@@ -19,18 +19,14 @@ function importsOf(file: string): string[] {
   // The static import declarations and the export-from declarations. The build
   // removes the declarations for the types only, and they are never in the
   // bundle. Thus this test ignores them.
-  const pattern =
-    /(?:^|\n)\s*(?:import|export)\s+(type\s+)?[^"']*?from\s+["']([^"']+)["']/g;
+  const pattern = /(?:^|\n)\s*(?:import|export)\s+(type\s+)?[^"']*?from\s+["']([^"']+)["']/g;
   for (const match of source.matchAll(pattern)) {
     if (!match[1]) specifiers.push(match[2]);
   }
   return specifiers;
 }
 
-function walk(
-  entry: string,
-  graph = new Map<string, string[]>(),
-): Map<string, string[]> {
+function walk(entry: string, graph = new Map<string, string[]>()): Map<string, string[]> {
   const file = resolve(dirname(fileURLToPath(import.meta.url)), "..", entry);
   if (graph.has(file)) return graph;
   const specifiers = importsOf(file);

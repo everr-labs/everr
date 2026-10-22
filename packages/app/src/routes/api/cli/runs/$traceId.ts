@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isFailureConclusion } from "#app/data/runs/schemas.ts";
-import {
-  getAllJobsSteps,
-  getRunDetails,
-  getRunJobs,
-} from "#app/data/runs/server.ts";
+import { getAllJobsSteps, getRunDetails, getRunJobs } from "#app/data/runs/server.ts";
 
 export const Route = createFileRoute("/api/cli/runs/$traceId")({
   server: {
@@ -12,10 +8,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId")({
       GET: async ({ params, request }) => {
         const traceId = params.traceId;
         if (!traceId) {
-          return Response.json(
-            { error: "Missing traceId path parameter." },
-            { status: 400 },
-          );
+          return Response.json({ error: "Missing traceId path parameter." }, { status: 400 });
         }
 
         const url = new URL(request.url);
@@ -35,10 +28,7 @@ export const Route = createFileRoute("/api/cli/runs/$traceId")({
           : jobs;
 
         const jobIds = filteredJobs.map((j) => j.jobId);
-        const steps =
-          jobIds.length > 0
-            ? await getAllJobsSteps({ data: { traceId, jobIds } })
-            : {};
+        const steps = jobIds.length > 0 ? await getAllJobsSteps({ data: { traceId, jobIds } }) : {};
 
         const enrichedJobs = filteredJobs.map((job) => {
           const jobSteps = (steps[job.jobId] ?? []).map((s) => ({

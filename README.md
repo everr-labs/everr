@@ -20,7 +20,7 @@ Everr gives you, and your AI agents, direct access to the signals that matter, w
 
 ## The problem
 
-AI coding agents are making development faster than ever. Reading the codebase tells half the story; the other half is what the code actually *does* the moment it runs, and that half is usually trapped behind a dashboard the agent can't see.
+AI coding agents are making development faster than ever. Reading the codebase tells half the story; the other half is what the code actually _does_ the moment it runs, and that half is usually trapped behind a dashboard the agent can't see.
 
 By the time a regression shows up in a production graph, it's already too late. The bottleneck has moved from writing code to validating it.
 

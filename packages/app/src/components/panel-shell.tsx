@@ -7,11 +7,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { AlertCircle, CircleHelp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -23,13 +19,7 @@ export interface PanelShellProps extends PanelChromeProps {
   children?: ReactNode;
 }
 
-function StatTitle({
-  title,
-  titleHint,
-}: {
-  title: string;
-  titleHint?: ReactNode;
-}) {
+function StatTitle({ title, titleHint }: { title: string; titleHint?: ReactNode }) {
   if (!titleHint) return <CardDescription>{title}</CardDescription>;
   return (
     <CardDescription className="inline-flex items-center gap-1">
@@ -115,10 +105,7 @@ export function PanelShell({
             <AlertCircle className="size-8" />
             <p className="text-sm">Failed to load data</p>
             {errorMessage && (
-              <p
-                className="max-w-full truncate px-4 text-xs"
-                title={errorMessage}
-              >
+              <p className="max-w-full truncate px-4 text-xs" title={errorMessage}>
                 {errorMessage}
               </p>
             )}

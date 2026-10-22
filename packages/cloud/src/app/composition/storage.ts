@@ -1,8 +1,5 @@
 import type { ApplicationStorage } from "@everr/app/composition";
-import {
-  sqlApiOrgPassword,
-  sqlApiOrgUserName,
-} from "../../clickhouse/credentials";
+import { sqlApiOrgPassword, sqlApiOrgUserName } from "../../clickhouse/credentials";
 import { assertOrganizationProvisioned } from "../../organization-provisioning/metadata";
 
 export const storage: ApplicationStorage = {

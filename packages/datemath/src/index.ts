@@ -1,12 +1,7 @@
 export { evaluate } from "./evaluate.js";
 export { parse } from "./parse.js";
 export { roundDate } from "./round.js";
-export type {
-  DateMathExpression,
-  DateMathOp,
-  DateMathOptions,
-  DateMathUnit,
-} from "./types.js";
+export type { DateMathExpression, DateMathOp, DateMathOptions, DateMathUnit } from "./types.js";
 export { DateMathError } from "./types.js";
 
 import { evaluate } from "./evaluate.js";

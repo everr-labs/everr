@@ -51,13 +51,7 @@ function Banner({
 }
 
 function BannerContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="banner-content"
-      className={cn("min-w-0 flex-1", className)}
-      {...props}
-    />
-  );
+  return <div data-slot="banner-content" className={cn("min-w-0 flex-1", className)} {...props} />;
 }
 
 function BannerActions({ className, ...props }: React.ComponentProps<"div">) {
@@ -70,10 +64,4 @@ function BannerActions({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export {
-  Banner,
-  BannerActions,
-  BannerContent,
-  bannerFrameVariants,
-  bannerVariants,
-};
+export { Banner, BannerActions, BannerContent, bannerFrameVariants, bannerVariants };

@@ -18,14 +18,10 @@ const appBaseline = { tag: "0000_baseline", when: 1792019447326 };
 const cloudBaseline = { tag: "0000_billing_baseline", when: 1792019436245 };
 
 function baseline(folder: string, expected: { tag: string; when: number }) {
-  const journal = JSON.parse(
-    readFileSync(join(folder, "meta/_journal.json"), "utf8"),
-  );
+  const journal = JSON.parse(readFileSync(join(folder, "meta/_journal.json"), "utf8"));
   const entry = journal.entries[0];
   if (entry?.tag !== expected.tag || entry?.when !== expected.when) {
-    throw new Error(
-      `Unexpected baseline in ${folder}; refusing legacy adoption.`,
-    );
+    throw new Error(`Unexpected baseline in ${folder}; refusing legacy adoption.`);
   }
   return readMigrationFiles({ migrationsFolder: folder })[0];
 }
@@ -38,6 +34,7 @@ async function hasMigrations(db: Database, table: string): Promise<boolean> {
   const result = await db.execute<{ present: boolean }>(
     sql`select exists(select 1 from ${sql.identifier("drizzle")}.${sql.identifier(table)}) as present`,
   );
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- Preserve false for a missing row, as before the tooling migration.
   return result.rows[0]?.present === true;
 }
 
@@ -58,9 +55,7 @@ export async function upgradeLegacyCloudDatabase(
   // This also covers a database initialized by the app before cloud is added.
   if (applied.rows[0]?.present) return;
   if (await hasMigrations(db, "__everr_cloud_migrations")) {
-    throw new Error(
-      "Incomplete legacy migration adoption; refusing to skip a migration history.",
-    );
+    throw new Error("Incomplete legacy migration adoption; refusing to skip a migration history.");
   }
 
   const cloud = baseline(folders.cloudMigrationsFolder, cloudBaseline);

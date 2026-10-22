@@ -22,17 +22,13 @@ export function OrganizationProvisioning({
   const router = useRouter();
   const [takingLonger, setTakingLonger] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(
-      () => setTakingLonger(true),
-      ORGANIZATION_SETUP_DELAY_NOTICE_MS,
-    );
+    const timer = setTimeout(() => setTakingLonger(true), ORGANIZATION_SETUP_DELAY_NOTICE_MS);
     return () => clearTimeout(timer);
   }, []);
   const status = useQuery({
     queryKey: ["organization-provisioning", organizationId],
     queryFn: () => getOrganizationProvisioningStatus(),
-    refetchInterval: (query) =>
-      query.state.data?.status === "failed" ? false : 3000,
+    refetchInterval: (query) => (query.state.data?.status === "failed" ? false : 3000),
     staleTime: 0,
   });
 
@@ -48,10 +44,7 @@ export function OrganizationProvisioning({
   );
 
   useEffect(() => {
-    if (
-      status.isSuccess &&
-      (!status.data || status.data.id !== organizationId)
-    ) {
+    if (status.isSuccess && (!status.data || status.data.id !== organizationId)) {
       void router.navigate({
         to: productClient.missingWorkspaceRoute,
         search: { returnTo },
@@ -66,10 +59,7 @@ export function OrganizationProvisioning({
       takingLonger={takingLonger && status.data?.status !== "ready"}
     >
       {status.data?.status === "failed" && (
-        <OrganizationProvisioningRetry
-          key={status.data.id}
-          organizationId={status.data.id}
-        />
+        <OrganizationProvisioningRetry key={status.data.id} organizationId={status.data.id} />
       )}
     </OrganizationProvisioningContent>
   );

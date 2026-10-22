@@ -48,11 +48,7 @@ export async function claimDeliverableEvent(eventId: string) {
  * not written back as active. Filtering them out here would leak a row for
  * every instance that resolves.
  */
-export function deliverableGroupMemberQuery(
-  executor: DbExecutor,
-  groupId: string,
-  cap: number,
-) {
+export function deliverableGroupMemberQuery(executor: DbExecutor, groupId: string, cap: number) {
   return (
     executor
       .select({
@@ -64,10 +60,7 @@ export function deliverableGroupMemberQuery(
       .innerJoin(
         alertEvents,
         and(
-          eq(
-            alertNotificationGroupEvents.organizationId,
-            alertEvents.organizationId,
-          ),
+          eq(alertNotificationGroupEvents.organizationId, alertEvents.organizationId),
           eq(alertNotificationGroupEvents.eventId, alertEvents.id),
           eq(alertEvents.kind, "notifying"),
         ),
@@ -82,10 +75,7 @@ export function deliverableGroupMemberQuery(
       .where(eq(alertNotificationGroupEvents.groupId, groupId))
       // `false` sorts before `true`, so an unflushed member outranks a flushed
       // one whatever their ids say.
-      .orderBy(
-        asc(sql`${alertNotificationGroupEvents.flushedAt} IS NOT NULL`),
-        asc(alertEvents.id),
-      )
+      .orderBy(asc(sql`${alertNotificationGroupEvents.flushedAt} IS NOT NULL`), asc(alertEvents.id))
       .limit(cap)
   );
 }
@@ -132,10 +122,7 @@ export function linkedEventsForDeliveryQuery(
  * to the delivery path for measurement alone, and after the send it could
  * throw, retry the job, and page someone twice.
  */
-export function liveRuleForDeliveryQuery(
-  executor: DbExecutor,
-  dedupKey: string,
-) {
+export function liveRuleForDeliveryQuery(executor: DbExecutor, dedupKey: string) {
   return executor
     .select({
       eventId: alertDeliveryEvents.eventId,

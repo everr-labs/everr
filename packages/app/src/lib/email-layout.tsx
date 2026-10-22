@@ -70,17 +70,10 @@ export function EmailLayout({
             <Section className="mb-8">
               <Row>
                 <Column className="w-10">
-                  <Img
-                    src={`${assetBaseUrl}/everr-mark.png`}
-                    alt=""
-                    width="32"
-                    height="32"
-                  />
+                  <Img src={`${assetBaseUrl}/everr-mark.png`} alt="" width="32" height="32" />
                 </Column>
                 <Column>
-                  <Text className="m-0 text-[24px] font-bold tracking-tight text-white">
-                    everr
-                  </Text>
+                  <Text className="m-0 text-[24px] font-bold tracking-tight text-white">everr</Text>
                 </Column>
               </Row>
             </Section>
@@ -92,9 +85,7 @@ export function EmailLayout({
               >
                 {title}
               </Heading>
-              <Text className="mt-5 mb-7 text-[15px] leading-6 text-[#c4c4c4]">
-                {description}
-              </Text>
+              <Text className="mt-5 mb-7 text-[15px] leading-6 text-[#c4c4c4]">{description}</Text>
               <Button
                 href={actionUrl}
                 className="box-border inline-block rounded-md bg-[#ddff00] px-6 py-3 text-[14px] font-semibold text-[#111111] no-underline"
@@ -102,9 +93,7 @@ export function EmailLayout({
                 {actionLabel}
               </Button>
               {note && (
-                <Text className="mt-7 mb-0 text-[13px] leading-5 text-[#9e9e9e]">
-                  {note}
-                </Text>
+                <Text className="mt-7 mb-0 text-[13px] leading-5 text-[#9e9e9e]">{note}</Text>
               )}
               <Hr className="my-8 border-[#303030]" />
               <Text className="m-0 text-[12px] leading-5 text-[#9e9e9e]">
@@ -121,9 +110,7 @@ export function EmailLayout({
             <Section className="mt-6 border-0 border-t border-solid border-[#303030] pt-5">
               <Row>
                 <Column>
-                  <Text className="m-0 text-[12px] text-[#858585]">
-                    Follow Everr
-                  </Text>
+                  <Text className="m-0 text-[12px] text-[#858585]">Follow Everr</Text>
                 </Column>
                 <Column className="whitespace-nowrap text-right">
                   <SocialLink

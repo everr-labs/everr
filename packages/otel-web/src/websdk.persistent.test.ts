@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { WebSDK } from "./client.js";
 import { identify, revoke } from "./state/session.js";
 import {

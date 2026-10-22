@@ -86,10 +86,7 @@ function instanceIntervals(
           // because only a firing instance resolves.
           open.set(row.fingerprint, {
             since: windowFrom,
-            rank:
-              row.eventType === "instance_resolved"
-                ? RANK.firing
-                : RANK.pending,
+            rank: row.eventType === "instance_resolved" ? RANK.firing : RANK.pending,
           });
         }
         close(row.fingerprint, row.at);
@@ -114,11 +111,7 @@ function instanceIntervals(
  * of failures merge into one stretch rather than a dotted line nobody can
  * read.
  */
-function degradedIntervals(
-  rows: LifecycleRow[],
-  intervalMs: number,
-  windowTo: number,
-): Interval[] {
+function degradedIntervals(rows: LifecycleRow[], intervalMs: number, windowTo: number): Interval[] {
   const out: Interval[] = [];
   for (const row of rows) {
     if (row.eventType !== "evaluation_failed") continue;
@@ -202,12 +195,7 @@ export function ruleStateSegments(opts: {
 }): RuleStateSegment[] {
   const rows = [...opts.rows].sort((a, b) => a.at - b.at);
   const flattened = flattenByRank([
-    ...instanceIntervals(
-      rows,
-      opts.prior ?? [],
-      opts.windowFrom,
-      opts.windowTo,
-    ),
+    ...instanceIntervals(rows, opts.prior ?? [], opts.windowFrom, opts.windowTo),
     ...degradedIntervals(rows, opts.intervalMs, opts.windowTo),
   ]);
 
@@ -217,10 +205,7 @@ export function ruleStateSegments(opts: {
     const to = Math.min(interval.to, opts.windowTo);
     if (to <= from) continue;
     const silencedFrom = opts.silencedFrom;
-    const silenced =
-      silencedFrom != null &&
-      interval.rank === RANK.firing &&
-      to > silencedFrom;
+    const silenced = silencedFrom != null && interval.rank === RANK.firing && to > silencedFrom;
     // A stretch that starts before the silence and runs past it splits, so the
     // chart shows the moment somebody muted it.
     if (silenced && from < silencedFrom) {

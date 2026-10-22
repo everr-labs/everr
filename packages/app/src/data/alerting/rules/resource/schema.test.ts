@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { AlertRuleYamlSchema } from "./schema";
 
 const valid = {
@@ -56,12 +56,10 @@ describe("AlertRuleYamlSchema", () => {
       evaluationInterval: "5m",
       maxInterval: "1m",
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const message = result.error.issues[0]?.message ?? "";
-      expect(message).toContain("1m");
-      expect(message).toContain("5m");
-    }
+    if (result.success) throw new Error("Expected schema validation to fail");
+    const message = result.error.issues[0]?.message ?? "";
+    expect(message).toContain("1m");
+    expect(message).toContain("5m");
   });
 
   it("rejects annotation keys reserved for generated sugar", () => {
@@ -74,10 +72,8 @@ describe("AlertRuleYamlSchema", () => {
       "link.runbook",
     ]) {
       const result = parseSpec({ annotations: { [key]: "x" } });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.issues[0]?.message ?? "").toContain(key);
-      }
+      if (result.success) throw new Error("Expected schema validation to fail");
+      expect(result.error.issues[0]?.message ?? "").toContain(key);
     }
   });
 });
@@ -86,12 +82,7 @@ describe("AlertRuleYamlSchema canonical fields", () => {
   const { query: _query, ...specWithoutQuery } = valid.spec;
 
   it("rejects retired aliases", () => {
-    for (const alias of [
-      "notebook",
-      "sql",
-      "labelColumns",
-      "valueColumn",
-    ] as const) {
+    for (const alias of ["notebook", "sql", "labelColumns", "valueColumn"] as const) {
       const result = parseSpec({
         [alias]: alias === "labelColumns" ? ["route"] : "x",
       });
@@ -104,9 +95,7 @@ describe("AlertRuleYamlSchema canonical fields", () => {
       ...valid,
       spec: specWithoutQuery,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0]?.path).toEqual(["spec", "query"]);
-    }
+    if (result.success) throw new Error("Expected schema validation to fail");
+    expect(result.error.issues[0]?.path).toEqual(["spec", "query"]);
   });
 });

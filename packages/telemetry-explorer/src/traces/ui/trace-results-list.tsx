@@ -1,19 +1,10 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
   formatRelativeTime,
@@ -25,7 +16,7 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
-import { useDelayedFlag } from "../util/use-delayed-flag";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { isSafeMethod, splitSpanName } from "./http-method";
 import { serviceColor } from "./shared/service-color";
@@ -79,11 +70,7 @@ export function TraceResultsList({
 
   const itemContent = useCallback(
     (_index: number, row: TraceSummary) => (
-      <TraceRow
-        row={row}
-        maxDuration={maxDuration}
-        renderTraceLink={renderTraceLink}
-      />
+      <TraceRow row={row} maxDuration={maxDuration} renderTraceLink={renderTraceLink} />
     ),
     [maxDuration, renderTraceLink],
   );
@@ -91,12 +78,9 @@ export function TraceResultsList({
   const components = useMemo(
     () => ({
       ...virtuosoScrollAreaComponents,
+      // oxlint-disable-next-line react/no-unstable-nested-components -- Preserve the existing footer component lifetime when pagination values change.
       Footer: () => (
-        <ResultsFooter
-          count={rows.length}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-        />
+        <ResultsFooter count={rows.length} hasMore={hasMore} isLoadingMore={isLoadingMore} />
       ),
     }),
     [rows.length, hasMore, isLoadingMore],
@@ -199,19 +183,11 @@ function TraceRow({
       </div>
 
       <div className="flex w-24 shrink-0 flex-col items-end gap-1">
-        <span className="tabular-nums">
-          {formatDuration(Number(row.durationNs), "ns")}
-        </span>
-        <DurationBar
-          durationNs={BigInt(row.durationNs)}
-          maxDurationNs={maxDuration}
-        />
+        <span className="tabular-nums">{formatDuration(Number(row.durationNs), "ns")}</span>
+        <DurationBar durationNs={BigInt(row.durationNs)} maxDurationNs={maxDuration} />
       </div>
       <span className="hidden w-16 justify-end md:flex">
-        <TraceStatusBadge
-          errorCount={row.errorCount}
-          statusCode={row.rootStatusCode}
-        />
+        <TraceStatusBadge errorCount={row.errorCount} statusCode={row.rootStatusCode} />
       </span>
       <Tooltip>
         <TooltipTrigger
@@ -225,9 +201,7 @@ function TraceRow({
           {started ? (
             <span className="flex flex-col gap-0.5">
               <span className="tabular-nums">{started.toLocaleString()}</span>
-              <span className="text-background/70">
-                {formatRelativeTime(row.startTs)}
-              </span>
+              <span className="text-background/70">{formatRelativeTime(row.startTs)}</span>
             </span>
           ) : (
             row.startTs
@@ -267,13 +241,7 @@ function HttpMethodBadge({ method }: { method: string }) {
 // Status filter, `countIf(StatusCode = 'Error') > 0`. A filter on Error
 // therefore never returns a green row, and a 404 that the service handles
 // stays green.
-function TraceStatusBadge({
-  errorCount,
-  statusCode,
-}: {
-  errorCount: number;
-  statusCode: string;
-}) {
+function TraceStatusBadge({ errorCount, statusCode }: { errorCount: number; statusCode: string }) {
   const failed = errorCount > 0;
   const errorLabel = failed
     ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}`
@@ -364,6 +332,7 @@ function ResultsSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {Array.from({ length: 12 }).map((_, i) => (
+        // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
         <div key={i} className="flex items-center gap-2 border-b px-3 py-1.5">
           <Skeleton className="h-4 min-w-0 flex-1" />
           <Skeleton className="hidden h-3 w-28 md:block" />
@@ -380,9 +349,7 @@ function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
     <Empty>
       <EmptyHeader>
         <EmptyTitle>No traces</EmptyTitle>
-        <EmptyDescription>
-          No traces match the current filters.
-        </EmptyDescription>
+        <EmptyDescription>No traces match the current filters.</EmptyDescription>
       </EmptyHeader>
       <Button variant="outline" size="sm" onClick={onClearFilters}>
         Clear filters

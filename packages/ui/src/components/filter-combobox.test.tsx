@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { FilterCombobox } from "./filter-combobox";
 
 function renderCombobox({

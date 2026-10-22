@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { ErrorsRepository } from "./repository";
 
 const execute = vi.fn();
@@ -50,9 +50,7 @@ describe("ErrorsRepository.searchIssues", () => {
     expect(sql).toContain("FROM logs");
     expect(sql).toContain("SeverityNumber >= 17");
     expect(sql).toContain("GROUP BY fingerprint");
-    expect(sql).toContain(
-      "ORDER BY lastSeen DESC, occurrenceCount DESC, fingerprint DESC",
-    );
+    expect(sql).toContain("ORDER BY lastSeen DESC, occurrenceCount DESC, fingerprint DESC");
     expect(sql).toContain("LIMIT {limit:UInt32}");
     expect(sql).toContain("OFFSET {offset:UInt32}");
     expect(params).toMatchObject({ q: "boom", limit: 50, offset: 50 });
@@ -77,9 +75,7 @@ describe("ErrorsRepository.searchIssues", () => {
     });
     const [sql] = execute.mock.calls[0] ?? [];
     expect(sql).toContain("WHERE fingerprint = {fingerprint:String}");
-    expect(sql).toContain(
-      "ORDER BY occurrenceCount DESC, lastSeen DESC, fingerprint DESC",
-    );
+    expect(sql).toContain("ORDER BY occurrenceCount DESC, lastSeen DESC, fingerprint DESC");
   });
 
   it("queries the configured table name", async () => {

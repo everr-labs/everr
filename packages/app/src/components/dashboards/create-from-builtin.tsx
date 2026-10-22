@@ -1,9 +1,6 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@everr/ui/components/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy, Sparkles } from "lucide-react";
@@ -16,13 +13,7 @@ import { createFromBuiltinPrompt } from "#app/data/dashboards/built-in/prompt.ts
  * There is no in-app create on purpose (ADR 0004) — a Dashboard made here
  * would exist in no repository, so apply could never reconcile it.
  */
-export function CreateFromBuiltin({
-  slug,
-  name,
-}: {
-  slug: string;
-  name: string;
-}) {
+export function CreateFromBuiltin({ slug, name }: { slug: string; name: string }) {
   const prompt = createFromBuiltinPrompt({ slug, name });
   const promptRef = useRef<HTMLElement>(null);
   const { state: copyState, copy } = useCopyToClipboard(prompt, {
@@ -37,9 +28,8 @@ export function CreateFromBuiltin({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96">
         <p className="text-muted-foreground text-xs/relaxed">
-          Paste this into your coding assistant. It reads this built-in
-          dashboard, saves an adapted copy as code in your repository, and
-          applies it.
+          Paste this into your coding assistant. It reads this built-in dashboard, saves an adapted
+          copy as code in your repository, and applies it.
         </p>
         <div className="mt-3 flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
           <code
@@ -56,21 +46,14 @@ export function CreateFromBuiltin({
           onClick={copy}
           aria-label="Copy assistant prompt"
         >
-          {copyState === "copied" ? (
-            <Check className="size-3.5" />
-          ) : (
-            <Copy className="size-3.5" />
-          )}
+          {copyState === "copied" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copyState === "copied" ? "Copied" : "Copy prompt"}
         </Button>
         {/* One status line serves sighted and screen-reader users alike:
             visible on failure, announced-only for the transient "copied". */}
         <p
           role="status"
-          className={cn(
-            "mt-2 text-amber-400 text-xs",
-            copyState !== "failed" && "sr-only",
-          )}
+          className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}
         >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&

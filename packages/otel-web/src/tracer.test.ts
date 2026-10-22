@@ -1,5 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { tracer, WebSDK } from "./index.js";
 import { attrs, type OtlpSpan, startClient } from "./test-kit.js";
 
@@ -55,8 +55,7 @@ describe("public tracer", () => {
     tracer.startSpan("later").end();
     await client.flush();
     const spans = batches.flatMap((batch) => batch.spans);
-    const byName = (name: string) =>
-      spans.find((span) => span.name === name) as OtlpSpan;
+    const byName = (name: string) => spans.find((span) => span.name === name) as OtlpSpan;
     const parent = byName("checkout");
     const child = byName("prepare checkout");
     expect(child.kind).toBe(1);
@@ -111,9 +110,9 @@ describe("public tracer", () => {
     cached.startSpan("new SDK").end();
     await second.flush();
     expect(firstBatches.flatMap((batch) => batch.spans)).toHaveLength(0);
-    expect(
-      secondBatches.flatMap((batch) => batch.spans).map((span) => span.name),
-    ).toEqual(["new SDK"]);
+    expect(secondBatches.flatMap((batch) => batch.spans).map((span) => span.name)).toEqual([
+      "new SDK",
+    ]);
     await second.shutdown();
     expect(cached.startSpan("after shutdown").isRecording()).toBe(false);
   });

@@ -1,13 +1,5 @@
-import {
-  isValidTimeRange,
-  type TimeRange,
-  timeRangeFromDuration,
-} from "@everr/ui/lib/time-range";
-import type {
-  Dashboard,
-  DashboardResource,
-  DashboardResourceSpec,
-} from "./schema";
+import { isValidTimeRange, type TimeRange, timeRangeFromDuration } from "@everr/ui/lib/time-range";
+import type { Dashboard, DashboardResource, DashboardResourceSpec } from "./schema";
 
 function dashboardTimeRange(
   spec: Pick<DashboardResourceSpec, "duration" | "timeRange">,

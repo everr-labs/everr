@@ -1,6 +1,6 @@
 import { is, SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => {
   class MockChannelSendError extends Error {
@@ -142,9 +142,7 @@ describe("sendAlertDelivery send failure", () => {
 
     await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
 
-    const [failedCall] = mocks.set.mock.calls.filter(
-      (call) => call[0]?.status === "failed",
-    );
+    const [failedCall] = mocks.set.mock.calls.filter((call) => call[0]?.status === "failed");
     // An SQL fragment (`attempts + 1` computed by Postgres), not the plain
     // number read at the top of this run: two racing sends of the same
     // delivery must not both compute the same stale count.
@@ -198,13 +196,9 @@ describe("sendAlertDelivery status write after a successful send", () => {
     expect(mocks.send).toHaveBeenCalledOnce();
     // Never classified failed: the send succeeded, only the bookkeeping
     // write did not land.
-    const failedCalls = mocks.set.mock.calls.filter(
-      (call) => call[0]?.status === "failed",
-    );
+    const failedCalls = mocks.set.mock.calls.filter((call) => call[0]?.status === "failed");
     expect(failedCalls).toHaveLength(0);
-    expect(mocks.outcome).not.toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: "failed" }),
-    );
+    expect(mocks.outcome).not.toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed" }));
     // Retried once before giving up.
     expect(mocks.where).toHaveBeenCalledTimes(2);
   });

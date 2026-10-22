@@ -22,8 +22,7 @@ import type { AttrValue } from "../pipeline/emitter.js";
 /** The shared test before a capture. It refuses the regions that have the
  * no-capture class, the password inputs, and the hidden inputs. */
 export function guardOf(el: Element): Element | null {
-  return el.closest(".everr-no-capture") ||
-    el.matches("input[type=password],input[type=hidden]")
+  return el.closest(".everr-no-capture") || el.matches("input[type=password],input[type=hidden]")
     ? null
     : el;
 }
@@ -33,9 +32,7 @@ export function targetOf(event: Event): Element | null {
   return el ? guardOf(el) : null;
 }
 
-export function elementAttrs(
-  el: Element,
-): Record<string, AttrValue | null | undefined> {
+export function elementAttrs(el: Element): Record<string, AttrValue | null | undefined> {
   return {
     "everr.element.tag": el.tagName.toLowerCase(),
     "everr.element.selector": selectorOf(el),

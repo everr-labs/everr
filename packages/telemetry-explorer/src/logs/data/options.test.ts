@@ -1,5 +1,5 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { logsExplorerInfiniteOptions, logsTotalsOptions } from "./options";
 import type { LogsRepositoryLike } from "./repository";
 
@@ -40,10 +40,7 @@ it("keeps refresh off and uses the selected cadence instead of a global polling 
     defaultOptions: { queries: { refetchInterval: 10_000, retry: false } },
   });
   const repository = { ...repo, totals };
-  const observer = new QueryObserver(
-    client,
-    logsTotalsOptions(repository, input, "off"),
-  );
+  const observer = new QueryObserver(client, logsTotalsOptions(repository, input, "off"));
   const unsubscribe = observer.subscribe(() => {});
   try {
     await vi.advanceTimersByTimeAsync(0);

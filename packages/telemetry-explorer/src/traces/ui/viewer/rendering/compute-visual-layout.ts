@@ -75,13 +75,7 @@ class LowestFreeRow {
     return this.descend(1, 0, this.size - 1, from, end);
   }
 
-  private descend(
-    node: number,
-    lo: number,
-    hi: number,
-    from: number,
-    end: number,
-  ): number {
+  private descend(node: number, lo: number, hi: number, from: number, end: number): number {
     if (hi < from || this.tree[node] < end) {
       return -1;
     }
@@ -283,10 +277,7 @@ export function computeVisualLayout(spans: FlamegraphSpan[][]): VisualLayout {
   // in O(log rows) via the segment tree; the rare non-leaf subtree falls back to
   // findPlacement against the shared interval map. Both structures are kept in
   // sync so each placement sees all prior occupancy. Same ShapeEntry[] contract.
-  function computeWideShape(
-    rootSpan: FlamegraphSpan,
-    children: FlamegraphSpan[],
-  ): ShapeEntry[] {
+  function computeWideShape(rootSpan: FlamegraphSpan, children: FlamegraphSpan[]): ShapeEntry[] {
     const shape: ShapeEntry[] = [{ span: rootSpan, relativeRow: 0 }];
     const localIntervals = new Map<number, Array<[number, number]>>();
     // Children occupy relative rows 1..children.length in the worst case.

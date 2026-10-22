@@ -1,14 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  errorIssueOptions,
-  errorIssuesInfiniteOptions,
-  errorServicesOptions,
-} from "./options";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { errorIssueOptions, errorIssuesInfiniteOptions, errorServicesOptions } from "./options";
 import type { ErrorsRepositoryLike } from "./repository";
 
-function makeRepo(
-  overrides: Partial<ErrorsRepositoryLike> = {},
-): ErrorsRepositoryLike {
+function makeRepo(overrides: Partial<ErrorsRepositoryLike> = {}): ErrorsRepositoryLike {
   return {
     searchIssues: vi.fn(async () => ({ issues: [] })),
     getIssue: vi.fn(async () => ({
@@ -42,9 +36,7 @@ describe("errorIssuesInfiniteOptions", () => {
       q: "boom",
     });
 
-    await (options.queryFn as (ctx: { pageParam: number }) => Promise<unknown>)(
-      { pageParam: 100 },
-    );
+    await (options.queryFn as (ctx: { pageParam: number }) => Promise<unknown>)({ pageParam: 100 });
 
     expect(searchIssues).toHaveBeenCalledWith(
       expect.objectContaining({ q: "boom", limit: 50, offset: 100 }),
@@ -61,16 +53,9 @@ describe("errorIssuesInfiniteOptions", () => {
     const full = { issues: [issue, issue] };
 
     expect(options.getNextPageParam(full, [full], 0, [0])).toBe(2);
+    expect(options.getNextPageParam({ issues: [issue] }, [full], 2, [0, 2])).toBeUndefined();
     expect(
-      options.getNextPageParam({ issues: [issue] }, [full], 2, [0, 2]),
-    ).toBeUndefined();
-    expect(
-      options.getNextPageParam(
-        undefined as never,
-        [undefined as never],
-        0,
-        [0],
-      ),
+      options.getNextPageParam(undefined as never, [undefined as never], 0, [0]),
     ).toBeUndefined();
   });
 });

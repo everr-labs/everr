@@ -27,12 +27,7 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/",
 )({
   staticData: { breadcrumb: "Dashboards" },
-  head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
   loaderDeps: ({ search }) => ({ preview: search.preview }),
-  // The index is never a page of its own: the layout always shows the list,
-  // so landing here reopens where you were, else your first top-level
-  // dashboard, else the first built-in that actually has data — the screen is
-  // never blank and never an empty grid when a live one exists.
   loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
     const last = lastViewedDashboard.read(session.session.activeOrganizationId);
 
@@ -45,14 +40,9 @@ export const Route = createFileRoute(
     // below awaits it, and the rail issues the same query immediately anyway,
     // so a wasted prefetch costs nothing.
     void queryClient.prefetchQuery(
-      telemetryCapabilitiesOptions(
-        DEFAULT_TIME_RANGE.from,
-        DEFAULT_TIME_RANGE.to,
-      ),
+      telemetryCapabilitiesOptions(DEFAULT_TIME_RANGE.from, DEFAULT_TIME_RANGE.to),
     );
-    const list = await queryClient.ensureQueryData(
-      dashboardListOptions(preview),
-    );
+    const list = await queryClient.ensureQueryData(dashboardListOptions(preview));
     const live = list.filter((d) => d.previewStatus !== "removed");
 
     if (
@@ -84,5 +74,10 @@ export const Route = createFileRoute(
       replace: true,
     });
   },
+  // The index is never a page of its own: the layout always shows the list,
+  // so landing here reopens where you were, else your first top-level
+  // dashboard, else the first built-in that actually has data — the screen is
+  // never blank and never an empty grid when a live one exists.
+  head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
   component: () => null,
 });

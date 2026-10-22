@@ -4,23 +4,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type {
-  SilenceCancelTarget,
-  SilenceSeed,
-} from "#app/data/alerting/silences/commands.ts";
+import type { SilenceCancelTarget, SilenceSeed } from "#app/data/alerting/silences/commands.ts";
 import { formatElapsed } from "#app/data/alerting/triage/format.ts";
-import type {
-  AlertSilenceRecord,
-  SilenceCut,
-} from "#app/data/alerting/triage/view.ts";
+import type { AlertSilenceRecord, SilenceCut } from "#app/data/alerting/triage/view.ts";
 import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
 import { SilenceRowAction, SilenceWindow } from "./silence-row";
-import {
-  isOpen,
-  STATE_META,
-  spokenSilence,
-  windowBounds,
-} from "./silence-state";
+import { isOpen, STATE_META, spokenSilence, windowBounds } from "./silence-state";
 
 /**
  * Measured against the list column rather than the window, the same way the
@@ -41,24 +30,16 @@ import {
  * with the row's bottom half empty beside them. Centring keeps the four cells
  * at the row's middle, which is where the eye lands on a two-line row.
  */
-const COLUMNS_BASE =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5";
+const COLUMNS_BASE = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5";
 
 /** Both templates, resolved once for the process rather than per row per
  *  render: `impact` has two values, and `cn` runs tailwind-merge. */
 const COLUMNS = {
-  withImpact: cn(
-    COLUMNS_BASE,
-    "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_8rem_7rem]",
-  ),
-  withoutImpact: cn(
-    COLUMNS_BASE,
-    "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_7rem]",
-  ),
+  withImpact: cn(COLUMNS_BASE, "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_8rem_7rem]"),
+  withoutImpact: cn(COLUMNS_BASE, "@[52rem]/list:grid-cols-[minmax(0,1fr)_13rem_9rem_7rem]"),
 } as const;
 
-const columns = (impact: boolean) =>
-  impact ? COLUMNS.withImpact : COLUMNS.withoutImpact;
+const columns = (impact: boolean) => (impact ? COLUMNS.withImpact : COLUMNS.withoutImpact);
 
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
  *  will; a closed one just says which way it closed. */
@@ -135,9 +116,11 @@ function Row({
         })
     : undefined;
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the link inside is the real control
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- pointer-only row convenience, the link inside is the real control
     <li
-      onClick={openRule}
+      onClick={() => {
+        void openRule?.();
+      }}
       className={cn(
         columns(impact),
         "border-t px-3 py-2.5 text-sm",
@@ -185,10 +168,7 @@ function Row({
             // muted as a whole, and the rule's name is the one thing on it the
             // reader scans for. Triage sets it at full strength and this is
             // the same name on the same kind of list.
-            className={cn(
-              ROW_TARGET,
-              "block text-sm font-medium text-foreground",
-            )}
+            className={cn(ROW_TARGET, "block text-sm font-medium text-foreground")}
           >
             {row.rule.name}
           </Link>
@@ -198,20 +178,15 @@ function Row({
         {/* What narrows the silence within its rule. Empty means the whole
             rule, which the row says by having nothing here. */}
         {row.rule && row.scope && (
-          <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-            {row.scope}
-          </div>
+          <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{row.scope}</div>
         )}
         {attribution && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {attribution}
-          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{attribution}</p>
         )}
       </div>
       {/* Second in the markup so it lands beside the rule on a narrow list,
           last in the table once there are columns to be last of. */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: stops the row click when using the silence controls */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: stops the row click when using the silence controls */}
+      {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- stops the row click when using the silence controls */}
       <div
         onClick={(e) => e.stopPropagation()}
         className="justify-self-end @[52rem]/list:order-last"
@@ -236,12 +211,7 @@ function Row({
             from scheduled: two states the accent alone cannot tell apart. */}
         <span className="flex items-baseline gap-1.5 font-mono text-xs tabular-nums">
           {open && (
-            <span
-              className={cn(
-                "size-1.5 shrink-0 translate-y-[-1px] rounded-full",
-                meta.dot,
-              )}
-            />
+            <span className={cn("size-1.5 shrink-0 translate-y-[-1px] rounded-full", meta.dot)} />
           )}
           {stateText(row, now)}
         </span>
@@ -250,9 +220,7 @@ function Row({
             other row is what buries them. The column itself is only drawn when
             some row has one. */}
         {impact && (
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            {row.impact}
-          </span>
+          <span className="truncate font-mono text-xs text-muted-foreground">{row.impact}</span>
         )}
       </div>
     </li>
@@ -359,9 +327,7 @@ export function SilencesPage({
         // leaves the row open and where it was, holding the claim past the
         // act that made it: the row's own effect cannot release it, because
         // it releases on having moved.
-        onCancel(target, () =>
-          setFocusSilenceId((id) => (id === target.id ? null : id)),
-        );
+        onCancel(target, () => setFocusSilenceId((id) => (id === target.id ? null : id)));
       }}
       onSilenceAgain={onSilenceAgain}
     />
@@ -401,8 +367,8 @@ export function SilencesPage({
                 who just cancelled one. */}
               {closed.length === 0 ? (
                 <span className="block max-w-prose">
-                  Nothing is silenced. A silence stops a rule's notifications
-                  without stopping the rule.{" "}
+                  Nothing is silenced. A silence stops a rule&apos;s notifications without stopping
+                  the rule.{" "}
                   <a
                     href="https://everr.dev/docs/guides/set-up-notifications"
                     target="_blank"
@@ -421,12 +387,7 @@ export function SilencesPage({
           )}
         </GroupBand>
 
-        <GroupBand
-          id="silences-history"
-          label="History"
-          count={historyCount}
-          hint="in range"
-        >
+        <GroupBand id="silences-history" label="History" count={historyCount} hint="in range">
           {loading ? (
             <LoadingRows count={3} label="Loading silences" />
           ) : closed.length === 0 ? (

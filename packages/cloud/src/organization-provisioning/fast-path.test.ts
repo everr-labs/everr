@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
@@ -21,36 +21,27 @@ import { waitForOrganizationProvisioning } from "./fast-path";
 beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
-  mocks.read.mockResolvedValue([
-    { metadata: JSON.stringify({ clickhouseReady: false }) },
-  ]);
+  mocks.read.mockResolvedValue([{ metadata: JSON.stringify({ clickhouseReady: false }) }]);
 });
 afterEach(() => {
   vi.useRealTimers();
 });
 it("returns immediately when the committed job has already finished", async () => {
-  mocks.read.mockResolvedValue([
-    { metadata: JSON.stringify({ clickhouseReady: true }) },
-  ]);
+  mocks.read.mockResolvedValue([{ metadata: JSON.stringify({ clickhouseReady: true }) }]);
   await expect(waitForOrganizationProvisioning("org")).resolves.toBe(true);
   expect(mocks.read).toHaveBeenCalledOnce();
   expect(vi.getTimerCount()).toBe(0);
 });
 it("returns ready when provisioning finishes during the signup wait", async () => {
   mocks.read
-    .mockResolvedValueOnce([
-      { metadata: JSON.stringify({ clickhouseReady: false }) },
-    ])
-    .mockResolvedValueOnce([
-      { metadata: JSON.stringify({ clickhouseReady: true }) },
-    ]);
+    .mockResolvedValueOnce([{ metadata: JSON.stringify({ clickhouseReady: false }) }])
+    .mockResolvedValueOnce([{ metadata: JSON.stringify({ clickhouseReady: true }) }]);
   const result = waitForOrganizationProvisioning("org");
   await vi.advanceTimersByTimeAsync(100);
   await expect(result).resolves.toBe(true);
-  expect(mocks.info).toHaveBeenCalledWith(
-    "clickhouse.organization.fast_path.ready",
-    { "everr.organization.id": "org" },
-  );
+  expect(mocks.info).toHaveBeenCalledWith("clickhouse.organization.fast_path.ready", {
+    "everr.organization.id": "org",
+  });
 });
 it("returns pending within five seconds and stops polling during a prolonged stall", async () => {
   const result = waitForOrganizationProvisioning("org");

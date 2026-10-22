@@ -10,23 +10,14 @@ import {
 const ORGANIZATION_RETRY_CAP_SECONDS = 30;
 
 export function organizationRetryDelaySeconds(attempts: number): number {
-  const base = Math.min(
-    ORGANIZATION_RETRY_CAP_SECONDS,
-    2 ** Math.min(attempts, 5),
-  );
+  const base = Math.min(ORGANIZATION_RETRY_CAP_SECONDS, 2 ** Math.min(attempts, 5));
   // Jitter only shortens the delay, so the advertised cap stays a hard cap.
   return base * (0.8 + Math.random() * 0.2);
 }
 
-const lifecycleTasks = [
-  PROVISION_ORGANIZATION_TASK,
-  DEPROVISION_ORGANIZATION_TASK,
-];
+const lifecycleTasks = [PROVISION_ORGANIZATION_TASK, DEPROVISION_ORGANIZATION_TASK];
 
-export function attachOrganizationRetryPolicy(
-  events: WorkerEvents,
-  pgPool: Pick<Pool, "query">,
-) {
+export function attachOrganizationRetryPolicy(events: WorkerEvents, pgPool: Pick<Pool, "query">) {
   const pending = new Set<Promise<void>>();
 
   // job:complete fires after Graphile has persisted the failure and unlocked
@@ -46,11 +37,7 @@ export function attachOrganizationRetryPolicy(
         run_at := now() + ($2::double precision * interval '1 second'),
         max_attempts := $3
       )`,
-        [
-          String(job.id),
-          organizationRetryDelaySeconds(job.attempts),
-          ORGANIZATION_MAX_ATTEMPTS,
-        ],
+        [String(job.id), organizationRetryDelaySeconds(job.attempts), ORGANIZATION_MAX_ATTEMPTS],
       )
       .then(() => undefined)
       .catch((reason: unknown) => {
@@ -64,7 +51,7 @@ export function attachOrganizationRetryPolicy(
   });
 
   return {
-    async capPendingRetries() {
+    async capPendingRetries(this: void) {
       // Covers old deployments and a process dying between failure persistence
       // and the completion listener's reschedule. Use only Graphile's public
       // view and API, which leave currently locked jobs alone.
@@ -78,15 +65,11 @@ export function attachOrganizationRetryPolicy(
           AND j.attempts > 0 AND j.attempts < j.max_attempts
           AND (j.run_at > now() + ($2::double precision * interval '1 second')
             OR j.max_attempts < $3)`,
-        [
-          lifecycleTasks,
-          ORGANIZATION_RETRY_CAP_SECONDS,
-          ORGANIZATION_MAX_ATTEMPTS,
-        ],
+        [lifecycleTasks, ORGANIZATION_RETRY_CAP_SECONDS, ORGANIZATION_MAX_ATTEMPTS],
       );
     },
     async drain() {
-      await Promise.all([...pending]);
+      await Promise.all(pending);
     },
   };
 }

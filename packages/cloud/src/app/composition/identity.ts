@@ -35,14 +35,11 @@ export const identity = {
     lockAccountDeletion,
     lockUserLifecycle,
     createSessionOnboardingHook,
-    identityAdapter: () =>
-      billingIdentityAdapter(organizationLifecycleAdapter()),
+    identityAdapter: () => billingIdentityAdapter(organizationLifecycleAdapter()),
     organizationHooks: () => ({
       beforeCreateOrganization: beforeCreateCheckoutOrganization,
       afterCreateOrganization,
     }),
-    authPlugins: (createOrganization) => [
-      billingAuthPlugin(createOrganization),
-    ],
+    authPlugins: (createOrganization) => [billingAuthPlugin(createOrganization)],
   },
 } satisfies ApplicationIdentity;

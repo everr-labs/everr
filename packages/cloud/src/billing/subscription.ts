@@ -15,11 +15,7 @@ import {
   type CreateOrganization,
   type SubscriptionEvent,
 } from "./types";
-import {
-  assertSession,
-  assertSubscription,
-  verifyPayment,
-} from "./verification";
+import { assertSession, assertSubscription, verifyPayment } from "./verification";
 export function createBillingSubscriptions(
   deps: BillingDependencies,
   store: BillingStore,
@@ -30,16 +26,10 @@ export function createBillingSubscriptions(
     intent: Awaited<ReturnType<typeof readIntent>>,
     createOrganization: CreateOrganization,
   ) {
-    let [org] = await db
-      .select()
-      .from(organization)
-      .where(eq(organization.id, intent.orgId));
+    let [org] = await db.select().from(organization).where(eq(organization.id, intent.orgId));
     if (!org) {
       if (intent.completedAt)
-        throw new BillingError(
-          "identity_conflict",
-          "The checkout organization no longer exists.",
-        );
+        throw new BillingError("identity_conflict", "The checkout organization no longer exists.");
       await withOrganizationCreationId(
         {
           id: intent.orgId,
@@ -55,25 +45,18 @@ export function createBillingSubscriptions(
             },
           }),
       );
-      [org] = await db
-        .select()
-        .from(organization)
-        .where(eq(organization.id, intent.orgId));
+      [org] = await db.select().from(organization).where(eq(organization.id, intent.orgId));
     }
     if (
       !org ||
       (!intent.completedAt &&
-        (org.slug !== intent.organizationSlug ||
-          org.name !== intent.organizationName))
+        (org.slug !== intent.organizationSlug || org.name !== intent.organizationName))
     )
       throw new BillingError(
         "identity_conflict",
         "Organization does not match its creation request.",
       );
-    const memberships = await db
-      .select()
-      .from(member)
-      .where(eq(member.organizationId, org.id));
+    const memberships = await db.select().from(member).where(eq(member.organizationId, org.id));
     if (!memberships.length && !intent.completedAt) {
       await db.insert(member).values({
         id: randomUUID(),
@@ -84,9 +67,7 @@ export function createBillingSubscriptions(
       });
     } else if (
       !intent.completedAt &&
-      !memberships.some(
-        (m) => m.userId === intent.ownerId && isOrganizationOwner(m.role),
-      )
+      !memberships.some((m) => m.userId === intent.ownerId && isOrganizationOwner(m.role))
     )
       throw new BillingError(
         "identity_conflict",
@@ -100,35 +81,21 @@ export function createBillingSubscriptions(
     createOrganization: CreateOrganization,
   ) {
     const parsed = creationMetadata.safeParse(checkout.metadata);
-    if (
-      !parsed.success ||
-      JSON.stringify(parsed.data) !== JSON.stringify(metadata)
-    )
-      throw new BillingError(
-        "identity_conflict",
-        "Subscription checkout metadata does not match.",
-      );
+    if (!parsed.success || JSON.stringify(parsed.data) !== JSON.stringify(metadata))
+      throw new BillingError("identity_conflict", "Subscription checkout metadata does not match.");
     const intent = await readIntent(db, metadata);
     if (!intent.polarCustomerId)
       throw new BillingError(
         "unsupported_checkout",
         "This checkout predates the supported billing flow.",
       );
-    const subscription = await verifyPayment(
-      polar,
-      checkout,
-      intent.orgId,
-      intent.polarCustomerId,
-    );
+    const subscription = await verifyPayment(polar, checkout, intent.orgId, intent.polarCustomerId);
     if (!subscription) return { status: "processing" as const };
     const org = await ensureOrganization(intent, createOrganization);
     await store.linkCustomer(org.id, intent.polarCustomerId);
     const customer = await identity.customerForOrganization(org.id);
     if (customer?.id !== intent.polarCustomerId)
-      throw new BillingError(
-        "identity_conflict",
-        "Organization has a different billing customer.",
-      );
+      throw new BillingError("identity_conflict", "Organization has a different billing customer.");
     if (!intent.completedAt) await identity.reconcile(org.id);
     await store.saveSubscription(org.id, subscription);
     await db
@@ -151,6 +118,7 @@ export function createBillingSubscriptions(
   }
   return {
     async completeNew(
+      this: void,
       checkoutId: string,
       actorId: string,
       createOrganization: CreateOrganization,
@@ -158,18 +126,14 @@ export function createBillingSubscriptions(
       const checkout = await polar.checkout(checkoutId);
       const parsed = creationMetadata.safeParse(checkout.metadata);
       if (!parsed.success)
-        throw new BillingError(
-          "unsupported_checkout",
-          "This checkout is not supported.",
-        );
+        throw new BillingError("unsupported_checkout", "This checkout is not supported.");
       if (parsed.data.everrOwnerId !== actorId)
         throw new BillingError("forbidden", "This checkout is not available.");
-      return lock(
-        creationLock(actorId, parsed.data.everrOrganizationName),
-        () => finalize(parsed.data, checkout, createOrganization),
+      return lock(creationLock(actorId, parsed.data.everrOrganizationName), () =>
+        finalize(parsed.data, checkout, createOrganization),
       );
     },
-    async completeUpgrade(orgId: string, actorId: string, checkoutId: string) {
+    async completeUpgrade(this: void, orgId: string, actorId: string, checkoutId: string) {
       return lock(`billing:${orgId}`, async () => {
         await store.authorize(orgId, actorId);
         const customer = await identity.customerForOrganization(orgId);
@@ -178,35 +142,25 @@ export function createBillingSubscriptions(
         if (checkout.metadata.orgId !== orgId || checkout.metadata.everrPurpose)
           return { status: "billing_conflict" as const };
         try {
-          const subscription = await verifyPayment(
-            polar,
-            checkout,
-            orgId,
-            customer.id,
-          );
+          const subscription = await verifyPayment(polar, checkout, orgId, customer.id);
           if (!subscription) return { status: "pending" as const };
           await store.saveSubscription(orgId, subscription);
           return { status: "completed" as const };
         } catch (error) {
-          if (
-            error instanceof BillingError &&
-            error.code === "identity_conflict"
-          )
+          if (error instanceof BillingError && error.code === "identity_conflict")
             return { status: "billing_conflict" as const };
           throw error;
         }
       });
     },
     async syncSubscription(
+      this: void,
       { data }: SubscriptionEvent,
       createOrganization: CreateOrganization,
     ) {
       const orgId = data.customer.externalId;
       if (!orgId || data.customer.id !== data.customerId)
-        throw new BillingError(
-          "identity_conflict",
-          "Subscription customer is inconsistent.",
-        );
+        throw new BillingError("identity_conflict", "Subscription customer is inconsistent.");
       if (data.metadata.everrPurpose) {
         const parsed = creationMetadata.safeParse(data.metadata);
         if (!parsed.success || parsed.data.everrOrganizationId !== orgId)
@@ -215,10 +169,7 @@ export function createBillingSubscriptions(
             "Subscription uses unsupported checkout metadata.",
           );
         await lock(
-          creationLock(
-            parsed.data.everrOwnerId,
-            parsed.data.everrOrganizationName,
-          ),
+          creationLock(parsed.data.everrOwnerId, parsed.data.everrOrganizationName),
           async () => {
             const intent = await readIntent(db, parsed.data);
             if (intent.polarCustomerId !== data.customerId)
@@ -228,18 +179,14 @@ export function createBillingSubscriptions(
               );
             assertTeam(await polar.getCustomer(data.customerId), orgId);
             if (!data.checkoutId)
-              throw new BillingError(
-                "identity_conflict",
-                "Subscription has no checkout.",
-              );
+              throw new BillingError("identity_conflict", "Subscription has no checkout.");
             const source = await polar.checkout(data.checkoutId);
             assertSession(source, orgId, data.customerId);
             assertSubscription(source, data);
             const sourceMetadata = creationMetadata.safeParse(source.metadata);
             if (
               !sourceMetadata.success ||
-              JSON.stringify(sourceMetadata.data) !==
-                JSON.stringify(parsed.data)
+              JSON.stringify(sourceMetadata.data) !== JSON.stringify(parsed.data)
             )
               throw new BillingError(
                 "identity_conflict",
@@ -253,16 +200,11 @@ export function createBillingSubscriptions(
             )
               return;
             if (intent.completedAt) {
-              await lock(`billing:${orgId}`, () =>
-                store.saveSubscription(orgId, data),
-              );
+              await lock(`billing:${orgId}`, () => store.saveSubscription(orgId, data));
               return;
             }
             if (!current.checkoutId)
-              throw new BillingError(
-                "identity_conflict",
-                "Subscription has no checkout.",
-              );
+              throw new BillingError("identity_conflict", "Subscription has no checkout.");
             if (current.status !== "active") return;
             const checkout = await polar.checkout(current.checkoutId);
             await finalize(parsed.data, checkout, createOrganization);
@@ -284,10 +226,7 @@ export function createBillingSubscriptions(
           assertTeam(await polar.getCustomer(data.customerId), orgId);
           const current = await polar.subscription(data.id);
           if (!current.checkoutId)
-            throw new BillingError(
-              "identity_conflict",
-              "Subscription has no checkout.",
-            );
+            throw new BillingError("identity_conflict", "Subscription has no checkout.");
           const source = await polar.checkout(current.checkoutId);
           assertSession(source, orgId, data.customerId);
           assertSubscription(source, data);

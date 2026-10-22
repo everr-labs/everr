@@ -5,9 +5,7 @@ import { createDatabase } from "./database";
 export type { Database, DbExecutor, Transaction } from "./database";
 export { runInTransaction } from "./database";
 
-const shouldUseSsl = ["true", "1", "yes", "on"].includes(
-  dbEnv.DATABASE_SSL?.toLowerCase() ?? "",
-);
+const shouldUseSsl = ["true", "1", "yes", "on"].includes(dbEnv.DATABASE_SSL?.toLowerCase() ?? "");
 
 export const databasePoolConfig: PoolConfig = {
   host: dbEnv.DATABASE_HOST,

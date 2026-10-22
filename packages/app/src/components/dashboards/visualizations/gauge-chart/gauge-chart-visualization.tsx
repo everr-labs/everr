@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Gauge } from "lucide-react";
@@ -59,10 +60,7 @@ interface TileProps {
   maxText: string;
 }
 
-export function GaugeChartVisualization({
-  spec,
-  data,
-}: VisualizationProps<GaugeChartSpec>) {
+export function GaugeChartVisualization({ spec, data }: VisualizationProps<GaugeChartSpec>) {
   const {
     calculation,
     min,
@@ -74,10 +72,7 @@ export function GaugeChartVisualization({
     showAxis,
     showThresholdLabels,
   } = spec;
-  const formatter = useMemo(
-    () => createValueFormatter(spec.valueFormat),
-    [spec],
-  );
+  const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec]);
   const axisFormatter = useMemo(
     () => formatter.axis(Math.max(Math.abs(min), Math.abs(max))),
     [formatter, min, max],
@@ -93,10 +88,7 @@ export function GaugeChartVisualization({
     () => thresholdMarks(thresholds, min, max, axisFormatter),
     [thresholds, min, max, axisFormatter],
   );
-  const ticks = useMemo(
-    () => marks.filter((m): m is Tick => m.color !== undefined),
-    [marks],
-  );
+  const ticks = useMemo(() => marks.filter((m): m is Tick => m.color !== undefined), [marks]);
   // The bands between the marks are the same for all the gauges in the panel.
   // The component thus calculates the colors here, and not in each tile.
   const colors = useMemo(
@@ -108,9 +100,7 @@ export function GaugeChartVisualization({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <Gauge className="size-8" />
-        <p className="text-sm">
-          {!data ? "Configure a query to see results" : "No numeric data"}
-        </p>
+        <p className="text-sm">{!data ? "Configure a query to see results" : "No numeric data"}</p>
       </div>
     );
   }
@@ -125,26 +115,17 @@ export function GaugeChartVisualization({
       className="h-full"
       viewportClassName={cn(
         "flex flex-wrap justify-center",
-        horizontal
-          ? "content-center-safe gap-x-6 gap-y-4 px-1"
-          : "items-stretch gap-4",
+        horizontal ? "content-center-safe gap-x-6 gap-y-4 px-1" : "items-stretch gap-4",
       )}
     >
       {tiles.map((tile) => {
         const value = tile.value;
         const name = tile.label || queryLabel(tile.frame);
-        const fraction =
-          value !== undefined ? axisFraction(value, min, max) : 0;
-        const formatted =
-          value === undefined ? undefined : formatter.parts(value);
+        const fraction = value !== undefined ? axisFraction(value, min, max) : 0;
+        const formatted = value === undefined ? undefined : formatter.parts(value);
         const valueText = formatted?.value ?? noValue;
         const label = (multi || showLabel) && (
-          <p
-            className={cn(
-              "truncate text-xs text-muted-foreground",
-              horizontal && "mb-1",
-            )}
-          >
+          <p className={cn("truncate text-xs text-muted-foreground", horizontal && "mb-1")}>
             {name}
           </p>
         );
@@ -177,9 +158,8 @@ export function GaugeChartVisualization({
             {...props}
             ariaLabel={ariaLabel}
             color={
-              (value !== undefined
-                ? resolveThresholdColor(value, thresholds, max)
-                : undefined) ?? fallbackColor
+              (value !== undefined ? resolveThresholdColor(value, thresholds, max) : undefined) ??
+              fallbackColor
             }
           />
         );
@@ -221,12 +201,7 @@ function GaugeBar({
           {valueText}
         </span>
         {value !== undefined && unit && (
-          <span
-            className={cn(
-              "text-xs text-muted-foreground",
-              unitSeparator && "ml-1",
-            )}
-          >
+          <span className={cn("text-xs text-muted-foreground", unitSeparator && "ml-1")}>
             {unit}
           </span>
         )}
@@ -260,10 +235,7 @@ function GaugeBar({
                 className="absolute top-0 -translate-x-1/2"
                 style={{ left: `${tick.fraction * 100}%` }}
               >
-                <div
-                  className="mx-auto h-1.5 w-px"
-                  style={{ backgroundColor: tick.color }}
-                />
+                <div className="mx-auto h-1.5 w-px" style={{ backgroundColor: tick.color }} />
                 {showThresholdLabels && (
                   <p className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">
                     {tick.text}
@@ -304,11 +276,7 @@ function GaugeArc({
 }: TileProps & { ariaLabel: string; color: string }) {
   const valueScale = Math.min(
     1,
-    88 /
-      Math.max(
-        1,
-        valueText.length * 7.8 + unit.length * 4.2 + (unitSeparator ? 1.5 : 0),
-      ),
+    88 / Math.max(1, valueText.length * 7.8 + unit.length * 4.2 + (unitSeparator ? 1.5 : 0)),
   );
   return (
     <div className="flex min-w-28 flex-1 flex-col items-center">
@@ -360,10 +328,7 @@ function GaugeArc({
                     x={labelPos.x}
                     y={labelPos.y}
                     textAnchor="middle"
-                    fontSize={Math.min(
-                      5,
-                      32 / Math.max(1, tick.text.length * 0.6),
-                    )}
+                    fontSize={Math.min(5, 32 / Math.max(1, tick.text.length * 0.6))}
                     className="fill-muted-foreground tabular-nums"
                   >
                     {tick.text}

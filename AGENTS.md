@@ -12,9 +12,10 @@ MUST follow the oTel semconv when available.
 
 Custom attrs should be under everr. prefix
 
-example: 
- - browser.web_vital.ttfb.request_duration isn't standard, so it should be everr.browser.web_vital.ttfb.request_duration
- - browser.web_vital.value is standard and should not be prefixed
+example:
+
+- browser.web_vital.ttfb.request_duration isn't standard, so it should be everr.browser.web_vital.ttfb.request_duration
+- browser.web_vital.value is standard and should not be prefixed
 
 ## Web app `packages/app`
 

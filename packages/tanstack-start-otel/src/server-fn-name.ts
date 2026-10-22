@@ -16,10 +16,7 @@ export type ServerFunctionName = { name?: string };
 
 const storage = new AsyncLocalStorage<ServerFunctionName>();
 
-export function runWithServerFunctionName<T>(
-  holder: ServerFunctionName,
-  run: () => T,
-): T {
+export function runWithServerFunctionName<T>(holder: ServerFunctionName, run: () => T): T {
   return storage.run(holder, run);
 }
 

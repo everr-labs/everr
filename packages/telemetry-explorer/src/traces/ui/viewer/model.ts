@@ -4,13 +4,7 @@ import type { FlamegraphSpan, WaterfallSpan } from "./rendering/types";
 
 export type TraceNode = FlamegraphSpan & WaterfallSpan & { source: Span };
 export type SpanCategory = "All" | "HTTP" | "Database" | "Functions" | "Jobs";
-export const SPAN_CATEGORIES: SpanCategory[] = [
-  "All",
-  "HTTP",
-  "Database",
-  "Functions",
-  "Jobs",
-];
+export const SPAN_CATEGORIES: SpanCategory[] = ["All", "HTTP", "Database", "Functions", "Jobs"];
 
 function eventTimeNs(timestamp: string): bigint | undefined {
   const date = parseTimestampAsUTC(timestamp);
@@ -21,17 +15,11 @@ function eventTimeNs(timestamp: string): bigint | undefined {
 }
 
 export function buildTraceModel(spans: Span[]) {
-  const ordered = [...new Map(spans.map((s) => [s.spanId, s])).values()].sort(
-    (a, b) => {
-      const startA = BigInt(a.timestampNs);
-      const startB = BigInt(b.timestampNs);
-      return startA < startB
-        ? -1
-        : startA > startB
-          ? 1
-          : a.spanId.localeCompare(b.spanId);
-    },
-  );
+  const ordered = [...new Map(spans.map((s) => [s.spanId, s])).values()].sort((a, b) => {
+    const startA = BigInt(a.timestampNs);
+    const startB = BigInt(b.timestampNs);
+    return startA < startB ? -1 : startA > startB ? 1 : a.spanId.localeCompare(b.spanId);
+  });
   const startNs = ordered.length ? BigInt(ordered[0].timestampNs) : 0n;
   let endNs = startNs;
   const byId = new Map<string, TraceNode>();
@@ -62,8 +50,7 @@ export function buildTraceModel(spans: Span[]) {
                 offsetNs: Number(time - startNs),
                 attributeMap: event.attributes,
                 isError:
-                  event.name === "exception" ||
-                  event.attributes["exception.type"] !== undefined,
+                  event.name === "exception" || event.attributes["exception.type"] !== undefined,
               },
             ];
       }),
@@ -134,25 +121,13 @@ export function matchesSpan(
 ) {
   if (errorsOnly && !node.hasError) return false;
   const attrs = node.attributes;
-  if (
-    category === "HTTP" &&
-    !Object.keys(attrs).some((key) => key.startsWith("http."))
-  )
+  if (category === "HTTP" && !Object.keys(attrs).some((key) => key.startsWith("http.")))
     return false;
-  if (
-    category === "Database" &&
-    !Object.keys(attrs).some((key) => key.startsWith("db."))
-  )
+  if (category === "Database" && !Object.keys(attrs).some((key) => key.startsWith("db.")))
     return false;
-  if (
-    category === "Jobs" &&
-    !Object.keys(attrs).some((key) => key.startsWith("messaging."))
-  )
+  if (category === "Jobs" && !Object.keys(attrs).some((key) => key.startsWith("messaging.")))
     return false;
-  if (
-    category === "Functions" &&
-    !node.source.spanKind.toLowerCase().includes("internal")
-  )
+  if (category === "Functions" && !node.source.spanKind.toLowerCase().includes("internal"))
     return false;
   if (!query.trim()) return true;
   const haystack = [

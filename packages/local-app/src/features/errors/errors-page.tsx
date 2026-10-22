@@ -10,22 +10,11 @@ import {
   getErrorOccurrenceKey,
 } from "@everr/telemetry-explorer/errors";
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
-import {
-  getTraceOptions,
-  type Span,
-  TracesRepository,
-} from "@everr/telemetry-explorer/traces";
+import { getTraceOptions, type Span, TracesRepository } from "@everr/telemetry-explorer/traces";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  Outlet,
-  useMatch,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { useExploreControls } from "../explore/use-explore-controls";
@@ -36,8 +25,7 @@ export { ErrorIssueSearchSchema };
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schema so the leaf route's validateSearch doesn't strip them.
-export const ErrorsListSearchSchema =
-  ErrorIssueSearchSchema.extend(ExploreSearchShape);
+export const ErrorsListSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 
 const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
@@ -47,7 +35,7 @@ export function ErrorsPage() {
     from: "/_shell/errors/$fingerprint",
     shouldThrow: false,
   });
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
 
   // Always keep the list mounted in the same position so opening/closing the
@@ -59,9 +47,7 @@ export function ErrorsPage() {
       {errorDetailMatch && (
         <DetailRouteDialog
           title="Error detail"
-          onClose={() =>
-            navigate({ to: "/errors", search: { ...search, occurrence: "" } })
-          }
+          onClose={() => navigate({ to: "/errors", search: { ...search, occurrence: "" } })}
         >
           <Outlet />
         </DetailRouteDialog>
@@ -72,9 +58,9 @@ export function ErrorsPage() {
 
 function ErrorsListView() {
   const controls = useExploreControls("/errors");
-  const search = useSearch({ strict: false }) as ErrorIssueSearch & {
+  const search: ErrorIssueSearch & {
     environment?: string[];
-  };
+  } = useSearch({ strict: false });
   const navigate = useNavigate();
   const {
     timeRange,
@@ -91,12 +77,7 @@ function ErrorsListView() {
   const environment = search.environment ?? [];
 
   return (
-    <ExploreShell
-      title="Errors"
-      timeRange={timeRange}
-      refresh={refresh ?? ""}
-      {...controls}
-    >
+    <ExploreShell title="Errors" timeRange={timeRange} refresh={refresh ?? ""} {...controls}>
       <LocalTelemetryGate>
         <ErrorIssues
           repo={localErrorsRepo}
@@ -112,6 +93,7 @@ function ErrorsListView() {
               environment={environment}
             />
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={(patch) =>
             navigate({
               to: "/errors",
@@ -136,10 +118,8 @@ function ErrorsListView() {
 }
 
 export function ErrorDetailPage() {
-  const { fingerprint } = useParams({ strict: false }) as {
-    fingerprint: string;
-  };
-  const search = useSearch({ strict: false }) as ErrorIssueSearch;
+  const { fingerprint }: { fingerprint: string } = useParams({ strict: false });
+  const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
   const { timeRange, service, refresh } = withTimeRange(search);
 
@@ -153,16 +133,13 @@ export function ErrorDetailPage() {
         service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
+          // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.
           navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },
           });
         }}
-        renderOccurrenceLink={({
-          occurrence: linkedOccurrence,
-          children,
-          isSelected,
-        }) => (
+        renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
           <Link
             to="/errors/$fingerprint"
             params={{ fingerprint }}
@@ -179,9 +156,7 @@ export function ErrorDetailPage() {
             {children}
           </Link>
         )}
-        renderTracePanel={({ occurrence }) => (
-          <LocalErrorTracePanel occurrence={occurrence} />
-        )}
+        renderTracePanel={({ occurrence }) => <LocalErrorTracePanel occurrence={occurrence} />}
       />
     </LocalTelemetryGate>
   );

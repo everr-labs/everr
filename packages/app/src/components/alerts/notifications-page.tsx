@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
 import { cn } from "@everr/ui/lib/utils";
@@ -78,22 +79,12 @@ function Receives({ channel }: { channel: NotificationChannelView }) {
  * row washes under the pointer and the name is the control, so there is one
  * way in for a mouse and one for a keyboard.
  */
-function ChannelRow({
-  channel,
-  onOpen,
-}: {
-  channel: NotificationChannelView;
-  onOpen: () => void;
-}) {
+function ChannelRow({ channel, onOpen }: { channel: NotificationChannelView; onOpen: () => void }) {
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: pointer-only row convenience, the name inside is the real button
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- pointer-only row convenience, the name inside is the real button
     <li
       onClick={onOpen}
-      className={cn(
-        COLUMNS,
-        ROW_HOVER,
-        "cursor-pointer border-t px-3 py-2.5 text-sm",
-      )}
+      className={cn(COLUMNS, ROW_HOVER, "cursor-pointer border-t px-3 py-2.5 text-sm")}
     >
       <div className="flex min-w-0 items-center gap-3">
         <ChannelMark type={channel.config.type} />
@@ -167,8 +158,7 @@ function GapRow({
         >
           {gap.rule.name}
         </Link>{" "}
-        names <span className="font-mono text-xs">{gap.channel}</span>, which
-        does not exist
+        names <span className="font-mono text-xs">{gap.channel}</span>, which does not exist
       </>
     );
     cost = gap.count
@@ -181,17 +171,9 @@ function GapRow({
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-t px-3 py-2.5 text-sm">
       <div className="min-w-0">
         <div>{what}</div>
-        <div className="mt-0.5 font-mono text-xs text-chart-2 tabular-nums">
-          {cost}
-        </div>
+        <div className="mt-0.5 font-mono text-xs text-chart-2 tabular-nums">{cost}</div>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        className="-my-1"
-        disabled={pending}
-        onClick={onAction}
-      >
+      <Button variant="outline" size="sm" className="-my-1" disabled={pending} onClick={onAction}>
         {action}
       </Button>
     </li>
@@ -215,17 +197,11 @@ function ChannelChips({
             key={name}
             className={cn(
               "inline-flex h-6 items-center gap-1 rounded-md border pr-1.5 pl-1",
-              channel
-                ? "text-muted-foreground"
-                : "border-chart-2/50 pl-1.5 text-chart-2",
+              channel ? "text-muted-foreground" : "border-chart-2/50 pl-1.5 text-chart-2",
             )}
           >
             {channel && (
-              <ChannelMark
-                type={channel.config.type}
-                size="sm"
-                className="bg-transparent"
-              />
+              <ChannelMark type={channel.config.type} size="sm" className="bg-transparent" />
             )}
             {name}
             {!channel && <span> · missing</span>}
@@ -250,9 +226,7 @@ function DefaultTargetRow({
   return (
     <li className={cn(ROUTE_COLUMNS, "border-t px-3 py-2.5 text-sm")}>
       <div className="flex min-w-0 items-center gap-1.5 font-medium">
-        {tier !== "all" && (
-          <span className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])} />
-        )}
+        {tier !== "all" && <span className={cn("size-1.5 rounded-full", SEVERITY_DOT[tier])} />}
         {TIER_LABEL[tier]}
       </div>
       {/* The overrides list keeps a severity here; a tier is its own. */}
@@ -287,9 +261,7 @@ function OverrideRow({
         >
           {rule.name}
         </Link>
-        <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-          {rule.path}
-        </div>
+        <div className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{rule.path}</div>
       </div>
       <div className="justify-self-end @[52rem]/list:justify-self-start">
         <Severities tiers={[rule.severity]} />
@@ -343,11 +315,7 @@ export function NotificationsPage({
           label="Channels"
           count={count(channels.length)}
           action={
-            <Button
-              size="sm"
-              disabled={data === null || pending}
-              onClick={() => onNewChannel()}
-            >
+            <Button size="sm" disabled={data === null || pending} onClick={() => onNewChannel()}>
               <Plus className="size-4" />
               New channel
             </Button>
@@ -358,9 +326,8 @@ export function NotificationsPage({
           ) : channels.length === 0 ? (
             <p className={EMPTY_ROW}>
               <span className="block max-w-prose">
-                No channels yet. Add a Slack, Discord, webhook or Telegram
-                endpoint; the first one becomes the default destination, so one
-                channel is a complete setup.{" "}
+                No channels yet. Add a Slack, Discord, webhook or Telegram endpoint; the first one
+                becomes the default destination, so one channel is a complete setup.{" "}
                 <a
                   href={DOCS_HREF}
                   target="_blank"
@@ -430,13 +397,7 @@ export function NotificationsPage({
         <GroupBand
           id="default-targets"
           label="Default targets"
-          hint={
-            data
-              ? data.destination.split
-                ? "split by severity"
-                : "every alert"
-              : undefined
-          }
+          hint={data ? (data.destination.split ? "split by severity" : "every alert") : undefined}
           action={
             <Button
               variant="outline"
@@ -453,17 +414,16 @@ export function NotificationsPage({
             <LoadingRows count={3} label="Loading default targets" />
           ) : (
             <ul aria-labelledby="default-targets">
-              {(data.destination.split
-                ? ALERTING_SEVERITY_TIERS
-                : (["all"] as const)
-              ).map((tier) => (
-                <DefaultTargetRow
-                  key={tier}
-                  tier={tier}
-                  names={data.destination.tiers[tier]}
-                  channels={byName}
-                />
-              ))}
+              {(data.destination.split ? ALERTING_SEVERITY_TIERS : (["all"] as const)).map(
+                (tier) => (
+                  <DefaultTargetRow
+                    key={tier}
+                    tier={tier}
+                    names={data.destination.tiers[tier]}
+                    channels={byName}
+                  />
+                ),
+              )}
             </ul>
           )}
         </GroupBand>
@@ -478,10 +438,8 @@ export function NotificationsPage({
             <LoadingRows count={2} label="Loading rule overrides" />
           ) : overrides.length === 0 ? (
             <p className={EMPTY_ROW}>
-              Every rule delivers to the default destination. A rule opts out
-              with{" "}
-              <span className="font-mono text-xs">notifications.channels</span>{" "}
-              in its YAML.
+              Every rule delivers to the default destination. A rule opts out with{" "}
+              <span className="font-mono text-xs">notifications.channels</span> in its YAML.
             </p>
           ) : (
             <ul aria-labelledby="overrides">

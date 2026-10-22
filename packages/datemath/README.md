@@ -33,25 +33,25 @@ A date math expression consists of an **anchor** followed by zero or more **oper
 
 ### Operators
 
-| Operator | Description | Example |
-|----------|-------------|---------|
-| `+<n><unit>` | Add `n` units | `+7d` |
-| `-<n><unit>` | Subtract `n` units | `-1h` |
-| `/<unit>` | Round to unit | `/d` |
+| Operator     | Description        | Example |
+| ------------ | ------------------ | ------- |
+| `+<n><unit>` | Add `n` units      | `+7d`   |
+| `-<n><unit>` | Subtract `n` units | `-1h`   |
+| `/<unit>`    | Round to unit      | `/d`    |
 
 The amount `<n>` defaults to `1` when omitted (e.g. `+d` equals `+1d`).
 
 ### Units
 
-| Unit | Meaning |
-|------|---------|
-| `s` | Seconds |
-| `m` | Minutes |
-| `h` | Hours |
-| `d` | Days |
-| `w` | Weeks (ISO-8601, Monday start) |
-| `M` | Months |
-| `y` | Years |
+| Unit | Meaning                        |
+| ---- | ------------------------------ |
+| `s`  | Seconds                        |
+| `m`  | Minutes                        |
+| `h`  | Hours                          |
+| `d`  | Days                           |
+| `w`  | Weeks (ISO-8601, Monday start) |
+| `M`  | Months                         |
+| `y`  | Years                          |
 
 ### Rounding
 

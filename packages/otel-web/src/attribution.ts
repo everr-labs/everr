@@ -6,9 +6,7 @@
 // not capture the click ids of the advertisement platforms, for example gclid.
 // This is correct for now.
 
-export function attributionAttributes(
-  landingSearch: string,
-): Record<string, string> {
+export function attributionAttributes(landingSearch: string): Record<string, string> {
   const params = new URLSearchParams(landingSearch);
   const attributes: Record<string, string> = {};
   for (const name of ["source", "medium", "campaign", "term", "content"]) {

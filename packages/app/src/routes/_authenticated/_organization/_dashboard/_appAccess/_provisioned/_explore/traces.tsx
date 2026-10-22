@@ -1,15 +1,7 @@
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
-import {
-  TraceSearchParamsSchema,
-  TracesSearch,
-} from "@everr/telemetry-explorer/traces";
+import { TraceSearchParamsSchema, TracesSearch } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  createFileRoute,
-  Link,
-  stripSearchParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, stripSearchParams, useSearch } from "@tanstack/react-router";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
@@ -26,9 +18,9 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces",
 )({
   staticData: { breadcrumb: "Traces" },
-  head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
+  head: () => ({ meta: [{ title: "Everr - Traces" }] }),
   component: TracesSearchPage,
 });
 
@@ -59,17 +51,12 @@ function TracesSearchPage() {
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).
-        navigate({
+        void navigate({
           search: (prev) => ({ ...prev, ...patch }),
         })
       }
       renderTraceLink={({ traceId, className, children }) => (
-        <Link
-          to="/traces/$traceId"
-          params={{ traceId }}
-          search
-          className={className}
-        >
+        <Link to="/traces/$traceId" params={{ traceId }} search className={className}>
           {children}
         </Link>
       )}

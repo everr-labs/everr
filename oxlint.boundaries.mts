@@ -1,0 +1,367 @@
+import type { OxlintConfig } from "vite-plus/lint";
+
+export default {
+  plugins: [],
+  categories: {
+    correctness: "off",
+    suspicious: "off",
+    pedantic: "off",
+    perf: "off",
+    style: "off",
+    restriction: "off",
+    nursery: "off",
+  },
+  jsPlugins: [
+    "eslint-plugin-boundaries",
+    {
+      name: "eslint-js",
+      specifier: "oxlint-plugin-eslint",
+    },
+  ],
+  ignorePatterns: ["**/routeTree.gen.ts", "**/dist/**", "**/coverage/**", "**/.*/**"],
+  settings: {
+    "boundaries/elements": [
+      {
+        type: "package",
+        pattern: "packages/*",
+        capture: ["name"],
+      },
+    ],
+    "boundaries/additional-dependency-nodes": [
+      {
+        selector:
+          "CallExpression[callee.object.name=vi][callee.property.name=/^(mock|doMock|importActual|importMock)$/] > Literal.arguments:first-child",
+        kind: "value",
+        name: "test-mock",
+      },
+      {
+        selector: "TSImportType > Literal, TSImportType > TSLiteralType > Literal",
+        kind: "type",
+        name: "import-type",
+      },
+      {
+        selector:
+          "ImportDeclaration:not([importKind=type]):has(ImportNamespaceSpecifier, ImportDefaultSpecifier) > Literal",
+        kind: "value",
+        name: "module-import",
+      },
+    ],
+    "import/resolver": {
+      typescript: {
+        project: ["packages/app/tsconfig.json", "packages/cloud/tsconfig.json"],
+        noWarnOnMultipleProjects: true,
+      },
+    },
+  },
+  overrides: [
+    {
+      files: ["packages/app/src/composition/**/*.{ts,tsx}"],
+      rules: {
+        "eslint-js/no-restricted-syntax": [
+          "error",
+          {
+            selector:
+              "Program > :not(TSInterfaceDeclaration):not(TSTypeAliasDeclaration):not(EmptyStatement):not(ImportDeclaration):not(ExportNamedDeclaration):not(ExportAllDeclaration):not(ExportDefaultDeclaration)",
+            message:
+              "Composition contracts may contain only type declarations and type-only imports/exports.",
+          },
+          {
+            selector:
+              "ImportDeclaration[importKind!='type']:matches([specifiers.length=0], :has(> ImportDefaultSpecifier), :has(> ImportNamespaceSpecifier), :has(> ImportSpecifier[importKind!='type']))",
+            message: "Composition contracts must use type-only imports.",
+          },
+          {
+            selector:
+              "ExportNamedDeclaration[declaration]:not([declaration.type='TSInterfaceDeclaration']):not([declaration.type='TSTypeAliasDeclaration'])",
+            message: "Composition contracts may export only type declarations.",
+          },
+          {
+            selector:
+              "ExportNamedDeclaration[declaration=null][exportKind!='type']:matches([specifiers.length=0], :has(> ExportSpecifier[exportKind!='type'])), ExportAllDeclaration[exportKind!='type']",
+            message: "Composition contracts must use type-only exports.",
+          },
+          {
+            selector: "ExportDefaultDeclaration:not([declaration.type='TSInterfaceDeclaration'])",
+            message: "Composition contracts may export only type declarations.",
+          },
+        ],
+      },
+    },
+    {
+      files: ["packages/app/**/*", "packages/cloud/**/*"],
+      rules: {
+        "boundaries/dependencies": [
+          "error",
+          {
+            default: "disallow",
+            checkAllOrigins: true,
+            checkUnknownLocals: true,
+            checkInternals: true,
+            policies: [
+              {
+                allow: {
+                  to: {
+                    module: {
+                      origin: ["core", "external"],
+                    },
+                  },
+                  dependency: {
+                    source: ["[^./]*", "[^./]*/**"],
+                  },
+                },
+              },
+              {
+                allow: {
+                  dependency: {
+                    source: "@everr/**",
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: "@/**",
+                  },
+                },
+              },
+              {
+                allow: {
+                  to: {
+                    element: {
+                      path: "{{from.element.path}}",
+                    },
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: ["/**", "**/node_modules/**", "@/**/[.][.]/**"],
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: "@composition/**",
+                  },
+                },
+                message: "Use a named composition module, not a directory alias.",
+              },
+              {
+                from: {
+                  file: {
+                    path: "!packages/app/src/app/**",
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: "packages/app/src/app/**",
+                    },
+                  },
+                },
+                message:
+                  "Access self-hosted implementation through @composition/* from shared code.",
+              },
+              {
+                allow: {
+                  dependency: {
+                    source: "@composition/+([a-z])",
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: "@composition/runtime",
+                  },
+                },
+                message:
+                  "Import @composition/runtime only from app server entry points, scripts, or tests.",
+                from: {
+                  file: {
+                    path: "!{packages/app/src/server.ts,packages/app/src/server/**,packages/app/scripts/**,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}",
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: "@composition/identity",
+                  },
+                },
+                message: "Import @composition/identity only from identity/server and tests.",
+                from: {
+                  file: {
+                    path: "!{packages/app/src/identity/server.ts,**/*.test.{ts,tsx},**/*.spec.{ts,tsx},**/__tests__/**,**/testing/**}",
+                  },
+                },
+              },
+              {
+                disallow: {
+                  dependency: {
+                    source: "@everr/**",
+                  },
+                  to: {
+                    file: {
+                      path: null,
+                    },
+                  },
+                },
+                message: "The package import must resolve through its public exports.",
+              },
+              {
+                allow: {
+                  dependency: {
+                    source: "+([.]/|[.][.]/)**/*.md\\?raw",
+                  },
+                },
+              },
+              {
+                disallow: {
+                  to: {
+                    file: {
+                      path: "packages/app/src/lib/clickhouse.ts",
+                    },
+                  },
+                  dependency: [
+                    {
+                      specifiers: [
+                        "querySqlApi",
+                        "querySqlApiWithMeta",
+                        "previewSqlApi",
+                        "runSqlApiQuery",
+                      ],
+                    },
+                    {
+                      kind: "value",
+                      nodeKind: [
+                        "dynamic-import",
+                        "require",
+                        "export",
+                        "module-import",
+                        "test-mock",
+                      ],
+                    },
+                  ],
+                },
+                message:
+                  "Use createOrganizationSql at the readiness boundary and pass its SQL access to callers.",
+                from: {
+                  file: {
+                    path: "!{packages/app/src/lib/organization-sql.ts,packages/cloud/src/clickhouse/provisioning.ts,**/*.test.{ts,tsx},**/test-setup.ts,**/testing/**}",
+                  },
+                },
+              },
+              {
+                from: {
+                  file: {
+                    path: "packages/{app,cloud}/src/app/composition/**/{client,ui,layouts,navigation,pages,dashboards}.{ts,tsx}",
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: "packages/{app,cloud}/src/**/{*.server.{ts,tsx},identity/{server,module,account,memberships}.ts,db/**,server/**,app/composition/{identity,runtime,storage,deployment,product,entry}.ts}",
+                    },
+                  },
+                  dependency: {
+                    kind: "value",
+                  },
+                },
+                message:
+                  "Browser composition must use client-safe features or server-function interfaces, not server implementations.",
+              },
+              {
+                from: {
+                  file: {
+                    path: "packages/{app,cloud}/src/{composition/**/identity-policy.ts,app/**/identity-policy{,.server}.ts}",
+                  },
+                },
+                disallow: {
+                  dependency: {
+                    source: ["better-auth", "better-auth/**", "@polar-sh/**"],
+                  },
+                },
+                message:
+                  "Identity policy uses application facts; authentication-provider integration belongs in the provider adapter.",
+              },
+              {
+                from: {
+                  file: {
+                    path: "!{packages/app/src/identity/**,**/*.test.{ts,tsx},**/testing/**}",
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: "packages/app/src/identity/{membership,enforce-policy,account}.ts",
+                    },
+                  },
+                  dependency: {
+                    kind: "value",
+                  },
+                },
+                message:
+                  "Authentication provider internals belong to the identity module. Use its public server interface.",
+              },
+              {
+                from: {
+                  file: {
+                    path: "packages/cloud/src/data/**/!(*.test).{ts,tsx}",
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: [
+                        "packages/app/src/db/{client.ts,database.ts,schema/**}",
+                        "packages/cloud/src/db/schema/**",
+                      ],
+                    },
+                  },
+                  dependency: {
+                    kind: "value",
+                  },
+                },
+                message:
+                  "Cloud request handlers call owned workflows; database coordination belongs inside the feature.",
+              },
+              {
+                from: {
+                  file: {
+                    path: [
+                      "packages/app/src/identity/**/{module,account,memberships}.ts",
+                      "packages/app/src/app/{identity,request,installation.server}.ts",
+                      "packages/cloud/src/app/identity-policy.ts",
+                      "packages/cloud/src/billing/request-locks.ts",
+                      "packages/app/src/app/**/identity-policy.ts",
+                      "packages/app/src/db/database.ts",
+                    ],
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: [
+                        "packages/{app,cloud}/src/{env/**,db/client.ts,app/env.ts,app/composition/**,identity/server.ts}",
+                        "packages/cloud/src/billing/{server,lock.server,polar.server}.ts",
+                        "packages/app/src/lib/{mailer,email,auth-providers}.server.{ts,tsx}",
+                      ],
+                    },
+                  },
+                  dependency: {
+                    kind: "value",
+                  },
+                },
+                message:
+                  "Construct identity and request locks with explicit dependencies; environment and instances belong to server composition.",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+} satisfies OxlintConfig;

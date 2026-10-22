@@ -1,9 +1,6 @@
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
@@ -45,8 +42,7 @@ export function ErrorFilters({
 
   // Sort sets an order and does not filter. It always has a value, so it never
   // counts as active, and "Clear page filters" does not change it.
-  const pageFilterCount =
-    (value.q.length > 0 ? 1 : 0) + value.attributes.length;
+  const pageFilterCount = (value.q.length > 0 ? 1 : 0) + value.attributes.length;
 
   return (
     <ExploreFilterRail
@@ -82,11 +78,7 @@ export function ErrorFilters({
           }}
           aria-labelledby={orderLabelId}
         >
-          <ToggleGroupItem
-            value="lastSeen"
-            aria-label="Last seen"
-            className="flex-1"
-          >
+          <ToggleGroupItem value="lastSeen" aria-label="Last seen" className="flex-1">
             Last seen
           </ToggleGroupItem>
           <ToggleGroupItem value="count" aria-label="Count" className="flex-1">

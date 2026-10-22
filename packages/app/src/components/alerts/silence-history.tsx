@@ -83,9 +83,7 @@ function SilenceRow({
   const facts = [
     record.scope ? { key: "matchers", text: record.scope, mono: true } : null,
     record.impact ? { key: "impact", text: record.impact, mono: true } : null,
-    record.comment
-      ? { key: "comment", text: record.comment, mono: false }
-      : null,
+    record.comment ? { key: "comment", text: record.comment, mono: false } : null,
     record.author ? { key: "author", text: record.author, mono: false } : null,
   ].filter((fact) => fact !== null);
 
@@ -98,9 +96,7 @@ function SilenceRow({
       <span className={cn("size-1.5 -translate-y-px rounded-full", meta.dot)} />
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <span className={cn("shrink-0 text-xs font-medium", meta.text)}>
-            {meta.label}
-          </span>
+          <span className={cn("shrink-0 text-xs font-medium", meta.text)}>{meta.label}</span>
           <SilenceWindow bounds={bounds} />
           {inForce && (
             <Badge variant="secondary" className="rounded-sm">
@@ -122,11 +118,7 @@ function SilenceRow({
               {facts.map((fact, index) => (
                 <Fragment key={fact.key}>
                   {index > 0 && <Separator />}
-                  {fact.mono ? (
-                    <span className="font-mono">{fact.text}</span>
-                  ) : (
-                    fact.text
-                  )}
+                  {fact.mono ? <span className="font-mono">{fact.text}</span> : fact.text}
                 </Fragment>
               ))}
             </span>
@@ -182,14 +174,12 @@ export function SilenceHistory({
   const ordered = sortSilences(silences, activeSilenceId);
   const closedCount = ordered.filter((record) => !isOpen(record.state)).length;
   const hidden = showAllClosed ? 0 : Math.max(0, closedCount - CLOSED_PREVIEW);
-  const visible =
-    hidden === 0 ? ordered : ordered.slice(0, ordered.length - hidden);
+  const visible = hidden === 0 ? ordered : ordered.slice(0, ordered.length - hidden);
 
   // Only worth marking when there is something to mistake it for. One active
   // silence is necessarily the one in force, and a badge saying so on the
   // only row it could describe is a word the reader has to rule out.
-  const contested =
-    ordered.filter((record) => record.state === "active").length > 1;
+  const contested = ordered.filter((record) => record.state === "active").length > 1;
 
   return (
     <Section

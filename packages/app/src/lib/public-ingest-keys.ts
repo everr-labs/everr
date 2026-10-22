@@ -51,9 +51,7 @@ export function normalizeOrigin(raw: string): string | null {
  * better-auth stores metadata in a JSON text column and, depending on the
  * code path, hands back a parsed object or the raw string; accept both.
  */
-export function publicKeyMetadataOf(
-  metadata: unknown,
-): PublicKeyMetadata | null {
+export function publicKeyMetadataOf(metadata: unknown): PublicKeyMetadata | null {
   let value = metadata;
   if (typeof value === "string") {
     try {
@@ -63,12 +61,11 @@ export function publicKeyMetadataOf(
     }
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing stored metadata reader without adding schema validation.
   const record = value as Record<string, unknown>;
   if (record.public !== true) return null;
   const allowedOrigins = Array.isArray(record.allowedOrigins)
-    ? record.allowedOrigins.filter(
-        (origin): origin is string => typeof origin === "string",
-      )
+    ? record.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
     : [];
   return { public: true, allowedOrigins };
 }
@@ -79,9 +76,7 @@ export function publicKeyMetadataOf(
  * stays canonical even when the caller skipped pre-validation. The write-side
  * counterpart of `publicKeyMetadataOf`.
  */
-export function buildPublicKeyMetadata(
-  origins: readonly string[],
-): PublicKeyMetadata {
+export function buildPublicKeyMetadata(origins: readonly string[]): PublicKeyMetadata {
   return {
     public: true,
     allowedOrigins: origins
@@ -99,10 +94,7 @@ export function buildPublicKeyMetadata(
  * - secret key, origin:    deny (secret keys never work from browsers)
  * - public key, origin:    allow iff the normalized origin is allowlisted
  */
-export function originPolicyAllows(
-  metadata: unknown,
-  origin: string | null,
-): boolean {
+export function originPolicyAllows(metadata: unknown, origin: string | null): boolean {
   const publicMeta = publicKeyMetadataOf(metadata);
   if (origin === null) return publicMeta === null;
   if (!publicMeta) return false;

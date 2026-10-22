@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { Database } from "#app/db/client.ts";
 
 const state = vi.hoisted(() => ({ database: undefined as unknown }));
@@ -41,10 +41,10 @@ const identity = {
 };
 async function memberships(...ids: string[]) {
   for (const id of ids)
-    await client.query(
-      "INSERT INTO member(id, organization_id, user_id) VALUES ($1, $2, 'user')",
-      [id, id],
-    );
+    await client.query("INSERT INTO member(id, organization_id, user_id) VALUES ($1, $2, 'user')", [
+      id,
+      id,
+    ]);
 }
 async function selected() {
   return (
@@ -71,10 +71,7 @@ it("preserves a valid choice even when the user belongs to multiple workspaces",
   await memberships("one", "two");
   await client.exec("UPDATE session SET active_organization_id = 'two'");
   expect(
-    await resolveSessionOrganization(
-      { ...identity, activeOrganizationId: "two" },
-      database,
-    ),
+    await resolveSessionOrganization({ ...identity, activeOrganizationId: "two" }, database),
   ).toEqual({ activeOrganizationId: "two" });
   expect(await selected()).toBe("two");
 });
@@ -83,33 +80,23 @@ it("recovers the remaining membership after the selected membership is revoked",
   await memberships("two");
   await client.exec("UPDATE session SET active_organization_id = 'one'");
   expect(
-    await resolveSessionOrganization(
-      { ...identity, activeOrganizationId: "one" },
-      database,
-    ),
+    await resolveSessionOrganization({ ...identity, activeOrganizationId: "one" }, database),
   ).toEqual({ activeOrganizationId: "two" });
   expect(await selected()).toBe("two");
 });
 
-it.each([
-  { ids: [] },
-  { ids: ["two", "three"] },
-])("clears a revoked selection without guessing or creating access (%j)", async ({
-  ids,
-}) => {
-  await memberships(...ids);
-  await client.exec("UPDATE session SET active_organization_id = 'one'");
-  expect(
-    await resolveSessionOrganization(
-      { ...identity, activeOrganizationId: "one" },
-      database,
-    ),
-  ).toEqual({ activeOrganizationId: null });
-  expect(await selected()).toBeNull();
-  expect((await client.query("SELECT * FROM member")).rows).toHaveLength(
-    ids.length,
-  );
-});
+it.each([{ ids: [] }, { ids: ["two", "three"] }])(
+  "clears a revoked selection without guessing or creating access (%j)",
+  async ({ ids }) => {
+    await memberships(...ids);
+    await client.exec("UPDATE session SET active_organization_id = 'one'");
+    expect(
+      await resolveSessionOrganization({ ...identity, activeOrganizationId: "one" }, database),
+    ).toEqual({ activeOrganizationId: null });
+    expect(await selected()).toBeNull();
+    expect((await client.query("SELECT * FROM member")).rows).toHaveLength(ids.length);
+  },
+);
 
 it("leaves multiple memberships unselected", async () => {
   await memberships("one", "two");
@@ -137,9 +124,7 @@ it("ignores memberships belonging to other users", async () => {
 
 it("does not revive an expired session while repairing its selection", async () => {
   await memberships("one");
-  await client.exec(
-    "UPDATE session SET expires_at = now() - interval '1 second'",
-  );
+  await client.exec("UPDATE session SET expires_at = now() - interval '1 second'");
   expect(await resolveSessionOrganization(identity, database)).toBeNull();
   expect(await selected()).toBeNull();
 });

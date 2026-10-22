@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { lifecycleLine } from "./history";
 
 describe("lifecycleLine", () => {
@@ -12,9 +12,7 @@ describe("lifecycleLine", () => {
         silenced: true,
         error: "",
       }),
-    ).toBe(
-      "instance_resolved · checkout a · reason condition_cleared · held by silence",
-    );
+    ).toBe("instance_resolved · checkout a · reason condition_cleared · held by silence");
     expect(
       lifecycleLine({
         event_type: "evaluation_failed",

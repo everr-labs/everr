@@ -17,9 +17,7 @@ export function preserveOrganizationProvisioningStatus(
   update: Record<string, unknown>,
 ): Record<string, unknown> {
   if (update.metadata === undefined) return update;
-  const { clickhouseReady: _ignored, ...metadata } = parseOrganizationMetadata(
-    update.metadata,
-  );
+  const { clickhouseReady: _ignored, ...metadata } = parseOrganizationMetadata(update.metadata);
   return {
     ...update,
     metadata: sql<string>`(${JSON.stringify(metadata)}::jsonb

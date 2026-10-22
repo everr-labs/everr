@@ -74,10 +74,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
     const key = instanceKey(event);
     latestByInstance.set(key, event);
     if (event.eventType !== "instance_resolved") {
-      fireMemberSeen.set(
-        key,
-        (fireMemberSeen.get(key) ?? false) || flushedAt !== null,
-      );
+      fireMemberSeen.set(key, (fireMemberSeen.get(key) ?? false) || flushedAt !== null);
     }
   }
   const latest = [...latestByInstance.entries()];
@@ -90,9 +87,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   const droppedUnannounced: E[] = [];
   for (const event of announced) {
     const key = instanceKey(event);
-    const flap =
-      event.eventType === "instance_resolved" &&
-      fireMemberSeen.get(key) === false;
+    const flap = event.eventType === "instance_resolved" && fireMemberSeen.get(key) === false;
     (flap ? droppedUnannounced : notify).push(event);
   }
   return { active, notify, droppedUnannounced };
@@ -149,11 +144,7 @@ export function memberVerdict(opts: {
     return {
       deliverable: false,
       terminal:
-        opts.flushedAt !== null
-          ? null
-          : opts.ruleActive === null
-            ? "rule_deleted"
-            : "rule_paused",
+        opts.flushedAt !== null ? null : opts.ruleActive === null ? "rule_deleted" : "rule_paused",
     };
   }
   if (opts.eventType === "instance_resolved" || opts.resolveInBatch) {
@@ -193,9 +184,7 @@ export function nextGroupFlushState(opts: {
     return { nextFlushAt: IDLE_GROUP_FLUSH_AT, enqueue: false };
   }
   const candidate =
-    opts.pendingFlushAt < IDLE_GROUP_FLUSH_AT
-      ? opts.pendingFlushAt.getTime()
-      : opts.now.getTime();
+    opts.pendingFlushAt < IDLE_GROUP_FLUSH_AT ? opts.pendingFlushAt.getTime() : opts.now.getTime();
   return {
     nextFlushAt: new Date(
       candidate > opts.now.getTime()
@@ -206,13 +195,8 @@ export function nextGroupFlushState(opts: {
   };
 }
 
-export function nextGroupFlushAt(
-  existing: GroupSchedule | null,
-  now: Date,
-): Date {
-  const firstArrival = new Date(
-    now.getTime() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000,
-  );
+export function nextGroupFlushAt(existing: GroupSchedule | null, now: Date): Date {
+  const firstArrival = new Date(now.getTime() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
   if (!existing) return firstArrival;
   if (!existing.lastFlushedAt) {
     // A booked first flush stands: later arrivals join it rather than
@@ -220,17 +204,14 @@ export function nextGroupFlushAt(
     // all, and to an arriving event that is the same as a group nobody has
     // seen. Reading the sentinel as a booking writes the year 9999 back on
     // every later dispatch, and the group never notifies again.
-    return existing.nextFlushAt < IDLE_GROUP_FLUSH_AT
-      ? existing.nextFlushAt
-      : firstArrival;
+    return existing.nextFlushAt < IDLE_GROUP_FLUSH_AT ? existing.nextFlushAt : firstArrival;
   }
   return new Date(
     Math.min(
       existing.nextFlushAt.getTime(),
       Math.max(
         now.getTime(),
-        existing.lastFlushedAt.getTime() +
-          ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1_000,
+        existing.lastFlushedAt.getTime() + ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1_000,
       ),
     ),
   );

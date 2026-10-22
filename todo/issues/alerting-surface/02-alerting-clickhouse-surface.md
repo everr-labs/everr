@@ -60,12 +60,12 @@ A stream is either journaled or ephemeral. There is no third category. A
 new event type answers one question before it exists: may this row be
 lost?
 
-| Stream | Pattern | Why |
-|---|---|---|
-| Evaluation successes | Ephemeral | Nothing reads an absent success row as a claim |
-| Preview terminal rows | Ephemeral | The preview delete cascade removes the journal that would repair them |
-| Transitions, pending, holds, deliveries | Journaled | A missing row reads as a negative answer acted on during an incident |
-| Evaluation failures | **Intended journaled, today ephemeral** | Broken-rule claims read from them, so a dropped insert must not read as healthy. Ticket 21 |
+| Stream                                  | Pattern                                 | Why                                                                                        |
+| --------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Evaluation successes                    | Ephemeral                               | Nothing reads an absent success row as a claim                                             |
+| Preview terminal rows                   | Ephemeral                               | The preview delete cascade removes the journal that would repair them                      |
+| Transitions, pending, holds, deliveries | Journaled                               | A missing row reads as a negative answer acted on during an incident                       |
+| Evaluation failures                     | **Intended journaled, today ephemeral** | Broken-rule claims read from them, so a dropped insert must not read as healthy. Ticket 21 |
 
 The classification table is the structural fix: without it each new
 stream escapes the durability umbrella until someone notices, and the
@@ -331,29 +331,29 @@ it to about three.
 The work lives on `gio/better-alerting` as PR #343: one branch carrying
 the whole alerting stack, with plain commits rather than a cascade.
 
-| Concern | File |
-|---|---|
-| Table DDL | `clickhouse/init/12-create-alert-events.sql` |
-| Caller-facing reference | `skills/everr-use-telemetry/rules/alert-history.md` |
-| Row builders and the insert | `server/alerting/history/clickhouse.ts` |
-| Deterministic history ids | `data/alerting/history/ids.ts` |
-| Sanitizing and length caps | `server/alerting/history/content.ts` |
-| PostgreSQL schema | `db/schema/alerts.ts` |
-| Task list, one span per job | `server/alerting/runtime.ts` |
-| Spans and metrics | `server/alerting/telemetry.ts` |
-| Scheduler scan | `server/alerting/scheduling/scanner.ts` |
-| Evaluation and transitions | `server/alerting/evaluation/rule.ts` |
-| Silence checks and holds | `server/alerting/delivery/suppression.ts` |
-| Which channels an event goes to | `server/alerting/delivery/targeting.ts` |
-| The pipeline's only journal reads | `server/alerting/delivery/journal-reader.ts` |
-| Group membership and dispatch | `server/alerting/delivery/process-event.ts` |
-| Flush, claim and commit | `server/alerting/delivery/flush-group.ts` |
-| Send and the delivery trail | `server/alerting/delivery/send-delivery.ts`, `delivery/history.ts` |
-| Channel providers, SSRF guard | `data/alerting/delivery/providers/` |
-| Pause and delete projection | `server/alerting/history/project-lifecycle.ts` |
-| Retention for both stores | `server/alerting/maintenance/cleanup.ts` |
-| History read, ClickHouse only | `data/alerting/history/repository.server.ts` |
-| The integration harness | `server/alerting/testing/` |
+| Concern                           | File                                                               |
+| --------------------------------- | ------------------------------------------------------------------ |
+| Table DDL                         | `clickhouse/init/12-create-alert-events.sql`                       |
+| Caller-facing reference           | `skills/everr-use-telemetry/rules/alert-history.md`                |
+| Row builders and the insert       | `server/alerting/history/clickhouse.ts`                            |
+| Deterministic history ids         | `data/alerting/history/ids.ts`                                     |
+| Sanitizing and length caps        | `server/alerting/history/content.ts`                               |
+| PostgreSQL schema                 | `db/schema/alerts.ts`                                              |
+| Task list, one span per job       | `server/alerting/runtime.ts`                                       |
+| Spans and metrics                 | `server/alerting/telemetry.ts`                                     |
+| Scheduler scan                    | `server/alerting/scheduling/scanner.ts`                            |
+| Evaluation and transitions        | `server/alerting/evaluation/rule.ts`                               |
+| Silence checks and holds          | `server/alerting/delivery/suppression.ts`                          |
+| Which channels an event goes to   | `server/alerting/delivery/targeting.ts`                            |
+| The pipeline's only journal reads | `server/alerting/delivery/journal-reader.ts`                       |
+| Group membership and dispatch     | `server/alerting/delivery/process-event.ts`                        |
+| Flush, claim and commit           | `server/alerting/delivery/flush-group.ts`                          |
+| Send and the delivery trail       | `server/alerting/delivery/send-delivery.ts`, `delivery/history.ts` |
+| Channel providers, SSRF guard     | `data/alerting/delivery/providers/`                                |
+| Pause and delete projection       | `server/alerting/history/project-lifecycle.ts`                     |
+| Retention for both stores         | `server/alerting/maintenance/cleanup.ts`                           |
+| History read, ClickHouse only     | `data/alerting/history/repository.server.ts`                       |
+| The integration harness           | `server/alerting/testing/`                                         |
 
 Paths are relative to `packages/app/src` except the first two.
 

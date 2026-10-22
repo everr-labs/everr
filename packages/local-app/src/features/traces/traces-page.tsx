@@ -10,12 +10,7 @@ import {
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
@@ -25,18 +20,16 @@ import { localSqlClient } from "../logs/local-sql-client";
 
 // service/environment live in the shared Explore topbar but must also be in the
 // route schemas so the leaf route's validateSearch doesn't strip them.
-export const TracesListSearchSchema =
-  TraceSearchParamsSchema.extend(ExploreSearchShape);
-export const TraceDetailSearchSchema =
-  TraceDetailParamsSchema.extend(ExploreSearchShape);
+export const TracesListSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
+export const TraceDetailSearchSchema = TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function TracesPage() {
-  const search = useSearch({ strict: false }) as TraceSearchParams & {
+  const search: TraceSearchParams & {
     service?: string[];
     environment?: string[];
-  };
+  } = useSearch({ strict: false });
   const navigate = useNavigate();
   const controls = useExploreControls("/traces");
   const { timeRange } = withTimeRange(search);
@@ -45,12 +38,7 @@ export function TracesPage() {
   const environment = search.environment ?? [];
 
   return (
-    <ExploreShell
-      title="Traces"
-      timeRange={timeRange}
-      refresh={refresh}
-      {...controls}
-    >
+    <ExploreShell title="Traces" timeRange={timeRange} refresh={refresh} {...controls}>
       <LocalTelemetryGate>
         <TracesSearch
           repo={localTracesRepo}
@@ -74,6 +62,7 @@ export function TracesPage() {
               environment={environment}
             />
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={(patch) =>
             navigate({
               to: "/traces",
@@ -82,12 +71,7 @@ export function TracesPage() {
             })
           }
           renderTraceLink={({ traceId, className, children }) => (
-            <Link
-              to="/traces/$traceId"
-              params={{ traceId }}
-              search
-              className={className}
-            >
+            <Link to="/traces/$traceId" params={{ traceId }} search className={className}>
               {children}
             </Link>
           )}
@@ -98,8 +82,8 @@ export function TracesPage() {
 }
 
 export function TraceDetailPage() {
-  const { traceId } = useParams({ strict: false }) as { traceId: string };
-  const search = useSearch({ strict: false }) as TraceDetailParams;
+  const { traceId }: { traceId: string } = useParams({ strict: false });
+  const search: TraceDetailParams = useSearch({ strict: false });
   const navigate = useNavigate();
   return (
     <>
@@ -109,9 +93,9 @@ export function TraceDetailPage() {
           repo={localTracesRepo}
           traceId={traceId}
           search={search}
-          onBack={() =>
-            navigate({ to: "/traces", search: toTraceListSearch(search) })
-          }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+          onBack={() => navigate({ to: "/traces", search: toTraceListSearch(search) })}
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSpanChange={(spanId) =>
             navigate({
               to: "/traces/$traceId",

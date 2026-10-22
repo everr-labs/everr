@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import "@everr/ui/testing/jsdom-shims";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach } from "vite-plus/test";
 
 // jsdom lacks the layout APIs cmdk and Base UI poke at. The guards are no-ops
 // anywhere those APIs already exist.

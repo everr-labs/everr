@@ -1,7 +1,4 @@
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
 import { Clock, DollarSign, Receipt, Server } from "lucide-react";
@@ -27,22 +24,20 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis",
 )({
   staticData: { breadcrumb: "Cost Analysis" },
-  head: () => ({
-    meta: [{ title: "Everr - Cost Analysis" }],
-  }),
-  component: CostAnalysisPage,
   validateSearch: TimeRangeSearchSchema,
+  component: CostAnalysisPage,
   loaderDeps: ({ search }) => withTimeRange(search),
   loader: async ({ context: { queryClient }, deps: { timeRange } }) => {
     const input = { timeRange };
     await Promise.all([
       queryClient.prefetchQuery(costOverviewOptions(input)),
-      queryClient.prefetchQuery(
-        costOverTimeBreakdownOptions({ ...input, dimension: "repo" }),
-      ),
+      queryClient.prefetchQuery(costOverTimeBreakdownOptions({ ...input, dimension: "repo" })),
       queryClient.prefetchQuery(costByWorkflowOptions(input)),
     ]);
   },
+  head: () => ({
+    meta: [{ title: "Everr - Cost Analysis" }],
+  }),
 });
 
 function MetricToggle({
@@ -104,10 +99,7 @@ function CostAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Cost Analysis"
-        lede="Estimated CI runner spend based on runner usage"
-      />
+      <PageHeader title="Cost Analysis" lede="Estimated CI runner spend based on runner usage" />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TimeRangePanel
@@ -126,9 +118,7 @@ function CostAnalysisPage() {
           variant="stat"
           icon={Clock}
         >
-          {(overview) =>
-            Math.round(overview.summary.totalMinutes).toLocaleString()
-          }
+          {(overview) => Math.round(overview.summary.totalMinutes).toLocaleString()}
         </TimeRangePanel>
 
         <TimeRangePanel
@@ -148,9 +138,7 @@ function CostAnalysisPage() {
           variant="stat"
           icon={Server}
         >
-          {(overview) =>
-            Math.round(overview.summary.selfHostedMinutes).toLocaleString()
-          }
+          {(overview) => Math.round(overview.summary.selfHostedMinutes).toLocaleString()}
         </TimeRangePanel>
       </div>
 

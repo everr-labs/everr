@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   insertDirectRule,
   insertPreview,
@@ -7,12 +7,10 @@ import {
   insertSilence,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -25,7 +23,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const BREACHING = [{ service: "checkout", value: 42 }];
 
@@ -59,9 +57,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // value column numeric. A stub that answered "String" for every column
     // would let a rule that labels on a number look valid. These are the
     // engine's own answers.
-    const { querySqlApiWithMeta } = await import(
-      "#app/testing/test-clickhouse.ts"
-    );
+    const { querySqlApiWithMeta } = await import("#app/testing/test-clickhouse.ts");
     const result = await querySqlApiWithMeta<Record<string, unknown>>(
       "SELECT * FROM app.test_signal",
       TEST_ORG,
@@ -78,9 +74,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // Production asks for FORMAT JSON precisely so metadata survives an empty
     // result (lib/clickhouse.ts). A rule that currently matches nothing still
     // has to describe its own shape, or every read of a quiet rule loses it.
-    const { querySqlApiWithMeta } = await import(
-      "#app/testing/test-clickhouse.ts"
-    );
+    const { querySqlApiWithMeta } = await import("#app/testing/test-clickhouse.ts");
     const result = await querySqlApiWithMeta<Record<string, unknown>>(
       "SELECT * FROM app.test_signal",
       TEST_ORG,
@@ -200,10 +194,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       WHERE event_type IN ('instance_fired', 'instance_resolved')
       ORDER BY event_time, event_id
     `);
-    expect(rows.map((row) => row.event_type)).toEqual([
-      "instance_fired",
-      "instance_resolved",
-    ]);
+    expect(rows.map((row) => row.event_type)).toEqual(["instance_fired", "instance_resolved"]);
     // One continuous breach is one episode: the resolve has to name the fire
     // it ends, or a reader cannot pair them without guessing from timestamps.
     expect(rows[0].episode_id).toBe(rows[1].episode_id);
@@ -266,10 +257,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       WHERE event_type IN ('instance_fired', 'delivery_succeeded')
       ORDER BY event_time, event_id
     `);
-    expect(rows.map((row) => row.event_type)).toEqual([
-      "instance_fired",
-      "delivery_succeeded",
-    ]);
+    expect(rows.map((row) => row.event_type)).toEqual(["instance_fired", "delivery_succeeded"]);
     // The delivery names the transition that caused it, so a per-instance
     // history can show what was sent about which fire.
     expect(rows[1].notification_event_id).not.toBe(ZERO_UUID);
@@ -301,7 +289,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     expect(
       rows
         .map((row) => (row.instance_labels as Record<string, string>).service)
-        .sort(),
+        .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
     ).toEqual(["checkout", "payments"]);
   });
   it("writes the firing rule's own identity and evidence onto the transition", async () => {
@@ -336,10 +324,11 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     const rows = harness().clickhouse.queryRows(`
       SELECT slug FROM app.alert_events WHERE event_type = 'instance_fired'
     `);
-    expect(rows.map((row) => row.slug).sort()).toEqual([
-      "default/cart-errors",
-      "default/checkout-latency",
-    ]);
+    expect(
+      rows
+        .map((row) => row.slug)
+        .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
+    ).toEqual(["default/cart-errors", "default/checkout-latency"]);
   });
 
   it("writes every label column the rule declares into instance_labels", async () => {
@@ -412,9 +401,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       FROM app.alert_events
       WHERE event_type = 'instance_resolved'
     `);
-    expect(suppressed.notification_event_id).toBe(
-      resolved.notification_event_id,
-    );
+    expect(suppressed.notification_event_id).toBe(resolved.notification_event_id);
 
     // Suppressed means nothing went out, not "went out and was marked".
     expect(

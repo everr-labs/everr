@@ -111,6 +111,7 @@ with its plan update.
 
   Keep shared authorization checks around actions restricted to administrators
   or signed-in users.
+
 - Compose a page when an application needs different data loading or rendering.
   `ApplicationPages.members` can provide both. Its `load` function may prefetch
   data, and its component owns rendering:
@@ -125,6 +126,7 @@ with its plan update.
   ```
 
   Shared routes continue to own authentication and authorization guards.
+
 - Register new application routes explicitly in `AppComposition.routes`. A route
   declaration names its mount point, URL path, and source file:
 
@@ -149,13 +151,14 @@ with its plan update.
   Shared routes retain file-based discovery. After changing routes, regenerate
   the application's checked-in TanStack route tree by running its development
   server or build. Do not add a component or feature registry for contributions.
+
 - Keep application policy in its adapter. Shared identity code owns membership
   endpoint quirks and normalizes lifecycle behavior before invoking application
   hooks, so an adapter cannot replace the shared membership and deletion guards.
 
 Each application's `tsconfig.json` selects a complete set of named
 `@composition/*` modules. Vite and Vitest use the same selection. The root
-`pnpm check:boundaries` command checks package imports and composition contracts.
+`pnpm run check` command checks package imports and composition contracts.
 It also keeps identity policy free of authentication-provider dependencies,
 provider internals private, browser composition free of server implementations,
 and cloud request handlers free of direct database coordination. Browser pages
@@ -224,5 +227,5 @@ script and its users are not included in production images.
 
 Useful package commands include `pnpm --filter @everr/app build`,
 `pnpm --filter @everr/app typecheck`, and
-`pnpm --filter @everr/app test:ci`. Run `pnpm check:boundaries` from the
+`pnpm --filter @everr/app test:ci`. Run `pnpm run check` from the
 repository root to check package imports.

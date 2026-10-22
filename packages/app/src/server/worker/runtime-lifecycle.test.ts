@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   generalStart: vi.fn(),
@@ -49,14 +49,9 @@ it("shares one shutdown between the caller and process hook", async () => {
   expect(mocks.appStop).toHaveBeenCalledOnce();
 });
 
-it.each([
-  "app",
-  "general",
-])("cleans up a partial startup when %s startup fails", async (group) => {
+it.each(["app", "general"])("cleans up a partial startup when %s startup fails", async (group) => {
   const error = new Error(`${group} startup failed`);
-  (group === "app" ? mocks.appStart : mocks.generalStart).mockRejectedValueOnce(
-    error,
-  );
+  (group === "app" ? mocks.appStart : mocks.generalStart).mockRejectedValueOnce(error);
   await expect(startWorkerRuntime()).rejects.toBe(error);
   expect(mocks.generalStop).toHaveBeenCalledOnce();
   expect(mocks.appStop).toHaveBeenCalledTimes(group === "app" ? 0 : 1);
@@ -97,9 +92,7 @@ it("drains both groups even when one shutdown fails", async () => {
   expect(rejected).not.toHaveBeenCalled();
   finishStop();
   await stopping;
-  expect(rejected).toHaveBeenCalledWith(
-    expect.objectContaining({ errors: [error] }),
-  );
+  expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ errors: [error] }));
   expect(mocks.generalStop).toHaveBeenCalledOnce();
   expect(mocks.appStop).toHaveBeenCalledOnce();
 });

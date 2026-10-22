@@ -6,10 +6,7 @@ import * as z from "zod";
 import { loadRule } from "#app/data/alerting/rules/read.ts";
 import { alertingMutationScope } from "#app/data/alerting/session.ts";
 import { parseMatchers } from "#app/data/alerting/silences/matchers.ts";
-import {
-  createSilence,
-  expireSilence,
-} from "#app/data/alerting/silences/repository.ts";
+import { createSilence, expireSilence } from "#app/data/alerting/silences/repository.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 export const createAlertSilence = createAuthenticatedServerFn({
@@ -35,14 +32,9 @@ export const createAlertSilence = createAuthenticatedServerFn({
     const silence = await createSilence(scope, {
       // The rule matcher is always present. Without it, instance matchers
       // would mute the same labels across every Alert rule in the org.
-      matchers: [
-        { label: "rule", op: "eq", value: rule.id },
-        ...parseMatchers(data.matchers),
-      ],
+      matchers: [{ label: "rule", op: "eq", value: rule.id }, ...parseMatchers(data.matchers)],
       starts_at: now.toISOString(),
-      ends_at: new Date(
-        now.getTime() + data.durationMinutes * 60_000,
-      ).toISOString(),
+      ends_at: new Date(now.getTime() + data.durationMinutes * 60_000).toISOString(),
       comment: data.comment,
     });
     return { id: silence.id };
@@ -53,6 +45,4 @@ export const cancelAlertSilence = createAuthenticatedServerFn({
   method: "POST",
 })
   .inputValidator(z.object({ id: z.string() }))
-  .handler(({ data, context }) =>
-    expireSilence(alertingMutationScope(context.session), data.id),
-  );
+  .handler(({ data, context }) => expireSilence(alertingMutationScope(context.session), data.id));

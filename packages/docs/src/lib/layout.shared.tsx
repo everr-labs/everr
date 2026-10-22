@@ -7,8 +7,7 @@ import { ArrowRight } from "lucide-react";
 import type { ComponentProps, CSSProperties } from "react";
 import { GithubInfo } from "@/components/github-info";
 
-type DocsLayoutOptions = BaseLayoutProps &
-  Pick<DocsLayoutProps, "containerProps" | "sidebar">;
+type DocsLayoutOptions = BaseLayoutProps & Pick<DocsLayoutProps, "containerProps" | "sidebar">;
 
 const docsTopNavHeight = "3.5rem";
 
@@ -65,7 +64,7 @@ export function baseOptions(): BaseLayoutProps {
               className="rounded-full max-lg:col-span-2 max-lg:min-h-11 max-lg:w-full max-lg:rounded-lg"
               nativeButton={false}
               render={
-                // biome-ignore lint/a11y/useAnchorContent: content is injected
+                // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected
                 <a href="https://app.everr.dev" />
               }
             >
@@ -81,6 +80,10 @@ export function baseOptions(): BaseLayoutProps {
 export function docsOptions(): DocsLayoutOptions {
   const options = baseOptions();
 
+  const containerStyle: CSSProperties & Record<`--${string}`, string | number | undefined> = {
+    "--fd-banner-height": docsTopNavHeight,
+  };
+
   return {
     ...options,
     links: options.links?.map((link) => ({ ...link, on: "nav" })),
@@ -92,9 +95,7 @@ export function docsOptions(): DocsLayoutOptions {
       collapsible: false,
     },
     containerProps: {
-      style: {
-        "--fd-banner-height": docsTopNavHeight,
-      } as CSSProperties,
+      style: containerStyle,
     },
     slots: {
       ...options.slots,

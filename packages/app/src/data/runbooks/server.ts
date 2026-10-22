@@ -2,16 +2,9 @@ import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
 import { identityKey } from "#app/data/as-code/reconcile.ts";
-import {
-  overlayPreview,
-  type PreviewStatus,
-} from "#app/data/previews/overlay.ts";
+import { overlayPreview, type PreviewStatus } from "#app/data/previews/overlay.ts";
 import { getCoveredRepoids } from "#app/data/previews/repoids.ts";
-import {
-  effectiveRepoid,
-  liveOrPreview,
-  previewJoin,
-} from "#app/data/previews/scope.ts";
+import { effectiveRepoid, liveOrPreview, previewJoin } from "#app/data/previews/scope.ts";
 import { db } from "#app/db/client.ts";
 import { previews, runbooks } from "#app/db/schema/index.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
@@ -133,9 +126,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
       const rows = await db
         .select(liveSelect)
         .from(runbooks)
-        .where(
-          and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)),
-        );
+        .where(and(eq(runbooks.organizationId, orgId), isNull(runbooks.previewId)));
       return rows.map(toItem);
     }
 
@@ -145,12 +136,7 @@ export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
         .select(previewSelect)
         .from(runbooks)
         .leftJoin(previews, previewJoin(runbooks))
-        .where(
-          and(
-            eq(runbooks.organizationId, orgId),
-            liveOrPreview(runbooks, preview),
-          ),
-        ),
+        .where(and(eq(runbooks.organizationId, orgId), liveOrPreview(runbooks, preview))),
     ]);
     return overlayPreview({
       rows,

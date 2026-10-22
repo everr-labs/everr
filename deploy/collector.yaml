@@ -115,13 +115,21 @@ service:
     # Retention comes from authenticated keys; self-host has no tenant stamp.
     traces/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_traces]
+      processors:
+        [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_traces]
       exporters: [clickhouse]
     metrics/public:
       receivers: [otlp/public]
-      processors: [filter/reserved_everr, attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_metrics]
+      processors:
+        [
+          filter/reserved_everr,
+          attributes/strip_user_tenant,
+          resource/strip_user_tenant,
+          resource/public_retention_metrics,
+        ]
       exporters: [clickhouse]
     logs/public:
       receivers: [otlp/public]
-      processors: [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_logs]
+      processors:
+        [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_logs]
       exporters: [clickhouse]

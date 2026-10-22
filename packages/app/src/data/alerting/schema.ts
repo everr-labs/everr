@@ -1,10 +1,7 @@
 import { z } from "zod";
 import { ALERTING_DEFAULT_TIERS } from "#app/data/alerting/delivery/defaults.ts";
 import { PreviewStatusSchema } from "#app/data/previews/overlay.ts";
-import {
-  alertingChannelNamesSchema,
-  alertingResourceNameSchema,
-} from "./resource/schema";
+import { alertingChannelNamesSchema, alertingResourceNameSchema } from "./resource/schema";
 import {
   ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,
@@ -19,14 +16,7 @@ export const AlertingSeveritySchema = z.enum(ALERTING_SEVERITIES);
 const AlertingMatchOpSchema = z.enum(["eq", "ne"], {
   error: () => `matcher op must be "eq" or "ne"`,
 });
-const AlertingRuleConditionOperatorSchema = z.enum([
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-  "eq",
-  "neq",
-]);
+const AlertingRuleConditionOperatorSchema = z.enum(["gt", "gte", "lt", "lte", "eq", "neq"]);
 export const AlertingRuleConditionSchema = z
   .object({
     operator: AlertingRuleConditionOperatorSchema,
@@ -194,15 +184,10 @@ export const AlertingChannelTestInputSchema = z.object({
 // record schema cannot.
 export const AlertingDefaultDestinationInputSchema = z.object({
   tiers: z
-    .partialRecord(
-      z.enum(ALERTING_DEFAULT_TIERS),
-      z.array(z.string().min(1)).max(16),
-    )
+    .partialRecord(z.enum(ALERTING_DEFAULT_TIERS), z.array(z.string().min(1)).max(16))
     .refine(
       (tiers) =>
-        Object.values(tiers).every(
-          (channels) => new Set(channels).size === channels.length,
-        ),
+        Object.values(tiers).every((channels) => new Set(channels).size === channels.length),
       { message: "channels must be unique within a tier" },
     ),
 });

@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Only so that importing the options for their keys does not build a real
 // database pool: `server.ts` reaches the database, and nothing here calls it.
@@ -42,8 +42,7 @@ function seededClient() {
 }
 
 const isStale = (client: QueryClient, key: readonly unknown[]) =>
-  client.getQueryCache().find({ queryKey: key })?.isStaleByTime(Infinity) ??
-  false;
+  client.getQueryCache().find({ queryKey: key })?.isStaleByTime(Infinity) ?? false;
 
 describe("the Triage screen's queries", () => {
   it("invalidates the board, the state history and the detail together", async () => {
@@ -53,11 +52,7 @@ describe("the Triage screen's queries", () => {
       ruleStateHistoryOptions(RANGE).queryKey,
       alertDetailOptions(PATH, RANGE).queryKey,
     ];
-    expect(keys.map((key) => isStale(client, key))).toEqual([
-      false,
-      false,
-      false,
-    ]);
+    expect(keys.map((key) => isStale(client, key))).toEqual([false, false, false]);
 
     await invalidateAlertTriage(client);
 

@@ -32,9 +32,7 @@ export function StateTimelineVisualization({
           start: s.start,
           end: s.end,
           state: s.state,
-          title: `${new Date(s.start).toLocaleString()} – ${new Date(
-            s.end,
-          ).toLocaleString()}`,
+          title: `${new Date(s.start).toLocaleString()} – ${new Date(s.end).toLocaleString()}`,
         })),
       })),
     [model],
@@ -51,11 +49,7 @@ export function StateTimelineVisualization({
       showLegend={spec.showLegend}
       onTimeRangeChange={onTimeRangeChange}
       emptyIcon={<ChartGantt className="size-8" />}
-      emptyMessage={
-        data
-          ? "No state data in this time range"
-          : "Configure a query to see results"
-      }
+      emptyMessage={data ? "No state data in this time range" : "Configure a query to see results"}
     />
   );
 }

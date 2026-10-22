@@ -5,19 +5,17 @@
  * write resolves names to channel rows, keeps the two modes exclusive, and
  * the read gives the names back by tier.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   insertChannel,
   insertDefaultChannels,
   TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -32,7 +30,7 @@ import {
   testChannel,
 } from "#app/data/alerting/delivery/repository.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
 
 describe("the default destination", () => {

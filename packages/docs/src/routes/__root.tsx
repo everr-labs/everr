@@ -1,12 +1,7 @@
 import favicon from "@everr/ui/assets/favicon.svg?url";
 import { PostHogProvider } from "@posthog/react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import {
-  createRootRoute,
-  HeadContent,
-  Outlet,
-  Scripts,
-} from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";

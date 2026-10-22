@@ -1,25 +1,12 @@
 // @vitest-environment node
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { alertDeliveries, alertInstances } from "#app/db/schema/index.ts";
 import { insertDirectRule } from "#app/server/alerting/testing/fixtures.ts";
-import {
-  type AlertingHarness,
-  createAlertingHarness,
-} from "#app/testing/alerting-harness.ts";
+import { type AlertingHarness, createAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -72,9 +59,7 @@ describe("the alerting pipeline", () => {
     expect(deliveries[0].status).toBe("sent");
 
     expect(harness.fetchCalls()).toHaveLength(1);
-    expect(harness.clickhouse.historyRows().map((r) => r.event_type)).toContain(
-      "instance_fired",
-    );
+    expect(harness.clickhouse.historyRows().map((r) => r.event_type)).toContain("instance_fired");
     expect(rule.id).toBeTruthy();
   });
 });

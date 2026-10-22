@@ -39,13 +39,13 @@ try {
 
 One log record per error, with `eventName: "exception"`:
 
-| Attribute | Value |
-| --- | --- |
-| `exception.type` | The error's constructor name, or `NonError` |
-| `exception.message` | The message |
-| `exception.stacktrace` | The stack, when there is one |
+| Attribute               | Value                                                  |
+| ----------------------- | ------------------------------------------------------ |
+| `exception.type`        | The error's constructor name, or `NonError`            |
+| `exception.message`     | The message                                            |
+| `exception.stacktrace`  | The stack, when there is one                           |
 | `everr.error.mechanism` | `uncaughtException`, `unhandledrejection`, or `manual` |
-| `log.record.uid` | A generated id |
+| `log.record.uid`        | A generated id                                         |
 
 The record body is `"{type}: {message}"`. Severity is `FATAL` for an uncaught exception (and for an unhandled rejection in `strict` mode), and `ERROR` for an unhandled rejection in the default `warn` mode and for `captureError`. When a span is active, the record joins its trace and the span gets `recordException` plus `setStatus(ERROR)`.
 
@@ -89,21 +89,21 @@ configure({
 });
 ```
 
-| Option | Default | Effect |
-| --- | --- | --- |
-| `beforeSend` | none | Rewrites the log record, or returns `null` to drop it. `null` removes an installed hook |
+| Option       | Default | Effect                                                                                  |
+| ------------ | ------- | --------------------------------------------------------------------------------------- |
+| `beforeSend` | none    | Rewrites the log record, or returns `null` to drop it. `null` removes an installed hook |
 
 Call it whenever you like: capture works before the first call, and a later call applies to every error path from then on.
 
 The instrumentation itself takes only what belongs to crash handling:
 
-| Option | Default | Effect |
-| --- | --- | --- |
-| `enabled` | `true` | `false` defers installation until the SDK registers the instrumentation |
-| `onFatal` | `"exit"` | `"continue"` keeps the process alive after a fatal error |
-| `onUnhandledRejection` | `"warn"` | `"strict"` treats an unhandled rejection as a fatal error |
-| `shutdownTimeout` | `2000` | Milliseconds the three flushes share before the process stops |
-| `exitEvenIfOtherHandlersAreRegistered` | `false` | `true` exits even when your own listener is attached |
+| Option                                 | Default  | Effect                                                                  |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------- |
+| `enabled`                              | `true`   | `false` defers installation until the SDK registers the instrumentation |
+| `onFatal`                              | `"exit"` | `"continue"` keeps the process alive after a fatal error                |
+| `onUnhandledRejection`                 | `"warn"` | `"strict"` treats an unhandled rejection as a fatal error               |
+| `shutdownTimeout`                      | `2000`   | Milliseconds the three flushes share before the process stops           |
+| `exitEvenIfOtherHandlersAreRegistered` | `false`  | `true` exits even when your own listener is attached                    |
 
 ## `@everr/otel-errors/core`
 

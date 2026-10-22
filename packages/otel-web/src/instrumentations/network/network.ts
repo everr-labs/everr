@@ -46,10 +46,7 @@ import { startXHR } from "./xhr.js";
 
 export type PropagationTarget = string | RegExp;
 
-export function startNetwork(
-  tracer: Tracer,
-  targets: PropagationTarget[] | undefined,
-): () => void {
+export function startNetwork(tracer: Tracer, targets: PropagationTarget[] | undefined): () => void {
   const stopXHR = startXHR(tracer, targets);
   const original = fetch;
 
@@ -60,10 +57,7 @@ export function startNetwork(
   ): Promise<Response> {
     let url: URL;
     try {
-      url = new URL(
-        input instanceof Request ? input.url : String(input),
-        location.href,
-      );
+      url = new URL(input instanceof Request ? input.url : String(input), location.href);
     } catch {
       return original.call(this, input, init);
     }
@@ -103,11 +97,7 @@ export function startNetwork(
 
     let result: Promise<Response>;
     try {
-      result = original.call(
-        this,
-        input,
-        headers ? { ...init, headers } : init,
-      );
+      result = original.call(this, input, headers ? { ...init, headers } : init);
     } catch (e) {
       end(undefined, errorTypeOf(e));
       throw e;

@@ -16,9 +16,7 @@ export function OrganizationProvisioningContent({
   if (failed) {
     return (
       <ProvisioningView
-        label={
-          checkout ? "Your Pro organization" : "Setting up your organization"
-        }
+        label={checkout ? "Your Pro organization" : "Setting up your organization"}
         title="We couldn't finish setting up your organization"
         description="Please try again."
         pending={false}
@@ -49,9 +47,9 @@ export function OrganizationProvisioningContent({
       notice={
         takingLonger ? (
           <>
-            Setup is taking a little longer than expected, but we're still
-            working on it. We'll email you as soon as your organization is
-            ready, so you can safely leave this page. In the meantime, you can{" "}
+            Setup is taking a little longer than expected, but we&apos;re still working on it.
+            We&apos;ll email you as soon as your organization is ready, so you can safely leave this
+            page. In the meantime, you can{" "}
             <a
               href="https://everr.dev/docs"
               target="_blank"
@@ -100,17 +98,12 @@ function ProvisioningView({
         <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           {title}
         </h1>
-        <p
-          className="text-sm leading-relaxed text-muted-foreground"
-          role="status"
-        >
+        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout. */}
+        <p className="text-sm leading-relaxed text-muted-foreground" role="status">
           {description}
         </p>
         {pending && (
-          <div
-            className="flex items-center justify-center gap-2 pt-2"
-            aria-hidden="true"
-          >
+          <div className="flex items-center justify-center gap-2 pt-2" aria-hidden="true">
             {[0, 160, 320].map((delay) => (
               <span
                 key={delay}
@@ -121,10 +114,8 @@ function ProvisioningView({
           </div>
         )}
         {notice && (
-          <p
-            className="text-sm leading-relaxed text-muted-foreground"
-            role="status"
-          >
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
+          <p className="text-sm leading-relaxed text-muted-foreground" role="status">
             {notice}
           </p>
         )}

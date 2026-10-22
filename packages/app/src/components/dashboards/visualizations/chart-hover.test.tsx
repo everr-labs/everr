@@ -1,15 +1,10 @@
-import { describe, expect, it } from "vitest";
-import {
-  markerTolerance,
-  nearestSeriesKeys,
-  valueAtCursorY,
-} from "./chart-hover";
+import { describe, expect, it } from "vite-plus/test";
+import { markerTolerance, nearestSeriesKeys, valueAtCursorY } from "./chart-hover";
 
 // A 202px plot over a 0..100 axis.
 const TOL = markerTolerance(202, 100);
 
-const at = (...values: (number | null)[]) =>
-  values.map((value, i) => ({ key: `s${i}`, value }));
+const at = (...values: (number | null)[]) => values.map((value, i) => ({ key: `s${i}`, value }));
 
 describe("nearestSeriesKeys", () => {
   it("returns every series tied at the same value, not an arbitrary one", () => {
@@ -38,9 +33,7 @@ describe("nearestSeriesKeys", () => {
 
 describe("markerTolerance", () => {
   it("scales with the axis, so the tie stays the same distance on screen", () => {
-    expect(markerTolerance(202, 1000)).toBeCloseTo(
-      markerTolerance(202, 100) * 10,
-    );
+    expect(markerTolerance(202, 1000)).toBeCloseTo(markerTolerance(202, 100) * 10);
   });
 
   it("is zero for a plot with no height, rather than infinite", () => {

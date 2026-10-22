@@ -1,10 +1,6 @@
 import { ApplyValidationError } from "#app/data/as-code/errors.ts";
 import type { DesiredResource } from "#app/data/as-code/reconcile.ts";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-  dashboardSpecSchemaStrict,
-} from "./schema";
+import { dashboardProjectSchema, dashboardSlugSchema, dashboardSpecSchemaStrict } from "./schema";
 
 export interface InputDocument {
   /** POSIX-style path relative to the applied root, e.g. "team/cpu.yaml". */
@@ -37,6 +33,7 @@ const DEFAULT_PROJECT = "default";
  * Project from metadata.project, defaulting to "default"; validated.
  */
 export function projectFromDocument(path: string, document: unknown): string {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve property access and errors for previously accepted document inputs.
   const meta = (document as { metadata?: { project?: unknown } }).metadata;
   const raw =
     meta && typeof meta.project === "string" && meta.project.length > 0
@@ -55,6 +52,7 @@ export function projectFromDocument(path: string, document: unknown): string {
  * Slug from metadata.name, falling back to the filename without extension.
  */
 export function slugFromDocument(path: string, document: unknown): string {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve property access and errors for previously accepted document inputs.
   const meta = (document as { metadata?: { name?: unknown } }).metadata;
   if (meta && typeof meta.name === "string" && meta.name.length > 0) {
     return meta.name;
@@ -83,17 +81,13 @@ export function buildDesiredSet(inputs: InputDocument[]): DesiredResource[] {
       );
     }
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing document access and schema validation sequence.
     const rawSpec = (document as { spec?: unknown }).spec;
     const specResult = dashboardSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];
-      const where =
-        issue && issue.path.length > 0
-          ? ` at ${issue.path.map(String).join(".")}`
-          : "";
-      throw new ApplyValidationError(
-        `${path}: invalid dashboard spec${where}: ${issue?.message}`,
-      );
+      const where = issue && issue.path.length > 0 ? ` at ${issue.path.map(String).join(".")}` : "";
+      throw new ApplyValidationError(`${path}: invalid dashboard spec${where}: ${issue?.message}`);
     }
 
     const key = `${project} ${slug}`;

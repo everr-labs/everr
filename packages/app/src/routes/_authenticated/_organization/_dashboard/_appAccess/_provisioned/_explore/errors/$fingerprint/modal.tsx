@@ -1,7 +1,4 @@
-import {
-  DetailRouteDialog,
-  ErrorIssueSearchSchema,
-} from "@everr/telemetry-explorer/errors";
+import { DetailRouteDialog, ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
 import { createFileRoute } from "@tanstack/react-router";
 import { ErrorDetailRouteContent } from "../../-error-detail";
 
@@ -9,8 +6,8 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal",
 )({
   staticData: { breadcrumb: "Detail" },
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   validateSearch: ErrorIssueSearchSchema,
+  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
   component: ErrorDetailModalPage,
 });
 
@@ -30,7 +27,7 @@ function ErrorDetailModalPage() {
         fingerprint={fingerprint}
         search={search}
         detailTo="/errors/$fingerprint/modal"
-        onClose={close}
+        onClose={() => void close()}
       />
     </DetailRouteDialog>
   );

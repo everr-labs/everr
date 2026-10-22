@@ -16,27 +16,19 @@ function onboardingScope(
   userId: string,
 ) {
   if (expectedOrganizationId !== activeOrganizationId)
-    throw new Error(
-      "Organization changed. Reload this page before continuing.",
-    );
+    throw new Error("Organization changed. Reload this page before continuing.");
   return { organizationId: activeOrganizationId, userId };
 }
 
 export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(identityInput)
-  .handler(
-    async ({ data, context: { session } }): Promise<HomeStatus> => ({
-      ...(await store.getStatus(
-        onboardingScope(
-          data.organizationId,
-          session.session.activeOrganizationId,
-          session.user.id,
-        ),
-      )),
-      ingestEndpoint: deployment.ingestEndpoint,
-      appUrl: env.BETTER_AUTH_URL,
-    }),
-  );
+  .handler(async ({ data, context: { session } }): Promise<HomeStatus> => ({
+    ...(await store.getStatus(
+      onboardingScope(data.organizationId, session.session.activeOrganizationId, session.user.id),
+    )),
+    ingestEndpoint: deployment.ingestEndpoint,
+    appUrl: env.BETTER_AUTH_URL,
+  }));
 
 export const completeOnboarding = createAuthenticatedServerFn({
   method: "POST",
@@ -44,10 +36,6 @@ export const completeOnboarding = createAuthenticatedServerFn({
   .inputValidator(identityInput)
   .handler(({ data, context: { session } }) =>
     store.complete(
-      onboardingScope(
-        data.organizationId,
-        session.session.activeOrganizationId,
-        session.user.id,
-      ),
+      onboardingScope(data.organizationId, session.session.activeOrganizationId, session.user.id),
     ),
   );

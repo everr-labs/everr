@@ -39,8 +39,7 @@ function TagsInput({
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: click forwards focus to the inner input
-    // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard users reach the inner input by tabbing
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- keyboard users reach the inner input by tabbing
     <div
       data-slot="tags-input"
       className={cn(
@@ -77,11 +76,7 @@ function TagsInput({
           if (event.key === "Enter" || event.key === ",") {
             event.preventDefault();
             if (draft.trim()) addTags(draft);
-          } else if (
-            event.key === "Backspace" &&
-            draft === "" &&
-            value.length > 0
-          ) {
+          } else if (event.key === "Backspace" && draft === "" && value.length > 0) {
             removeTag(value[value.length - 1]);
           }
         }}

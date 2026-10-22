@@ -5,15 +5,10 @@
 // response header that the request middleware echoes, not from this function.
 
 export type RouterLike = {
-  matchRoutes(
-    pathname: string,
-  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
+  matchRoutes(pathname: string): ReadonlyArray<{ routeId: string; fullPath: string }>;
 };
 
-export function routeTemplate(
-  router: RouterLike,
-  pathname: string,
-): string | undefined {
+export function routeTemplate(router: RouterLike, pathname: string): string | undefined {
   // Server function calls go over a deterministic prefix outside the tree.
   if (pathname.startsWith("/_serverFn/")) {
     return pathname.replace(/^\/_serverFn\/[^/]+/, "/_serverFn/:id");

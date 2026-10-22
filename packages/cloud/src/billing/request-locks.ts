@@ -1,9 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Pool, PoolClient } from "pg";
 
-export function createBillingRequestLocks(
-  checkoutLockPool: Pick<Pool, "connect">,
-) {
+export function createBillingRequestLocks(checkoutLockPool: Pick<Pool, "connect">) {
   const requestLocks = new AsyncLocalStorage<{
     client?: PoolClient;
     keys: Set<string>;
@@ -24,13 +22,9 @@ export function createBillingRequestLocks(
           let releaseError: Error | undefined;
           try {
             for (const key of scope.keys)
-              await scope.client.query(
-                "select pg_advisory_unlock(hashtextextended($1, 0))",
-                [key],
-              );
+              await scope.client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [key]);
           } catch (error) {
-            releaseError =
-              error instanceof Error ? error : new Error(String(error));
+            releaseError = error instanceof Error ? error : new Error(String(error));
           }
           scope.client.release(releaseError);
         }
@@ -40,10 +34,7 @@ export function createBillingRequestLocks(
 
   // Session locks allow the intent to be committed before contacting Polar.
   // Do not queue waiters in the pool: the holder also needs database connections.
-  async function withCheckoutLock<T>(
-    key: string,
-    run: () => Promise<T>,
-  ): Promise<T> {
+  async function withCheckoutLock<T>(key: string, run: () => Promise<T>): Promise<T> {
     const scope = requestLocks.getStore();
     if (scope) {
       if (!scope.keys.has(key)) {
@@ -66,21 +57,16 @@ export function createBillingRequestLocks(
         "select pg_try_advisory_lock(hashtextextended($1, 0)) as locked",
         [key],
       );
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- Preserve the existing lock-result interpretation.
       locked = result.rows[0]?.locked === true;
-      if (!locked)
-        throw new Error("Checkout is being processed. Please try again.");
+      if (!locked) throw new Error("Checkout is being processed. Please try again.");
       return await run();
     } finally {
       try {
-        if (locked)
-          await client.query(
-            "select pg_advisory_unlock(hashtextextended($1, 0))",
-            [key],
-          );
+        if (locked) await client.query("select pg_advisory_unlock(hashtextextended($1, 0))", [key]);
       } catch (error) {
         // Discard a connection whose lock could not be released.
-        releaseError =
-          error instanceof Error ? error : new Error(String(error));
+        releaseError = error instanceof Error ? error : new Error(String(error));
       } finally {
         client.release(releaseError);
       }
@@ -88,8 +74,7 @@ export function createBillingRequestLocks(
   }
 
   async function lockAccountDeletion(organizationIds: readonly string[]) {
-    if (!requestLocks.getStore())
-      throw new Error("Account deletion requires an identity request.");
+    if (!requestLocks.getStore()) throw new Error("Account deletion requires an identity request.");
     for (const organizationId of [...organizationIds].sort())
       await withCheckoutLock(`billing:${organizationId}`, async () => {});
   }

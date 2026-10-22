@@ -2,8 +2,8 @@ pre-commit:
   parallel: true
   jobs:
     - name: check
-      glob: "*.{js,ts,tsx,json,jsonc,css}"
-      run: pnpm biome check --fix --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+      glob: "*.{js,mjs,cjs,ts,tsx,json,jsonc,css,yaml,yml,md,mdx}"
+      run: pnpm exec vp check --fix --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     - name: fallow
       glob: "*.{js,mjs,cjs,ts,tsx,jsonc}"

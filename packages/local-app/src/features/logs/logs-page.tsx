@@ -14,7 +14,7 @@ import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
 
 export function LogsPage() {
-  const search = useSearch({ strict: false }) as LogsSearch;
+  const search: LogsSearch = useSearch({ strict: false });
   const navigate = useNavigate();
   const controls = useExploreControls("/logs");
 
@@ -35,12 +35,7 @@ export function LogsPage() {
   };
 
   return (
-    <ExploreShell
-      title="Logs"
-      timeRange={timeRange}
-      refresh={search.refresh ?? ""}
-      {...controls}
-    >
+    <ExploreShell title="Logs" timeRange={timeRange} refresh={search.refresh ?? ""} {...controls}>
       <LocalTelemetryGate>
         <LogsExplorer
           repo={repo}
@@ -56,6 +51,7 @@ export function LogsPage() {
               environment={environment}
             />
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={({ services: _ignored, ...next }) =>
             navigate({
               to: "/logs",
@@ -63,6 +59,7 @@ export function LogsPage() {
               replace: true,
             })
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onTimeRangeSelect={(from, to) =>
             navigate({
               to: "/logs",

@@ -1,16 +1,6 @@
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@everr/ui/components/tabs";
-import {
-  Activity,
-  ArrowRight,
-  ChartNoAxesCombined,
-  Fingerprint,
-  Workflow,
-} from "lucide-react";
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
+import { Activity, ArrowRight, ChartNoAxesCombined, Fingerprint, Workflow } from "lucide-react";
 import { useId } from "react";
 
 const examples = [
@@ -43,8 +33,7 @@ const examples = [
 const demoBarClassName =
   "flex flex-wrap justify-between gap-2 border-b border-border px-7 py-4 text-xs text-muted-foreground max-[700px]:px-4";
 const demoBodyClassName = "px-7 py-6 max-[700px]:p-4";
-const requestClassName =
-  "flex flex-wrap items-center justify-between gap-3 text-sm";
+const requestClassName = "flex flex-wrap items-center justify-between gap-3 text-sm";
 const traceRowClassName =
   "grid grid-cols-[130px_minmax(0,1fr)_82px] items-center gap-5 p-3 font-mono text-[0.8125rem] max-[700px]:grid-cols-[88px_minmax(0,1fr)_52px] max-[700px]:gap-2 max-[700px]:px-0 max-[700px]:text-xs";
 
@@ -58,8 +47,7 @@ function TraceExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <div>
-            <span className="mr-2 text-[#32c8cc]">GET</span>{" "}
-            <code>/projects</code>
+            <span className="mr-2 text-[#32c8cc]">GET</span> <code>/projects</code>
           </div>
           <span className="text-muted-foreground">
             200 OK <strong className="ml-3 text-foreground">2.10 s</strong>
@@ -105,8 +93,7 @@ function TraceExample() {
           ))}
         </div>
         <p className="flex items-center gap-2 text-sm text-[#32c8cc]">
-          <Activity size={16} aria-hidden="true" /> The database accounts for
-          97% of request time.
+          <Activity size={16} aria-hidden="true" /> The database accounts for 97% of request time.
         </p>
       </div>
     </div>
@@ -124,8 +111,7 @@ function TrafficExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <strong>
-            Request rate{" "}
-            <small className="font-normal text-muted-foreground">req/s</small>
+            Request rate <small className="font-normal text-muted-foreground">req/s</small>
           </strong>
           <span className="text-muted-foreground">10:00 - 10:15</span>
         </div>
@@ -137,8 +123,8 @@ function TrafficExample() {
             aria-labelledby={chartTitle}
           >
             <title id={chartTitle}>
-              Request rate from 10:00 to 10:15, with two spikes reaching
-              approximately 400 and 800 requests per second.
+              Request rate from 10:00 to 10:15, with two spikes reaching approximately 400 and 800
+              requests per second.
             </title>
             {[30, 110, 190].map((y) => (
               <line
@@ -235,8 +221,7 @@ function ErrorExample() {
       <div className={demoBodyClassName}>
         <div className={requestClassName}>
           <div>
-            <span className="mr-2 text-[#fb978b]">ERROR</span>{" "}
-            <code>POST /checkout</code>
+            <span className="mr-2 text-[#fb978b]">ERROR</span> <code>POST /checkout</code>
           </div>
           <span className="text-muted-foreground">10:12:08</span>
         </div>
@@ -245,11 +230,7 @@ function ErrorExample() {
             PaymentProviderError: upstream returned 503
           </strong>
           <pre className="mt-4 overflow-x-auto text-xs leading-6 text-muted-foreground">
-            <code>
-              {
-                "at chargeCustomer (payments.ts:84)\nat checkout       (checkout.ts:37)"
-              }
-            </code>
+            <code>{"at chargeCustomer (payments.ts:84)\nat checkout       (checkout.ts:37)"}</code>
           </pre>
         </div>
         <div className="mt-7 flex justify-between border-b border-border pb-3 text-xs text-muted-foreground">
@@ -257,15 +238,11 @@ function ErrorExample() {
           <code>req_demo_42</code>
         </div>
         <div className="flex gap-5 border-b border-border py-3 text-sm max-[700px]:gap-3">
-          <time className="font-mono text-xs text-muted-foreground">
-            10:12:07
-          </time>
+          <time className="font-mono text-xs text-muted-foreground">10:12:07</time>
           <span>Payment request started</span>
         </div>
         <div className="flex gap-5 py-3 text-sm max-[700px]:gap-3">
-          <time className="font-mono text-xs text-muted-foreground">
-            10:12:08
-          </time>
+          <time className="font-mono text-xs text-muted-foreground">10:12:08</time>
           <span>Payment provider returned 503</span>
         </div>
       </div>
@@ -275,10 +252,7 @@ function ErrorExample() {
 
 export function ObservabilityExamples() {
   return (
-    <section
-      className="border-t border-border"
-      aria-labelledby="monitor-examples-title"
-    >
+    <section className="border-t border-border" aria-labelledby="monitor-examples-title">
       <div className="mx-auto max-w-[1280px] px-6 py-20 max-[700px]:py-14">
         <p className="font-mono text-xs font-medium uppercase tracking-[0.12em] text-primary">
           01 / What monitoring reveals
@@ -290,8 +264,8 @@ export function ObservabilityExamples() {
           An app can be up and still let users down.
         </h2>
         <p className="mt-6 max-w-[720px] text-[1.0625rem] leading-[1.65] text-muted-foreground">
-          Monitoring goes beyond error reporting. See where your app slows down,
-          how it responds to demand, and what led to a failure.
+          Monitoring goes beyond error reporting. See where your app slows down, how it responds to
+          demand, and what led to a failure.
         </p>
         <Tabs
           defaultValue="performance"
@@ -308,12 +282,7 @@ export function ObservabilityExamples() {
                 key={id}
                 value={id}
               >
-                <Icon
-                  size={21}
-                  strokeWidth={1.5}
-                  className="text-primary"
-                  aria-hidden="true"
-                />
+                <Icon size={21} strokeWidth={1.5} className="text-primary" aria-hidden="true" />
                 <span className="flex-1">
                   <span className="mb-1 block font-mono text-xs text-muted-foreground">
                     0{index + 1}

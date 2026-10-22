@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ResourceAdminServerTypes from "#app/data/as-code/resource-admin.server.ts";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   deleteResource,
   getResource,
@@ -11,16 +12,11 @@ vi.mock("#app/db/client.ts", () => ({
   db: { select: vi.fn(), delete: vi.fn(), update: vi.fn() },
 }));
 
-vi.mock(
-  "#app/data/as-code/resource-admin.server.ts",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("#app/data/as-code/resource-admin.server.ts")
-    >()),
-    getResource: vi.fn(),
-    deleteResource: vi.fn(),
-  }),
-);
+vi.mock("#app/data/as-code/resource-admin.server.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof ResourceAdminServerTypes>()),
+  getResource: vi.fn(),
+  deleteResource: vi.fn(),
+}));
 
 const mockedGet = vi.mocked(getResource);
 const mockedDelete = vi.mocked(deleteResource);
@@ -56,12 +52,7 @@ describe("GET .../$kind/$project/$slug", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ kind: "Dashboard", metadata: {} });
-    expect(mockedGet).toHaveBeenCalledWith(
-      "org-42",
-      "dashboard",
-      "default",
-      "errors",
-    );
+    expect(mockedGet).toHaveBeenCalledWith("org-42", "dashboard", "default", "errors");
   });
 
   it("404s when the resource is missing", async () => {

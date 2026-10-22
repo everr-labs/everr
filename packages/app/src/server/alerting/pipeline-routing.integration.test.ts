@@ -1,21 +1,16 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
-import {
-  alertDeliveries,
-  alertNotificationGroups,
-} from "#app/db/schema/index.ts";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { alertDeliveries, alertNotificationGroups } from "#app/db/schema/index.ts";
 import {
   insertChannel,
   insertDefaultChannels,
   insertDirectRule,
   insertRule,
 } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -28,11 +23,9 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
-async function fireDefaultRuleAndFlush(
-  overrides: Parameters<typeof insertRule>[1] = {},
-) {
+async function fireDefaultRuleAndFlush(overrides: Parameters<typeof insertRule>[1] = {}) {
   await insertRule(harness().db, { forSecs: 0, ...overrides });
   harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
   await harness().fireAndFlush();
@@ -129,9 +122,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
     // ever created, so there is nothing to flush and nothing to send.
     expect(harness().fetchCalls()).toHaveLength(0);
     expect(await harness().db.select().from(alertDeliveries)).toHaveLength(0);
-    expect(
-      await harness().db.select().from(alertNotificationGroups),
-    ).toHaveLength(0);
+    expect(await harness().db.select().from(alertNotificationGroups)).toHaveLength(0);
     // No flush ever runs, so dispatch owes the terminal itself. Without it
     // the fire reads as still in flight for good.
     const terminal = harness()
@@ -144,9 +135,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
     await fireDefaultRuleAndFlush();
 
     expect(harness().fetchCalls()).toHaveLength(0);
-    expect(
-      await harness().db.select().from(alertNotificationGroups),
-    ).toHaveLength(0);
+    expect(await harness().db.select().from(alertNotificationGroups)).toHaveLength(0);
     const terminal = harness()
       .clickhouse.historyRows()
       .find((row) => row.event_type === "notification_suppressed");
@@ -174,9 +163,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
 
     expect(harness().fetchCalls()).toHaveLength(3);
     // One group, one delivery per channel, resolved in name order.
-    expect(
-      await harness().db.select().from(alertNotificationGroups),
-    ).toHaveLength(1);
+    expect(await harness().db.select().from(alertNotificationGroups)).toHaveLength(1);
     const deliveries = await harness().db.select().from(alertDeliveries);
     expect(deliveries.map((d) => d.channelName)).toEqual([
       "first-channel",
@@ -212,9 +199,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
       severity: "warning",
       forSecs: 0,
     });
-    harness().clickhouse.setSignal([
-      { service: "checkout", severity: "critical", value: 42 },
-    ]);
+    harness().clickhouse.setSignal([{ service: "checkout", severity: "critical", value: 42 }]);
     await harness().fireAndFlush();
 
     expect(harness().fetchCalls()).toHaveLength(1);

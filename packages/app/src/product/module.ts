@@ -5,7 +5,7 @@ import type { TenantRetention } from "../composition/retention";
 export interface Product {
   forOrganization: ProductPolicy["forOrganization"];
   canInviteMembers(orgId: string): Promise<boolean>;
-  retentionForOrg(orgId: string): Promise<TenantRetention>;
+  retentionForOrg(this: void, orgId: string): Promise<TenantRetention>;
 }
 
 /** Each composition owns its policy and cache; no process-wide registration. */
@@ -25,9 +25,7 @@ export function createProduct(policy: ProductPolicy): Product {
     retentionForOrg(orgId) {
       const cached = cache.get(orgId);
       if (cached) return cached;
-      const pending = policy
-        .forOrganization(orgId)
-        .then(({ retention }) => retention);
+      const pending = policy.forOrganization(orgId).then(({ retention }) => retention);
       pending.catch(() => cache.delete(orgId));
       cache.set(orgId, pending);
       return pending;

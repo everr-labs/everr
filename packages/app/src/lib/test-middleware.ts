@@ -31,8 +31,7 @@ export function composeMiddleware(
                 typeof args === "object" && args !== null
                   ? {
                       ...context,
-                      ...((args as { context?: Record<string, unknown> })
-                        .context ?? {}),
+                      ...(args as { context?: Record<string, unknown> }).context,
                     }
                   : context,
               next,

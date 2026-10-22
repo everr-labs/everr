@@ -14,8 +14,7 @@ export function calculateEverrCharges({
   uptimeMonitors: number;
 }) {
   const ingestionOverageEur =
-    Math.max(0, ingestionGb - EVERR_PRICING.includedIngestionGb) *
-    EVERR_PRICING.overageEurPerGb;
+    Math.max(0, ingestionGb - EVERR_PRICING.includedIngestionGb) * EVERR_PRICING.overageEurPerGb;
   const uptimeMonitorsEur =
     Math.max(0, uptimeMonitors - EVERR_PRICING.includedUptimeMonitors) *
     EVERR_PRICING.additionalMonitorEur;

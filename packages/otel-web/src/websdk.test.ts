@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { WebSDK } from "./client.js";
 import { captureError } from "./errors.js";
 import { errors } from "./instrumentations/errors/index.js";
@@ -8,13 +8,7 @@ import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import { logger } from "./logger.js";
 import { setRouteResolver } from "./state/route.js";
-import {
-  attrs,
-  type OtlpBatch,
-  type OtlpRecord,
-  startClient,
-  UNIQUE_ID,
-} from "./test-kit.js";
+import { attrs, type OtlpBatch, type OtlpRecord, startClient, UNIQUE_ID } from "./test-kit.js";
 import type { WebSDKOptions } from "./types.js";
 
 let client: WebSDK | undefined;
@@ -78,18 +72,14 @@ describe("init (persistence: memory)", () => {
     expect(spaAttrs["everr.navigation.type"]).toBe("history_change");
     expect(spaAttrs["url.path"]).toBe("/pricing");
     expect(spaAttrs["everr.referrer.url"]).toBe(initialAttrs["url.full"]);
-    expect(spaAttrs["everr.page_view.id"]).not.toBe(
-      initialAttrs["everr.page_view.id"],
-    );
+    expect(spaAttrs["everr.page_view.id"]).not.toBe(initialAttrs["everr.page_view.id"]);
     expect(spaAttrs["session.id"]).toBe(initialAttrs["session.id"]);
 
     // The leave record of the previous page is between the two view records. It
     // refers to the first page view, and it carries the time on the page.
     expect(leave.eventName).toBe("everr.browser.page_leave");
     const leaveAttrs = attrs(leave);
-    expect(leaveAttrs["everr.page_view.id"]).toBe(
-      initialAttrs["everr.page_view.id"],
-    );
+    expect(leaveAttrs["everr.page_view.id"]).toBe(initialAttrs["everr.page_view.id"]);
     expect(leaveAttrs["url.path"]).toBe("/");
     expect(String(leaveAttrs["everr.page_view.duration"])).toMatch(/^\d+$/);
     expect(leaveAttrs).not.toHaveProperty("everr.scroll.depth");
@@ -130,12 +120,7 @@ describe("init (persistence: memory)", () => {
 
   it("emits no leave on hide when pageviews() is not composed", async () => {
     start({
-      instrumentations: [
-        errors(),
-        interactions(),
-        performanceInstrumentation(),
-        network(),
-      ],
+      instrumentations: [errors(), interactions(), performanceInstrumentation(), network()],
     });
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
@@ -144,8 +129,7 @@ describe("init (persistence: memory)", () => {
   it("resolves each record's own page URL to a pattern and survives a throwing resolver", async () => {
     start();
     setRouteResolver({
-      page: (url) =>
-        new URL(url).pathname.startsWith("/blog/") ? "/blog/$slug" : undefined,
+      page: (url) => (new URL(url).pathname.startsWith("/blog/") ? "/blog/$slug" : undefined),
     });
     history.pushState(null, "", "/blog/hello");
     const all = await records();
@@ -166,9 +150,7 @@ describe("init (persistence: memory)", () => {
     });
     history.pushState(null, "", "/pricing");
     const after = await records();
-    expect(attrs(after[after.length - 1])).not.toHaveProperty(
-      "everr.route.pattern",
-    );
+    expect(attrs(after[after.length - 1])).not.toHaveProperty("everr.route.pattern");
   });
 
   it("does not emit for a pushState to the same URL", async () => {
@@ -206,12 +188,7 @@ describe("init (persistence: memory)", () => {
 
   it("suppresses pageviews only by leaving pageviews() out", async () => {
     start({
-      instrumentations: [
-        errors(),
-        interactions(),
-        performanceInstrumentation(),
-        network(),
-      ],
+      instrumentations: [errors(), interactions(), performanceInstrumentation(), network()],
     });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
@@ -228,13 +205,9 @@ describe("init (persistence: memory)", () => {
     (document.getElementById("f") as HTMLFormElement).dispatchEvent(submitEv);
 
     const all = await records();
-    const submit = all.find(
-      (r) => r.eventName === "everr.browser.interaction.submit",
-    );
+    const submit = all.find((r) => r.eventName === "everr.browser.interaction.submit");
     expect(submit).toBeDefined();
-    expect(
-      all.some((r) => r.eventName === "everr.browser.interaction.change"),
-    ).toBe(false);
+    expect(all.some((r) => r.eventName === "everr.browser.interaction.change")).toBe(false);
     const sa = attrs(submit as OtlpRecord);
     expect(sa["everr.element.tag"]).toBe("button");
     expect(sa["everr.element.selector"]).toBe("#go");
@@ -255,13 +228,9 @@ describe("init (persistence: memory)", () => {
       new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 6 }),
     );
     const all = await records();
-    const click = all.find(
-      (r) => r.eventName === "everr.browser.interaction.click",
-    );
+    const click = all.find((r) => r.eventName === "everr.browser.interaction.click");
     expect(click).toBeDefined();
-    expect(
-      all.some((r) => r.eventName === "everr.browser.interaction.rage_click"),
-    ).toBe(false);
+    expect(all.some((r) => r.eventName === "everr.browser.interaction.rage_click")).toBe(false);
     const a = attrs(click as OtlpRecord);
     expect(a).not.toHaveProperty("everr.element.text");
     expect(a).not.toHaveProperty("everr.browser.click.x");
@@ -273,12 +242,7 @@ describe("init (persistence: memory)", () => {
 
   it("suppresses interactions only by leaving interactions() out", async () => {
     start({
-      instrumentations: [
-        errors(),
-        pageviews(),
-        performanceInstrumentation(),
-        network(),
-      ],
+      instrumentations: [errors(), pageviews(), performanceInstrumentation(), network()],
     });
     document.body.innerHTML = "<button>quiet</button>";
     for (let i = 0; i < 3; i++) {
@@ -328,9 +292,7 @@ describe("host-owned transport (send)", () => {
 
   function startWithSend(extra?: Partial<WebSDKOptions>) {
     const delivered: Delivered[] = [];
-    const fetchSpy = vi.fn(() =>
-      Promise.resolve(new Response(null, { status: 200 })),
-    );
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
     vi.stubGlobal("fetch", fetchSpy);
     client = new WebSDK({
       serviceName: "everr-host-test",

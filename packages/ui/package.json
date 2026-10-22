@@ -2,10 +2,20 @@
   "name": "@everr/ui",
   "version": "0.0.1",
   "private": true,
+  "exports": {
+    "./components/everr-logo-paths": "./src/components/everr-logo-paths.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./testing/*": "./src/testing/*.ts",
+    "./styles/*": "./src/styles/*",
+    "./assets/*": "./src/assets/*",
+    "./src/styles/global.css": "./src/styles/global.css"
+  },
   "scripts": {
-    "test": "vitest run",
-    "test:ci": "vitest run",
-    "test:watch": "vitest run --watch",
+    "test": "vp test run",
+    "test:ci": "vp test run",
+    "test:watch": "vp test run --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -35,16 +45,6 @@
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
-    "vitest": "^4.1.5"
-  },
-  "exports": {
-    "./components/everr-logo-paths": "./src/components/everr-logo-paths.ts",
-    "./components/*": "./src/components/*.tsx",
-    "./lib/*": "./src/lib/*.ts",
-    "./hooks/*": "./src/hooks/*.ts",
-    "./testing/*": "./src/testing/*.ts",
-    "./styles/*": "./src/styles/*",
-    "./assets/*": "./src/assets/*",
-    "./src/styles/global.css": "./src/styles/global.css"
+    "vite-plus": "catalog:"
   }
 }

@@ -91,20 +91,18 @@ guard. The Node SDK is not compatible with the edge runtime.
 
 ```typescript
 // src/instrumentation.ts
-import type { Instrumentation } from 'next';
+import type { Instrumentation } from "next";
 
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  await import('./instrumentation.node');
+  await import("./instrumentation.node");
 }
 
-export const onRequestError: Instrumentation.onRequestError = async (
-  ...args
-) => {
-  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+export const onRequestError: Instrumentation.onRequestError = async (...args) => {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { onRequestError } = await import('./instrumentation.node');
+  const { onRequestError } = await import("./instrumentation.node");
   return onRequestError(...args);
 };
 ```
@@ -114,35 +112,29 @@ export const onRequestError: Instrumentation.onRequestError = async (
 Create `src/instrumentation.node.ts` for the actual OpenTelemetry setup:
 
 ```typescript
-import { ErrorsInstrumentation } from '@everr/otel-errors';
-import { trace, SpanStatusCode } from '@opentelemetry/api';
-import { logs, SeverityNumber } from '@opentelemetry/api-logs';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { resourceFromAttributes } from '@opentelemetry/resources';
-import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from '@opentelemetry/sdk-logs';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-} from '@opentelemetry/semantic-conventions';
-import type { Instrumentation } from 'next';
+import { ErrorsInstrumentation } from "@everr/otel-errors";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { resourceFromAttributes } from "@opentelemetry/resources";
+import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { NodeSDK } from "@opentelemetry/sdk-node";
+import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
+import type { Instrumentation } from "next";
 
 declare global {
   var __otelSdk: NodeSDK | undefined;
   var __otelLoggerProvider: LoggerProvider | undefined;
 }
 
-function otlpEndpoint(signal: 'traces' | 'metrics' | 'logs') {
+function otlpEndpoint(signal: "traces" | "metrics" | "logs") {
   const base = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-  if (!base) throw new Error('OTEL_EXPORTER_OTLP_ENDPOINT is required');
-  return `${base.replace(/\/+$/, '')}/v1/${signal}`;
+  if (!base) throw new Error("OTEL_EXPORTER_OTLP_ENDPOINT is required");
+  return `${base.replace(/\/+$/, "")}/v1/${signal}`;
 }
 
 // Keyless means `undefined`, never `{}`: under strict TypeScript a
@@ -157,14 +149,9 @@ function otlpHeaders() {
 
 function serviceResource() {
   return resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: 'nextjs-app',
-    [ATTR_SERVICE_VERSION]:
-      process.env.VERCEL_GIT_COMMIT_SHA ??
-      'unknown',
-    'deployment.environment.name':
-      process.env.VERCEL_ENV ??
-      process.env.NODE_ENV ??
-      'development',
+    [ATTR_SERVICE_NAME]: "nextjs-app",
+    [ATTR_SERVICE_VERSION]: process.env.VERCEL_GIT_COMMIT_SHA ?? "unknown",
+    "deployment.environment.name": process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development",
   });
 }
 
@@ -173,10 +160,7 @@ async function shutdown(exitCode?: number) {
   const sdk = globalThis.__otelSdk;
 
   await loggerProvider?.forceFlush();
-  await Promise.allSettled([
-    sdk?.shutdown(),
-    loggerProvider?.shutdown(),
-  ]);
+  await Promise.allSettled([sdk?.shutdown(), loggerProvider?.shutdown()]);
 
   if (exitCode !== undefined) process.exit(exitCode);
 }
@@ -184,7 +168,7 @@ async function shutdown(exitCode?: number) {
 if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
   // The undici instrumentation already traces fetch. Without this, Next.js
   // adds its own span for each fetch and every call is traced twice.
-  process.env.NEXT_OTEL_FETCH_DISABLED = '1';
+  process.env.NEXT_OTEL_FETCH_DISABLED = "1";
 
   const resource = serviceResource();
   const headers = otlpHeaders();
@@ -197,7 +181,7 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
     processors: [
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({
-          url: otlpEndpoint('logs'),
+          url: otlpEndpoint("logs"),
           headers,
         }),
       }),
@@ -208,12 +192,12 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
   const sdk = new NodeSDK({
     resource,
     traceExporter: new OTLPTraceExporter({
-      url: otlpEndpoint('traces'),
+      url: otlpEndpoint("traces"),
       headers,
     }),
     metricReader: new PeriodicExportingMetricReader({
       exporter: new OTLPMetricExporter({
-        url: otlpEndpoint('metrics'),
+        url: otlpEndpoint("metrics"),
         headers,
       }),
       exportIntervalMillis: 10000,
@@ -224,11 +208,11 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
       // double-captures.
       new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-fs': { enabled: false },
-        '@opentelemetry/instrumentation-dns': { enabled: false },
+        "@opentelemetry/instrumentation-fs": { enabled: false },
+        "@opentelemetry/instrumentation-dns": { enabled: false },
         // Next.js makes the server span of each request itself. See
         // "Setup Notes" below.
-        '@opentelemetry/instrumentation-http': {
+        "@opentelemetry/instrumentation-http": {
           disableIncomingRequestInstrumentation: true,
         },
       }),
@@ -239,15 +223,11 @@ if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT && !globalThis.__otelSdk) {
   globalThis.__otelSdk = sdk;
   globalThis.__otelLoggerProvider = loggerProvider;
 
-  process.once('SIGTERM', () => void shutdown(0));
-  process.once('SIGINT', () => void shutdown(0));
+  process.once("SIGTERM", () => void shutdown(0));
+  process.once("SIGINT", () => void shutdown(0));
 }
 
-export const onRequestError: Instrumentation.onRequestError = async (
-  error,
-  request,
-  context,
-) => {
+export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const span = trace.getActiveSpan();
   span?.recordException(error);
   span?.setStatus({
@@ -257,20 +237,20 @@ export const onRequestError: Instrumentation.onRequestError = async (
 
   const digest = (error as Error & { digest?: string }).digest;
 
-  logs.getLogger('nextjs.request').emit({
+  logs.getLogger("nextjs.request").emit({
     severityNumber: SeverityNumber.ERROR,
-    severityText: 'ERROR',
-    body: 'nextjs.request.error',
+    severityText: "ERROR",
+    body: "nextjs.request.error",
     attributes: {
-      'exception.type': error.name,
-      'exception.message': error.message,
-      'exception.stacktrace': error.stack,
-      ...(digest ? { 'exception.digest': digest } : {}),
-      'http.request.method': request.method,
-      'url.path': request.path,
-      'next.router.kind': context.routerKind,
-      'next.route.path': context.routePath,
-      'next.route.type': context.routeType,
+      "exception.type": error.name,
+      "exception.message": error.message,
+      "exception.stacktrace": error.stack,
+      ...(digest ? { "exception.digest": digest } : {}),
+      "http.request.method": request.method,
+      "url.path": request.path,
+      "next.router.kind": context.routerKind,
+      "next.route.path": context.routePath,
+      "next.route.type": context.routeType,
     },
   });
 
@@ -305,14 +285,14 @@ the active span instead of creating a redundant child span just to hold
 attributes.
 
 ```typescript
-import { trace } from '@opentelemetry/api';
-import type { NextRequest } from 'next/server';
+import { trace } from "@opentelemetry/api";
+import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const span = trace.getActiveSpan();
-  span?.setAttribute('http.route', '/api/orders');
-  span?.setAttribute('feature_flag.key', 'checkout-flow');
-  span?.setAttribute('order.lookup.source', 'route-handler');
+  span?.setAttribute("http.route", "/api/orders");
+  span?.setAttribute("feature_flag.key", "checkout-flow");
+  span?.setAttribute("order.lookup.source", "route-handler");
 
   // handler logic
 }
@@ -348,29 +328,29 @@ Create instruments once at module scope, then record values inside handlers.
 Keep attributes low-cardinality and follow [metrics](./metrics.md).
 
 ```typescript
-import { getMeter } from '@/lib/telemetry';
-import type { NextRequest } from 'next/server';
-import { NextResponse } from 'next/server';
+import { getMeter } from "@/lib/telemetry";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 const meter = getMeter();
-const requestCounter = meter.createCounter('checkout.requests', {
-  description: 'Checkout requests',
-  unit: '{request}',
+const requestCounter = meter.createCounter("checkout.requests", {
+  description: "Checkout requests",
+  unit: "{request}",
 });
-const requestDuration = meter.createHistogram('checkout.request.duration', {
-  description: 'Checkout request duration',
-  unit: 'ms',
+const requestDuration = meter.createHistogram("checkout.request.duration", {
+  description: "Checkout request duration",
+  unit: "ms",
 });
 
 export async function POST(request: NextRequest) {
   const start = performance.now();
   const attributes = {
-    'http.request.method': 'POST',
-    'http.route': '/api/checkout',
+    "http.request.method": "POST",
+    "http.route": "/api/checkout",
   };
 
   try {
-    requestCounter.add(1, { ...attributes, outcome: 'accepted' });
+    requestCounter.add(1, { ...attributes, outcome: "accepted" });
     return NextResponse.json({ ok: true });
   } finally {
     requestDuration.record(performance.now() - start, attributes);

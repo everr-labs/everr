@@ -15,17 +15,13 @@ export function createBillingCheckouts(
   identity: ReturnType<typeof createBillingIdentity>,
 ) {
   const { db, polar, lock } = deps;
-  const successUrl = (
-    fresh: boolean,
-    returnTo = "/",
-    checkoutId = "{CHECKOUT_ID}",
-  ) =>
+  const successUrl = (fresh: boolean, returnTo = "/", checkoutId = "{CHECKOUT_ID}") =>
     new URL(
       `${fresh ? "/organizations" : ""}/checkout/success?checkout_id=${checkoutId}${fresh ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`,
       deps.appUrl,
     ).toString();
   return {
-    async startNew(ownerId: string, name: string, returnTo = "/") {
+    async startNew(this: void, ownerId: string, name: string, returnTo = "/") {
       name = name.trim();
       returnTo = returnToSchema.parse(returnTo);
       return lock(creationLock(ownerId, name), async () => {
@@ -68,10 +64,7 @@ export function createBillingCheckouts(
         for (const session of candidates) {
           assertSession(session, intent.orgId, customer.id);
           const parsed = creationMetadata.safeParse(session.metadata);
-          if (
-            !parsed.success ||
-            JSON.stringify(parsed.data) !== JSON.stringify(metadata)
-          )
+          if (!parsed.success || JSON.stringify(parsed.data) !== JSON.stringify(metadata))
             throw new BillingError(
               "unsupported_checkout",
               "An incompatible checkout exists for this organization.",
@@ -79,9 +72,7 @@ export function createBillingCheckouts(
         }
         let checkout = ["succeeded", "confirmed", "open"].flatMap((status) =>
           candidates.filter(
-            (s) =>
-              s.status === status &&
-              (status !== "open" || s.expiresAt.getTime() > Date.now()),
+            (s) => s.status === status && (status !== "open" || s.expiresAt.getTime() > Date.now()),
           ),
         )[0];
         if (!checkout)
@@ -93,8 +84,7 @@ export function createBillingCheckouts(
           });
         else if (
           checkout.status === "open" &&
-          checkout.successUrl !==
-            successUrl(true, returnTo, encodeURIComponent(checkout.id))
+          checkout.successUrl !== successUrl(true, returnTo, encodeURIComponent(checkout.id))
         )
           checkout = await polar.updateCheckoutSuccessUrl(
             checkout.id,
@@ -113,7 +103,7 @@ export function createBillingCheckouts(
         };
       });
     },
-    async startUpgrade(orgId: string, actorId: string) {
+    async startUpgrade(this: void, orgId: string, actorId: string) {
       return lock(`billing:${orgId}`, async () => {
         await store.authorize(orgId, actorId);
         const [subscription] = await db
@@ -126,14 +116,11 @@ export function createBillingCheckouts(
         const sessions = (await polar.checkouts(customer.id)).filter(
           (s) => s.metadata.orgId === orgId && !s.metadata.everrPurpose,
         );
-        for (const session of sessions)
-          assertSession(session, orgId, customer.id);
+        for (const session of sessions) assertSession(session, orgId, customer.id);
         // A paid checkout can precede its webhook. Never sell a second active
         // subscription while the first payment is still being finalized.
         let paid: Checkout | undefined;
-        for (const session of sessions.filter(
-          (s) => s.status === "succeeded",
-        )) {
+        for (const session of sessions.filter((s) => s.status === "succeeded")) {
           if (await verifyPayment(polar, session, orgId, customer.id)) {
             paid = session;
             break;
@@ -142,9 +129,7 @@ export function createBillingCheckouts(
         const checkout =
           paid ??
           sessions.find((s) => s.status === "confirmed") ??
-          sessions.find(
-            (s) => s.status === "open" && s.expiresAt.getTime() > Date.now(),
-          ) ??
+          sessions.find((s) => s.status === "open" && s.expiresAt.getTime() > Date.now()) ??
           (await polar.createCheckout({
             customerId: customer.id,
             orgId,

@@ -199,9 +199,7 @@ async function verifyChecksum(
   const fileBuffer = await fspModule.readFile(filePath);
   const actualHash = createHash("sha256").update(fileBuffer).digest("hex");
   if (expectedHash !== actualHash) {
-    throw new Error(
-      `SHA-256 mismatch: expected ${expectedHash}, got ${actualHash}`,
-    );
+    throw new Error(`SHA-256 mismatch: expected ${expectedHash}, got ${actualHash}`);
   }
 }
 
@@ -239,25 +237,25 @@ async function installCli({
 
   const binaryUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}`;
   const checksumUrl = `${CLI_DOWNLOAD_BASE_URL}/${binaryName}.sha256`;
-  const installDir = path.join(
-    env.RUNNER_TEMP || os.tmpdir(),
-    "everr-cli",
-  );
+  const installDir = path.join(env.RUNNER_TEMP || os.tmpdir(), "everr-cli");
   const cliPath = path.join(installDir, "everr");
 
   try {
     await fspModule.mkdir(installDir, { recursive: true });
     await downloadFile(fetchImpl, binaryUrl, cliPath, fspModule);
-    await downloadFile(fetchImpl, checksumUrl, path.join(installDir, `${binaryName}.sha256`), fspModule);
+    await downloadFile(
+      fetchImpl,
+      checksumUrl,
+      path.join(installDir, `${binaryName}.sha256`),
+      fspModule,
+    );
     await verifyChecksum(cliPath, path.join(installDir, `${binaryName}.sha256`), fspModule);
     await fspModule.chmod(cliPath, 0o755);
     addPath(installDir);
     info(`installed Everr CLI for ${target} from ${binaryUrl}`);
     return { enabled: true, path: cliPath, target };
   } catch (error) {
-    warning(
-      `install-cli skipped: failed to install Everr CLI: ${formatError(error)}`,
-    );
+    warning(`install-cli skipped: failed to install Everr CLI: ${formatError(error)}`);
     return { enabled: true, failed: true, target };
   }
 }
@@ -286,9 +284,7 @@ async function startResourceUsage({
 
   const runnerOs = env.RUNNER_OS || "";
   if (runnerOs !== "Linux" && runnerOs !== "macOS") {
-    info(
-      "resource-usage sampling is supported only on Linux and macOS runners",
-    );
+    info("resource-usage sampling is supported only on Linux and macOS runners");
     saveState("enabled", "0");
     return { enabled: false };
   }
@@ -374,8 +370,7 @@ async function finalizeAndUploadResourceUsage({
   const samplesPath = readState("samplesPath");
   const pidPath = readState("pidPath");
   const startedAt = readState("startedAt") || now().toISOString();
-  const workspacePath =
-    readState("workspacePath") || env.GITHUB_WORKSPACE || process.cwd();
+  const workspacePath = readState("workspacePath") || env.GITHUB_WORKSPACE || process.cwd();
   const { outputDir } = buildRuntimePaths(env);
   const completedAt = now().toISOString();
 
@@ -404,10 +399,7 @@ async function finalizeAndUploadResourceUsage({
       },
     });
 
-    const files = [
-      path.join(outputDir, "metadata.json"),
-      path.join(outputDir, "samples.ndjson"),
-    ];
+    const files = [path.join(outputDir, "metadata.json"), path.join(outputDir, "samples.ndjson")];
     const artifactName = artifactNameForCheckRun(checkRunId);
 
     await uploadArtifactImpl(artifactName, files, outputDir, {
@@ -421,10 +413,7 @@ async function finalizeAndUploadResourceUsage({
   }
 }
 
-async function ensureSamplesFile(
-  samplesPath: string,
-  fspModule: typeof fsp = fsp,
-): Promise<void> {
+async function ensureSamplesFile(samplesPath: string, fspModule: typeof fsp = fsp): Promise<void> {
   if (!samplesPath) {
     return;
   }
@@ -502,14 +491,8 @@ async function resolveWorkspaceFilesystemInfo(
   return resolveFilesystemInfoLinux(workspacePath);
 }
 
-async function resolveFilesystemInfoLinux(
-  workspacePath: string,
-): Promise<FilesystemInfo> {
-  const { stdout } = await execFileWithOutput("df", [
-    "-PkT",
-    "--",
-    workspacePath,
-  ]);
+async function resolveFilesystemInfoLinux(workspacePath: string): Promise<FilesystemInfo> {
+  const { stdout } = await execFileWithOutput("df", ["-PkT", "--", workspacePath]);
   const lines = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -531,14 +514,8 @@ async function resolveFilesystemInfoLinux(
   };
 }
 
-async function resolveFilesystemInfoMacOS(
-  workspacePath: string,
-): Promise<FilesystemInfo> {
-  const { stdout } = await execFileWithOutput("df", [
-    "-Pk",
-    "--",
-    workspacePath,
-  ]);
+async function resolveFilesystemInfoMacOS(workspacePath: string): Promise<FilesystemInfo> {
+  const { stdout } = await execFileWithOutput("df", ["-Pk", "--", workspacePath]);
   const lines = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -579,17 +556,15 @@ async function execFileWithOutput(
   file: string,
   args: readonly string[],
 ): Promise<{ stderr: string; stdout: string }> {
-  return await new Promise<{ stderr: string; stdout: string }>(
-    (resolve, reject) => {
-      execFile(file, args, (error, stdout, stderr) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve({ stdout, stderr });
-      });
-    },
-  );
+  return await new Promise<{ stderr: string; stdout: string }>((resolve, reject) => {
+    execFile(file, args, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

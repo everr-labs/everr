@@ -1,8 +1,9 @@
+import type * as FlamegraphTypes from "./flamegraph";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { type Ref, useImperativeHandle } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { TracesRepositoryLike } from "../../data/repository";
 import { TraceDetailParamsSchema } from "../../data/schemas";
 import type { Span } from "../../data/types";
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./flamegraph", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./flamegraph")>()),
+  ...(await importOriginal<typeof FlamegraphTypes>()),
   TraceFlamegraph: ({
     onSelect,
     ref,
@@ -145,55 +146,51 @@ function renderExplorer(
 }
 
 describe("shared trace explorer", () => {
-  it.each([
-    {},
-    { from: "now-1h", to: "now" },
-  ])("finishes loading a direct trace link with search %j", async (search) => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-10-19T14:00:00Z"));
-    const getTrace = vi.fn(async () => {
-      vi.setSystemTime(new Date(Date.now() + 100));
-      return [];
-    });
-    const repo: TracesRepositoryLike = {
-      getTrace,
-      search: vi.fn(async () => []),
-      listServiceIdentities: vi.fn(async () => []),
-      attributeKeys: vi.fn(async () => []),
-      attributeValues: vi.fn(async () => []),
-    };
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    const result = render(
-      <QueryClientProvider client={client}>
-        <TraceExplorer
-          repo={repo}
-          traceId="a73013fe4538179d2bb3c13234b37de4"
-          search={TraceDetailParamsSchema.parse(search)}
-          onBack={vi.fn()}
-          onSpanChange={vi.fn()}
-        />
-      </QueryClientProvider>,
-    );
-    try {
-      expect(
-        await screen.findByRole("heading", { name: "Trace not found" }),
-      ).toBeInTheDocument();
-      expect(getTrace).toHaveBeenCalledTimes(1);
-    } finally {
-      result.unmount();
-      client.clear();
-    }
-  });
+  it.each([{}, { from: "now-1h", to: "now" }])(
+    "finishes loading a direct trace link with search %j",
+    async (search) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2026-10-19T14:00:00Z"));
+      const getTrace = vi.fn(async () => {
+        vi.setSystemTime(new Date(Date.now() + 100));
+        return [];
+      });
+      const repo: TracesRepositoryLike = {
+        getTrace,
+        search: vi.fn(async () => []),
+        listServiceIdentities: vi.fn(async () => []),
+        attributeKeys: vi.fn(async () => []),
+        attributeValues: vi.fn(async () => []),
+      };
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      const result = render(
+        <QueryClientProvider client={client}>
+          <TraceExplorer
+            repo={repo}
+            traceId="a73013fe4538179d2bb3c13234b37de4"
+            search={TraceDetailParamsSchema.parse(search)}
+            onBack={vi.fn()}
+            onSpanChange={vi.fn()}
+          />
+        </QueryClientProvider>,
+      );
+      try {
+        expect(await screen.findByRole("heading", { name: "Trace not found" })).toBeInTheDocument();
+        expect(getTrace).toHaveBeenCalledTimes(1);
+      } finally {
+        result.unmount();
+        client.clear();
+      }
+    },
+  );
 
   it("keeps the waterfall in place when a visible row is selected", async () => {
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
-      (callback) => {
-        callback(0);
-        return 0;
-      },
-    );
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
     const { props } = renderExplorer();
     await screen.findByRole("button", { name: "Select child" });
     fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
@@ -205,18 +202,14 @@ describe("shared trace explorer", () => {
   });
 
   it("reveals the waterfall row when a span is selected in the flamegraph", async () => {
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
-      (callback) => {
-        callback(0);
-        return 0;
-      },
-    );
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
     const { props } = renderExplorer();
     await screen.findByRole("button", { name: "Select child" });
     fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Select flamegraph child" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Select flamegraph child" }));
     expect(props.onSpanChange).toHaveBeenCalledWith("child");
     expect(mocks.scrollToIndex).toHaveBeenCalledWith({
       index: 1,
@@ -226,12 +219,10 @@ describe("shared trace explorer", () => {
   });
 
   it("reveals search matches in both views", async () => {
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(
-      (callback) => {
-        callback(0);
-        return 0;
-      },
-    );
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
     renderExplorer();
     await screen.findByRole("button", { name: "Select child" });
     fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
@@ -258,48 +249,31 @@ describe("shared trace explorer", () => {
     const { client } = renderExplorer({}, initial);
     await screen.findByRole("button", { name: "Select child" });
     fireEvent.click(screen.getByRole("button", { name: "Toggle root" }));
-    expect(
-      screen.queryByRole("button", { name: "Select child" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select child" })).not.toBeInTheDocument();
 
-    const traceQuery = client
-      .getQueryCache()
-      .find({ queryKey: ["traces", "get"], exact: false });
+    const traceQuery = client.getQueryCache().find({ queryKey: ["traces", "get"], exact: false });
     expect(traceQuery).toBeDefined();
     if (!traceQuery) throw new Error("Trace query was not cached");
     await act(async () => {
       client.setQueryData(
         traceQuery.queryKey,
-        [
-          ...initial,
-          span("new"),
-          span("new-child", "new"),
-          span("leaf-child", "leaf"),
-        ],
+        [...initial, span("new"), span("new-child", "new"), span("leaf-child", "leaf")],
         { updatedAt: traceQuery.state.dataUpdatedAt + 1 },
       );
     });
 
-    expect(
-      await screen.findByRole("button", { name: "Select new-child" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Select leaf-child" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Select new-child" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select leaf-child" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle root" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
-    expect(
-      screen.queryByRole("button", { name: "Select child" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select child" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle open" })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
-    expect(
-      screen.getByRole("button", { name: "Select open-child" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select open-child" })).toBeInTheDocument();
   });
 
   it("prepares flamegraph layout on demand and reuses it across toggles and selection", async () => {
@@ -335,9 +309,7 @@ describe("shared trace explorer", () => {
         end: "2026-10-06 12:00:01.000",
       }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "root" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "root" })).toBeInTheDocument();
     expect(repo.getTrace).toHaveBeenCalledWith({
       traceId: "trace-1",
     });
@@ -345,9 +317,7 @@ describe("shared trace explorer", () => {
       "aria-pressed",
       "false",
     );
-    expect(
-      screen.queryByRole("complementary", { name: "Span details" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Span details" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Flamegraph/ })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -359,15 +329,11 @@ describe("shared trace explorer", () => {
     const details = await screen.findByRole("complementary", {
       name: "Span details",
     });
-    expect(
-      within(details).getByRole("heading", { name: "child" }),
-    ).toBeInTheDocument();
+    expect(within(details).getByRole("heading", { name: "child" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close span details" }));
     expect(props.onSpanChange).toHaveBeenLastCalledWith(undefined);
     rerender();
-    expect(
-      screen.queryByRole("complementary", { name: "Span details" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Span details" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Select root" }));
     expect(props.onSpanChange).toHaveBeenLastCalledWith("root");
     rerender("root");
@@ -375,8 +341,6 @@ describe("shared trace explorer", () => {
       "aria-pressed",
       "true",
     );
-    expect(
-      screen.getByRole("complementary", { name: "Span details" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Span details" })).toBeInTheDocument();
   });
 });

@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "./client.js";
 import { captureError } from "./index.js";
-import {
-  attrs,
-  type OtlpBatch,
-  type OtlpRecord,
-  startClient,
-  UNIQUE_ID,
-} from "./test-kit.js";
+import { attrs, type OtlpBatch, type OtlpRecord, startClient, UNIQUE_ID } from "./test-kit.js";
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
@@ -135,9 +129,7 @@ describe("error capture through the SDK", () => {
     start();
     const error = new Error("login failed for a@b.com");
     error.stack = "Error: login failed for a@b.com\n    at auth (/cb:1:1)";
-    window.dispatchEvent(
-      new ErrorEvent("error", { error, message: "login failed" }),
-    );
+    window.dispatchEvent(new ErrorEvent("error", { error, message: "login failed" }));
     const record = (await records()).find((r) => r.eventName === "exception");
     expect(record?.body).toEqual({
       stringValue: "Error: login failed for a@b.com",
@@ -167,9 +159,7 @@ describe("error capture through the SDK", () => {
     };
     event.reason = error;
     window.dispatchEvent(event);
-    window.dispatchEvent(
-      new ErrorEvent("error", { error, message: "Failed to fetch" }),
-    );
+    window.dispatchEvent(new ErrorEvent("error", { error, message: "Failed to fetch" }));
     const all = await records();
     expect(all.filter((r) => r.eventName === "exception")).toHaveLength(1);
   });
@@ -237,13 +227,12 @@ describe("normalization edge shapes", () => {
     circular.self = circular;
     captureError(circular);
     const record = (await records()).find((r) => r.eventName === "exception");
-    expect(attrs(record as OtlpRecord)["exception.message"]).toBe(
-      "[unserializable]",
-    );
+    expect(attrs(record as OtlpRecord)["exception.message"]).toBe("[unserializable]");
   });
 
   it("falls back to Error for a nameless error and keeps the bare type as body", async () => {
     start();
+    // oxlint-disable-next-line unicorn/error-message -- Exercise capture of errors whose message is empty.
     const nameless = new Error(""); // empty message too
     nameless.name = "";
     delete nameless.stack; // stack falls back to "name: message"
@@ -271,9 +260,7 @@ describe("normalization edge shapes", () => {
       vi.useRealTimers();
     }
     const seeds = (await records()).filter(
-      (r) =>
-        r.eventName === "exception" &&
-        attrs(r)["exception.message"] === "prune-seed",
+      (r) => r.eventName === "exception" && attrs(r)["exception.message"] === "prune-seed",
     );
     expect(seeds).toHaveLength(6);
   });
@@ -283,9 +270,7 @@ describe("cross-handler dedup, remaining orders", () => {
   it("does not re-report from a rejection after onerror saw the same object", async () => {
     start();
     const error = new TypeError("seen by onerror first");
-    window.dispatchEvent(
-      new ErrorEvent("error", { error, message: error.message }),
-    );
+    window.dispatchEvent(new ErrorEvent("error", { error, message: error.message }));
     const event = new Event("unhandledrejection") as Event & {
       reason?: unknown;
     };
@@ -303,9 +288,7 @@ describe("cross-handler dedup, remaining orders", () => {
     event.reason = "primitive-reason";
     window.dispatchEvent(event);
     const record = (await records()).find(
-      (r) =>
-        r.eventName === "exception" &&
-        attrs(r)["exception.message"] === "primitive-reason",
+      (r) => r.eventName === "exception" && attrs(r)["exception.message"] === "primitive-reason",
     );
     expect(attrs(record as OtlpRecord)["exception.type"]).toBe("NonError");
   });
@@ -334,9 +317,7 @@ describe("rate-limit window boundary", () => {
       vi.useRealTimers();
     }
     const edge = (await records()).filter(
-      (r) =>
-        r.eventName === "exception" &&
-        attrs(r)["exception.message"] === "window-edge",
+      (r) => r.eventName === "exception" && attrs(r)["exception.message"] === "window-edge",
     );
     expect(edge).toHaveLength(6);
   });

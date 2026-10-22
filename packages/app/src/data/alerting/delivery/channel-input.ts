@@ -5,10 +5,7 @@
  * it, so the read-side redaction marker never enters a write.
  */
 import { AlertingChannelConfigInputSchema } from "../schema";
-import type {
-  AlertingChannelConfig,
-  AlertingChannelConfigInput,
-} from "../types";
+import type { AlertingChannelConfig, AlertingChannelConfigInput } from "../types";
 
 export type ChannelType = AlertingChannelConfig["type"];
 
@@ -30,9 +27,7 @@ export const EMPTY_CHANNEL_DRAFT: ChannelConfigDraft = {
 
 /** The draft an edit starts from: the stored kind and the chats, never the
  *  secret, which the read redacted and the editor re-enters or leaves. */
-export function channelConfigDraft(
-  stored: AlertingChannelConfig,
-): ChannelConfigDraft {
+export function channelConfigDraft(stored: AlertingChannelConfig): ChannelConfigDraft {
   return {
     ...EMPTY_CHANNEL_DRAFT,
     type: stored.type,

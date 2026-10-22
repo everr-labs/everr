@@ -1,15 +1,11 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { storage } from "@composition/storage";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 
 // vi.hoisted so the hoisted vi.mock factory can reference this safely.
 
-import {
-  MCP_MAX_CELL_CHARS,
-  MCP_MAX_OUTPUT_CHARS,
-  MCP_MAX_ROWS,
-} from "./query-tool-description";
+import { MCP_MAX_CELL_CHARS, MCP_MAX_OUTPUT_CHARS, MCP_MAX_ROWS } from "./query-tool-description";
 import { runSqlForConnection } from "./run-sql";
 
 const { assertStorageReady } = storage;
@@ -128,10 +124,7 @@ describe("runSqlForConnection", () => {
   });
 
   it("rejects a header that alone exceeds the output budget", async () => {
-    const columns = Array.from(
-      { length: MCP_MAX_OUTPUT_CHARS / 10 },
-      (_, i) => `column_${i}`,
-    );
+    const columns = Array.from({ length: MCP_MAX_OUTPUT_CHARS / 10 }, (_, i) => `column_${i}`);
     previewSqlApi.mockResolvedValueOnce({
       columns,
       columnTypes: columns.map(() => "String"),
@@ -166,15 +159,11 @@ describe("runSqlForConnection", () => {
     previewSqlApi.mockRejectedValueOnce(
       chError("ILLEGAL_COLUMN", "Column of type Dynamic is not allowed"),
     );
-    expect((await run("SELECT 1")).content[1]).toMatch(
-      /^Attribute values are Dynamic/,
-    );
+    expect((await run("SELECT 1")).content[1]).toMatch(/^Attribute values are Dynamic/);
   });
 
   it("adds a hint to a timeout, classified by code", async () => {
     previewSqlApi.mockRejectedValueOnce(chError("", "Timeout exceeded", "159"));
-    expect((await run("SELECT 1")).content[1]).toMatch(
-      /^Narrow the time window/,
-    );
+    expect((await run("SELECT 1")).content[1]).toMatch(/^Narrow the time window/);
   });
 });

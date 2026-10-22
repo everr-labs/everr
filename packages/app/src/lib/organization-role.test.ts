@@ -1,9 +1,5 @@
-import { describe, expect, it } from "vitest";
-import {
-  hasOrganizationRole,
-  isOrganizationAdmin,
-  isOrganizationOwner,
-} from "./organization-role";
+import { describe, expect, it } from "vite-plus/test";
+import { hasOrganizationRole, isOrganizationAdmin, isOrganizationOwner } from "./organization-role";
 
 describe("organization roles", () => {
   it("matches a role in a comma-separated role list", () => {

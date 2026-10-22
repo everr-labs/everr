@@ -23,8 +23,8 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 
 ## Attributes
 
-- `SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are JSON columns. Read a key as text with `` toString(SpanAttributes.`http.route`) ``: backticks around the key, dots included. A missing key gives `''`.
-- Read a number with `` toFloat64OrZero(toString(SpanAttributes.`key`)) ``.
+- `SpanAttributes`, `LogAttributes`, and `ResourceAttributes` are JSON columns. Read a key as text with ``toString(SpanAttributes.`http.route`)``: backticks around the key, dots included. A missing key gives `''`.
+- Read a number with ``toFloat64OrZero(toString(SpanAttributes.`key`))``.
 - Never `GROUP BY` or compare the raw `` SpanAttributes.`key` ``: it is a `Dynamic` value, and the query fails.
 - Test presence with `has(SpanAttributesKeys, 'key')`. It is indexed.
 - The `metrics_*` tables keep maps: `Attributes['key']`.
@@ -48,6 +48,7 @@ LIMIT 100
 ## Starter Queries
 
 What is emitting, and how fresh it is (the same works on `logs`):
+
 ```sql
 SELECT ServiceName, count() AS spans, max(Timestamp) AS last
 FROM traces
@@ -58,6 +59,7 @@ LIMIT 50
 ```
 
 What metrics exist:
+
 ```sql
 SELECT ServiceName, MetricName, MetricUnit, max(TimeUnix) AS last
 FROM metrics_sum
@@ -68,6 +70,7 @@ LIMIT 100
 ```
 
 Span names of one service, with latency:
+
 ```sql
 SELECT SpanName, SpanKind, count() AS c, quantile(0.95)(Duration) / 1e6 AS p95_ms
 FROM traces
@@ -78,6 +81,7 @@ LIMIT 50
 ```
 
 Recent errors:
+
 ```sql
 SELECT Timestamp, ServiceName, Body, toString(LogAttributes.`exception.type`) AS type, TraceId
 FROM logs
@@ -87,6 +91,7 @@ LIMIT 50
 ```
 
 Recent failed spans:
+
 ```sql
 SELECT Timestamp, ServiceName, SpanName, StatusMessage, TraceId
 FROM traces
@@ -96,6 +101,7 @@ LIMIT 50
 ```
 
 One trace, from its id. The `+ 1` covers the truncation of `End` to whole seconds. The same window works on `logs` for the logs of the trace:
+
 ```sql
 WITH
   (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace-id>') AS start,
@@ -110,9 +116,10 @@ LIMIT 200
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a *fingerprint*: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
+Everr groups error logs into Errors by a _fingerprint_: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
+
 ```sql
 SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,
   toString(LogAttributes.`exception.stacktrace`) AS stacktrace

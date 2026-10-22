@@ -1,9 +1,10 @@
+import type * as ServerTypes from "@tanstack/react-start/server";
 import { trace } from "@opentelemetry/api";
 import { createMiddleware } from "@tanstack/react-start";
 import type { ServerFnTelemetryOptions } from "./server-fn-runtime.js";
 import { instrumentServerFunction } from "./server-fn-runtime.js";
 
-type GetRequest = typeof import("@tanstack/react-start/server").getRequest;
+type GetRequest = typeof ServerTypes.getRequest;
 
 /**
  * Global function middleware: one INTERNAL span per server-function call,
@@ -34,9 +35,7 @@ export const createServerFnTelemetryMiddleware = ({
 
     if (getRequest) return start(getRequest);
 
-    loading ??= import("@tanstack/react-start/server").then(
-      (m) => (getRequest = m.getRequest),
-    );
+    loading ??= import("@tanstack/react-start/server").then((m) => (getRequest = m.getRequest));
     return loading.then(start);
   });
 };

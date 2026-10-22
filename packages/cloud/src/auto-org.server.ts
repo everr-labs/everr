@@ -1,10 +1,5 @@
 import { type Database, db } from "@everr/app/db/client";
-import {
-  invitation,
-  member,
-  session as sessionTable,
-  user,
-} from "@everr/app/db/schema";
+import { invitation, member, session as sessionTable, user } from "@everr/app/db/schema";
 import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import type { GenericEndpointContext } from "better-auth";
 import { and, eq, gt, sql } from "drizzle-orm";
@@ -97,10 +92,7 @@ export async function ensureAutomaticOrganization(
       .from(invitation)
       .where(
         and(
-          eq(
-            sql<string>`lower(${invitation.email})`,
-            userRecord.email.toLowerCase(),
-          ),
+          eq(sql<string>`lower(${invitation.email})`, userRecord.email.toLowerCase()),
           eq(invitation.status, "pending"),
           gt(invitation.expiresAt, new Date()),
         ),

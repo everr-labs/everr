@@ -10,10 +10,7 @@ import type { Attributes } from "@opentelemetry/api";
  * Thus a closed type in a Node package does not contain the mechanisms of a
  * browser SDK.
  */
-export type Mechanism =
-  | "uncaughtException"
-  | "unhandledrejection"
-  | (string & {});
+export type Mechanism = "uncaughtException" | "unhandledrejection" | (string & {});
 
 export type ErrorSeverity = "error" | "fatal";
 

@@ -8,6 +8,7 @@ export const ALERT_DELIVERY_MAX_ATTEMPTS = 5;
  * open, and retention must leave it alone. The complement is terminal, which
  * `alert_deliveries_terminal_cleanup_idx` and the retention sweep key on.
  */
+// oxlint-disable-next-line typescript/consistent-type-assertions -- The nonempty predicate arguments produce SQL; retain the existing expression without an added fallback.
 export const deliveryIsInFlight: SQL = or(
   eq(alertDeliveries.status, "pending"),
   and(

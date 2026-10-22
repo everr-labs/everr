@@ -34,11 +34,7 @@ function ShareBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="flex items-center gap-2">
-      <Meter
-        className="w-16 shrink-0"
-        size="sm"
-        layers={[{ pct, tone: "chart" }]}
-      />
+      <Meter className="w-16 shrink-0" size="sm" layers={[{ pct, tone: "chart" }]} />
       <span className="w-9 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
         {Math.round(pct)}%
       </span>
@@ -78,8 +74,7 @@ export function CostByJobTable({ data }: CostByJobTableProps) {
       {
         header: "Est. Cost",
         className: "pb-2 pr-4 text-right whitespace-nowrap",
-        cellClassName:
-          "py-2 pr-4 text-right font-mono font-medium tabular-nums whitespace-nowrap",
+        cellClassName: "py-2 pr-4 text-right font-mono font-medium tabular-nums whitespace-nowrap",
         cell: (row) => formatCost(row.estimatedCost),
       },
       {

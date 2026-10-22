@@ -20,13 +20,9 @@ export function OrganizationMenuItems() {
 
 import { OrganizationSwitcher } from "../components/organization-switcher";
 
-export function WelcomeActions(props: {
-  activeOrganizationId?: string | null;
-}) {
+export function WelcomeActions(props: { activeOrganizationId?: string | null }) {
   const pathname = useLocation({ select: (location) => location.pathname });
-  return pathname === "/organization-setup" ? (
-    <OrganizationSwitcher {...props} />
-  ) : null;
+  return pathname === "/organization-setup" ? <OrganizationSwitcher {...props} /> : null;
 }
 export function WorkspaceMenu() {
   const activateOrganization = useOrganizationActivation();
@@ -36,21 +32,14 @@ export function WorkspaceMenu() {
     try {
       await activateOrganization(orgId);
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not switch organization.",
-      );
+      toast.error(error instanceof Error ? error.message : "Could not switch organization.");
     }
   }
   return (
     <DropdownMenuGroup>
       <DropdownMenuLabel>Organization</DropdownMenuLabel>
       {orgs?.map((org) => (
-        <DropdownMenuItem
-          key={org.id}
-          onClick={() => void handleSwitchOrg(org.id)}
-        >
+        <DropdownMenuItem key={org.id} onClick={() => void handleSwitchOrg(org.id)}>
           {org.id === activeOrg?.id ? <Check /> : <span className="size-4" />}
           <span className="truncate">{org.name}</span>
         </DropdownMenuItem>

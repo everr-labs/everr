@@ -14,9 +14,7 @@ export function useAutoRefresh() {
     from: "/_authenticated/_organization/_dashboard",
   });
   const defaults = useRouteTimeDefaults();
-  const { refresh } = ResolvedTimeRangeSearchSchema.parse(
-    applyRouteTimeDefaults(search, defaults),
-  );
+  const { refresh } = ResolvedTimeRangeSearchSchema.parse(applyRouteTimeDefaults(search, defaults));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

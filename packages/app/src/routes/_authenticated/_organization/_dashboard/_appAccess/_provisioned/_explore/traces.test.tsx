@@ -1,3 +1,4 @@
+import type * as TelemetryTraces from "@everr/telemetry-explorer/traces";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -12,7 +13,7 @@ import {
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { Route as TracesFileRoute } from "./traces";
 
@@ -21,8 +22,7 @@ vi.mock("#app/data/traces/remote-repo.ts", () => ({
 }));
 
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@everr/telemetry-explorer/traces")>();
+  const actual = await importOriginal<typeof TelemetryTraces>();
   return {
     ...actual,
     TracesSearch: ({
@@ -47,10 +47,7 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
 });
 
 describe("/traces route", () => {
-  function renderTracesRoute(
-    initialEntries: string[],
-    initialState?: Record<string, unknown>,
-  ) {
+  function renderTracesRoute(initialEntries: string[], initialState?: Record<string, unknown>) {
     const rootRoute = createRootRoute({
       component: Outlet,
     });
@@ -93,9 +90,7 @@ describe("/traces route", () => {
     });
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
-        dashboardRoute.addChildren([
-          exploreRoute.addChildren([traceFullPageRoute, tracesRoute]),
-        ]),
+        dashboardRoute.addChildren([exploreRoute.addChildren([traceFullPageRoute, tracesRoute])]),
       ]),
     ]);
     const history = createMemoryHistory({ initialEntries });
@@ -122,21 +117,15 @@ describe("/traces route", () => {
   it("renders the detail child route as a page for a direct trace URL", async () => {
     renderTracesRoute(["/traces/trace-1"]);
 
-    expect(
-      await screen.findByText("Trace full page route"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 
   it("opens a full-page trace and preserves list filters without adding trace timestamps", async () => {
     const user = userEvent.setup();
     const router = renderTracesRoute(["/traces?from=now-1h&to=now"]);
-    await user.click(
-      await screen.findByRole("link", { name: "Open trace trace-1" }),
-    );
-    expect(
-      await screen.findByText("Trace full page route"),
-    ).toBeInTheDocument();
+    await user.click(await screen.findByRole("link", { name: "Open trace trace-1" }));
+    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/traces/trace-1");
     expect(router.state.location.search).toMatchObject({
@@ -151,9 +140,7 @@ describe("/traces route", () => {
   it("renders the detail child route as a page when the URL is reloaded", async () => {
     renderTracesRoute(["/traces/trace-1"]);
 
-    expect(
-      await screen.findByText("Trace full page route"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
     expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 });

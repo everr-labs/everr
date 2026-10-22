@@ -113,26 +113,23 @@ function GravityStarsBackground({
     }
   }, [initStars, redistributeStars]);
 
-  const handlePointerMove = React.useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      let clientX = 0;
-      let clientY = 0;
-      if ("touches" in e) {
-        const t = e.touches[0];
-        if (!t) return;
-        clientX = t.clientX;
-        clientY = t.clientY;
-      } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      }
-      mouseRef.current = { x: clientX - rect.left, y: clientY - rect.top };
-    },
-    [],
-  );
+  const handlePointerMove = React.useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    let clientX = 0;
+    let clientY = 0;
+    if ("touches" in e) {
+      const t = e.touches[0];
+      if (!t) return;
+      clientX = t.clientX;
+      clientY = t.clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    mouseRef.current = { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
 
   const updateStars = React.useCallback(() => {
     const w = canvasSize.width;
@@ -184,10 +181,7 @@ function GravityStarsBackground({
           p.glowMultiplier = targetGlow;
         } else if (glowAnimation === "ease") {
           const ease = 0.08;
-          p.glowMultiplier = Math.max(
-            1,
-            currentGlow + (targetGlow - currentGlow) * ease,
-          );
+          p.glowMultiplier = Math.max(1, currentGlow + (targetGlow - currentGlow) * ease);
         } else {
           const spring = (targetGlow - currentGlow) * 0.15;
           const damping = 0.9;
@@ -294,10 +288,7 @@ function GravityStarsBackground({
   React.useEffect(() => {
     resizeCanvas();
     const container = containerRef.current;
-    const ro =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(resizeCanvas)
-        : null;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resizeCanvas) : null;
     if (container && ro) ro.observe(container);
     const onResize = () => resizeCanvas();
     window.addEventListener("resize", onResize);
@@ -322,14 +313,7 @@ function GravityStarsBackground({
         }
       });
     }
-  }, [
-    starsCount,
-    starsOpacity,
-    movementSpeed,
-    canvasSize.width,
-    canvasSize.height,
-    initStars,
-  ]);
+  }, [starsCount, starsOpacity, movementSpeed, canvasSize.width, canvasSize.height, initStars]);
 
   React.useEffect(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -341,7 +325,6 @@ function GravityStarsBackground({
   }, [animate]);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: just presentationals
     <div
       ref={containerRef}
       data-slot="gravity-stars-background"

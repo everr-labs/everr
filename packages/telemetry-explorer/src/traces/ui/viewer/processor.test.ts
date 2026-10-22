@@ -1,11 +1,7 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { Span } from "../../data/types";
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
-import {
-  executeTraceTask,
-  type TraceResponse,
-  type TraceTask,
-} from "./processor-tasks";
+import { executeTraceTask, type TraceResponse, type TraceTask } from "./processor-tasks";
 
 const workers: FakeWorker[] = [];
 class FakeWorker {
@@ -21,9 +17,7 @@ class FakeWorker {
     this.task = task;
   }
   respond() {
-    this.onmessage?.(
-      new MessageEvent("message", { data: executeTraceTask(this.task) }),
-    );
+    this.onmessage?.(new MessageEvent("message", { data: executeTraceTask(this.task) }));
   }
 }
 
@@ -84,6 +78,8 @@ it("keeps overlapping trace requests independent when results arrive out of orde
 it("terminates cancelled work and ignores a late result while another trace loads", async () => {
   const controller = new AbortController();
   const cancelled = prepareTraceModel([span("old")], controller.signal);
+  // Register the rejection assertion before triggering cancellation, failure, or timers.
+  // oxlint-disable-next-line vitest/valid-expect -- This assertion promise is awaited after the event.
   const rejection = expect(cancelled).rejects.toMatchObject({
     name: "AbortError",
   });
@@ -98,6 +94,8 @@ it("terminates cancelled work and ignores a late result while another trace load
 
 it("rejects processing errors and releases the worker", async () => {
   const result = prepareTraceModel([span("root")]);
+  // Register the rejection assertion before triggering cancellation, failure, or timers.
+  // oxlint-disable-next-line vitest/valid-expect -- This assertion promise is awaited after the event.
   const rejection = expect(result).rejects.toThrow("invalid span");
   workers[0].onmessage?.(
     new MessageEvent("message", {
@@ -111,6 +109,8 @@ it("rejects processing errors and releases the worker", async () => {
 it("terminates an unresponsive worker instead of keeping the view pending", async () => {
   vi.useFakeTimers();
   const result = prepareTraceModel([span("root")]);
+  // Register the rejection assertion before triggering cancellation, failure, or timers.
+  // oxlint-disable-next-line vitest/valid-expect -- This assertion promise is awaited after the event.
   const rejection = expect(result).rejects.toThrow("too long");
   await vi.advanceTimersByTimeAsync(30_000);
   await rejection;

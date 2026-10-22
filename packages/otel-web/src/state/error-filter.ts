@@ -12,10 +12,7 @@
  * it, and it sets it a maximum of one time for each WebSDK. Thus without that
  * instrumentation there is no filter.
  */
-export type ErrorFilter = (
-  message: string,
-  scriptUrl: string | undefined,
-) => boolean;
+export type ErrorFilter = (message: string, scriptUrl: string | undefined) => boolean;
 
 let filter: ErrorFilter | undefined;
 

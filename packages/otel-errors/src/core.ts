@@ -9,10 +9,5 @@
 export { capture, configure, setLogger } from "./capture.js";
 export type { CaptureInput } from "./client.js";
 export { type NormalizedError, normalizeError } from "./normalize.js";
-export type {
-  ClientOptions,
-  ErrorEvent,
-  ErrorSeverity,
-  Mechanism,
-} from "./types.js";
+export type { ClientOptions, ErrorEvent, ErrorSeverity, Mechanism } from "./types.js";
 export { PKG_NAME, PKG_VERSION } from "./version.js";

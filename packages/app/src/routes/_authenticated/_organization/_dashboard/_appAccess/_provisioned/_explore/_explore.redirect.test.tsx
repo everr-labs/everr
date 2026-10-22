@@ -1,3 +1,4 @@
+import type * as FiltersTypes from "@everr/telemetry-explorer/filters";
 /**
  * Regression test for: selecting a Service/Environment filter redirects to "/".
  *
@@ -38,7 +39,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { Route as ExploreFileRoute } from "../_explore";
@@ -56,19 +57,9 @@ vi.mock("#app/data/traces/remote-repo.ts", () => ({
 }));
 
 vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@everr/telemetry-explorer/filters")
-  >()),
-  ExploreGlobalFilters: ({
-    onServiceChange,
-  }: {
-    onServiceChange: (v: string[]) => void;
-  }) => (
-    <button
-      type="button"
-      data-testid="set-service"
-      onClick={() => onServiceChange(["api"])}
-    >
+  ...(await importOriginal<typeof FiltersTypes>()),
+  ExploreGlobalFilters: ({ onServiceChange }: { onServiceChange: (v: string[]) => void }) => (
+    <button type="button" data-testid="set-service" onClick={() => onServiceChange(["api"])}>
       set
     </button>
   ),

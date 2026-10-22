@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import { AttributeValueCombobox } from "./attribute-value-combobox";
@@ -10,9 +10,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 const repo = {

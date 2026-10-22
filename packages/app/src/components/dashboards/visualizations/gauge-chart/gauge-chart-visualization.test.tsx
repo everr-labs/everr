@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { GaugeChartVisualization } from "./gauge-chart-visualization";
 import { gaugeChartSpec } from "./spec";
 
@@ -9,10 +9,7 @@ const props = {
 };
 
 describe("GaugeChartVisualization", () => {
-  it.each([
-    "horizontal",
-    "arc",
-  ] as const)("attaches percent units in the %s gauge", (variant) => {
+  it.each(["horizontal", "arc"] as const)("attaches percent units in the %s gauge", (variant) => {
     render(
       <GaugeChartVisualization
         {...props}
@@ -29,10 +26,7 @@ describe("GaugeChartVisualization", () => {
     expect(unit).not.toHaveAttribute("dx");
   });
 
-  it.each([
-    "horizontal",
-    "arc",
-  ] as const)("separates ordinary units in the %s gauge", (variant) => {
+  it.each(["horizontal", "arc"] as const)("separates ordinary units in the %s gauge", (variant) => {
     render(
       <GaugeChartVisualization
         {...props}
@@ -46,10 +40,7 @@ describe("GaugeChartVisualization", () => {
     );
 
     const unit = screen.getByText("ms");
-    if (variant === "horizontal") {
-      expect(unit).toHaveClass("ml-1");
-    } else {
-      expect(unit).toHaveAttribute("dx", "1.5");
-    }
+    expect(unit.classList.contains("ml-1")).toBe(variant === "horizontal");
+    expect(unit.getAttribute("dx")).toBe(variant === "arc" ? "1.5" : null);
   });
 });

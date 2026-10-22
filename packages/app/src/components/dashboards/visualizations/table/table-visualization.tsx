@@ -1,9 +1,6 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { TableIcon } from "lucide-react";
 import { useState } from "react";
 import { queryLabel } from "../data-utils";
@@ -11,10 +8,7 @@ import type { QueryResultRow, VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { TableSpec } from "./spec";
 
-function buildColumns(
-  rows: QueryResultRow[],
-  spec: TableSpec,
-): Column<QueryResultRow>[] {
+function buildColumns(rows: QueryResultRow[], spec: TableSpec): Column<QueryResultRow>[] {
   const first = rows[0];
   if (!first) return [];
   return Object.keys(first).map((key) => {
@@ -24,18 +18,14 @@ function buildColumns(
       header: key,
       cell: (row: QueryResultRow) => {
         const val = row[key];
-        if (val == null)
-          return <span className="text-muted-foreground">NULL</span>;
+        if (val == null) return <span className="text-muted-foreground">NULL</span>;
         return typeof val === "number" ? formatter.format(val) : String(val);
       },
     };
   });
 }
 
-export function TableVisualization({
-  spec,
-  data,
-}: VisualizationProps<TableSpec>) {
+export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>) {
   const sets = data ?? [];
   const [selected, setSelected] = useState(0);
 
@@ -72,6 +62,7 @@ export function TableVisualization({
             size="sm"
           >
             {sets.map((_, i) => (
+              // oxlint-disable-next-line react/no-array-index-key -- query result sets have no stable id; identity is positional (the toggle value is the index) and the array is never reordered
               <ToggleGroupItem key={i} value={String(i)}>
                 {queryLabel(i)}
               </ToggleGroupItem>

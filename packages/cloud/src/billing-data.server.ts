@@ -2,10 +2,7 @@ import { db } from "@everr/app/db/client";
 import { member } from "@everr/app/db/schema";
 import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, ne, sql } from "drizzle-orm";
-import {
-  assertPolarProductGrantsPlan,
-  planForPolarProductId,
-} from "./billing/catalog.server";
+import { assertPolarProductGrantsPlan, planForPolarProductId } from "./billing/catalog.server";
 import { organizationBilling, orgSubscription } from "./db/schema";
 
 export type OrganizationPlan = "hobby" | "pro";
@@ -50,16 +47,10 @@ export type OrgEntitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export async function readOrgEntitlement(
-  orgId: string,
-): Promise<OrgEntitlement> {
+export async function readOrgEntitlement(orgId: string): Promise<OrgEntitlement> {
   const [storedPlan, subscriptionRows] = await Promise.all([
     readExplicitPlan(orgId),
-    db
-      .select()
-      .from(orgSubscription)
-      .where(eq(orgSubscription.orgId, orgId))
-      .limit(1),
+    db.select().from(orgSubscription).where(eq(orgSubscription.orgId, orgId)).limit(1),
   ]);
   const row = subscriptionRows[0];
   const plan: OrganizationPlan = storedPlan?.plan ?? "hobby";
@@ -74,17 +65,11 @@ export async function readOrgEntitlement(
   };
 }
 
-export async function userOwnsHobbyOrganization(
-  userId: string,
-  excludingOrgId?: string,
-) {
+export async function userOwnsHobbyOrganization(userId: string, excludingOrgId?: string) {
   const memberships = await db
     .select({ role: member.role })
     .from(member)
-    .leftJoin(
-      organizationBilling,
-      eq(organizationBilling.orgId, member.organizationId),
-    )
+    .leftJoin(organizationBilling, eq(organizationBilling.orgId, member.organizationId))
     .where(
       and(
         eq(member.userId, userId),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createValueFormatter } from "./value-format";
 import { valueFormatSpec } from "./value-format-spec";
 
@@ -46,9 +46,7 @@ describe("value formatting", () => {
     [Infinity, "∞%"],
     [NaN, "NaN%"],
   ])("explicitly displays the ratio %s as a percentage", (value, expected) => {
-    const result = createValueFormatter(
-      valueFormatSpec.parse({ unit: "1", display: "percent" }),
-    );
+    const result = createValueFormatter(valueFormatSpec.parse({ unit: "1", display: "percent" }));
     expect(result.format(value)).toBe(expected);
     expect(result.axis(1)(value)).toBe(expected);
   });
@@ -65,9 +63,7 @@ describe("value formatting", () => {
     expect(formatter("1", "none").format(0.75)).toBe("0.75");
     expect(formatter("%", "none").format(0.75)).toBe("0.75%");
     expect(
-      createValueFormatter(
-        valueFormatSpec.parse({ unit: "1", display: "value" }),
-      ).format(0.75),
+      createValueFormatter(valueFormatSpec.parse({ unit: "1", display: "value" })).format(0.75),
     ).toBe("0.75");
   });
 
@@ -120,9 +116,7 @@ describe("value formatting", () => {
     [-90, "s", "-1.5 min"],
     [0, "s", "0 s"],
   ])("scales duration %s %s", (value, unit, expected) => {
-    expect(formatter(String(unit), "duration").format(Number(value))).toBe(
-      expected,
-    );
+    expect(formatter(String(unit), "duration").format(Number(value))).toBe(expected);
   });
 
   it("can keep durations in decimal time steps", () => {
@@ -165,18 +159,14 @@ describe("value formatting", () => {
     });
     expect(formatter("By", "binary").format(NaN)).toBe("NaN B");
     expect(formatter("1", "none").format(Infinity)).toBe("∞");
-    expect(
-      valueFormatSpec.safeParse({ unit: "µs", scale: "duration" }).success,
-    ).toBe(false);
+    expect(valueFormatSpec.safeParse({ unit: "µs", scale: "duration" }).success).toBe(false);
   });
 
   it("preserves unscaled input units and explicit precision", () => {
     expect(formatter("s", "none", 3).format(0.025)).toBe("0.025 s");
     expect(formatter("%", "none", 2).format(2.3)).toBe("2.30%");
     expect(formatter("By", "binary", 2).format(1536)).toBe("1.50 KiB");
-    expect(formatter("connections", "none", 0).format(8200)).toBe(
-      "8,200 connections",
-    );
+    expect(formatter("connections", "none", 0).format(8200)).toBe("8,200 connections");
   });
 
   it("fixes axis scales across zero, negative and small ticks", () => {
@@ -227,18 +217,11 @@ describe("value formatting", () => {
   });
 
   it("validates duration input units while allowing arbitrary labels elsewhere", () => {
-    expect(
-      valueFormatSpec.safeParse({ unit: "widgets/s", scale: "decimal" })
-        .success,
-    ).toBe(true);
-    expect(
-      valueFormatSpec.safeParse({ unit: "widgets/s", scale: "duration" })
-        .success,
-    ).toBe(false);
-    expect(
-      valueFormatSpec.safeParse({ unit: "constructor", scale: "duration" })
-        .success,
-    ).toBe(false);
+    expect(valueFormatSpec.safeParse({ unit: "widgets/s", scale: "decimal" }).success).toBe(true);
+    expect(valueFormatSpec.safeParse({ unit: "widgets/s", scale: "duration" }).success).toBe(false);
+    expect(valueFormatSpec.safeParse({ unit: "constructor", scale: "duration" }).success).toBe(
+      false,
+    );
     expect(valueFormatSpec.safeParse({ decimals: 11 }).success).toBe(false);
     expect(valueFormatSpec.safeParse({ decimals: -1 }).success).toBe(false);
     expect(valueFormatSpec.safeParse({ scale: "auto" }).success).toBe(false);

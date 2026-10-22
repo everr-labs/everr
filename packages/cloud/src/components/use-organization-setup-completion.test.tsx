@@ -1,5 +1,5 @@
 import { act, render } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("../organization-provisioning/actions", () => ({
   completeOrganizationSetup: vi.fn().mockResolvedValue(undefined),
@@ -10,20 +10,8 @@ vi.mock("@tanstack/react-router", () => ({ useRouter: () => router }));
 
 import { useOrganizationSetupCompletion } from "./use-organization-setup-completion";
 
-function Probe({
-  ready,
-  minimumDurationMs,
-}: {
-  ready: boolean;
-  minimumDurationMs?: number;
-}) {
-  useOrganizationSetupCompletion(
-    ready,
-    10_000,
-    "/logs?service=api",
-    "test_org",
-    minimumDurationMs,
-  );
+function Probe({ ready, minimumDurationMs }: { ready: boolean; minimumDurationMs?: number }) {
+  useOrganizationSetupCompletion(ready, 10_000, "/logs?service=api", "test_org", minimumDurationMs);
   return null;
 }
 beforeEach(() => {

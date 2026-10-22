@@ -5,17 +5,14 @@ type ShutdownState = {
   hooks: Map<string, { phase: Phase; run: () => Promise<void> }>;
   stopping?: Promise<void>;
 };
-const globals = globalThis as typeof globalThis & {
-  __everrShutdown?: ShutdownState;
-};
+declare global {
+  var __everrShutdown: ShutdownState | undefined;
+}
+const globals = globalThis;
 globals.__everrShutdown ??= { hooks: new Map() };
 const state: ShutdownState = globals.__everrShutdown;
 
-export function registerShutdownHook(
-  name: string,
-  phase: Phase,
-  run: () => Promise<void>,
-) {
+export function registerShutdownHook(name: string, phase: Phase, run: () => Promise<void>) {
   state.hooks.set(name, { phase, run });
 }
 
@@ -40,20 +37,14 @@ export function shutdownRuntime(): Promise<void> {
             }
           }),
       );
-      for (const result of results)
-        if (result.status === "rejected") errors.push(result.reason);
+      for (const result of results) if (result.status === "rejected") errors.push(result.reason);
     }
-    if (errors.length)
-      throw new AggregateError(errors, "Runtime shutdown failed");
+    if (errors.length) throw new AggregateError(errors, "Runtime shutdown failed");
   })();
   return state.stopping;
 }
 
-if (
-  !process
-    .listeners("SIGTERM")
-    .some((listener) => listener.name === "everrShutdown")
-) {
+if (!process.listeners("SIGTERM").some((listener) => listener.name === "everrShutdown")) {
   const everrShutdown = () => {
     void shutdownRuntime().then(
       () => process.exit(0),

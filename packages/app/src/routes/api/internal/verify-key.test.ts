@@ -1,5 +1,5 @@
 import { storage } from "@composition/storage";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 import { Route } from "./verify-key";
 
@@ -11,8 +11,7 @@ vi.mock("@composition/storage", () => ({
 
 vi.mock("#app/env/index.ts", () => ({
   env: {
-    INGEST_VERIFY_SHARED_SECRET:
-      "test-shared-secret-with-at-least-32-characters",
+    INGEST_VERIFY_SHARED_SECRET: "test-shared-secret-with-at-least-32-characters",
   },
 }));
 
@@ -72,10 +71,7 @@ describe("/api/internal/verify-key", () => {
 
   it("returns 403 when shared secret is wrong", async () => {
     const res = await getHandler()({
-      request: makeRequest(
-        { key: "k" },
-        "wrong-secret-padded-to-32-characters",
-      ),
+      request: makeRequest({ key: "k" }, "wrong-secret-padded-to-32-characters"),
     });
     expect(res.status).toBe(403);
   });
@@ -107,46 +103,46 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(401);
   });
 
-  it.each([
-    "org_42",
-    undefined,
-  ])("returns tenant %s and each signal's retention", async (tenantId) => {
-    vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
-    const { retentionForOrg } = await import("#app/lib/retention.server.ts");
-    vi.mocked(retentionForOrg).mockResolvedValueOnce({
-      ...retentionForDays(90),
-      tracesDays: 14,
-      logsDays: 7,
-    });
-    await mockVerify({
-      valid: true,
-      error: null,
-      key: {
-        id: "ak_3",
-        referenceId: "org_42",
-        permissions: { ingest: ["write"] },
-      },
-    });
-    const res = await getHandler()({
-      request: makeRequest({ key: "the-key" }),
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      ...(tenantId === undefined ? {} : { tenantId }),
-      keyId: "ak_3",
-      tracesDays: 14,
-      logsDays: 7,
-      metricsDays: 90,
-    });
-    expect(retentionForOrg).toHaveBeenCalledWith("org_42");
+  it.each(["org_42", undefined])(
+    "returns tenant %s and each signal's retention",
+    async (tenantId) => {
+      vi.mocked(storage.telemetryTenantId).mockReturnValueOnce(tenantId);
+      const { retentionForOrg } = await import("#app/lib/retention.server.ts");
+      vi.mocked(retentionForOrg).mockResolvedValueOnce({
+        ...retentionForDays(90),
+        tracesDays: 14,
+        logsDays: 7,
+      });
+      await mockVerify({
+        valid: true,
+        error: null,
+        key: {
+          id: "ak_3",
+          referenceId: "org_42",
+          permissions: { ingest: ["write"] },
+        },
+      });
+      const res = await getHandler()({
+        request: makeRequest({ key: "the-key" }),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        ...(tenantId === undefined ? {} : { tenantId }),
+        keyId: "ak_3",
+        tracesDays: 14,
+        logsDays: 7,
+        metricsDays: 90,
+      });
+      expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
-    // The configId pin is the sole guarantee that a CLI/user-scoped key
-    // can't be used for ingest — assert we still pass it.
-    const { auth } = await import("#app/identity/server.ts");
-    expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-      body: { key: "the-key", configId: "ingest" },
-    });
-  });
+      // The configId pin is the sole guarantee that a CLI/user-scoped key
+      // can't be used for ingest — assert we still pass it.
+      const { auth } = await import("#app/identity/server.ts");
+      expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
+        body: { key: "the-key", configId: "ingest" },
+      });
+    },
+  );
 
   it("returns 403 for a key with no permissions map", async () => {
     // A key with no capabilities grants nothing — it is rejected rather than

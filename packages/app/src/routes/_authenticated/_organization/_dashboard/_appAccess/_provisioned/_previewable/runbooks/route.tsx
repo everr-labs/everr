@@ -1,14 +1,6 @@
-import {
-  createFileRoute,
-  Outlet,
-  retainSearchParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet, retainSearchParams, useSearch } from "@tanstack/react-router";
 import { FrameToggle } from "#app/components/rail/frame-toggle.tsx";
-import {
-  RailFrame,
-  railFrameRouteOptions,
-} from "#app/components/rail/rail-frame.tsx";
+import { RailFrame, railFrameRouteOptions } from "#app/components/rail/rail-frame.tsx";
 import { RunbooksList } from "#app/components/runbooks/runbooks-list.tsx";
 
 export const Route = createFileRoute(

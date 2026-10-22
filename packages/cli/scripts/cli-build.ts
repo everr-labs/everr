@@ -13,13 +13,20 @@ export const embeddedAssets = {
 
 export function resolveCliBuild(mode: string, env: NodeJS.ProcessEnv = process.env) {
   if (mode !== "debug" && mode !== "release") throw new Error(`Unsupported mode: ${mode}`);
-  if (mode === "release" && env.EVERR_REQUIRE_INTERNAL_TELEMETRY === "1" &&
-    !env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY?.trim()) {
+  if (
+    mode === "release" &&
+    env.EVERR_REQUIRE_INTERNAL_TELEMETRY === "1" &&
+    !env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY?.trim()
+  ) {
     throw new Error("Official CLI releases require EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
   }
   const builtBin = path.join(repoDir, "target", mode, "everr");
   return {
-    buildArgs: [...(mode === "release" ? ["--release"] : []), "--manifest-path", path.join(cliDir, "Cargo.toml")],
+    buildArgs: [
+      ...(mode === "release" ? ["--release"] : []),
+      "--manifest-path",
+      path.join(cliDir, "Cargo.toml"),
+    ],
     builtBin,
     outputBin: mode === "debug" ? `${builtBin}-dev` : builtBin,
   };

@@ -15,7 +15,7 @@ export function GithubInstall({
   useEffect(() => {
     if (!waitingForInstallation || installed) return;
 
-    const interval = window.setInterval(async () => {
+    const pollInstallation = async () => {
       try {
         const installations = await getGithubAppInstallStatus();
         if (installations.some((installation) => installation.installed)) {
@@ -25,6 +25,9 @@ export function GithubInstall({
       } catch {
         // Keep polling while the GitHub installation window is open.
       }
+    };
+    const interval = window.setInterval(() => {
+      void pollInstallation();
     }, 3000);
 
     return () => window.clearInterval(interval);
@@ -64,8 +67,8 @@ export function GithubInstall({
       <div>
         <p className="font-medium text-sm">Connect the Everr GitHub App</p>
         <p className="mt-1 text-muted-foreground text-sm">
-          Choose the repositories Everr can read to import workflow history and
-          receive future GitHub Actions runs.
+          Choose the repositories Everr can read to import workflow history and receive future
+          GitHub Actions runs.
         </p>
       </div>
 

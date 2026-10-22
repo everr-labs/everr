@@ -23,6 +23,5 @@ export const auth = createApplicationAuth(identity, {
     sendPasswordReset: sendPasswordResetEmail,
     sendVerification: sendVerificationEmail,
   },
-  canInviteMembers: (organizationId) =>
-    product.canInviteMembers(organizationId),
+  canInviteMembers: (organizationId) => product.canInviteMembers(organizationId),
 });

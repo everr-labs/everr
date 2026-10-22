@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { whenIdleOrHidden } from "./shared.js";
 
 // The jsdom environment has no requestIdleCallback. Thus the other performance

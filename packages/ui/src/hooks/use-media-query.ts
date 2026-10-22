@@ -40,10 +40,7 @@ export function useMediaQuery(query: string): boolean {
     [query],
   );
 
-  const getSnapshot = useCallback(
-    () => mediaQueryList(query)?.matches ?? false,
-    [query],
-  );
+  const getSnapshot = useCallback(() => mediaQueryList(query)?.matches ?? false, [query]);
 
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }

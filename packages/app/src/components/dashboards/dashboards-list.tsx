@@ -24,18 +24,12 @@ import {
   type TelemetryCapabilities,
 } from "#app/data/dashboards/built-in/capabilities.ts";
 import { BUILTIN_DASHBOARDS } from "#app/data/dashboards/built-in/catalog/index.ts";
-import type {
-  BuiltinCategory,
-  BuiltinDashboard,
-} from "#app/data/dashboards/built-in/types.ts";
+import type { BuiltinCategory, BuiltinDashboard } from "#app/data/dashboards/built-in/types.ts";
 import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
 } from "#app/data/dashboards/options.ts";
-import {
-  readBuiltinsCollapsed,
-  writeBuiltinsCollapsed,
-} from "#app/data/dashboards/ui-prefs.ts";
+import { readBuiltinsCollapsed, writeBuiltinsCollapsed } from "#app/data/dashboards/ui-prefs.ts";
 import { DashboardTree } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {
@@ -48,9 +42,7 @@ function searchBuiltins(search: string): BuiltinDashboard[] {
       builtin.category.toLowerCase().includes(q) ||
       // Requirements are searchable too: someone who knows they emit
       // `redis.*` should find the Redis built-in by typing what they send.
-      builtin.requires.some((r) =>
-        (r.match ?? r.signal).toLowerCase().includes(q),
-      ),
+      builtin.requires.some((r) => (r.match ?? r.signal).toLowerCase().includes(q)),
   );
 }
 
@@ -66,19 +58,13 @@ function partitionByReadiness(
   const needsData: BuiltinDashboard[] = [];
   if (!capabilities) return { ready, needsData };
   for (const builtin of builtins) {
-    const target =
-      evaluateBuiltin(builtin, capabilities).status === "ready"
-        ? ready
-        : needsData;
+    const target = evaluateBuiltin(builtin, capabilities).status === "ready" ? ready : needsData;
     target.push(builtin);
   }
   return { ready, needsData };
 }
 
-const CATEGORY_ICON: Record<
-  BuiltinCategory,
-  React.ComponentType<{ className?: string }>
-> = {
+const CATEGORY_ICON: Record<BuiltinCategory, React.ComponentType<{ className?: string }>> = {
   Application: Activity,
   Runtime: Cpu,
   Databases: Database,
@@ -90,12 +76,10 @@ const CATEGORY_ICON: Record<
 export function DashboardsList({ preview }: { preview?: string }) {
   const [search, setSearch] = useState("");
   // "auto" defers to autoOpenNeedsData below; a click makes it user-owned.
-  const [needsDataDisclosure, setNeedsDataDisclosure] = useState<
-    "auto" | "open" | "closed"
-  >("auto");
-  const [builtinsCollapsed, setBuiltinsCollapsed] = useState(
-    readBuiltinsCollapsed,
+  const [needsDataDisclosure, setNeedsDataDisclosure] = useState<"auto" | "open" | "closed">(
+    "auto",
   );
+  const [builtinsCollapsed, setBuiltinsCollapsed] = useState(readBuiltinsCollapsed);
 
   const listQuery = useQuery(dashboardListOptions(preview));
   const dashboards = listQuery.data ?? [];
@@ -107,10 +91,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
   // is collapsed nothing renders the grading, so the probe waits until it is
   // expanded.
   const capabilitiesQuery = useQuery({
-    ...telemetryCapabilitiesOptions(
-      DEFAULT_TIME_RANGE.from,
-      DEFAULT_TIME_RANGE.to,
-    ),
+    ...telemetryCapabilitiesOptions(DEFAULT_TIME_RANGE.from, DEFAULT_TIME_RANGE.to),
     enabled: !builtinsCollapsed,
   });
   const capabilities = capabilitiesQuery.data;
@@ -135,40 +116,27 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const autoOpenNeedsData =
     capabilities !== undefined && ready.length === 0 && needsData.length > 0;
   const showNeedsData =
-    needsDataDisclosure === "auto"
-      ? autoOpenNeedsData
-      : needsDataDisclosure === "open";
+    needsDataDisclosure === "auto" ? autoOpenNeedsData : needsDataDisclosure === "open";
   const visibleNeedsData = showNeedsData ? needsData : pinnedActive(needsData);
 
   return (
-    <RailList
-      label="dashboards"
-      search={search}
-      onSearchChange={setSearch}
-      className="gap-4"
-    >
+    <RailList label="dashboards" search={search} onSearchChange={setSearch} className="gap-4">
       <section aria-label="Your dashboards">
         <GroupLabel label="Your dashboards" />
         {listQuery.isLoading && (
           <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
         )}
         {listQuery.isError && (
-          <p className="px-1 py-1 text-amber-400 text-xs">
-            Couldn't load your dashboards
-          </p>
+          <p className="px-1 py-1 text-amber-400 text-xs">Couldn&apos;t load your dashboards</p>
         )}
-        {!listQuery.isLoading &&
-          !listQuery.isError &&
-          dashboards.length === 0 && (
-            <RailRow
-              label="Create your first dashboard"
-              icon={CirclePlus}
-              to="/dashboards/get-started"
-            />
-          )}
-        {dashboards.length > 0 && (
-          <DashboardTree dashboards={dashboards} search={search} />
+        {!listQuery.isLoading && !listQuery.isError && dashboards.length === 0 && (
+          <RailRow
+            label="Create your first dashboard"
+            icon={CirclePlus}
+            to="/dashboards/get-started"
+          />
         )}
+        {dashboards.length > 0 && <DashboardTree dashboards={dashboards} search={search} />}
       </section>
 
       <section aria-label="Built-in dashboards">
@@ -183,16 +151,14 @@ export function DashboardsList({ preview }: { preview?: string }) {
         />
 
         {builtinsCollapsed ? (
-          pinnedActive(matching).map((builtin) => (
-            <BuiltinRow key={builtin.id} builtin={builtin} />
-          ))
+          pinnedActive(matching).map((builtin) => <BuiltinRow key={builtin.id} builtin={builtin} />)
         ) : (
           <>
             {capabilitiesQuery.isError && (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
                 <span className="inline-flex items-center gap-1.5 text-amber-400">
                   <TriangleAlert className="size-3.5" />
-                  Couldn't check what you send
+                  Couldn&apos;t check what you send
                 </span>
                 <Button
                   type="button"
@@ -220,9 +186,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
               <>
                 <button
                   type="button"
-                  onClick={() =>
-                    setNeedsDataDisclosure(showNeedsData ? "closed" : "open")
-                  }
+                  onClick={() => setNeedsDataDisclosure(showNeedsData ? "closed" : "open")}
                   aria-expanded={showNeedsData}
                   title="Nothing sent in the last 7 days"
                   className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
@@ -233,9 +197,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
                     <ChevronRight className="size-3 shrink-0" />
                   )}
                   Needs data
-                  <span className="ml-1 tabular-nums opacity-80">
-                    {needsData.length}
-                  </span>
+                  <span className="ml-1 tabular-nums opacity-80">{needsData.length}</span>
                 </button>
                 {visibleNeedsData.map((builtin) => (
                   <BuiltinRow key={builtin.id} builtin={builtin} />

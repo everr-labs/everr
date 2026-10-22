@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 vi.mock("#app/data/api-keys.ts", () => ({
@@ -26,20 +26,12 @@ it("resets default scopes only when the key dialog reopens", async () => {
   const { rerender } = render(dialog(["ingest"]));
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "New key" }));
-  expect(
-    await screen.findByRole("switch", { name: /Send telemetry/ }),
-  ).toBeChecked();
-  expect(
-    screen.getByRole("switch", { name: /Manage as code/ }),
-  ).not.toBeChecked();
+  expect(await screen.findByRole("switch", { name: /Send telemetry/ })).toBeChecked();
+  expect(screen.getByRole("switch", { name: /Manage as code/ })).not.toBeChecked();
   rerender(dialog(["apply"]));
   expect(screen.getByRole("switch", { name: /Send telemetry/ })).toBeChecked();
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   await user.click(screen.getByRole("button", { name: "New key" }));
-  expect(
-    await screen.findByRole("switch", { name: /Manage as code/ }),
-  ).toBeChecked();
-  expect(
-    screen.getByRole("switch", { name: /Send telemetry/ }),
-  ).not.toBeChecked();
+  expect(await screen.findByRole("switch", { name: /Manage as code/ })).toBeChecked();
+  expect(screen.getByRole("switch", { name: /Send telemetry/ })).not.toBeChecked();
 });

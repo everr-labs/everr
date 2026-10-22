@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import type { TaskSpec } from "graphile-worker";
 import type { Transaction } from "#app/db/client.ts";
-import {
-  addWorkerJob,
-  addWorkerJobInTransaction,
-} from "#app/server/worker/jobs.ts";
+import { addWorkerJob, addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 import { currentTraceLink } from "../trace-link";
 
 export const ALERT_EVALUATE_TASK = "alerts/evaluate";
@@ -21,12 +18,8 @@ export interface EvaluatePayload {
   traceparent?: string;
 }
 
-export function alertingPartitionQueue(
-  kind: "alert" | "group",
-  id: string,
-): string {
-  const partition =
-    createHash("sha256").update(id).digest().readUInt16BE(0) % 64;
+export function alertingPartitionQueue(kind: "alert" | "group", id: string): string {
+  const partition = createHash("sha256").update(id).digest().readUInt16BE(0) % 64;
   return `alerts-${kind}-${partition}`;
 }
 
@@ -38,25 +31,19 @@ export function nextAlertEvaluationAt(
 ): Date {
   const intervalMs = intervalSeconds * 1_000;
   if (!Number.isSafeInteger(intervalMs) || intervalMs <= 0) {
-    throw new Error(
-      "alert evaluation interval must be a positive safe integer",
-    );
+    throw new Error("alert evaluation interval must be a positive safe integer");
   }
   const hash = createHash("sha256")
     .update(`alert\0${organizationId}\0${definitionId}`)
     .digest()
     .readUInt32BE(0);
   const phaseMs = Math.floor((hash / HASH_SPACE_SIZE) * intervalMs);
-  const remainder =
-    (((after.getTime() - phaseMs) % intervalMs) + intervalMs) % intervalMs;
+  const remainder = (((after.getTime() - phaseMs) % intervalMs) + intervalMs) % intervalMs;
   const delayMs = remainder === 0 ? intervalMs : intervalMs - remainder;
   return new Date(after.getTime() + delayMs);
 }
 
-export function alertingRetryAt(
-  delaySeconds: number,
-  after = new Date(),
-): Date {
+export function alertingRetryAt(delaySeconds: number, after = new Date()): Date {
   const delayMs = delaySeconds * 1_000;
   if (!Number.isSafeInteger(delayMs) || delayMs <= 0) {
     throw new Error("alert retry delay must be a positive safe integer");
@@ -74,10 +61,7 @@ export function alertingRetryDelaySeconds(
   return Math.min(maximumSeconds, initial * 2 ** exponent);
 }
 
-export function alertEvaluationJobKey(
-  id: string,
-  scheduledFor: string,
-): string {
+export function alertEvaluationJobKey(id: string, scheduledFor: string): string {
   return `${ALERT_EVALUATE_TASK}:${id}:${scheduledFor}`;
 }
 
@@ -86,10 +70,7 @@ export function alertEvaluationJobKey(
 // instant than the one it is keyed on.
 function evaluationTaskSpec(payload: EvaluatePayload): TaskSpec {
   return {
-    jobKey: alertEvaluationJobKey(
-      payload.alertDefinitionId,
-      payload.scheduledFor,
-    ),
+    jobKey: alertEvaluationJobKey(payload.alertDefinitionId, payload.scheduledFor),
     jobKeyMode: "replace",
     maxAttempts: EVALUATE_MAX_ATTEMPTS,
     queueName: alertingPartitionQueue("alert", payload.alertDefinitionId),
@@ -97,9 +78,7 @@ function evaluationTaskSpec(payload: EvaluatePayload): TaskSpec {
   };
 }
 
-export function enqueueAlertEvaluation(
-  payload: EvaluatePayload,
-): Promise<void> {
+export function enqueueAlertEvaluation(payload: EvaluatePayload): Promise<void> {
   return addWorkerJob(
     ALERT_EVALUATE_TASK,
     { ...payload, ...currentTraceLink() },

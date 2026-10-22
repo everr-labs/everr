@@ -28,9 +28,7 @@ export type SilenceImpactCounts = { held: number; dropped: number };
  *
  *  The pair is `AlertRuleOption`'s, so a caller holding the rules the picker
  *  reads can hand its rows straight over. */
-export type RuleFor = (
-  ruleId: string,
-) => Pick<AlertRuleOption, "path" | "name"> | null;
+export type RuleFor = (ruleId: string) => Pick<AlertRuleOption, "path" | "name"> | null;
 
 /** What a silence did to delivery when history has no row for it. */
 const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
@@ -60,16 +58,10 @@ export function silenceFor(
   const matching = silences.filter(
     (s) => silenceIsInForce(s, now) && silenceSelects(s.matchers, subject),
   );
-  return (
-    matching.find((s) => isWholeRuleSilence(s.matchers)) ?? matching[0] ?? null
-  );
+  return matching.find((s) => isWholeRuleSilence(s.matchers)) ?? matching[0] ?? null;
 }
 
-export function silenceView(
-  row: SilenceRow,
-  now: Date,
-  held: number,
-): AlertSilenceView {
+export function silenceView(row: SilenceRow, now: Date, held: number): AlertSilenceView {
   return {
     id: row.id,
     wholeRule: isWholeRuleSilence(row.matchers),
@@ -136,7 +128,5 @@ export function silenceRecords(
   impacts: Map<string, SilenceImpactCounts>,
   ruleFor: RuleFor,
 ): AlertSilenceRecord[] {
-  return rows.map((row) =>
-    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, ruleFor),
-  );
+  return rows.map((row) => silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT, ruleFor));
 }

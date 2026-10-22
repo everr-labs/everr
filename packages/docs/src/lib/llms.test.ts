@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   docsMarkdownPathToSlugs,
   docsMarkdownResponse,
@@ -26,9 +26,10 @@ describe("docs LLM helpers", () => {
   });
 
   it("maps docs Markdown paths to Fumadocs slugs", () => {
-    expect(docsMarkdownPathToSlugs("/docs/getting-started/install.md")).toEqual(
-      ["getting-started", "install"],
-    );
+    expect(docsMarkdownPathToSlugs("/docs/getting-started/install.md")).toEqual([
+      "getting-started",
+      "install",
+    ]);
     expect(docsMarkdownPathToSlugs("/docs/index.md")).toEqual([]);
     expect(docsMarkdownPathToSlugs("/docs.md")).toEqual([]);
   });
@@ -42,9 +43,7 @@ describe("docs LLM helpers", () => {
   it("serves Markdown responses with a text/markdown content type", async () => {
     const response = markdownResponse("# Install");
 
-    expect(response.headers.get("content-type")).toBe(
-      "text/markdown; charset=utf-8",
-    );
+    expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(await response.text()).toBe("# Install");
   });
 
@@ -66,12 +65,8 @@ describe("docs LLM helpers", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toBe(
-      "text/markdown; charset=utf-8",
-    );
-    expect(await response.text()).toBe(
-      "# CLI (/docs/reference/cli)\n\nUse `everr --help`.",
-    );
+    expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(await response.text()).toBe("# CLI (/docs/reference/cli)\n\nUse `everr --help`.");
   });
 
   it("returns 404 when no Markdown docs page matches", async () => {

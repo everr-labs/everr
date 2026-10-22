@@ -6,15 +6,7 @@ import {
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
 import { eq, sql } from "drizzle-orm";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { isOrganizationProvisioned } from "./metadata";
 
 const mocks = vi.hoisted(() => ({
@@ -25,10 +17,8 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
 }));
 vi.mock("@everr/app/db/client", () => ({
-  runInTransaction: (
-    executor: { transaction: (run: unknown) => Promise<unknown> },
-    run: unknown,
-  ) => executor.transaction(run),
+  runInTransaction: (executor: { transaction: (run: unknown) => Promise<unknown> }, run: unknown) =>
+    executor.transaction(run),
   get db() {
     return mocks.database;
   },
@@ -60,18 +50,13 @@ let tasks: TaskList;
 let fixture: TestDatabase;
 const orgId = "signup-org";
 const payload = { organizationId: orgId };
-const provision = () =>
-  tasks[PROVISION_ORGANIZATION_TASK]?.(payload, {} as never);
-const scan = () =>
-  tasks["clickhouse/scan-pending-organizations"]?.({}, {} as never);
+const provision = () => tasks[PROVISION_ORGANIZATION_TASK]?.(payload, {} as never);
+const scan = () => tasks["clickhouse/scan-pending-organizations"]?.({}, {} as never);
 
 beforeAll(async () => {
   fixture = await createTestDatabase();
   mocks.database = fixture.db;
-  tasks = createOrganizationTaskList(
-    fixture.db as unknown as Database,
-    async () => {},
-  );
+  tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {});
 });
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
@@ -90,12 +75,7 @@ beforeEach(async () => {
 });
 
 async function ready() {
-  const row = (
-    await fixture.db
-      .select()
-      .from(organization)
-      .where(eq(organization.id, orgId))
-  )[0];
+  const row = (await fixture.db.select().from(organization).where(eq(organization.id, orgId)))[0];
   return row && isOrganizationProvisioned(row.metadata);
 }
 
@@ -142,9 +122,7 @@ describe("organization provisioning", () => {
     );
     await enqueueOrganizationProvisioning(orgId);
     await scan();
-    const jobs = await fixture.db.execute(
-      sql`SELECT * FROM graphile_worker.jobs`,
-    );
+    const jobs = await fixture.db.execute(sql`SELECT * FROM graphile_worker.jobs`);
     expect(jobs.rows).toHaveLength(1);
   });
 
@@ -154,9 +132,7 @@ describe("organization provisioning", () => {
     const jobs = await fixture.db.execute<{
       task_identifier: string;
       queue_name: string;
-    }>(
-      sql`SELECT task_identifier, queue_name FROM graphile_worker.jobs ORDER BY id`,
-    );
+    }>(sql`SELECT task_identifier, queue_name FROM graphile_worker.jobs ORDER BY id`);
     expect(jobs.rows).toEqual([
       {
         task_identifier: PROVISION_ORGANIZATION_TASK,
@@ -226,12 +202,9 @@ it("reports stalled setup and still scans when retry recovery fails", async () =
     .update(organization)
     .set({ createdAt: new Date(Date.now() - 180_000) })
     .where(eq(organization.id, orgId));
-  const scanTasks = createOrganizationTaskList(
-    fixture.db as unknown as Database,
-    async () => {
-      throw new Error("recovery unavailable");
-    },
-  );
+  const scanTasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {
+    throw new Error("recovery unavailable");
+  });
   await scanTasks["clickhouse/scan-pending-organizations"]?.({}, {} as never);
   expect(mocks.error).toHaveBeenCalledWith(
     "clickhouse.organization.retry_recovery.failed",
@@ -248,31 +221,25 @@ it("reports stalled setup and still scans when retry recovery fails", async () =
       "everr.provisioning.pending_count": 1,
     }),
   );
-  expect(
-    (await fixture.db.execute(sql`SELECT * FROM graphile_worker.jobs`)).rows,
-  ).toHaveLength(1);
+  expect((await fixture.db.execute(sql`SELECT * FROM graphile_worker.jobs`)).rows).toHaveLength(1);
 });
 
-it.each([
-  "retrying",
-  "running",
-  "exhausted",
-])("scanner leaves an existing %s job untouched", async (state) => {
-  await enqueueOrganizationProvisioning(orgId);
-  if (state === "running")
-    await fixture.db.execute(
-      sql`UPDATE graphile_worker._private_jobs SET locked_at = now(), locked_by = 'worker'`,
-    );
-  if (state === "exhausted")
-    await fixture.db.execute(
-      sql`UPDATE graphile_worker._private_jobs SET attempts = max_attempts`,
-    );
-  const before = await fixture.db.execute(
-    sql`SELECT * FROM graphile_worker._private_jobs`,
-  );
-  await scan();
-  expect(
-    (await fixture.db.execute(sql`SELECT * FROM graphile_worker._private_jobs`))
-      .rows,
-  ).toEqual(before.rows);
-});
+it.each(["retrying", "running", "exhausted"])(
+  "scanner leaves an existing %s job untouched",
+  async (state) => {
+    await enqueueOrganizationProvisioning(orgId);
+    if (state === "running")
+      await fixture.db.execute(
+        sql`UPDATE graphile_worker._private_jobs SET locked_at = now(), locked_by = 'worker'`,
+      );
+    if (state === "exhausted")
+      await fixture.db.execute(
+        sql`UPDATE graphile_worker._private_jobs SET attempts = max_attempts`,
+      );
+    const before = await fixture.db.execute(sql`SELECT * FROM graphile_worker._private_jobs`);
+    await scan();
+    expect(
+      (await fixture.db.execute(sql`SELECT * FROM graphile_worker._private_jobs`)).rows,
+    ).toEqual(before.rows);
+  },
+);

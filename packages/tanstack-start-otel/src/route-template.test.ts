@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { routeTemplate } from "./route-template.js";
 
 const matcher = {
@@ -21,9 +21,7 @@ describe("routeTemplate", () => {
   });
 
   it("parameterizes server function paths without consulting the tree", () => {
-    expect(routeTemplate(matcher, "/_serverFn/c4d3d0c28997f144965eeaca")).toBe(
-      "/_serverFn/:id",
-    );
+    expect(routeTemplate(matcher, "/_serverFn/c4d3d0c28997f144965eeaca")).toBe("/_serverFn/:id");
   });
 
   it("returns undefined for a path only the root matches", () => {

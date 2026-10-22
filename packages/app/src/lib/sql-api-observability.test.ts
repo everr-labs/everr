@@ -1,5 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { classifySqlQueryError } from "#app/lib/sql-api-observability.ts";
 
@@ -49,9 +49,10 @@ describe("classifySqlQueryError", () => {
   });
 
   it("classifies schema-probe by error type too", () => {
-    expect(
-      classifySqlQueryError(clickhouseError("999", "UNKNOWN_TABLE")),
-    ).toEqual({ outcome: "user_error", kind: "schema_probe" });
+    expect(classifySqlQueryError(clickhouseError("999", "UNKNOWN_TABLE"))).toEqual({
+      outcome: "user_error",
+      kind: "schema_probe",
+    });
   });
 
   it("classifies known infrastructure codes as system errors", () => {

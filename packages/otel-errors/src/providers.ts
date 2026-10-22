@@ -18,19 +18,17 @@ export function resolveFlushable(candidate: unknown): Flushable | null {
   const seen = new Set<unknown>();
   let current = candidate;
 
-  while (
-    typeof current === "object" &&
-    current !== null &&
-    !seen.has(current)
-  ) {
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
     seen.add(current);
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the original direct provider and delegate property reads without adding runtime presence guards.
     const provider = current as Partial<Flushable> & {
       getDelegate?: () => unknown;
       _getDelegate?: () => unknown;
     };
 
     if (typeof provider.forceFlush === "function") {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- forceFlush was checked above; return the original provider object.
       return provider as Flushable;
     }
 

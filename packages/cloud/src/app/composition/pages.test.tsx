@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const policy = vi.hoisted(() => vi.fn());
 vi.mock("@everr/app/data/product", () => ({ getActiveOrgPolicy: policy }));

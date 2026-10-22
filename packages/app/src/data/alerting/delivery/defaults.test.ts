@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { ALERTING_SEVERITY_TIERS, defaultTierFor } from "./defaults";
 
 describe("defaultTierFor", () => {
@@ -8,9 +8,7 @@ describe("defaultTierFor", () => {
   });
 
   it("carries a severity only through its own tier while split", () => {
-    expect(defaultTierFor(["critical", "warning"], "critical")).toBe(
-      "critical",
-    );
+    expect(defaultTierFor(["critical", "warning"], "critical")).toBe("critical");
     expect(defaultTierFor(["critical", "warning"], "info")).toBeNull();
   });
 

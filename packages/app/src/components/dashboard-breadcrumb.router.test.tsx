@@ -9,7 +9,7 @@ import {
   type StaticDataRouteOption,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { DashboardBreadcrumb } from "#app/components/dashboard-breadcrumb.tsx";
 
 const runbookStaticData: StaticDataRouteOption = { breadcrumb: "Runbooks" };
@@ -71,18 +71,13 @@ describe("DashboardBreadcrumb with a real router", () => {
 
     await screen.findByText("Runbook page");
 
-    const parentHref = screen
-      .getByText("Runbooks")
-      .closest("a")
-      ?.getAttribute("href");
+    const parentHref = screen.getByText("Runbooks").closest("a")?.getAttribute("href");
     expect(parentHref).toBe("/runbooks/acme%20team/build%231");
     expect(parentHref).not.toContain("$");
     expect(screen.getByText("Dashboards").closest("a")).toHaveAttribute(
       "href",
       "/dashboards?preview=draft",
     );
-    expect(
-      screen.getByText("Page").closest("[data-slot='breadcrumb-page']"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Page").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 });

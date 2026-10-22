@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { regionToNumericId } from "./country-codes";
 
 describe("regionToNumericId", () => {
@@ -33,8 +33,7 @@ describe("regionToNumericId", () => {
     let alpha2Count = 0;
     for (let cc = 0; cc < 26 * 26; cc++) {
       const code =
-        String.fromCharCode(65 + Math.floor(cc / 26)) +
-        String.fromCharCode(65 + (cc % 26));
+        String.fromCharCode(65 + Math.floor(cc / 26)) + String.fromCharCode(65 + (cc % 26));
       if (regionToNumericId(code)) alpha2Count++;
     }
     expect(alpha2Count).toBeGreaterThanOrEqual(240);

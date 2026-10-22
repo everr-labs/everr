@@ -7,10 +7,7 @@
  * cannot see the inputs for.
  */
 
-import type {
-  RuleInventoryState,
-  TriageStatus,
-} from "#app/data/alerting/rules/read.ts";
+import type { RuleInventoryState, TriageStatus } from "#app/data/alerting/rules/read.ts";
 import type { AlertingSeverity } from "#app/data/alerting/types.ts";
 
 /** What a state chart can paint. Spelled out rather than derived from

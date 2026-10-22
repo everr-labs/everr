@@ -1,9 +1,5 @@
 import { roundDate } from "./round.js";
-import type {
-  DateMathExpression,
-  DateMathOptions,
-  DateMathUnit,
-} from "./types.js";
+import type { DateMathExpression, DateMathOptions, DateMathUnit } from "./types.js";
 import { DateMathError } from "./types.js";
 
 /**
@@ -23,10 +19,7 @@ import { DateMathError } from "./types.js";
  * // 2024-06-15T11:00:00.000Z
  * ```
  */
-export function evaluate(
-  expr: DateMathExpression,
-  options?: DateMathOptions,
-): Date {
+export function evaluate(expr: DateMathExpression, options?: DateMathOptions): Date {
   let date: Date;
 
   if (expr.anchor === "now") {
@@ -34,10 +27,7 @@ export function evaluate(
   } else {
     const timestamp = Date.parse(expr.anchor);
     if (Number.isNaN(timestamp)) {
-      throw new DateMathError(
-        `Invalid date anchor: ${expr.anchor}`,
-        expr.anchor,
-      );
+      throw new DateMathError(`Invalid date anchor: ${expr.anchor}`, expr.anchor);
     }
     date = new Date(timestamp);
   }

@@ -1,10 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import type {
-  ChannelDraft,
-  ChannelTarget,
-} from "#app/components/alerts/channel-dialog.tsx";
+import type { ChannelDraft, ChannelTarget } from "#app/components/alerts/channel-dialog.tsx";
 import { invalidateAlertNotifications } from "#app/data/alerting/delivery/options.ts";
 import {
   createAlertingChannel,
@@ -25,9 +22,7 @@ import type { AlertingDefaultDestination } from "#app/data/alerting/types.ts";
 export function useNotificationControls() {
   const queryClient = useQueryClient();
   const refresh = () => invalidateAlertNotifications(queryClient);
-  const [channelTarget, setChannelTarget] = useState<ChannelTarget | null>(
-    null,
-  );
+  const [channelTarget, setChannelTarget] = useState<ChannelTarget | null>(null);
   const [deliveryOpen, setDeliveryOpen] = useState(false);
 
   const saveChannel = useMutation({
@@ -47,9 +42,7 @@ export function useNotificationControls() {
       await refresh();
       setChannelTarget(null);
       toast.success(
-        channelTarget?.mode === "edit"
-          ? `Saved ${channel.name}`
-          : `Created ${draft.name}`,
+        channelTarget?.mode === "edit" ? `Saved ${channel.name}` : `Created ${draft.name}`,
       );
     },
     onError: (error: Error) => toast.error(error.message),
@@ -77,15 +70,11 @@ export function useNotificationControls() {
   });
 
   return {
-    pending:
-      saveChannel.isPending ||
-      deleteChannel.isPending ||
-      saveDestination.isPending,
+    pending: saveChannel.isPending || deleteChannel.isPending || saveDestination.isPending,
     channel: {
       target: channelTarget,
       openNew: (name = "") => setChannelTarget({ mode: "new", name }),
-      openEdit: (channel: NotificationChannelView) =>
-        setChannelTarget({ mode: "edit", channel }),
+      openEdit: (channel: NotificationChannelView) => setChannelTarget({ mode: "edit", channel }),
       close: () => setChannelTarget(null),
       save: saveChannel.mutate,
       remove: deleteChannel.mutate,

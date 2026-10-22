@@ -12,13 +12,7 @@
 import type { SpanContext } from "@opentelemetry/api";
 import type { Send, Signal } from "./transport.js";
 
-export type AttrValue =
-  | string
-  | number
-  | boolean
-  | string[]
-  | number[]
-  | boolean[];
+export type AttrValue = string | number | boolean | string[] | number[] | boolean[];
 
 // All the event names in one type. The names that semconv registers have no
 // prefix. All the other names have the everr prefix. This is a type only, and
@@ -233,22 +227,16 @@ function toAnyValue(value: AttrValue): AnyValue {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
   if (!Array.isArray(value)) {
-    return Number.isInteger(value)
-      ? { intValue: String(value) }
-      : { doubleValue: value };
+    return Number.isInteger(value) ? { intValue: String(value) } : { doubleValue: value };
   }
   return {
     arrayValue: {
-      values: value.flatMap((entry) =>
-        entry == null ? [] : [toAnyValue(entry)],
-      ),
+      values: value.flatMap((entry) => (entry == null ? [] : [toAnyValue(entry)])),
     },
   };
 }
 
-function toKeyValues(
-  attributes: Record<string, AttrValue | null | undefined>,
-): KeyValue[] {
+function toKeyValues(attributes: Record<string, AttrValue | null | undefined>): KeyValue[] {
   return Object.entries(attributes).flatMap(([key, value]) =>
     value == null ? [] : [{ key, value: toAnyValue(value) }],
   );
@@ -310,11 +298,7 @@ export function createEmitter(
   // above the budget. The signal then sends nothing, and this is correct: such
   // a payload is above the keepalive limit, fetch refuses it, and thus the
   // batch is lost without a record of the loss.
-  const firstFitting = (
-    items: unknown[],
-    envelopeBytes: number,
-    budget: number,
-  ): number => {
+  const firstFitting = (items: unknown[], envelopeBytes: number, budget: number): number => {
     let used = envelopeBytes;
     let i = items.length;
     while (i > 0) {
@@ -335,11 +319,7 @@ export function createEmitter(
   // alternative that uses sendBeacon, and this is correct: sendBeacon cannot
   // carry the Authorization header, and thus it cannot send data to the hosted
   // ingest.
-  const post = (
-    signal: Signal,
-    body: string,
-    keepalive?: boolean,
-  ): Promise<void> => {
+  const post = (signal: Signal, body: string, keepalive?: boolean): Promise<void> => {
     try {
       return Promise.resolve(send(signal, body, keepalive)).then(noop, noop);
     } catch {
@@ -348,9 +328,8 @@ export function createEmitter(
   };
 
   const sortBy = <T, K extends keyof T>(items: T[], key: K) =>
-    items.sort((a, b) =>
-      Number(BigInt(a[key] as string) - BigInt(b[key] as string)),
-    );
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Timestamp wire fields are strings; preserve their direct BigInt conversion.
+    items.sort((a, b) => Number(BigInt(a[key] as string) - BigInt(b[key] as string)));
 
   const flush = (keepalive?: boolean): Promise<void> => {
     clearTimeout(timer);
@@ -389,19 +368,11 @@ export function createEmitter(
     // constraint of fetch only. Thus the code discards no record.
     if (truncateAtExit) {
       spanQueue = spanQueue.slice(
-        firstFitting(
-          spanQueue,
-          bytes(build("Spans", "spans", [])),
-          EXIT_BUDGET / 4,
-        ),
+        firstFitting(spanQueue, bytes(build("Spans", "spans", [])), EXIT_BUDGET / 4),
       );
       const spanBytes = fittedBytes;
       queue = queue.slice(
-        firstFitting(
-          queue,
-          bytes(build("Logs", "logRecords", [])),
-          EXIT_BUDGET - spanBytes,
-        ),
+        firstFitting(queue, bytes(build("Logs", "logRecords", [])), EXIT_BUDGET - spanBytes),
       );
     }
     void flush(true);
@@ -416,10 +387,7 @@ export function createEmitter(
   // sequence of the listeners. The test of the document is for the server
   // path, because SSR has no document and no exit.
   const schedule = (): void => {
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState === "hidden"
-    ) {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
       if (!exitScheduled) {
         exitScheduled = true;
         queueMicrotask(() => {
@@ -433,6 +401,7 @@ export function createEmitter(
       timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
       // On the server, a batch that waits must not keep the process open after
       // its last request. A browser returns a number and does not do this.
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve optional unref dispatch on the original timer handle without restricting its runtime type.
       (timer as unknown as { unref?: () => void }).unref?.();
     }
   };
@@ -467,9 +436,7 @@ export function createEmitter(
       eventName: item.eventName,
       body: toAnyValue(item.body),
       attributes: toKeyValues(item.attributes),
-      ...(span
-        ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags }
-        : {}),
+      ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
     });
     schedule();
   };

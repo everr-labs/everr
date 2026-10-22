@@ -1,7 +1,4 @@
-import {
-  resolveTimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { resolveTimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { calculateCost } from "#app/lib/runner-pricing.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
@@ -45,13 +42,9 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 })
   .inputValidator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(
-      data.timeRange,
-    );
+    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(data.timeRange);
     const periodMs = toDate.getTime() - fromDate.getTime();
-    const prevFromISO = toClickHouseDateTime(
-      new Date(fromDate.getTime() - periodMs),
-    );
+    const prevFromISO = toClickHouseDateTime(new Date(fromDate.getTime() - periodMs));
 
     const params = {
       fromTime: fromISO,
@@ -163,11 +156,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
     }
 
     const overTime: number[] = [];
-    for (
-      const d = new Date(fromDate);
-      d <= toDate;
-      d.setDate(d.getDate() + 1)
-    ) {
+    for (const d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
       overTime.push(dailySpend.get(d.toISOString().slice(0, 10)) ?? 0);
     }
 
@@ -222,11 +211,7 @@ export const getWorkflowCostByJob = createAuthenticatedServerFn({
     // mid-range it appears under multiple label groups; merge them per job.
     const byJob = new Map<string, WorkflowCostByJob>();
     for (const row of rows) {
-      const cost = calculateCost(
-        row.labels,
-        Number(row.durationMs),
-        Number(row.roundedMinutes),
-      );
+      const cost = calculateCost(row.labels, Number(row.durationMs), Number(row.roundedMinutes));
       const entry = byJob.get(row.job) ?? {
         job: row.job,
         runs: 0,
@@ -242,9 +227,7 @@ export const getWorkflowCostByJob = createAuthenticatedServerFn({
     }
 
     return [...byJob.values()].sort(
-      (a, b) =>
-        b.estimatedCost - a.estimatedCost ||
-        b.computeMinutes - a.computeMinutes,
+      (a, b) => b.estimatedCost - a.estimatedCost || b.computeMinutes - a.computeMinutes,
     ) satisfies WorkflowCostByJob[];
   });
 
@@ -407,10 +390,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
         timestamp: string;
         sender: string;
         jobCount: string;
-      }>(
-        `SELECT * FROM (${runSummarySql}) ORDER BY timestamp DESC LIMIT 10`,
-        queryParams,
-      ),
+      }>(`SELECT * FROM (${runSummarySql}) ORDER BY timestamp DESC LIMIT 10`, queryParams),
       // Per-run estimated cost, keyed by run id and aggregated across labels.
       clickhouse.query<{
         run_id: string;

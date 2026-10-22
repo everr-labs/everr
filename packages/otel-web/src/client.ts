@@ -59,13 +59,9 @@ export class WebSDK {
     // stores. The user.* keys from identify() go into the ambient set.
     setPersistence(options.persistence);
 
-    const [rotate, current] = createSessionContext(
-      location.href,
-      document.referrer,
-    );
+    const [rotate, current] = createSessionContext(location.href, document.referrer);
 
-    let activeSpan: (time?: number) => SpanContext | undefined = () =>
-      undefined;
+    let activeSpan: (time?: number) => SpanContext | undefined = () => undefined;
     const [emit, flush, exitFlush, emitSpan] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The

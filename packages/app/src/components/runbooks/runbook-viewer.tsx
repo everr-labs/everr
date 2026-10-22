@@ -1,16 +1,9 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import {
-  useRouteContext,
-  useRouterState,
-  useSearch,
-} from "@tanstack/react-router";
+import { useRouteContext, useRouterState, useSearch } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
-import {
-  useHasVisibleVariables,
-  VariableBar,
-} from "#app/components/dashboards/variable-bar.tsx";
+import { useHasVisibleVariables, VariableBar } from "#app/components/dashboards/variable-bar.tsx";
 import { lastViewedRunbook } from "#app/data/runbooks/last-viewed.ts";
 import { runbookOptions } from "#app/data/runbooks/options.ts";
 import {
@@ -40,19 +33,13 @@ export function RunbookViewer({
   const {
     data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
-  const page = useMemo(
-    () => findPage(runbook.spec, pagePath),
-    [runbook.spec, pagePath],
-  );
+  const page = useMemo(() => findPage(runbook.spec, pagePath), [runbook.spec, pagePath]);
   // Memoized with the rest: a fresh tree would re-render every link in the
   // pages nav on any render of this component.
   const tree = useMemo(() => pageNavTree(runbook.spec), [runbook.spec]);
   // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
-  const resolveLink = useMemo(
-    () => makeRunbookLinkResolver(runbook.spec),
-    [runbook.spec],
-  );
+  const resolveLink = useMemo(() => makeRunbookLinkResolver(runbook.spec), [runbook.spec]);
   // Memoize the adapted document so the DashboardProvider value is stable across
   // re-renders; a fresh object would re-render every useDashboard consumer
   // (variable bar, panel queries, panels).
@@ -103,9 +90,7 @@ export function RunbookViewer({
       ) : (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
           <FileQuestion className="size-10" />
-          <p className="text-sm">
-            This runbook has no page &ldquo;{pagePath}&rdquo;
-          </p>
+          <p className="text-sm">This runbook has no page &ldquo;{pagePath}&rdquo;</p>
         </div>
       )}
     </DashboardProvider>

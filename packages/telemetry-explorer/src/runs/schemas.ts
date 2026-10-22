@@ -22,11 +22,7 @@ export interface RunListItem {
 }
 
 // The conclusions a user can filter by. Matches the server enum.
-export const RUN_STATUS_FILTERS = [
-  "success",
-  "failure",
-  "cancellation",
-] as const;
+export const RUN_STATUS_FILTERS = ["success", "failure", "cancellation"] as const;
 export type RunStatusFilter = (typeof RUN_STATUS_FILTERS)[number];
 
 /** Filters shared by the list, infinite-scroll, and histogram queries. */

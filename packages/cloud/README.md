@@ -152,8 +152,8 @@ requests without coordinating database mutations. Automatic signup organization
 creation retains its own post-commit onboarding flow.
 
 Shared modules are imported through explicit `@everr/app` exports. Import checks
-run through `pnpm check:boundaries` at the repository root, in the pre-commit
-hook, and in CI. They reject relative imports into other
+run through `pnpm run check` at the repository root and in CI. The pre-commit
+hook runs the same rules on staged files. They reject relative imports into other
 packages, the app's private `#app/` imports, and non-exported package paths.
 
 Client configuration retains ordinary settings: home dashboard, additional

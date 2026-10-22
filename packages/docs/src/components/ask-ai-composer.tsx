@@ -24,9 +24,7 @@ export function AskAiComposer() {
           <h3 className="text-[clamp(22px,2.4vw,28px)] font-medium leading-[1.2] tracking-[-0.025em]">
             Is Everr right for you?
           </h3>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Ask your AI to take a look.
-          </p>
+          <p className="mt-3 text-sm text-muted-foreground">Ask your AI to take a look.</p>
         </div>
         <div className="ml-6 rounded-[16px_16px_4px_16px] border border-border bg-background px-[18px] pt-[18px] pb-3 focus-within:border-primary">
           <textarea
@@ -47,7 +45,9 @@ export function AskAiComposer() {
               aria-label={status === "copied" ? "Prompt copied" : "Copy prompt"}
               title={status === "copied" ? "Copied" : "Copy prompt"}
               disabled={!prompt.trim()}
-              onClick={copy}
+              onClick={() => {
+                void copy();
+              }}
             >
               {status === "copied" ? (
                 <Check size={20} aria-hidden="true" />
@@ -59,6 +59,7 @@ export function AskAiComposer() {
         </div>
         <p
           className="mt-3 ml-6 text-center text-xs leading-normal text-muted-foreground"
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
           role="status"
         >
           {status === "error"

@@ -1,7 +1,4 @@
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   AlignCenterIcon,
@@ -130,7 +127,7 @@ export const DisabledItem: Story = {
 };
 
 export const Controlled: Story = {
-  render: (args) => {
+  render: function ToggleGroupStory(args) {
     const [value, setValue] = React.useState<string[]>(["center"]);
 
     return (
@@ -146,9 +143,7 @@ export const Controlled: Story = {
             <AlignRightIcon />
           </ToggleGroupItem>
         </ToggleGroup>
-        <span className="text-muted-foreground text-xs">
-          {value[0] ?? "None"}
-        </span>
+        <span className="text-muted-foreground text-xs">{value[0] ?? "None"}</span>
       </div>
     );
   },

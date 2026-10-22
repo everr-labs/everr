@@ -8,22 +8,13 @@ import {
 } from "@everr/ui/components/card";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Check, GitBranch, Loader2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { GithubInstall } from "#app/components/github-install.tsx";
 import { PageHeader } from "#app/components/page-header.tsx";
-import {
-  getGithubAppInstallStatus,
-  getInstallationRepos,
-  importRepos,
-} from "#app/data/github.ts";
+import { getGithubAppInstallStatus, getInstallationRepos, importRepos } from "#app/data/github.ts";
 
 export const githubInstallStatusOptions = queryOptions({
   queryKey: ["github", "install-status"],
@@ -39,8 +30,7 @@ const githubReposOptions = queryOptions({
 export function GithubPage() {
   const queryClient = useQueryClient();
   const { data: installations } = useQuery(githubInstallStatusOptions);
-  const installed =
-    installations?.some((installation) => installation.installed) ?? false;
+  const installed = installations?.some((installation) => installation.installed) ?? false;
 
   const handleInstalled = useCallback(async () => {
     await Promise.all([
@@ -67,6 +57,7 @@ export function GithubPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* oxlint-disable-next-line typescript/no-misused-promises -- Preserve the installed callback promise and identity. */}
           <GithubInstall installed={installed} onInstalled={handleInstalled} />
         </CardContent>
       </Card>
@@ -124,8 +115,8 @@ function RepositoryImport() {
       <CardHeader>
         <CardTitle>Import workflow history</CardTitle>
         <CardDescription>
-          Select up to three repositories per import. You can return and import
-          more repositories later.
+          Select up to three repositories per import. You can return and import more repositories
+          later.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -155,8 +146,7 @@ function RepositoryImport() {
           >
             {reposQuery.data.map((repo) => {
               const selected = selectedRepos.has(repo.fullName);
-              const disabled =
-                !selected && selectedRepos.size >= MAX_SELECTED_REPOS;
+              const disabled = !selected && selectedRepos.size >= MAX_SELECTED_REPOS;
 
               return (
                 <li key={repo.id}>
@@ -222,9 +212,7 @@ function RepositoryImport() {
             disabled={selectedRepos.size === 0 || importMutation.isPending}
             onClick={() => importMutation.mutate()}
           >
-            {importMutation.isPending ? (
-              <Loader2 className="animate-spin" />
-            ) : null}
+            {importMutation.isPending ? <Loader2 className="animate-spin" /> : null}
             Import selected
           </Button>
         </div>

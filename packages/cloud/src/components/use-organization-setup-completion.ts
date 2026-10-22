@@ -17,12 +17,9 @@ export function useOrganizationSetupCompletion(
     let cancelled = false;
     const timer = setTimeout(
       () => {
-        void Promise.resolve(
-          completeOrganizationSetup({ data: { organizationId } }),
-        )
+        void Promise.resolve(completeOrganizationSetup({ data: { organizationId } }))
           .then(() => {
-            if (!cancelled)
-              return router.navigate({ href: returnTo, replace: true });
+            if (!cancelled) return router.navigate({ href: returnTo, replace: true });
           })
           .catch(() => {
             /* The next readiness poll retries the continuation. */

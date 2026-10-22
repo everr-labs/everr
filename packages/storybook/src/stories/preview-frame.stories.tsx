@@ -67,12 +67,7 @@ export const Dismissible: Story = {
             {body}
           </PreviewFrame>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-fit"
-          onClick={() => setDismissed(false)}
-        >
+        <Button variant="outline" size="sm" className="w-fit" onClick={() => setDismissed(false)}>
           Restore bar
         </Button>
       </div>
@@ -83,23 +78,18 @@ export const Dismissible: Story = {
 export const Variants: Story = {
   render: (args) => (
     <div className="grid gap-3">
-      {(["neutral", "info", "success", "warning", "danger"] as const).map(
-        (variant) => (
-          <div
-            key={variant}
-            className="h-24 w-[36rem] overflow-hidden rounded-lg"
+      {(["neutral", "info", "success", "warning", "danger"] as const).map((variant) => (
+        <div key={variant} className="h-24 w-[36rem] overflow-hidden rounded-lg">
+          <PreviewFrame
+            {...args}
+            variant={variant}
+            icon={<TriangleAlertIcon className="size-3.5" />}
+            message={`Variant: ${variant}`}
           >
-            <PreviewFrame
-              {...args}
-              variant={variant}
-              icon={<TriangleAlertIcon className="size-3.5" />}
-              message={`Variant: ${variant}`}
-            >
-              {body}
-            </PreviewFrame>
-          </div>
-        ),
-      )}
+            {body}
+          </PreviewFrame>
+        </div>
+      ))}
     </div>
   ),
 };

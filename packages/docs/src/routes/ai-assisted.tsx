@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GitBranch, Laptop, Radio } from "lucide-react";
-import {
-  LandingLink,
-  LandingSection,
-  LandingShell,
-} from "@/components/landing-shell";
+import { LandingLink, LandingSection, LandingShell } from "@/components/landing-shell";
 import { InstallCommand } from "@/components/ui/install-command";
 export const Route = createFileRoute("/ai-assisted")({
   head: () => ({
@@ -51,9 +47,8 @@ function AiAssistedHero() {
           </span>
         </h1>
         <p className="max-w-[540px] text-lg leading-[1.7] text-muted-foreground">
-          Give your agent access to what your software actually does.
-          Instrument, investigate, and verify changes across local development,
-          CI, and production.
+          Give your agent access to what your software actually does. Instrument, investigate, and
+          verify changes across local development, CI, and production.
         </p>
         <div className="mt-[30px] flex flex-wrap gap-3">
           <LandingLink href="#install">Try Everr locally</LandingLink>
@@ -76,15 +71,10 @@ function AiAssistedHero() {
             ["02 / RUN", "Reproduce the failing checkout locally."],
             ["03 / OBSERVE", "Query the request trace and related logs."],
             ["04 / FIX", "Handle the provider failure in the checkout flow."],
-            [
-              "05 / VERIFY",
-              "Run it again. Inspect fresh telemetry and test results.",
-            ],
+            ["05 / VERIFY", "Run it again. Inspect fresh telemetry and test results."],
           ].map(([label, body]) => (
             <li key={label} className="text-muted-foreground">
-              <span className="mb-1.5 block text-[10px] text-primary">
-                {label}
-              </span>
+              <span className="mb-1.5 block text-[10px] text-primary">{label}</span>
               {body}
             </li>
           ))}
@@ -92,9 +82,7 @@ function AiAssistedHero() {
         <div className="flex items-center gap-2.5 bg-primary/7 px-5 py-[15px] text-xs leading-[1.6] text-primary">
           Code → execution → evidence → next change
         </div>
-        <p className="px-6 py-4 text-[10px] text-muted-foreground">
-          Illustrative workflow
-        </p>
+        <p className="px-6 py-4 text-[10px] text-muted-foreground">Illustrative workflow</p>
       </div>
     </section>
   );
@@ -124,8 +112,8 @@ function AiAssistedWorkflow() {
       title="Keep runtime context in the conversation."
     >
       <p className="mt-6 max-w-[670px] text-[17px] leading-[1.7] text-muted-foreground">
-        An agent can read the code and run tests. Everr adds queryable runtime
-        signals so the next decision can draw on what actually happened.
+        An agent can read the code and run tests. Everr adds queryable runtime signals so the next
+        decision can draw on what actually happened.
       </p>
       <div className="mt-12">
         {[
@@ -186,13 +174,11 @@ function AiAssistedRunbook() {
       <div className="mt-10 grid grid-cols-2 gap-12 max-[700px]:grid-cols-1 max-[700px]:gap-6">
         <div>
           <p className="leading-[1.7] text-muted-foreground">
-            Dashboard definitions, alerts, and runbooks live in your repository.
-            Your team and agent can read the same instructions, review changes,
-            and carry the lessons forward.
+            Dashboard definitions, alerts, and runbooks live in your repository. Your team and agent
+            can read the same instructions, review changes, and carry the lessons forward.
           </p>
           <p className="mt-5 leading-[1.7] text-muted-foreground">
-            OpenTelemetry for signals. SQL for queries. Files for operational
-            knowledge.
+            OpenTelemetry for signals. SQL for queries. Files for operational knowledge.
           </p>
           <div className="mt-[30px] flex flex-wrap gap-3">
             <LandingLink href="/docs/concepts/observability-as-code">
@@ -252,9 +238,7 @@ function AiAssistedTools() {
             <h3 className="my-3 text-[21px] font-semibold leading-[1.3] tracking-[-0.02em]">
               {title}
             </h3>
-            <p className="text-sm leading-[1.7] text-muted-foreground">
-              {body}
-            </p>
+            <p className="text-sm leading-[1.7] text-muted-foreground">{body}</p>
           </article>
         ))}
       </div>
@@ -280,9 +264,7 @@ function AiAssistedInstall() {
         <InstallCommand />
       </div>
       <div className="mt-[30px] flex flex-wrap justify-center gap-3">
-        <LandingLink href="/docs/learn/install">
-          Follow the local setup
-        </LandingLink>
+        <LandingLink href="/docs/learn/install">Follow the local setup</LandingLink>
         <LandingLink href="/docs/reference/skills" secondary>
           Connect your coding agent
         </LandingLink>

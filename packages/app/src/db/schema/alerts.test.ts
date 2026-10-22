@@ -1,5 +1,5 @@
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { ALERTING_LIFECYCLE_REASONS } from "#app/data/alerting/vocabulary.ts";
 import { alertEvents, alertEventTypeEnum } from "./alerts";
 

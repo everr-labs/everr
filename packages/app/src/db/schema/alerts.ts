@@ -17,10 +17,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ChannelNotification } from "#app/data/alerting/delivery/providers/message.ts";
-import type {
-  AlertingMatcher,
-  AlertingRuleSpec,
-} from "#app/data/alerting/types.ts";
+import type { AlertingMatcher, AlertingRuleSpec } from "#app/data/alerting/types.ts";
 import type { AlertingLifecycleReason } from "#app/data/alerting/vocabulary.ts";
 import {
   ALERTING_EVENT_TYPES,
@@ -36,36 +33,18 @@ const ALERT_EVENTS_REASON_VOCABULARY_SQL = ["", ...ALERTING_LIFECYCLE_REASONS]
   .map((reason) => `'${reason}'`)
   .join(", ");
 
-export const alertStateEnum = pgEnum("alert_state", [
-  "unknown",
-  "resolved",
-  "pending",
-  "firing",
-]);
+export const alertStateEnum = pgEnum("alert_state", ["unknown", "resolved", "pending", "firing"]);
 
-export const alertInstanceStateEnum = pgEnum(
-  "alert_instance_state",
-  ALERTING_INSTANCE_STATUSES,
-);
+export const alertInstanceStateEnum = pgEnum("alert_instance_state", ALERTING_INSTANCE_STATUSES);
 
-export const alertDeliveryStateEnum = pgEnum("alert_delivery_state", [
-  "pending",
-  "sent",
-  "failed",
-]);
+export const alertDeliveryStateEnum = pgEnum("alert_delivery_state", ["pending", "sent", "failed"]);
 
-export const alertEventTypeEnum = pgEnum(
-  "alert_event_type",
-  ALERTING_EVENT_TYPES,
-);
+export const alertEventTypeEnum = pgEnum("alert_event_type", ALERTING_EVENT_TYPES);
 
 // State-only rows (pending, closed, failed evaluations) are
 // born processed and exist only to be projected; they must never be
 // deliverable, whatever their event type says.
-export const alertEventKindEnum = pgEnum("alert_event_kind", [
-  "notifying",
-  "state",
-]);
+export const alertEventKindEnum = pgEnum("alert_event_kind", ["notifying", "state"]);
 
 export const alertSeverityEnum = pgEnum("alert_severity", ALERTING_SEVERITIES);
 
@@ -82,12 +61,8 @@ export const alertDefinitions = pgTable(
     version: bigint("version", { mode: "number" }).notNull().default(1),
     nextEvaluationAt: timestamp("next_evaluation_at", { withTimezone: true }),
     lastEnqueuedAt: timestamp("last_enqueued_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     active: boolean("active").notNull().default(true),
     // Non-null exactly while the rule is paused, the same way `degraded_since`
     // carries health: pausing is somebody's decision, and the pair answers
@@ -126,28 +101,13 @@ export const alertDefinitions = pgTable(
       foreignColumns: [previews.id, previews.organizationId, previews.repoid],
       name: "alert_definitions_preview_tenant_fk",
     }).onDelete("cascade"),
-    check(
-      "alert_definitions_repoid_nonempty",
-      sql`length(${table.repoid}) > 0`,
-    ),
-    check(
-      "alert_definitions_project_nonempty",
-      sql`length(${table.project}) > 0`,
-    ),
+    check("alert_definitions_repoid_nonempty", sql`length(${table.repoid}) > 0`),
+    check("alert_definitions_project_nonempty", sql`length(${table.project}) > 0`),
     check("alert_definitions_slug_nonempty", sql`length(${table.slug}) > 0`),
     check("alert_definitions_version_positive", sql`${table.version} > 0`),
-    check(
-      "alert_definitions_failures_nonnegative",
-      sql`${table.consecutiveFailures} >= 0`,
-    ),
-    check(
-      "alert_definitions_row_count_nonnegative",
-      sql`${table.lastRowCount} >= 0`,
-    ),
-    check(
-      "alert_definitions_firing_count_nonnegative",
-      sql`${table.firingInstanceCount} >= 0`,
-    ),
+    check("alert_definitions_failures_nonnegative", sql`${table.consecutiveFailures} >= 0`),
+    check("alert_definitions_row_count_nonnegative", sql`${table.lastRowCount} >= 0`),
+    check("alert_definitions_firing_count_nonnegative", sql`${table.firingInstanceCount} >= 0`),
     // The two pause columns are one fact, so a writer that stamps a time
     // without an actor (or the reverse) is a bug, not a half-filled trail.
     // Deliberately not tied to `active`: rules paused before these columns
@@ -164,10 +124,7 @@ export const alertDefinitions = pgTable(
     uniqueIndex("alert_definitions_preview_project_slug_uq")
       .on(table.previewId, table.project, table.slug)
       .where(sql`${table.previewId} IS NOT NULL`),
-    uniqueIndex("alert_definitions_org_id_uq").on(
-      table.organizationId,
-      table.id,
-    ),
+    uniqueIndex("alert_definitions_org_id_uq").on(table.organizationId, table.id),
     index("alert_definitions_due_idx").on(table.active, table.nextEvaluationAt),
     // Backs listRulesPage's ORDER BY updated_at DESC, id DESC per org: every
     // `everr apply` walks the full listing in 500-row pages.
@@ -204,9 +161,7 @@ export const alertInstances = pgTable(
     // incident with the same id. Null while the instance is inactive, and null
     // on rows written before the writers exist, so no foreign key.
     episodeId: uuid("episode_id"),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -214,10 +169,7 @@ export const alertInstances = pgTable(
       foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
       name: "alert_instances_definition_tenant_fk",
     }).onDelete("cascade"),
-    check(
-      "alert_instances_absent_count_nonnegative",
-      sql`${table.absentCount} >= 0`,
-    ),
+    check("alert_instances_absent_count_nonnegative", sql`${table.absentCount} >= 0`),
     uniqueIndex("alert_instances_definition_fingerprint_uq").on(
       table.alertDefinitionId,
       table.fingerprint,
@@ -270,10 +222,7 @@ export const alertEvents = pgTable(
     // instance_closed. The
     // journal carries it so a repaired projection recovers it. Branded to the
     // closed vocabulary so a writer cannot journal a reason no reader labels.
-    reason: text("reason")
-      .notNull()
-      .default("")
-      .$type<AlertingLifecycleReason | "">(),
+    reason: text("reason").notNull().default("").$type<AlertingLifecycleReason | "">(),
     instanceFingerprint: text("instance_fingerprint").notNull().default(""),
     instanceLabels: jsonb("instance_labels")
       .notNull()
@@ -281,17 +230,13 @@ export const alertEvents = pgTable(
       .$type<Record<string, string>>(),
     severity: alertSeverityEnum("severity").notNull().default("info"),
     notificationTitle: text("notification_title").notNull().default(""),
-    notificationDescription: text("notification_description")
-      .notNull()
-      .default(""),
+    notificationDescription: text("notification_description").notNull().default(""),
     suppressed: boolean("suppressed").notNull().default(false),
     // The silence holding this event, while it is held; a terminal write
     // clears it. "Was this ever silenced" lives in the ClickHouse history,
     // not here.
     silenceId: uuid("silence_id"),
-    occurredAt: timestamp("occurred_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
   },
   (table) => [
@@ -317,20 +262,13 @@ export const alertEvents = pgTable(
       "alert_events_reason_in_vocabulary",
       sql`${table.reason} IN (${sql.raw(ALERT_EVENTS_REASON_VOCABULARY_SQL)})`,
     ),
-    index("alert_events_org_occurred_idx").on(
-      table.organizationId,
-      sql`occurred_at DESC`,
-    ),
+    index("alert_events_org_occurred_idx").on(table.organizationId, sql`occurred_at DESC`),
     index("alert_events_org_fingerprint_idx").on(
       table.organizationId,
       table.instanceFingerprint,
       sql`occurred_at DESC`,
     ),
-    index("alert_events_org_slug_idx").on(
-      table.organizationId,
-      table.slug,
-      sql`occurred_at DESC`,
-    ),
+    index("alert_events_org_slug_idx").on(table.organizationId, table.slug, sql`occurred_at DESC`),
     index("alert_events_processed_idx")
       .on(table.processedAt, table.id)
       .where(sql`${table.processedAt} IS NOT NULL`),
@@ -339,9 +277,7 @@ export const alertEvents = pgTable(
     // keeps that lookup off the full journal.
     index("alert_events_held_silence_idx")
       .on(table.silenceId)
-      .where(
-        sql`${table.processedAt} IS NULL AND ${table.silenceId} IS NOT NULL`,
-      ),
+      .where(sql`${table.processedAt} IS NULL AND ${table.silenceId} IS NOT NULL`),
     // Backs cancelableNotifyingEventsFilter: every pause, delete and label
     // change scans a rule's own unprocessed events inside the mutation's
     // transaction. Same shape as alert_events_held_silence_idx: the
@@ -388,9 +324,7 @@ export const alertSilences = pgTable(
     // `system`). `author` holds the display at creation time, which is
     // self-editable profile data; this is what the audit trail attributes to.
     authorPrincipal: text("author_principal").notNull().default(""),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // Set when a user cancels the silence rather than letting it run out.
     // Cancelling collapses the window, so without this the two endings are
     // indistinguishable, and only one of them is somebody's decision.
@@ -400,14 +334,8 @@ export const alertSilences = pgTable(
     // Cancelling a silence that has not started yet collapses it to zero
     // length, so the window is closed rather than strictly positive. Creation
     // still rejects an empty window; see createSilence.
-    check(
-      "alert_silences_valid_window",
-      sql`${table.endsAt} >= ${table.startsAt}`,
-    ),
-    index("alert_silences_active_lookup_idx").on(
-      table.organizationId,
-      table.endsAt,
-    ),
+    check("alert_silences_valid_window", sql`${table.endsAt} >= ${table.startsAt}`),
+    index("alert_silences_active_lookup_idx").on(table.organizationId, table.endsAt),
     index("alert_silences_cleanup_idx").on(table.endsAt, table.id),
   ],
 );
@@ -419,18 +347,11 @@ export const alertChannels = pgTable(
     organizationId: text("organization_id").notNull(),
     name: text("name").notNull(),
     encryptedConfig: text("encrypted_config").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("alert_channels_org_name_uq").on(
-      table.organizationId,
-      table.name,
-    ),
+    uniqueIndex("alert_channels_org_name_uq").on(table.organizationId, table.name),
     uniqueIndex("alert_channels_org_id_uq").on(table.organizationId, table.id),
   ],
 );
@@ -477,12 +398,8 @@ export const alertNotificationGroups = pgTable(
     directAlertDefinitionId: uuid("direct_alert_definition_id"),
     nextFlushAt: timestamp("next_flush_at", { withTimezone: true }).notNull(),
     lastFlushedAt: timestamp("last_flushed_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -490,22 +407,13 @@ export const alertNotificationGroups = pgTable(
       foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
       name: "alert_notification_groups_direct_definition_tenant_fk",
     }).onDelete("cascade"),
-    uniqueIndex("alert_notification_groups_org_key_uq").on(
-      table.organizationId,
-      table.groupKey,
-    ),
-    uniqueIndex("alert_notification_groups_org_id_uq").on(
-      table.organizationId,
-      table.id,
-    ),
+    uniqueIndex("alert_notification_groups_org_key_uq").on(table.organizationId, table.groupKey),
+    uniqueIndex("alert_notification_groups_org_id_uq").on(table.organizationId, table.id),
     check(
       "alert_notification_groups_one_target",
       sql`num_nonnulls(${table.defaultTier}, ${table.directAlertDefinitionId}) = 1`,
     ),
-    index("alert_notification_groups_cleanup_idx").on(
-      table.updatedAt,
-      table.id,
-    ),
+    index("alert_notification_groups_cleanup_idx").on(table.updatedAt, table.id),
     // Backs orphanedDirectChainsFilter: a rule delete scans its own direct
     // groups inside the mutation's transaction, with no index on the FK
     // column otherwise.
@@ -531,10 +439,7 @@ export const alertNotificationGroupEvents = pgTable(
     primaryKey({ columns: [table.groupId, table.eventId] }),
     foreignKey({
       columns: [table.organizationId, table.groupId],
-      foreignColumns: [
-        alertNotificationGroups.organizationId,
-        alertNotificationGroups.id,
-      ],
+      foreignColumns: [alertNotificationGroups.organizationId, alertNotificationGroups.id],
     }).onDelete("cascade"),
     foreignKey({
       columns: [table.organizationId, table.eventId],
@@ -567,12 +472,8 @@ export const alertDeliveries = pgTable(
     status: alertDeliveryStateEnum("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -595,10 +496,7 @@ export const alertDeliveries = pgTable(
       .where(
         sql`${table.status} = 'sent' OR (${table.status} = 'failed' AND ${table.attempts} >= 5)`,
       ),
-    uniqueIndex("alert_deliveries_org_key_uq").on(
-      table.organizationId,
-      table.dedupKey,
-    ),
+    uniqueIndex("alert_deliveries_org_key_uq").on(table.organizationId, table.dedupKey),
   ],
 );
 
@@ -613,10 +511,7 @@ export const alertDeliveryEvents = pgTable(
     primaryKey({ columns: [table.deliveryDedupKey, table.eventId] }),
     foreignKey({
       columns: [table.organizationId, table.deliveryDedupKey],
-      foreignColumns: [
-        alertDeliveries.organizationId,
-        alertDeliveries.dedupKey,
-      ],
+      foreignColumns: [alertDeliveries.organizationId, alertDeliveries.dedupKey],
     }).onDelete("cascade"),
     foreignKey({
       columns: [table.organizationId, table.eventId],

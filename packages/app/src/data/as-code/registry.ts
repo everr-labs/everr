@@ -1,19 +1,13 @@
 import { applyAlertSpecs } from "#app/data/alerting/rules/resource/apply.server.ts";
 import { applyDashboardSpecs } from "#app/data/dashboards/apply.server.ts";
-import {
-  findPreviewId,
-  upsertPreview,
-} from "#app/data/previews/apply.server.ts";
+import { findPreviewId, upsertPreview } from "#app/data/previews/apply.server.ts";
 import type { Namespace } from "#app/data/previews/scope.ts";
 import { applyRunbookSpecs } from "#app/data/runbooks/apply.server.ts";
 import { type DbExecutor, db } from "#app/db/client.ts";
 import type { OrganizationSql } from "#app/lib/organization-sql.ts";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
-import {
-  collectOrphanWarnings,
-  validateRunbookLinks,
-} from "./runbook-links.server";
+import { collectOrphanWarnings, validateRunbookLinks } from "./runbook-links.server";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export type { OwnershipConflict } from "./ownership";
@@ -71,20 +65,16 @@ export type Reconciler = (opts: {
   note?: string;
 }>;
 
-function validateResourceKind(
-  resources: ApplyResourceEntry[],
-  expectedKind: string,
-): void {
+function validateResourceKind(resources: ApplyResourceEntry[], expectedKind: string): void {
   for (const resource of resources) {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve property access on the submitted resource without adding a new shape guard.
     const value = resource.resource as { kind?: unknown } | null | undefined;
     const ok =
       value?.kind === expectedKind ||
       // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
       (expectedKind === "Runbook" && value?.kind === "Notebook");
     if (!ok) {
-      throw new ApplyValidationError(
-        `${resource.path}: expected kind "${expectedKind}"`,
-      );
+      throw new ApplyValidationError(`${resource.path}: expected kind "${expectedKind}"`);
     }
   }
 }
@@ -167,9 +157,7 @@ export async function applyResources(opts: {
   // The dry-run target resolves the preview to its existing registry id (without
   // creating it) so the diff scopes to the right rows. A preview with nothing
   // applied yet resolves to a null id, which matches no rows.
-  const namespace = await resolveNamespace((name) =>
-    findPreviewId(db, { orgId, repoid, name }),
-  );
+  const namespace = await resolveNamespace((name) => findPreviewId(db, { orgId, repoid, name }));
 
   // Validation pass: every kind reconciles in dryRun mode, which runs the full
   // document validation but writes nothing. Any invalid document throws here,
@@ -200,9 +188,7 @@ export async function applyResources(opts: {
   // transfers ownership instead. Reconcilers only report conflicts when not
   // adopting, so this never fires with `adopt`.
   if (conflicts.length > 0) {
-    const lines = conflicts
-      .map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`)
-      .join("\n");
+    const lines = conflicts.map((c) => `  ${c.project}/${c.slug} (owned by ${c.owner})`).join("\n");
     throw new ApplyValidationError(
       `${conflicts.length} resource(s) are owned by another repo:\n${lines}\n` +
         `Re-run with --adopt to take ownership.`,
@@ -244,9 +230,7 @@ export async function applyResources(opts: {
   // every preview-owned definition has a foreign key to this row, and a
   // registered-but-empty preview is the safe failure mode (the next apply
   // upserts the same row). Live is not registered.
-  const applied = await resolveNamespace((name) =>
-    upsertPreview(db, { orgId, repoid, name }),
-  );
+  const applied = await resolveNamespace((name) => upsertPreview(db, { orgId, repoid, name }));
   // One transaction for the reconcile loop: every reconciler writes through
   // the supplied executor, so a later kind's failure rolls back earlier
   // kinds' mutations and apply never half-changes live state.

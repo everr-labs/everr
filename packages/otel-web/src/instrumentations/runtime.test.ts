@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebSDK } from "../client.js";
 import { setRouteResolver } from "../state/route.js";
 import {
@@ -48,11 +48,7 @@ describe("instrumentation runtime", () => {
         ctx.emit(`everr.test.${name}`);
       };
     start({
-      instrumentations: [
-        instrumentation("a"),
-        instrumentation("b"),
-        pageviews(),
-      ],
+      instrumentations: [instrumentation("a"), instrumentation("b"), pageviews()],
     });
     expect(order).toEqual(["a", "b"]);
 
@@ -60,11 +56,7 @@ describe("instrumentation runtime", () => {
     // test events come before the first page_view record. The pageviews()
     // instrumentation sends that record, and it is after them in the array.
     const names = (await records()).map((r) => r.eventName);
-    expect(names).toEqual([
-      "everr.test.a",
-      "everr.test.b",
-      "everr.browser.page_view",
-    ]);
+    expect(names).toEqual(["everr.test.a", "everr.test.b", "everr.browser.page_view"]);
   });
 
   it("gives ctx.emit the ambient pipeline treatment", async () => {
@@ -91,11 +83,7 @@ describe("instrumentation runtime", () => {
     start({
       instrumentations: [
         (ctx) => {
-          ctx.emit(
-            "everr.test.delayed_event",
-            { "everr.test.delay_ms": 5_000 },
-            1_725_000_000_123,
-          );
+          ctx.emit("everr.test.delayed_event", { "everr.test.delay_ms": 5_000 }, 1_725_000_000_123);
         },
       ],
     });

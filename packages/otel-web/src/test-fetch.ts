@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 
 // Installed by test-setup before the SDK captures fetch at module evaluation.
 // Tests change its behavior without changing the captured function identity.

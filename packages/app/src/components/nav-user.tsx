@@ -34,16 +34,11 @@ export interface UserMenuProps {
   organizationItems?: ReactNode;
 }
 
-export function UserMenu({
-  beforeOrganization,
-  organizationItems,
-}: UserMenuProps) {
+export function UserMenu({ beforeOrganization, organizationItems }: UserMenuProps) {
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
-  const userRole = activeOrg?.members?.find(
-    (m) => m.userId === session?.user?.id,
-  )?.role;
+  const userRole = activeOrg?.members?.find((m) => m.userId === session?.user?.id)?.role;
   const { githubEnabled } = useRouteContext({ from: "__root__" });
   const isAdmin = isOrganizationAdmin(userRole);
   const { isMobile } = useSidebar();
@@ -58,8 +53,7 @@ export function UserMenu({
   const lastName = nameParts.slice(1).join(" ");
   const fullName = user.name ?? user.email;
 
-  const initials =
-    (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
+  const initials = (firstName.slice(0, 1) + lastName.slice(0, 1)).toUpperCase() || "?";
 
   return (
     <SidebarMenu>
@@ -85,9 +79,7 @@ export function UserMenu({
               )}
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
-              <span className="overflow-hidden whitespace-nowrap font-medium">
-                {fullName}
-              </span>
+              <span className="overflow-hidden whitespace-nowrap font-medium">{fullName}</span>
               <span className="overflow-hidden whitespace-nowrap text-xs">
                 {activeOrg?.name ?? " "}
               </span>
@@ -106,9 +98,7 @@ export function UserMenu({
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{fullName}</span>
-                <span className="truncate text-xs">
-                  {activeOrg?.name ?? " "}
-                </span>
+                <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
               </div>
             </div>
             <DropdownMenuSeparator />
@@ -118,25 +108,16 @@ export function UserMenu({
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>Organization settings</DropdownMenuLabel>
-                  <DropdownMenuItem
-                    render={<Link to="/users-management" />}
-                    nativeButton={false}
-                  >
+                  <DropdownMenuItem render={<Link to="/users-management" />} nativeButton={false}>
                     <Users />
                     Members
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    render={<Link to="/api-keys" />}
-                    nativeButton={false}
-                  >
+                  <DropdownMenuItem render={<Link to="/api-keys" />} nativeButton={false}>
                     <KeyRound />
                     API keys
                   </DropdownMenuItem>
                   {githubEnabled ? (
-                    <DropdownMenuItem
-                      render={<Link to="/github" />}
-                      nativeButton={false}
-                    >
+                    <DropdownMenuItem render={<Link to="/github" />} nativeButton={false}>
                       <GitPullRequest />
                       GitHub
                     </DropdownMenuItem>
@@ -148,10 +129,7 @@ export function UserMenu({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuLabel>Account &amp; privacy</DropdownMenuLabel>
-              <DropdownMenuItem
-                render={<Link to="/account" />}
-                nativeButton={false}
-              >
+              <DropdownMenuItem render={<Link to="/account" />} nativeButton={false}>
                 <Settings />
                 Account settings
               </DropdownMenuItem>

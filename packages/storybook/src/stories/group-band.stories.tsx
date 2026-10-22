@@ -17,18 +17,8 @@ function Rows({ names }: { names: string[] }) {
 }
 
 /** The list around the groups: the rule between them is the frame's. */
-function Frame({
-  className,
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={`w-[36rem] divide-y border-y ${className ?? ""}`}>
-      {children}
-    </div>
-  );
+function Frame({ className, children }: { className?: string; children: ReactNode }) {
+  return <div className={`w-[36rem] divide-y border-y ${className ?? ""}`}>{children}</div>;
 }
 
 const meta = {
@@ -83,9 +73,7 @@ export const Sticky: Story = {
         <Rows names={["Collector pod memory spike", "Checkout latency"]} />
       </GroupBand>
       <GroupBand label="History" count="200+" hint="in range">
-        <Rows
-          names={Array.from({ length: 12 }, (_, i) => `Silence ${i + 1}`)}
-        />
+        <Rows names={Array.from({ length: 12 }, (_, i) => `Silence ${i + 1}`)} />
       </GroupBand>
     </Frame>
   ),

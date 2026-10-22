@@ -2,9 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { APIError } from "better-auth/api";
 import type { Pool, PoolClient } from "pg";
 
-export function createWorkspaceIdentityRequests(
-  lockPool: Pick<Pool, "connect">,
-) {
+export function createWorkspaceIdentityRequests(lockPool: Pick<Pool, "connect">) {
   const requests = new AsyncLocalStorage<{ client?: PoolClient }>();
 
   async function withIdentityRequest<T>(run: () => Promise<T>): Promise<T> {
@@ -17,12 +15,9 @@ export function createWorkspaceIdentityRequests(
         if (scope.client) {
           let releaseError: Error | undefined;
           try {
-            await scope.client.query(
-              "SELECT pg_advisory_unlock(1936028277, 2)",
-            );
+            await scope.client.query("SELECT pg_advisory_unlock(1936028277, 2)");
           } catch (error) {
-            releaseError =
-              error instanceof Error ? error : new Error(String(error));
+            releaseError = error instanceof Error ? error : new Error(String(error));
           }
           scope.client.release(releaseError);
         }

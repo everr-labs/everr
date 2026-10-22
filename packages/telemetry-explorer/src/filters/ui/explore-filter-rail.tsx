@@ -57,17 +57,10 @@ export function ExploreFilterRail({
 
   return (
     <div className="bg-muted/15 flex items-center border-b px-3 py-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
         <ListFilter />
         Filters
-        {activeFilterCount > 0 && (
-          <Badge variant="secondary">{activeFilterCount}</Badge>
-        )}
+        {activeFilterCount > 0 && <Badge variant="secondary">{activeFilterCount}</Badge>}
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-[300px] p-0 sm:max-w-[300px]">

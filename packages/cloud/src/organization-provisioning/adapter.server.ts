@@ -1,18 +1,10 @@
-import {
-  type Database,
-  type DbExecutor,
-  db,
-  runInTransaction,
-} from "@everr/app/db/client";
+import { type Database, type DbExecutor, db, runInTransaction } from "@everr/app/db/client";
 import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
 import { organizationCreationPlan } from "../billing/organization-context.server";
 import { organizationBilling } from "../db/schema/billing";
-import {
-  enqueueOrganizationDeprovisioning,
-  enqueueOrganizationProvisioning,
-} from "./jobs";
+import { enqueueOrganizationDeprovisioning, enqueueOrganizationProvisioning } from "./jobs";
 import { parseOrganizationMetadata } from "./metadata";
 import { preserveOrganizationProvisioningStatus } from "./metadata.server";
 
@@ -20,8 +12,7 @@ import { preserveOrganizationProvisioningStatus } from "./metadata.server";
 // Better Auth's after-hooks cannot provide that guarantee after process death.
 export function organizationLifecycleAdapter(database: Database = db) {
   return (options: Parameters<ReturnType<typeof drizzleAdapter>>[0]) => {
-    const factory = (executor: DbExecutor) =>
-      drizzleAdapter(executor, { provider: "pg" })(options);
+    const factory = (executor: DbExecutor) => drizzleAdapter(executor, { provider: "pg" })(options);
     const wrap = (executor: DbExecutor): ReturnType<typeof factory> => {
       const adapter = factory(executor);
       const create: typeof adapter.create = async <
@@ -94,11 +85,9 @@ export function organizationLifecycleAdapter(database: Database = db) {
             select: ["id"],
             limit: Number.MAX_SAFE_INTEGER,
           });
-          for (const org of organizations)
-            await deletePostgresOrganizationData(org.id, tx);
+          for (const org of organizations) await deletePostgresOrganizationData(org.id, tx);
           const count = await scoped.deleteMany(input);
-          for (const org of organizations)
-            await enqueueOrganizationDeprovisioning(org.id, tx);
+          for (const org of organizations) await enqueueOrganizationDeprovisioning(org.id, tx);
           return count;
         });
       };

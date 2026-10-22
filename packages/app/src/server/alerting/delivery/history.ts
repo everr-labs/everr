@@ -48,10 +48,7 @@ export async function recordDeliveryOutcome(opts: {
   error?: string;
 }): Promise<void> {
   try {
-    const events = await deliveryLinkedEvents(
-      opts.organizationId,
-      opts.dedupKey,
-    );
+    const events = await deliveryLinkedEvents(opts.organizationId, opts.dedupKey);
     const first = events[0];
     if (first === undefined) return;
     // The channel name, deliberately not the address. `app.alert_events` is

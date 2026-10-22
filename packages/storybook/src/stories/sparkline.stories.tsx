@@ -1,9 +1,7 @@
 import { Sparkline } from "@everr/ui/components/sparkline";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-const requestRate = [
-  1240, 1180, 1310, 1490, 1720, 1980, 2140, 2060, 1890, 1650, 1420, 1290,
-];
+const requestRate = [1240, 1180, 1310, 1490, 1720, 1980, 2140, 2060, 1890, 1650, 1420, 1290];
 const p95Latency = [182, 176, 191, 214, 268, 342, 401, 377, 310, 254, 208, 190];
 const errorRate = [0.4, 0.3, 0.5, 0.8, 1.4, 2.6, 3.9, 3.1, 1.9, 1.1, 0.6, 0.4];
 
@@ -68,9 +66,7 @@ export const InlineWithMetric: Story = {
         <div key={row.label} className="flex items-center gap-3 text-sm">
           <span className="w-28 text-muted-foreground">{row.label}</span>
           <Sparkline data={row.data} color={row.color} />
-          <span className="font-mono tabular-nums">
-            {row.data[row.data.length - 1]}
-          </span>
+          <span className="font-mono tabular-nums">{row.data[row.data.length - 1]}</span>
         </div>
       ))}
     </div>

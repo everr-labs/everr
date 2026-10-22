@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   deriveInvitationLookup,
   type InvitationRow,
@@ -75,10 +75,7 @@ describe("deriveInvitationLookup", () => {
   });
 
   it("treats expiresAt === now as still valid (strict <)", () => {
-    const result = deriveInvitationLookup(
-      row({ status: "pending", expiresAt: NOW }),
-      NOW,
-    );
+    const result = deriveInvitationLookup(row({ status: "pending", expiresAt: NOW }), NOW);
     expect(result.status).toBe("pending");
   });
 });

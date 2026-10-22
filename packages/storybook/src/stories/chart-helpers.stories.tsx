@@ -62,37 +62,20 @@ export const TooltipFormatters: Story = {
     <ChartContainer config={config} className="aspect-auto h-[300px] w-[640px]">
       <BarChart data={series}>
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={formatChartDate}
-        />
+        <XAxis dataKey="date" tickLine={false} axisLine={false} tickFormatter={formatChartDate} />
         <YAxis tickLine={false} axisLine={false} width={44} />
         <ChartTooltip
           labelFormatter={chartTooltipLabelFormatter}
           content={
             <ChartTooltipContent
               formatter={createChartTooltipFormatter(config, (value, name) =>
-                name === "latency"
-                  ? `${value} ms`
-                  : `${value.toLocaleString()} rps`,
+                name === "latency" ? `${value} ms` : `${value.toLocaleString()} rps`,
               )}
             />
           }
         />
-        <Bar
-          dataKey="requests"
-          fill="var(--color-requests)"
-          radius={4}
-          isAnimationActive={false}
-        />
-        <Bar
-          dataKey="latency"
-          fill="var(--color-latency)"
-          radius={4}
-          isAnimationActive={false}
-        />
+        <Bar dataKey="requests" fill="var(--color-requests)" radius={4} isAnimationActive={false} />
+        <Bar dataKey="latency" fill="var(--color-latency)" radius={4} isAnimationActive={false} />
       </BarChart>
     </ChartContainer>
   ),
@@ -103,23 +86,10 @@ export const LegendFormatter: Story = {
     <ChartContainer config={config} className="aspect-auto h-[300px] w-[640px]">
       <BarChart data={series}>
         <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={formatChartDate}
-        />
+        <XAxis dataKey="date" tickLine={false} axisLine={false} tickFormatter={formatChartDate} />
         <YAxis tickLine={false} axisLine={false} width={44} />
-        <ChartLegend
-          formatter={createLegendFormatter(config)}
-          content={<ChartLegendContent />}
-        />
-        <Bar
-          dataKey="requests"
-          fill="var(--color-requests)"
-          radius={4}
-          isAnimationActive={false}
-        />
+        <ChartLegend formatter={createLegendFormatter(config)} content={<ChartLegendContent />} />
+        <Bar dataKey="requests" fill="var(--color-requests)" radius={4} isAnimationActive={false} />
       </BarChart>
     </ChartContainer>
   ),

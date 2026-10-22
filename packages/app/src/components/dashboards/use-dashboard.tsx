@@ -20,11 +20,7 @@ export function DashboardProvider({
   document: Dashboard;
   children: ReactNode;
 }) {
-  return (
-    <DashboardContext.Provider value={document}>
-      {children}
-    </DashboardContext.Provider>
-  );
+  return <DashboardContext.Provider value={document}>{children}</DashboardContext.Provider>;
 }
 
 export function useDashboard(): Dashboard {

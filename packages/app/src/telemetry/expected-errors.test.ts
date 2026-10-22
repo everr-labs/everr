@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { isExpectedServerFunctionError } from "./expected-errors";
 
@@ -7,17 +7,14 @@ import { isExpectedServerFunctionError } from "./expected-errors";
 // as an option, so the app's list is asserted here.
 describe("isExpectedServerFunctionError", () => {
   it("treats pending storage setup as expected control flow", () => {
-    expect(isExpectedServerFunctionError(new StorageNotReadyError())).toBe(
-      true,
-    );
+    expect(isExpectedServerFunctionError(new StorageNotReadyError())).toBe(true);
   });
-  it.each([
-    "Unauthenticated",
-    "No active organization",
-    "Alert not found",
-  ])("treats %s as control flow", (message) => {
-    expect(isExpectedServerFunctionError(new Error(message))).toBe(true);
-  });
+  it.each(["Unauthenticated", "No active organization", "Alert not found"])(
+    "treats %s as control flow",
+    (message) => {
+      expect(isExpectedServerFunctionError(new Error(message))).toBe(true);
+    },
+  );
 
   it("does not treat an unrelated error as control flow", () => {
     expect(isExpectedServerFunctionError(new Error("boom"))).toBe(false);

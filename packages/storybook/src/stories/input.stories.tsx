@@ -59,27 +59,19 @@ export const Invalid: Story = {
     <div className="grid gap-2">
       <Label htmlFor="threshold">Threshold</Label>
       <Input id="threshold" {...args} aria-invalid defaultValue="-1" />
-      <p className="text-destructive text-xs">
-        The threshold must be positive.
-      </p>
+      <p className="text-destructive text-xs">The threshold must be positive.</p>
     </div>
   ),
 };
 
 export const Controlled: Story = {
-  render: (args) => {
+  render: function InputStory(args) {
     const [value, setValue] = React.useState("checkout-api");
 
     return (
       <div className="grid gap-2">
-        <Input
-          {...args}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">
-          Value: {value || "None"}
-        </p>
+        <Input {...args} value={value} onChange={(event) => setValue(event.target.value)} />
+        <p className="text-muted-foreground text-xs">Value: {value || "None"}</p>
       </div>
     );
   },

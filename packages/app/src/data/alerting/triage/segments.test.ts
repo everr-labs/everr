@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 
 const MINUTE = 60_000;
@@ -10,11 +10,7 @@ function at(minutesAgo: number) {
   return WINDOW_TO - minutesAgo * MINUTE;
 }
 
-function segments(
-  rows: LifecycleRow[],
-  silencedFrom?: number,
-  prior?: LifecycleRow[],
-) {
+function segments(rows: LifecycleRow[], silencedFrom?: number, prior?: LifecycleRow[]) {
   return ruleStateSegments({
     rows,
     prior,
@@ -40,46 +36,38 @@ describe("ruleStateSegments", () => {
   });
 
   it("runs an unresolved instance to the end of the window", () => {
-    expect(
-      segments([{ fingerprint: "a", eventType: "instance_fired", at: at(12) }]),
-    ).toEqual([{ state: "firing", from: 12, to: 0 }]);
+    expect(segments([{ fingerprint: "a", eventType: "instance_fired", at: at(12) }])).toEqual([
+      { state: "firing", from: 12, to: 0 },
+    ]);
   });
 
   it("back-dates a close whose open is older than the window", () => {
     // Only a firing instance resolves, so the stretch before the resolve was
     // firing even though nothing in view says when it started.
-    expect(
-      segments([
-        { fingerprint: "a", eventType: "instance_resolved", at: at(40) },
-      ]),
-    ).toEqual([{ state: "firing", from: 60, to: 40 }]);
+    expect(segments([{ fingerprint: "a", eventType: "instance_resolved", at: at(40) }])).toEqual([
+      { state: "firing", from: 60, to: 40 },
+    ]);
   });
 
   it("carries a state that started before the window across the whole of it", () => {
     // The rule fired hours ago and has said nothing since: the window holds no
     // events at all, and the chart still has to show it firing.
     expect(
-      segments([], undefined, [
-        { fingerprint: "a", eventType: "instance_fired", at: at(600) },
-      ]),
+      segments([], undefined, [{ fingerprint: "a", eventType: "instance_fired", at: at(600) }]),
     ).toEqual([{ state: "firing", from: 60, to: 0 }]);
   });
 
   it("ignores a prior state the instance had already left", () => {
     expect(
-      segments([], undefined, [
-        { fingerprint: "a", eventType: "instance_resolved", at: at(600) },
-      ]),
+      segments([], undefined, [{ fingerprint: "a", eventType: "instance_resolved", at: at(600) }]),
     ).toEqual([]);
   });
 
   it("lets an event inside the window close a state carried into it", () => {
     expect(
-      segments(
-        [{ fingerprint: "a", eventType: "instance_resolved", at: at(20) }],
-        undefined,
-        [{ fingerprint: "a", eventType: "instance_fired", at: at(600) }],
-      ),
+      segments([{ fingerprint: "a", eventType: "instance_resolved", at: at(20) }], undefined, [
+        { fingerprint: "a", eventType: "instance_fired", at: at(600) },
+      ]),
     ).toEqual([{ state: "firing", from: 60, to: 20 }]);
   });
 
@@ -126,10 +114,7 @@ describe("ruleStateSegments", () => {
 
   it("splits a firing stretch at the moment a silence takes hold", () => {
     expect(
-      segments(
-        [{ fingerprint: "a", eventType: "instance_fired", at: at(30) }],
-        at(10),
-      ),
+      segments([{ fingerprint: "a", eventType: "instance_fired", at: at(30) }], at(10)),
     ).toEqual([
       { state: "firing", from: 30, to: 10 },
       { state: "silenced", from: 10, to: 0 },
@@ -138,10 +123,7 @@ describe("ruleStateSegments", () => {
 
   it("leaves pending alone under a silence: pending never delivers", () => {
     expect(
-      segments(
-        [{ fingerprint: "a", eventType: "instance_pending", at: at(30) }],
-        at(10),
-      ),
+      segments([{ fingerprint: "a", eventType: "instance_pending", at: at(30) }], at(10)),
     ).toEqual([{ state: "pending", from: 30, to: 0 }]);
   });
 

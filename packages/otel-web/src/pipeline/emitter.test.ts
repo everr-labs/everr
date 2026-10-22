@@ -1,12 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
-import {
-  type BeforeSend,
-  createEmitter,
-  type Emit,
-  type EmitSpan,
-} from "./emitter.js";
+import { type BeforeSend, createEmitter, type Emit, type EmitSpan } from "./emitter.js";
 import { fetchSend } from "./transport.js";
 
 type SentBatch = {
@@ -37,29 +32,25 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(
-  envelope: () => Record<string, string> = () => ({}),
-  beforeSend?: BeforeSend,
-) {
+function makeEmitter(envelope: () => Record<string, string> = () => ({}), beforeSend?: BeforeSend) {
   sent = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      if (typeof init?.body !== "string") throw new TypeError("Expected a text request body");
       sent.push({
-        url: String(url),
+        url: url instanceof Request ? url.url : url?.toString(),
         headers: (init?.headers ?? {}) as Record<string, string>,
         keepalive: init?.keepalive,
-        bodyLength: String(init?.body).length,
-        payload: JSON.parse(String(init?.body)),
+        bodyLength: init?.body.length,
+        payload: JSON.parse(init?.body),
       });
       return Promise.resolve(new Response(null, { status: 200 }));
     }),
   );
   return createEmitter(
-    fetchSend(
-      "https://ingest.example/v1/logs",
-      "https://ingest.example/v1/traces",
-      { Authorization: "Bearer key" },
-    ),
+    fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", {
+      Authorization: "Bearer key",
+    }),
     true,
     { "service.name": "svc", "everr.screen.width": 1920 },
     { name: "@everr/otel-web", version: "test" },
@@ -202,8 +193,7 @@ describe("createEmitter", () => {
     // records that the hide handlers make immediately before the truncation.
     // The total stays below the batch size, and thus no usual flush operates
     // and all the records are on the exit path.
-    for (let i = 0; i < 29; i++)
-      emit("everr.browser.interaction.click", { filler });
+    for (let i = 0; i < 29; i++) emit("everr.browser.interaction.click", { filler });
     emit("browser.web_vital", { filler });
     emit("everr.browser.page_leave", { filler });
     exitFlush();
@@ -232,11 +222,7 @@ describe("createEmitter", () => {
   it("swallows transport failures", async () => {
     stubTransportFetch(vi.fn(() => Promise.reject(new Error("network down"))));
     const [failingEmit, failingFlush] = createEmitter(
-      fetchSend(
-        "https://ingest.example/v1/logs",
-        "https://ingest.example/v1/traces",
-        undefined,
-      ),
+      fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", undefined),
       true,
       {},
       { name: "s", version: "v" },
@@ -289,16 +275,7 @@ describe("span pipeline", () => {
 
   it("ships the parent span id of a child, and none for a root", async () => {
     emitSpan("a".repeat(32), "b".repeat(16), "PageLoad", 1, 2, {});
-    emitSpan(
-      "a".repeat(32),
-      "c".repeat(16),
-      "work",
-      1,
-      2,
-      {},
-      undefined,
-      "b".repeat(16),
-    );
+    emitSpan("a".repeat(32), "c".repeat(16), "work", 1, 2, {}, undefined, "b".repeat(16));
     await flush();
     const [root, child] = wireSpans();
     expect(root.parentSpanId).toBeUndefined();
@@ -310,23 +287,11 @@ describe("span pipeline", () => {
     emitSpan("a".repeat(32), "c".repeat(16), "earlier-a", 2, 3, {});
     emitSpan("a".repeat(32), "d".repeat(16), "earlier-b", 2, 4, {});
     await flush();
-    expect(wireSpans().map((span) => span.name)).toEqual([
-      "earlier-a",
-      "earlier-b",
-      "later",
-    ]);
+    expect(wireSpans().map((span) => span.name)).toEqual(["earlier-a", "earlier-b", "later"]);
   });
 
   it("marks error spans with OTLP status ERROR and keeps the message", async () => {
-    emitSpan(
-      "a".repeat(32),
-      "b".repeat(16),
-      "GET /api",
-      1,
-      2,
-      {},
-      { code: 2, message: "missing" },
-    );
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {}, { code: 2, message: "missing" });
     await flush();
     const payload = sent[0].payload as unknown as {
       resourceSpans: Array<{
@@ -384,11 +349,9 @@ describe("span pipeline", () => {
     expect(span.attributes.find((a) => a.key === "everr.tags")?.value).toEqual({
       arrayValue: { values: [{ stringValue: "a" }, { stringValue: "b" }] },
     });
-    expect(span.attributes.find((a) => a.key === "everr.mixed")?.value).toEqual(
-      {
-        arrayValue: { values: [{ stringValue: "a" }, { intValue: "1" }] },
-      },
-    );
+    expect(span.attributes.find((a) => a.key === "everr.mixed")?.value).toEqual({
+      arrayValue: { values: [{ stringValue: "a" }, { intValue: "1" }] },
+    });
   });
 
   it("beforeSend can change the name and the attributes of a span", async () => {
@@ -425,9 +388,9 @@ describe("span pipeline", () => {
     ).resourceSpans[0].scopeSpans[0].spans[0];
     expect(span.name).toBe("redacted");
     // The hook sees the envelope, and thus it can reach url.full.
-    expect(
-      span.attributes.find((a) => a.key === "url.full")?.value.stringValue,
-    ).toBe("https://app.example/reset");
+    expect(span.attributes.find((a) => a.key === "url.full")?.value.stringValue).toBe(
+      "https://app.example/reset",
+    );
     expect(span.attributes.map((a) => a.key)).toContain("http.request.method");
   });
 
@@ -474,13 +437,7 @@ describe("beforeSend on the log path", () => {
         };
       },
     );
-    emit(
-      "exception",
-      { "exception.type": "Error" },
-      undefined,
-      17,
-      "Error: tok_abc",
-    );
+    emit("exception", { "exception.type": "Error" }, undefined, 17, "Error: tok_abc");
     await flush();
 
     const record = sentRecords()[0];
@@ -497,16 +454,13 @@ describe("beforeSend on the log path", () => {
   it("drops the record when it returns null", async () => {
     [emit, flush, exitFlush, emitSpan] = makeEmitter(
       () => ({}),
-      (item) =>
-        item.kind === "log" && item.eventName === "exception" ? null : item,
+      (item) => (item.kind === "log" && item.eventName === "exception" ? null : item),
     );
     emit("exception", {}, undefined, 17, "boom");
     emit("everr.browser.page_view");
     await flush();
 
-    expect(sentRecords().map((r) => r.eventName)).toEqual([
-      "everr.browser.page_view",
-    ]);
+    expect(sentRecords().map((r) => r.eventName)).toEqual(["everr.browser.page_view"]);
   });
 
   it("sees a logger.* record, whose event name is empty", async () => {
@@ -569,9 +523,7 @@ describe("exit budget and transport hardening", () => {
         scopeSpans: Array<{ spans: Array<{ name: string }> }>;
       }>;
     };
-    const names = payload.resourceSpans[0].scopeSpans[0].spans.map(
-      (s) => s.name,
-    );
+    const names = payload.resourceSpans[0].scopeSpans[0].spans.map((s) => s.name);
     expect(names.length).toBeLessThan(30);
     // The most recent spans stay, because the code removes the spans at the
     // front of the queue first.
@@ -592,15 +544,12 @@ describe("exit budget and transport hardening", () => {
     for (let i = 0; i < 4; i++) {
       emitSpan("a".repeat(32), "b".repeat(16), `span-${i}`, 1, 2, { filler });
     }
-    for (let i = 0; i < 20; i++)
-      emit("everr.browser.interaction.click", { filler });
+    for (let i = 0; i < 20; i++) emit("everr.browser.interaction.click", { filler });
     exitFlush();
     const logs = sent.find((b) => b.url.endsWith("/v1/logs"));
     const traces = sent.find((b) => b.url.endsWith("/v1/traces"));
     expect(traces).toBeDefined();
-    expect(
-      (logs?.bodyLength ?? 0) + (traces?.bodyLength ?? 0),
-    ).toBeLessThanOrEqual(64_000);
+    expect((logs?.bodyLength ?? 0) + (traces?.bodyLength ?? 0)).toBeLessThanOrEqual(64_000);
   });
 
   it("swallows a synchronously-throwing fetch on every delivery path", async () => {
@@ -612,11 +561,7 @@ describe("exit budget and transport hardening", () => {
       }),
     );
     const [emitB, flushB, exitFlushB, emitSpanB] = createEmitter(
-      fetchSend(
-        "https://ingest.example/v1/logs",
-        "https://ingest.example/v1/traces",
-        undefined,
-      ),
+      fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", undefined),
       true,
       {},
       { name: "@everr/otel-web", version: "test" },
@@ -659,8 +604,7 @@ describe("a caller-supplied send owns delivery", () => {
     // Under MAX_BATCH_SIZE so nothing auto-flushes: the exit path sees the
     // whole queue, and the payload is comfortably past the keepalive budget.
     const filler = "x".repeat(4000);
-    for (let i = 0; i < 20; i++)
-      emitC("everr.browser.interaction.click", { filler, i });
+    for (let i = 0; i < 20; i++) emitC("everr.browser.interaction.click", { filler, i });
     exitFlushC();
 
     const logs = delivered.find((d) => d.signal === "logs");
@@ -683,8 +627,7 @@ describe("a caller-supplied send owns delivery", () => {
     // Under MAX_BATCH_SIZE so nothing auto-flushes: the exit path sees the
     // whole queue, and the payload is comfortably past the keepalive budget.
     const filler = "x".repeat(4000);
-    for (let i = 0; i < 20; i++)
-      emitC("everr.browser.interaction.click", { filler, i });
+    for (let i = 0; i < 20; i++) emitC("everr.browser.interaction.click", { filler, i });
     exitFlushC();
 
     expect(delivered[0].body.length).toBeLessThanOrEqual(64_000);
@@ -702,9 +645,7 @@ describe("a caller-supplied send owns delivery", () => {
   });
 
   it("swallows a rejecting send", async () => {
-    const [emitC, flushC] = makeSendEmitter(() =>
-      Promise.reject(new Error("proxy down")),
-    );
+    const [emitC, flushC] = makeSendEmitter(() => Promise.reject(new Error("proxy down")));
 
     emitC("everr.browser.page_view");
     await expect(flushC()).resolves.toBeUndefined();

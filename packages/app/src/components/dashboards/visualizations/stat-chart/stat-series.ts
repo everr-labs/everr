@@ -1,9 +1,4 @@
-import {
-  detectTimeKey,
-  getValueKeys,
-  toNumber,
-  toTimestamp,
-} from "../data-utils";
+import { detectTimeKey, getValueKeys, toNumber, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import { type CalculationType, calculate } from "./stat-calculations";
 
@@ -35,10 +30,7 @@ export function computeStatTiles(
           ts: timeKey ? toTimestamp(row[timeKey]) : i,
           value: toNumber(row[valueKey]),
         }))
-        .filter(
-          (p): p is { ts: number; value: number } =>
-            p.ts !== null && p.value !== null,
-        )
+        .filter((p): p is { ts: number; value: number } => p.ts !== null && p.value !== null)
         .sort((a, b) => a.ts - b.ts);
       tiles.push({
         frame,

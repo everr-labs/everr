@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { serviceColor } from "./service-color";
 
 describe("serviceColor", () => {
@@ -10,15 +10,7 @@ describe("serviceColor", () => {
   });
 
   it("spreads across multiple palette slots on a small set", () => {
-    const services = [
-      "actions-runner",
-      "scheduler",
-      "api",
-      "worker",
-      "ingest",
-      "query",
-      "lonely",
-    ];
+    const services = ["actions-runner", "scheduler", "api", "worker", "ingest", "query", "lonely"];
     const colors = new Set(services.map((n) => serviceColor(n)));
     expect(colors.size).toBeGreaterThanOrEqual(2);
   });

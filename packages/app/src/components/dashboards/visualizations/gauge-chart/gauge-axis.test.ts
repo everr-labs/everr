@@ -1,12 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { ThresholdsSpec } from "../stat-chart/stat-calculations";
 import { createValueFormatter } from "../value-format";
-import {
-  axisFraction,
-  bandColors,
-  fillSegments,
-  thresholdMarks,
-} from "./gauge-axis";
+import { axisFraction, bandColors, fillSegments, thresholdMarks } from "./gauge-axis";
 
 const GREEN = "#22c55e";
 const AMBER = "#f59e0b";
@@ -48,12 +43,7 @@ describe("thresholdMarks", () => {
       display: "percent",
     }).axis(1);
     expect(
-      thresholdMarks(
-        { mode: "absolute", steps: [{ value: 0.8, color: RED }] },
-        0,
-        1,
-        labels,
-      ),
+      thresholdMarks({ mode: "absolute", steps: [{ value: 0.8, color: RED }] }, 0, 1, labels),
     ).toEqual([{ fraction: 0.8, text: "80%", color: RED }]);
     expect(axisFraction(0.75, 0, 1)).toBe(0.75);
     expect([0, 1].map(labels)).toEqual(["0%", "100%"]);
@@ -71,9 +61,7 @@ describe("thresholdMarks", () => {
       max: 200,
       steps: [{ value: 50, color: RED }],
     };
-    expect(thresholdMarks(percent, 0, 400)).toEqual([
-      { fraction: 0.25, text: "100", color: RED },
-    ]);
+    expect(thresholdMarks(percent, 0, 400)).toEqual([{ fraction: 0.25, text: "100", color: RED }]);
   });
 
   it("suffixes the unit on the label", () => {
@@ -89,17 +77,11 @@ describe("thresholdMarks", () => {
 
   it("drops steps outside the axis span, inverted bounds included", () => {
     expect(thresholdMarks(absolute, 0, 40)).toEqual([]);
-    expect(thresholdMarks(absolute, 100, 0).map((m) => m.fraction)).toEqual([
-      0.2, 0.5,
-    ]);
+    expect(thresholdMarks(absolute, 100, 0).map((m) => m.fraction)).toEqual([0.2, 0.5]);
   });
 
   it("keeps colorless steps as band edges", () => {
-    const marks = thresholdMarks(
-      { mode: "absolute", steps: [{ value: 50 }] },
-      0,
-      100,
-    );
+    const marks = thresholdMarks({ mode: "absolute", steps: [{ value: 50 }] }, 0, 100);
     expect(marks).toEqual([{ fraction: 0.5, text: "50", color: undefined }]);
   });
 
@@ -111,20 +93,12 @@ describe("thresholdMarks", () => {
 describe("bandColors", () => {
   it("resolves one color per band", () => {
     const marks = thresholdMarks(absolute, 0, 100);
-    expect(bandColors(marks, absolute, 0, 100, "fallback")).toEqual([
-      GREEN,
-      AMBER,
-      RED,
-    ]);
+    expect(bandColors(marks, absolute, 0, 100, "fallback")).toEqual([GREEN, AMBER, RED]);
   });
 
   it("mirrors the bands for inverted bounds", () => {
     const marks = thresholdMarks(absolute, 100, 0);
-    expect(bandColors(marks, absolute, 100, 0, "fallback")).toEqual([
-      RED,
-      AMBER,
-      GREEN,
-    ]);
+    expect(bandColors(marks, absolute, 100, 0, "fallback")).toEqual([RED, AMBER, GREEN]);
   });
 
   it("falls back when no threshold resolves", () => {
@@ -145,9 +119,7 @@ describe("fillSegments", () => {
   });
 
   it("stops at the value, leaving later bands unfilled", () => {
-    expect(fillSegments(0.3, marks, colors)).toEqual([
-      { from: 0, to: 0.3, color: GREEN },
-    ]);
+    expect(fillSegments(0.3, marks, colors)).toEqual([{ from: 0, to: 0.3, color: GREEN }]);
   });
 
   it("returns nothing for an empty gauge", () => {

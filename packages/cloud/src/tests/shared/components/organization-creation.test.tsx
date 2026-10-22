@@ -1,13 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-} from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -29,9 +23,7 @@ vi.mock("@everr/app/identity/client", () => ({
 }));
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => mocks.router,
-  Link: ({ children }: { children: ReactNode }) => (
-    <a href="/account">{children}</a>
-  ),
+  Link: ({ children }: { children: ReactNode }) => <a href="/account">{children}</a>,
 }));
 
 import { OrganizationCreation } from "../../../components/organization-creation";
@@ -67,9 +59,7 @@ async function confirmName() {
     fireEvent.change(screen.getByLabelText("Organization name"), {
       target: { value: "Acme" },
     });
-    fireEvent.submit(
-      screen.getByRole("form", { name: "Organization details" }),
-    );
+    fireEvent.submit(screen.getByRole("form", { name: "Organization details" }));
     await vi.advanceTimersByTimeAsync(0);
   });
 }
@@ -77,9 +67,7 @@ it("replaces the name step immediately while creation is still pending, without 
   mocks.create.mockReturnValue(new Promise(() => {}));
   show();
   await confirmName();
-  expect(
-    screen.getByRole("heading", { name: "Getting your space ready" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Getting your space ready" })).toBeVisible();
   expect(screen.queryByLabelText("Organization name")).toBeNull();
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(mocks.select).not.toHaveBeenCalled();
@@ -147,9 +135,7 @@ it("keeps the same screen until real provisioning completes after the minimum du
     await vi.advanceTimersByTimeAsync(5000);
   });
   expect(mocks.router.navigate).not.toHaveBeenCalled();
-  expect(
-    screen.getByRole("heading", { name: "Getting your space ready" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Getting your space ready" })).toBeVisible();
   mocks.read.mockResolvedValue({
     id: "new",
     status: "ready",
@@ -181,12 +167,11 @@ it("reassures the user after 30 seconds while polling and still opens the organi
   });
   const notice = screen.getByText(/Setup is taking a little longer/);
   expect(notice).toHaveTextContent("longer than expected");
-  expect(notice).toHaveTextContent(
-    "We'll email you as soon as your organization is ready",
+  expect(notice).toHaveTextContent("We'll email you as soon as your organization is ready");
+  expect(screen.getByRole("link", { name: "explore the documentation" })).toHaveAttribute(
+    "href",
+    "https://everr.dev/docs",
   );
-  expect(
-    screen.getByRole("link", { name: "explore the documentation" }),
-  ).toHaveAttribute("href", "https://everr.dev/docs");
   expect(screen.getByRole("link", { name: "contact us" })).toHaveAttribute(
     "href",
     "mailto:hello@everr.dev",
@@ -215,13 +200,9 @@ it("retries selection of an already-created organization without creating a dupl
   mocks.select.mockResolvedValueOnce({ error: { message: "unavailable" } });
   show();
   await confirmName();
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "organization was created",
-  );
+  expect(screen.getByRole("alert")).toHaveTextContent("organization was created");
   await act(async () => {
-    fireEvent.click(
-      screen.getByRole("button", { name: "Try selecting again" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Try selecting again" }));
     await vi.advanceTimersByTimeAsync(2500);
   });
   expect(mocks.create).toHaveBeenCalledOnce();
@@ -244,9 +225,7 @@ it("opens Pro checkout after the minimum duration without activating an unpaid o
   expect(mocks.create).toHaveBeenCalledWith({
     data: { plan: "pro", organizationName: "Acme", returnTo: "/logs" },
   });
-  expect(
-    screen.getByRole("heading", { name: "Taking you to checkout" }),
-  ).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Taking you to checkout" })).toBeVisible();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2499);
   });
@@ -325,21 +304,19 @@ it("retries exhausted provisioning without creating another organization", async
   });
 });
 
-it.each([
-  "missing",
-  "switched",
-])("returns to organization selection when the organization is %s during setup", async (state) => {
-  mocks.read.mockResolvedValue(
-    state === "missing" ? null : { id: "other", status: "ready" },
-  );
-  show();
-  await confirmName();
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(10);
-  });
-  expect(mocks.router.navigate).toHaveBeenCalledWith({
-    to: "/choose-organization",
-    search: { returnTo: "/logs" },
-    replace: true,
-  });
-});
+it.each(["missing", "switched"])(
+  "returns to organization selection when the organization is %s during setup",
+  async (state) => {
+    mocks.read.mockResolvedValue(state === "missing" ? null : { id: "other", status: "ready" });
+    show();
+    await confirmName();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(mocks.router.navigate).toHaveBeenCalledWith({
+      to: "/choose-organization",
+      search: { returnTo: "/logs" },
+      replace: true,
+    });
+  },
+);

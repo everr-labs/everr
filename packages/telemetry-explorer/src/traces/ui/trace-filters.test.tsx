@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { TracesRepositoryLike } from "../data/repository";
 import { TraceFilters } from "./trace-filters";
 
@@ -27,9 +27,7 @@ function renderWithQueryClient(children: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>);
 }
 
 describe("TraceFilters rail", () => {
@@ -43,9 +41,7 @@ describe("TraceFilters rail", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole("complementary", { name: "Trace filters" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
     expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Namespace")).toBeInTheDocument();
@@ -64,9 +60,7 @@ describe("TraceFilters rail", () => {
       />,
     );
     const rail = screen.getByRole("complementary", { name: "Trace filters" });
-    expect(rail).toContainElement(
-      screen.getByPlaceholderText("Filter by span name"),
-    );
+    expect(rail).toContainElement(screen.getByPlaceholderText("Filter by span name"));
   });
 
   it("never renders Service or Environment: those belong to the persistent zone", () => {
@@ -99,9 +93,7 @@ describe("TraceFilters rail", () => {
     const status = screen.getByText("Status");
     expect(rail).toContainElement(zone);
     // Node.compareDocumentPosition returns 4 when zone comes before status.
-    expect(zone.compareDocumentPosition(status)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(zone.compareDocumentPosition(status)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("shows a legacy deployment.environment attribute as a removable pill", () => {
@@ -128,9 +120,7 @@ describe("TraceFilters rail", () => {
     // param. An older entry, for example from a saved link, must stay visible
     // and the user must be able to remove it. The query still applies that
     // entry, so a hidden entry narrows the results for no visible reason.
-    expect(
-      screen.getByRole("button", { name: "Remove Environment filter" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
   });
 
   it("clear resets the page zone, including the search text", () => {
@@ -184,8 +174,6 @@ describe("TraceFilters rail", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByRole("button", { name: "Clear page filters" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
   });
 });

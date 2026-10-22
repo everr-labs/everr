@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   memberships: [] as { organizationId: string }[],
@@ -31,8 +31,7 @@ vi.mock("@everr/app/db/client", async () => {
               where: () => ({
                 limit: async () => {
                   if (table === member) return [...state.memberships];
-                  if (table === user)
-                    return [{ name: "Jane", email: "jane@example.com" }];
+                  if (table === user) return [{ name: "Jane", email: "jane@example.com" }];
                   return [...state.invitations];
                 },
               }),
@@ -63,10 +62,7 @@ beforeEach(() => {
 
 describe("automatic organization creation", () => {
   it("preserves the organization chooser if several memberships appeared", async () => {
-    state.memberships = [
-      { organizationId: "org-1" },
-      { organizationId: "org-2" },
-    ];
+    state.memberships = [{ organizationId: "org-1" }, { organizationId: "org-2" }];
     const create = vi.fn();
     expect(await ensureAutomaticOrganization("user-1", create)).toBeNull();
     expect(create).not.toHaveBeenCalled();
@@ -92,11 +88,7 @@ it("records creation only for the session that actually creates an organization"
     state.memberships.push({ organizationId: "new" });
     return { id: "new" };
   });
-  const hook = createAutomaticOrganizationSessionHook(
-    create,
-    undefined,
-    onCreated,
-  );
+  const hook = createAutomaticOrganizationSessionHook(create, undefined, onCreated);
   const first = {
     id: "first",
     userId: "user",
@@ -108,9 +100,7 @@ it("records creation only for the session that actually creates an organization"
     activeOrganizationId: null as string | null,
   };
   await Promise.all([hook(first), hook(second)]);
-  expect(create).toHaveBeenCalledExactlyOnceWith(
-    expect.objectContaining({ userId: "user" }),
-  );
+  expect(create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ userId: "user" }));
   expect(state.memberships).toHaveLength(1);
   expect(first.activeOrganizationId).toBe("new");
   expect(second.activeOrganizationId).toBe("new");

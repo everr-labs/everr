@@ -28,10 +28,7 @@ export const Default: Story = {
 
 export const Horizontal: Story = {
   render: () => (
-    <ScrollArea
-      orientation="horizontal"
-      className="border-border w-72 rounded-md border"
-    >
+    <ScrollArea orientation="horizontal" className="border-border w-72 rounded-md border">
       <p className="whitespace-nowrap p-3 font-mono text-sm">{wideRow}</p>
     </ScrollArea>
   ),
@@ -39,10 +36,7 @@ export const Horizontal: Story = {
 
 export const BothAxes: Story = {
   render: () => (
-    <ScrollArea
-      orientation="both"
-      className="border-border h-64 w-72 rounded-md border"
-    >
+    <ScrollArea orientation="both" className="border-border h-64 w-72 rounded-md border">
       <ul className="grid w-max gap-1 p-3 font-mono text-sm">
         {services.map((service) => (
           <li key={service} className="whitespace-nowrap">
@@ -77,15 +71,10 @@ export const MaxHeightRoot: Story = {
 export const AutoHeightRootInDefiniteAncestor: Story = {
   render: () => (
     <div className="border-border flex h-96 w-96 flex-col gap-2 rounded-md border p-2">
-      <ScrollArea
-        orientation="horizontal"
-        className="border-border w-full rounded-md border"
-      >
+      <ScrollArea orientation="horizontal" className="border-border w-full rounded-md border">
         <p className="whitespace-nowrap p-3 font-mono text-sm">{wideRow}</p>
       </ScrollArea>
-      <p className="text-muted-foreground text-sm">
-        The strip above stays one line tall.
-      </p>
+      <p className="text-muted-foreground text-sm">The strip above stays one line tall.</p>
     </div>
   ),
 };

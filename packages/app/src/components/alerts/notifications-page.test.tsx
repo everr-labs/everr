@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { AlertNotificationsData } from "#app/data/alerting/delivery/view.ts";
 import { NotificationsPage } from "./notifications-page";
 
@@ -74,9 +74,7 @@ function renderPage(
   data: AlertNotificationsData | null,
   handlers: Partial<{
     onNewChannel: (name?: string) => void;
-    onEditChannel: (
-      channel: AlertNotificationsData["channels"][number],
-    ) => void;
+    onEditChannel: (channel: AlertNotificationsData["channels"][number]) => void;
     onEditDelivery: () => void;
   }> = {},
 ) {
@@ -117,25 +115,17 @@ describe("NotificationsPage", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("Info alerts have no channel");
     expect(rows[0]).toHaveTextContent("14 alerts went nowhere");
-    expect(within(rows[0]).getByRole("button")).toHaveTextContent(
-      "Pick channels",
-    );
-    expect(rows[1]).toHaveTextContent(
-      "names #sre-legacy, which does not exist",
-    );
+    expect(within(rows[0]).getByRole("button")).toHaveTextContent("Pick channels");
+    expect(rows[1]).toHaveTextContent("names #sre-legacy, which does not exist");
     expect(rows[1]).toHaveTextContent("6 alerts recorded undelivered");
-    expect(within(rows[1]).getByRole("button")).toHaveTextContent(
-      "Create #sre-legacy",
-    );
+    expect(within(rows[1]).getByRole("button")).toHaveTextContent("Create #sre-legacy");
   });
 
   it("seeds a new channel with the name a gap row asked for", async () => {
     const onNewChannel = vi.fn();
     renderPage(DATA, { onNewChannel });
     const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole("button", { name: "Create #sre-legacy" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Create #sre-legacy" }));
     expect(onNewChannel).toHaveBeenCalledWith("#sre-legacy");
   });
 
@@ -155,9 +145,7 @@ describe("NotificationsPage", () => {
     renderPage(DATA, { onEditChannel });
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "pager" }));
-    expect(onEditChannel).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "pager" }),
-    );
+    expect(onEditChannel).toHaveBeenCalledWith(expect.objectContaining({ name: "pager" }));
   });
 
   it("draws one default target per tier while split, in the overrides' grammar", async () => {
@@ -179,9 +167,7 @@ describe("NotificationsPage", () => {
   it("says nothing at all when every alert had a channel to go to", async () => {
     renderPage({ ...DATA, gaps: [] });
     await screen.findByRole("heading", { name: /channels/i });
-    expect(
-      screen.queryByRole("heading", { name: /not delivered/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /not delivered/i })).not.toBeInTheDocument();
   });
 
   it("tells a first-run org what a channel is, and that there is no gap band to fear", async () => {
@@ -195,15 +181,9 @@ describe("NotificationsPage", () => {
       gaps: [{ kind: "tier", tier: "all", count: 0 }],
     });
     expect(await screen.findByText(/No channels yet/)).toBeInTheDocument();
-    expect(
-      screen.getByText("There is no default destination"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("nothing fired in the selected time range"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Edit delivery" }),
-    ).toBeDisabled();
+    expect(screen.getByText("There is no default destination")).toBeInTheDocument();
+    expect(screen.getByText("nothing fired in the selected time range")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit delivery" })).toBeDisabled();
   });
 
   it("stands in with skeletons while loading", async () => {

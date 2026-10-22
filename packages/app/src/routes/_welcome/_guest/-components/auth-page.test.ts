@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { buildPostAuthenticationURL } from "./auth-page";
 
 describe("buildPostAuthenticationURL", () => {
@@ -7,8 +7,6 @@ describe("buildPostAuthenticationURL", () => {
   });
 
   it("preserves an explicit authentication destination", () => {
-    expect(buildPostAuthenticationURL("/device?user_code=ABCD")).toBe(
-      "/device?user_code=ABCD",
-    );
+    expect(buildPostAuthenticationURL("/device?user_code=ABCD")).toBe("/device?user_code=ABCD");
   });
 });

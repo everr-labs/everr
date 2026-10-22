@@ -24,15 +24,10 @@ export type TelemetryConfig = {
   resourceAttributes: Record<string, string>;
 };
 
-export function resolveBrowserTelemetryConfig(env: {
-  endpoint?: string;
-  publicKey?: string;
-}) {
+export function resolveBrowserTelemetryConfig(env: { endpoint?: string; publicKey?: string }) {
   const endpoint =
     cleanEnvValue(env.endpoint) ??
-    (cleanEnvValue(env.publicKey)
-      ? productClient.telemetryEndpoint
-      : undefined);
+    (cleanEnvValue(env.publicKey) ? productClient.telemetryEndpoint : undefined);
   return {
     endpoint,
     ingestKey: endpoint ? cleanEnvValue(env.publicKey) : undefined,
@@ -53,28 +48,20 @@ export function resolveTelemetryConfig(
   const localDevelopmentEndpoint = isLocalDevelopment(env)
     ? DEFAULT_LOCAL_OTLP_ENDPOINT
     : undefined;
-  const selectedEndpoint =
-    explicitEndpoint ?? everrIngestEndpoint ?? localDevelopmentEndpoint;
+  const selectedEndpoint = explicitEndpoint ?? everrIngestEndpoint ?? localDevelopmentEndpoint;
   if (!selectedEndpoint) return null;
 
   const endpoint = normalizeBaseEndpoint(selectedEndpoint);
-  const usesEverrIngest =
-    !explicitEndpoint && Boolean(ingestKey && everrIngestEndpoint);
+  const usesEverrIngest = !explicitEndpoint && Boolean(ingestKey && everrIngestEndpoint);
 
   return {
     endpoint,
-    headers:
-      usesEverrIngest && ingestKey
-        ? { Authorization: `Bearer ${ingestKey}` }
-        : undefined,
+    headers: usesEverrIngest && ingestKey ? { Authorization: `Bearer ${ingestKey}` } : undefined,
     resourceAttributes: telemetryResourceAttributes(env, serviceInstanceId),
   };
 }
 
-export function telemetryResourceAttributes(
-  env: TelemetryEnv,
-  serviceInstanceId: string,
-) {
+export function telemetryResourceAttributes(env: TelemetryEnv, serviceInstanceId: string) {
   const serviceVersion =
     cleanEnvValue(env.SERVICE_VERSION) ??
     cleanEnvValue(env.VERCEL_GIT_COMMIT_SHA) ??
@@ -86,9 +73,7 @@ export function telemetryResourceAttributes(
     cleanEnvValue(env.NODE_ENV);
 
   return {
-    ...(deploymentEnvironment
-      ? { "deployment.environment.name": deploymentEnvironment }
-      : {}),
+    ...(deploymentEnvironment ? { "deployment.environment.name": deploymentEnvironment } : {}),
     "service.instance.id": serviceInstanceId,
     "service.name": TELEMETRY_SERVICE_NAME,
     "service.namespace": TELEMETRY_SERVICE_NAMESPACE,
@@ -98,9 +83,7 @@ export function telemetryResourceAttributes(
 
 export function signalUrl(endpoint: string, signal: TelemetrySignal) {
   const normalized = normalizeBaseEndpoint(endpoint);
-  const signalSpecificEndpoint = /\/v1\/(traces|metrics|logs)$/.exec(
-    normalized,
-  );
+  const signalSpecificEndpoint = /\/v1\/(traces|metrics|logs)$/.exec(normalized);
 
   if (signalSpecificEndpoint) {
     return normalized.replace(/\/v1\/(traces|metrics|logs)$/, `/v1/${signal}`);

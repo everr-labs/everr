@@ -17,7 +17,7 @@
  * (chdb has no row policy) or anything about ClickHouse 26.4 (chdb is 26.7).
  */
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { AlertingEvaluationSample } from "#app/data/alerting/types.ts";
 import { alertDefinitions, alertInstances } from "#app/db/schema/index.ts";
 import {
@@ -25,12 +25,10 @@ import {
   evaluationHistoryRow,
 } from "#app/server/alerting/history/clickhouse.ts";
 import { insertRule } from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -45,7 +43,7 @@ import {
   getRuleStateHistory,
 } from "#app/data/alerting/triage/server.ts";
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const SESSION_ORG = "test_org";
 const MINUTE = 60_000;
@@ -111,11 +109,7 @@ function historyDef(slug: string): AlertHistoryDefinition {
 }
 
 /** One successful evaluation of a rule, with the series it measured. */
-function evaluated(
-  slug: string,
-  at: Date,
-  samples: AlertingEvaluationSample[],
-) {
+function evaluated(slug: string, at: Date, samples: AlertingEvaluationSample[]) {
   harness().clickhouse.write([
     evaluationHistoryRow({
       def: historyDef(slug),
@@ -143,13 +137,9 @@ describe("the Triage board", () => {
     const board = await getAlertTriage({ data: range(60) });
 
     expect(board.alerts.map((alert) => alert.path)).toEqual([firing.path]);
-    expect(
-      board.alerts[0].spark.instances.map((lane) => lane.fingerprint),
-    ).toEqual(["a"]);
+    expect(board.alerts[0].spark.instances.map((lane) => lane.fingerprint)).toEqual(["a"]);
     // The quiet rule is still in the inventory beside the board.
-    expect(board.rules.map((row) => row.path).sort()).toEqual(
-      [firing.path, quiet.path].sort(),
-    );
+    expect(board.rules.map((row) => row.path).sort()).toEqual([firing.path, quiet.path].sort());
   });
 
   it("measures the lanes over the picked window, not a fixed one", async () => {
@@ -176,15 +166,11 @@ describe("the state chart behind the inventory", () => {
 
     const history = await getRuleStateHistory({ data: range(60) });
 
-    expect(Object.keys(history.rules).sort()).toEqual(
-      [firing.path, quiet.path].sort(),
-    );
+    expect(Object.keys(history.rules).sort()).toEqual([firing.path, quiet.path].sort());
     // A quiet rule has no segments to paint, and still carries what its
     // instances measured, so the chart's tooltip can name them.
     expect(history.rules[quiet.path].segments).toEqual([]);
-    expect(
-      history.rules[quiet.path].instances.map((lane) => lane.fingerprint),
-    ).toEqual(["a"]);
+    expect(history.rules[quiet.path].instances.map((lane) => lane.fingerprint)).toEqual(["a"]);
   });
 });
 
@@ -193,19 +179,14 @@ describe("one Alert rule's detail", () => {
     const target = await rule({ slug: "checkout-latency", state: "firing" });
     // Earlier in the window: two series. The instance `gone` stopped being
     // returned before the last evaluation ran.
-    evaluated("checkout-latency", minutesAgo(40), [
-      sample("a", 90),
-      sample("gone", 70),
-    ]);
+    evaluated("checkout-latency", minutesAgo(40), [sample("a", 90), sample("gone", 70)]);
     evaluated("checkout-latency", minutesAgo(2), [sample("a", 95)]);
 
     const detail = await getAlertDetail({
       data: { path: target.path, ...range(60) },
     });
 
-    const lanes = new Map(
-      detail.instanceValues.map((lane) => [lane.fingerprint, lane.labels]),
-    );
+    const lanes = new Map(detail.instanceValues.map((lane) => [lane.fingerprint, lane.labels]));
     // Both are named, and neither falls back to a bare fingerprint.
     expect(lanes.get("a")).toBe("host=a");
     expect(lanes.get("gone")).toBe("host=gone");

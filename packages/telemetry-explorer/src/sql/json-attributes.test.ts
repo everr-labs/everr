@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   attributeExists,
   attributeKeysColumn,
@@ -9,9 +9,7 @@ import {
 
 describe("jsonPath", () => {
   it("renders the key as a quoted identifier after the column", () => {
-    expect(jsonPath("LogAttributes", "http.route")).toBe(
-      "LogAttributes.`http.route`",
-    );
+    expect(jsonPath("LogAttributes", "http.route")).toBe("LogAttributes.`http.route`");
   });
 
   it("escapes backticks and backslashes inside the key", () => {
@@ -20,17 +18,13 @@ describe("jsonPath", () => {
   });
 
   it("leaves quotes, spaces and dots as they are", () => {
-    expect(jsonPath("SpanAttributes", "it's a key")).toBe(
-      "SpanAttributes.`it's a key`",
-    );
+    expect(jsonPath("SpanAttributes", "it's a key")).toBe("SpanAttributes.`it's a key`");
   });
 });
 
 describe("attributeText", () => {
   it("wraps the path in toString so comparisons are string equality", () => {
-    expect(attributeText("LogAttributes", "status")).toBe(
-      "toString(LogAttributes.`status`)",
-    );
+    expect(attributeText("LogAttributes", "status")).toBe("toString(LogAttributes.`status`)");
   });
 });
 
@@ -43,9 +37,7 @@ describe("attributeKeysColumn and attributeExists", () => {
     expect(attributeExists("LogAttributes", "http.route")).toBe(
       "has(LogAttributesKeys, 'http.route')",
     );
-    expect(attributeExists("LogAttributes", "it's")).toBe(
-      "has(LogAttributesKeys, 'it\\'s')",
-    );
+    expect(attributeExists("LogAttributes", "it's")).toBe("has(LogAttributesKeys, 'it\\'s')");
   });
 });
 
@@ -79,6 +71,13 @@ describe("flattenAttributes", () => {
   it("passes a flat map through unchanged", () => {
     expect(flattenAttributes({ "service.name": "api" })).toEqual({
       "service.name": "api",
+    });
+  });
+
+  it("retains the original coercion of non-JSON primitive leaves", () => {
+    expect(flattenAttributes({ marker: Symbol("record"), sequence: 10n })).toEqual({
+      marker: "Symbol(record)",
+      sequence: "10",
     });
   });
 });

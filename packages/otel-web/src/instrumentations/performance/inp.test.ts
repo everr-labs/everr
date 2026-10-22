@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Emit } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
 import { startInp } from "./inp.js";
@@ -106,11 +106,7 @@ function stubTiming() {
     disconnect() {
       for (const t of this.types) observers.delete(t);
     }
-    static supportedEntryTypes = [
-      "event",
-      "first-input",
-      "long-animation-frame",
-    ];
+    static supportedEntryTypes = ["event", "first-input", "long-animation-frame"];
   }
   vi.stubGlobal("PerformanceEventTiming", FakePerformanceEventTiming);
   vi.stubGlobal("PerformanceObserver", PO);
@@ -213,14 +209,11 @@ describe("slow interactions", () => {
   it("keyboard interactions are typed keyboard", () => {
     feed([{ name: "keydown", duration: 510, interactionId: 9 }]);
     settle();
-    expect(slow()[0].attrs?.["everr.browser.interaction.type"]).toBe(
-      "keyboard",
-    );
+    expect(slow()[0].attrs?.["everr.browser.interaction.type"]).toBe("keyboard");
   });
 
   it("keeps the record but drops element identity for guarded elements", () => {
-    document.body.innerHTML =
-      '<div class="everr-no-capture"><button id="x">Hidden</button></div>';
+    document.body.innerHTML = '<div class="everr-no-capture"><button id="x">Hidden</button></div>';
     feed([{ duration: 320, target: document.getElementById("x") }]);
     settle();
     expect(slow()).toHaveLength(1);
@@ -257,27 +250,17 @@ describe("slow interactions", () => {
     ]);
     settle();
     const a = slow()[0].attrs;
-    expect(a["everr.browser.interaction.script.source_url"]).toBe(
-      "https://app.example/bundle.js",
-    );
-    expect(a["everr.browser.interaction.script.function_name"]).toBe(
-      "renderList",
-    );
-    expect(a["everr.browser.interaction.script.invoker_type"]).toBe(
-      "event-listener",
-    );
+    expect(a["everr.browser.interaction.script.source_url"]).toBe("https://app.example/bundle.js");
+    expect(a["everr.browser.interaction.script.function_name"]).toBe("renderList");
+    expect(a["everr.browser.interaction.script.invoker_type"]).toBe("event-listener");
     expect(a["everr.browser.interaction.script.duration"]).toBe(280);
     // The durations of the categories in the frames that are in the
     // interaction. There are 280 ms of script. The LoAF data gives no category
     // for the remainder of the interaction of 400 ms.
     expect(a["everr.browser.interaction.total_script_duration"]).toBe(280);
-    expect(a["everr.browser.interaction.total_style_and_layout_duration"]).toBe(
-      0,
-    );
+    expect(a["everr.browser.interaction.total_style_and_layout_duration"]).toBe(0);
     expect(a["everr.browser.interaction.total_paint_duration"]).toBe(0);
-    expect(a["everr.browser.interaction.total_unattributed_duration"]).toBe(
-      120,
-    );
+    expect(a["everr.browser.interaction.total_unattributed_duration"]).toBe(120);
   });
 
   it("takes the target from any entry that carries one (often only pointerdown does)", () => {
@@ -336,9 +319,7 @@ describe("INP vital", () => {
     expect(a["everr.browser.interaction.id"]).toBe(14);
     expect(a["everr.browser.interaction.input_delay"]).toBe(20);
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
-    expect(vitals()[0].timestamp).toBe(
-      Math.round(performance.timeOrigin + 2_000),
-    );
+    expect(vitals()[0].timestamp).toBe(Math.round(performance.timeOrigin + 2_000));
   });
 
   it("carries the element payload of its candidate interaction", () => {
@@ -432,12 +413,8 @@ describe("INP vital", () => {
     // The previous candidate of 620 ms is not in the list. The new navigation
     // period sends its own value.
     expect(second["browser.web_vital.value"]).toBe(210);
-    expect(second["browser.web_vital.id"]).not.toBe(
-      first["browser.web_vital.id"],
-    );
-    expect(second["everr.browser.web_vital.navigation_type"]).toBe(
-      "back-forward-cache",
-    );
+    expect(second["browser.web_vital.id"]).not.toBe(first["browser.web_vital.id"]);
+    expect(second["everr.browser.web_vital.navigation_type"]).toBe("back-forward-cache");
   });
 });
 
@@ -568,9 +545,7 @@ describe("frame grouping and LoAF selection", () => {
     ]);
     settle();
     const a = slow()[0].attrs;
-    expect(a["everr.browser.interaction.script.source_url"]).toBe(
-      "https://app.example/culprit.js",
-    );
+    expect(a["everr.browser.interaction.script.source_url"]).toBe("https://app.example/culprit.js");
     expect(a["everr.browser.interaction.script.duration"]).toBe(180);
   });
 
@@ -619,9 +594,7 @@ describe("candidate list and epochs", () => {
   });
 
   it("counts a sub-threshold first input as the INP candidate", () => {
-    fire("first-input", [
-      entry({ entryType: "first-input", interactionId: 0, duration: 60 }),
-    ]);
+    fire("first-input", [entry({ entryType: "first-input", interactionId: 0, duration: 60 })]);
     vi.advanceTimersByTime(0);
     hide();
     expect(vitals()).toHaveLength(1);

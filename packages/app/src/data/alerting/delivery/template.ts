@@ -14,10 +14,7 @@ export function validateQueryTemplate(query: string): void {
 }
 
 // Reject variables that the query does not return.
-export function validateMessageRefs(
-  template: string,
-  columns: readonly string[],
-): void {
+export function validateMessageRefs(template: string, columns: readonly string[]): void {
   const known = new Set(columns);
   for (const name of extractVariables(template)) {
     if (!known.has(name)) {
@@ -38,6 +35,7 @@ export function renderMessage(
 ): string {
   return template.replace(VARIABLE_RE, (_, name: string) => {
     const value = ctx.firstRow?.[name];
+    // oxlint-disable-next-line typescript/no-base-to-string -- Alert templates retain their existing String coercion for composite query values.
     return value === undefined || value === null ? "" : String(value);
   });
 }

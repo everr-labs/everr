@@ -1,13 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createQueryClient } from "./lib/query-client";
 import { getRouter } from "./router";
 import { mockCommands } from "./test-commands";
@@ -72,16 +66,9 @@ describe("local telemetry explorer", () => {
     for (const name of ["Logs", "Traces", "Errors", "Settings"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
-    const localCommands = new Set([
-      "get_collector_status",
-      "telemetry_sql_query",
-    ]);
+    const localCommands = new Set(["get_collector_status", "telemetry_sql_query"]);
     await waitFor(() => expect(localCommandSpy).toHaveBeenCalled());
-    expect(
-      localCommandSpy.mock.calls.every(([command]) =>
-        localCommands.has(command),
-      ),
-    ).toBe(true);
+    expect(localCommandSpy.mock.calls.every(([command]) => localCommands.has(command))).toBe(true);
   });
 });
 
@@ -102,9 +89,7 @@ describe("local telemetry collector", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    expect(
-      await screen.findByText("Local telemetry unavailable"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Local telemetry unavailable")).toBeInTheDocument();
     expect(screen.getByText("collector exited")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Restart collector" }));
@@ -150,12 +135,8 @@ describe("local telemetry collector", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    expect(
-      await screen.findByText("Starting local telemetry"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("The local collector is starting."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Starting local telemetry")).toBeInTheDocument();
+    expect(screen.getByText("The local collector is starting.")).toBeInTheDocument();
   });
 
   it("restarts the collector from the settings page", async () => {

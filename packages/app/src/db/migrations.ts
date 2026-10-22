@@ -20,27 +20,20 @@ export async function migrateDatabase(database: MigrationDatabase) {
 
 // Keep one connection locked throughout migration startup. Each Drizzle batch
 // commits independently; a retry resumes from the last completed batch.
-export async function withMigrationLock(
-  run: (database: MigrationDatabase) => Promise<void>,
-) {
+export async function withMigrationLock(run: (database: MigrationDatabase) => Promise<void>) {
   const client = await pool.connect();
   let locked = false;
   let releaseError: Error | undefined;
   try {
-    await client.query(
-      "select pg_advisory_lock(hashtext('everr.database.migrations'))",
-    );
+    await client.query("select pg_advisory_lock(hashtext('everr.database.migrations'))");
     locked = true;
     await run(drizzle(client, { schema }));
   } finally {
     if (locked) {
       try {
-        await client.query(
-          "select pg_advisory_unlock(hashtext('everr.database.migrations'))",
-        );
+        await client.query("select pg_advisory_unlock(hashtext('everr.database.migrations'))");
       } catch (error) {
-        releaseError =
-          error instanceof Error ? error : new Error(String(error));
+        releaseError = error instanceof Error ? error : new Error(String(error));
       }
     }
     client.release(releaseError);

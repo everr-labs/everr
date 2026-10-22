@@ -8,15 +8,10 @@ export const ALERT_LABEL_VALUE_MAX = 1024;
  * matcher bounds. Truncates rather than drops: a shortened label still joins
  * its history; a missing one silently breaks the chain.
  */
-export function capAlertLabels(
-  labels: Record<string, string>,
-): Record<string, string> {
+export function capAlertLabels(labels: Record<string, string>): Record<string, string> {
   const capped: Record<string, string> = {};
   for (const [key, value] of Object.entries(labels)) {
-    capped[key.slice(0, ALERT_LABEL_KEY_MAX)] = value.slice(
-      0,
-      ALERT_LABEL_VALUE_MAX,
-    );
+    capped[key.slice(0, ALERT_LABEL_KEY_MAX)] = value.slice(0, ALERT_LABEL_VALUE_MAX);
   }
   return capped;
 }
@@ -26,9 +21,7 @@ export function capAlertLabels(
  * label naming a service wins (per instance, so a rule grouped by service
  * gets one value per firing instance), then the `alert` marker.
  */
-export function resolveAlertServiceName(
-  labels: Record<string, string>,
-): string {
+export function resolveAlertServiceName(labels: Record<string, string>): string {
   const candidates = Object.keys(labels)
     .filter((key) => SERVICE_LABEL_RE.test(key) && labels[key] !== "")
     .sort((a, b) => {

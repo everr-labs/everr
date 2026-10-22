@@ -9,29 +9,11 @@ const meta = {
   argTypes: {
     variant: {
       control: "select",
-      options: [
-        "default",
-        "outline",
-        "secondary",
-        "ghost",
-        "destructive",
-        "link",
-        "cta",
-      ],
+      options: ["default", "outline", "secondary", "ghost", "destructive", "link", "cta"],
     },
     size: {
       control: "select",
-      options: [
-        "default",
-        "xs",
-        "sm",
-        "lg",
-        "xl",
-        "icon",
-        "icon-xs",
-        "icon-sm",
-        "icon-lg",
-      ],
+      options: ["default", "xs", "sm", "lg", "xl", "icon", "icon-xs", "icon-sm", "icon-lg"],
     },
     disabled: { control: "boolean" },
   },

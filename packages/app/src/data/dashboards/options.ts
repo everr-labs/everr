@@ -19,11 +19,7 @@ const dashboardsQueryKey = ["dashboards"] as const;
 const MAX_CONCURRENT_PANEL_QUERIES = 4;
 const panelLimiter = createLimiter(MAX_CONCURRENT_PANEL_QUERIES);
 
-export const dashboardOptions = (
-  project: string,
-  slug: string,
-  preview?: string,
-) =>
+export const dashboardOptions = (project: string, slug: string, preview?: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, project, slug, preview ?? ""],
     queryFn: () => getDashboard({ data: { project, slug, preview } }),
@@ -60,14 +56,7 @@ export const panelQueryOptions = (
   variableMeta?: VariableMeta,
 ) =>
   queryOptions({
-    queryKey: [
-      "panel-query",
-      source,
-      from,
-      to,
-      variables ?? null,
-      variableMeta ?? null,
-    ],
+    queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
     queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
@@ -78,9 +67,7 @@ export const panelQueryOptions = (
       );
     },
     enabled:
-      source.kind === "ClickHouseSQL"
-        ? source.sql.trim().length > 0
-        : source.kind === "TestData",
+      source.kind === "ClickHouseSQL" ? source.sql.trim().length > 0 : source.kind === "TestData",
     // Data for a given (source, range, variables) key never goes stale on its
     // own: a panel that scrolls out of view and back must not refetch. Only an
     // explicit refresh (invalidateQueries, which overrides staleTime) or a key
@@ -88,11 +75,7 @@ export const panelQueryOptions = (
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-export const variableOptionsQueryOptions = (
-  query: string,
-  from?: string,
-  to?: string,
-) =>
+export const variableOptionsQueryOptions = (query: string, from?: string, to?: string) =>
   queryOptions({
     queryKey: ["variable-options", query, from, to],
     queryFn: () => runVariableOptionsQuery({ data: { query, from, to } }),

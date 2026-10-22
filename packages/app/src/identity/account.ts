@@ -10,10 +10,7 @@ import { enforceIdentityPolicy } from "./enforce-policy";
 interface AccountDependencies {
   database: Database;
   api: {
-    getSession(input: {
-      headers: Headers;
-      query: { disableCookieCache: true };
-    }): Promise<{
+    getSession(input: { headers: Headers; query: { disableCookieCache: true } }): Promise<{
       user: { id: string };
       session: { activeOrganizationId?: string | null; createdAt: Date };
     } | null>;
@@ -21,19 +18,13 @@ interface AccountDependencies {
       headers: Headers;
       body: { organizationId: string };
     }): Promise<unknown>;
-    deleteUser(input: {
-      headers: Headers;
-      body: Record<string, never>;
-    }): Promise<unknown>;
+    deleteUser(input: { headers: Headers; body: Record<string, never> }): Promise<unknown>;
   };
-  policy: Pick<
-    IdentityPolicy,
-    "assertAccountDeletionAllowed" | "beforeUserDelete"
-  >;
+  policy: Pick<IdentityPolicy, "assertAccountDeletionAllowed" | "beforeUserDelete">;
   withIdentityRequest: IdentityProvider["withIdentityRequest"];
   lockUserLifecycle: IdentityProvider["lockUserLifecycle"];
   lockAccountDeletion: IdentityProvider["lockAccountDeletion"];
-  sessionFreshAge(): Promise<number>;
+  sessionFreshAge(this: void): Promise<number>;
 }
 
 /** Shared account authorization and provider sequencing for every deletion entry point. */
@@ -74,27 +65,20 @@ export function createAccountLifecycle({
               id,
               name: membership.name,
               isOwner: isOrganizationOwner(membership.role),
-              ownerCount: peers.filter((peer) => isOrganizationOwner(peer.role))
-                .length,
+              ownerCount: peers.filter((peer) => isOrganizationOwner(peer.role)).length,
             }
           : undefined;
       })
       .filter((value) => value !== undefined);
   }
 
-  async function authorize(
-    userId: string,
-    deletingOrganizationId?: string | null,
-  ) {
+  async function authorize(userId: string, deletingOrganizationId?: string | null) {
     const organizations = await readOrganizations(userId);
     await enforceIdentityPolicy(() =>
-      policy.assertAccountDeletionAllowed(
-        organizations.filter(({ isOwner }) => isOwner),
-      ),
+      policy.assertAccountDeletionAllowed(organizations.filter(({ isOwner }) => isOwner)),
     );
     const soleOwned = organizations.filter(
-      ({ id, isOwner, ownerCount }) =>
-        isOwner && ownerCount === 1 && id !== deletingOrganizationId,
+      ({ id, isOwner, ownerCount }) => isOwner && ownerCount === 1 && id !== deletingOrganizationId,
     );
     if (soleOwned.length)
       throw new APIError("FORBIDDEN", {
@@ -109,25 +93,26 @@ export function createAccountLifecycle({
       await authorize(userId);
       await enforceIdentityPolicy(() => policy.beforeUserDelete(userId));
     },
-    async deleteAccount({
-      headers,
-      deleteOrganization = false,
-    }: {
-      headers: Headers;
-      deleteOrganization?: boolean;
-    }): Promise<void> {
+    async deleteAccount(
+      this: void,
+      {
+        headers,
+        deleteOrganization = false,
+      }: {
+        headers: Headers;
+        deleteOrganization?: boolean;
+      },
+    ): Promise<void> {
       await withIdentityRequest(async () => {
         const session = await api.getSession({
           headers,
           query: { disableCookieCache: true },
         });
-        if (!session)
-          throw new APIError("UNAUTHORIZED", { message: "Unauthenticated" });
+        if (!session) throw new APIError("UNAUTHORIZED", { message: "Unauthenticated" });
         const freshAge = await sessionFreshAge();
         if (
           freshAge !== 0 &&
-          Date.now() - new Date(session.session.createdAt).getTime() >=
-            freshAge * 1000
+          Date.now() - new Date(session.session.createdAt).getTime() >= freshAge * 1000
         )
           throw new APIError("BAD_REQUEST", {
             message: "Sign in again before deleting your account.",
@@ -140,13 +125,9 @@ export function createAccountLifecycle({
         if (deleteOrganization) {
           if (!activeOrganizationId)
             throw new APIError("BAD_REQUEST", {
-              message:
-                "Select an organization before deleting it with your account.",
+              message: "Select an organization before deleting it with your account.",
             });
-          if (
-            !organizations.find(({ id }) => id === activeOrganizationId)
-              ?.isOwner
-          )
+          if (!organizations.find(({ id }) => id === activeOrganizationId)?.isOwner)
             throw new APIError("FORBIDDEN", {
               message:
                 "Only organization owners can delete the organization while deleting their account.",

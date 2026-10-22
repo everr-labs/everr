@@ -1,20 +1,10 @@
 import { and, eq, or } from "drizzle-orm";
-import {
-  parseRunbookRef,
-  refIdentityKey,
-} from "#app/data/alerting/resource/runbook-ref.ts";
+import { parseRunbookRef, refIdentityKey } from "#app/data/alerting/resource/runbook-ref.ts";
 import { listAllRules } from "#app/data/alerting/rules/repository.ts";
 import { fromAlertingRule } from "#app/data/alerting/rules/resource/mapping.ts";
 import { AlertRuleYamlSchema } from "#app/data/alerting/rules/resource/schema.ts";
-import {
-  projectFromDocument,
-  slugFromDocument,
-} from "#app/data/dashboards/desired.ts";
-import {
-  foreignLiveScope,
-  type Namespace,
-  previewScope,
-} from "#app/data/previews/scope.ts";
+import { projectFromDocument, slugFromDocument } from "#app/data/dashboards/desired.ts";
+import { foreignLiveScope, type Namespace, previewScope } from "#app/data/previews/scope.ts";
 import { db } from "#app/db/client.ts";
 import { runbooks } from "#app/db/schema/index.ts";
 import { ApplyValidationError } from "./errors";
@@ -56,10 +46,7 @@ export async function validateRunbookLinks(opts: {
   const identities = new Set<string>();
   for (const { path, resource } of opts.runbooks) {
     identities.add(
-      refIdentityKey(
-        projectFromDocument(path, resource),
-        slugFromDocument(path, resource),
-      ),
+      refIdentityKey(projectFromDocument(path, resource), slugFromDocument(path, resource)),
     );
   }
 
@@ -92,10 +79,7 @@ export async function validateRunbookLinks(opts: {
               previewScope(runbooks, opts.namespace),
               or(
                 ...refs.map((ref) =>
-                  and(
-                    eq(runbooks.project, ref.project),
-                    eq(runbooks.slug, ref.slug),
-                  ),
+                  and(eq(runbooks.project, ref.project), eq(runbooks.slug, ref.slug)),
                 ),
               ),
             ),
@@ -105,8 +89,7 @@ export async function validateRunbookLinks(opts: {
       .select({ project: runbooks.project, slug: runbooks.slug })
       .from(runbooks)
       .where(scope);
-    for (const row of dbRows)
-      identities.add(refIdentityKey(row.project, row.slug));
+    for (const row of dbRows) identities.add(refIdentityKey(row.project, row.slug));
   }
 
   for (const { path, ref } of links) {
@@ -128,23 +111,16 @@ export async function collectOrphanWarnings(opts: {
 
   const batch = new Set(
     opts.runbooks.map(({ path, resource }) =>
-      refIdentityKey(
-        projectFromDocument(path, resource),
-        slugFromDocument(path, resource),
-      ),
+      refIdentityKey(projectFromDocument(path, resource), slugFromDocument(path, resource)),
     ),
   );
   const mine = await db
     .select({ project: runbooks.project, slug: runbooks.slug })
     .from(runbooks)
     .where(previewScope(runbooks, opts.namespace));
-  const deleted = mine.filter(
-    (r) => !batch.has(refIdentityKey(r.project, r.slug)),
-  );
+  const deleted = mine.filter((r) => !batch.has(refIdentityKey(r.project, r.slug)));
   if (deleted.length === 0) return [];
-  const deletedKeys = new Set(
-    deleted.map((r) => refIdentityKey(r.project, r.slug)),
-  );
+  const deletedKeys = new Set(deleted.map((r) => refIdentityKey(r.project, r.slug)));
 
   const { orgId, repoid } = opts.namespace;
   const rules = await listAllRules(orgId, { previewId: null });
@@ -170,9 +146,7 @@ export async function collectOrphanWarnings(opts: {
       "alert",
       r.name,
       v.repoid || null,
-      v.runbookSlug
-        ? { project: v.runbookProject ?? "default", slug: v.runbookSlug }
-        : null,
+      v.runbookSlug ? { project: v.runbookProject ?? "default", slug: v.runbookSlug } : null,
     );
   }
   return warnings;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@everr/app/env", () => ({
   env: {
@@ -23,19 +23,16 @@ describe("Polar Product catalog", () => {
     expect(polarProductIdForPlan("pro")).toBe("product_pro_current");
   });
 
-  it.each([
-    "product_pro_current",
-    "product_pro_legacy_1",
-    "product_pro_legacy_2",
-  ])("maps the configured Product %s to Pro", (productId) => {
-    expect(planForPolarProductId(productId)).toBe("pro");
-    expect(() => assertPolarProductGrantsPlan(productId, "pro")).not.toThrow();
-  });
+  it.each(["product_pro_current", "product_pro_legacy_1", "product_pro_legacy_2"])(
+    "maps the configured Product %s to Pro",
+    (productId) => {
+      expect(planForPolarProductId(productId)).toBe("pro");
+      expect(() => assertPolarProductGrantsPlan(productId, "pro")).not.toThrow();
+    },
+  );
 
   it("throws a critical error for an unknown Product", () => {
-    expect(() => planForPolarProductId("product_unknown")).toThrow(
-      UnknownPolarProductError,
-    );
+    expect(() => planForPolarProductId("product_unknown")).toThrow(UnknownPolarProductError);
   });
 });
 

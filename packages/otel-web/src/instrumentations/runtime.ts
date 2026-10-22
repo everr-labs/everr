@@ -34,6 +34,7 @@ export interface InstrumentationContext {
    * it, the SDK uses the instant that `emit` is called.
    */
   emit(
+    this: void,
     name: string,
     attributes?: Record<string, AttrValue | null | undefined>,
     timestamp?: number,
@@ -58,7 +59,7 @@ export interface InstrumentationContext {
    * the referrer. It is the same data that the envelope writes. The code makes
    * a new context for each SPA navigation.
    */
-  page(): PageContext;
+  page(this: void): PageContext;
   /**
    * Adds a listener for the SPA navigations. The SDK calls the listener after
    * it makes the new page context. Thus `page()` gives the new page. This
@@ -82,8 +83,6 @@ export interface InstrumentationContext {
  * function. If the function returns a value, that value is the function that
  * stops the instrumentation.
  */
-export type Instrumentation = (
-  ctx: InstrumentationContext,
-) => (() => void) | void;
+export type Instrumentation = (ctx: InstrumentationContext) => (() => void) | void;
 
 export type { PageContext } from "../state/session.js";

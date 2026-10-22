@@ -1,11 +1,7 @@
 import { and, eq, lt, ne } from "drizzle-orm";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
 import type { DbExecutor } from "#app/db/client.ts";
-import {
-  alertDefinitions,
-  alertInstances,
-  previews,
-} from "#app/db/schema/index.ts";
+import { alertDefinitions, alertInstances, previews } from "#app/db/schema/index.ts";
 import {
   historyDefFromDefinitionRow,
   instanceHistoryRow,
@@ -30,17 +26,9 @@ export async function openPreviewAlertInstances(
   return tx
     .select({ instance: alertInstances, def: alertDefinitions })
     .from(alertInstances)
-    .innerJoin(
-      alertDefinitions,
-      eq(alertInstances.alertDefinitionId, alertDefinitions.id),
-    )
+    .innerJoin(alertDefinitions, eq(alertInstances.alertDefinitionId, alertDefinitions.id))
     .innerJoin(previews, eq(alertDefinitions.previewId, previews.id))
-    .where(
-      and(
-        lt(previews.lastAppliedAt, stalerThan),
-        ne(alertInstances.status, "inactive"),
-      ),
-    );
+    .where(and(lt(previews.lastAppliedAt, stalerThan), ne(alertInstances.status, "inactive")));
 }
 
 /**

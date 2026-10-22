@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { Span } from "#app/data/runs/schemas.ts";
 import {
   buildSpanTree,
@@ -44,9 +44,7 @@ describe("buildSpanTree", () => {
   });
 
   it("treats spans with an unknown parent as roots", () => {
-    const roots = buildSpanTree([
-      makeSpan({ spanId: "child", parentSpanId: "nonexistent" }),
-    ]);
+    const roots = buildSpanTree([makeSpan({ spanId: "child", parentSpanId: "nonexistent" })]);
 
     expect(roots).toHaveLength(1);
     expect(roots[0].depth).toBe(0);
@@ -62,12 +60,7 @@ describe("flattenTree", () => {
       makeSpan({ spanId: "a1", parentSpanId: "a", startTime: 150 }),
     ]);
 
-    expect(flattenTree(roots, new Set()).map((n) => n.spanId)).toEqual([
-      "a",
-      "a1",
-      "a2",
-      "b",
-    ]);
+    expect(flattenTree(roots, new Set()).map((n) => n.spanId)).toEqual(["a", "a1", "a2", "b"]);
   });
 
   it.each([

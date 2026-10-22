@@ -1,23 +1,13 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
-import {
-  listServiceIdentitiesOptions,
-  tracesSearchInfiniteOptions,
-} from "../data/options";
+import { listServiceIdentitiesOptions, tracesSearchInfiniteOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
 import { TraceFilters } from "./trace-filters";
-import {
-  type TraceLinkRenderProps,
-  TraceResultsList,
-} from "./trace-results-list";
+import { type TraceLinkRenderProps, TraceResultsList } from "./trace-results-list";
 
 export type { TraceLinkRenderProps };
 
@@ -58,9 +48,7 @@ export function TracesSearch({
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
-  const identitiesQuery = useQuery(
-    listServiceIdentitiesOptions(repo, { timeRange, refresh }),
-  );
+  const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange, refresh }));
   const {
     data,
     fetchNextPage,
@@ -86,10 +74,7 @@ export function TracesSearch({
     }),
     placeholderData: keepPreviousData,
   });
-  const rows = useMemo(
-    () => (data?.pages ?? []).flat().filter((row) => row != null),
-    [data],
-  );
+  const rows = useMemo(() => (data?.pages ?? []).flat().filter((row) => row != null), [data]);
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
@@ -108,10 +93,7 @@ export function TracesSearch({
             }}
             identities={identitiesQuery.data ?? []}
             persistentFilters={persistentFilters}
-            persistentFilterCount={countPersistentFilters(
-              search.service,
-              environment,
-            )}
+            persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
           <main className="flex min-h-0 min-w-0 flex-col">
@@ -120,10 +102,12 @@ export function TracesSearch({
               isPending={isPending}
               isError={isError}
               error={error}
+              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               refetch={refetch}
               hasMore={hasNextPage}
               isLoadingMore={isFetchingNextPage}
               renderTraceLink={renderTraceLink}
+              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               onLoadMore={() => fetchNextPage()}
               onClearFilters={() =>
                 // The same effect as "Clear page filters" in the rail. Service

@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/consistent-type-assertions -- Chart model timestamps are numeric; erased assertions preserve the existing arithmetic without coercing other values. */
+/* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
@@ -60,14 +62,12 @@ export function buildBarChartModel(
       // No time column: the first string column is the category axis. A frame
       // with only numeric columns falls back to its first column so something
       // sensible still renders (e.g. numeric bucket labels).
-      xKey = getGroupKeys(data, [])[0] ?? Object.keys(data[0]!)[0]!;
+      xKey = getGroupKeys(data, [])[0] ?? Object.keys(data[0])[0];
       sawCategory = true;
     }
 
     const groupKeys = getGroupKeys(data, [xKey]);
-    const rawValueKeys = getValueKeys(data, xKey).filter(
-      (k) => !groupKeys.includes(k),
-    );
+    const rawValueKeys = getValueKeys(data, xKey).filter((k) => !groupKeys.includes(k));
 
     let rows: QueryResultRow[];
     // The series' source names: pivoted group values, or raw value-column names.
@@ -79,7 +79,7 @@ export function buildBarChartModel(
         ...row,
         [compositeKey]: groupKeys.map((k) => row[k]).join(" · "),
       }));
-      const piv = pivotByGroup(keyed, xKey, compositeKey, rawValueKeys[0]!);
+      const piv = pivotByGroup(keyed, xKey, compositeKey, rawValueKeys[0]);
       rows = piv.pivoted;
       seriesNames = piv.seriesKeys;
     } else {
@@ -97,8 +97,7 @@ export function buildBarChartModel(
       valueKeys.push(renderKey);
       chartConfig[renderKey] = {
         label: name,
-        color:
-          colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
+        color: colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
       };
       seriesIndex++;
     }

@@ -10,7 +10,7 @@ import {
   NodeTracerProvider,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-import { afterAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeEach, expect, it } from "vite-plus/test";
 import {
   identityLogProcessor,
   identitySpanProcessor,
@@ -76,6 +76,7 @@ it("isolates concurrent requests and annotates the root when auth resolves insid
     });
   }
   for (const record of records.getFinishedLogRecords()) {
+    if (typeof record.body !== "string") throw new TypeError("Expected a log body");
     expect(record.attributes).toEqual({
       "everr.organization.id": `org-${record.body}`,
       "user.id": `user-${record.body}`,
@@ -100,18 +101,13 @@ it("leaves anonymous work and new background scopes free of user identity", asyn
       root.end();
     }),
   );
-  await withTelemetryIdentityScope(() =>
-    tracer.startActiveSpan("anonymous", (span) => span.end()),
-  );
-  for (const span of spans
-    .getFinishedSpans()
-    .filter((span) => span.name.startsWith("job"))) {
+  withTelemetryIdentityScope(() => tracer.startActiveSpan("anonymous", (span) => span.end()));
+  for (const span of spans.getFinishedSpans().filter((span) => span.name.startsWith("job"))) {
     expect(span.attributes).toEqual({ "everr.organization.id": "org-b" });
   }
-  expect(
-    spans.getFinishedSpans().find((span) => span.name === "anonymous")
-      ?.attributes,
-  ).toEqual({});
+  expect(spans.getFinishedSpans().find((span) => span.name === "anonymous")?.attributes).toEqual(
+    {},
+  );
   expect(records.getFinishedLogRecords()[0].attributes).toEqual({
     "everr.organization.id": "org-b",
   });
@@ -130,10 +126,7 @@ it("does not backfill ended pre-auth spans or create baggage", async () => {
       root.end();
     }),
   );
-  expect(
-    spans.getFinishedSpans().find((span) => span.name === "pre-auth")
-      ?.attributes,
-  ).toEqual({});
+  expect(spans.getFinishedSpans().find((span) => span.name === "pre-auth")?.attributes).toEqual({});
   expect(records.getFinishedLogRecords()[0].attributes).toEqual({
     "everr.organization.id": "other-org",
     "user.id": "user-a",
@@ -189,9 +182,7 @@ it("continues a remote trace without trusting baggage or annotating its remote p
       }),
     ),
   );
-  const root = spans
-    .getFinishedSpans()
-    .find((span) => span.name === "remote-request");
+  const root = spans.getFinishedSpans().find((span) => span.name === "remote-request");
   expect(root?.spanContext().traceId).toBe("11111111111111111111111111111111");
   expect(root?.attributes).toEqual({
     "everr.organization.id": "verified-org",

@@ -1,9 +1,5 @@
 import { storage } from "@composition/storage";
-import {
-  type ChdbDatabase,
-  createChdbDatabase,
-  type QueryParams,
-} from "./chdb-database";
+import { type ChdbDatabase, createChdbDatabase, type QueryParams } from "./chdb-database";
 
 export interface SqlApiResult<T> {
   rows: T[];
@@ -50,10 +46,7 @@ export class TestClickHouse {
 
   /** Ask the engine directly, for cases about the schema's own behaviour. */
   // fallow-ignore-next-line unused-class-member
-  queryRows(
-    statement: string,
-    params?: QueryParams,
-  ): Record<string, unknown>[] {
+  queryRows(statement: string, params?: QueryParams): Record<string, unknown>[] {
     return this.database().queryRows(statement, params);
   }
 
@@ -153,10 +146,8 @@ async function insertRows<T extends { organizationId: string }>(
 
 function createClickhouseQuery(organizationId: string) {
   requireTenant(organizationId);
-  return async <T>(
-    statement: string,
-    query_params?: QueryParams,
-  ): Promise<T[]> => activeClickHouse.read<T>(statement, query_params).rows;
+  return async <T>(statement: string, query_params?: QueryParams): Promise<T[]> =>
+    activeClickHouse.read<T>(statement, query_params).rows;
 }
 
 /** Module replacement used by the integration suites' hoisted mocks. */

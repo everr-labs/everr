@@ -16,6 +16,4 @@ export const CHANNEL_TEXT_MAX = {
  * not named, so a new channel with a smaller limit tightens the budget on its
  * own.
  */
-export const CHANNEL_TEXT_MIN = Math.min(
-  ...Object.values(CHANNEL_TEXT_MAX),
-) as number;
+export const CHANNEL_TEXT_MIN = Math.min(...Object.values(CHANNEL_TEXT_MAX));

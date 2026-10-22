@@ -1,14 +1,11 @@
+/* oxlint-disable jsx-a11y/no-noninteractive-element-interactions -- Pointer movement only adds a visual chart readout; the chart is described by its accessible name and surrounding data. */
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useId, useMemo } from "react";
 import { formatElapsed } from "#app/data/alerting/triage/format.ts";
 import type { AlertSparkData } from "#app/data/alerting/triage/view.ts";
-import {
-  ChartCrosshair,
-  instanceRowsAt,
-  tooltipTime,
-  useChartScrub,
-} from "./chart-crosshair";
+import { ChartCrosshair, instanceRowsAt, tooltipTime, useChartScrub } from "./chart-crosshair";
 
 const WIDTH = 80;
 const HEIGHT = 26;
@@ -49,10 +46,7 @@ export function AlertSparkline({
     for (const instance of spark.instances) {
       for (const point of instance.points) {
         if (point.at > windowMinutes) continue;
-        points.set(
-          point.at,
-          Math.max(points.get(point.at) ?? -Infinity, point.high),
-        );
+        points.set(point.at, Math.max(points.get(point.at) ?? -Infinity, point.high));
       }
     }
     const series = [...points.entries()]
@@ -65,15 +59,10 @@ export function AlertSparkline({
     const max = Math.max(...values);
     const x = (at: number) => ((windowMinutes - at) / windowMinutes) * WIDTH;
     const y = (value: number) =>
-      max === min
-        ? HEIGHT / 2
-        : HEIGHT - PAD - ((value - min) / (max - min)) * (HEIGHT - PAD * 2);
+      max === min ? HEIGHT / 2 : HEIGHT - PAD - ((value - min) / (max - min)) * (HEIGHT - PAD * 2);
 
     const line = series
-      .map(
-        (p, i) =>
-          `${i === 0 ? "M" : "L"}${x(p.at).toFixed(1)} ${y(p.value).toFixed(1)}`,
-      )
+      .map((p, i) => `${i === 0 ? "M" : "L"}${x(p.at).toFixed(1)} ${y(p.value).toFixed(1)}`)
       .join(" ");
     const area = `${line} L${x(series[series.length - 1].at).toFixed(1)} ${HEIGHT} L${x(series[0].at).toFixed(1)} ${HEIGHT} Z`;
     return { line, area, min, max };

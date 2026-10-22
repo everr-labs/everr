@@ -41,10 +41,7 @@ export function getVisibleSpans<T extends WaterfallSpan>(
  * Returns the set of ancestor span IDs for a given span.
  * Walks up the tree via parentSpanId until reaching the root.
  */
-export function getAncestorSpanIds(
-  allSpans: WaterfallSpan[],
-  targetSpanId: string,
-): Set<string> {
+export function getAncestorSpanIds(allSpans: WaterfallSpan[], targetSpanId: string): Set<string> {
   const spanMap = new Map<string, WaterfallSpan>();
   for (const span of allSpans) {
     spanMap.set(span.spanId, span);

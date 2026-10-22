@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
 import { Session } from "chdb";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
 let session: Session;
 let dataDir: string;
@@ -28,24 +28,8 @@ beforeAll(() => {
   dataDir = mkdtempSync(join(tmpdir(), "everr-trace-lookup-"));
   session = new Session(dataDir);
   for (const table of ["traces", "otel_traces"]) {
-    run(
-      template("traces_json_table.sql", [
-        '"default"',
-        `"${table}"`,
-        "",
-        "MergeTree()",
-        "",
-      ]),
-    );
-    run(
-      template("traces_id_ts_lookup_table.sql", [
-        "default",
-        table,
-        "",
-        "MergeTree()",
-        "",
-      ]),
-    );
+    run(template("traces_json_table.sql", ['"default"', `"${table}"`, "", "MergeTree()", ""]));
+    run(template("traces_id_ts_lookup_table.sql", ["default", table, "", "MergeTree()", ""]));
     run(
       template("traces_id_ts_lookup_mv.sql", [
         "default",
@@ -70,27 +54,18 @@ function repo(tableName = "traces") {
     {
       async execute<T>(sql: string, params: Record<string, unknown> = {}) {
         for (const [key, value] of Object.entries(params)) {
-          const text = String(value)
-            .replace(/\\/g, "\\\\")
-            .replace(/'/g, "\\'");
+          const text = String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
           run(`SET param_${key} = '${text}'`);
         }
         const rows = run(sql);
-        return (
-          rows ? rows.split("\n").map((line) => JSON.parse(line)) : []
-        ) as T[];
+        return (rows ? rows.split("\n").map((line) => JSON.parse(line)) : []) as T[];
       },
     },
     { tableName },
   );
 }
 
-function insert(
-  table: string,
-  traceId: string,
-  spanId: string,
-  timestamp: string,
-) {
+function insert(table: string, traceId: string, spanId: string, timestamp: string) {
   run(
     `INSERT INTO ${table} FORMAT JSONEachRow\n${JSON.stringify({
       TraceId: traceId,
@@ -123,27 +98,20 @@ describe("trace ID lookup against ClickHouse", () => {
   it("resolves fresh bounds when more spans arrive", async () => {
     insert("traces", "growing", "middle", "2026-01-02 12:00:00");
     const repository = repo();
-    expect(
-      (await repository.getTrace({ traceId: "growing" })).map(
-        (span) => span.spanId,
-      ),
-    ).toEqual(["middle"]);
+    expect((await repository.getTrace({ traceId: "growing" })).map((span) => span.spanId)).toEqual([
+      "middle",
+    ]);
     insert("traces", "growing", "earlier", "2026-01-01 12:00:00");
     insert("traces", "growing", "later", "2026-01-03 12:00:00");
-    expect(
-      (await repository.getTrace({ traceId: "growing" })).map(
-        (span) => span.spanId,
-      ),
-    ).toEqual(["earlier", "middle", "later"]);
+    expect((await repository.getTrace({ traceId: "growing" })).map((span) => span.spanId)).toEqual([
+      "earlier",
+      "middle",
+      "later",
+    ]);
   });
 
   it("uses the matching lookup table for a configured local table", async () => {
-    insert(
-      "otel_traces",
-      "local",
-      "local-span",
-      "2026-01-01 12:00:00.999999999",
-    );
+    insert("otel_traces", "local", "local-span", "2026-01-01 12:00:00.999999999");
     const spans = await repo("default.otel_traces").getTrace({
       traceId: "local",
     });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { AttributeSource } from "../schemas";
 import { buildAttributeClauses } from "./where";
 
@@ -47,26 +47,19 @@ describe("buildAttributeClauses", () => {
       [{ source: "scope", key: "k", op: "exists", values: [] }],
       columnFor,
     );
-    expect(exists.clauses[0]).toBe(
-      "has(ScopeAttributesKeys, {attrKey0:String})",
-    );
+    expect(exists.clauses[0]).toBe("has(ScopeAttributesKeys, {attrKey0:String})");
     expect(exists.params).toEqual({ attrKey0: "k" });
 
     const missing = buildAttributeClauses(
       [{ source: "span", key: "k", op: "missing", values: [] }],
       columnFor,
     );
-    expect(missing.clauses[0]).toBe(
-      "NOT has(SpanAttributesKeys, {attrKey0:String})",
-    );
+    expect(missing.clauses[0]).toBe("NOT has(SpanAttributesKeys, {attrKey0:String})");
   });
 
   it("no-ops empty-value in/not_in (no clause, no param)", () => {
     expect(
-      buildAttributeClauses(
-        [{ source: "resource", key: "k", op: "in", values: [] }],
-        columnFor,
-      ),
+      buildAttributeClauses([{ source: "resource", key: "k", op: "in", values: [] }], columnFor),
     ).toEqual({ clauses: [], params: {} });
   });
 

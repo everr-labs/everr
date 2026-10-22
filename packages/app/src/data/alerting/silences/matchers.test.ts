@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { formatMatchers, parseMatchers } from "./matchers";
 
 describe("the Matchers a person types into the Silence dialog", () => {
@@ -36,15 +36,11 @@ describe("the Matchers a person types into the Silence dialog", () => {
   });
 
   it("keeps an equals sign inside the value", () => {
-    expect(parseMatchers("query=a=b")).toEqual([
-      { label: "query", op: "eq", value: "a=b" },
-    ]);
+    expect(parseMatchers("query=a=b")).toEqual([{ label: "query", op: "eq", value: "a=b" }]);
   });
 
   it("reads a bang inside the value as part of it, not as the operator", () => {
-    expect(parseMatchers("query=a!=b")).toEqual([
-      { label: "query", op: "eq", value: "a!=b" },
-    ]);
+    expect(parseMatchers("query=a!=b")).toEqual([{ label: "query", op: "eq", value: "a!=b" }]);
   });
 
   it("reads back what the lists print, so Silence again and Undo round-trip", () => {
@@ -83,8 +79,6 @@ describe("the Matchers a person types into the Silence dialog", () => {
   });
 
   it("accepts an empty value, which selects a label that is present and blank", () => {
-    expect(parseMatchers("host=")).toEqual([
-      { label: "host", op: "eq", value: "" },
-    ]);
+    expect(parseMatchers("host=")).toEqual([{ label: "host", op: "eq", value: "" }]);
   });
 });

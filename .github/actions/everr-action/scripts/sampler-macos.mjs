@@ -91,8 +91,7 @@ function buildCPULogicalJson(currentTimes) {
       ? prev.user + prev.nice + prev.sys + prev.idle + prev.irq
       : times.user + times.nice + times.sys + times.idle + times.irq;
     const prevIdle = prev ? prev.idle + prev.irq : times.idle + times.irq;
-    const currentTotal =
-      times.user + times.nice + times.sys + times.idle + times.irq;
+    const currentTotal = times.user + times.nice + times.sys + times.idle + times.irq;
     const currentIdle = times.idle + times.irq;
     const deltaTotal = currentTotal - prevTotal;
     const deltaIdle = currentIdle - prevIdle;

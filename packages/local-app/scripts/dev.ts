@@ -4,7 +4,7 @@ import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { createServer, type ViteDevServer } from "vite";
+import { createServer, type ViteDevServer } from "vite-plus";
 import { compileCli, embeddedAssets, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
 
 const appDir = fileURLToPath(new URL("..", import.meta.url));
@@ -63,8 +63,10 @@ async function stop(task: Task) {
   const sendSignal = (signal: NodeJS.Signals) => {
     try {
       if (process.platform === "win32") task.child.kill(signal);
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- Keep the original spawned-process signaling behavior; this assertion is erased at runtime.
       else process.kill(-task.child.pid!, signal);
     } catch (error) {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
       if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
     }
   };
@@ -77,9 +79,13 @@ async function stop(task: Task) {
 async function assertBackendPortFree() {
   const probe = createNetServer();
   await new Promise<void>((resolve, reject) => {
-    probe.once("error", () => reject(new Error(
-      "Port 54321 is already in use. Stop the existing local CLI, or use pnpm dev:local:ui to attach Vite to it.",
-    )));
+    probe.once("error", () =>
+      reject(
+        new Error(
+          "Port 54321 is already in use. Stop the existing local CLI, or use pnpm dev:local:ui to attach Vite to it.",
+        ),
+      ),
+    );
     probe.listen(54321, "127.0.0.1", () => probe.close(() => resolve()));
   });
 }
@@ -94,9 +100,15 @@ async function waitForBackend(task: Task) {
         signal: AbortSignal.any([shutdown.signal, AbortSignal.timeout(1_000)]),
       });
       const identity = await response.json();
-      if (response.ok && identity.service === "everr-local-ui" &&
-          identity.protocol_version === 1 && identity.status === "ok" &&
-          typeof identity.instance_id === "string" && identity.instance_id.length > 0) return;
+      if (
+        response.ok &&
+        identity.service === "everr-local-ui" &&
+        identity.protocol_version === 1 &&
+        identity.status === "ok" &&
+        typeof identity.instance_id === "string" &&
+        identity.instance_id.length > 0
+      )
+        return;
     } catch {
       shutdown.signal.throwIfAborted();
     }
@@ -144,7 +156,9 @@ function scheduleRebuild() {
           }
         }
       }
-    })().finally(() => { rebuildLoop = undefined; });
+    })().finally(() => {
+      rebuildLoop = undefined;
+    });
   }, 250);
 }
 
@@ -161,7 +175,10 @@ async function main() {
   }
   await rebuildBackend();
   shutdown.signal.throwIfAborted();
-  vite = await createServer({ root: appDir, server: { open: !process.argv.includes("--no-open") } });
+  vite = await createServer({
+    root: appDir,
+    server: { open: !process.argv.includes("--no-open") },
+  });
   await vite.listen();
   vite.printUrls();
 
@@ -172,12 +189,16 @@ async function main() {
     [repoDir, ["Cargo.toml", "Cargo.lock"]],
     [cliDir, ["Cargo.toml", "build.rs", "package.json"]],
   ] as const) {
-    watchers.push(watch(directory, (_event, file) => {
-      if (file && files.some((name) => name === file)) scheduleRebuild();
-    }));
+    watchers.push(
+      watch(directory, (_event, file) => {
+        if (file && files.some((name) => name === file)) scheduleRebuild();
+      }),
+    );
   }
   if (!shutdown.signal.aborted) {
-    await new Promise<void>((resolve) => shutdown.signal.addEventListener("abort", () => resolve(), { once: true }));
+    await new Promise<void>((resolve) =>
+      shutdown.signal.addEventListener("abort", () => resolve(), { once: true }),
+    );
   }
 }
 

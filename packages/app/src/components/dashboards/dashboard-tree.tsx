@@ -1,19 +1,9 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link, useMatchRoute } from "@tanstack/react-router";
-import {
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  LayoutDashboard,
-  NotebookText,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "#app/components/preview-status-badge.tsx";
-import {
-  railRowActiveProps,
-  railRowClass,
-  rowIndent,
-} from "#app/components/rail/rail-row.tsx";
+import { railRowActiveProps, railRowClass, rowIndent } from "#app/components/rail/rail-row.tsx";
 import {
   buildTree,
   type DashboardSummary,
@@ -30,11 +20,7 @@ interface DashboardTreeProps {
   resource?: TreeResource;
 }
 
-export function DashboardTree({
-  dashboards,
-  search,
-  resource = "dashboard",
-}: DashboardTreeProps) {
+export function DashboardTree({ dashboards, search, resource = "dashboard" }: DashboardTreeProps) {
   const matchRoute = useMatchRoute();
   // Fuzzy for runbooks: a runbook page is a route below the runbook, and the
   // tree still has to know which runbook is open.
@@ -44,9 +30,7 @@ export function DashboardTree({
       : { to: "/dashboards/$project/$slug" },
   );
   const selected = match
-    ? dashboards.find(
-        (d) => d.project === match.project && d.slug === match.slug,
-      )
+    ? dashboards.find((d) => d.project === match.project && d.slug === match.slug)
     : undefined;
 
   // Open the folders containing the dashboard selected at mount time. After
@@ -141,8 +125,7 @@ function FolderRows({
   // where you are.
   const containsSelected =
     selected !== undefined &&
-    (selected.folderPath === node.path ||
-      selected.folderPath.startsWith(`${node.path}/`));
+    (selected.folderPath === node.path || selected.folderPath.startsWith(`${node.path}/`));
   return (
     <>
       <div
@@ -189,13 +172,7 @@ function FolderRows({
         </>
       ) : (
         containsSelected &&
-        selected && (
-          <DashboardRow
-            dashboard={selected}
-            depth={depth + 1}
-            resource={resource}
-          />
-        )
+        selected && <DashboardRow dashboard={selected} depth={depth + 1} resource={resource} />
       )}
     </>
   );
@@ -216,25 +193,15 @@ function DashboardRow({
   const removed = dashboard.previewStatus === "removed";
   return (
     <Link
-      to={
-        resource === "runbook"
-          ? "/runbooks/$project/$slug"
-          : "/dashboards/$project/$slug"
-      }
+      to={resource === "runbook" ? "/runbooks/$project/$slug" : "/dashboards/$project/$slug"}
       params={{ project: dashboard.project, slug: dashboard.slug }}
-      className={cn(
-        railRowClass,
-        "flex min-w-0 items-center gap-2 pr-1",
-        removed && "opacity-50",
-      )}
+      className={cn(railRowClass, "flex min-w-0 items-center gap-2 pr-1", removed && "opacity-50")}
       style={{ paddingLeft: `${rowIndent(depth, "resource")}px` }}
       activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate text-sm">{dashboard.name}</span>
-      {path && (
-        <span className="truncate text-xs text-muted-foreground">{path}</span>
-      )}
+      {path && <span className="truncate text-xs text-muted-foreground">{path}</span>}
       <PreviewStatusBadge status={dashboard.previewStatus} />
     </Link>
   );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { alertEvents } from "#app/db/schema/index.ts";
 import type { AlertingMatcher } from "../types";
 import {
@@ -9,11 +9,7 @@ import {
   silenceSelects,
 } from "./matching";
 
-function matcher(
-  op: AlertingMatcher["op"],
-  value: string,
-  label = "team",
-): AlertingMatcher {
+function matcher(op: AlertingMatcher["op"], value: string, label = "team"): AlertingMatcher {
   return { label, op, value };
 }
 
@@ -96,16 +92,10 @@ describe("silenceSelects", () => {
   it("requires every matcher, and selects everything with none", () => {
     expect(silenceSelects([], subject)).toBe(true);
     expect(
-      silenceSelects(
-        [matcher("eq", "pay"), matcher("eq", "critical", "severity")],
-        subject,
-      ),
+      silenceSelects([matcher("eq", "pay"), matcher("eq", "critical", "severity")], subject),
     ).toBe(true);
     expect(
-      silenceSelects(
-        [matcher("eq", "pay"), matcher("eq", "warning", "severity")],
-        subject,
-      ),
+      silenceSelects([matcher("eq", "pay"), matcher("eq", "warning", "severity")], subject),
     ).toBe(false);
   });
 
@@ -131,12 +121,9 @@ describe("silenceIsInForce", () => {
     ["2026-07-01T11:00:00Z", "2026-07-01T12:00:00Z", false],
     ["2026-07-01T12:30:00Z", "2026-07-01T13:00:00Z", false],
   ])("%s to %s covers noon: %s", (startsAt, endsAt, expected) => {
-    expect(
-      silenceIsInForce(
-        { startsAt: new Date(startsAt), endsAt: new Date(endsAt) },
-        now,
-      ),
-    ).toBe(expected);
+    expect(silenceIsInForce({ startsAt: new Date(startsAt), endsAt: new Date(endsAt) }, now)).toBe(
+      expected,
+    );
   });
 });
 
@@ -160,11 +147,7 @@ describe("matchingSilence", () => {
     };
     expect(matchingSilence(subject, [expired, scheduled], now)).toBe(null);
     expect(
-      matchingSilence(
-        eventSubject(event({ instanceLabels: { team: "core" } })),
-        [inForce],
-        now,
-      ),
+      matchingSilence(eventSubject(event({ instanceLabels: { team: "core" } })), [inForce], now),
     ).toBe(null);
   });
 

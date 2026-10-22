@@ -26,15 +26,13 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
       <CardHeader>
         <CardTitle>Billing owner</CardTitle>
         <CardDescription>
-          The billing owner receives billing communications and is responsible
-          for this organization's billing.
+          The billing owner receives billing communications and is responsible for this
+          organization&apos;s billing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {settings.error ? (
-          <p role="alert">
-            Billing settings could not be loaded. Please try again.
-          </p>
+          <p role="alert">Billing settings could not be loaded. Please try again.</p>
         ) : (
           <>
             <p>
@@ -49,6 +47,7 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
+                  // oxlint-disable-next-line typescript/no-base-to-string -- Keep the existing form-value coercion during the tooling migration.
                   transfer.mutate(String(form.get("userId")));
                 }}
               >
@@ -82,6 +81,7 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
               </p>
             )}
             {transfer.isSuccess && (
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
               <p role="status" className="text-sm">
                 Billing owner updated.
               </p>

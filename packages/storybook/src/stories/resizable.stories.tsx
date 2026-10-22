@@ -16,9 +16,7 @@ type Story = StoryObj<typeof meta>;
 
 function Pane({ label }: { label: string }) {
   return (
-    <div className="text-muted-foreground flex h-full items-center justify-center p-3">
-      {label}
-    </div>
+    <div className="text-muted-foreground flex h-full items-center justify-center p-3">{label}</div>
   );
 }
 

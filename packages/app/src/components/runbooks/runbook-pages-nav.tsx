@@ -1,7 +1,7 @@
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { PageNavNode } from "#app/data/runbooks/pages.ts";
 import {
   FloatingMarginNav,
@@ -152,19 +152,13 @@ function PageLink({
     <Link
       {...target}
       // Depth is an indent only in the floating column; the strip is flat.
-      style={
-        inline
-          ? undefined
-          : ({ paddingLeft: `${depth * PAGE_STEP + 8}px` } as CSSProperties)
-      }
+      style={inline ? undefined : { paddingLeft: `${depth * PAGE_STEP + 8}px` }}
       className={cn(
         floatingLinkClass,
         // Floating, a page name wraps rather than being cut: runbook page
         // names are the kind that differ at the end. Lying down, the strip
         // scrolls sideways, so its entries stay on one line.
-        inline
-          ? "shrink-0 whitespace-nowrap px-2 hover:bg-muted/50"
-          : "block pr-2",
+        inline ? "shrink-0 whitespace-nowrap px-2 hover:bg-muted/50" : "block pr-2",
         active && floatingLinkActiveClass,
         active && inline && "bg-muted",
       )}

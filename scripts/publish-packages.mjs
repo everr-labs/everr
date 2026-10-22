@@ -71,14 +71,7 @@ for (const packageDir of PACKAGE_DIRS) {
   }
 
   run("pnpm", ["--filter", manifest.name, "build"]);
-  run("pnpm", [
-    "--filter",
-    manifest.name,
-    "publish",
-    "--access",
-    "public",
-    "--no-git-checks",
-  ]);
+  run("pnpm", ["--filter", manifest.name, "publish", "--access", "public", "--no-git-checks"]);
 }
 
 if (dryRun) {

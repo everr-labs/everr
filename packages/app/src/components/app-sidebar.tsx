@@ -23,9 +23,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
               <EverrLogoMark className="size-8!" aria-hidden="true" />
               <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
-                <span className="overflow-hidden whitespace-nowrap font-semibold">
-                  everr
-                </span>
+                <span className="overflow-hidden whitespace-nowrap font-semibold">everr</span>
                 <span className="overflow-hidden whitespace-nowrap text-xs">
                   Observability made simple
                 </span>

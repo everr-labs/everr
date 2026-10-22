@@ -1,8 +1,9 @@
+import type * as ReactRouterTypes from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -14,11 +15,9 @@ const mocks = vi.hoisted(() => ({
   transfer: vi.fn(),
 }));
 vi.mock("@tanstack/react-router", async (original) => ({
-  ...(await original<typeof import("@tanstack/react-router")>()),
+  ...(await original<typeof ReactRouterTypes>()),
   useRouter: () => mocks.router,
-  Link: ({ children }: { children: ReactNode }) => (
-    <a href="/account">{children}</a>
-  ),
+  Link: ({ children }: { children: ReactNode }) => <a href="/account">{children}</a>,
 }));
 vi.mock("../data/organizations", () => ({
   createOrganization: mocks.create,
@@ -72,21 +71,15 @@ it("submits a new Pro organization with its plan, name and default destination",
   mocks.create.mockRejectedValue(new Error("Test checkout failure"));
   render(
     <QueryClientProvider
-      client={
-        new QueryClient({ defaultOptions: { queries: { retry: false } } })
-      }
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <OrganizationCreation canCreateHobby={false} />
     </QueryClientProvider>,
   );
   expect(screen.queryByLabelText(/billing email/i)).not.toBeInTheDocument();
   await userEvent.type(screen.getByLabelText("Organization name"), "Acme");
-  await userEvent.click(
-    screen.getByRole("button", { name: "Continue to checkout" }),
-  );
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Test checkout failure",
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Continue to checkout" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Test checkout failure");
   expect(mocks.create).toHaveBeenCalledWith({
     data: { plan: "pro", organizationName: "Acme", returnTo: "/" },
   });
@@ -98,27 +91,21 @@ it("shows upgrade immediately for a Hobby organization", async () => {
   const upgrade = await screen.findByRole("button", { name: "Upgrade to Pro" });
   expect(screen.queryByLabelText(/billing email/i)).not.toBeInTheDocument();
   await userEvent.click(upgrade);
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Checkout unavailable",
-  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("Checkout unavailable");
   expect(upgrade).toBeEnabled();
   expect(mocks.checkout).toHaveBeenCalledWith({ data: { slug: "pro" } });
 });
 it("keeps the portal retryable when the customer is missing", async () => {
   mocks.entitlement.mockResolvedValue({ plan: "pro", appState: "pro" });
   mocks.portal.mockRejectedValue(
-    new Error(
-      "Billing is currently unavailable. Please try again or contact support.",
-    ),
+    new Error("Billing is currently unavailable. Please try again or contact support."),
   );
   billingPage();
   const portal = await screen.findByRole("button", {
     name: "Open billing portal",
   });
   await userEvent.click(portal);
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Billing is currently unavailable",
-  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("Billing is currently unavailable");
   expect(portal).toBeEnabled();
   expect(screen.queryByLabelText(/billing email/i)).not.toBeInTheDocument();
 });
@@ -136,13 +123,8 @@ it("allows an owner to select a different billing owner", async () => {
   });
   mocks.transfer.mockResolvedValue({ status: "completed" });
   billingPage();
-  await userEvent.selectOptions(
-    await screen.findByLabelText("Billing owner"),
-    "other",
-  );
-  await userEvent.click(
-    screen.getByRole("button", { name: "Save billing owner" }),
-  );
+  await userEvent.selectOptions(await screen.findByLabelText("Billing owner"), "other");
+  await userEvent.click(screen.getByRole("button", { name: "Save billing owner" }));
   expect(mocks.transfer).toHaveBeenCalledWith({ data: { userId: "other" } });
 });
 

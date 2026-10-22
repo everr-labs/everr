@@ -14,10 +14,7 @@ const INGEST_CONFIG_ID = "ingest";
 // The retention days come straight from TenantRetention. The collector stamps
 // them on every resource it ingests with this key and the views write them
 // into app.*, so this is the only place retention enters the pipeline.
-type VerifyKeyResponse = Pick<
-  TenantRetention,
-  "tracesDays" | "logsDays" | "metricsDays"
-> & {
+type VerifyKeyResponse = Pick<TenantRetention, "tracesDays" | "logsDays" | "metricsDays"> & {
   tenantId?: string;
   keyId: string;
 };
@@ -46,7 +43,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
 
         let body: VerifyBody | null = null;
         try {
-          body = (await request.json()) as VerifyBody;
+          body = await request.json();
         } catch {
           return new Response(null, { status: 400 });
         }
@@ -55,8 +52,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         if (!key) return new Response(null, { status: 400 });
         // The collector forwards the request's Origin header verbatim and
         // omits the field for server-to-server (headerless) traffic.
-        const origin =
-          body && typeof body.origin === "string" ? body.origin : null;
+        const origin = body && typeof body.origin === "string" ? body.origin : null;
 
         const result = await auth.api.verifyApiKey({
           body: { key, configId: INGEST_CONFIG_ID },

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -69,9 +70,7 @@ export function ChannelDialog({
         // Remounted per opening, so the fields start from whatever opened
         // this one instead of holding the last opening's text.
         <ChannelForm
-          key={
-            target.mode === "new" ? `new:${target.name}` : target.channel.name
-          }
+          key={target.mode === "new" ? `new:${target.name}` : target.channel.name}
           target={target}
           existingNames={channels.map((c) => c.name)}
           pending={pending}
@@ -97,9 +96,7 @@ function ChannelForm({
   onDelete: (name: string) => void;
 }) {
   const editing = target.mode === "edit" ? target.channel : null;
-  const [name, setName] = useState(
-    target.mode === "new" ? target.name : target.channel.name,
-  );
+  const [name, setName] = useState(target.mode === "new" ? target.name : target.channel.name);
   const [draft, setDraft] = useState<ChannelConfigDraft>(() =>
     editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
   );
@@ -108,8 +105,7 @@ function ChannelForm({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const trimmed = name.trim();
-  const duplicate =
-    existingNames.includes(trimmed) && trimmed !== editing?.name;
+  const duplicate = existingNames.includes(trimmed) && trimmed !== editing?.name;
   const config = channelConfigInput(draft, editing?.config.type ?? null);
   // On an edit of the stored kind, the secret starts behind an explicit Edit
   // action. A blank draft still means keep the stored secret.
@@ -117,17 +113,14 @@ function ChannelForm({
   const urlField = CHANNEL_URL_FIELD[draft.type];
   const testable = config !== null;
 
-  const patch = (p: Partial<ChannelConfigDraft>) =>
-    setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<ChannelConfigDraft>) => setDraft((d) => ({ ...d, ...p }));
 
   const test = useMutation({
     mutationFn: (config: AlertingChannelConfigInput) =>
       testAlertingChannel({
         data: {
           config,
-          source: editing
-            ? { kind: "saved", name: editing.name }
-            : { kind: "new" },
+          source: editing ? { kind: "saved", name: editing.name } : { kind: "new" },
         },
       }),
   });
@@ -146,20 +139,13 @@ function ChannelForm({
         <DialogHeader>
           <DialogTitle>Delete {editing.name}?</DialogTitle>
           <DialogDescription>
-            {editing.tiers.length > 0
-              ? "It drops out of the default destination. "
-              : ""}
-            A rule naming it directly keeps the name and delivers nothing until
-            a channel with that name exists again. Past notifications keep its
-            name in their record.
+            {editing.tiers.length > 0 ? "It drops out of the default destination. " : ""}
+            A rule naming it directly keeps the name and delivers nothing until a channel with that
+            name exists again. Past notifications keep its name in their record.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={pending}
-            onClick={() => setConfirmingDelete(false)}
-          >
+          <Button variant="outline" disabled={pending} onClick={() => setConfirmingDelete(false)}>
             Keep it
           </Button>
           <Button
@@ -180,8 +166,8 @@ function ChannelForm({
       <DialogHeader>
         <DialogTitle>{editing ? "Edit channel" : "New channel"}</DialogTitle>
         <DialogDescription>
-          A channel is a named endpoint alerts deliver to. Secrets are
-          write-only and never shown again after saving.
+          A channel is a named endpoint alerts deliver to. Secrets are write-only and never shown
+          again after saving.
         </DialogDescription>
       </DialogHeader>
 
@@ -246,9 +232,7 @@ function ChannelForm({
             <div className="space-y-1.5">
               {/* Not a <label>: the tags input has no one control to point
                   at, and carries its own accessible name. */}
-              <span className="text-xs/relaxed leading-none font-medium">
-                Chat IDs
-              </span>
+              <span className="text-xs/relaxed leading-none font-medium">Chat IDs</span>
               <TagsInput
                 aria-label="Chat IDs"
                 placeholder="-1001234567890"
@@ -261,10 +245,7 @@ function ChannelForm({
         {tested && (
           <p
             role={test.data?.ok ? "status" : "alert"}
-            className={cn(
-              "font-mono text-xs",
-              test.data?.ok ? "text-chart-2" : "text-destructive",
-            )}
+            className={cn("font-mono text-xs", test.data?.ok ? "text-chart-2" : "text-destructive")}
           >
             {test.data?.ok
               ? `Delivered in ${test.data.latency_ms}ms`

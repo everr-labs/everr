@@ -8,9 +8,7 @@ export const returnToSchema = z
       value.startsWith("/") &&
       !value.startsWith("//") &&
       !value.includes("\\") &&
-      [...value].every(
-        (char) => char.charCodeAt(0) > 31 && char.charCodeAt(0) !== 127,
-      ) &&
+      value.split("").every((char) => char.charCodeAt(0) > 31 && char.charCodeAt(0) !== 127) &&
       !productClient.entryRoutes.some((path) => value.startsWith(path)),
   )
   .catch("/");

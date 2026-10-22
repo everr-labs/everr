@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { stringify } from "yaml";
 import { parseBuiltinDashboard } from "./parse";
 
@@ -71,8 +71,7 @@ describe("parseBuiltinDashboard", () => {
 
   it("rejects layouts that reference a missing panel", () => {
     const source = builtin();
-    source.document.spec.layouts[0].spec.items[0].content.$ref =
-      "#/spec/panels/missing";
+    source.document.spec.layouts[0].spec.items[0].content.$ref = "#/spec/panels/missing";
     expect(() => parseFixture(source)).toThrow(/does not match any panel/);
   });
 });

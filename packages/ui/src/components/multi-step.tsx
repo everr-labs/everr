@@ -1,19 +1,9 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@everr/ui/components/card";
+import { Card, CardContent, CardFooter, CardHeader } from "@everr/ui/components/card";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Check } from "lucide-react";
-import {
-  type ComponentProps,
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-} from "react";
+import { type ComponentProps, type ReactNode, useEffect, useId, useRef } from "react";
 
 export interface MultiStepItem<StepId extends string> {
   id: StepId;
@@ -62,10 +52,7 @@ export function MultiStep<StepId extends string>({
       {...props}
       hidden={hidden}
       data-slot="multi-step"
-      className={cn(
-        "mx-auto w-full min-w-0 max-w-3xl py-6 sm:py-10",
-        className,
-      )}
+      className={cn("mx-auto w-full min-w-0 max-w-3xl py-6 sm:py-10", className)}
     >
       {!hidden && children}
       <div className="mt-8 min-w-0 space-y-7 sm:mt-10">

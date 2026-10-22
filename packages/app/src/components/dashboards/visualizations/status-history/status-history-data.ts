@@ -54,13 +54,11 @@ export function buildStatusHistoryModel(
   // across all lanes. One shared slot width keeps cells aligned across lanes
   // even when individual lanes have missing samples.
   const allTimestamps = [
-    ...new Set(
-      [...samplesByLane.values()].flatMap((samples) => [...samples.keys()]),
-    ),
+    ...new Set([...samplesByLane.values()].flatMap((samples) => [...samples.keys()])),
   ].sort((a, b) => a - b);
   let interval = Number.POSITIVE_INFINITY;
   for (let i = 1; i < allTimestamps.length; i++) {
-    interval = Math.min(interval, allTimestamps[i]! - allTimestamps[i - 1]!);
+    interval = Math.min(interval, allTimestamps[i] - allTimestamps[i - 1]);
   }
   if (!Number.isFinite(interval)) {
     interval = (domain[1] - domain[0]) * FALLBACK_SLOT_FRACTION;

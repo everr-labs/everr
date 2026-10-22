@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Only so that importing the rule module for its pure halves does not build
 // a real database pool. Nothing here answers a query.
@@ -9,16 +9,9 @@ vi.mock("#app/db/client.ts", () => ({
 }));
 
 import type { AlertRuleRead } from "#app/data/alerting/rules/read.ts";
-import {
-  channelViews,
-  deriveGaps,
-  destinationView,
-  overrideViews,
-} from "./assemble";
+import { channelViews, deriveGaps, destinationView, overrideViews } from "./assemble";
 
-function rule(
-  overrides: Partial<AlertRuleRead> & { channels?: string[] },
-): AlertRuleRead {
+function rule(overrides: Partial<AlertRuleRead> & { channels?: string[] }): AlertRuleRead {
   const { channels, ...rest } = overrides;
   return {
     project: "checkout",
@@ -103,9 +96,7 @@ describe("channelViews", () => {
 });
 
 describe("deriveGaps", () => {
-  const overrides = overrideViews([
-    rule({ slug: "direct", channels: ["#gone", "#oncall"] }),
-  ]);
+  const overrides = overrideViews([rule({ slug: "direct", channels: ["#gone", "#oncall"] })]);
   const known = ["#oncall"];
 
   it("lays a direct rule's count on the missing channel it names", () => {

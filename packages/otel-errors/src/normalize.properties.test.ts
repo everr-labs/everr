@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { normalizeError, safeStringify } from "./normalize.js";
 
 // Property tests for the normalization. JavaScript can throw many types of
@@ -34,24 +34,21 @@ describe("normalizeError", () => {
 
   it("renders every cause message in an arbitrary-depth chain, up to the cap", () => {
     fc.assert(
-      fc.property(
-        fc.array(fc.uuid(), { minLength: 1, maxLength: 8 }),
-        (messages) => {
-          const [head, ...rest] = messages;
-          let error = new Error(head);
-          const root = error;
-          for (const message of rest) {
-            const cause = new Error(message);
-            error.cause = cause;
-            error = cause;
-          }
-          const normalized = normalizeError(root);
-          // Depth 0 is the root. Thus the limit permits the first 6 messages.
-          for (const message of messages.slice(0, 6)) {
-            expect(normalized.stacktrace).toContain(message);
-          }
-        },
-      ),
+      fc.property(fc.array(fc.uuid(), { minLength: 1, maxLength: 8 }), (messages) => {
+        const [head, ...rest] = messages;
+        let error = new Error(head);
+        const root = error;
+        for (const message of rest) {
+          const cause = new Error(message);
+          error.cause = cause;
+          error = cause;
+        }
+        const normalized = normalizeError(root);
+        // Depth 0 is the root. Thus the limit permits the first 6 messages.
+        for (const message of messages.slice(0, 6)) {
+          expect(normalized.stacktrace).toContain(message);
+        }
+      }),
     );
   });
 

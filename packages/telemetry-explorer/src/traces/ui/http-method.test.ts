@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { isSafeMethod, splitSpanName } from "./http-method";
 
 describe("splitSpanName", () => {
@@ -47,8 +47,6 @@ describe("splitSpanName", () => {
   });
 
   it("keeps the whole route when it contains spaces", () => {
-    expect(splitSpanName("GET /api/orders and more").label).toBe(
-      "/api/orders and more",
-    );
+    expect(splitSpanName("GET /api/orders and more").label).toBe("/api/orders and more");
   });
 });

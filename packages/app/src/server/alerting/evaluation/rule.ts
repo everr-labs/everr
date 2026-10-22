@@ -28,11 +28,7 @@ import { env } from "#app/env/index.ts";
 import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { previewDefinitionsEnqueueable } from "#app/server/alerting/scheduling/scanner.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
-import {
-  errorMessage,
-  exceptionAttributes,
-  serverLogger,
-} from "#app/telemetry/logger.ts";
+import { errorMessage, exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import {
   type AlertHistoryDefinition,
   type AlertHistoryRow,
@@ -44,11 +40,7 @@ import {
   ZERO_UUID,
 } from "../history/clickhouse";
 import { buildAlertContextJson, sanitizeAlertError } from "../history/content";
-import {
-  recordAlertEvaluation,
-  recordAlertTransition,
-  setAlertSpanAttributes,
-} from "../telemetry";
+import { recordAlertEvaluation, recordAlertTransition, setAlertSpanAttributes } from "../telemetry";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";
@@ -70,9 +62,7 @@ const EvaluatePayloadSchema = z.object({
   ruleVersion: z.number().int().positive().optional(),
 });
 
-function storedInstance(
-  row: typeof alertInstances.$inferSelect,
-): StoredAlertInstance {
+function storedInstance(row: typeof alertInstances.$inferSelect): StoredAlertInstance {
   return {
     fingerprint: row.fingerprint,
     status: row.status,
@@ -171,8 +161,7 @@ export function transitionEventRows(opts: {
   const { def, historyDef, transition, evaluatedAt } = opts;
   if (!transition.event) return [];
   const next = transition.next;
-  const bounded =
-    opts.bounded ?? boundEventEvidence(next.evidence, next.labels);
+  const bounded = opts.bounded ?? boundEventEvidence(next.evidence, next.labels);
   const firstRow: Record<string, unknown> = {
     ...bounded.evidence,
     ...next.labels,
@@ -181,8 +170,7 @@ export function transitionEventRows(opts: {
   // The journal row and its projection share this id, and the surface
   // promises a time-decodable id, so it must be v7.
   const id = uuidv7(evaluatedAt);
-  const { eventType, kind, terminal, reason } =
-    TRANSITION_SHAPE[transition.event];
+  const { eventType, kind, terminal, reason } = TRANSITION_SHAPE[transition.event];
   // The event that leaves inactive opens the episode with its own id: the
   // pending row when a for-duration exists, else the fired row. A fire that
   // follows a pending phase inherits the open episode, and the terminals
@@ -194,10 +182,9 @@ export function transitionEventRows(opts: {
   const notificationTitle = renderMessage(def.spec.annotations.summary ?? "", {
     firstRow,
   });
-  const notificationDescription = renderMessage(
-    def.spec.annotations.description ?? "",
-    { firstRow },
-  );
+  const notificationDescription = renderMessage(def.spec.annotations.description ?? "", {
+    firstRow,
+  });
   return [
     {
       outbox: {
@@ -308,8 +295,7 @@ async function recordEvaluationFailure(
       .limit(1);
     if (
       !fresh?.active ||
-      (payload.ruleVersion !== undefined &&
-        fresh.version !== payload.ruleVersion)
+      (payload.ruleVersion !== undefined && fresh.version !== payload.ruleVersion)
     )
       return false;
     const inserted = await tx
@@ -329,13 +315,8 @@ async function recordEvaluationFailure(
       .where(eq(alertDefinitions.id, def.id));
     const failureCount = fresh.consecutiveFailures + 1;
     const maximum =
-      def.spec.max_interval_secs ??
-      def.spec.interval_secs * ALERT_RETRY_MAX_INTERVAL_FACTOR;
-    const backoff = alertingRetryDelaySeconds(
-      def.spec.interval_secs,
-      failureCount,
-      maximum,
-    );
+      def.spec.max_interval_secs ?? def.spec.interval_secs * ALERT_RETRY_MAX_INTERVAL_FACTOR;
+    const backoff = alertingRetryDelaySeconds(def.spec.interval_secs, failureCount, maximum);
     await scheduleAlertAtInTransaction(tx, def, alertingRetryAt(backoff));
     return true;
   });
@@ -374,17 +355,11 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   const [record] = await db
     .select({ definition: alertDefinitions, metadata: organization.metadata })
     .from(alertDefinitions)
-    .innerJoin(
-      organization,
-      eq(organization.id, alertDefinitions.organizationId),
-    )
+    .innerJoin(organization, eq(organization.id, alertDefinitions.organizationId))
     .where(eq(alertDefinitions.id, payload.alertDefinitionId))
     .limit(1);
   const def = record?.definition;
-  if (
-    !def?.active ||
-    (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)
-  ) {
+  if (!def?.active || (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)) {
     recordAlertEvaluation("skipped");
     return;
   }
@@ -402,10 +377,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // only the scanner sheds no load. Returning here without rescheduling ends
   // the chain; when the switch turns back on, the scanner's stale-enqueue
   // clause picks the overdue definition up again.
-  if (
-    def.previewId !== null &&
-    !previewDefinitionsEnqueueable(env.EVERR_PREVIEW_ALERTS)
-  ) {
+  if (def.previewId !== null && !previewDefinitionsEnqueueable(env.EVERR_PREVIEW_ALERTS)) {
     recordAlertEvaluation("skipped");
     return;
   }
@@ -437,10 +409,7 @@ async function evaluateAlertRule(
   // only on the rule id, so the read does not have to wait behind it.
   const [result, previousRows] = await Promise.all([
     storage.queryWithMeta<Record<string, unknown>>(def.spec.sql),
-    db
-      .select()
-      .from(alertInstances)
-      .where(eq(alertInstances.alertDefinitionId, def.id)),
+    db.select().from(alertInstances).where(eq(alertInstances.alertDefinitionId, def.id)),
   ]);
   const rows = result.rows;
 
@@ -449,17 +418,13 @@ async function evaluateAlertRule(
   const present = rowsToInstances(
     rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
-  ).map(
-    (instance): PresentAlertInstance => ({
-      fingerprint: instance.fingerprint,
-      labels: instance.labels,
-      evidence: instance.row,
-      value: alertingConditionValue(instance.row),
-    }),
-  );
-  const presentByFingerprint = new Map(
-    present.map((instance) => [instance.fingerprint, instance]),
-  );
+  ).map((instance): PresentAlertInstance => ({
+    fingerprint: instance.fingerprint,
+    labels: instance.labels,
+    evidence: instance.row,
+    value: alertingConditionValue(instance.row),
+  }));
+  const presentByFingerprint = new Map(present.map((instance) => [instance.fingerprint, instance]));
   // Matching rows first. A rule with more label sets than the sample cap must
   // not bury the breaching ones under healthy filler, or the series misses a
   // breach that paged someone.
@@ -471,10 +436,7 @@ async function evaluateAlertRule(
   const previousByFingerprint = new Map(
     previousRows.map((row) => [row.fingerprint, storedInstance(row)]),
   );
-  const fingerprints = new Set([
-    ...previousByFingerprint.keys(),
-    ...presentByFingerprint.keys(),
-  ]);
+  const fingerprints = new Set([...previousByFingerprint.keys(), ...presentByFingerprint.keys()]);
   const transitions = [...fingerprints].map((fingerprint) => {
     const current = presentByFingerprint.get(fingerprint);
     const stored = previousByFingerprint.get(fingerprint);
@@ -483,9 +445,7 @@ async function evaluateAlertRule(
       previous = stored;
     } else {
       if (!current) {
-        throw new Error(
-          `missing alert instance for fingerprint ${fingerprint}`,
-        );
+        throw new Error(`missing alert instance for fingerprint ${fingerprint}`);
       }
       previous = newInactiveInstance(current);
     }
@@ -525,8 +485,7 @@ async function evaluateAlertRule(
       historyDef,
       transition,
       evaluatedAt,
-      storedEpisodeId:
-        storedEpisodeByFingerprint.get(transition.next.fingerprint) ?? null,
+      storedEpisodeId: storedEpisodeByFingerprint.get(transition.next.fingerprint) ?? null,
       bounded: boundedEvidenceByFingerprint.get(transition.next.fingerprint),
     }),
   );
@@ -546,8 +505,7 @@ async function evaluateAlertRule(
       .limit(1);
     if (
       !fresh?.active ||
-      (payload.ruleVersion !== undefined &&
-        fresh.version !== payload.ruleVersion)
+      (payload.ruleVersion !== undefined && fresh.version !== payload.ruleVersion)
     )
       return false;
     const inserted = await tx
@@ -563,15 +521,11 @@ async function evaluateAlertRule(
     for (const transition of transitions) {
       if (isNoopInactiveTransition(transition)) continue;
       const next = transition.next;
-      const boundedInstanceEvidence = boundedEvidenceByFingerprint.get(
-        next.fingerprint,
-      );
+      const boundedInstanceEvidence = boundedEvidenceByFingerprint.get(next.fingerprint);
       // Every non-skipped transition got an entry above, keyed by the same
       // fingerprint.
       if (!boundedInstanceEvidence) {
-        throw new Error(
-          `missing bounded evidence for fingerprint ${next.fingerprint}`,
-        );
+        throw new Error(`missing bounded evidence for fingerprint ${next.fingerprint}`);
       }
       // Only a transition moves the episode; a quiet evaluation must not
       // clear an open one.
@@ -594,10 +548,7 @@ async function evaluateAlertRule(
           updatedAt: evaluatedAt,
         })
         .onConflictDoUpdate({
-          target: [
-            alertInstances.alertDefinitionId,
-            alertInstances.fingerprint,
-          ],
+          target: [alertInstances.alertDefinitionId, alertInstances.fingerprint],
           set: {
             status: next.status,
             labels: next.labels,
@@ -608,17 +559,13 @@ async function evaluateAlertRule(
             lastSeenAt: next.lastSeenAt,
             absentCount: next.absentCount,
             updatedAt: evaluatedAt,
-            ...(episodeUpdate === undefined
-              ? {}
-              : { episodeId: episodeUpdate }),
+            ...(episodeUpdate === undefined ? {} : { episodeId: episodeUpdate }),
           },
         });
     }
 
     const firing = transitions.filter((item) => item.next.status === "firing");
-    const pending = transitions.filter(
-      (item) => item.next.status === "pending",
-    );
+    const pending = transitions.filter((item) => item.next.status === "pending");
     const fired = transitions.filter((item) => item.event === "firing");
     const resolved = transitions.filter((item) => item.event === "resolved");
     await tx
@@ -630,12 +577,7 @@ async function evaluateAlertRule(
         lastSeenAt: present.length > 0 ? evaluatedAt : def.lastSeenAt,
         lastRowCount: evidence.rowCount,
         firingInstanceCount: firing.length,
-        currentState:
-          firing.length > 0
-            ? "firing"
-            : pending.length > 0
-              ? "pending"
-              : "resolved",
+        currentState: firing.length > 0 ? "firing" : pending.length > 0 ? "pending" : "resolved",
         lastFiredAt: fired.length > 0 ? evaluatedAt : def.lastFiredAt,
         lastResolvedAt: resolved.length > 0 ? evaluatedAt : def.lastResolvedAt,
       })
@@ -654,8 +596,7 @@ async function evaluateAlertRule(
       setAlertSpanAttributes({
         batchSize: eventRows.length,
         fired: eventRows.filter((r) => r.eventType === "instance_fired").length,
-        resolved: eventRows.filter((r) => r.eventType === "instance_resolved")
-          .length,
+        resolved: eventRows.filter((r) => r.eventType === "instance_resolved").length,
       });
       for (const outbox of eventRows) {
         recordAlertTransition(outbox.eventType);

@@ -59,10 +59,7 @@ export async function instrumentClickhouseOperation<T>(
   );
 }
 
-function clickhouseAttributes({
-  client,
-  operation,
-}: ClickhouseOperationAttributes): Attributes {
+function clickhouseAttributes({ client, operation }: ClickhouseOperationAttributes): Attributes {
   return {
     "clickhouse.client": client,
     "db.operation.name": operation,

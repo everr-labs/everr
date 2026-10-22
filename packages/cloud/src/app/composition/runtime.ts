@@ -6,9 +6,7 @@ export const runtime: ApplicationRuntime = {
     return migrateDatabase(database);
   },
   async startAppWorkers() {
-    const { startOrganizationWorker } = await import(
-      "../../organization-provisioning/worker"
-    );
+    const { startOrganizationWorker } = await import("../../organization-provisioning/worker");
     return startOrganizationWorker();
   },
 };

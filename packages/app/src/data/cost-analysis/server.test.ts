@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/lib/clickhouse.ts", () => ({
   query: vi.fn(),
@@ -6,11 +6,7 @@ vi.mock("#app/lib/clickhouse.ts", () => ({
 }));
 
 import { query } from "#app/lib/clickhouse.ts";
-import {
-  getCostByWorkflow,
-  getCostOverTimeBreakdown,
-  getCostOverview,
-} from "./server";
+import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
 
 const mockedQuery = vi.mocked(query);
 const timeRange = {
@@ -28,12 +24,8 @@ describe("cost analysis queries", () => {
     await getCostOverview({ data: { timeRange } });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')",
-    );
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')");
     expect(sql).not.toContain("PREWHERE");
     expect(sql).not.toContain("SQL_everr_tenant_id");
   });
@@ -42,12 +34,8 @@ describe("cost analysis queries", () => {
     await getCostByWorkflow({ data: { timeRange } });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')",
-    );
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')");
     expect(sql).toContain("has(ResourceAttributesKeys, 'vcs.repository.name')");
     expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.name')");
   });
@@ -58,12 +46,8 @@ describe("cost analysis queries", () => {
     });
 
     const sql = mockedQuery.mock.calls[0]?.[0] ?? "";
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')",
-    );
-    expect(sql).toContain(
-      "has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')",
-    );
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.worker.labels')");
+    expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')");
     expect(sql).toContain("has(ResourceAttributesKeys, 'vcs.repository.name')");
   });
 });

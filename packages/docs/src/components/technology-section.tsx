@@ -66,8 +66,7 @@ export function TechnologySection() {
           Everr works with the stack you already run.
         </h2>
         <span className="sr-only">
-          Languages and runtimes:{" "}
-          {languages.map((item) => item.label).join(", ")}. Frameworks:{" "}
+          Languages and runtimes: {languages.map((item) => item.label).join(", ")}. Frameworks:{" "}
           {frameworks.map((item) => item.label).join(", ")}.
         </span>
       </div>

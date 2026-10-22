@@ -1,5 +1,5 @@
 import fc from "fast-check";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubTransportFetch } from "../test-fetch.js";
 import { createEmitter } from "./emitter.js";
 import { fetchSend } from "./transport.js";
@@ -26,29 +26,24 @@ function makeEmitter() {
   const sent: Sent[] = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
-      const body = String(init?.body);
+      if (typeof init?.body !== "string") throw new TypeError("Expected a text request body");
+      const body = init?.body;
       const payload = JSON.parse(body);
       const records = payload.resourceLogs?.[0].scopeLogs[0].logRecords;
       sent.push({
-        url: String(url),
+        url: url instanceof Request ? url.url : url?.toString(),
         keepalive: init?.keepalive,
         bytes: new Blob([body]).size,
         logNames: records?.map((r: { eventName: string }) => r.eventName) ?? [],
         spanNames:
-          payload.resourceSpans?.[0].scopeSpans[0].spans.map(
-            (s: { name: string }) => s.name,
-          ) ?? [],
+          payload.resourceSpans?.[0].scopeSpans[0].spans.map((s: { name: string }) => s.name) ?? [],
         attributes: records?.[0]?.attributes ?? [],
       });
       return Promise.resolve(new Response(null, { status: 200 }));
     }),
   );
   const emitter = createEmitter(
-    fetchSend(
-      "https://ingest.example/v1/logs",
-      "https://ingest.example/v1/traces",
-      undefined,
-    ),
+    fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", undefined),
     true,
     {},
     { name: "@everr/otel-web", version: "test" },
@@ -94,27 +89,18 @@ describe("exit-flush budget", () => {
         // goes out of the payload also, and then the code sends no payload for
         // that signal. Such a payload alone is above the keepalive limit, and
         // thus fetch refuses it and the full batch is lost.
-        if (spans) {
-          expect(spans.bytes).toBeLessThanOrEqual(SPAN_BUDGET);
-        }
+        expect(spans?.bytes ?? 0).toBeLessThanOrEqual(SPAN_BUDGET);
         // The log records use the part of the limit that the spans did not
         // use. The same rule applies: one record that is alone above that part
         // also goes out of the payload.
-        if (logs) {
-          expect(logs.bytes).toBeLessThanOrEqual(
-            EXIT_BUDGET - (spans?.bytes ?? 0),
-          );
-        }
+        expect(logs?.bytes ?? 0).toBeLessThanOrEqual(EXIT_BUDGET - (spans?.bytes ?? 0));
         // The records that stay are always the most recent records, in the
         // sequence that the SDK sent them. The records of the exit path go into
         // the queue last, and thus they must be the records that stay. A signal
         // whose records all went out of the payload sends nothing.
         const survivors = (kept: string[], prefix: string, total: number) => {
           expect(kept).toEqual(
-            Array.from(
-              { length: kept.length },
-              (_, i) => `${prefix}-${total - kept.length + i}`,
-            ),
+            Array.from({ length: kept.length }, (_, i) => `${prefix}-${total - kept.length + i}`),
           );
           expect(kept.length).toBeLessThanOrEqual(total);
         };
@@ -152,9 +138,7 @@ describe("OTLP attribute mapping", () => {
     fc.string(),
     fc.boolean(),
     fc.integer(),
-    fc
-      .double({ noNaN: true, noDefaultInfinity: true })
-      .filter((n) => !Number.isInteger(n)),
+    fc.double({ noNaN: true, noDefaultInfinity: true }).filter((n) => !Number.isInteger(n)),
     fc.constant(null),
     fc.constant(undefined),
   );
@@ -169,21 +153,20 @@ describe("OTLP attribute mapping", () => {
           const [emit, flush] = emitter;
           emit("probe", record);
           void flush();
-          const wire = new Map(
-            sent[0].attributes.map(({ key, value }) => [key, value]),
-          );
+          const wire = new Map(sent[0].attributes.map(({ key, value }) => [key, value]));
           for (const [key, value] of Object.entries(record)) {
-            if (value == null) {
-              expect(wire.has(key)).toBe(false);
-            } else if (typeof value === "string") {
-              expect(wire.get(key)).toEqual({ stringValue: value });
-            } else if (typeof value === "boolean") {
-              expect(wire.get(key)).toEqual({ boolValue: value });
-            } else if (Number.isInteger(value)) {
-              expect(wire.get(key)).toEqual({ intValue: String(value) });
-            } else {
-              expect(wire.get(key)).toEqual({ doubleValue: value });
-            }
+            const expected =
+              value == null
+                ? undefined
+                : typeof value === "string"
+                  ? { stringValue: value }
+                  : typeof value === "boolean"
+                    ? { boolValue: value }
+                    : Number.isInteger(value)
+                      ? { intValue: String(value) }
+                      : { doubleValue: value };
+            expect(wire.has(key)).toBe(value != null);
+            expect(wire.get(key)).toEqual(expected);
           }
         },
       ),

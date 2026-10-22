@@ -73,6 +73,7 @@ docs/superpowers/
 .scratch/
 reports
 .stryker-tmp
+.vitest/
 
 # verify-everr skill evidence (.agents/skills/verify-everr)
 .verify-everr/

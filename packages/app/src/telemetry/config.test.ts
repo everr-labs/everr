@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   resolveBrowserTelemetryConfig,
   resolveTelemetryConfig,
@@ -21,9 +21,7 @@ describe("telemetry config", () => {
   });
 
   it("does not configure telemetry in production without an endpoint", () => {
-    expect(
-      resolveTelemetryConfig({ NODE_ENV: "production" }, "instance-1"),
-    ).toBeNull();
+    expect(resolveTelemetryConfig({ NODE_ENV: "production" }, "instance-1")).toBeNull();
   });
 
   it("uses the explicit OTLP endpoint without leaking ingest credentials", () => {
@@ -124,9 +122,7 @@ describe("telemetry config", () => {
   });
 
   it("builds OTLP signal URLs from base or signal-specific endpoints", () => {
-    expect(signalUrl("http://127.0.0.1:54318", "traces")).toBe(
-      "http://127.0.0.1:54318/v1/traces",
-    );
+    expect(signalUrl("http://127.0.0.1:54318", "traces")).toBe("http://127.0.0.1:54318/v1/traces");
     expect(signalUrl("http://127.0.0.1:54318/v1/traces", "logs")).toBe(
       "http://127.0.0.1:54318/v1/logs",
     );

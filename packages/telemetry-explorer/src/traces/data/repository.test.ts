@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { TracesRepository } from "./repository";
 import type { ServiceIdentity, TraceSummary } from "./types";
 
@@ -68,9 +68,7 @@ describe("TracesRepository.search", () => {
       minDurationNs: "1000000",
       cursorStartTs: "2026-05-26 12:00:00",
       cursorTraceId: "trace-z",
-      attributes: [
-        { source: "span", key: "http.route", op: "missing", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "missing", values: [] }],
     });
 
     const [sql] = query.mock.calls[0] ?? [];
@@ -188,9 +186,7 @@ describe("TracesRepository.search", () => {
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
-    expect(sql).toContain(
-      "startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)",
-    );
+    expect(sql).toContain("startTsRaw < parseDateTime64BestEffort({cursorStartTs:String}, 9)");
     expect(sql).toContain("TraceId < {cursorTraceId:String}");
     expect(sql).toContain("ORDER BY startTsRaw DESC, TraceId DESC");
     expect(params).toMatchObject({
@@ -262,9 +258,7 @@ describe("TracesRepository.search", () => {
     });
 
     const [sql] = query.mock.calls[0] ?? [];
-    expect(sql).not.toContain(
-      "has(ResourceAttributesKeys, 'service.namespace')",
-    );
+    expect(sql).not.toContain("has(ResourceAttributesKeys, 'service.namespace')");
     expect(sql).toContain(
       "toString(ResourceAttributes.`service.namespace`) IN {namespace:Array(String)}",
     );
@@ -307,9 +301,7 @@ describe("TracesRepository.search", () => {
     const [sql, params] = query.mock.calls[0] ?? [];
     expect(sql).toContain("HAVING");
     expect(sql).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
-    expect(sql).not.toContain(
-      "durationNsRaw <= toUInt64({maxDurationNs:String})",
-    );
+    expect(sql).not.toContain("durationNsRaw <= toUInt64({maxDurationNs:String})");
     expect(sql).toContain("countIf(StatusCode = 'Error') > 0");
     expect(params).toMatchObject({ minDurationNs: "1000" });
   });
@@ -350,7 +342,7 @@ describe("TracesRepository.getTrace", () => {
         spanAttributes: { "http.method": "GET" },
         resourceAttributes: { "service.namespace": "app" },
         eventNames: ["dns.lookup", "tls.handshake"],
-        eventTimestamps: ["1010", "1020"],
+        eventTimestamps: ["2026-05-20 12:00:00.000000010", "2026-05-20 12:00:00.000000020"],
         eventAttributes: [{ host: "example.com" }, { protocol: "tls1.3" }],
         linkTraceIds: ["linked-trace"],
         linkSpanIds: ["linked-span"],
@@ -372,12 +364,12 @@ describe("TracesRepository.getTrace", () => {
     expect(result[0]?.events).toEqual([
       {
         name: "dns.lookup",
-        timestamp: "1010",
+        timestamp: "2026-05-20 12:00:00.000000010",
         attributes: { host: "example.com" },
       },
       {
         name: "tls.handshake",
-        timestamp: "1020",
+        timestamp: "2026-05-20 12:00:00.000000020",
         attributes: { protocol: "tls1.3" },
       },
     ]);
@@ -407,7 +399,7 @@ describe("TracesRepository.getTrace", () => {
         spanAttributes: { http: { route: "/x" } },
         resourceAttributes: { service: { name: "api" } },
         eventNames: ["exception"],
-        eventTimestamps: ["1010"],
+        eventTimestamps: ["2026-05-20 12:00:00.000000010"],
         eventAttributes: [{ exception: { type: "E" } }],
         linkTraceIds: [],
         linkSpanIds: [],
@@ -482,9 +474,7 @@ describe("trace search attribute filtering", () => {
       name: "",
       status: "all",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "in", values: ["/x"] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "in", values: ["/x"] }],
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
@@ -502,9 +492,7 @@ describe("trace search attribute filtering", () => {
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "missing", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "missing", values: [] }],
     });
 
     const [sql, params] = query.mock.calls[0] ?? [];
@@ -550,9 +538,7 @@ describe("trace search attribute filtering", () => {
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
       limit: 50,
-      attributes: [
-        { source: "span", key: "http.route", op: "not_in", values: [] },
-      ],
+      attributes: [{ source: "span", key: "http.route", op: "not_in", values: [] }],
     });
 
     const [sql] = query.mock.calls[0] ?? [];

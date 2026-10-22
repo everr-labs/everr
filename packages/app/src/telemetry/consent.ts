@@ -7,9 +7,7 @@ export const CONSENT_COOKIE = "everr.consent";
 
 export type ConsentDecision = "granted" | "denied";
 
-export function isConsentDecision(
-  value: string | undefined,
-): value is ConsentDecision {
+export function isConsentDecision(value: string | undefined): value is ConsentDecision {
   return value === "granted" || value === "denied";
 }
 

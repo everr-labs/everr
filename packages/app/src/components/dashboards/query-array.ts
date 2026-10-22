@@ -9,10 +9,7 @@ export type PanelQuerySource =
   | { kind: "TestData"; spec: Record<string, PluginSpecValue> }
   | { kind: "none" };
 
-export function getQuerySourceAt(
-  panel: Panel,
-  index: number,
-): PanelQuerySource {
+export function getQuerySourceAt(panel: Panel, index: number): PanelQuerySource {
   const query = panel.spec.queries?.[index];
   if (!query) return { kind: "none" };
   const plugin = query.spec.plugin;

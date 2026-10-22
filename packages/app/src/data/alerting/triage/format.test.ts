@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 // Importing the Alert rule module for its pure ordering function must not
 // build a database pool in this browser-environment suite.
@@ -9,12 +9,7 @@ vi.mock("#app/db/client.ts", () => ({
 }));
 
 import { compareRuleLabels } from "#app/data/alerting/rules/read.ts";
-import {
-  formatElapsed,
-  formatSincePhrase,
-  formatValue,
-  silenceImpact,
-} from "./format";
+import { formatElapsed, formatSincePhrase, formatValue, silenceImpact } from "./format";
 
 describe("formatElapsed", () => {
   it("calls anything under a minute now, because that is what it reads as", () => {
@@ -45,15 +40,11 @@ describe("formatSincePhrase", () => {
   const now = new Date("2026-08-26T12:00:00Z");
 
   it("gives an elapsed time the preposition that starts a sentence", () => {
-    expect(formatSincePhrase(new Date("2026-08-26T11:46:00Z"), now)).toBe(
-      "since 14m",
-    );
+    expect(formatSincePhrase(new Date("2026-08-26T11:46:00Z"), now)).toBe("since 14m");
   });
 
   it("leaves the sub-minute phrase bare, because it takes no preposition", () => {
-    expect(formatSincePhrase(new Date("2026-08-26T11:59:50Z"), now)).toBe(
-      "just now",
-    );
+    expect(formatSincePhrase(new Date("2026-08-26T11:59:50Z"), now)).toBe("just now");
   });
 
   it("has nothing to say about a stamp that was never set", () => {

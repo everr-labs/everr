@@ -38,9 +38,7 @@ export const WithIconMedia: Story = {
           <BellOffIcon />
         </EmptyMedia>
         <EmptyTitle>No alerts firing</EmptyTitle>
-        <EmptyDescription>
-          Everr checks your rules every 30 seconds.
-        </EmptyDescription>
+        <EmptyDescription>Everr checks your rules every 30 seconds.</EmptyDescription>
       </EmptyHeader>
     </Empty>
   ),
@@ -54,9 +52,7 @@ export const WithPlainMedia: Story = {
           <SearchIcon className="size-8 text-muted-foreground" />
         </EmptyMedia>
         <EmptyTitle>No services match this filter</EmptyTitle>
-        <EmptyDescription>
-          Remove a filter or widen the time range.
-        </EmptyDescription>
+        <EmptyDescription>Remove a filter or widen the time range.</EmptyDescription>
       </EmptyHeader>
     </Empty>
   ),
@@ -71,8 +67,8 @@ export const WithContentAction: Story = {
         </EmptyMedia>
         <EmptyTitle as="h2">No alert rules yet</EmptyTitle>
         <EmptyDescription>
-          Alert rules are applied as code. See the{" "}
-          <a href="#docs">alerting guide</a> to write your first one.
+          Alert rules are applied as code. See the <a href="#docs">alerting guide</a> to write your
+          first one.
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>

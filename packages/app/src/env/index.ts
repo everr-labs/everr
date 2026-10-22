@@ -14,12 +14,9 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "production", "test"]),
     EMAIL_DSN: z
       .url()
-      .refine(
-        (value) => ["smtp:", "smtps:"].includes(new URL(value).protocol),
-        {
-          message: "Must be an SMTP URL",
-        },
-      )
+      .refine((value) => ["smtp:", "smtps:"].includes(new URL(value).protocol), {
+        message: "Must be an SMTP URL",
+      })
       .optional(),
     EMAIL_FROM: z
       .union([

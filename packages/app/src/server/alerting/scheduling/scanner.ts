@@ -31,9 +31,7 @@ export function staleEnqueueCutoff(now: Date): Date {
  * evaluation load. Decided as a pure function of the raw setting so it is
  * testable without a database, the same way `staleEnqueueCutoff` is.
  */
-export function previewDefinitionsEnqueueable(
-  previewAlertsSetting: "on" | "off",
-): boolean {
+export function previewDefinitionsEnqueueable(previewAlertsSetting: "on" | "off"): boolean {
   return previewAlertsSetting === "on";
 }
 
@@ -42,9 +40,7 @@ async function boundedEnqueue<T>(
   enqueue: (item: T) => Promise<void>,
 ): Promise<void> {
   for (let index = 0; index < items.length; index += ENQUEUE_CONCURRENCY) {
-    await Promise.all(
-      items.slice(index, index + ENQUEUE_CONCURRENCY).map(enqueue),
-    );
+    await Promise.all(items.slice(index, index + ENQUEUE_CONCURRENCY).map(enqueue));
   }
 }
 
@@ -53,9 +49,7 @@ export async function scanDueAlerts(
 ): Promise<number> {
   const batchSize = opts.batchSize ?? SCANNER_BATCH_SIZE;
   const now = opts.now ?? new Date();
-  const includePreviewDefinitions = previewDefinitionsEnqueueable(
-    env.EVERR_PREVIEW_ALERTS,
-  );
+  const includePreviewDefinitions = previewDefinitionsEnqueueable(env.EVERR_PREVIEW_ALERTS);
   const rows = await db
     .select({
       id: alertDefinitions.id,
@@ -80,15 +74,10 @@ export async function scanDueAlerts(
         lte(alertDefinitions.nextEvaluationAt, now),
         or(
           isNull(alertDefinitions.lastEnqueuedAt),
-          lt(
-            alertDefinitions.lastEnqueuedAt,
-            alertDefinitions.nextEvaluationAt,
-          ),
+          lt(alertDefinitions.lastEnqueuedAt, alertDefinitions.nextEvaluationAt),
           lt(alertDefinitions.lastEnqueuedAt, staleEnqueueCutoff(now)),
         ),
-        includePreviewDefinitions
-          ? undefined
-          : isNull(alertDefinitions.previewId),
+        includePreviewDefinitions ? undefined : isNull(alertDefinitions.previewId),
       ),
     )
     .orderBy(asc(alertDefinitions.nextEvaluationAt))

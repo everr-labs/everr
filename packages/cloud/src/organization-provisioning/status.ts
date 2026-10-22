@@ -1,9 +1,6 @@
 import { type DbExecutor, db } from "@everr/app/db/client";
 import { sql } from "drizzle-orm";
-import {
-  organizationLifecycleJobKey,
-  PROVISION_ORGANIZATION_TASK,
-} from "./jobs";
+import { organizationLifecycleJobKey, PROVISION_ORGANIZATION_TASK } from "./jobs";
 import { isOrganizationProvisioned } from "./metadata";
 
 export async function readOrganizationProvisioningStatus(
@@ -25,7 +22,5 @@ export async function readOrganizationProvisioningStatus(
   const job = result.rows[0];
   // The last attempt is still pending while it runs. A missed job remains
   // pending until the scanner recovers it, rather than implying readiness.
-  return job && job.locked_at === null && job.attempts >= job.max_attempts
-    ? "failed"
-    : "pending";
+  return job && job.locked_at === null && job.attempts >= job.max_attempts ? "failed" : "pending";
 }

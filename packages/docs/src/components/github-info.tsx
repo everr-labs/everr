@@ -16,10 +16,14 @@ interface RepositoryInfo {
   stars: number;
 }
 
-export interface GithubInfoProps
-  extends ComponentProps<"a">,
-    FetchRepositoryInfoOptions {
+export interface GithubInfoProps extends ComponentProps<"a">, FetchRepositoryInfoOptions {
   locale?: Intl.LocalesArgument;
+}
+
+// default revalidate options for Next.js (optional). `next` is a Next.js
+// augmentation of RequestInit, so widen the type to keep it well-typed.
+function defaultFetchOptions(): RequestInit & { next?: { revalidate?: number } } {
+  return { next: { revalidate: 60 } };
 }
 
 async function fetchRepositoryInfo({
@@ -27,12 +31,7 @@ async function fetchRepositoryInfo({
   repo,
   token,
   baseUrl = "https://api.github.com",
-  fetchOptions = {
-    // default revalidate options for Next.js (optional)
-    next: {
-      revalidate: 60,
-    },
-  } as RequestInit,
+  fetchOptions = defaultFetchOptions(),
 }: FetchRepositoryInfoOptions): Promise<RepositoryInfo> {
   const endpoint = `${baseUrl}/repos/${owner}/${repo}`;
   const headers = new Headers(fetchOptions.headers);
@@ -43,7 +42,7 @@ async function fetchRepositoryInfo({
   const response = await fetch(endpoint, {
     ...fetchOptions,
     headers,
-  } as RequestInit);
+  });
 
   if (!response.ok) {
     const message = await response.text();
@@ -88,9 +87,7 @@ export function GithubInfo({
   const cacheKey = JSON.stringify(options);
   promises[cacheKey] ??= fetchRepositoryInfo(options);
   const { stars } = use(promises[cacheKey]);
-  const formatter = locale
-    ? new Intl.NumberFormat(locale, formatterOptions)
-    : defaultFormatter;
+  const formatter = locale ? new Intl.NumberFormat(locale, formatterOptions) : defaultFormatter;
 
   return (
     <a

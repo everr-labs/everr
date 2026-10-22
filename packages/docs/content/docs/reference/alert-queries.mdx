@@ -75,7 +75,7 @@ Set `spec.instanceLabels` to pin the identity to just the service, keeping `wors
 
 ```yaml
 spec:
-  instanceLabels: [ServiceName]   # identity is the service, regardless of host
+  instanceLabels: [ServiceName] # identity is the service, regardless of host
 ```
 
 The columns you list become the entire identity; any other string column is carried along only for the message. Make sure the query returns a single row per identity, if two rows share the same identity, they collapse into one instance.

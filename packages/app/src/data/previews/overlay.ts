@@ -1,13 +1,7 @@
 import { z } from "zod";
 import { stableStringify } from "#app/data/as-code/reconcile.ts";
 
-export const PreviewStatusSchema = z.enum([
-  "added",
-  "changed",
-  "conflict",
-  "removed",
-  "unchanged",
-]);
+export const PreviewStatusSchema = z.enum(["added", "changed", "conflict", "removed", "unchanged"]);
 
 export type PreviewStatus = z.infer<typeof PreviewStatusSchema>;
 
@@ -59,14 +53,9 @@ export function overlayPreview<T extends OverlayResource>(opts: {
       // No same-owner live row. A live resource with this identity under a
       // different owner (same-owner would have matched above) means a merge
       // would collide → conflict; otherwise it's a genuine add.
-      const status: PreviewStatus = liveByIdentity.has(opts.identity(row))
-        ? "conflict"
-        : "added";
+      const status: PreviewStatus = liveByIdentity.has(opts.identity(row)) ? "conflict" : "added";
       out.push({ ...row, previewStatus: status });
-    } else if (
-      stableStringify(opts.content(liveRow)) !==
-      stableStringify(opts.content(row))
-    ) {
+    } else if (stableStringify(opts.content(liveRow)) !== stableStringify(opts.content(row))) {
       out.push({ ...row, previewStatus: "changed" });
     } else {
       out.push({ ...row, previewStatus: "unchanged" });

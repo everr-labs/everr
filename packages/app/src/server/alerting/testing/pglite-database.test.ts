@@ -9,14 +9,10 @@ import {
   expect,
   it,
   vi,
-} from "vitest";
+} from "vite-plus/test";
 import { alertDefinitions } from "#app/db/schema/index.ts";
 import { BACKOFF_EXPRESSION_TEST } from "./job-driver";
-import {
-  applyTestSchema,
-  createTestDatabase,
-  type TestDatabase,
-} from "./pglite-database";
+import { applyTestSchema, createTestDatabase, type TestDatabase } from "./pglite-database";
 
 let database: TestDatabase;
 
@@ -92,9 +88,7 @@ describe("the database clock", () => {
   });
 
   it("dates a job graphile scheduled for now from the faked clock", async () => {
-    await database.db.execute(
-      sql`select graphile_worker.add_job('alerts/evaluate', '{}'::json)`,
-    );
+    await database.db.execute(sql`select graphile_worker.add_job('alerts/evaluate', '{}'::json)`);
 
     const jobs = await database.db.execute<{ run_at: string }>(
       sql`select run_at from graphile_worker.jobs`,
@@ -127,10 +121,7 @@ describe("the job driver's copy of graphile's backoff", () => {
     const { dirname, join } = await import("node:path");
     const require = createRequire(import.meta.url);
     const failJobSource = readFileSync(
-      join(
-        dirname(require.resolve("graphile-worker/package.json")),
-        "dist/sql/failJob.js",
-      ),
+      join(dirname(require.resolve("graphile-worker/package.json")), "dist/sql/failJob.js"),
       "utf8",
     );
 

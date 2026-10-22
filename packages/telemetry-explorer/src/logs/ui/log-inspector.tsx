@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { logDetailOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
@@ -32,19 +32,13 @@ import { LOG_LEVEL_META } from "./log-level-meta";
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
+      (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 export interface LogInspectorProps {
   detail: LogDetail;
-  renderRunLink?: (ctx: {
-    traceId: string;
-    jobId: string;
-    stepNumber: string;
-  }) => React.ReactNode;
-  resolveJobId?: (input: {
-    traceId: string;
-    jobName: string;
-  }) => string | undefined;
+  renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => React.ReactNode;
+  resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
 }
 
 export interface LogInspectorPanelProps {
@@ -60,19 +54,6 @@ function levelBadgeClassName(level: LogExplorerRow["level"]) {
   return LOG_LEVEL_META[level].badgeClassName;
 }
 
-function useDelayedFlag(active: boolean, delayMs: number) {
-  const [delayed, setDelayed] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setDelayed(false);
-      return;
-    }
-    const id = setTimeout(() => setDelayed(true), delayMs);
-    return () => clearTimeout(id);
-  }, [active, delayMs]);
-  return delayed;
-}
-
 function severityLabel(log: LogDetail) {
   if (log.severityText) return log.severityText;
   if (log.severityNumber > 0) return String(log.severityNumber);
@@ -86,8 +67,7 @@ function extractCiContext(detail: LogDetail) {
   const runId = detail.resourceAttributes["cicd.pipeline.run.id"] ?? "";
   const jobId = detail.resourceAttributes["cicd.pipeline.task.run.id"] ?? "";
   const jobName = detail.scopeAttributes["cicd.pipeline.task.name"] ?? "";
-  const stepNumber =
-    detail.logAttributes["everr.github.workflow_job_step.number"] ?? "";
+  const stepNumber = detail.logAttributes["everr.github.workflow_job_step.number"] ?? "";
   return {
     repo,
     branch,
@@ -96,9 +76,7 @@ function extractCiContext(detail: LogDetail) {
     jobId,
     jobName,
     stepNumber,
-    hasAny: Boolean(
-      branch || workflowName || runId || jobId || jobName || stepNumber,
-    ),
+    hasAny: Boolean(branch || workflowName || runId || jobId || jobName || stepNumber),
   };
 }
 
@@ -106,6 +84,7 @@ function LogInspectorSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, sectionIndex) => (
+        // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
         <div key={sectionIndex} className="space-y-2">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-9 w-full" />
@@ -116,11 +95,7 @@ function LogInspectorSkeleton() {
   );
 }
 
-function LogInspectorDetails({
-  detail,
-  renderRunLink,
-  resolveJobId,
-}: LogInspectorProps) {
+function LogInspectorDetails({ detail, renderRunLink, resolveJobId }: LogInspectorProps) {
   const ciFields = extractCiContext(detail);
   const resolvedJobId =
     ciFields.jobId ||
@@ -132,41 +107,20 @@ function LogInspectorDetails({
   return (
     <>
       <DetailSection title="Event">
-        <DetailItem
-          icon={<Clock3 />}
-          label="Timestamp"
-          value={detail.timestamp}
-        />
-        <DetailItem
-          icon={<Server />}
-          label="Service"
-          value={detail.serviceName}
-        />
+        <DetailItem icon={<Clock3 />} label="Timestamp" value={detail.timestamp} />
+        <DetailItem icon={<Server />} label="Service" value={detail.serviceName} />
         <DetailItem label="Severity" value={severityLabel(detail)} />
-        <DetailItem
-          icon={<Boxes />}
-          label="Source"
-          value={ciFields.repo || "default"}
-        />
+        <DetailItem icon={<Boxes />} label="Source" value={ciFields.repo || "default"} />
       </DetailSection>
 
       <DetailSection title="Correlation">
-        <DetailItem
-          icon={<Fingerprint />}
-          label="Trace ID"
-          value={detail.traceId}
-          mono
-        />
+        <DetailItem icon={<Fingerprint />} label="Trace ID" value={detail.traceId} mono />
         <DetailItem label="Span ID" value={detail.spanId} mono />
       </DetailSection>
 
       {ciFields.hasAny ? (
         <DetailSection title="CI/CD">
-          <DetailItem
-            icon={<GitBranch />}
-            label="Branch"
-            value={ciFields.branch}
-          />
+          <DetailItem icon={<GitBranch />} label="Branch" value={ciFields.branch} />
           <DetailItem label="Pipeline" value={ciFields.workflowName} />
           <DetailItem label="Execution ID" value={ciFields.runId} mono />
           <DetailItem label="Task" value={ciFields.jobName || ciFields.jobId} />
@@ -177,12 +131,7 @@ function LogInspectorDetails({
                 jobId: resolvedJobId,
                 stepNumber: ciFields.stepNumber,
               }) ?? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-1 w-fit"
-                  disabled
-                >
+                <Button variant="outline" size="sm" className="mt-1 w-fit" disabled>
                   <FileSearch data-icon="inline-start" />
                   Open in CI View
                 </Button>
@@ -191,10 +140,7 @@ function LogInspectorDetails({
         </DetailSection>
       ) : null}
 
-      <AttributeMap
-        title="Resource attributes"
-        map={detail.resourceAttributes}
-      />
+      <AttributeMap title="Resource attributes" map={detail.resourceAttributes} />
       <AttributeMap title="Log attributes" map={detail.logAttributes} />
       <AttributeMap title="Scope attributes" map={detail.scopeAttributes} />
     </>
@@ -226,15 +172,10 @@ export function LogInspectorPanel({
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-medium">Log event</div>
-            <div className="text-muted-foreground text-xs">
-              {formatRelativeTime(log.timestamp)}
-            </div>
+            <div className="text-muted-foreground text-xs">{formatRelativeTime(log.timestamp)}</div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <Badge
-              variant="outline"
-              className={cn("capitalize", levelBadgeClassName(log.level))}
-            >
+            <Badge variant="outline" className={cn("capitalize", levelBadgeClassName(log.level))}>
               {log.level}
             </Badge>
             {onExpand ? (
@@ -247,12 +188,7 @@ export function LogInspectorPanel({
                 <Maximize2 />
               </Button>
             ) : null}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close log details"
-              onClick={onClose}
-            >
+            <Button variant="ghost" size="icon-sm" aria-label="Close log details" onClick={onClose}>
               <X />
             </Button>
           </div>
@@ -261,9 +197,7 @@ export function LogInspectorPanel({
 
       <ScrollArea className="min-h-0 flex-1" viewportClassName="p-3">
         <div className="group relative mb-4 rounded-md border bg-background p-3">
-          <div className="text-muted-foreground mb-2 text-xs font-medium">
-            Message
-          </div>
+          <div className="text-muted-foreground mb-2 text-xs font-medium">Message</div>
           {/* Same treatment as a row in the list: keep the log's own line
               breaks, wrap the long lines, and break a run that has nowhere to
               wrap (a long path, an id, a base64 blob). */}
@@ -281,12 +215,7 @@ export function LogInspectorPanel({
             Failed to load log details
           </div>
         ) : detail ? (
-          <div
-            className={cn(
-              "transition-opacity",
-              isPlaceholderData && "opacity-50",
-            )}
-          >
+          <div className={cn("transition-opacity", isPlaceholderData && "opacity-50")}>
             <LogInspectorDetails
               detail={detail}
               renderRunLink={renderRunLink}

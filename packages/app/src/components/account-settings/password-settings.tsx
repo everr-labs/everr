@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -20,11 +21,7 @@ const defaultValues = {
 
 export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
   const change = useMutation({
-    mutationFn: async ({
-      currentPassword,
-      newPassword,
-      confirmation,
-    }: typeof defaultValues) => {
+    mutationFn: async ({ currentPassword, newPassword, confirmation }: typeof defaultValues) => {
       if (newPassword !== confirmation) {
         throw new Error("New passwords do not match.");
       }
@@ -33,16 +30,12 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
         newPassword,
         revokeOtherSessions: false,
       });
-      if (result.error)
-        throw new Error(
-          result.error.message ?? "Could not change your password.",
-        );
+      if (result.error) throw new Error(result.error.message ?? "Could not change your password.");
     },
   });
   const form = useForm({
     defaultValues,
-    onSubmit: ({ value, formApi }) =>
-      change.mutate(value, { onSuccess: () => formApi.reset() }),
+    onSubmit: ({ value, formApi }) => change.mutate(value, { onSuccess: () => formApi.reset() }),
   });
 
   return (
@@ -101,9 +94,7 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
                     onBlur={field.handleBlur}
                     onChange={(event) => field.handleChange(event.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Use 8 to 128 characters.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Use 8 to 128 characters.</p>
                 </div>
               )}
             </form.Field>

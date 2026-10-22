@@ -6,6 +6,7 @@ import { getAlertNotifications } from "./server";
 const notificationsQueryKey = ["alerting", "notifications"] as const;
 
 export const alertNotificationsOptions = (range: TimeRange) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
   queryOptions({
     // The range is part of the key: the delivery record on every row is
     // scoped to it, so a range change has to refetch rather than serve the

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- OTel overloads and attribute arrays are broader than the internal wire types; the API adapter preserves their runtime layout. */
 // The OTel Tracer of the SDK. The SDK gives it to the instrumentations. It is a
 // small implementation of the Tracer interface of @opentelemetry/api on the
 // span pipeline of the SDK. Thus a span from an instrumentation gets the same
@@ -25,13 +26,7 @@
 // trace id, span id, and trace flags of the most recent span that is active
 // now and was already active at the time of the log.
 
-import type {
-  Span,
-  SpanContext,
-  SpanOptions,
-  TimeInput,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Span, SpanContext, SpanOptions, TimeInput, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 
@@ -39,9 +34,7 @@ import type { AttrValue, EmitSpan, SpanLink, SpanStatus } from "./emitter.js";
 // a fraction makes a non-integer millisecond, and the encoder then writes an
 // invalid timestamp.
 function epochMs(value: TimeInput): number {
-  return Array.isArray(value)
-    ? value[0] * 1000 + Math.round(value[1] / 1e6)
-    : Math.round(+value);
+  return Array.isArray(value) ? value[0] * 1000 + Math.round(value[1] / 1e6) : Math.round(+value);
 }
 
 export function createTracer(emitSpan?: EmitSpan): Tracer & {
@@ -56,9 +49,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
     // One read of the CSPRNG gives the ids, the same as in the network
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
-    const parent = options?.root
-      ? undefined
-      : active[active.length - 1]?.[0].spanContext();
+    const parent = options?.root ? undefined : active[active.length - 1]?.[0].spanContext();
     const ids = emitSpan ? randomHex(parent ? 8 : 24) : "0".repeat(48);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -67,8 +58,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
     };
     const attributes: Record<string, AttrValue> = {};
     const links: SpanLink[] = [];
-    const start =
-      options?.startTime == null ? Date.now() : epochMs(options.startTime);
+    const start = options?.startTime == null ? Date.now() : epochMs(options.startTime);
     let spanName = name;
     let ended = false;
     // UNSET until setStatus records OK or ERROR. OK sticks.
@@ -103,9 +93,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
         if (ended || next.code === 0 || status?.code === 1) return span;
         if (next.code === 1) status = { code: 1 };
         else if (next.code === 2) {
-          status = next.message
-            ? { code: 2, message: next.message }
-            : { code: 2 };
+          status = next.message ? { code: 2, message: next.message } : { code: 2 };
         }
         return span;
       },
@@ -144,7 +132,7 @@ export function createTracer(emitSpan?: EmitSpan): Tracer & {
     // it. The stack is in activation sequence, so the first match from the end
     // is the most recent span that was active at that time.
     activeSpanContext: (time = Date.now()) => {
-      for (let i = active.length; i--; ) {
+      for (let i = active.length; i--;) {
         if (active[i][1] <= time) return active[i][0].spanContext();
       }
     },

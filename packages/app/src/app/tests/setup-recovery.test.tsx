@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType } from "react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   setup: vi.fn(),
@@ -35,35 +35,36 @@ function show() {
   }
 }
 
-it.each([
-  "response error",
-  "network exception",
-])("offers sign-in without another setup submission after creation (%s)", async (failure) => {
-  mocks.setup.mockResolvedValue({ organizationId: "workspace" });
-  if (failure === "response error") {
-    mocks.signIn.mockResolvedValue({ error: { message: "Sign-in failed" } });
-  } else {
-    mocks.signIn.mockRejectedValue(new Error("Connection lost"));
-  }
-  show();
-  fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
-  expect(await screen.findByRole("alert")).toBeVisible();
-  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
-    "href",
-    "/auth/sign-in?redirect=%2F",
-  );
-  expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
-  expect(mocks.setup).toHaveBeenCalledTimes(1);
-});
+it.each(["response error", "network exception"])(
+  "offers sign-in without another setup submission after creation (%s)",
+  async (failure) => {
+    mocks.setup.mockResolvedValue({ organizationId: "workspace" });
+    if (failure === "response error") {
+      mocks.signIn.mockResolvedValue({ error: { message: "Sign-in failed" } });
+    } else {
+      mocks.signIn.mockRejectedValue(new Error("Connection lost"));
+    }
+    show();
+    fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/auth/sign-in?redirect=%2F",
+    );
+    expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
+    expect(mocks.setup).toHaveBeenCalledTimes(1);
+  },
+);
 
 it("keeps setup retryable after rollback and offers sign-in if the response was lost", async () => {
   mocks.setup.mockRejectedValueOnce(new Error("Connection lost"));
   show();
   fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
-  expect(
-    screen.getByRole("link", { name: "sign in with your owner account" }),
-  ).toHaveAttribute("href", "/auth/sign-in?redirect=%2F");
+  expect(screen.getByRole("link", { name: "sign in with your owner account" })).toHaveAttribute(
+    "href",
+    "/auth/sign-in?redirect=%2F",
+  );
   expect(mocks.signIn).not.toHaveBeenCalled();
   mocks.setup.mockResolvedValue({ organizationId: "workspace" });
   mocks.signIn.mockResolvedValue({ error: { message: "Sign in manually" } });

@@ -1,4 +1,3 @@
-
 ## 2026-07-20
 
 ### `everr resources` CLI

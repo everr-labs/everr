@@ -2,17 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#app/db/client.ts";
-import {
-  invitation,
-  member,
-  organization,
-  user,
-} from "#app/db/schema/index.ts";
+import { invitation, member, organization, user } from "#app/db/schema/index.ts";
 import { createPartiallyAuthenticatedServerFn } from "#app/lib/serverFn.ts";
-import {
-  deriveInvitationLookup,
-  type InvitationLookup,
-} from "./invite-resolver";
+import { deriveInvitationLookup, type InvitationLookup } from "./invite-resolver";
 
 export type { InviteLoaderResult } from "./invite-resolver";
 export { resolveInvitationLoader } from "./invite-resolver";
@@ -47,12 +39,7 @@ export const isMemberOfOrg = createPartiallyAuthenticatedServerFn({
     const [row] = await db
       .select({ id: member.id })
       .from(member)
-      .where(
-        and(
-          eq(member.userId, session.user.id),
-          eq(member.organizationId, organizationId),
-        ),
-      )
+      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .limit(1);
     return { isMember: Boolean(row) };
   });

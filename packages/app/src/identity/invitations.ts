@@ -1,9 +1,5 @@
 import type { BetterAuthPlugin } from "better-auth";
-import {
-  createAuthMiddleware,
-  getSessionFromCtx,
-  isAPIError,
-} from "better-auth/api";
+import { createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { z } from "zod";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 
@@ -23,10 +19,9 @@ export function invitationVisibilityPlugin(): BetterAuthPlugin {
       after: [
         {
           matcher: (ctx) =>
-            [
-              "/organization/list-invitations",
-              "/organization/get-full-organization",
-            ].includes(ctx.path ?? ""),
+            ["/organization/list-invitations", "/organization/get-full-organization"].includes(
+              ctx.path ?? "",
+            ),
           handler: createAuthMiddleware(async (ctx) => {
             const returned = ctx.context.returned;
             if (returned == null || isAPIError(returned)) return;
@@ -37,9 +32,7 @@ export function invitationVisibilityPlugin(): BetterAuthPlugin {
                 ? organizationResponse.parse(returned)
                 : undefined;
             const organizationId =
-              organization?.id ??
-              ctx.query?.organizationId ??
-              session.session.activeOrganizationId;
+              organization?.id ?? ctx.query?.organizationId ?? session.session.activeOrganizationId;
             const membership = await ctx.context.adapter.findOne<{
               role: string;
             }>({
@@ -50,9 +43,7 @@ export function invitationVisibilityPlugin(): BetterAuthPlugin {
               ],
             });
             if (isOrganizationAdmin(membership?.role)) return;
-            return ctx.json(
-              organization ? { ...organization, invitations: [] } : [],
-            );
+            return ctx.json(organization ? { ...organization, invitations: [] } : []);
           }),
         },
       ],

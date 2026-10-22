@@ -17,11 +17,7 @@ export function startInteractions(emit: Emit): () => void {
   const onClick = (event: MouseEvent) => {
     const el = targetOf(event);
     if (!el) return;
-    emit(
-      "everr.browser.interaction.click",
-      elementAttrs(el),
-      epoch(event.timeStamp),
-    );
+    emit("everr.browser.interaction.click", elementAttrs(el), epoch(event.timeStamp));
   };
 
   const onSubmit = (event: Event) => {
@@ -30,14 +26,11 @@ export function startInteractions(emit: Emit): () => void {
     // record connects correctly to the clicks. If JS submits the form, there is
     // no submitter, and the code ignores the event, because the element that
     // the user operated is the necessary data.
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- The native submit event supplies submitter; preserve the existing direct access and truthiness check.
     const submitter = (event as SubmitEvent).submitter;
     const el = submitter ? guardOf(submitter) : null;
     if (!el) return;
-    emit(
-      "everr.browser.interaction.submit",
-      elementAttrs(el),
-      epoch(event.timeStamp),
-    );
+    emit("everr.browser.interaction.submit", elementAttrs(el), epoch(event.timeStamp));
   };
 
   addEventListener("click", onClick, true);

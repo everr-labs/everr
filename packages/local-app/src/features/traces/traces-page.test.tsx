@@ -1,11 +1,9 @@
-import type {
-  TraceExplorerProps,
-  TracesSearchProps,
-} from "@everr/telemetry-explorer/traces";
+import type * as TracesTypes from "@everr/telemetry-explorer/traces";
+import type { TraceExplorerProps, TracesSearchProps } from "@everr/telemetry-explorer/traces";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { getRouter } from "../../router";
 
 const local = vi.hoisted(() => ({
@@ -20,8 +18,7 @@ vi.mock("../local-telemetry/collector-status", () => ({
 vi.mock("../logs/local-sql-client", () => ({ localSqlClient: local.client }));
 
 vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@everr/telemetry-explorer/traces")>();
+  const actual = await importOriginal<typeof TracesTypes>();
   return {
     ...actual,
     TracesRepository: class {

@@ -1,22 +1,12 @@
 // @vitest-environment node
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
-import {
-  alertDefinitions,
-  alertEvents,
-  alertInstances,
-  previews,
-} from "#app/db/schema/index.ts";
-import {
-  insertPreview,
-  insertRule,
-} from "#app/server/alerting/testing/fixtures.ts";
-import { useAlertingHarness } from "#app/testing/alerting-harness.ts";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { alertDefinitions, alertEvents, alertInstances, previews } from "#app/db/schema/index.ts";
+import { insertPreview, insertRule } from "#app/server/alerting/testing/fixtures.ts";
+import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
 
 vi.mock("#app/db/client.ts", async () => {
-  const { testDb, runInTransaction } = await import(
-    "#app/server/alerting/testing/db-proxy.ts"
-  );
+  const { testDb, runInTransaction } = await import("#app/server/alerting/testing/db-proxy.ts");
   return { db: testDb, runInTransaction };
 });
 
@@ -29,7 +19,7 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
   return clickhouseMock;
 });
 
-const harness = useAlertingHarness();
+const harness = registerAlertingHarness();
 
 const BREACHING = [{ service: "checkout", value: 42 }];
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -68,9 +58,7 @@ describe("the alerting pipeline's preview teardown", () => {
     expect(firing.status).toBe("firing");
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
-    const { deleteStalePreviews } = await import(
-      "#app/data/previews/apply.server.ts"
-    );
+    const { deleteStalePreviews } = await import("#app/data/previews/apply.server.ts");
     expect(await deleteStalePreviews(RETENTION_DAYS)).toBe(1);
 
     // The closing row is a projection with no journal behind it: the cascade
@@ -100,9 +88,7 @@ describe("the alerting pipeline's preview teardown", () => {
     expect(await harness().db.select().from(alertEvents)).not.toHaveLength(0);
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
-    const { deleteStalePreviews } = await import(
-      "#app/data/previews/apply.server.ts"
-    );
+    const { deleteStalePreviews } = await import("#app/data/previews/apply.server.ts");
     await deleteStalePreviews(RETENTION_DAYS);
 
     // One delete, through the cascade: a preview is the parent of everything
@@ -125,9 +111,7 @@ describe("the alerting pipeline's preview teardown", () => {
     await harness().runDueJobs();
 
     await agePreview(preview.id, RETENTION_DAYS + 1);
-    const { deleteStalePreviews } = await import(
-      "#app/data/previews/apply.server.ts"
-    );
+    const { deleteStalePreviews } = await import("#app/data/previews/apply.server.ts");
     await deleteStalePreviews(RETENTION_DAYS);
 
     const surviving = await harness().db.select().from(alertDefinitions);
@@ -155,9 +139,7 @@ describe("the alerting pipeline's preview teardown", () => {
     // it was created: `last_applied_at` is what the cutoff reads, so an active
     // branch never ages out from under a running incident.
     await agePreview(preview.id, RETENTION_DAYS - 1);
-    const { deleteStalePreviews } = await import(
-      "#app/data/previews/apply.server.ts"
-    );
+    const { deleteStalePreviews } = await import("#app/data/previews/apply.server.ts");
     expect(await deleteStalePreviews(RETENTION_DAYS)).toBe(0);
 
     expect(await harness().db.select().from(alertInstances)).toHaveLength(1);

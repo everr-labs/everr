@@ -6,17 +6,11 @@ import {
   defaultTierFor,
 } from "#app/data/alerting/delivery/defaults.ts";
 import { db } from "#app/db/client.ts";
-import {
-  alertDefaultChannels,
-  alertDefinitions,
-  type alertEvents,
-} from "#app/db/schema/index.ts";
+import { alertDefaultChannels, alertDefinitions, type alertEvents } from "#app/db/schema/index.ts";
 
 function stableJson(value: Record<string, string>) {
   return JSON.stringify(
-    Object.fromEntries(
-      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)),
-    ),
+    Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
   );
 }
 
@@ -48,9 +42,7 @@ function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
     severity: event.severity,
     status: event.eventType === "instance_resolved" ? "resolved" : "firing",
   };
-  return Object.fromEntries(
-    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
-  );
+  return Object.fromEntries(ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]));
 }
 
 async function directDispatchTarget(
@@ -70,8 +62,7 @@ async function directDispatchTarget(
       ),
     )
     .limit(1);
-  if ((definition?.spec.notifications?.channels ?? []).length === 0)
-    return null;
+  if ((definition?.spec.notifications?.channels ?? []).length === 0) return null;
 
   return {
     defaultTier: null,
@@ -113,11 +104,7 @@ async function defaultDispatchTarget(
   return {
     defaultTier: tier,
     directAlertDefinitionId: null,
-    groupKey: alertDeliveryHash(
-      "default",
-      tier,
-      stableJson(groupLabelsFor(event)),
-    ),
+    groupKey: alertDeliveryHash("default", tier, stableJson(groupLabelsFor(event))),
   };
 }
 

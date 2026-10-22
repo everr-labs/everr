@@ -53,8 +53,7 @@ export function FilterCombobox<TData>({
   allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
-  const { open, onOpenChange, search, setSearch, query, offerCustom } =
-    useComboboxCustomEntry();
+  const { open, onOpenChange, search, setSearch, query, offerCustom } = useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -76,8 +75,7 @@ export function FilterCombobox<TData>({
   const hiddenCount = values.length - visibleItems.length;
 
   // Hidden when it would duplicate a loaded item or a selection.
-  const showCustom =
-    allowCustom && offerCustom((q) => items.includes(q) || values.includes(q));
+  const showCustom = allowCustom && offerCustom((q) => items.includes(q) || values.includes(q));
 
   // Selections the query did not return (custom entries, or values whose
   // suggestion aged out of the list) still need a checked row: without one
@@ -87,10 +85,7 @@ export function FilterCombobox<TData>({
 
   return (
     <div className="flex flex-col gap-1">
-      <Label
-        htmlFor={id}
-        className={cn("text-muted-foreground", labelClassName)}
-      >
+      <Label htmlFor={id} className={cn("text-muted-foreground", labelClassName)}>
         {label}
       </Label>
       <Popover open={open} onOpenChange={onOpenChange}>
@@ -99,6 +94,7 @@ export function FilterCombobox<TData>({
             <Button
               id={id}
               variant="outline"
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; Preserve the existing composite trigger role and its original popup association.
               role="combobox"
               aria-expanded={open}
               className={cn(
@@ -116,19 +112,14 @@ export function FilterCombobox<TData>({
             )}
           >
             {isAll ? (
-              <span className="text-muted-foreground truncate text-xs">
-                {placeholder}
-              </span>
+              <span className="text-muted-foreground truncate text-xs">{placeholder}</span>
             ) : (
               <>
                 {visibleItems.map((val) => (
                   <Badge
                     key={val}
                     variant="outline"
-                    className={cn(
-                      "min-w-0 max-w-full",
-                      showAllValues ? "shrink-0" : "shrink",
-                    )}
+                    className={cn("min-w-0 max-w-full", showAllValues ? "shrink-0" : "shrink")}
                   >
                     <span className="truncate">{val}</span>
                     <Button
@@ -155,15 +146,9 @@ export function FilterCombobox<TData>({
               </>
             )}
           </div>
-          <ChevronDownIcon
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
+          <ChevronDownIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-(--anchor-width) min-w-48 p-0"
-        >
+        <PopoverContent align="start" className="w-(--anchor-width) min-w-48 p-0">
           <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
             <CommandInput
               wrapperClassName="p-0 border-b"
@@ -173,9 +158,7 @@ export function FilterCombobox<TData>({
               onValueChange={setSearch}
             />
             <CommandList>
-              <CommandEmpty>
-                {isLoading ? "Loading..." : "No results."}
-              </CommandEmpty>
+              <CommandEmpty>{isLoading ? "Loading..." : "No results."}</CommandEmpty>
               <CommandGroup>
                 <CommandItem
                   value="__all__"

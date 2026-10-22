@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { embeddedBuildEnv, resolveCliBuild } from "./cli-build";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -6,16 +6,20 @@ afterEach(() => vi.unstubAllEnvs());
 describe("product telemetry in CLI releases", () => {
   it("rejects official releases without a dedicated product key", () => {
     for (const key of [undefined, "", "  "]) {
-      expect(() => resolveCliBuild("release", {
-        EVERR_REQUIRE_INTERNAL_TELEMETRY: "1",
-        EVERR_INTERNAL_TELEMETRY_INGEST_KEY: key,
-        EVERR_INGEST_KEY: "build-key-is-not-a-product-key",
-      })).toThrow("EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
+      expect(() =>
+        resolveCliBuild("release", {
+          EVERR_REQUIRE_INTERNAL_TELEMETRY: "1",
+          EVERR_INTERNAL_TELEMETRY_INGEST_KEY: key,
+          EVERR_INGEST_KEY: "build-key-is-not-a-product-key",
+        }),
+      ).toThrow("EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
     }
-    expect(() => resolveCliBuild("release", {
-      EVERR_REQUIRE_INTERNAL_TELEMETRY: "1",
-      EVERR_INTERNAL_TELEMETRY_INGEST_KEY: "product-key",
-    })).not.toThrow();
+    expect(() =>
+      resolveCliBuild("release", {
+        EVERR_REQUIRE_INTERNAL_TELEMETRY: "1",
+        EVERR_INTERNAL_TELEMETRY_INGEST_KEY: "product-key",
+      }),
+    ).not.toThrow();
   });
 
   it("allows personal release builds and debug builds without a key", () => {

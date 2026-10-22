@@ -8,9 +8,7 @@ export type ExtractQueryFn<T> = T extends { queryFn?: infer QF }
 
 /** Extract the resolved data type from a query options object. */
 export type ExtractQueryData<T> =
-  ExtractQueryFn<T> extends (...args: never[]) => infer R
-    ? Awaited<R>
-    : unknown;
+  ExtractQueryFn<T> extends (...args: never[]) => infer R ? Awaited<R> : unknown;
 
 /** Map a tuple of query options to their resolved data types. */
 export type InferQueriesData<T extends readonly unknown[]> = {

@@ -7,11 +7,7 @@ import {
 } from "@tanstack/react-start/server";
 import { withMigrationLock } from "#app/db/migrations.ts";
 import { startWorkerRuntime } from "#app/server/worker/runtime.ts";
-import {
-  captureError,
-  getTelemetryTracer,
-  SpanKind,
-} from "#app/telemetry/node.ts";
+import { captureError, getTelemetryTracer, SpanKind } from "#app/telemetry/node.ts";
 
 const { migrateDatabase } = runtime;
 

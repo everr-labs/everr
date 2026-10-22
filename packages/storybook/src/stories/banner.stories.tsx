@@ -83,21 +83,13 @@ export const InsideFrame: Story = {
   render: () => (
     <div className="flex w-full flex-col gap-4">
       {variants.map((variant) => (
-        <div
-          key={variant}
-          className={bannerFrameVariants({ variant, className: "rounded-lg" })}
-        >
-          <Banner
-            variant={variant}
-            className="w-full justify-between py-1 pl-3.5 pr-1.5"
-          >
+        <div key={variant} className={bannerFrameVariants({ variant, className: "rounded-lg" })}>
+          <Banner variant={variant} className="w-full justify-between py-1 pl-3.5 pr-1.5">
             <BannerContent className="truncate">
               The frame ring matches the {variant} banner.
             </BannerContent>
           </Banner>
-          <div className="p-4 text-xs text-muted-foreground">
-            Framed content goes here.
-          </div>
+          <div className="p-4 text-xs text-muted-foreground">Framed content goes here.</div>
         </div>
       ))}
     </div>

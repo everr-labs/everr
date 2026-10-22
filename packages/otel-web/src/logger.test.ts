@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { logger } from "./logger.js";
 import { createEmitter } from "./pipeline/emitter.js";
 import { fetchSend } from "./pipeline/transport.js";
@@ -21,17 +21,14 @@ function wire(envelope: () => Record<string, string> = () => ({})) {
   sent = [];
   stubTransportFetch(
     vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body));
+      if (typeof init?.body !== "string") throw new TypeError("Expected a text request body");
+      const payload = JSON.parse(init?.body);
       sent.push(...payload.resourceLogs[0].scopeLogs[0].logRecords);
       return Promise.resolve(new Response(null, { status: 200 }));
     }),
   );
   const [emit, doFlush] = createEmitter(
-    fetchSend(
-      "https://ingest.example/v1/logs",
-      "https://ingest.example/v1/traces",
-      undefined,
-    ),
+    fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", undefined),
     true,
     {},
     { name: "@everr/otel-web", version: "test" },

@@ -1,18 +1,11 @@
 import * as z from "zod";
 import { formatResourceName } from "#app/data/as-code/identity.ts";
-import {
-  dashboardProjectSchema,
-  dashboardSlugSchema,
-} from "#app/data/dashboards/schema.ts";
+import { dashboardProjectSchema, dashboardSlugSchema } from "#app/data/dashboards/schema.ts";
 
-function runbookRefParts(
-  raw: string,
-): { project?: string; slug: string } | null {
+function runbookRefParts(raw: string): { project?: string; slug: string } | null {
   const parts = raw.split("/");
   if (parts.length > 2) return null;
-  return parts.length === 2
-    ? { project: parts[0], slug: parts[1] }
-    : { slug: parts[0] };
+  return parts.length === 2 ? { project: parts[0], slug: parts[1] } : { slug: parts[0] };
 }
 
 export const runbookRefSchema = z
@@ -33,10 +26,7 @@ export const runbookRefSchema = z
         message: `invalid runbook slug "${ref.slug}"`,
       });
     }
-    if (
-      ref.project !== undefined &&
-      !dashboardProjectSchema.safeParse(ref.project).success
-    ) {
+    if (ref.project !== undefined && !dashboardProjectSchema.safeParse(ref.project).success) {
       ctx.addIssue({
         code: "custom",
         message: `invalid runbook project "${ref.project}"`,
