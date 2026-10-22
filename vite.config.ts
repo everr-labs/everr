@@ -48,10 +48,9 @@ export default defineConfig({
       // way to load scoped (`@tanstack/...`) ESLint plugins, so rules are
       // referenced as `query/*` below.
       { name: "query", specifier: "@tanstack/eslint-plugin-query" },
-      // create-route-property-order still throws "Unsupported spread element" on
-      // createRouter calls that use an object spread, so it's turned off for the
-      // router-setup + test files (see overrides); it runs fine on the actual
-      // createFileRoute route files, which is where it matters.
+      // create-route-property-order throws on non-identifier spreads. Keep the
+      // router-setup + test overrides below until the upstream fix is released:
+      // https://github.com/TanStack/router/issues/8673
       { name: "router", specifier: "@tanstack/eslint-plugin-router" },
     ],
     rules: {
@@ -263,15 +262,16 @@ export default defineConfig({
           "typescript/consistent-type-assertions": "off",
           // Only ever fires on mock/spy method references in tests; noise there.
           "typescript/unbound-method": "off",
-          // Test harnesses build a router with createRouter + spreads, which
-          // crashes the rule's visitor (see the router-setup override below).
+          // Work around the rule crashing on non-identifier spreads in test
+          // route definitions. Remove once the upstream fix is released:
+          // https://github.com/TanStack/router/issues/8673
           "router/create-route-property-order": "off",
         },
       },
       {
-        // The router-setup files use createRouter with an object spread, and the
-        // plugin's create-route-property-order visitor throws "Unsupported spread
-        // element" on it (it over-matches createRouter, not just createFileRoute).
+        // Work around "Unsupported spread element" in router setup files.
+        // Remove once the upstream fix for non-identifier spreads is released:
+        // https://github.com/TanStack/router/issues/8673
         // The rule still runs on the actual createFileRoute route files.
         files: ["**/router.ts", "**/router.tsx"],
         rules: { "router/create-route-property-order": "off" },
