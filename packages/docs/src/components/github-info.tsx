@@ -22,18 +22,16 @@ export interface GithubInfoProps extends ComponentProps<"a">, FetchRepositoryInf
 
 // default revalidate options for Next.js (optional). `next` is a Next.js
 // augmentation of RequestInit, so widen the type to keep it well-typed.
-const DEFAULT_FETCH_OPTIONS: RequestInit & { next?: { revalidate?: number } } = {
-  next: {
-    revalidate: 60,
-  },
-};
+function defaultFetchOptions(): RequestInit & { next?: { revalidate?: number } } {
+  return { next: { revalidate: 60 } };
+}
 
 async function fetchRepositoryInfo({
   owner,
   repo,
   token,
   baseUrl = "https://api.github.com",
-  fetchOptions = DEFAULT_FETCH_OPTIONS,
+  fetchOptions = defaultFetchOptions(),
 }: FetchRepositoryInfoOptions): Promise<RepositoryInfo> {
   const endpoint = `${baseUrl}/repos/${owner}/${repo}`;
   const headers = new Headers(fetchOptions.headers);

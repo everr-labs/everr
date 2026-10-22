@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { attributeKeysColumn, attributeText } from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
@@ -7,8 +6,9 @@ import type { BuiltQuery } from "./types";
 
 const VALUE_LIMIT = 100;
 
-export const AttributeValueRowRawSchema = z.object({ v: z.string() });
-export type AttributeValueRowRaw = z.infer<typeof AttributeValueRowRawSchema>;
+export interface AttributeValueRowRaw {
+  v: string;
+}
 
 export function buildAttributeValuesQuery(
   input: {

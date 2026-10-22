@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -123,7 +124,9 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
               </p>
             )}
             {change.isSuccess && (
-              <output className="block text-sm text-muted-foreground">Password changed.</output>
+              <p role="status" className="text-sm text-muted-foreground">
+                Password changed.
+              </p>
             )}
             <Button type="submit" disabled={change.isPending}>
               {change.isPending ? "Changing password..." : "Change password"}

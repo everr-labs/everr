@@ -13,7 +13,7 @@ import { cn } from "@everr/ui/lib/utils";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
-import { type ComponentType, useState } from "react";
+import { type ComponentType, useId, useState } from "react";
 
 interface FilterQueryOptions<TData> {
   queryKey: QueryKey;
@@ -56,6 +56,7 @@ export function ExploreFilterPill<TData>({
   countNoun,
   className,
 }: ExploreFilterPillProps<TData>) {
+  const id = useId();
   const [open, setOpen] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
@@ -91,8 +92,9 @@ export function ExploreFilterPill<TData>({
             <PopoverTrigger
               render={
                 <Button
+                  id={id}
                   variant="outline"
-                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; PopoverTrigger supplies aria-controls with the rendered popup's ID.
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger and nested clear-control DOM semantics. PopoverTrigger supplies the popup relationship; preserve the existing trigger markup.
                   role="combobox"
                   aria-expanded={open}
                   className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
@@ -116,8 +118,9 @@ export function ExploreFilterPill<TData>({
           {isActive ? (
             // A native <button> would nest inside the trigger <button> (invalid
             // HTML), so this clear affordance is a span with button semantics.
+            // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
             <span
-              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a native <button> would nest inside the trigger <button> (invalid HTML), so this clear affordance is a span with button semantics
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing composite trigger and nested clear-control DOM semantics.
               role="button"
               tabIndex={0}
               aria-label={`Clear ${label} filter`}

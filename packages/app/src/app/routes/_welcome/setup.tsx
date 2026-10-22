@@ -51,15 +51,15 @@ function SetupPage() {
               event.preventDefault();
               if (setup.isPending) return;
               const fields = new FormData(event.currentTarget);
-              const textField = (name: string) => {
-                const value = fields.get(name);
-                return typeof value === "string" ? value : "";
-              };
               setup.mutate({
-                workspaceName: textField("workspaceName"),
-                name: textField("name"),
-                email: textField("email"),
-                password: textField("password"),
+                // oxlint-disable-next-line typescript/no-base-to-string -- Preserve FormData coercion used by the setup form.
+                workspaceName: String(fields.get("workspaceName") ?? ""),
+                // oxlint-disable-next-line typescript/no-base-to-string -- Preserve FormData coercion used by the setup form.
+                name: String(fields.get("name") ?? ""),
+                // oxlint-disable-next-line typescript/no-base-to-string -- Preserve FormData coercion used by the setup form.
+                email: String(fields.get("email") ?? ""),
+                // oxlint-disable-next-line typescript/no-base-to-string -- Preserve FormData coercion used by the setup form.
+                password: String(fields.get("password") ?? ""),
               });
             }}
           >

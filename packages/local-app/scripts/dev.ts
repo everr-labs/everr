@@ -63,10 +63,11 @@ async function stop(task: Task) {
   const sendSignal = (signal: NodeJS.Signals) => {
     try {
       if (process.platform === "win32") task.child.kill(signal);
-      else if (task.child.pid !== undefined) process.kill(-task.child.pid, signal);
+      // oxlint-disable-next-line typescript/no-non-null-assertion -- Keep the original spawned-process signaling behavior; this assertion is erased at runtime.
+      else process.kill(-task.child.pid!, signal);
     } catch (error) {
-      if ((error instanceof Error && "code" in error ? error.code : undefined) !== "ESRCH")
-        throw error;
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
     }
   };
   sendSignal("SIGTERM");

@@ -1,3 +1,4 @@
+/* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -156,11 +157,7 @@ export function useDashboardPanelData(
     [sources, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
-  // `combine` merges the per-query results into the panel state. React Query
-  // runs it with structural sharing, so the returned object stays referentially
-  // stable across renders (unlike the raw `useQueries` array, which is a fresh
-  // reference every render and would defeat a downstream `useMemo`).
-  const combined = useQueries({
+  const results = useQueries({
     queries: requests.map((r) => ({
       ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
       enabled:
@@ -170,7 +167,10 @@ export function useDashboardPanelData(
         r.optionsError === undefined &&
         !r.waitingForOptions,
     })),
-    combine: (results) =>
+  });
+
+  const combined = useMemo(
+    () =>
       combineQueryStates(
         requests.map((r, i) => ({
           active: sourceIsActive(r.source),
@@ -182,21 +182,12 @@ export function useDashboardPanelData(
           rows: results[i]?.data?.rows,
         })),
       ),
-  });
+    [requests, results],
+  );
 
   // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
-  // so depending on it directly would never hit the cache. `resolveTimeRange`
-  // only reads `from`/`to`, so closing over the destructured primitives keeps
-  // the deps exact.
+  // so depending on it directly would never hit the cache.
   const { from, to } = timeRange;
   const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
-  // Read `combined`'s fields explicitly rather than spreading it: it originates
-  // from `useQueries`, and spreading a query result opts every field into React
-  // Query's change tracking (defeating the per-property render optimization).
-  return {
-    status: combined.status,
-    data: combined.data,
-    errorMessage: combined.errorMessage,
-    timeRange: { from: viz.fromDate, to: viz.toDate },
-  };
+  return { ...combined, timeRange: { from: viz.fromDate, to: viz.toDate } };
 }

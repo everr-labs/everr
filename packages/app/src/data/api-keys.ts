@@ -4,7 +4,8 @@ import { auth } from "#app/identity/server.ts";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { buildPublicKeyMetadata, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
-import { type ApiKey, ApiKeyMetadataSchema, CreatedApiKeySchema } from "./api-key-schemas";
+
+import type { ApiKey } from "./api-key-schemas";
 
 export type { ApiKey } from "./api-key-schemas";
 
@@ -81,18 +82,24 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       },
     });
 
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the provider creation response contract without new runtime validation.
+    const created = result as {
+      key?: string | null;
+      id?: string;
+      permissions?: Record<string, string[]> | null;
+    } | null;
+
     // The full key is only ever returned at creation; a missing/null one means
     // creation didn't actually succeed, so fail loudly rather than handing the
     // caller a null key.
-    const created = CreatedApiKeySchema.safeParse(result);
-    if (!created.success) {
-      throw new Error("Server did not return a key", { cause: created.error });
+    if (!created || typeof created.key !== "string" || !created.id) {
+      throw new Error("Server did not return a key");
     }
 
     return {
-      key: created.data.key,
-      id: created.data.id,
-      permissions: created.data.permissions ?? permissions,
+      key: created.key,
+      id: created.id,
+      permissions: created.permissions ?? permissions,
     };
   });
 
@@ -109,21 +116,10 @@ export const listApiKeys = createOrganizationAdminServerFn({
     },
     headers: getRequestHeaders(),
   });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider rows and metadata verbatim rather than projecting or validating them.
+  const keys = (result?.apiKeys ?? []) as ApiKey[];
   // Defense-in-depth: the query already scopes to our configId, but pin it.
-  return result.apiKeys
-    .filter((key) => key.configId === API_KEY_CONFIG_ID)
-    .map((key): ApiKey => ({
-      id: key.id,
-      configId: key.configId,
-      name: key.name,
-      start: key.start,
-      prefix: key.prefix,
-      createdAt: key.createdAt,
-      expiresAt: key.expiresAt,
-      lastRequest: key.lastRequest,
-      permissions: key.permissions,
-      metadata: ApiKeyMetadataSchema.parse(key.metadata),
-    }));
+  return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

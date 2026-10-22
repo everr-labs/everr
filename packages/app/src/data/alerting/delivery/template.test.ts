@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { extractVariables, validateMessageRefs, validateQueryTemplate } from "./template";
+import {
+  extractVariables,
+  renderMessage,
+  validateMessageRefs,
+  validateQueryTemplate,
+} from "./template";
 
 describe("extractVariables", () => {
   it("finds valid alert variables and ignores malformed ones", () => {
@@ -33,4 +38,12 @@ describe("validateMessageRefs", () => {
       /\$\{value\} is not a column of the query result/,
     );
   });
+});
+
+it("preserves String coercion for composite notification values", () => {
+  expect(
+    renderMessage("${items} ${details}", {
+      firstRow: { items: ["prod", "api"], details: { failed: true } },
+    }),
+  ).toBe("prod,api [object Object]");
 });

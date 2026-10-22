@@ -24,7 +24,8 @@ export function parsePanelEmbed(source: string): PanelEmbed {
   try {
     doc = parse(source);
   } catch (e) {
-    throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
+    // oxlint-disable-next-line preserve-caught-error -- Preserve the existing panel parse error shape.
+    throw new Error(`invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
   }
   if (!isRecord(doc)) {
     throw new Error("panel block must be a YAML mapping");

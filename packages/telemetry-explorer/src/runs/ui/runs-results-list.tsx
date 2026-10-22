@@ -14,8 +14,6 @@ import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
-const runsListComponents = { ...virtuosoScrollAreaComponents, Footer: ResultsFooter };
-
 const SKELETON_DELAY_MS = 600;
 
 // Runs are timed to the second (and the live timer ticks every second), so
@@ -79,6 +77,22 @@ export function RunsResultsList({
     [renderRunLink, renderRowActions],
   );
 
+  const components = useMemo(
+    () => ({
+      ...virtuosoScrollAreaComponents,
+      // oxlint-disable-next-line react/no-unstable-nested-components -- Preserve the existing footer component lifetime when pagination values change.
+      Footer: () => (
+        <ResultsFooter
+          count={runs.length}
+          totalCount={totalCount}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+        />
+      ),
+    }),
+    [runs.length, totalCount, hasMore, isLoadingMore],
+  );
+
   const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
   if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
   // Only blank the view when there's nothing to show. A failed `fetchNextPage`
@@ -101,14 +115,13 @@ export function RunsResultsList({
     <div className="flex min-h-0 flex-1 flex-col">
       <ResultsHeader hasActions={Boolean(renderRowActions)} />
       <Virtuoso
-        context={{ count: runs.length, totalCount, hasMore, isLoadingMore }}
         className="min-h-0 flex-1"
         data={runs}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         computeItemKey={(_, run) => run.traceId}
         itemContent={itemContent}
-        components={runsListComponents}
+        components={components}
       />
     </div>
   );
@@ -222,15 +235,17 @@ function LiveDuration({ startedAt }: { startedAt: string }) {
   return <>{formatRunDuration(Math.max(0, now - startMs))}</>;
 }
 
-type ResultsFooterContext = {
+function ResultsFooter({
+  count,
+  totalCount,
+  hasMore,
+  isLoadingMore,
+}: {
   count: number;
   totalCount?: number;
   hasMore: boolean;
   isLoadingMore: boolean;
-};
-
-function ResultsFooter({ context }: { context: ResultsFooterContext }) {
-  const { count, totalCount, hasMore, isLoadingMore } = context;
+}) {
   return (
     <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
       {isLoadingMore ? (
@@ -254,7 +269,7 @@ function ResultsSkeleton() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {Array.from({ length: 14 }).map((_, i) => (
-        // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
+        // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
         <div key={i} className="flex items-center gap-3 border-b px-3 py-2">
           <Skeleton className="size-4 shrink-0 rounded-full" />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">

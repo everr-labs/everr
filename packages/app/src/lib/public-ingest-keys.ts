@@ -7,25 +7,12 @@
  * policy; verify-key, the create server fn, and the UI all delegate here.
  */
 
-import { z } from "zod";
 import type { ApiKeyScope } from "./api-key-scopes";
 
-const PublicKeyMetadataSchema = z.object({
-  public: z.literal(true),
-  allowedOrigins: z.array(z.string()),
-});
-export type PublicKeyMetadata = z.infer<typeof PublicKeyMetadataSchema>;
-
-// Existing policy readers ignore malformed origin entries rather than granting
-// them access. Keep that behavior when reading older stored metadata.
-const StoredPublicKeyMetadataSchema = PublicKeyMetadataSchema.extend({
-  allowedOrigins: z
-    .array(z.unknown())
-    .catch([])
-    .transform((origins) =>
-      origins.filter((origin): origin is string => typeof origin === "string"),
-    ),
-});
+export type PublicKeyMetadata = {
+  public: true;
+  allowedOrigins: string[];
+};
 
 /**
  * The one capability a public browser key may hold. Public keys are
@@ -73,8 +60,14 @@ export function publicKeyMetadataOf(metadata: unknown): PublicKeyMetadata | null
       return null;
     }
   }
-  const parsed = StoredPublicKeyMetadataSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing stored metadata reader without adding schema validation.
+  const record = value as Record<string, unknown>;
+  if (record.public !== true) return null;
+  const allowedOrigins = Array.isArray(record.allowedOrigins)
+    ? record.allowedOrigins.filter((origin): origin is string => typeof origin === "string")
+    : [];
+  return { public: true, allowedOrigins };
 }
 
 /**

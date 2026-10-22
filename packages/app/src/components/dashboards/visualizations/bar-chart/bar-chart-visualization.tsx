@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -162,7 +163,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const last = chartData.at(-1);
   const spanMs =
     isTimeAxis && first && last && chartData.length > 1
-      ? Number(last[X_KEY]) - Number(first[X_KEY])
+      ? (last[X_KEY] as number) - (first[X_KEY] as number)
       : 0;
   const formatXTick = isTimeAxis
     ? createTimeTickFormatter(spanMs)
@@ -277,7 +278,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
                 key,
                 color: chartConfig[key]?.color,
                 label: chartConfig[key]?.label ?? key,
-                value: formatBarValue(typeof tooltipRow[key] === "number" ? tooltipRow[key] : 0),
+                value: formatBarValue(tooltipRow[key] as number),
               }))}
           />
         </CursorTooltip>

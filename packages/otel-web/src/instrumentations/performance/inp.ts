@@ -364,7 +364,8 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
     // emitter does the exit flush, because the SDK registers that listener
     // later.
     handleEntries(po.takeRecords() as PerformanceEventTiming[]);
-    for (const [id, pending] of pendingSlow) finalizeSlow(id, pending);
+    // oxlint-disable-next-line unicorn/no-useless-spread -- Preserve the original snapshot while finalizeSlow removes entries and invokes tracer callbacks.
+    for (const [id, pending] of [...pendingSlow]) finalizeSlow(id, pending);
     reportVital();
   };
   addEventListener("visibilitychange", onVisibilityChange, true);

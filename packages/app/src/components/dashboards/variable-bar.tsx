@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
@@ -10,7 +11,7 @@ import {
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
@@ -57,13 +58,6 @@ export type VariableBarLayout = "stacked" | "inline";
 export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout }) {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
-  // Read the current vars from the typed route search (same source as
-  // useDashboardVariables) rather than the navigate updater's `prev`, whose
-  // nested `vars` type is not reliably inferred. Keeps the merge type-safe.
-  const currentVars = useSearch({
-    from: "/_authenticated/_organization/_dashboard",
-    select: (s) => s.vars,
-  });
 
   const setValue = useCallback(
     (name: string, value: string | string[]) => {
@@ -72,14 +66,14 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
         search: (prev) => ({
           ...prev,
           vars: {
-            ...currentVars,
+            ...(prev.vars as Record<string, string | string[]> | undefined),
             [name]: value,
           },
         }),
         replace: false,
       });
     },
-    [navigate, currentVars],
+    [navigate],
   );
 
   const visible = variables.filter(isVisible);

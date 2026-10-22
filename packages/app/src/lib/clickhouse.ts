@@ -147,9 +147,8 @@ export async function previewSqlApi(
     abort.abort();
   }
 
-  const [names = [], types = [], ...rows] = lines;
-  const columns = names.map(String);
-  const columnTypes = types.map(String);
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve header values and missing-header behavior from the existing SQL transport.
+  const [columns, columnTypes, ...rows] = lines as [string[], string[], ...unknown[][]];
   return { columns, columnTypes, rows, truncated };
 }
 

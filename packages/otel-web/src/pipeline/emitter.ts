@@ -328,7 +328,8 @@ export function createEmitter(
   };
 
   const sortBy = <T, K extends keyof T>(items: T[], key: K) =>
-    items.sort((a, b) => Number(BigInt(String(a[key])) - BigInt(String(b[key]))));
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Timestamp wire fields are strings; preserve their direct BigInt conversion.
+    items.sort((a, b) => Number(BigInt(a[key] as string) - BigInt(b[key] as string)));
 
   const flush = (keepalive?: boolean): Promise<void> => {
     clearTimeout(timer);
@@ -400,14 +401,8 @@ export function createEmitter(
       timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
       // On the server, a batch that waits must not keep the process open after
       // its last request. A browser returns a number and does not do this.
-      const handle: unknown = timer;
-      if (
-        typeof handle === "object" &&
-        handle !== null &&
-        "unref" in handle &&
-        typeof handle.unref === "function"
-      )
-        handle.unref();
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve optional unref dispatch on the original timer handle without restricting its runtime type.
+      (timer as unknown as { unref?: () => void }).unref?.();
     }
   };
 

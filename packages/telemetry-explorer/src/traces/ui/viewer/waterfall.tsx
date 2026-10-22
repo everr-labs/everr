@@ -46,11 +46,16 @@ export function TraceWaterfall({
   virtuosoRef?: Ref<VirtuosoHandle>;
 }) {
   const [labelWidth, setLabelWidth] = useState<number>();
-  const labelStyle: CSSProperties & { "--waterfall-label-width": string } = {
-    "--waterfall-label-width": labelWidth === undefined ? "38%" : `${labelWidth}px`,
-  };
   return (
-    <div className="relative flex h-full min-h-0 flex-col" style={labelStyle}>
+    <div
+      className="relative flex h-full min-h-0 flex-col"
+      style={
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- React accepts the existing CSS custom property; this erased assertion preserves the original style object.
+        {
+          "--waterfall-label-width": labelWidth === undefined ? "38%" : `${labelWidth}px`,
+        } as CSSProperties
+      }
+    >
       {/* Keep one virtualized list so resizing cannot desynchronize the rows. */}
       <ResizablePanelGroup
         orientation="horizontal"

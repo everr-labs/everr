@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -40,7 +41,9 @@ const EXPIRY_OPTIONS = [
 type Expiry = (typeof EXPIRY_OPTIONS)[number]["value"];
 
 function scopeSelection(defaultScopes: readonly ApiKeyScope[]): Record<ApiKeyScope, boolean> {
-  return { ingest: defaultScopes.includes("ingest"), apply: defaultScopes.includes("apply") };
+  return Object.fromEntries(
+    ALL_API_KEY_SCOPES.map((scope) => [scope, defaultScopes.includes(scope)]),
+  ) as Record<ApiKeyScope, boolean>;
 }
 
 interface CreateApiKeyDialogProps {
@@ -244,13 +247,7 @@ export function CreateApiKeyDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="api-key-expiry">Expiration</Label>
-                <Select
-                  value={expiry}
-                  onValueChange={(v) => {
-                    const option = EXPIRY_OPTIONS.find((o) => o.value === v);
-                    if (option) setExpiry(option.value);
-                  }}
-                >
+                <Select value={expiry} onValueChange={(v) => setExpiry(v as Expiry)}>
                   <SelectTrigger id="api-key-expiry" className="w-full">
                     <SelectValue>
                       {EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}

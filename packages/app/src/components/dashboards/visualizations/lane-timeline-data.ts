@@ -37,7 +37,6 @@ export function collectLaneSamples(frames: QueryResultRow[][], spec: LaneSampleS
     const timeKey = detectTimeKey(rows);
     if (!timeKey) continue;
     const first = rows[0];
-    if (first === undefined) continue;
 
     if (spec.seriesColumn !== undefined && spec.seriesColumn in first) {
       // Long format: one lane per seriesColumn value.

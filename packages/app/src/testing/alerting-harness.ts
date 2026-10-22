@@ -63,7 +63,8 @@ export async function createAlertingHarness(
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : input.toString();
+      // oxlint-disable-next-line typescript/no-base-to-string -- Preserve the harness request URL coercion.
+      const url = typeof input === "string" ? input : input.toString();
       let body: unknown = init?.body;
       if (typeof init?.body === "string") {
         try {

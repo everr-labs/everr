@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+/* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
@@ -16,13 +18,10 @@ function detectInterval(timestamps: number[]): number | null {
   if (timestamps.length < 2) return null;
   const diffs: number[] = [];
   for (let i = 1; i < timestamps.length; i++) {
-    const prev = timestamps[i - 1];
-    const curr = timestamps[i];
-    if (prev === undefined || curr === undefined) continue;
-    diffs.push(curr - prev);
+    diffs.push(timestamps[i] - timestamps[i - 1]);
   }
   diffs.sort((a, b) => a - b);
-  return diffs[Math.floor(diffs.length / 2)] ?? null;
+  return diffs[Math.floor(diffs.length / 2)];
 }
 
 /** Sort the merged timeline and clamp it to the domain (no gap markers — this
@@ -33,10 +32,10 @@ function clampMerged(
 ): Array<Record<string, unknown>> {
   return [...byTs.values()]
     .filter((r) => {
-      const ts = r[TS_KEY];
-      return typeof ts === "number" && ts >= domain[0] && ts <= domain[1];
+      const ts = r[TS_KEY] as number;
+      return ts >= domain[0] && ts <= domain[1];
     })
-    .sort((a, b) => Number(a[TS_KEY]) - Number(b[TS_KEY]));
+    .sort((a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number));
 }
 
 /**
@@ -75,13 +74,11 @@ function buildSeriesData(
 
   const result: Array<Record<string, unknown>> = [];
   for (let i = 0; i < points.length; i++) {
-    const point = points[i];
-    if (point === undefined) continue;
-    const [ts, value] = point;
+    const [ts, value] = points[i];
     if (i > 0 && interval && gapThreshold) {
-      const prev = points[i - 1];
-      if (prev !== undefined && ts - prev[0] > gapThreshold) {
-        result.push({ [TS_KEY]: prev[0] + interval, [renderKey]: null });
+      const prevTs = points[i - 1][0];
+      if (ts - prevTs > gapThreshold) {
+        result.push({ [TS_KEY]: prevTs + interval, [renderKey]: null });
       }
     }
     result.push({ [TS_KEY]: ts, [renderKey]: value });
@@ -198,13 +195,9 @@ export function buildChartModel(
         // "not sampled here" — NOT a gap — and must not appear in this series'
         // data (where it would break the line).
         if (!(name in row)) continue;
-        const renderKey = renderKeyByName.get(name);
-        if (renderKey === undefined) continue;
-        const series = samplesByKey.get(renderKey);
-        if (series === undefined) continue;
         // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
         // recharts plots them; non-numeric values become null (a gap).
-        series.set(ts, toNumber(row[name]));
+        samplesByKey.get(renderKeyByName.get(name)!)!.set(ts, toNumber(row[name]));
       }
     }
   });

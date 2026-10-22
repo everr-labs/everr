@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/consistent-type-assertions -- Chart model timestamps are numeric; erased assertions preserve the existing arithmetic without coercing other values. */
+/* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
@@ -112,9 +114,7 @@ export function buildBarChartModel(
         // A pivoted row carries only the groups present at its x value, so a
         // missing key is "no bar here" — don't record it as 0.
         if (!(name in row)) continue;
-        const renderKey = renderKeyByName.get(name);
-        if (renderKey === undefined) continue;
-        entry[renderKey] = toNumber(row[name]);
+        entry[renderKeyByName.get(name)!] = toNumber(row[name]);
       }
     }
   });
@@ -122,7 +122,7 @@ export function buildBarChartModel(
   const isTimeAxis = sawTime && !sawCategory;
   const chartData = [...byX.values()];
   if (isTimeAxis) {
-    chartData.sort((a, b) => Number(a[X_KEY]) - Number(b[X_KEY]));
+    chartData.sort((a, b) => (a[X_KEY] as number) - (b[X_KEY] as number));
   }
 
   return { chartData, valueKeys, chartConfig, isTimeAxis };

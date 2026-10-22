@@ -52,7 +52,8 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        if (e.target instanceof HTMLElement && e.target.closest("button")) {
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the original button-ancestor check for all element targets, including SVG descendants.
+        if ((e.target as HTMLElement).closest("button")) {
           return;
         }
         e.currentTarget.parentElement?.querySelector("input")?.focus();

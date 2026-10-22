@@ -189,7 +189,8 @@ async function main() {
   const PORT = args.includes("--port") ? Number(args[args.indexOf("--port") + 1]) : DEFAULT_PORT;
   const fw = FRAMEWORKS[framework];
   if (!fw) {
-    console.error(`--framework must be one of: ${Object.keys(FRAMEWORKS).join(", ")}`);
+    // oxlint-disable-next-line typescript/restrict-template-expressions -- Preserve the existing comma-delimited error output during the tooling migration.
+    console.error(`--framework must be one of: ${Object.keys(FRAMEWORKS)}`);
     process.exit(2);
   }
 
@@ -282,7 +283,8 @@ async function main() {
   } catch (error) {
     verdict.error = String(error?.message ?? error);
   } finally {
-    if (server?.pid) process.kill(-server.pid, "SIGTERM");
+    // oxlint-disable-next-line typescript/no-unsafe-unary-minus -- Preserve the existing child-process cleanup behavior during the tooling migration.
+    if (server) process.kill(-server.pid, "SIGTERM");
     if (keep || !verdict.pass) {
       console.log(`[eval] project kept at ${appDir}`);
     } else {

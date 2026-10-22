@@ -185,10 +185,10 @@ export function AttributeFilterPill({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
+            // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- PopoverTrigger supplies the existing visible children through render; keep its accessible name unchanged.
             <button
               type="button"
               title={filter.key}
-              aria-label={`Edit ${name} filter`}
               className="hover:bg-muted/60 flex min-w-0 flex-1 flex-col gap-0.5 px-2 py-1.5 text-left outline-none transition-colors"
             />
           }

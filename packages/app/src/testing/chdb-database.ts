@@ -75,7 +75,8 @@ interface SqlApiLikeResult {
 }
 
 function readJsonEachRow(out: unknown): Record<string, unknown>[] {
-  const text = (typeof out === "string" ? out : JSON.stringify(out ?? "")).trim();
+  // oxlint-disable-next-line typescript/no-base-to-string -- Preserve the embedded driver output coercion.
+  const text = String(out ?? "").trim();
   if (text.length === 0) return [];
   return text.split("\n").map((line) => JSON.parse(line));
 }

@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/no-base-to-string -- Preserve how existing URL search values are displayed, including JavaScript coercion. */
+/* oxlint-disable typescript/restrict-template-expressions -- Preserve how existing URL search values are displayed, including JavaScript coercion. */
 import { Separator } from "@everr/ui/components/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@everr/ui/components/sidebar";
 import { cn } from "@everr/ui/lib/utils";
@@ -88,7 +90,7 @@ export function DashboardLayout() {
           {search.github_install === "error" && (
             <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
               Failed to link GitHub installation
-              {typeof search.reason === "string" && search.reason ? ` (${search.reason})` : ""}.
+              {search.reason ? ` (${search.reason})` : ""}.
             </div>
           )}
           <Outlet />

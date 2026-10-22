@@ -42,11 +42,14 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
           {state === "copied" ? <Check /> : <Copy />}
         </Button>
       </div>
-      <output className={cn("text-xs text-muted-foreground", state !== "failed" && "sr-only")}>
+      <p
+        role="status"
+        className={cn("text-xs text-muted-foreground", state !== "failed" && "sr-only")}
+      >
         {state === "copied" && "Copied to clipboard."}
         {state === "failed" &&
           "Couldn't access the clipboard. The text is selected; copy it manually."}
-      </output>
+      </p>
     </div>
   );
 }

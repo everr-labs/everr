@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -24,8 +25,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { invitationUrl } from "#app/common/invitation.ts";
 import { InvitationLink } from "./invitation-link";
-import { useInviteMember } from "./queries";
-import { type OrgRole, OrgRoleSchema } from "./schemas";
+import { type OrgRole, useInviteMember } from "./queries";
 
 export function InviteMemberDialog() {
   const { emailEnabled } = useRouteContext({ from: "__root__" });
@@ -107,10 +107,7 @@ export function InviteMemberDialog() {
                 <Select
                   value={role}
                   disabled={invite.isPending}
-                  onValueChange={(value) => {
-                    const next = OrgRoleSchema.safeParse(value);
-                    if (next.success) setRole(next.data);
-                  }}
+                  onValueChange={(v) => setRole(v as OrgRole)}
                 >
                   <SelectTrigger id="invite-role">
                     <SelectValue />

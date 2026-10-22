@@ -57,7 +57,8 @@ export function createBillingRequestLocks(checkoutLockPool: Pick<Pool, "connect"
         "select pg_try_advisory_lock(hashtextextended($1, 0)) as locked",
         [key],
       );
-      locked = result.rows[0]?.locked;
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- Preserve the existing lock-result interpretation.
+      locked = result.rows[0]?.locked === true;
       if (!locked) throw new Error("Checkout is being processed. Please try again.");
       return await run();
     } finally {

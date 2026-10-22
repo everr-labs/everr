@@ -85,10 +85,8 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
-    const themeColor = itemConfig.theme
-      ? Object.entries(itemConfig.theme).find(([t]) => t === theme)?.[1]
-      : undefined;
-    const color = themeColor || itemConfig.color;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Theme is one of the configured theme names; preserve the original direct property lookup.
+    const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
     return color ? `  --color-${key}: ${color};` : null;
   })
   .join("\n")}
@@ -267,7 +265,8 @@ function ChartLegendContent({
       {payload
         .filter((item) => item.type !== "none")
         .map((item) => {
-          const key = String(nameKey || item.dataKey || "value");
+          // oxlint-disable-next-line typescript/restrict-template-expressions -- Preserve the original legend-key template coercion supplied by Recharts.
+          const key = `${nameKey || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
 
           return (
@@ -295,29 +294,33 @@ function ChartLegendContent({
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
+// oxlint-disable typescript/consistent-type-assertions -- Preserve guarded payload property access and its original evaluation order for chart tooltip data.
 function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key: string) {
-  if (!isRecord(payload)) {
+  if (typeof payload !== "object" || payload === null) {
     return undefined;
   }
 
-  const payloadPayload = isRecord(payload.payload) ? payload.payload : undefined;
+  const payloadPayload =
+    "payload" in payload && typeof payload.payload === "object" && payload.payload !== null
+      ? payload.payload
+      : undefined;
 
   let configLabelKey: string = key;
 
-  const directValue = payload[key];
-  const nestedValue = payloadPayload?.[key];
-  if (typeof directValue === "string") {
-    configLabelKey = directValue;
-  } else if (typeof nestedValue === "string") {
-    configLabelKey = nestedValue;
+  if (key in payload && typeof payload[key as keyof typeof payload] === "string") {
+    configLabelKey = payload[key as keyof typeof payload] as string;
+  } else if (
+    payloadPayload &&
+    key in payloadPayload &&
+    typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
+  ) {
+    configLabelKey = payloadPayload[key as keyof typeof payloadPayload] as string;
   }
 
-  return configLabelKey in config ? config[configLabelKey] : config[key];
+  return configLabelKey in config ? config[configLabelKey] : config[key as keyof typeof config];
 }
+
+// oxlint-enable typescript/consistent-type-assertions
 
 export {
   ChartContainer,

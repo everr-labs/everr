@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -95,9 +96,7 @@ export function LaneTimelineChart({
       trackRectRef.current = rect;
       setBrushStart(pxToTimestamp(e.clientX, rect));
       setBrushEnd(null);
-      if (e.target instanceof HTMLElement) {
-        e.target.setPointerCapture(e.pointerId);
-      }
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
     [pxToTimestamp],
   );

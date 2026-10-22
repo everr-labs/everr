@@ -81,10 +81,12 @@ export function ErrorIssues({
                 issues={issues}
                 isPending={issuesQuery.isPending}
                 isError={issuesQuery.isError}
-                onRetry={() => void issuesQuery.refetch()}
+                // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+                onRetry={() => issuesQuery.refetch()}
                 hasNextPage={issuesQuery.hasNextPage}
                 isFetchingNextPage={issuesQuery.isFetchingNextPage}
-                onLoadMore={() => void issuesQuery.fetchNextPage()}
+                // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+                onLoadMore={() => issuesQuery.fetchNextPage()}
                 renderIssueLink={renderIssueLink}
               />
             </div>

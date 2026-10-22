@@ -67,7 +67,8 @@ export type Reconciler = (opts: {
 
 function validateResourceKind(resources: ApplyResourceEntry[], expectedKind: string): void {
   for (const resource of resources) {
-    const value = isRecord(resource.resource) ? resource.resource : undefined;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve property access on the submitted resource without adding a new shape guard.
+    const value = resource.resource as { kind?: unknown } | null | undefined;
     const ok =
       value?.kind === expectedKind ||
       // `Notebook` is the legacy alias for `Runbook` (ADR 0002).
@@ -250,8 +251,4 @@ export async function applyResources(opts: {
   });
 
   return { dryRun: false, results: withOrphanWarnings(results) };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

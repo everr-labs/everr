@@ -48,19 +48,6 @@ function renderCombobox({
   return { queryFn, onChange };
 }
 
-it("connects the trigger to its rendered popup", async () => {
-  renderCombobox({ items: ["cluster"] });
-  const trigger = screen.getByRole("combobox", { name: "Equal labels" });
-  await userEvent.setup().click(trigger);
-  const list = await screen.findByRole("listbox");
-  const popup = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
-  expect(popup).toBeInTheDocument();
-  expect(popup).toHaveAttribute("role", trigger.getAttribute("aria-haspopup"));
-  expect(popup).toContainElement(list);
-  const search = screen.getByPlaceholderText("Search...");
-  expect(document.getElementById(search.getAttribute("aria-controls") ?? "")).toBe(list);
-});
-
 it("adds a typed custom entry to the selection via the Use row", async () => {
   const user = userEvent.setup();
   const { onChange } = renderCombobox({

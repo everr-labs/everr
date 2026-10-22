@@ -128067,9 +128067,8 @@ async function loadSamples(samplesPath) {
             parsed = JSON.parse(line);
         }
         catch (error) {
-            throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`, {
-                cause: error,
-            });
+            // oxlint-disable-next-line preserve-caught-error -- Preserve the original sample-parsing error shape during the tooling migration.
+            throw new Error(`invalid NDJSON sample on line ${index + 1}: ${formatError(error)}`);
         }
         return sanitizeSample(parsed);
     });

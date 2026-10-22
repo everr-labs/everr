@@ -20,7 +20,7 @@ export interface LogHistogramProps {
   onShowVolumeChange: (show: boolean) => void;
 }
 
-const chartConfig: ChartConfig = {
+const chartConfig = {
   unknown: {
     label: LOG_LEVEL_META.unknown.label,
     color: LOG_LEVEL_META.unknown.chartColor,
@@ -45,7 +45,7 @@ const chartConfig: ChartConfig = {
     label: LOG_LEVEL_META.error.label,
     color: LOG_LEVEL_META.error.chartColor,
   },
-};
+} satisfies ChartConfig;
 
 const histogramStack = [
   "unknown",
@@ -67,11 +67,13 @@ function formatBucketLabel(bucket: LogHistogramBucket | undefined) {
   return `${day} · ${time(start)} – ${time(end)}`;
 }
 
+type HistogramMouseEvent = {
+  activeTooltipIndex?: number | null;
+};
+
 function histogramEventIndex(event: unknown, data: LogHistogramBucket[]): number | null {
-  const index =
-    event && typeof event === "object" && "activeTooltipIndex" in event
-      ? event.activeTooltipIndex
-      : undefined;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
+  const index = (event as HistogramMouseEvent | undefined)?.activeTooltipIndex;
   if (typeof index !== "number" || index < 0 || index >= data.length) {
     return null;
   }
@@ -173,9 +175,17 @@ function LogHistogramChart({
                     className="size-2.5 shrink-0 rounded-[2px]"
                     style={{ backgroundColor: `var(--color-${name})` }}
                   />
-                  <span className="text-muted-foreground">{chartConfig[String(name)]?.label}</span>
+                  <span className="text-muted-foreground">
+                    {
+                      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing chart payload lookup.
+                      chartConfig[name as keyof typeof chartConfig]?.label
+                    }
+                  </span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {value.toLocaleString()}
+                    {
+                      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve locale formatting on the original value without introducing coercion or validation.
+                      (value as number).toLocaleString()
+                    }
                   </span>
                 </>
               )}

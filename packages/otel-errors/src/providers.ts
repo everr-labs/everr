@@ -21,11 +21,18 @@ export function resolveFlushable(candidate: unknown): Flushable | null {
   while (typeof current === "object" && current !== null && !seen.has(current)) {
     seen.add(current);
 
-    const provider = current;
-    if (isFlushable(provider)) return provider;
-    const delegate =
-      ("getDelegate" in provider ? provider.getDelegate : undefined) ??
-      ("_getDelegate" in provider ? provider._getDelegate : undefined);
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the original direct provider and delegate property reads without adding runtime presence guards.
+    const provider = current as Partial<Flushable> & {
+      getDelegate?: () => unknown;
+      _getDelegate?: () => unknown;
+    };
+
+    if (typeof provider.forceFlush === "function") {
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- forceFlush was checked above; return the original provider object.
+      return provider as Flushable;
+    }
+
+    const delegate = provider.getDelegate ?? provider._getDelegate;
     if (typeof delegate !== "function") {
       return null;
     }
@@ -34,8 +41,4 @@ export function resolveFlushable(candidate: unknown): Flushable | null {
   }
 
   return null;
-}
-
-function isFlushable(provider: object): provider is Flushable {
-  return "forceFlush" in provider && typeof provider.forceFlush === "function";
 }

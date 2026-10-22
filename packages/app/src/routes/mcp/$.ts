@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
@@ -14,23 +15,9 @@ import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 // thread it through the handler or stash it in AsyncLocalStorage ourselves.
 type McpContext = { orgId: string; userId: string; metadata: string | null };
 
-function contextOf(extra: {
-  authInfo?: { extra?: Record<string, unknown> };
-}): McpContext | undefined {
-  const ctx = extra.authInfo?.extra;
-  if (
-    typeof ctx?.orgId === "string" &&
-    typeof ctx?.userId === "string" &&
-    ctx.orgId &&
-    ctx.userId
-  ) {
-    return {
-      orgId: ctx.orgId,
-      userId: ctx.userId,
-      metadata: typeof ctx.metadata === "string" ? ctx.metadata : null,
-    };
-  }
-  return undefined;
+function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
+  const ctx = extra.authInfo?.extra as McpContext | undefined;
+  return ctx?.orgId && ctx?.userId ? ctx : undefined;
 }
 
 function createTransport() {

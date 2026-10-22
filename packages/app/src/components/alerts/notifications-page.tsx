@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
 import { cn } from "@everr/ui/lib/utils";
@@ -60,7 +61,7 @@ function Receives({ channel }: { channel: NotificationChannelView }) {
       {tiers[0] === "all" ? (
         <span>{TIER_LABEL.all}</span>
       ) : tiers.length > 0 ? (
-        <Severities tiers={tiers.filter((tier) => tier !== "all")} />
+        <Severities tiers={tiers as AlertingSeverity[]} />
       ) : (
         <span className="text-muted-foreground">not in the default</span>
       )}

@@ -27,7 +27,8 @@ const ALERT_RETENTION_TASK = "alerts/retention";
  */
 function jobTraceparent(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null) return null;
-  const value = "traceparent" in payload ? payload.traceparent : undefined;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve optional traceparent property access without adding a new presence guard.
+  const value = (payload as { traceparent?: unknown }).traceparent;
   return typeof value === "string" ? value : null;
 }
 

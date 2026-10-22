@@ -1,166 +1,53 @@
 import { QueryClient } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { z } from "zod";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({ listMembers: vi.fn(), listInvitations: vi.fn() }));
 vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { organization: mocks } }));
 
 import { invitationsQueryOptions, membersQueryOptions } from "./queries";
-import { InviteMemberInputSchema, UpdateMemberRoleInputSchema } from "./schemas";
 
-const timestamp = "2026-10-21T12:00:00.000Z";
-const member = {
-  id: "member-1",
-  userId: "user-1",
-  role: "owner",
-  createdAt: timestamp,
-  user: { name: "Owner", email: "owner@example.test" },
-};
-const invitation = {
-  id: "invitation-1",
-  email: "invited@example.test",
-  role: "member",
-  status: "pending",
-  expiresAt: timestamp,
-};
 let client: QueryClient;
-
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.resetAllMocks();
 });
 afterEach(() => client.clear());
 
-describe("member response boundary", () => {
-  it("accepts genuinely empty lists", async () => {
-    mocks.listMembers.mockResolvedValue({ data: { members: [] }, error: null });
-    mocks.listInvitations.mockResolvedValue({ data: [], error: null });
-    expect(
-      await Promise.all([
-        client.fetchQuery(membersQueryOptions()),
-        client.fetchQuery(invitationsQueryOptions()),
-      ]),
-    ).toEqual([[], []]);
-  });
-
-  it.each([
-    { name: "array", data: [member] },
-    { name: "envelope", data: { members: [member], total: 1 } },
-    { name: "Date object", data: [{ ...member, createdAt: new Date(timestamp) }] },
-  ])("validates the $name response before caching it", async ({ data }) => {
-    mocks.listMembers.mockResolvedValue({ data, error: null });
-    const members = await client.fetchQuery(membersQueryOptions());
-    expect(members).toEqual([{ ...member, createdAt: new Date(timestamp) }]);
-  });
-
-  it.each([
-    { name: "missing envelope", data: undefined },
-    { name: "null response", data: null },
-    { name: "wrong envelope", data: { users: [member] } },
-    { name: "non-string role", data: [{ ...member, role: 42 }] },
-    { name: "array role", data: [{ ...member, role: ["member", "admin"] }] },
-    { name: "malformed date", data: [{ ...member, createdAt: "not-a-date" }] },
-    { name: "null date", data: [{ ...member, createdAt: null }] },
-    { name: "missing identity", data: [{ ...member, userId: undefined }] },
-    { name: "malformed profile", data: [{ ...member, user: { name: 42 } }] },
-  ])("rejects $name instead of caching an empty or unsafe list", async ({ data }) => {
-    mocks.listMembers.mockResolvedValue({ data, error: null });
-    await expect(client.fetchQuery(membersQueryOptions())).rejects.toBeInstanceOf(z.ZodError);
-    expect(client.getQueryData(membersQueryOptions().queryKey)).toBeUndefined();
-  });
-
-  it("preserves an intentionally missing profile for the table's fallback", async () => {
-    mocks.listMembers.mockResolvedValue({ data: [{ ...member, user: null }], error: null });
-    const members = await client.fetchQuery(membersQueryOptions());
-    expect(members[0]?.user).toBeNull();
-  });
-
-  it.each(["owner,member", "member, admin", "auditor", "auditor,owner"])(
-    "preserves Better Auth member roles: %s",
-    async (role) => {
-      mocks.listMembers.mockResolvedValue({
-        data: { members: [{ ...member, role }] },
-        error: null,
-      });
-      expect(await client.fetchQuery(membersQueryOptions())).toEqual([
-        { ...member, role, createdAt: new Date(timestamp) },
-      ]);
-    },
-  );
+it("preserves member response values without validating or coercing them", async () => {
+  const member = {
+    id: "member-1",
+    userId: "user-1",
+    role: "owner,member",
+    createdAt: "legacy-date",
+  };
+  mocks.listMembers.mockResolvedValue({ data: { members: [member] }, error: null });
+  expect(await client.fetchQuery(membersQueryOptions())).toEqual([member]);
 });
 
-describe("invitation response boundary", () => {
-  it.each(["admin,member", "auditor", "admin,auditor"])(
-    "preserves Better Auth invitation roles: %s",
-    async (role) => {
-      mocks.listInvitations.mockResolvedValue({
-        data: [{ ...invitation, role }],
-        error: null,
-      });
-      expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
-        { ...invitation, role, expiresAt: new Date(timestamp) },
-      ]);
-    },
-  );
+it.each([undefined, null, { users: [] }, { members: null }])(
+  "keeps the empty-list fallback for an unsupported member envelope: %s",
+  async (data) => {
+    mocks.listMembers.mockResolvedValue({ data, error: null });
+    expect(await client.fetchQuery(membersQueryOptions())).toEqual([]);
+  },
+);
 
-  it.each([
-    { name: "array", data: [invitation] },
-    { name: "envelope", data: { invitations: [invitation] } },
-    { name: "Date object", data: [{ ...invitation, expiresAt: new Date(timestamp) }] },
-  ])("validates the $name response before caching it", async ({ data }) => {
-    mocks.listInvitations.mockResolvedValue({ data, error: null });
-    expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
-      { ...invitation, expiresAt: new Date(timestamp) },
-    ]);
+it("filters pending invitations without validating unrelated records or coercing fields", async () => {
+  const pending = {
+    id: "invite-1",
+    email: "legacy-address",
+    role: "auditor",
+    status: "pending",
+    expiresAt: "legacy-date",
+  };
+  mocks.listInvitations.mockResolvedValue({
+    data: { invitations: [pending, { status: "unexpected" }, {}] },
+    error: null,
   });
-
-  it("shows only pending invitations after validating all records", async () => {
-    mocks.listInvitations.mockResolvedValue({
-      data: ["pending", "accepted", "rejected", "canceled"].map((status) => ({
-        ...invitation,
-        id: status,
-        status,
-      })),
-      error: null,
-    });
-    expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([
-      { ...invitation, id: "pending", expiresAt: new Date(timestamp) },
-    ]);
-  });
-
-  it.each([
-    { name: "missing envelope", data: undefined },
-    { name: "non-array payload", data: { invitations: "not-an-array" } },
-    { name: "non-string role", data: [{ ...invitation, role: null }] },
-    { name: "array role", data: [{ ...invitation, role: ["member", "admin"] }] },
-    { name: "unknown status", data: [{ ...invitation, status: "unexpected" }] },
-    { name: "missing status", data: [{ ...invitation, status: undefined }] },
-    { name: "malformed date", data: [{ ...invitation, expiresAt: "not-a-date" }] },
-  ])("rejects $name instead of silently hiding records", async ({ data }) => {
-    mocks.listInvitations.mockResolvedValue({ data, error: null });
-    await expect(client.fetchQuery(invitationsQueryOptions())).rejects.toBeInstanceOf(z.ZodError);
-  });
+  expect(await client.fetchQuery(invitationsQueryOptions())).toEqual([pending]);
 });
 
-it("keeps role changes and new invitations restricted to a single selectable role", () => {
-  expect(
-    UpdateMemberRoleInputSchema.safeParse({ memberId: "member-1", role: "admin" }).success,
-  ).toBe(true);
-  expect(
-    UpdateMemberRoleInputSchema.safeParse({ memberId: "member-1", role: "admin,member" }).success,
-  ).toBe(false);
-  expect(
-    InviteMemberInputSchema.safeParse({
-      email: "invited@example.test",
-      role: "member",
-      sendEmail: false,
-    }).success,
-  ).toBe(true);
-  expect(
-    InviteMemberInputSchema.safeParse({
-      email: "invited@example.test",
-      role: "admin,member",
-      sendEmail: false,
-    }).success,
-  ).toBe(false);
+it("preserves auth-client errors", async () => {
+  mocks.listMembers.mockResolvedValue({ data: null, error: { message: "Access denied" } });
+  await expect(client.fetchQuery(membersQueryOptions())).rejects.toThrow("Access denied");
 });

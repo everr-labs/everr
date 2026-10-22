@@ -90,11 +90,11 @@ export function FilterCombobox<TData>({
       </Label>
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger
-          id={id}
           render={
             <Button
+              id={id}
               variant="outline"
-              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; PopoverTrigger supplies aria-controls with the rendered popup's ID.
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; Preserve the existing composite trigger role and its original popup association.
               role="combobox"
               aria-expanded={open}
               className={cn(

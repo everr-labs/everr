@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 
 export function useDelayedFlag(active: boolean, delayMs: number): boolean {
-  const [state, setState] = useState({ active, ready: false });
-  if (state.active !== active) setState({ active, ready: false });
+  const [delayed, setDelayed] = useState(false);
   useEffect(() => {
-    if (!active) return;
-    const id = setTimeout(() => setState({ active, ready: true }), delayMs);
+    if (!active) {
+      // oxlint-disable-next-line react/set-state-in-effect -- Preserve the existing delayed-flag reset timing; moving this reset into render changes observable loading behavior.
+      setDelayed(false);
+      return;
+    }
+    const id = setTimeout(() => setDelayed(true), delayMs);
     return () => clearTimeout(id);
   }, [active, delayMs]);
-  return state.active === active && state.ready;
+  return delayed;
 }

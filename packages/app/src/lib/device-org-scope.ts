@@ -31,15 +31,13 @@ export function getDeviceOrgIdFromScope(scope: string | null | undefined) {
   }
 }
 
+type AuthSessionOrganization = { session?: { activeOrganizationId?: unknown } } | null;
+
 export function getActiveOrganizationIdFromAuthSession(session: unknown) {
-  if (session && typeof session === "object" && "session" in session) {
-    const inner = session.session;
-    if (inner && typeof inner === "object" && "activeOrganizationId" in inner) {
-      const activeOrganizationId = inner.activeOrganizationId;
-      if (typeof activeOrganizationId === "string" && activeOrganizationId) {
-        return activeOrganizationId;
-      }
-    }
-  }
-  return null;
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve optional property access without adding input shape guards.
+  const activeOrganizationId = (session as AuthSessionOrganization)?.session?.activeOrganizationId;
+
+  return typeof activeOrganizationId === "string" && activeOrganizationId
+    ? activeOrganizationId
+    : null;
 }

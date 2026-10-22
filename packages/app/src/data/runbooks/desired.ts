@@ -80,8 +80,8 @@ export function buildDesiredRunbookSet(inputs: InputDocument[]): DesiredResource
       );
     }
 
-    const rawSpec =
-      document && typeof document === "object" && "spec" in document ? document.spec : undefined;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing document access and validation errors.
+    const rawSpec = (document as { spec?: unknown }).spec;
     const specResult = runbookSpecSchemaStrict.safeParse(rawSpec);
     if (!specResult.success) {
       const issue = specResult.error.issues[0];

@@ -12,20 +12,11 @@ import { AUTH_BASE, AUTH_ISSUER } from "#app/lib/mcp-resource.ts";
 // Better Auth throws APIError with the useful detail under `.body`
 // (error_description for OAuth errors); surface that instead of an empty string.
 function oauthFlowError(error: unknown, fallback: string): string {
-  if (error && typeof error === "object" && "body" in error) {
-    const body = error.body;
-    if (body && typeof body === "object") {
-      if (
-        "error_description" in body &&
-        typeof body.error_description === "string" &&
-        body.error_description
-      ) {
-        return body.error_description;
-      }
-      if ("message" in body && typeof body.message === "string" && body.message) {
-        return body.message;
-      }
-    }
+  if (error && typeof error === "object") {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider error field passthrough without adding runtime validation.
+    const body = (error as { body?: { error_description?: string; message?: string } }).body;
+    if (body?.error_description) return body.error_description;
+    if (body?.message) return body.message;
   }
   if (error instanceof Error && error.message) return error.message;
   return fallback;
@@ -68,7 +59,8 @@ export async function setActiveOrg(incoming: Headers, organizationId: string): P
       body: { organizationId },
     });
   } catch (error) {
-    throw new Error(oauthFlowError(error, "Failed to switch organization"), { cause: error });
+    // oxlint-disable-next-line preserve-caught-error -- Preserve the existing public OAuth error shape.
+    throw new Error(oauthFlowError(error, "Failed to switch organization"));
   }
 }
 
@@ -95,6 +87,7 @@ export async function submitConsent(
     }
     return { url: result.url };
   } catch (error) {
-    throw new Error(oauthFlowError(error, "Failed to record consent"), { cause: error });
+    // oxlint-disable-next-line preserve-caught-error -- Preserve the existing public OAuth error shape.
+    throw new Error(oauthFlowError(error, "Failed to record consent"));
   }
 }

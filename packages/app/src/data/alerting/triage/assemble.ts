@@ -152,8 +152,10 @@ const BAND_RANK: Record<TriageStatus, number> = {
 /** Worst first, which is the vocabulary read backwards: `ALERTING_SEVERITIES`
  *  is ascending, and it is the list the Zod and Postgres enums are built from,
  *  so a severity added there cannot fall out of this sort. */
-const severityOrder = [...ALERTING_SEVERITIES].reverse();
-const severityRank = (severity: AlertingSeverity) => severityOrder.indexOf(severity);
+// oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve the existing severity lookup including fallback behavior for unknown values.
+const SEVERITY_RANK = Object.fromEntries(
+  [...ALERTING_SEVERITIES].reverse().map((severity, rank) => [severity, rank]),
+) as Record<AlertingSeverity, number>;
 
 /** A silenced rule is still firing, so it stays in its own band, after the
  *  rest of it. Exiling it to the bottom would hide the fact that the thing
@@ -161,7 +163,7 @@ const severityRank = (severity: AlertingSeverity) => severityOrder.indexOf(sever
 export function byTriageOrder(a: TriageAlert, b: TriageAlert): number {
   return (
     BAND_RANK[a.status] - BAND_RANK[b.status] ||
-    severityRank(a.severity) - severityRank(b.severity) ||
+    SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
     Number(Boolean(a.silence)) - Number(Boolean(b.silence))
   );
 }

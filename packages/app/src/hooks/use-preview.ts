@@ -10,7 +10,7 @@ export function usePreview(): { name: string; exit: () => void } {
     from: "/_authenticated/_organization/_dashboard",
   });
   const name = (preview ?? "").trim();
-  const exit = () =>
-    void navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
+  const exit = () => navigate({ to: ".", search: (prev) => ({ ...prev, preview: undefined }) });
+  // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the navigation promise returned by exit.
   return { name, exit };
 }

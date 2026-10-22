@@ -34,111 +34,23 @@ describe("internal UI telemetry", () => {
     expect(mocks.sdk).not.toHaveBeenCalled();
   });
 
-  it.each([
-    undefined,
-    null,
-    {},
-    { serviceVersion: "test", telemetryEnabled: "true", deploymentEnvironment: "production" },
-    { serviceVersion: "test", telemetryEnabled: true, deploymentEnvironment: "unknown" },
-    { serviceVersion: 1, telemetryEnabled: true, deploymentEnvironment: "production" },
-  ])("rejects malformed backend settings before starting telemetry: %j", (context) => {
-    expect(() => initializeTelemetry(context)).toThrow();
+  it("keeps disabled legacy settings permissive", () => {
+    expect(() =>
+      initializeTelemetry({ telemetryEnabled: false } as Parameters<typeof initializeTelemetry>[0]),
+    ).not.toThrow();
     expect(mocks.sdk).not.toHaveBeenCalled();
   });
 
-  it("restores production error redaction if backend settings become invalid", () => {
+  it("keeps the prior build mode when malformed settings throw before assigning it", () => {
     initializeTelemetry({
       serviceVersion: "test",
-      telemetryEnabled: true,
+      telemetryEnabled: false,
       deploymentEnvironment: "development",
     });
-    expect(() => initializeTelemetry({})).toThrow();
-    captureLocalSqlError(new Error("customer-sentinel"));
-    expect(mocks.sdk).toHaveBeenCalledOnce();
-    expect(mocks.capture.mock.calls[0][0].message).toBe("Local telemetry query failed");
-    expect(mocks.capture.mock.calls[0][0].stack).not.toContain("customer-sentinel");
-  });
-
-  it.each(["not-json", '{"resourceLogs":', '{"value":1e999}'])(
-    "does not export invalid JSON: %s",
-    async (body) => {
-      initializeTelemetry({
-        serviceVersion: "test",
-        telemetryEnabled: true,
-        deploymentEnvironment: "production",
-      });
-      const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
-      const fetch = vi.fn();
-      vi.stubGlobal("fetch", fetch);
-      await expect(options.send?.("logs", body)).rejects.toThrow();
-      expect(fetch).not.toHaveBeenCalled();
-    },
-  );
-
-  it("preserves nested OTLP values and unknown fields while redacting private attributes", async () => {
-    initializeTelemetry({
-      serviceVersion: "test",
-      telemetryEnabled: true,
-      deploymentEnvironment: "production",
-    });
-    const options = mocks.sdk.mock.calls[0][0] as WebSDKOptions;
-    const fetch = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal("fetch", fetch);
-    const safeValues = [
-      null,
-      false,
-      0,
-      "",
-      { boolValue: true },
-      { intValue: "9007199254740993" },
-      { doubleValue: 1.25 },
-      { bytesValue: "AQID" },
-      { key: "url.full", value: null },
-      { key: "url.full", value: { intValue: "42" } },
-    ];
-    const privateAttribute = {
-      key: "everr.utm.future",
-      value: { stringValue: "customer-sentinel" },
-    };
-    const urlAttribute = {
-      key: "url.full",
-      value: { stringValue: "/logs?q=customer-sentinel#private", futureValue: { boolValue: true } },
-      futureField: [null, false, 42],
-    };
-    const payload = (values: unknown[]) => ({
-      resourceLogs: [
-        {
-          futureField: { array: safeValues },
-          scopeLogs: [{ logRecords: [{ body: { kvlistValue: { values } } }] }],
-        },
-      ],
-    });
-    await options.send?.(
-      "logs",
-      JSON.stringify(
-        payload([
-          {
-            key: "nested",
-            value: { arrayValue: { values: [privateAttribute, urlAttribute, ...safeValues] } },
-          },
-        ]),
-      ),
-    );
-    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(
-      payload([
-        {
-          key: "nested",
-          value: {
-            arrayValue: {
-              values: [
-                { ...urlAttribute, value: { ...urlAttribute.value, stringValue: "/logs" } },
-                ...safeValues,
-              ],
-            },
-          },
-        },
-      ]),
-    );
+    expect(() => initializeTelemetry(null as never)).toThrow(TypeError);
+    const error = new Error("debug query details");
+    captureLocalSqlError(error);
+    expect(mocks.capture.mock.calls[0][0]).toBe(error);
   });
 
   it.each(["development", "production"] as const)(

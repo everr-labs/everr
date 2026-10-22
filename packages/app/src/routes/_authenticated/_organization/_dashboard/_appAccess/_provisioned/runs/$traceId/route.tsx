@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
@@ -158,11 +159,7 @@ function RunDetailLayout() {
                     jobs={jobs ?? []}
                     stepsByJobId={stepsByJobId ?? {}}
                     traceId={traceId}
-                    selectedJobId={
-                      "jobId" in params && typeof params.jobId === "string"
-                        ? params.jobId
-                        : undefined
-                    }
+                    selectedJobId={(params as { jobId?: string }).jobId}
                   />
                 </ScrollArea>
               </CardContent>

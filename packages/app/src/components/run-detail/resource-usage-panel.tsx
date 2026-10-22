@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import {
   type ChartConfig,
   ChartContainer,
@@ -164,7 +165,7 @@ function MiniChart({
                   />
                   <span className="text-muted-foreground">{config[String(name)]?.label}</span>
                   <span className="ml-auto font-mono font-medium tabular-nums">
-                    {typeof value === "number" ? tooltipFormatter(value, String(name)) : null}
+                    {tooltipFormatter(value as number, String(name))}
                   </span>
                 </>
               )}

@@ -268,13 +268,12 @@ export class ErrorsInstrumentation implements Instrumentation<ErrorsInstrumentat
     try {
       await Promise.race([
         Promise.all(
-          targets
-            .filter((target) => target !== null)
-            .map((target) =>
-              target
-                .forceFlush()
-                .catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
-            ),
+          // oxlint-disable-next-line typescript/await-thenable -- Preserve null provider entries in the aggregate; Promise.all accepts the undefined produced by optional flushing.
+          targets.map((target) =>
+            target
+              ?.forceFlush()
+              .catch((err) => diag.error(`${PKG_NAME}: flush on fatal failed`, err)),
+          ),
         ),
         new Promise<void>((resolve) => {
           timer = setTimeout(resolve, this._config.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT_MS);

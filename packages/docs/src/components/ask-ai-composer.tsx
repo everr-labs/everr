@@ -57,13 +57,17 @@ export function AskAiComposer() {
             </button>
           </div>
         </div>
-        <output className="block mt-3 ml-6 text-center text-xs leading-normal text-muted-foreground">
+        <p
+          className="mt-3 ml-6 text-center text-xs leading-normal text-muted-foreground"
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
+          role="status"
+        >
           {status === "error"
             ? "Copy failed. Select the text above and copy it manually."
             : status === "copied"
               ? "Copied. Paste into your AI to start the conversation."
               : "Take this to ChatGPT, Claude, or your coding agent."}
-        </output>
+        </p>
       </div>
     </div>
   );

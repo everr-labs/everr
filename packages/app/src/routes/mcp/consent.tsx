@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { createFileRoute } from "@tanstack/react-router";
@@ -50,9 +51,9 @@ export const Route = createFileRoute("/mcp/consent")({
 
 function Consent() {
   const { organizations, activeOrganizationId } = Route.useLoaderData();
-  const search = Route.useSearch();
-  const clientId = typeof search.client_id === "string" ? search.client_id : "";
-  const scope = typeof search.scope === "string" ? search.scope : "";
+  const search = Route.useSearch() as { client_id?: string; scope?: string };
+  const clientId = search.client_id ?? "";
+  const scope = search.scope ?? "";
   const scopes = scope.split(/\s+/).filter(Boolean);
 
   // The org bound at Approve is whatever is server-side active; switching is just

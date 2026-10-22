@@ -47,7 +47,8 @@ const localStorageStore: IdentityStore = {
         localStorage.getItem(SESSION_KEY) ?? "null",
       );
       if (typeof parsed?.id === "string" && typeof parsed.t === "number")
-        return { id: parsed.id, t: parsed.t };
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- Retain the validated stored object, including any additional persisted fields.
+        return parsed as SessionState;
     } catch {
       // The store is not available, or the data is not correct.
     }

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -17,6 +18,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   type ChannelConfigDraft,
+  type ChannelType,
   channelConfigDraft,
   channelConfigInput,
   EMPTY_CHANNEL_DRAFT,
@@ -192,10 +194,7 @@ function ChannelForm({
             id="channel-type"
             value={draft.type}
             disabled={busy}
-            onChange={(v) => {
-              const option = CHANNEL_OPTIONS.find(({ value }) => value === v);
-              if (option) patch({ type: option.value });
-            }}
+            onChange={(v) => patch({ type: v as ChannelType })}
             options={CHANNEL_OPTIONS}
           />
         </div>

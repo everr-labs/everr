@@ -83,11 +83,12 @@ function ScrollArea({
         // scroll area does not own has to be clipped back inline. Without it
         // an `orientation="vertical"` area still scrolls sideways, with no
         // scrollbar to show for it.
-        style={(state) => ({
+        style={{
           ...(horizontal ? undefined : { overflowX: "hidden" as const }),
           ...(vertical ? undefined : { overflowY: "hidden" as const }),
-          ...(typeof viewportStyle === "function" ? viewportStyle(state) : viewportStyle),
-        })}
+          // oxlint-disable-next-line typescript/no-misused-spread -- Preserve the existing style-object spread contract; invoking callback styles would change runtime behavior.
+          ...viewportStyle,
+        }}
         {...viewportProps}
       >
         {children}

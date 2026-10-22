@@ -102,16 +102,40 @@ function LogStream({
     [selectedLogKey, onSelect],
   );
 
+  const components = useMemo(
+    () => ({
+      ...virtuosoScrollAreaComponents,
+      // oxlint-disable-next-line react/no-unstable-nested-components -- Preserve the existing footer component lifetime when pagination values change.
+      Footer: () => (
+        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+          {isFetchingNextPage ? (
+            <span className="flex items-center gap-2">
+              <Skeleton className="size-2 rounded-full" />
+              Loading more events
+            </span>
+          ) : hasNextPage ? (
+            <span>
+              Showing {logs.length.toLocaleString()}
+              {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
+            </span>
+          ) : (
+            <span>Showing all {logs.length.toLocaleString()} matching events</span>
+          )}
+        </div>
+      ),
+    }),
+    [isFetchingNextPage, hasNextPage, totalCount, logs.length],
+  );
+
   return (
     <Virtuoso
-      context={{ count: logs.length, totalCount, hasNextPage, isFetchingNextPage }}
       data={logs}
       className="h-full min-h-0 bg-background"
       increaseViewportBy={isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE}
       endReached={endReached}
       computeItemKey={computeRowKey}
       itemContent={itemContent}
-      components={logStreamComponents}
+      components={components}
     />
   );
 }
@@ -121,7 +145,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
     <div className="flex h-full flex-col bg-background">
       {Array.from({ length: 14 }).map((_, index) => (
         <div
-          // oxlint-disable-next-line react/no-array-index-key -- static placeholder skeleton, no data-derived key exists and the list never reorders
+          // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
           key={index}
           className="grid grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
         >
@@ -141,39 +165,6 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
   );
 });
 
-type LogStreamContext = {
-  count: number;
-  totalCount?: number;
-  hasNextPage: boolean;
-  isFetchingNextPage: boolean;
-};
-
-function LogStreamFooter({ context }: { context: LogStreamContext }) {
-  const { isFetchingNextPage, hasNextPage, totalCount, count } = context;
-  return (
-    <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
-      {isFetchingNextPage ? (
-        <span className="flex items-center gap-2">
-          <Skeleton className="size-2 rounded-full" />
-          Loading more events
-        </span>
-      ) : hasNextPage ? (
-        <span>
-          Showing {count.toLocaleString()}
-          {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
-        </span>
-      ) : (
-        <span>Showing all {count.toLocaleString()} matching events</span>
-      )}
-    </div>
-  );
-}
-
-const logStreamComponents = {
-  ...virtuosoScrollAreaComponents,
-  Footer: LogStreamFooter,
-};
-
 export function LogsExplorer({
   repo,
   timeRange,
@@ -188,7 +179,7 @@ export function LogsExplorer({
 }: LogsExplorerProps) {
   // Default `attributes` to [] so a consumer that hand-builds the search object
   // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
-  // oxlint-disable-next-line typescript/no-useless-default-assignment -- intentional runtime guard for untyped external embedders; the type says non-nullish but JS callers can omit it
+  // oxlint-disable-next-line typescript/no-useless-default-assignment -- Preserve the runtime fallback for untyped callers that omit attributes.
   const { showVolume, q, levels, services, attributes = [], traceId } = search;
 
   const [selectedLogState, setSelectedLogState] = useState<{
@@ -263,13 +254,16 @@ export function LogsExplorer({
     placeholderData: keepPreviousData,
   });
 
-  const logs = useMemo(() => data?.pages.flatMap((page) => page?.logs ?? []) ?? [], [data?.pages]);
+  const pages = data?.pages ?? [];
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- Preserve the original empty-page memoization behavior during loading.
+  const logs = useMemo(() => pages.flatMap((page) => page?.logs ?? []), [pages]);
 
   const totalCount = totals?.totalCount;
   const levelCounts = totals?.levelCounts;
 
   const handleLoadMore = useCallback(() => {
-    void fetchNextPage();
+    // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.
+    fetchNextPage();
   }, [fetchNextPage]);
 
   const handleSelectLog = useCallback(
@@ -330,7 +324,8 @@ export function LogsExplorer({
                 ) : isError ? (
                   <RetryError
                     title="Failed to load logs"
-                    message={error instanceof Error ? error.message : String(error)}
+                    // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
+                    message={(error as Error).message}
                     onRetry={() => {
                       void refetch();
                     }}

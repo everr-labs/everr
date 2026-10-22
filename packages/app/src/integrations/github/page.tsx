@@ -57,12 +57,8 @@ export function GithubPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <GithubInstall
-            installed={installed}
-            onInstalled={(...args) => {
-              void handleInstalled?.(...args);
-            }}
-          />
+          {/* oxlint-disable-next-line typescript/no-misused-promises -- Preserve the installed callback promise and identity. */}
+          <GithubInstall installed={installed} onInstalled={handleInstalled} />
         </CardContent>
       </Card>
 

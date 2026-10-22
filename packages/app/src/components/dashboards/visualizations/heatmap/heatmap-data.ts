@@ -93,10 +93,7 @@ export function buildHeatmapModel(
   const times = [...timesSeen].sort((a, b) => a - b);
   let step = domain[1] - domain[0];
   for (let i = 1; i < times.length; i++) {
-    const cur = times[i];
-    const prev = times[i - 1];
-    if (cur === undefined || prev === undefined) continue;
-    const gap = cur - prev;
+    const gap = times[i] - times[i - 1];
     if (gap > 0 && gap < step) step = gap;
   }
 

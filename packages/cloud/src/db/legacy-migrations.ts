@@ -34,7 +34,8 @@ async function hasMigrations(db: Database, table: string): Promise<boolean> {
   const result = await db.execute<{ present: boolean }>(
     sql`select exists(select 1 from ${sql.identifier("drizzle")}.${sql.identifier(table)}) as present`,
   );
-  return result.rows[0]?.present;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- Preserve false for a missing row, as before the tooling migration.
+  return result.rows[0]?.present === true;
 }
 
 /** Call under the startup migration lock, before either current history runs. */

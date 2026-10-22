@@ -9,17 +9,18 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RotateCw } from "lucide-react";
 import type { ReactNode } from "react";
-import { z } from "zod";
 import { invokeCommand } from "@/lib/local-api";
 
-const CollectorStatusSchema = z.object({
-  status: z.enum(["starting", "running", "failed", "stopped"]),
-  reason: z.string().optional(),
-  otlpEndpoint: z.url(),
-  sqlEndpoint: z.url(),
-  healthEndpoint: z.url(),
-  telemetryDir: z.string().optional(),
-});
+type CollectorStatus = "starting" | "running" | "failed" | "stopped";
+
+type CollectorStatusResponse = {
+  status: CollectorStatus;
+  reason?: string;
+  otlpEndpoint: string;
+  sqlEndpoint: string;
+  healthEndpoint: string;
+  telemetryDir?: string;
+};
 
 const collectorStatusQueryKey = ["local-app", "collector-status"] as const;
 
@@ -27,7 +28,7 @@ export function useCollectorStatusQuery() {
   return useQuery({
     queryKey: collectorStatusQueryKey,
     refetchInterval: 10_000,
-    queryFn: () => invokeCommand("get_collector_status", CollectorStatusSchema),
+    queryFn: () => invokeCommand<CollectorStatusResponse>("get_collector_status"),
   });
 }
 
@@ -35,7 +36,7 @@ export function useRestartCollectorMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => invokeCommand("restart_collector", CollectorStatusSchema),
+    mutationFn: () => invokeCommand<CollectorStatusResponse>("restart_collector"),
     onSuccess: (status) => {
       queryClient.setQueryData(collectorStatusQueryKey, status);
       if (status.status === "running") {
@@ -67,10 +68,7 @@ export function LocalTelemetryGate({ children }: { children: ReactNode }) {
     <LocalTelemetryState
       title="Local telemetry unavailable"
       description={
-        restartMutation.error?.message ||
-        status?.reason ||
-        statusQuery.error?.message ||
-        "The local collector is not running."
+        status?.reason || statusQuery.error?.message || "The local collector is not running."
       }
       action={
         <Button

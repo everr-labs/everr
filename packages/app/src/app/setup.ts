@@ -13,9 +13,9 @@ export const completeSetup = createServerFn({ method: "POST" })
       return await setupWorkspace(data, db);
     } catch (error) {
       if (error instanceof InstallationSetupError) throw error;
+      // oxlint-disable-next-line preserve-caught-error -- Preserve the existing public setup error shape.
       throw new Error(
         "Setup could not be completed. Check the server configuration and try again.",
-        { cause: error },
       );
     }
   });

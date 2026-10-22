@@ -24,17 +24,8 @@ export function extractInstanceLabels(
   const labels: Record<string, string> = {};
   for (const column of instanceLabelColumns) {
     const value = row[column];
-    labels[column] =
-      value === undefined
-        ? ""
-        : value === null
-          ? NULL_LABEL_VALUE
-          : typeof value === "string" ||
-              typeof value === "number" ||
-              typeof value === "boolean" ||
-              typeof value === "bigint"
-            ? String(value)
-            : (JSON.stringify(value) ?? "");
+    // oxlint-disable-next-line typescript/no-base-to-string -- Persisted fingerprints and silence matchers depend on the existing String encoding.
+    labels[column] = value === undefined ? "" : value === null ? NULL_LABEL_VALUE : String(value);
   }
   return labels;
 }

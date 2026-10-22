@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -195,9 +196,9 @@ function VerifyEmailContent({ email, invitationId }: { email: string; invitation
         {verification.isPending ? "Sending..." : "Send verification email"}
       </Button>
       {verification.isSuccess && (
-        <output className="block text-sm text-muted-foreground text-center">
+        <p role="status" className="text-sm text-muted-foreground text-center">
           Check your inbox. The verification link will bring you back here.
-        </output>
+        </p>
       )}
       {verification.error && (
         <p role="alert" className="text-sm text-destructive">

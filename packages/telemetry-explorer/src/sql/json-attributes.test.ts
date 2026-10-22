@@ -73,4 +73,11 @@ describe("flattenAttributes", () => {
       "service.name": "api",
     });
   });
+
+  it("retains the original coercion of non-JSON primitive leaves", () => {
+    expect(flattenAttributes({ marker: Symbol("record"), sequence: 10n })).toEqual({
+      marker: "Symbol(record)",
+      sequence: "10",
+    });
+  });
 });

@@ -45,7 +45,8 @@ export function DataTable<T>({
   onRowClick,
 }: DataTableProps<T>) {
   if (data.length === 0 && emptyState) {
-    return emptyState;
+    // oxlint-disable-next-line react/jsx-no-useless-fragment -- Preserve the existing fragment boundary for the caller-provided empty state.
+    return <>{emptyState}</>;
   }
 
   const isFirst = (i: number) => i === 0;

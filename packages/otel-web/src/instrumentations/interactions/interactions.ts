@@ -26,8 +26,9 @@ export function startInteractions(emit: Emit): () => void {
     // record connects correctly to the clicks. If JS submits the form, there is
     // no submitter, and the code ignores the event, because the element that
     // the user operated is the necessary data.
-    const submitter = "submitter" in event ? event.submitter : null;
-    const el = submitter instanceof Element ? guardOf(submitter) : null;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- The native submit event supplies submitter; preserve the existing direct access and truthiness check.
+    const submitter = (event as SubmitEvent).submitter;
+    const el = submitter ? guardOf(submitter) : null;
     if (!el) return;
     emit("everr.browser.interaction.submit", elementAttrs(el), epoch(event.timeStamp));
   };

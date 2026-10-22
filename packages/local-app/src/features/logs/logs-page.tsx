@@ -51,15 +51,17 @@ export function LogsPage() {
               environment={environment}
             />
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={({ services: _ignored, ...next }) =>
-            void navigate({
+            navigate({
               to: "/logs",
               search: (prev) => ({ ...prev, ...next }),
               replace: true,
             })
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onTimeRangeSelect={(from, to) =>
-            void navigate({
+            navigate({
               to: "/logs",
               search: (prev) => ({
                 ...prev,

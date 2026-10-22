@@ -1,23 +1,19 @@
-import { LogLevelSchema } from "../schemas";
-import { z } from "zod";
-import { SqlTimestampSchema } from "../../sql/row-schemas";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
-import type { LogExplorerRow, LogsExplorerInput } from "../schemas";
+import type { LogExplorerRow, LogLevel, LogsExplorerInput } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import { LOG_LEVEL_EXPR } from "./level-expr";
 import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 
-export const ExplorerRowRawSchema = z.object({
-  timestampRaw: SqlTimestampSchema,
-  level: LogLevelSchema,
-  body: z.string().nullable(),
-  traceId: z.string(),
-  spanId: z.string(),
-  serviceName: z.string(),
-  bodyHash: z.string(),
-});
-export type ExplorerRowRaw = z.infer<typeof ExplorerRowRawSchema>;
+export interface ExplorerRowRaw {
+  timestampRaw: string;
+  level: LogLevel;
+  body: string | null;
+  traceId: string;
+  spanId: string;
+  serviceName: string;
+  bodyHash: string;
+}
 
 export interface BuiltQuery {
   sql: string;

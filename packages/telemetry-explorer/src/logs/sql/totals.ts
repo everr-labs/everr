@@ -1,5 +1,3 @@
-import { z } from "zod";
-import { SqlCountSchema } from "../../sql/row-schemas";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogLevel, LogsTotalsInput, LogsTotalsResult } from "../schemas";
 import type { BuiltQuery } from "./explorer";
@@ -7,15 +5,7 @@ import { LOG_LEVEL_EXPR, LOG_LEVELS } from "./level-expr";
 import { validateTableName } from "./table";
 import { buildWhereClause } from "./where";
 
-export const TotalsRowRawSchema = z.object({
-  error: SqlCountSchema,
-  warning: SqlCountSchema,
-  info: SqlCountSchema,
-  debug: SqlCountSchema,
-  trace: SqlCountSchema,
-  unknown: SqlCountSchema,
-});
-export type TotalsRowRaw = z.infer<typeof TotalsRowRawSchema>;
+export type TotalsRowRaw = Record<LogLevel, string | number>;
 
 export function buildTotalsQuery(
   input: LogsTotalsInput,

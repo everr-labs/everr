@@ -67,7 +67,8 @@ function startErrors(): () => void {
     }
   };
   const onRejection = (event: Event) => {
-    const reason = "reason" in event ? event.reason : undefined;
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve direct access to the rejection event property without adding a runtime presence check.
+    const reason = (event as { reason?: unknown }).reason;
     if (reason != null && typeof reason === "object") {
       if (seenByOnerror.has(reason)) return;
       seenByRejection.add(reason);

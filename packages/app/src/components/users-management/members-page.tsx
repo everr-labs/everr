@@ -1,5 +1,4 @@
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
-import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "#app/components/page-header.tsx";
@@ -35,21 +34,13 @@ export function OrganizationMembersPage() {
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <PageHeader title="Members" lede="Manage organization members, invitations, and access." />
 
-      {(pendingInvitations.length > 0 || invitations.isError) && (
+      {pendingInvitations.length > 0 && (
         <Card inset="flush-content">
           <CardHeader>
             <CardTitle>Pending invitations</CardTitle>
           </CardHeader>
           <CardContent>
-            {invitations.isError ? (
-              <RetryError
-                title="Failed to load invitations"
-                message="Try again to refresh pending invitations."
-                onRetry={() => void invitations.refetch()}
-              />
-            ) : (
-              <InvitationsTable invitations={pendingInvitations} />
-            )}
+            <InvitationsTable invitations={pendingInvitations} />
           </CardContent>
         </Card>
       )}
@@ -64,12 +55,6 @@ export function OrganizationMembersPage() {
         <CardContent>
           {members.isPending ? (
             <MembersSkeleton />
-          ) : members.isError ? (
-            <RetryError
-              title="Failed to load members"
-              message="Try again to refresh organization members."
-              onRetry={() => void members.refetch()}
-            />
           ) : (
             <MembersTable members={members.data ?? []} currentUserId={currentUserId} />
           )}

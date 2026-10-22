@@ -81,9 +81,11 @@ function sortKeys(value: unknown): unknown {
   // null field would hit the object branch and `Object.keys(null)` would throw.
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([k, v]) => [k, sortKeys(v)]),
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve sorted property reads when canonicalizing resource values.
+      Object.keys(value as Record<string, unknown>)
+        .sort()
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- Object.keys yields the own keys of this object.
+        .map((k) => [k, sortKeys((value as Record<string, unknown>)[k])]),
     );
   }
   return value;

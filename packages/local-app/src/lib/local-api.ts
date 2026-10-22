@@ -1,25 +1,14 @@
-import { z } from "zod";
-
-const CommandErrorSchema = z.object({ error: z.string().min(1) });
-
-export async function invokeCommand<Schema extends z.ZodType>(
+export async function invokeCommand<TResult>(
   command: string,
-  schema: Schema,
   args?: Record<string, unknown>,
-): Promise<z.output<Schema>> {
+): Promise<TResult> {
   const response = await fetch(`/api/commands/${command}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Everr-Local": "1" },
     body: JSON.stringify(args ?? {}),
   });
-  const result: unknown = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    const error = CommandErrorSchema.safeParse(result);
-    throw new Error(error.success ? error.data.error : "Local request failed");
-  }
-  const parsed = schema.safeParse(result);
-  if (!parsed.success) {
-    throw new Error("Invalid local response", { cause: parsed.error });
-  }
-  return parsed.data;
+  // oxlint-disable-next-line typescript/no-unsafe-assignment -- Preserve the permissive command boundary and original JSON/error behavior; each caller owns its response type.
+  const result: TResult & { error?: string } = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "Local request failed");
+  return result;
 }

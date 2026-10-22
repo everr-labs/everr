@@ -58,10 +58,7 @@ export function buildStatusHistoryModel(
   ].sort((a, b) => a - b);
   let interval = Number.POSITIVE_INFINITY;
   for (let i = 1; i < allTimestamps.length; i++) {
-    const cur = allTimestamps[i];
-    const prev = allTimestamps[i - 1];
-    if (cur === undefined || prev === undefined) continue;
-    interval = Math.min(interval, cur - prev);
+    interval = Math.min(interval, allTimestamps[i] - allTimestamps[i - 1]);
   }
   if (!Number.isFinite(interval)) {
     interval = (domain[1] - domain[0]) * FALLBACK_SLOT_FRACTION;

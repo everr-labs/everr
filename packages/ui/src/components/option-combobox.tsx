@@ -83,11 +83,11 @@ export function OptionCombobox({
     <div className={className}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
-          id={id}
           render={
             <Button
+              id={id}
               variant="outline"
-              // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- PopoverTrigger supplies aria-controls with the rendered popup's ID.
+              // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger role and its original popup association.
               role="combobox"
               aria-expanded={open}
               aria-label={label}

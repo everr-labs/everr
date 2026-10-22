@@ -1,33 +1,37 @@
-import { queryRows } from "../../sql/client";
-import {
-  TraceSummaryRowSchema,
-  SpanRowSchema,
-  type SpanRow,
-  ServiceIdentityRowSchema,
-} from "./row-schemas";
 import type {
   AttributeKey,
   AttributeKeysInput,
   AttributeValuesInput,
 } from "../../attribute-filter/schemas";
 import {
-  AttributeKeyRowRawSchema,
+  type AttributeKeyRowRaw,
   buildAttributeKeysQuery,
   decodeAttributeKeyRows,
 } from "../../attribute-filter/sql/keys";
 import {
-  AttributeValueRowRawSchema,
+  type AttributeValueRowRaw,
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
-import { attributeText, flattenAttributes } from "../../sql/json-attributes";
+import { attributeText, flattenAttributes, type JsonAttributes } from "../../sql/json-attributes";
 import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
 import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
 import { validateTableName } from "../sql/table";
 import type { SqlClient } from "./client";
 import type { GetTraceInput, ListServiceIdentitiesInput, SearchTracesInput } from "./schemas";
 import type { ServiceIdentity, Span, TraceSummary } from "./types";
+
+type SpanRow = Omit<Span, "events" | "links" | "spanAttributes" | "resourceAttributes"> & {
+  spanAttributes: JsonAttributes;
+  resourceAttributes: JsonAttributes;
+  eventNames: string[];
+  eventTimestamps: string[];
+  eventAttributes: JsonAttributes[];
+  linkTraceIds: string[];
+  linkSpanIds: string[];
+  linkAttributes: JsonAttributes[];
+};
 
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
@@ -240,7 +244,7 @@ export class TracesRepository {
       FROM aggregated
       ORDER BY startTsRaw DESC, TraceId DESC
     `;
-    return queryRows(this.client, TraceSummaryRowSchema, sql, params);
+    return this.client.execute<TraceSummary>(sql, params);
   }
 
   // fallow-ignore-next-line unused-class-member
@@ -280,7 +284,7 @@ export class TracesRepository {
         AND Timestamp >= traceWindow.1 AND Timestamp < traceWindow.2
       ORDER BY Timestamp ASC
     `;
-    const rows = await queryRows(this.client, SpanRowSchema, sql, {
+    const rows = await this.client.execute<SpanRow>(sql, {
       traceId: input.traceId,
     });
     return rows.map(rowToSpan);
@@ -296,7 +300,7 @@ export class TracesRepository {
       timeColumn: "Timestamp",
       timeBound: tracesTimeBound,
     });
-    const rows = await queryRows(this.client, AttributeKeyRowRawSchema, sql, params);
+    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
     return decodeAttributeKeyRows(rows);
   }
 
@@ -309,7 +313,7 @@ export class TracesRepository {
       timeColumn: "Timestamp",
       timeBound: tracesTimeBound,
     });
-    const rows = await queryRows(this.client, AttributeValueRowRawSchema, sql, params);
+    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
     return decodeAttributeValueRows(rows);
   }
 
@@ -324,7 +328,7 @@ export class TracesRepository {
       WHERE ${TIME_WINDOW_SQL}
       ORDER BY serviceNamespace, serviceName
     `;
-    return queryRows(this.client, ServiceIdentityRowSchema, sql, {
+    return this.client.execute<ServiceIdentity>(sql, {
       fromTs: input.fromTs,
       toTs: input.toTs,
     });

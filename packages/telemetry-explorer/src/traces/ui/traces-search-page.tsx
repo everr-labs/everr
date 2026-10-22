@@ -102,11 +102,13 @@ export function TracesSearch({
               isPending={isPending}
               isError={isError}
               error={error}
-              refetch={() => void refetch()}
+              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+              refetch={refetch}
               hasMore={hasNextPage}
               isLoadingMore={isFetchingNextPage}
               renderTraceLink={renderTraceLink}
-              onLoadMore={() => void fetchNextPage()}
+              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+              onLoadMore={() => fetchNextPage()}
               onClearFilters={() =>
                 // The same effect as "Clear page filters" in the rail. Service
                 // and Environment keep their values.

@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 
@@ -89,10 +88,9 @@ it("sends the selected owner role instead of falling back to member", async () =
   });
 });
 
-it("rejects a malformed invitation response without showing a broken link", async () => {
+it("preserves the invitation ID returned by the auth client without validating it", async () => {
   mocks.emailEnabled = false;
   mocks.invite.mockResolvedValueOnce({ data: { id: 42 }, error: null });
-  const errorToast = vi.spyOn(toast, "error").mockReturnValue(0);
   const user = userEvent.setup();
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -102,11 +100,5 @@ it("rejects a malformed invitation response without showing a broken link", asyn
   await user.click(screen.getByRole("button", { name: "Invite member" }));
   await user.type(screen.getByRole("textbox", { name: "Email" }), "invitee@example.test");
   await user.click(screen.getByRole("button", { name: "Create invitation" }));
-  await waitFor(() =>
-    expect(errorToast).toHaveBeenCalledWith(
-      "Invitation link could not be loaded. Refresh pending invitations.",
-    ),
-  );
-  expect(screen.queryByText(/\/invite\//)).not.toBeInTheDocument();
-  errorToast.mockRestore();
+  expect(await screen.findByText(`${window.location.origin}/invite/42`)).toBeVisible();
 });

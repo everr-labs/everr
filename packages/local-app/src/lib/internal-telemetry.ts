@@ -1,34 +1,15 @@
 import { captureError, errors, interactions, performance, WebSDK } from "@everr/otel-web";
-import { z } from "zod";
 
-export const TelemetryContextSchema = z.object({
-  serviceVersion: z.string(),
-  telemetryEnabled: z.boolean(),
-  deploymentEnvironment: z.enum(["development", "production"]),
-});
-
-const JsonValueSchema = z.json();
-type JsonValue = z.infer<typeof JsonValueSchema>;
-
-const UrlValueSchema = z.object({ stringValue: z.string() }).catchall(JsonValueSchema);
-const urlAttributeKeys = new Set([
-  "url.full",
-  "everr.landing.url",
-  "everr.referrer.url",
-  "everr.element.href",
-]);
-const privateAttributeKeys = new Set([
-  "everr.element.selector",
-  "everr.browser.web_vital.lcp.target",
-  "everr.browser.web_vital.cls.largest_shift_target",
-]);
+export type TelemetryContext = {
+  serviceVersion: string;
+  telemetryEnabled: boolean;
+  deploymentEnvironment: "development" | "production";
+};
 
 // Until the backend supplies its build mode, treat errors as production data.
 let developmentTelemetry = false;
 
-export function initializeTelemetry(input: unknown) {
-  developmentTelemetry = false;
-  const context = TelemetryContextSchema.parse(input);
+export function initializeTelemetry(context: TelemetryContext) {
   developmentTelemetry = context.deploymentEnvironment === "development";
   if (!context.telemetryEnabled) return;
 
@@ -59,33 +40,37 @@ export function initializeTelemetry(input: unknown) {
 // captured by performance instrumentation. Sanitize every OTLP attribute list
 // before release export, including resource attributes and span events.
 function sanitizeReleaseTelemetry(body: string): string {
-  return JSON.stringify(sanitizeJson(JsonValueSchema.parse(JSON.parse(body))));
-}
-
-function isPrivateAttribute(value: JsonValue): boolean {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  return (
-    typeof value.key === "string" &&
-    (value.key.startsWith("everr.utm.") || privateAttributeKeys.has(value.key))
+  return JSON.stringify(
+    JSON.parse(body),
+    (_key, value: { key: string; value?: { stringValue?: string } }): unknown => {
+      if (Array.isArray(value)) {
+        return value.filter(
+          (attribute: { key: string }) =>
+            !(typeof attribute?.key === "string" && attribute.key.startsWith("everr.utm.")) &&
+            ![
+              "everr.element.selector",
+              "everr.browser.web_vital.lcp.target",
+              "everr.browser.web_vital.cls.largest_shift_target",
+            ].includes(attribute?.key),
+        );
+      }
+      if (
+        value &&
+        typeof value === "object" &&
+        ["url.full", "everr.landing.url", "everr.referrer.url", "everr.element.href"].includes(
+          value.key,
+        ) &&
+        typeof value.value?.stringValue === "string"
+      ) {
+        const url = value.value.stringValue;
+        return {
+          ...value,
+          value: { ...value.value, stringValue: url.split(/[?#]/)[0] },
+        };
+      }
+      return value;
+    },
   );
-}
-
-function sanitizeJson(value: JsonValue): JsonValue {
-  if (Array.isArray(value))
-    return value.filter((item) => !isPrivateAttribute(item)).map(sanitizeJson);
-  if (value === null || typeof value !== "object") return value;
-
-  const sanitized = Object.fromEntries(
-    Object.entries(value).map(([key, child]): [string, JsonValue] => [key, sanitizeJson(child)]),
-  );
-  if (typeof sanitized.key !== "string" || !urlAttributeKeys.has(sanitized.key)) return sanitized;
-
-  const urlValue = UrlValueSchema.safeParse(sanitized.value);
-  if (!urlValue.success) return sanitized;
-  return {
-    ...sanitized,
-    value: { ...urlValue.data, stringValue: urlValue.data.stringValue.split(/[?#]/)[0] },
-  };
 }
 
 export function captureLocalSqlError(error: unknown) {

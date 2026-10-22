@@ -22,6 +22,15 @@ describe("extractInstanceLabels", () => {
     });
   });
 
+  it("preserves persisted identities for composite label values", () => {
+    const labels = extractInstanceLabels(
+      { labels: ["prod", "api"], metadata: { service: "api" } },
+      ["labels", "metadata"],
+    );
+    expect(labels).toEqual({ labels: "prod,api", metadata: "[object Object]" });
+    expect(instanceFingerprint({ labels: labels.labels })).toBe("31f96855501cfa06");
+  });
+
   it("maps absent explicit columns to empty string", () => {
     expect(extractInstanceLabels({ route: "/x" }, ["zone"])).toEqual({
       zone: "",

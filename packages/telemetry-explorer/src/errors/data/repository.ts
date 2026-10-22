@@ -1,23 +1,15 @@
-import { queryRows } from "../../sql/client";
-import {
-  ErrorIssueSummaryRowSchema,
-  type ErrorIssueSummaryRow,
-  ErrorOccurrenceRowSchema,
-  type ErrorOccurrenceRow,
-  ServiceRowSchema,
-} from "./row-schemas";
 import type {
   AttributeKey,
   AttributeKeysInput,
   AttributeValuesInput,
 } from "../../attribute-filter/schemas";
 import {
-  AttributeKeyRowRawSchema,
+  type AttributeKeyRowRaw,
   buildAttributeKeysQuery,
   decodeAttributeKeyRows,
 } from "../../attribute-filter/sql/keys";
 import {
-  AttributeValueRowRawSchema,
+  type AttributeValueRowRaw,
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
@@ -33,6 +25,23 @@ import type {
   ErrorIssuesResult,
   ErrorOccurrence,
 } from "./types";
+
+type ErrorIssueSummaryRow = Omit<ErrorIssueSummary, "occurrenceCount" | "traceCount"> & {
+  occurrenceCount: string | number;
+  traceCount: string | number;
+};
+
+type ErrorOccurrenceRow = Omit<
+  ErrorOccurrence,
+  "timestampRank" | "resourceAttributes" | "logAttributes" | "scopeAttributes"
+> & {
+  timestampRank?: string | number;
+  resourceAttributes: unknown;
+  logAttributes: unknown;
+  scopeAttributes: unknown;
+};
+
+type ServiceRow = { serviceName: string };
 
 function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
   return {
@@ -69,7 +78,7 @@ export class ErrorsRepository {
   // fallow-ignore-next-line unused-class-member
   async searchIssues(input: SearchErrorIssuesInput): Promise<ErrorIssuesResult> {
     const { sql, params } = buildSummaryQuery(input, this.tableName);
-    const rows = await queryRows(this.client, ErrorIssueSummaryRowSchema, sql, params);
+    const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
     return { issues: rows.map(mapSummary) };
   }
 
@@ -91,13 +100,8 @@ export class ErrorsRepository {
     );
     const occurrencesQuery = buildOccurrencesQuery(input, this.tableName);
     const [summaryRows, occurrenceRows] = await Promise.all([
-      queryRows(this.client, ErrorIssueSummaryRowSchema, summaryQuery.sql, summaryQuery.params),
-      queryRows(
-        this.client,
-        ErrorOccurrenceRowSchema,
-        occurrencesQuery.sql,
-        occurrencesQuery.params,
-      ),
+      this.client.execute<ErrorIssueSummaryRow>(summaryQuery.sql, summaryQuery.params),
+      this.client.execute<ErrorOccurrenceRow>(occurrencesQuery.sql, occurrencesQuery.params),
     ]);
 
     const summary = summaryRows[0] ? mapSummary(summaryRows[0]) : undefined;
@@ -116,7 +120,7 @@ export class ErrorsRepository {
       { fromTs: input.fromTs, toTs: input.toTs, attributes: input.attributes },
       this.tableName,
     );
-    const rows = await queryRows(this.client, ServiceRowSchema, sql, params);
+    const rows = await this.client.execute<ServiceRow>(sql, params);
     return rows.map((row) => row.serviceName).filter(Boolean);
   }
 
@@ -130,7 +134,7 @@ export class ErrorsRepository {
       // exception logs only — so we never offer a key that yields no issues.
       rowPredicate: EXCEPTION_LOG_FILTER_SQL,
     });
-    const rows = await queryRows(this.client, AttributeKeyRowRawSchema, sql, params);
+    const rows = await this.client.execute<AttributeKeyRowRaw>(sql, params);
     return decodeAttributeKeyRows(rows);
   }
 
@@ -142,7 +146,7 @@ export class ErrorsRepository {
       // Same exception-log scope as the issue queries (see attributeKeys).
       rowPredicate: EXCEPTION_LOG_FILTER_SQL,
     });
-    const rows = await queryRows(this.client, AttributeValueRowRawSchema, sql, params);
+    const rows = await this.client.execute<AttributeValueRowRaw>(sql, params);
     return decodeAttributeValueRows(rows);
   }
 }

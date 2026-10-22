@@ -1,18 +1,22 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 import { authClient } from "#app/lib/auth-client.ts";
 
-import {
-  InvitationSchema,
-  InvitationsResponseSchema,
-  InviteMemberInputSchema,
-  MembersResponseSchema,
-  UpdateMemberRoleInputSchema,
-  type InviteMemberInput,
-  type UpdateMemberRoleInput,
-} from "./schemas";
+import type { Invitation, Member, OrgRole } from "./schemas";
+export type { Invitation, Member, OrgRole } from "./schemas";
 
-const CreatedInvitationSchema = InvitationSchema.pick({ id: true });
+function unwrapArray<T>(value: unknown, key: "members" | "invitations"): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as Record<string, unknown>)[key])
+  ) {
+    return (value as Record<string, T[]>)[key];
+  }
+  return [];
+}
 
 const membersQueryKey = ["org", "members"] as const;
 const invitationsQueryKey = ["org", "invitations"] as const;
@@ -23,7 +27,7 @@ export function membersQueryOptions() {
     queryFn: async () => {
       const res = await authClient.organization.listMembers();
       if (res.error) throw new Error(res.error.message ?? "Failed to load members");
-      return MembersResponseSchema.parse(res.data);
+      return unwrapArray<Member>(res.data, "members");
     },
   });
 }
@@ -34,7 +38,7 @@ export function invitationsQueryOptions() {
     queryFn: async () => {
       const res = await authClient.organization.listInvitations();
       if (res.error) throw new Error(res.error.message ?? "Failed to load invitations");
-      const all = InvitationsResponseSchema.parse(res.data);
+      const all = unwrapArray<Invitation>(res.data, "invitations");
       return all.filter((inv) => inv.status === "pending");
     },
   });
@@ -43,24 +47,17 @@ export function invitationsQueryOptions() {
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: InviteMemberInput) => {
-      const input = InviteMemberInputSchema.parse(vars);
+    mutationFn: async (vars: { email: string; role: OrgRole; sendEmail: boolean }) => {
       const res = await authClient.organization.inviteMember({
-        email: input.email,
-        role: input.role,
+        email: vars.email,
+        role: vars.role,
         fetchOptions: {
-          headers: { [INVITATION_EMAIL_HEADER]: String(input.sendEmail) },
+          headers: { [INVITATION_EMAIL_HEADER]: String(vars.sendEmail) },
         },
       });
       if (res.error) throw new Error(res.error.message ?? "Failed to create invitation");
       if (!res.data) throw new Error("Invitation was not returned");
-      const invitation = CreatedInvitationSchema.safeParse(res.data);
-      if (!invitation.success) {
-        throw new Error("Invitation link could not be loaded. Refresh pending invitations.", {
-          cause: invitation.error,
-        });
-      }
-      return invitation.data;
+      return res.data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: invitationsQueryKey });
@@ -76,6 +73,7 @@ export function useRevokeInvitation() {
         invitationId,
       });
       if (res.error) throw new Error(res.error.message ?? "Failed to revoke invitation");
+      return res.data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: invitationsQueryKey });
@@ -86,13 +84,13 @@ export function useRevokeInvitation() {
 export function useUpdateMemberRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: UpdateMemberRoleInput) => {
-      const input = UpdateMemberRoleInputSchema.parse(vars);
+    mutationFn: async (vars: { memberId: string; role: OrgRole }) => {
       const res = await authClient.organization.updateMemberRole({
-        memberId: input.memberId,
-        role: input.role,
+        memberId: vars.memberId,
+        role: vars.role,
       });
       if (res.error) throw new Error(res.error.message ?? "Failed to update role");
+      return res.data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: membersQueryKey });
@@ -108,6 +106,7 @@ export function useRemoveMember() {
         memberIdOrEmail: memberId,
       });
       if (res.error) throw new Error(res.error.message ?? "Failed to remove member");
+      return res.data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: membersQueryKey });

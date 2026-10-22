@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { useNavigate } from "@tanstack/react-router";
@@ -63,7 +64,7 @@ export function CostByWorkflowTable({ data }: CostByWorkflowTableProps) {
       rowClassName={() => "group cursor-pointer"}
       onRowClick={(row, event) => {
         // The workflow-name anchor handles its own click + keyboard activation.
-        if (event.target instanceof Element && event.target.closest("a")) return;
+        if ((event.target as HTMLElement).closest("a")) return;
         // Time range carries via the dashboard's retainSearchParams.
         void navigate({
           to: "/workflows/$repo/$workflowName",

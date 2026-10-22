@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,10 +22,8 @@ import {
 } from "@everr/ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
-import { isOrganizationOwner } from "#app/lib/organization-role.ts";
 import { formatDate } from "./format-date";
-import { useRemoveMember, useUpdateMemberRole } from "./queries";
-import { type Member, type OrgRole, OrgRoleSchema } from "./schemas";
+import { type Member, type OrgRole, useRemoveMember, useUpdateMemberRole } from "./queries";
 
 interface MembersTableProps {
   members: Member[];
@@ -43,7 +42,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const remove = useRemoveMember();
   const [rolePending, setRolePending] = useState<RoleChangePending | null>(null);
 
-  const ownerCount = members.filter((m) => isOrganizationOwner(m.role)).length;
+  const ownerCount = members.filter((m) => m.role === "owner").length;
 
   const confirmRoleChange = () => {
     if (!rolePending) return;
@@ -90,7 +89,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
     {
       header: "Role",
       cell: (row) => {
-        const isLastOwner = isOrganizationOwner(row.role) && ownerCount <= 1;
+        const isLastOwner = row.role === "owner" && ownerCount <= 1;
         const isSelf = row.userId === currentUserId;
 
         if (isLastOwner || isSelf) {
@@ -105,18 +104,18 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
           <Select
             value={row.role}
             onValueChange={(value) => {
-              const next = OrgRoleSchema.safeParse(value);
-              if (!next.success || next.data === row.role) return;
+              const next = value as OrgRole;
+              if (next === row.role) return;
               setRolePending({
                 memberId: row.id,
                 memberName: row.user?.name ?? row.user?.email ?? "Member",
                 currentRole: row.role,
-                nextRole: next.data,
+                nextRole: next,
               });
             }}
           >
             <SelectTrigger size="sm">
-              <SelectValue className="capitalize">{row.role}</SelectValue>
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="member">Member</SelectItem>
@@ -135,7 +134,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
       header: <span className="sr-only">Actions</span>,
       cell: (row) => {
         const isSelf = row.userId === currentUserId;
-        const isLastOwner = isOrganizationOwner(row.role) && ownerCount <= 1;
+        const isLastOwner = row.role === "owner" && ownerCount <= 1;
         if (isSelf || isLastOwner) return null;
         const memberName = row.user?.name ?? row.user?.email ?? "this member";
 

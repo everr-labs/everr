@@ -47,8 +47,8 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
                 onSubmit={(event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
-                  const userId = form.get("userId");
-                  if (typeof userId === "string") transfer.mutate(userId);
+                  // oxlint-disable-next-line typescript/no-base-to-string -- Keep the existing form-value coercion during the tooling migration.
+                  transfer.mutate(String(form.get("userId")));
                 }}
               >
                 <label className="flex flex-col gap-2 text-sm">
@@ -81,7 +81,10 @@ export function BillingOwnerCard({ orgId }: { orgId: string }) {
               </p>
             )}
             {transfer.isSuccess && (
-              <output className="block text-sm">Billing owner updated.</output>
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
+              <p role="status" className="text-sm">
+                Billing owner updated.
+              </p>
             )}
           </>
         )}

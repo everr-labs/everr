@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -68,7 +69,9 @@ export function ProfileSettings({ user }: { user: { name: string; email: string 
             </p>
           )}
           {save.isSuccess && (
-            <output className="block text-sm text-muted-foreground">Profile saved.</output>
+            <p role="status" className="text-sm text-muted-foreground">
+              Profile saved.
+            </p>
           )}
           <Button type="submit" disabled={!canSave}>
             {save.isPending ? "Saving..." : "Save profile"}

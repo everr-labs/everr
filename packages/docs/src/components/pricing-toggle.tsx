@@ -103,10 +103,10 @@ export function PricingToggle() {
           transition={{ duration: 0.7, delay: 0.15, ease: EASE }}
           className="mt-12"
         >
+          {/* oxlint-disable-next-line jsx-a11y/interactive-supports-focus -- Keep the original focus on the child tabs while key events bubble to their container. */}
           <div
             role="tablist"
             aria-label="Choose how to run Everr"
-            tabIndex={-1}
             onKeyDown={onKeyDown}
             className="inline-flex w-full max-w-md gap-1 rounded-full border border-fd-border bg-fd-card/40 p-1 sm:w-auto"
           >

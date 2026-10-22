@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "#app/data/alerting/delivery/config.ts";
-import { ALERTING_DEFAULT_TIERS } from "#app/data/alerting/delivery/defaults.ts";
+import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
 import { type DbExecutor, db } from "#app/db/client.ts";
 import { alertChannels, alertDefaultChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
@@ -281,10 +281,8 @@ export async function setDefaultDestination(
   rawInput: unknown,
 ): Promise<AlertingDefaultDestination> {
   const input = parseAlertingInput(AlertingDefaultDestinationInputSchema, rawInput);
-  const entries = ALERTING_DEFAULT_TIERS.flatMap((tier) => {
-    const channels = input.tiers[tier];
-    return channels ? [[tier, channels] as const] : [];
-  });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve input tier order; the input schema supplies the tier and channel types.
+  const entries = Object.entries(input.tiers) as [AlertingDefaultTier, string[]][];
   if ("all" in input.tiers && entries.length > 1) {
     throwAlertingPersistenceError(
       422,
@@ -316,11 +314,12 @@ export async function setDefaultDestination(
       .where(eq(alertDefaultChannels.organizationId, organizationId));
     // Unique within a tier already: the schema refused duplicates.
     const values = entries.flatMap(([tier, channels]) =>
-      channels.map((name) => {
-        const channelId = idByName.get(name);
-        if (channelId === undefined) throw new Error("Missing validated channel");
-        return { organizationId, tier, channelId };
-      }),
+      channels.map((name) => ({
+        organizationId,
+        tier,
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- Channel names were resolved above; retain the existing insert shape.
+        channelId: idByName.get(name) as string,
+      })),
     );
     if (values.length > 0) {
       await tx.insert(alertDefaultChannels).values(values);

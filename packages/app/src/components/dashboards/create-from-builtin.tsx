@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
@@ -50,11 +51,14 @@ export function CreateFromBuiltin({ slug, name }: { slug: string; name: string }
         </Button>
         {/* One status line serves sighted and screen-reader users alike:
             visible on failure, announced-only for the transient "copied". */}
-        <output className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}>
+        <p
+          role="status"
+          className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}
+        >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </output>
+        </p>
       </PopoverContent>
     </Popover>
   );

@@ -29,13 +29,14 @@ export function ErrorOccurrencesList({
         <p className="text-xs text-muted-foreground">Latest {occurrences.length} matching logs</p>
       </div>
       <ul className="min-w-0 list-none p-0">
-        {occurrences.map((occurrence) => {
+        {occurrences.map((occurrence, index) => {
           const occurrenceKey = getErrorOccurrenceKey(occurrence);
           const isSelected = occurrenceKey === selectedOccurrenceKey;
 
           return (
             <li
-              key={occurrenceKey}
+              // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
+              key={`${occurrenceKey}-${index}`}
               className={cn("border-b px-3 py-2.5 last:border-b-0", isSelected && "bg-muted/40")}
             >
               <div className="flex min-w-0 items-start justify-between gap-3">

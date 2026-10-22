@@ -46,7 +46,7 @@ vi.mock("#app/telemetry/clickhouse.ts", () => ({
 
 vi.unmock("#app/lib/clickhouse.ts");
 
-import { query, querySqlApi, querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
+import { previewSqlApi, query, querySqlApi, querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
 import { adminCommand, insertRows } from "#app/lib/clickhouse-writer.ts";
 
 const ORG = "org42";
@@ -182,6 +182,32 @@ describe("adminCommand", () => {
     expect(mockCommand).toHaveBeenCalledWith({
       query: "SELECT 1",
       abort_signal: signal,
+    });
+  });
+});
+
+describe("previewSqlApi transport compatibility", () => {
+  it("preserves header values without coercion", async () => {
+    const names = [42];
+    const types = [null];
+    mockQuery.mockResolvedValueOnce({
+      async *stream() {
+        yield [names, types, ["value"]].map((values) => ({ json: () => values }));
+      },
+    });
+    const result = await previewSqlApi("SELECT 1", ORG, 10);
+    expect(result.columns).toBe(names);
+    expect(result.columnTypes).toBe(types);
+    expect(result.rows).toEqual([["value"]]);
+  });
+
+  it("preserves absent headers from an empty stream", async () => {
+    mockQuery.mockResolvedValueOnce({ async *stream() {} });
+    expect(await previewSqlApi("SELECT 1", ORG, 10)).toEqual({
+      columns: undefined,
+      columnTypes: undefined,
+      rows: [],
+      truncated: false,
     });
   });
 });

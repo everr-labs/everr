@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -68,7 +69,9 @@ export function SessionsSettings({
       </CardHeader>
       <CardContent className="space-y-4">
         {sessions.isPending && (
-          <output className="block text-sm text-muted-foreground">Loading sessions...</output>
+          <p role="status" className="text-sm text-muted-foreground">
+            Loading sessions...
+          </p>
         )}
         {sessions.isError && (
           <RetryError
@@ -133,9 +136,9 @@ export function SessionsSettings({
           </p>
         )}
         {revoke.isSuccess && (
-          <output className="block text-sm text-muted-foreground">
+          <p role="status" className="text-sm text-muted-foreground">
             Session sign-out completed.
-          </output>
+          </p>
         )}
       </CardContent>
     </Card>

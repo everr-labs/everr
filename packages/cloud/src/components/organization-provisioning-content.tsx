@@ -98,9 +98,10 @@ function ProvisioningView({
         <h1 className="font-heading text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           {title}
         </h1>
-        <output className="block text-sm leading-relaxed text-muted-foreground">
+        {/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout. */}
+        <p className="text-sm leading-relaxed text-muted-foreground" role="status">
           {description}
-        </output>
+        </p>
         {pending && (
           <div className="flex items-center justify-center gap-2 pt-2" aria-hidden="true">
             {[0, 160, 320].map((delay) => (
@@ -113,7 +114,10 @@ function ProvisioningView({
           </div>
         )}
         {notice && (
-          <output className="block text-sm leading-relaxed text-muted-foreground">{notice}</output>
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout.
+          <p className="text-sm leading-relaxed text-muted-foreground" role="status">
+            {notice}
+          </p>
         )}
       </div>
       {children}

@@ -46,8 +46,8 @@ export function flattenAttributes(value: unknown): Record<string, string> {
     return out;
   }
   const walk = (node: object, prefix: string) => {
-    const entries: [string, unknown][] = Object.entries(node);
-    for (const [name, leaf] of entries) {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- This tuple view preserves the original entry iteration without narrowing or dropping attribute values.
+    for (const [name, leaf] of Object.entries(node) as [string, unknown][]) {
       const key = prefix ? `${prefix}.${name}` : name;
       if (leaf === null || leaf === undefined) continue;
       if (Array.isArray(leaf)) {
@@ -58,13 +58,8 @@ export function flattenAttributes(value: unknown): Record<string, string> {
         walk(leaf, key);
         continue;
       }
-      if (
-        typeof leaf === "string" ||
-        typeof leaf === "number" ||
-        typeof leaf === "boolean" ||
-        typeof leaf === "bigint"
-      )
-        out[key] = String(leaf);
+      // oxlint-disable-next-line typescript/no-base-to-string -- Preserve the existing String conversion for every non-null attribute leaf, including custom primitive values.
+      out[key] = String(leaf);
     }
   };
   walk(value, "");

@@ -43,15 +43,17 @@ export function ExplorePersistentFilters({
       timeRange={timeRange}
       service={service}
       environment={environment}
+      // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
       onServiceChange={(values) =>
-        void navigate({
+        navigate({
           to,
           search: (prev) => ({ ...prev, service: values }),
           replace: true,
         })
       }
+      // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
       onEnvironmentChange={(values) =>
-        void navigate({
+        navigate({
           to,
           search: (prev) => ({ ...prev, environment: values }),
           replace: true,

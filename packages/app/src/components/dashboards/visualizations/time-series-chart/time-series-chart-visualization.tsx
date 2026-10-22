@@ -1,3 +1,5 @@
+/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+/* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -118,9 +120,9 @@ export function TimeSeriesChartVisualization({
       if (!plotRect) return;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       let nearest = 0;
-      let minDist = Math.abs(Number(chartData[0]?.[TS_KEY]) - ts);
+      let minDist = Math.abs((chartData[0]![TS_KEY] as number) - ts);
       for (let i = 1; i < chartData.length; i++) {
-        const dist = Math.abs(Number(chartData[i]?.[TS_KEY]) - ts);
+        const dist = Math.abs((chartData[i]![TS_KEY] as number) - ts);
         if (dist < minDist) {
           minDist = dist;
           nearest = i;
@@ -154,7 +156,7 @@ export function TimeSeriesChartVisualization({
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       setBrushStart(ts);
       setBrushEnd(null);
-      if (e.target instanceof Element) e.target.setPointerCapture(e.pointerId);
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
     [domain],
   );
@@ -199,7 +201,7 @@ export function TimeSeriesChartVisualization({
   }
 
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipTs = tooltipRow ? Number(tooltipRow[TS_KEY]) : undefined;
+  const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
 
   // Where each series is drawn at the hovered instant. Stacked series sit at
   // their cumulative top (the running sum in render order), which is where the
@@ -320,10 +322,10 @@ export function TimeSeriesChartVisualization({
           )}
         </ComposedChart>
       </ChartContainer>
-      {tooltipRow && tooltipState && tooltipTs !== undefined && (
-        <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
+      {tooltipRow && (
+        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
           <SeriesTooltipContent
-            title={new Date(tooltipTs).toLocaleString()}
+            title={new Date(tooltipTs!).toLocaleString()}
             rows={valueKeys
               .filter((key) => tooltipRow[key] != null)
               .map((key) => {
@@ -332,7 +334,7 @@ export function TimeSeriesChartVisualization({
                   key,
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
-                  value: formatter.format(typeof val === "number" ? val : 0),
+                  value: formatter.format(val as number),
                   // Calls out the row the pointer is on, so overlapping series
                   // can be told apart by aiming at one of them.
                   active: nearestKeys.has(key),

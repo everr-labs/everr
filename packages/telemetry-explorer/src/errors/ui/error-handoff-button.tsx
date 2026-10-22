@@ -66,9 +66,8 @@ export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
       variant="outline"
       size="sm"
       title="Copy a prompt that hands this Error to an agent"
-      onClick={() => {
-        void handleCopy?.();
-      }}
+      // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+      onClick={handleCopy}
     >
       {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
       {copied ? "Copied" : "Copy agent prompt"}

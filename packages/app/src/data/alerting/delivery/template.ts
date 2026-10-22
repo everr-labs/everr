@@ -35,13 +35,7 @@ export function renderMessage(
 ): string {
   return template.replace(VARIABLE_RE, (_, name: string) => {
     const value = ctx.firstRow?.[name];
-    return value === undefined || value === null
-      ? ""
-      : typeof value === "string" ||
-          typeof value === "number" ||
-          typeof value === "boolean" ||
-          typeof value === "bigint"
-        ? String(value)
-        : (JSON.stringify(value) ?? "");
+    // oxlint-disable-next-line typescript/no-base-to-string -- Alert templates retain their existing String coercion for composite query values.
+    return value === undefined || value === null ? "" : String(value);
   });
 }

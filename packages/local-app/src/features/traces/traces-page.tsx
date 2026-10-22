@@ -62,8 +62,9 @@ export function TracesPage() {
               environment={environment}
             />
           }
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={(patch) =>
-            void navigate({
+            navigate({
               to: "/traces",
               search: (prev) => ({ ...prev, ...patch }),
               replace: true,
@@ -92,9 +93,11 @@ export function TraceDetailPage() {
           repo={localTracesRepo}
           traceId={traceId}
           search={search}
-          onBack={() => void navigate({ to: "/traces", search: toTraceListSearch(search) })}
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+          onBack={() => navigate({ to: "/traces", search: toTraceListSearch(search) })}
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSpanChange={(spanId) =>
-            void navigate({
+            navigate({
               to: "/traces/$traceId",
               params: { traceId },
               search: (prev) => ({ ...prev, span: spanId }),

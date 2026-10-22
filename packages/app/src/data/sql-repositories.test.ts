@@ -11,8 +11,8 @@ const tracesInput = { fromTs: timeRange.from, toTs: timeRange.to };
 
 beforeEach(() => queryMock.mockReset());
 
-describe("hosted SQL result validation", () => {
-  it("validates log rows through the authenticated ClickHouse adapter", async () => {
+describe("hosted SQL result compatibility", () => {
+  it("maps log rows through the authenticated ClickHouse adapter", async () => {
     queryMock.mockResolvedValueOnce([
       {
         timestampRaw: timestamp,
@@ -37,7 +37,7 @@ describe("hosted SQL result validation", () => {
     );
   });
 
-  it("preserves trace precision and decodes quoted counts through the hosted adapter", async () => {
+  it("preserves trace precision and quoted counts through the hosted adapter", async () => {
     queryMock.mockResolvedValueOnce([
       {
         traceId: "trace",
@@ -56,12 +56,12 @@ describe("hosted SQL result validation", () => {
     expect((await searchTraces({ data: tracesInput }))[0]).toMatchObject({
       startTs: timestamp,
       durationNs: "18446744073709551615",
-      spanCount: 2,
-      errorCount: 0,
+      spanCount: "2",
+      errorCount: "0",
     });
   });
 
-  it("validates error summaries through the hosted adapter", async () => {
+  it("maps error summaries through the hosted adapter", async () => {
     queryMock.mockResolvedValueOnce([
       {
         fingerprint: "fp",
@@ -86,14 +86,17 @@ describe("hosted SQL result validation", () => {
     });
   });
 
-  it("rejects malformed rows through each hosted adapter", async () => {
-    queryMock.mockResolvedValue([{}]);
-    await expect(getLogsExplorer({ data: { timeRange } })).rejects.toThrow(
-      "Invalid SQL query response",
-    );
-    await expect(searchTraces({ data: tracesInput })).rejects.toThrow("Invalid SQL query response");
-    await expect(searchErrorIssues({ data: tracesInput })).rejects.toThrow(
-      "Invalid SQL query response",
-    );
+  it("passes through trace rows without adding SQL result validation", async () => {
+    const rows = [{ traceId: "legacy", spanCount: "not-a-count" }];
+    queryMock.mockResolvedValueOnce(rows);
+    expect(await searchTraces({ data: tracesInput })).toBe(rows);
+  });
+
+  it("retains the existing error count conversion for incomplete rows", async () => {
+    queryMock.mockResolvedValueOnce([{}]);
+    expect((await searchErrorIssues({ data: tracesInput })).issues[0]).toMatchObject({
+      occurrenceCount: Number.NaN,
+      traceCount: Number.NaN,
+    });
   });
 });

@@ -11,7 +11,8 @@ export const Route = createFileRoute("/blog/")({
 });
 
 const loadBlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  return blogposts
+  // oxlint-disable-next-line typescript/await-thenable -- Preserve the existing async handler's settlement timing.
+  return await blogposts
     .getPages()
     .map((post) => ({
       slug: post.slugs.join("/"),

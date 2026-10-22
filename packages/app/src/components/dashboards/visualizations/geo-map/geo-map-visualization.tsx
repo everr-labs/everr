@@ -172,13 +172,14 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
 
   const markersLayer = useMemo(() => {
     if (content?.kind !== "points") return null;
-    return content.markers.map((m) => {
+    return content.markers.map((m, i) => {
       const xy = projection([m.lon, m.lat]);
       if (!xy) return null;
       const title = m.label ?? `${m.lat.toFixed(2)}, ${m.lon.toFixed(2)}`;
       return (
         <circle
-          key={`${m.frame}-${m.lat}-${m.lon}-${m.label ?? ""}`}
+          // oxlint-disable-next-line react/no-array-index-key -- Preserve row identity when multiple markers have the same coordinates and label.
+          key={`${m.frame}-${i}`}
           cx={xy[0]}
           cy={xy[1]}
           r={m.r}

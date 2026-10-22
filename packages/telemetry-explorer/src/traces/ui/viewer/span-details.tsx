@@ -48,15 +48,14 @@ export function SpanDetails({
           variant="ghost"
           size="icon-sm"
           aria-label="Copy span link"
-          onClick={() => {
-            void (async () => {
-              try {
-                await navigator.clipboard.writeText(window.location.href);
-                toast.success("Span link copied");
-              } catch {
-                toast.error("Could not copy span link");
-              }
-            })();
+          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              toast.success("Span link copied");
+            } catch {
+              toast.error("Could not copy span link");
+            }
           }}
         >
           <Copy />

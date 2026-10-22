@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import {
   Empty,
@@ -60,13 +61,14 @@ export function ResourceEmptyState({
             {copyState === "copied" ? "Copied" : "Copy"}
           </Button>
         </div>
-        <output
+        <div
+          role="status"
           className={cn("text-muted-foreground text-xs", copyState !== "failed" && "sr-only")}
         >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </output>
+        </div>
         {docsHref && (
           <EmptyDescription>
             Or write the YAML yourself and publish it with the everr CLI.{" "}

@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
 import { DialogFooter } from "@everr/ui/components/dialog";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
@@ -16,9 +17,9 @@ export function InvitationLink({ url, onClose }: { url: string; onClose: () => v
         {url}
       </code>
       {state === "failed" && (
-        <output className="block text-sm text-muted-foreground">
+        <p role="status" className="text-sm text-muted-foreground">
           Could not copy automatically. Select and copy the link above.
-        </output>
+        </p>
       )}
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

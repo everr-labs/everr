@@ -29,13 +29,10 @@ import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
 import { LOG_LEVEL_META } from "./log-level-meta";
 
-// ESM/CJS interop: some bundlers expose `ansi-to-react`'s component under
-// `.default`; TS types the import as the component only, so the runtime fallback
-// needs an assertion that TS can't express.
 const Ansi =
   typeof AnsiImport === "function"
     ? AnsiImport
-    : // oxlint-disable-next-line typescript/consistent-type-assertions -- ESM/CJS interop default-export unwrap
+    : // oxlint-disable-next-line typescript/consistent-type-assertions -- Keep the existing type-only assertion without changing runtime property access, coercion, or third-party interop.
       (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 export interface LogInspectorProps {
@@ -58,14 +55,17 @@ function levelBadgeClassName(level: LogExplorerRow["level"]) {
 }
 
 function useDelayedFlag(active: boolean, delayMs: number) {
-  const [state, setState] = useState({ active, ready: false });
-  if (state.active !== active) setState({ active, ready: false });
+  const [delayed, setDelayed] = useState(false);
   useEffect(() => {
-    if (!active) return;
-    const id = setTimeout(() => setState({ active, ready: true }), delayMs);
+    if (!active) {
+      // oxlint-disable-next-line react/set-state-in-effect -- Preserve the existing delayed-flag reset timing; moving this reset into render changes observable loading behavior.
+      setDelayed(false);
+      return;
+    }
+    const id = setTimeout(() => setDelayed(true), delayMs);
     return () => clearTimeout(id);
   }, [active, delayMs]);
-  return state.active === active && state.ready;
+  return delayed;
 }
 
 function severityLabel(log: LogDetail) {
@@ -98,7 +98,7 @@ function LogInspectorSkeleton() {
   return (
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, sectionIndex) => (
-        // oxlint-disable-next-line react/no-array-index-key -- fixed-length static skeleton placeholders with no data identity
+        // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
         <div key={sectionIndex} className="space-y-2">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="h-9 w-full" />

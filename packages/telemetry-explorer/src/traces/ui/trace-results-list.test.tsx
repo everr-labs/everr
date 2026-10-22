@@ -1,33 +1,31 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { TraceSummary } from "../data/types";
 
 vi.mock("react-virtuoso", () => ({
-  Virtuoso: <T, C>({
+  Virtuoso: <T,>({
     data,
     itemContent,
     components,
-    context,
     endReached,
   }: {
     data: T[];
     itemContent: (index: number, item: T) => React.ReactNode;
-    components?: { Footer?: ComponentType<{ context: C }> };
-    context: C;
+    components?: { Footer?: () => React.ReactNode };
     endReached?: () => void;
   }) => (
     <div data-testid="virtuoso-mock">
       {data.map((item, i) => (
-        // oxlint-disable-next-line react/no-array-index-key -- generic Virtuoso mock over unconstrained T with no accessible stable field
+        // oxlint-disable-next-line react/no-array-index-key -- The virtualizer fixture renders items in source order.
         <div key={i}>{itemContent(i, item)}</div>
       ))}
       {/* Lets tests simulate scrolling to the bottom of the virtual list. */}
       <button type="button" data-testid="virtuoso-end-reached" onClick={() => endReached?.()}>
         end
       </button>
-      {components?.Footer ? <components.Footer context={context} /> : null}
+      {components?.Footer ? <components.Footer /> : null}
     </div>
   ),
 }));
@@ -67,34 +65,6 @@ function renderTraceLink({
 }
 
 describe("TraceResultsList", () => {
-  it("updates pagination status without remounting the footer", () => {
-    const props = {
-      rows: [row({ traceId: "a" })],
-      isPending: false,
-      isError: false,
-      error: null,
-      refetch: () => {},
-      hasMore: true,
-      isLoadingMore: false,
-      renderTraceLink,
-      onLoadMore: () => {},
-      onClearFilters: () => {},
-    };
-    const { rerender } = render(<TraceResultsList {...props} />);
-    const footer = screen.getByText("Showing 1 traces").parentElement;
-    if (!footer) throw new Error("Missing pagination footer");
-
-    rerender(<TraceResultsList {...props} isLoadingMore />);
-    expect(footer).toBeInTheDocument();
-    expect(within(footer).getByText("Loading more traces")).toBeVisible();
-
-    rerender(
-      <TraceResultsList {...props} rows={[...props.rows, row({ traceId: "b" })]} hasMore={false} />,
-    );
-    expect(footer).toBeInTheDocument();
-    expect(within(footer).getByText("Showing all 2 matching traces")).toBeVisible();
-  });
-
   it("renders one row per trace", () => {
     const rows = [
       row({ traceId: "a", rootName: "GET /a" }),

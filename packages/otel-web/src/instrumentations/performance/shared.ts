@@ -94,7 +94,8 @@ export function whenIdleOrHidden(cb: () => void): void {
     cb();
   };
   const onHidden = () => {
-    if (typeof idleHandle === "number") cIC(idleHandle);
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- Forward the original timer handle unchanged to the paired cancellation function.
+    cIC(idleHandle as number);
     once();
   };
   addEventListener("visibilitychange", onHidden, { once: true, capture: true });

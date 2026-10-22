@@ -228,7 +228,7 @@ describe("createApiKey (server fn)", () => {
   });
 });
 
-describe("listApiKeys provider projection", () => {
+describe("listApiKeys provider passthrough", () => {
   const key: ApiKey = {
     id: "ak_1",
     configId: "ingest",
@@ -242,11 +242,12 @@ describe("listApiKeys provider projection", () => {
     metadata: null,
   };
 
-  it("projects typed UI fields and strips provider-only data", async () => {
-    listApiKeysMock.mockResolvedValueOnce({
-      apiKeys: [{ ...key, key: "provider-key-material", referenceId: "test_org" }],
-    } as never);
-    expect(await listApiKeys()).toEqual([key]);
+  it("preserves provider rows without projecting their fields", async () => {
+    const providerRow = { ...key, referenceId: "test_org", enabled: true };
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [providerRow] } as never);
+    const listed = await listApiKeys();
+    expect(listed).toEqual([providerRow]);
+    expect(listed[0]).toBe(providerRow);
     expect(listApiKeysMock).toHaveBeenCalledWith({
       query: { configId: "ingest", organizationId: "test_org" },
       headers: {},
@@ -365,20 +366,45 @@ describe("listApiKeys provider projection", () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({ configId: "ingest", metadata });
     expect(listed[0]).not.toHaveProperty("key");
-    expect(listed[0]).not.toHaveProperty("referenceId");
+    expect(listed[0]).toHaveProperty("referenceId", "test_org");
   });
 });
 
-describe("createApiKey response validation", () => {
+describe("createApiKey response compatibility", () => {
   it.each([
     { id: "ak_1", key: "" },
-    { id: "", key: "ek_key" },
     { id: "ak_1", key: "ek_key", permissions: { ingest: "write" } },
     { id: "ak_1", key: "ek_key", permissions: { ingest: [42] } },
-  ])("rejects malformed creation results: %j", async (response) => {
+  ])("preserves previously accepted provider creation results: %j", async (response) => {
     createApiKeyMock.mockResolvedValueOnce(response);
-    await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toThrow(
-      "Server did not return a key",
+    expect(await createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).toEqual({
+      id: response.id,
+      key: response.key,
+      permissions: "permissions" in response ? response.permissions : { ingest: ["write"] },
+    });
+  });
+
+  it("keeps missing-key errors free of added validation causes", async () => {
+    createApiKeyMock.mockResolvedValueOnce({ id: "", key: "ek_key" });
+    await expect(createApiKey({ data: { name: "prod", scopes: ["ingest"] } })).rejects.toEqual(
+      new Error("Server did not return a key"),
     );
+  });
+
+  it.each([null, undefined, {}, { apiKeys: null }])(
+    "keeps the empty fallback for %j",
+    async (response) => {
+      listApiKeysMock.mockResolvedValueOnce(response as never);
+      expect(await listApiKeys()).toEqual([]);
+    },
+  );
+
+  it("passes through provider metadata without new JSON validation", async () => {
+    const metadata = { value: undefined, unsupported: () => "legacy" };
+    const row = { id: "ak_1", configId: "ingest", metadata };
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [row] } as never);
+    const listed = await listApiKeys();
+    expect(listed[0]).toBe(row);
+    expect(listed[0].metadata).toBe(metadata);
   });
 });
