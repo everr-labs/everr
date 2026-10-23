@@ -2,6 +2,25 @@ version: "0.5"
 is_strict: true
 ordered_shutdown: true
 
+environment:
+  - NODE_ENV=development
+  - SKIP_ENV_VALIDATION=false
+  - DATABASE_HOST=127.0.0.1
+  - DATABASE_PASSWORD=dev
+  - DATABASE_SSL=false
+  - CLICKHOUSE_DATABASE=app
+  - CLICKHOUSE_USERNAME=app_ro
+  - CLICKHOUSE_PASSWORD=dev
+  - CLICKHOUSE_ADMIN_USERNAME=web_app_admin
+  - CLICKHOUSE_ADMIN_PASSWORD=dev
+  - CLICKHOUSE_SQL_API_USERNAME=sql_api
+  - CLICKHOUSE_SQL_API_PASSWORD=dev
+  - CLICKHOUSE_SQL_API_MASTER_KEY=everr-development-only-not-a-secret
+  - BETTER_AUTH_SECRET=everr-development-only-not-a-secret
+  - INGEST_VERIFY_SHARED_SECRET=everr-development-only-not-a-secret
+  - EVERR_GITHUB_ENABLED=false
+  - SMEE_CHANNEL=
+
 # SIGTERM is expected during ordered shutdown. exit_on_end in 1.122.0
 # can re-enter shutdown, so required services use exit_on_failure.
 processes:
@@ -14,7 +33,7 @@ processes:
     readiness_probe:
       exec:
         command: >-
-          docker compose exec -T postgres pg_isready -U postgres &&
+          docker compose exec -T postgres pg_isready --host postgres -U postgres &&
           docker compose exec -T clickhouse-app clickhouse-client --host clickhouse-app --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0' &&
           docker compose exec -T clickhouse-cloud clickhouse-client --host clickhouse-cloud --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0'
       period_seconds: 2
@@ -23,13 +42,6 @@ processes:
       command: docker compose stop --timeout 60 postgres clickhouse-app clickhouse-cloud
       timeout_seconds: 90
 
-  provision:
-    command: dev-prepare databases
-    depends_on:
-      databases: { condition: process_healthy }
-    success_exit_codes: [143]
-    availability: { restart: exit_on_failure }
-
   collector-build:
     command: make -C collector build && make -C collector build EVERR_BUILD_TARGET=self-hosted
     success_exit_codes: [143]
@@ -37,10 +49,12 @@ processes:
 
   app:
     working_dir: ${DEV_ROOT}/packages/app
-    command: portless run --name app sh -c 'exec dev-prepare exec app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    command: portless run --name app sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    environment:
+      - DATABASE_NAME=everr_app
+      - DATABASE_USER=everr_app
+      - EVERR_PUBLIC_INGEST_URL=${DEV_APP_INGEST_URL}
     depends_on:
-      provision: { condition: process_completed_successfully }
-      # Keep databases alive after the one-shot provisioning task has exited.
       databases: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -53,9 +67,12 @@ processes:
 
   cloud:
     working_dir: ${DEV_ROOT}/packages/cloud
-    command: portless run --name app-cloud sh -c 'exec dev-prepare exec app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    command: portless run --name app-cloud sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    environment:
+      - DATABASE_NAME=everr_cloud
+      - DATABASE_USER=everr_cloud
+      - VITE_EVERR_PUBLIC_INGEST_URL=${DEV_CLOUD_INGEST_URL}
     depends_on:
-      provision: { condition: process_completed_successfully }
       databases: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -67,7 +84,11 @@ processes:
     shutdown: { timeout_seconds: 15 }
 
   collector-app:
-    command: portless run --name app-ingest dev-prepare exec collector app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    command: portless run --name app-ingest "${DEV_ROOT}/scripts/dev/exec.sh" collector app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    environment:
+      - CLICKHOUSE_DATABASE=otel
+      - CLICKHOUSE_USERNAME=collector_rw
+      - INGEST_VERIFY_URL=${DEV_APP_URL}/api/internal/verify-key
     depends_on:
       app: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }
@@ -82,7 +103,12 @@ processes:
     shutdown: { timeout_seconds: 15 }
 
   collector-cloud:
-    command: portless run --name cloud-ingest dev-prepare exec collector cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    command: portless run --name cloud-ingest "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    environment:
+      - CLICKHOUSE_DATABASE=otel
+      - CLICKHOUSE_USERNAME=collector_rw
+      - INGEST_VERIFY_URL=${DEV_CLOUD_URL}/api/internal/verify-key
+      - EVERR_QUEUE_DIRECTORY=${DEV_STATE_DIR}/cloud-queue
     depends_on:
       cloud: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }

@@ -23,19 +23,15 @@ else
   echo 'Install flock or shlock to prevent concurrent starts in this checkout.' >&2
   exit 1
 fi
-export DEV_INSTANCE="dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)"
-export DEV_STATE_DIR="$DEV_ROOT/.dev/instances/$DEV_INSTANCE"
-export DEV_RUN_DIR="$DEV_STATE_DIR/run"
+export DEV_STATE_DIR="$DEV_ROOT/.dev"
 export COMPOSE_FILE="$DEV_ROOT/scripts/dev/compose.yaml"
-export COMPOSE_PROJECT_NAME="$DEV_INSTANCE"
+export COMPOSE_PROJECT_NAME="dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)"
 export DEV_APP_URL="$(portless get app)"
 export DEV_CLOUD_URL="$(portless get app-cloud)"
 export DEV_APP_INGEST_URL="$(portless get app-ingest)"
 export DEV_CLOUD_INGEST_URL="$(portless get cloud-ingest)"
 umask 077
 mkdir -p "$DEV_STATE_DIR"
-(cd tools/dev && go build -o ../../.dev/bin/dev-prepare ./cmd/prepare)
-dev-prepare files
 exec process-compose --config "$DEV_ROOT/process-compose.yaml" \
   --disable-dotenv --no-server --tui=false \
-  --log-file "$DEV_RUN_DIR/process-compose.log" "$@"
+  --log-file "$DEV_STATE_DIR/process-compose.log" "$@"

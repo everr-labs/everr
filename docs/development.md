@@ -27,7 +27,7 @@ Portless handles HTTP port allocation and worktree prefixes. Application service
 
 The actual URLs are obtained with `portless get` and printed at startup. This development collector configuration exposes authenticated OTLP/HTTP (`/v1/logs`, `/v1/traces`, `/v1/metrics`). It does not expose a separate OTLP/gRPC listener. Production collector configuration is unchanged.
 
-Applications start after database provisioning, with their stable ingest URLs already configured. Each collector starts after its application's health check passes and verifies keys through the application's HTTPS URL. There is no endpoint handshake, Docker-to-host callback, or waiting application wrapper. Vite and the collectors bind to loopback.
+Applications start after database provisioning, with their stable ingest URLs already configured. Process Compose checks PostgreSQL's TCP listener and both ClickHouse schemas before starting App and Cloud. Each collector starts after its application's health check passes and verifies keys through the application's HTTPS URL. There is no endpoint handshake, Docker-to-host callback, or waiting application wrapper. Vite and the collectors bind to loopback.
 
 Each checkout owns one PostgreSQL server and two ClickHouse servers, with Docker-assigned loopback ports:
 
@@ -42,17 +42,18 @@ Both ClickHouse images use the table definitions and SQL query limits in `clickh
 
 The entry point does not copy or read application dotenv files. Applications load their own optional settings. Cloud requires its Polar configuration and both `EMAIL_DSN` and `EMAIL_FROM` in every environment, including development. SMTP remains optional for the self-hosted App. GitHub ingress and Smee are disabled in this basic stack.
 
-Generated local connection settings override application dotenv values. The stack uses fixed development credentials (`dev` for database passwords and a fixed development-only auth/verification secret). No credentials are generated or loaded from `secrets.json`. Each ClickHouse container initializes its own schema and users on its first start. PostgreSQL provisioning creates the application databases and sets their local credentials. Switching from the earlier generated auth secret requires signing in again; locally stored encrypted integration settings may need to be recreated. The self-hosted App collector uses in-memory buffering without Cloud usage accounting. The Cloud collector retains usage accounting and durable queues under `.dev/instances/<instance>/cloud-queue/`. Old App queue directories and Docker queue volumes are no longer used.
+Process Compose declares fixed development settings, which override application dotenv values. The stack uses `dev` for database passwords and a fixed development-only auth/verification secret. No environment files or credentials are generated. Each ClickHouse container initializes its own schema and users on its first start. PostgreSQL's standard entrypoint runs `scripts/dev/init-postgres.sql` on fresh storage to create the application databases and roles. Switching from the earlier generated auth secret requires signing in again; locally stored encrypted integration settings may need to be recreated. The self-hosted App collector uses in-memory buffering without Cloud usage accounting. The Cloud collector retains usage accounting and durable queues under `.dev/cloud-queue/`. Process Compose writes its log to `.dev/process-compose.log`. Old App queue directories and Docker queue volumes are no longer used.
 
 Instance identity comes from the canonical checkout path. Branch changes in the same checkout preserve data; distinct paths use distinct Docker projects and volumes. The entry script uses macOS `shlock` or Linux `flock` to prevent concurrent starts in one checkout.
 
 ## Implementation
 
-- `process-compose.yaml` owns builds, dependencies, readiness, process failure handling, and shutdown.
-- `scripts/dev/compose.yaml` declares the database containers and volumes and builds each product's ClickHouse image. The standard ClickHouse entrypoint initializes each server directly.
+- `process-compose.yaml` owns builds, dependencies, fixed development settings, readiness, process failure handling, and shutdown.
+- `scripts/dev/compose.yaml` declares the database containers and volumes and builds each product's ClickHouse image. The standard ClickHouse entrypoint initializes each server directly. This file is used through `pnpm dev`; Process Compose owns readiness, so the dev containers do not declare Docker health checks. The separate deployment Compose file retains its health checks.
 - `scripts/dev/collector-app.yaml` declares self-hosted public ingestion with in-memory buffering.
 - `scripts/dev/collector-cloud.yaml` retains Cloud usage accounting and durable queues. Both preserve authentication, tenant isolation, and retention processors from `collector/config.example.yml`.
-- `scripts/dev/start.sh` establishes the checkout environment, runs provisioning preparation, and executes Process Compose with forwarded arguments.
-- `tools/dev/cmd/prepare` provisions databases, and loads connection settings before executing a command supplied by YAML. It does not supervise processes or generate Compose/collector YAML.
+- `scripts/dev/init-postgres.sql` creates the App and Cloud PostgreSQL databases and roles on fresh storage.
+- `scripts/dev/start.sh` establishes the checkout environment and executes Process Compose with forwarded arguments.
+- `scripts/dev/exec.sh` resolves the application's Docker ports, forwards its Portless origin and local certificate settings, and executes the command supplied by YAML.
 
 Process Compose uses failure-only shutdown with SIGTERM accepted as an expected exit, avoiding an `exit_on_end` shutdown issue in version 1.122.0. A spontaneous successful process exit is not treated as failure. Shutdown stops collectors before their applications and databases. Portless allows its child processes up to ten seconds to terminate. App telemetry still buffered at exit is discarded; Cloud queues remain on disk.
