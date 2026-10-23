@@ -1,5 +1,5 @@
 // Explicit readable-table allowlist, shared with the restricted SQL role in
-// clickhouse/init/15-create-sql-api-role.sql. Row policies use this same
+// clickhouse/init/cloud/15-create-sql-api-role.sql. Row policies use this same
 // list. Keeping it separate from the client lets schema
 // discovery and MCP describe access without importing server credentials.
 export const SQL_API_TABLES = [

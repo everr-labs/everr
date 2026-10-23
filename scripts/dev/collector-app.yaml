@@ -1,0 +1,107 @@
+# Self-hosted development: in-memory buffering, without Cloud usage accounting.
+extensions:
+  everr_apikey:
+    endpoint: ${env:INGEST_VERIFY_URL}
+    shared_secret: ${env:INGEST_VERIFY_SHARED_SECRET}
+receivers:
+  otlp/public:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:${env:PORT}
+        auth:
+          authenticator: everr_apikey
+        cors:
+          allowed_origins:
+            - "*"
+          allowed_headers:
+            - Authorization
+            - Content-Type
+        max_request_body_size: 20971520
+processors:
+  filter/reserved_everr:
+    error_mode: propagate
+    metric_conditions:
+      - IsMatch(metric.name, "^everr[.]")
+  attributes/strip_user_tenant:
+    actions:
+      - action: delete
+        key: everr.tenant.id
+      - action: delete
+        key: everr.retention.days
+  resource/public_tenant:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        from_context: auth.tenant_id
+  resource/public_retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_traces_days
+  resource/public_retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_logs_days
+  resource/public_retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_metrics_days
+exporters:
+  clickhouse:
+    endpoint: ${env:CLICKHOUSE_URL}
+    username: ${env:CLICKHOUSE_USERNAME}
+    password: ${env:CLICKHOUSE_PASSWORD}
+    database: ${env:CLICKHOUSE_DATABASE}
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+      materialized_views_ignore_errors: "0"
+    json: true
+    sending_queue:
+      enabled: true
+      wait_for_result: false
+      queue_size: 10000
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
+service:
+  extensions:
+    - everr_apikey
+  pipelines:
+    traces/public:
+      receivers:
+        - otlp/public
+      processors:
+        - attributes/strip_user_tenant
+        - resource/public_tenant
+        - resource/public_retention_traces
+      exporters:
+        - clickhouse
+    metrics/public:
+      receivers:
+        - otlp/public
+      processors:
+        - filter/reserved_everr
+        - attributes/strip_user_tenant
+        - resource/public_tenant
+        - resource/public_retention_metrics
+      exporters:
+        - clickhouse
+    logs/public:
+      receivers:
+        - otlp/public
+      processors:
+        - attributes/strip_user_tenant
+        - resource/public_tenant
+        - resource/public_retention_logs
+      exporters:
+        - clickhouse
+  telemetry:
+    metrics:
+      level: none

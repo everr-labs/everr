@@ -119,7 +119,7 @@ describe("ClickHouse alert history", () => {
     // attempt, so the token could never match a previous insert, and a token
     // that differs every time gives each insert its own async-insert buffer.
     expect(mocks.insertRows).toHaveBeenCalledWith(
-      "app.alert_events",
+      "alert_events",
       [stamped(evaluation, 30), stamped(transition)],
       {
         async_insert: 1,
@@ -182,7 +182,7 @@ describe("ClickHouse alert history", () => {
     );
 
     expect(mocks.insertRows).toHaveBeenCalledWith(
-      "app.alert_events",
+      "alert_events",
       [
         expect.objectContaining({
           organizationId: "org-1",
@@ -497,7 +497,7 @@ describe("ClickHouse alert history", () => {
       await recordAlertHistoryStrict([first, second]);
 
       expect(mocks.insertRows).toHaveBeenCalledWith(
-        "app.alert_events",
+        "alert_events",
         [stamped(first), stamped(second)],
         {
           async_insert: 0,

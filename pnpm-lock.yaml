@@ -102,6 +102,9 @@ importers:
       oxlint-plugin-eslint:
         specifier: ^1.88.0
         version: 1.88.0
+      portless:
+        specifier: 0.15.8
+        version: 0.15.8
       turbo:
         specifier: ^2.9.12
         version: 2.9.12
@@ -10413,6 +10416,17 @@ packages:
     engines: {node: '>= 12.17.0'}
     hasBin: true
 
+  portless@0.15.8:
+    resolution:
+      integrity: sha512-kzGoG4xLsEytczl7O/COZaBwSAOKsWsZDxHv7/iFHKIC0X71OonpgbsQw58CGO29RklIHIx6yLM31TJMnTtPEw==
+    engines:
+      node: ">=24"
+    os:
+      - darwin
+      - linux
+      - win32
+    hasBin: true
+
 snapshots:
 
   '@actions/artifact@2.2.2':
@@ -20391,3 +20405,5 @@ snapshots:
   zwitch@2.0.4: {}
 
   zx@8.8.5: {}
+
+  portless@0.15.8: {}

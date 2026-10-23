@@ -65,7 +65,7 @@ export function loadLifecycleEvents(
 ): Promise<LifecycleEventRow[]> {
   return query<LifecycleEventRow>(
     `SELECT slug, instance_fingerprint, event_type, event_time
-       FROM app.alert_events
+       FROM alert_events
       WHERE is_live
         AND event_type IN ({types:Array(String)})
         AND event_time >= parseDateTimeBestEffort({from:String})
@@ -105,7 +105,7 @@ export function loadPriorStates(
     `SELECT slug,
             instance_fingerprint,
             argMax(event_type, event_time) AS last_event_type
-       FROM app.alert_events
+       FROM alert_events
       WHERE is_live
         AND event_type IN ({types:Array(String)})
         AND instance_fingerprint != ''
@@ -136,7 +136,7 @@ export function loadRecentTimeline(
 ): Promise<TimelineRow[]> {
   return query<TimelineRow>(
     `SELECT event_type, event_time, instance_labels, reason, silenced, error
-       FROM app.alert_events
+       FROM alert_events
       WHERE slug = {slug:String}
         AND is_live
         AND event_type IN ({types:Array(String)})
@@ -173,7 +173,7 @@ export function loadLastEvaluation(
 ): Promise<{ event_time: string; samples_json: string }[]> {
   return query<{ event_time: string; samples_json: string }>(
     `SELECT event_time, samples_json
-       FROM app.alert_events
+       FROM alert_events
       WHERE slug = {slug:String}
         AND is_live
         AND event_type = 'evaluation_succeeded'
@@ -212,7 +212,7 @@ export function loadInstanceLabels(
     labels: Record<string, string>;
   }>(
     `SELECT instance_fingerprint, any(instance_labels) AS labels
-       FROM app.alert_events
+       FROM alert_events
       WHERE slug = {slug:String}
         AND is_live
         AND instance_fingerprint != ''
@@ -257,7 +257,7 @@ export async function loadSilenceImpact(
     `SELECT toString(silence_id) AS sid,
             toString(uniqExactIf(notification_event_id, event_type = 'notification_deferred')) AS held,
             toString(uniqExactIf(notification_event_id, event_type = 'notification_suppressed')) AS dropped
-       FROM app.alert_events
+       FROM alert_events
       WHERE is_live
         AND silence_id IN ({ids:Array(UUID)})
         AND event_time >= parseDateTimeBestEffort({from:String})

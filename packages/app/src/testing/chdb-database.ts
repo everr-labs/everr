@@ -106,7 +106,7 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
-  const initDir = join(clickhouseRoot(), "init");
+  const initDir = join(clickhouseRoot(), "init", "cloud");
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 
@@ -137,6 +137,7 @@ export function createChdbDatabase(): ChdbDatabase {
   };
 
   run("CREATE DATABASE IF NOT EXISTS app");
+  run("USE app");
   for (const statement of statementsIn(initDir, "12-create-alert-events.sql")) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));

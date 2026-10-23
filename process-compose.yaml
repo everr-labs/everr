@@ -1,0 +1,103 @@
+version: "0.5"
+is_strict: true
+ordered_shutdown: true
+
+# SIGTERM is expected during ordered shutdown. exit_on_end in 1.122.0
+# can re-enter shutdown, so required services use exit_on_failure.
+processes:
+  databases:
+    command: |
+      trap 'docker compose down --timeout 60' EXIT
+      docker compose up --abort-on-container-exit postgres clickhouse
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: docker compose exec -T postgres pg_isready -U postgres && docker compose exec -T clickhouse clickhouse-client --query 'SELECT 1'
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown:
+      command: docker compose stop --timeout 60 postgres clickhouse
+      timeout_seconds: 90
+
+  provision:
+    command: dev-prepare databases
+    depends_on:
+      databases: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+
+  collector-build:
+    command: make -C collector build && make -C collector build EVERR_BUILD_TARGET=self-hosted
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+
+  app:
+    working_dir: ${DEV_ROOT}/packages/app
+    command: portless run --name app sh -c 'exec dev-prepare exec app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    depends_on:
+      provision: { condition: process_completed_successfully }
+      # Keep databases alive after the one-shot provisioning task has exited.
+      databases: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec: { command: 'curl --fail --silent "${DEV_APP_URL}/api/health"' }
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown: { timeout_seconds: 15 }
+
+  cloud:
+    working_dir: ${DEV_ROOT}/packages/cloud
+    command: portless run --name app-cloud sh -c 'exec dev-prepare exec app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    depends_on:
+      provision: { condition: process_completed_successfully }
+      databases: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec: { command: 'curl --fail --silent "${DEV_CLOUD_URL}/api/health"' }
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown: { timeout_seconds: 15 }
+
+  collector-app:
+    command: portless run --name app-ingest dev-prepare exec collector app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    depends_on:
+      app: { condition: process_healthy }
+      collector-build: { condition: process_completed_successfully }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_APP_INGEST_URL}/v1/logs')" = 401
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 60
+    shutdown: { timeout_seconds: 15 }
+
+  collector-cloud:
+    command: portless run --name cloud-ingest dev-prepare exec collector cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    depends_on:
+      cloud: { condition: process_healthy }
+      collector-build: { condition: process_completed_successfully }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_CLOUD_INGEST_URL}/v1/logs')" = 401
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 60
+    shutdown: { timeout_seconds: 15 }
+
+  ready:
+    command: |
+      echo "App: ${DEV_APP_URL} (ingest: ${DEV_APP_INGEST_URL})"
+      echo "Cloud: ${DEV_CLOUD_URL} (ingest: ${DEV_CLOUD_INGEST_URL})"
+      echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
+    depends_on:
+      collector-app: { condition: process_healthy }
+      collector-cloud: { condition: process_healthy }

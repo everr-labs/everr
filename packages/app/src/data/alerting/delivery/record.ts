@@ -28,7 +28,7 @@ export async function loadUndeliveredRecords(
   const rows = await query<Row>(
     `SELECT slug, severity,
             uniqExact(notification_event_id) AS undelivered
-       FROM app.alert_events
+       FROM alert_events
       WHERE is_live
         AND event_type = 'notification_suppressed'
         AND reason = 'no_channels'

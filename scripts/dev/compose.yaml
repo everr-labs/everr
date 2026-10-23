@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:17.11-alpine3.23
+    environment:
+      POSTGRES_PASSWORD: dev
+    ports:
+      - target: 5432
+        host_ip: 127.0.0.1
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    labels:
+      dev.checkout: ${DEV_ROOT}
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.5
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: dev
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CLICKHOUSE_SQL_API_USERNAME: installation_sql_api
+      CLICKHOUSE_SQL_API_PASSWORD: dev
+      CLOUD_COLLECTOR_PASSWORD: dev
+      CLOUD_READER_PASSWORD: dev
+      CLOUD_WRITER_PASSWORD: dev
+      APP_COLLECTOR_PASSWORD: dev
+      APP_READER_PASSWORD: dev
+      APP_WRITER_PASSWORD: dev
+    ports:
+      - target: 8123
+        host_ip: 127.0.0.1
+    volumes:
+      - clickhouse:/var/lib/clickhouse
+      - ${DEV_ROOT}/clickhouse/init/cloud:/dev-init/cloud:ro
+      - ${DEV_ROOT}/clickhouse/init/self-hosted:/dev-init/app:ro
+      - ${DEV_ROOT}/scripts/dev/init-clickhouse.sh:/dev-init/bootstrap.sh:ro
+    labels:
+      dev.checkout: ${DEV_ROOT}
+    healthcheck:
+      test: [CMD-SHELL, 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1"']
+      interval: 1s
+      timeout: 3s
+      retries: 60
+volumes:
+  postgres:
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse:
+    labels:
+      dev.checkout: ${DEV_ROOT}

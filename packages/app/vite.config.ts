@@ -22,10 +22,16 @@ export function createAppConfig(
 ) {
   return defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
+    // The composed server reads process.env; load its package configuration
+    // without overriding values injected by the development runner.
+    for (const [name, value] of Object.entries(env)) {
+      process.env[name] ??= value;
+    }
 
     return {
       root: appDirectory,
       envDir: process.cwd(),
+      cacheDir: resolve(process.cwd(), "node_modules/.vite"),
       publicDir: resolve(appDirectory, "public"),
       server: {
         allowedHosts: ["host.docker.internal"],

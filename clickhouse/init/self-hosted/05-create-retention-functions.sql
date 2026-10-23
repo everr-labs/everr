@@ -4,7 +4,7 @@
 --
 -- init/ runs only on a fresh server. Apply to an existing cluster with:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < clickhouse/init/05-create-retention-functions.sql
+--     < clickhouse/init/self-hosted/05-create-retention-functions.sql
 CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->
   toUInt16OrZero(resourceAttributes['everr.retention.days'])
     + throwIf(
@@ -15,7 +15,7 @@ CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->
 CREATE OR REPLACE FUNCTION everrStripRetention AS (resourceAttributes) ->
   mapFilter((k, v) -> k != 'everr.retention.days', resourceAttributes);
 
--- These JSON functions process inserted blocks, not storage reads. The app
+-- These JSON functions process inserted blocks, not storage reads. The installation
 -- column type strips the document path with SKIP; filter its keys array here.
 CREATE OR REPLACE FUNCTION everrRetentionDaysJson AS (resourceAttributes) ->
   toUInt16OrZero(toString(getSubcolumn(resourceAttributes, 'everr.retention.days')))

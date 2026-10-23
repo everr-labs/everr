@@ -78,7 +78,7 @@ processors:
 
 exporters:
   # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
-  # the views in clickhouse/init/10-create-mvs.sql map landing rows into
+  # the views in clickhouse/init/cloud/10-create-mvs.sql map landing rows into
   # app.*. `ttl` is unused with create_schema: false.
   clickhouse:
     endpoint: ${env:CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
@@ -91,7 +91,7 @@ exporters:
       materialized_views_ignore_errors: "0"
     # Logs and traces write JSON attribute columns with typed values and one
     # keys array per attribute column; the landing tables in
-    # clickhouse/init/03 declare that column set. A Map exporter against those
+    # clickhouse/init/cloud/03 declare that column set. A Map exporter against those
     # tables fails every insert, and the reverse too, so this flag and the
     # schema move together.
     json: true

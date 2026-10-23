@@ -44,14 +44,6 @@ class NodemailerMailer implements Mailer {
 }
 
 function createMailer(): Mailer | null {
-  if (env.NODE_ENV === "development") {
-    return new NodemailerMailer(env.EMAIL_FROM ?? "Everr <noreply@localhost>", env.EMAIL_REPLY_TO, {
-      host: "localhost",
-      port: 1025,
-      secure: false,
-    });
-  }
-
   if (!env.EMAIL_DSN) return null;
   if (!env.EMAIL_FROM) {
     throw new Error("EMAIL_FROM is required when EMAIL_DSN is configured");

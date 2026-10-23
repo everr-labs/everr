@@ -2,6 +2,8 @@
 
 ## Development
 
+For concurrent App and Cloud development across worktrees, use `pnpm dev`. See [Worktree development](docs/development.md) for prerequisites, Portless URLs, configuration, and shutdown behavior.
+
 ### Develop bundled skills
 
 The public Everr skills live in `skills/`. The CLI embeds these files at build time, and `npx skills add everr-labs/everr` discovers them for installation.
@@ -137,7 +139,7 @@ make run
 ### Run the dev stack
 
 > [!NOTE]
-> The app now owns the GitHub webhook ingress, queue polling, and workflow status writes into Postgres. Start the full dev stack after Postgres and ClickHouse are up.
+> `pnpm dev` starts isolated App and Cloud instances, their collectors, and shared database servers. It does not require the manually started services above. The GitHub integration workflow above uses `pnpm dev:web` with its separately configured dependencies.
 
 ```bash
 pnpm dev

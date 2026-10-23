@@ -1,6 +1,6 @@
 -- errorFingerprint: Everr's stable identity for an Error, computed from a log's
 -- service name and exception attributes. Centralized as a ClickHouse UDF so the
--- web app, the local collector's chDB, agents, and skills all group Errors
+-- web installation, the local collector's chDB, agents, and skills all group Errors
 -- identically instead of each carrying a copy of the expression.
 --
 -- Uses the `error.fingerprint` log attribute when set, else a hash of the
@@ -17,7 +17,7 @@
 --
 -- init/ runs only on a fresh server. Apply to an existing cluster with:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < clickhouse/init/04-create-error-fingerprint-function.sql
+--     < clickhouse/init/self-hosted/04-create-error-fingerprint-function.sql
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
     fingerprint != '',

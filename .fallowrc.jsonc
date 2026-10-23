@@ -46,6 +46,8 @@
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
+    // Invoked by scripts/dev/start.sh and process-compose.yaml.
+    "portless",
     "@tanstack/eslint-plugin-query",
     "@tanstack/eslint-plugin-router",
     "vite-plus",

@@ -12,6 +12,18 @@ it.each([true, false])("advertises the shared collector only in development (%s)
   );
 });
 
+it("advertises the selected development instance without changing production", async () => {
+  vi.stubEnv("VITE_EVERR_PUBLIC_INGEST_URL", "https://ingest.branch.app-cloud.localhost");
+  for (const dev of [true, false]) {
+    vi.resetModules();
+    vi.stubEnv("DEV", dev);
+    const { deployment } = await import("@composition/deployment");
+    expect(deployment.ingestEndpoint).toBe(
+      dev ? "https://ingest.branch.app-cloud.localhost" : "https://ingest.everr.dev/",
+    );
+  }
+});
+
 it("uses the hosted receiver when an ingest key is configured", () => {
   expect(
     resolveTelemetryConfig({ NODE_ENV: "production", EVERR_INGEST_KEY: "secret" }, "test"),

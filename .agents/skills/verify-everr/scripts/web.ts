@@ -227,7 +227,7 @@ const rowPolicies = async (clickhouse: string) =>
   (await chSql(clickhouse, "SELECT count() FROM system.row_policies WHERE short_name NOT LIKE 'sql_api_org_%'")).text.trim();
 
 function expectedRowPolicies(): string {
-  const dir = path.join(REPO, "clickhouse/init");
+  const dir = path.join(REPO, "clickhouse/init/cloud");
   let n = 0;
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
     n += readFileSync(path.join(dir, f), "utf8").split("\n").filter((l) => l.startsWith("CREATE ROW POLICY")).length;

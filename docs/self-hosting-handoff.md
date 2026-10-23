@@ -7,7 +7,7 @@ described below.
 ## Development switching and worktrees
 
 Cloud and self-hosted use the original tenant-aware physical ClickHouse schema.
-The plain SQL in `clickhouse/init` defines the same tables, materialized views,
+The plain SQL in `clickhouse/init/cloud` defines the same tables, materialized views,
 sorting keys, and retention for both. Production self-hosted telemetry omits the
 tenant stamp; its tenant columns default to an empty value and queries do not
 filter by tenant.
@@ -105,7 +105,7 @@ stage executable SQL and journals under `.output/drizzle`, including Cloud and
 legacy histories where needed, so ordinary Node startup and containers both work.
 See [DATABASE-MIGRATIONS.md](../DATABASE-MIGRATIONS.md) for switching and upgrades.
 
-ClickHouse uses the original plain SQL in `clickhouse/init`, unchanged from main.
+ClickHouse uses the original plain SQL in `clickhouse/init/cloud`, unchanged from main.
 The Dockerfile defaults to the `cloud` stage. Deployment Compose selects the
 `self-hosted` stage, which adds `99-configure-access.sh` after the common scripts.
 There is no renderer, template expansion, or Node build stage. Self-hosted SQL
