@@ -53,5 +53,5 @@ free_port() {
 export DEV_APP_GRPC_PORT="${DEV_APP_GRPC_PORT:-$(free_port)}"
 export DEV_CLOUD_GRPC_PORT="${DEV_CLOUD_GRPC_PORT:-$(free_port)}"
 exec process-compose --config "$DEV_ROOT/process-compose.yaml" \
-  --disable-dotenv --no-server --tui=false \
+  --disable-dotenv --use-uds --unix-socket "$DEV_STATE_DIR/pc.sock" --tui=false \
   --log-file "$DEV_STATE_DIR/process-compose.log" "$@"

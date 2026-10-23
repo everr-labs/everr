@@ -12,6 +12,19 @@ Ctrl+C stops the stack. In TUI mode, confirm Process Compose's quit dialog. Data
 
 Prerequisites: Process Compose (tested with 1.122.0, install with `brew install process-compose`), Go 1.26, Make, Node 24, installed workspace dependencies, and Docker with Compose. Docker's normal context and environment are honored. Portless is pinned as a workspace dependency; its initial HTTPS setup may require permission. Run `pnpm exec portless proxy start` first if certificate setup is needed.
 
+## Control a running stack
+
+Each stack exposes a Process Compose Unix socket at `.dev/pc.sock`. From another terminal in the same checkout:
+
+```sh
+process-compose -U -u .dev/pc.sock process list
+process-compose -U -u .dev/pc.sock process restart cloud
+process-compose -U -u .dev/pc.sock process logs cloud
+process-compose -U -u .dev/pc.sock down
+```
+
+The socket lives under `DEV_STATE_DIR` when that directory is overridden, so verification runs have their own control socket. The control API does not use a TCP port.
+
 ## What starts
 
 Process Compose runs App, Cloud, and native public-ingest and GitHub collectors for each application. The existing Make targets build both the cloud and self-hosted collector distributions for the host. Docker runs PostgreSQL and a separate ClickHouse container for each application.

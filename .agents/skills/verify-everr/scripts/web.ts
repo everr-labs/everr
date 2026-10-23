@@ -147,7 +147,7 @@ const composeToFile = (w: WebRun, args: string[], file: string, append = false) 
   runToFiles(...composeArgs(w, args), { stdout: file, append }, { env: composeEnv() });
 const docker = (w: WebRun, args: string[]) => run(w.docker[0], [...w.docker.slice(1), ...args]);
 const pcBin = () => which("process-compose") ?? path.join(REPO, ".dev/bin/process-compose");
-const pc = (w: WebRun, args: string[]) => run(pcBin(), ["-U", "-u", path.join(w.dir, "pc.sock"), ...args]);
+const pc = (w: WebRun, args: string[]) => run(pcBin(), ["-U", "-u", path.join(w.dir, "state", "pc.sock"), ...args]);
 function processReady(w: WebRun, name: string): boolean {
   const result = pc(w, ["process", "get", name, "-o", "json"]);
   try {
@@ -338,7 +338,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   const env = { ...process.env, ...vars, DEV_STATE_DIR: path.join(dir, "state"), COMPOSE_PROJECT_NAME: vars.WEB_PROJECT,
     OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "" };
   const log = path.join(dir, "web.log"), logFd = openSync(log, "w");
-  const args = ["dev", "--no-server=false", "-U", "-u", path.join(dir, "pc.sock"), "-f", path.join(REPO, "process-compose.mail.yaml")];
+  const args = ["dev", "-f", path.join(REPO, "process-compose.mail.yaml")];
   const server = spawn("pnpm", args, { cwd: REPO, env, detached: true, stdio: ["ignore", logFd, logFd] });
   closeSync(logFd);
   const pid = server.pid ?? die("could not start pnpm dev");
