@@ -21,9 +21,8 @@ import {
   type ChannelConfigDraft,
   type ChannelType,
   channelConfigDraft,
-  channelConfigInput,
-  channelDraftError,
   EMPTY_CHANNEL_DRAFT,
+  readChannelDraft,
   type WebhookHeaderDraft,
   type WebhookHeaderRowInvalid,
 } from "#app/data/alerting/delivery/channel-input.ts";
@@ -111,8 +110,9 @@ function ChannelForm({
 
   const trimmed = name.trim();
   const duplicate = existingNames.includes(trimmed) && trimmed !== editing?.name;
-  const config = channelConfigInput(draft, editing?.config.type ?? null);
-  const draftError = channelDraftError(draft, editing?.config.type ?? null);
+  const read = readChannelDraft(draft, editing?.config.type ?? null);
+  const config = "config" in read ? read.config : null;
+  const draftError = "error" in read ? read.error : null;
   // On an edit of the stored kind, the secret starts behind an explicit Edit
   // action. A blank draft still means keep the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  channelConfigDraft,
-  channelConfigInput,
-  channelDraftError,
-  EMPTY_CHANNEL_DRAFT,
-} from "./channel-input";
+import { channelConfigDraft, EMPTY_CHANNEL_DRAFT, readChannelDraft } from "./channel-input";
 
 const SLACK = { type: "slack" as const, url: "***" };
 const TELEGRAM = {
@@ -29,45 +24,45 @@ describe("channelConfigDraft", () => {
   });
 });
 
-describe("channelConfigInput", () => {
+describe("readChannelDraft", () => {
   it("is incomplete until the secret is typed on a new channel", () => {
-    expect(channelConfigInput(EMPTY_CHANNEL_DRAFT, null)).toBeNull();
-    expect(channelConfigInput({ ...EMPTY_CHANNEL_DRAFT, url: "https://x" }, null)).toEqual({
-      type: "slack",
-      url: "https://x",
+    expect(readChannelDraft(EMPTY_CHANNEL_DRAFT, null)).toEqual({ incomplete: true });
+    expect(readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, url: "https://x" }, null)).toEqual({
+      config: { type: "slack", url: "https://x" },
     });
   });
 
   it("keeps the stored secret when the field is left blank on an edit", () => {
-    expect(channelConfigInput(channelConfigDraft(SLACK), "slack")).toEqual({
-      type: "slack",
+    expect(readChannelDraft(channelConfigDraft(SLACK), "slack")).toEqual({
+      config: { type: "slack" },
     });
-    expect(channelConfigInput(channelConfigDraft(TELEGRAM), "telegram")).toEqual({
-      type: "telegram",
-      chat_ids: ["-100"],
+    expect(readChannelDraft(channelConfigDraft(TELEGRAM), "telegram")).toEqual({
+      config: { type: "telegram", chat_ids: ["-100"] },
     });
   });
 
   it("replaces the stored secret with what was typed", () => {
-    expect(channelConfigInput({ ...channelConfigDraft(SLACK), url: "https://y" }, "slack")).toEqual(
-      { type: "slack", url: "https://y" },
-    );
+    expect(readChannelDraft({ ...channelConfigDraft(SLACK), url: "https://y" }, "slack")).toEqual({
+      config: { type: "slack", url: "https://y" },
+    });
   });
 
   it("has nothing to keep once the kind changes", () => {
-    expect(
-      channelConfigInput({ ...channelConfigDraft(SLACK), type: "webhook" }, "slack"),
-    ).toBeNull();
+    expect(readChannelDraft({ ...channelConfigDraft(SLACK), type: "webhook" }, "slack")).toEqual({
+      incomplete: true,
+    });
   });
 
   it("needs at least one chat for Telegram", () => {
     expect(
-      channelConfigInput({ ...EMPTY_CHANNEL_DRAFT, type: "telegram", botToken: "t" }, null),
-    ).toBeNull();
+      readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "telegram", botToken: "t" }, null),
+    ).toEqual({ incomplete: true });
   });
 
   it("does not turn the read-side marker into a write", () => {
-    expect(channelConfigInput({ ...EMPTY_CHANNEL_DRAFT, url: "***" }, null)).toBeNull();
+    expect(readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, url: "***" }, null)).toEqual({
+      incomplete: true,
+    });
   });
 });
 
@@ -93,47 +88,54 @@ describe("webhook headers on a draft", () => {
         retainedName: "Authorization",
       }),
     ]);
-    expect(channelConfigInput(draft, "webhook")).toEqual({
-      type: "webhook",
-      headers: [{ name: "Authorization" }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      config: {
+        type: "webhook",
+        headers: [{ name: "Authorization" }],
+      },
     });
   });
 
   it("sends a typed value and drops a header the reader removed", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
-    expect(channelConfigInput(draft, "webhook")).toEqual({
-      type: "webhook",
-      headers: [{ name: "Authorization", value: "Bearer next" }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      config: {
+        type: "webhook",
+        headers: [{ name: "Authorization", value: "Bearer next" }],
+      },
     });
-    expect(channelConfigInput({ ...draft, headers: [] }, "webhook")).toEqual({
-      type: "webhook",
-      headers: [],
+    expect(readChannelDraft({ ...draft, headers: [] }, "webhook")).toEqual({
+      config: { type: "webhook", headers: [] },
     });
   });
 
   it("requires header values again when the URL is replaced", () => {
     const draft = { ...channelConfigDraft(WEBHOOK), url: "https://203.0.113.11/hook" };
-    expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toEqual({
-      message: "Header value is required for Authorization",
-      rows: [{ name: false, value: true }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      error: {
+        message: "Header value is required for Authorization",
+        rows: [{ name: false, value: true }],
+      },
     });
     draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
-    expect(channelConfigInput(draft, "webhook")).toEqual({
-      type: "webhook",
-      url: "https://203.0.113.11/hook",
-      headers: [{ name: "Authorization", value: "Bearer next" }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.11/hook",
+        headers: [{ name: "Authorization", value: "Bearer next" }],
+      },
     });
   });
 
   it("requires a value once the stored name is changed", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], name: "X-Token" };
-    expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toEqual({
-      message: "Header value is required for X-Token",
-      rows: [{ name: false, value: true }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      error: {
+        message: "Header value is required for X-Token",
+        rows: [{ name: false, value: true }],
+      },
     });
   });
 
@@ -145,9 +147,11 @@ describe("webhook headers on a draft", () => {
         { id: "blank", name: "", value: "", retainedName: null },
       ],
     };
-    expect(channelConfigInput(draft, "webhook")).toEqual({
-      type: "webhook",
-      headers: [{ name: "Authorization" }],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      config: {
+        type: "webhook",
+        headers: [{ name: "Authorization" }],
+      },
     });
     draft.headers[1] = {
       id: "second",
@@ -155,13 +159,14 @@ describe("webhook headers on a draft", () => {
       value: "second",
       retainedName: null,
     };
-    expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toEqual({
-      message: "Header authorization is already set",
-      rows: [
-        { name: true, value: false },
-        { name: true, value: false },
-      ],
+    expect(readChannelDraft(draft, "webhook")).toEqual({
+      error: {
+        message: "Header authorization is already set",
+        rows: [
+          { name: true, value: false },
+          { name: true, value: false },
+        ],
+      },
     });
   });
 
@@ -172,10 +177,11 @@ describe("webhook headers on a draft", () => {
       url: "https://x",
       headers: [{ id: "blocked", name: "Content-Type", value: "text/plain", retainedName: null }],
     };
-    expect(channelConfigInput(draft, null)).toBeNull();
-    expect(channelDraftError(draft, null)).toEqual({
-      message: "header Content-Type cannot be set",
-      rows: [{ name: true, value: false }],
+    expect(readChannelDraft(draft, null)).toEqual({
+      error: {
+        message: "header Content-Type cannot be set",
+        rows: [{ name: true, value: false }],
+      },
     });
   });
 });

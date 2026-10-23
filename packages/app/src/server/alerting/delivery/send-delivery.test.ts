@@ -133,27 +133,6 @@ describe("sendAlertDelivery send failure", () => {
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
 
-  it("strips a webhook header secret an endpoint echoed into the failure", async () => {
-    const secret = "Bearer super-secret-value";
-    mocks.channelConfig = {
-      type: "webhook",
-      url: "https://hook",
-      headers: [{ name: "Authorization", value: secret }],
-    };
-    mocks.send.mockReset().mockRejectedValue(
-      new mocks.ChannelSendError("notification webhook failed: 500", {
-        permanent: false,
-        responseBody: `upstream said ${secret}`,
-      }),
-    );
-
-    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
-
-    const [failedCall] = mocks.set.mock.calls.filter((call) => call[0]?.status === "failed");
-    expect(failedCall?.[0].lastError).not.toContain(secret);
-    expect(failedCall?.[0].lastError).toContain("[redacted-secret]");
-  });
-
   it("guards the failure write so a racing sent row can never flip back to failed", async () => {
     mocks.send.mockReset().mockRejectedValue(new Error("boom"));
 

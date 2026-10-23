@@ -60,26 +60,6 @@ export function sanitizeAlertError(text: string): string {
 }
 
 /**
- * Replace known secret strings before a pattern sanitizer runs.
- *
- * Webhook header values have no shape to match, unlike a URL or a bot token.
- * The send path knows the values it just used, so an endpoint that echoes
- * one of them back does not get that echo written into the trail.
- * Longer secrets go first so a short one that is a prefix of a longer one
- * cannot punch a hole in it. An empty string matches every position, so it
- * is dropped.
- */
-export function redactSecrets(text: string, secrets: readonly string[]): string {
-  const unique = [...new Set(secrets.filter((secret) => secret.length > 0))];
-  unique.sort((a, b) => b.length - a.length);
-  let redacted = text;
-  for (const secret of unique) {
-    redacted = redacted.replaceAll(secret, "[redacted-secret]");
-  }
-  return redacted;
-}
-
-/**
  * The frozen agent-facing content of a transition row: what the notification
  * says, where to pivot, and what the condition was. Read-out facts, never
  * predicates, so they travel as one opaque JSON column with documented keys

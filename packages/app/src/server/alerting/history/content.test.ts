@@ -4,7 +4,6 @@ import {
   ALERT_LABEL_VALUE_MAX,
   buildAlertContextJson,
   capAlertLabels,
-  redactSecrets,
   resolveAlertServiceName,
   sanitizeAlertError,
 } from "./content";
@@ -77,19 +76,6 @@ describe("sanitizeAlertError", () => {
     expect(sanitized).not.toContain("AAHrx3xkeNiG5FakeTokenValue-abc123");
     expect(sanitized).toContain("[redacted-token]");
     expect(sanitized).toContain("unauthorized");
-  });
-
-  it("strips a known header secret without touching the rest of the sentence", () => {
-    const secret = "Bearer super-secret-value";
-    const sanitized = redactSecrets(`upstream echoed ${secret} and then said try again`, [
-      secret,
-      "",
-    ]);
-    expect(sanitized).toBe("upstream echoed [redacted-secret] and then said try again");
-  });
-
-  it("strips a short header secret", () => {
-    expect(redactSecrets("env was prod", ["prod"])).toBe("env was [redacted-secret]");
   });
 
   it("passes a plain message through unchanged", () => {

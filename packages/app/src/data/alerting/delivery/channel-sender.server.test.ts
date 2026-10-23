@@ -252,6 +252,38 @@ it("keeps the endpoint's answer out of the error message", async () => {
   expect(error.responseBody).toBe("who=root&password=hunter2");
 });
 
+// The value has no shape, so only the sender, which just attached it, can
+// take it back out of an answer that repeats it.
+it("strips a webhook header secret an endpoint echoed back", async () => {
+  const authorization = "Bearer super-secret-value";
+  fetchMock.mockImplementationOnce(async (_input, init) => {
+    const headers = new Headers(init?.headers);
+    return new Response(
+      `upstream said ${headers.get("authorization")} env ${headers.get("x-env")}`,
+      {
+        status: 500,
+      },
+    );
+  });
+
+  const error = (await sendChannelNotification(
+    {
+      type: "webhook",
+      url: HOOK_URL,
+      headers: [
+        { name: "Authorization", value: authorization },
+        { name: "X-Env", value: "prod" },
+      ],
+    },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught)) as ChannelSendError;
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect(error.permanent).toBe(false);
+  expect(error.message).not.toContain(authorization);
+  expect(error.responseBody).toBe("upstream said [redacted-secret] env [redacted-secret]");
+});
+
 it("fails permanently and sends nothing when the bot token is missing", async () => {
   const error = await sendChannelNotification(
     { ...telegram, bot_token: "  " },

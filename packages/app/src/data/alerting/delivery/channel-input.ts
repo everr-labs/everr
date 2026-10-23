@@ -144,80 +144,66 @@ function markHeaderIssues(
   }
 }
 
+/** What one read of a draft can be. `incomplete` is a secret not typed yet:
+ *  nothing to say, and nothing to save. `error` is something the reader
+ *  typed. `config` is a write. */
+export type ChannelDraftRead =
+  | { config: AlertingChannelConfigInput }
+  | { error: ChannelDraftProblem }
+  | { incomplete: true };
+
 /**
- * The config the draft describes, or `null` while it cannot be saved. On an
- * edit that keeps the stored kind, a blank secret is omitted. A Slack channel
- * turned into a webhook has no webhook URL to retain, so a blank secret there
- * is incomplete.
+ * The one read of a channel draft. On an edit that keeps the stored kind, a
+ * blank secret is omitted. A Slack channel turned into a webhook has no
+ * webhook URL to retain, so a blank secret there is incomplete.
  */
-export function channelConfigInput(
+export function readChannelDraft(
   draft: ChannelConfigDraft,
   storedType: ChannelType | null,
-): AlertingChannelConfigInput | null {
+): ChannelDraftRead {
   const keepsSecret = storedType === draft.type;
-  let config: AlertingChannelConfigInput | null;
   switch (draft.type) {
     case "webhook": {
-      if (!draft.url && !keepsSecret) return null;
       const headers = webhookHeadersFromDraft(draft.headers, keepsSecret && draft.url === "");
-      if (headers.message) return null;
-      config = {
-        type: "webhook",
+      if (headers.message) return { error: { message: headers.message, rows: headers.rows } };
+      if (!draft.url && !keepsSecret) return { incomplete: true };
+      const parsed = AlertingChannelConfigInputSchema.safeParse({
+        type: draft.type,
         ...(draft.url ? { url: draft.url } : {}),
         // Always present, including empty: the form's list is the whole
         // list, so a row the reader removed has to clear the saved header.
         headers: headers.headers,
-      };
-      break;
+      });
+      if (!parsed.success) {
+        markHeaderIssues(headers.rows, headers.filledIndexes, parsed.error.issues);
+        return {
+          error: {
+            message: parsed.error.issues[0]?.message ?? firstZodIssue(parsed.error),
+            rows: headers.rows,
+          },
+        };
+      }
+      return { config: parsed.data };
     }
     case "slack":
     case "discord": {
-      if (!draft.url && !keepsSecret) return null;
-      config = {
+      if (!draft.url && !keepsSecret) return { incomplete: true };
+      const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.url ? { url: draft.url } : {}),
-      };
-      break;
+      });
+      return parsed.success ? { config: parsed.data } : { incomplete: true };
     }
     case "telegram": {
       if ((!draft.botToken && !keepsSecret) || draft.chatIds.length === 0) {
-        return null;
+        return { incomplete: true };
       }
-      config = {
+      const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.botToken ? { bot_token: draft.botToken } : {}),
         chat_ids: draft.chatIds,
-      };
-      break;
+      });
+      return parsed.success ? { config: parsed.data } : { incomplete: true };
     }
   }
-  const parsed = AlertingChannelConfigInputSchema.safeParse(config);
-  return parsed.success ? parsed.data : null;
-}
-
-/** Why a webhook draft cannot be saved, when the reason is something the
- *  reader typed rather than a secret they have not typed yet. `rows` lines
- *  up with `draft.headers` so the editor can mark the control to change. */
-export function channelDraftError(
-  draft: ChannelConfigDraft,
-  storedType: ChannelType | null,
-): ChannelDraftProblem | null {
-  if (draft.type !== "webhook") return null;
-  const headers = webhookHeadersFromDraft(
-    draft.headers,
-    storedType === "webhook" && draft.url === "",
-  );
-  if (headers.message) return { message: headers.message, rows: headers.rows };
-  if (!draft.url && storedType !== "webhook") return null;
-  const parsed = AlertingChannelConfigInputSchema.safeParse({
-    type: "webhook",
-    ...(draft.url ? { url: draft.url } : {}),
-    headers: headers.headers,
-  });
-  if (parsed.success) return null;
-  markHeaderIssues(headers.rows, headers.filledIndexes, parsed.error.issues);
-  return {
-    message: parsed.error.issues[0]?.message ?? firstZodIssue(parsed.error),
-    rows: headers.rows,
-  };
 }

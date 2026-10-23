@@ -5,7 +5,7 @@ import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.t
 import { type DbExecutor, db } from "#app/db/client.ts";
 import { alertChannels, alertDefaultChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
-import { redactSecrets, sanitizeAlertError } from "#app/server/alerting/history/content.ts";
+import { sanitizeAlertError } from "#app/server/alerting/history/content.ts";
 import {
   parseAlertingInput,
   throwAlertingPersistenceError,
@@ -259,28 +259,17 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  * reach.
  *
  * A ChannelSendError keeps that response in `responseBody`, out of its
- * message, so what is returned here is only text we wrote. It is sanitized
- * anyway: a lower layer may have put a webhook URL or a bot token in a
- * message, and both are secrets.
+ * message, so what is returned here is only text we wrote. The sender has
+ * already removed secrets from that message. This still strips a URL or a
+ * bot token a lower layer may have shaped into the text.
  */
-function testChannelError(cause: unknown, secrets: readonly string[]): string {
+function testChannelError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);
-  return truncateWithEllipsis(
-    sanitizeAlertError(redactSecrets(message, secrets)),
-    TEST_CHANNEL_ERROR_MAX,
-  );
-}
-
-function headerSecrets(config: AlertingChannelConfig | undefined): string[] {
-  return config?.type === "webhook" ? (config.headers ?? []).map((header) => header.value) : [];
+  return truncateWithEllipsis(sanitizeAlertError(message), TEST_CHANNEL_ERROR_MAX);
 }
 
 export async function testChannel(organizationId: string, body: unknown) {
   const started = performance.now();
-  // Filled once the config resolves, so a send that throws can still scrub
-  // header values out of the message. A rejection before that has nothing
-  // to scrub, and the message is ours.
-  let secrets: string[] = [];
   try {
     const { sendChannelTest } = await import("./channel-sender.server");
     const input = parseAlertingInput(AlertingChannelTestInputSchema, body);
@@ -290,14 +279,13 @@ export async function testChannel(organizationId: string, body: unknown) {
       ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
       : null;
     const config = resolveChannelConfig(input.config, previous);
-    secrets = headerSecrets(config);
     await sendChannelTest(config);
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {
     return {
       ok: false,
       latency_ms: Math.round(performance.now() - started),
-      error: testChannelError(cause, secrets),
+      error: testChannelError(cause),
     };
   }
 }
