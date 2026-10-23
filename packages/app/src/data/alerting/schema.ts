@@ -110,8 +110,63 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
 // marker: an omitted secret is the only way to retain a saved one.
 export const ALERTING_REDACTED_SECRET = "***";
 
+const ALERTING_HEADERS_MAX = 32;
+const ALERTING_HEADER_NAME_MAX = 128;
+const ALERTING_HEADER_VALUE_MAX = 4096;
+
+// An HTTP field name is an RFC 9110 token. The pattern keeps a name from
+// carrying whitespace, a colon, or a line break into the request.
+const AlertingChannelHeaderNameSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "header name is required" })
+  .max(ALERTING_HEADER_NAME_MAX)
+  .regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/, {
+    error: "header name must be an HTTP token",
+  });
+
+const AlertingChannelHeaderValueSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "header value is required" })
+  .max(ALERTING_HEADER_VALUE_MAX)
+  .refine((value) => !/[\r\n]/.test(value), {
+    error: "header value must not contain a line break",
+  });
+
+const AlertingChannelHeaderSchema = z.object({
+  name: AlertingChannelHeaderNameSchema,
+  value: AlertingChannelHeaderValueSchema,
+});
+
+function uniqueHeaderNames(headers: { name: string }[], ctx: z.RefinementCtx) {
+  const seen = new Set<string>();
+  for (const [index, header] of headers.entries()) {
+    // Field names are case-insensitive, so two entries that differ only by
+    // case are the same header and one would overwrite the other.
+    const key = header.name.toLowerCase();
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "header names must be unique",
+        path: [index, "name"],
+      });
+    }
+    seen.add(key);
+  }
+}
+
+const AlertingChannelHeadersSchema = z
+  .array(AlertingChannelHeaderSchema)
+  .max(ALERTING_HEADERS_MAX)
+  .superRefine(uniqueHeaderNames);
+
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("webhook"), url: z.string() }),
+  z.object({
+    type: z.literal("webhook"),
+    url: z.string(),
+    headers: AlertingChannelHeadersSchema.optional(),
+  }),
   z.object({ type: z.literal("slack"), url: z.string() }),
   z.object({ type: z.literal("discord"), url: z.string() }),
   z.object({
@@ -128,12 +183,27 @@ const AlertingChannelSecretInputSchema = z
     error: "the redacted channel secret cannot be written",
   });
 
+const AlertingChannelHeaderInputSchema = z.object({
+  name: AlertingChannelHeaderNameSchema,
+  // Omitted on a same-type edit means "keep the stored value", the way an
+  // omitted channel secret does.
+  value: AlertingChannelHeaderValueSchema.refine((value) => value !== ALERTING_REDACTED_SECRET, {
+    error: "the redacted header value cannot be written",
+  }).optional(),
+});
+
+const AlertingChannelHeadersInputSchema = z
+  .array(AlertingChannelHeaderInputSchema)
+  .max(ALERTING_HEADERS_MAX)
+  .superRefine(uniqueHeaderNames);
+
 /** What create, update, and test accept. A saved channel may omit its secret;
  *  the repository decides whether there is a same-type secret to retain. */
 export const AlertingChannelConfigInputSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("webhook"),
     url: AlertingChannelSecretInputSchema.optional(),
+    headers: AlertingChannelHeadersInputSchema.optional(),
   }),
   z.object({
     type: z.literal("slack"),

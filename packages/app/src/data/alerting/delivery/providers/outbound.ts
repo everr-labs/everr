@@ -134,15 +134,28 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
   return url;
 }
 
+export type OutboundHeader = { name: string; value: string };
+
 /**
  * A validated JSON POST to a channel-supplied URL, with the outcome classified
  * into permanent or transient so the send job knows whether a retry can help.
+ * Custom headers go on before the content type, so a caller cannot make the
+ * body JSON while telling the endpoint it is something else.
  */
-export async function postJson(urlRaw: string, body: unknown): Promise<void> {
+export async function postJson(
+  urlRaw: string,
+  body: unknown,
+  customHeaders: OutboundHeader[] = [],
+): Promise<void> {
   const url = await validateOutboundUrl(urlRaw);
+  const headers = new Headers();
+  for (const header of customHeaders) {
+    headers.set(header.name, header.value);
+  }
+  headers.set("content-type", "application/json");
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(body),
     redirect: "error",
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),

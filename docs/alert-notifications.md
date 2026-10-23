@@ -7,9 +7,10 @@ application Postgres database. ClickHouse stores evaluation evidence and
 transition history in addition to serving alert rule queries.
 
 Delivery is configured on the **Alerts -> Notifications** page as two things:
-channels (endpoint configs for webhook, Slack, Discord and Telegram; secrets
-encrypted at rest and redacted on read), and one organization default
-destination that names the channels every alert delivers to. The default
+channels (endpoint configs for webhook, Slack, Discord and Telegram;
+secrets, including custom webhook header values, encrypted at rest and
+redacted on read), and one organization default destination that names the
+channels every alert delivers to. The default
 destination is either unsplit (one channel set for all alerts) or split by
 severity tier. A rule opts out of it with `spec.notifications.channels` in its
 as-code YAML, which then receives that rule's alerts instead.

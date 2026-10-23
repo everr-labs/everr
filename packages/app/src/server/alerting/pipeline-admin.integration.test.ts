@@ -315,6 +315,92 @@ describe("the delivery channels the CLI manages", () => {
     });
   });
 
+  it("never hands a stored webhook header value back", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [{ name: "Authorization", value: "Bearer stored" }],
+      },
+    });
+
+    const [channel] = await listChannels(TEST_ORG);
+    expect(channel?.config).toEqual({
+      type: "webhook",
+      url: "***",
+      headers: [{ name: "Authorization", value: "***" }],
+    });
+  });
+
+  it("keeps a webhook header value omitted from an edit", async () => {
+    const config = {
+      type: "webhook" as const,
+      url: "https://203.0.113.10/hook",
+      headers: [{ name: "Authorization", value: "Bearer stored" }],
+    };
+    await createChannel(scope, { name: "pager", config });
+
+    await updateChannel(scope, "pager", {
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.11/hook",
+        headers: [{ name: "authorization" }],
+      },
+    });
+
+    expect(await storedConfig()).toEqual({
+      ...config,
+      url: "https://203.0.113.11/hook",
+    });
+  });
+
+  it("replaces the header list an edit sends, dropping what it leaves out", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [
+          { name: "Authorization", value: "Bearer old" },
+          { name: "X-API-Key", value: "key" },
+        ],
+      },
+    });
+
+    await updateChannel(scope, "pager", {
+      config: {
+        type: "webhook",
+        headers: [
+          { name: "Authorization", value: "Bearer new" },
+          { name: "X-Tenant", value: "acme" },
+        ],
+      },
+    });
+
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.10/hook",
+      headers: [
+        { name: "Authorization", value: "Bearer new" },
+        { name: "X-Tenant", value: "acme" },
+      ],
+    });
+  });
+
+  it("refuses a new webhook header with no value", async () => {
+    await expect(
+      createChannel(scope, {
+        name: "pager",
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.10/hook",
+          headers: [{ name: "Authorization" }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+  });
+
   it("refuses a blank name, which no rule could address", async () => {
     await expect(createChannel(scope, { name: "   ", config: slack })).rejects.toMatchObject({
       status: 422,

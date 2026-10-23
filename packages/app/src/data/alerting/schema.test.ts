@@ -3,6 +3,7 @@ import {
   ALERTING_MATCHER_LABEL_MAX,
   ALERTING_MATCHER_VALUE_MAX,
   ALERTING_MATCHERS_MAX,
+  AlertingChannelConfigInputSchema,
   AlertingRuleViewSchema,
   AlertingSilenceInputSchema,
 } from "./schema";
@@ -129,4 +130,45 @@ it("drops a client-supplied silence author", () => {
     author: "someone else",
   });
   expect(parsed).not.toHaveProperty("author");
+});
+
+it("only accepts webhook headers that can become one HTTP field each", () => {
+  const config = (headers: unknown) => ({
+    type: "webhook",
+    url: "https://203.0.113.10/hook",
+    headers,
+  });
+  expect(
+    AlertingChannelConfigInputSchema.safeParse(
+      config([{ name: "Authorization", value: "Bearer x" }]),
+    ).success,
+  ).toBe(true);
+  // A space is not an HTTP token; a line break would start another field.
+  expect(
+    AlertingChannelConfigInputSchema.safeParse(config([{ name: "Bad Header", value: "x" }]))
+      .success,
+  ).toBe(false);
+  expect(
+    AlertingChannelConfigInputSchema.safeParse(
+      config([{ name: "X-Test", value: "a\r\nInjected: x" }]),
+    ).success,
+  ).toBe(false);
+  expect(
+    AlertingChannelConfigInputSchema.safeParse(
+      config([
+        { name: "Authorization", value: "a" },
+        { name: "authorization", value: "b" },
+      ]),
+    ).success,
+  ).toBe(false);
+  expect(
+    AlertingChannelConfigInputSchema.safeParse(
+      config(
+        Array.from({ length: 33 }, (_, index) => ({
+          name: `X-Header-${index}`,
+          value: "x",
+        })),
+      ),
+    ).success,
+  ).toBe(false);
 });

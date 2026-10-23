@@ -86,5 +86,9 @@ export function ChannelMark({
  *  it reaches. Never the URL or the token, which the read never returns. */
 export function channelDetail(config: AlertingChannelConfig): string {
   if (config.type === "telegram") return `Telegram · ${config.chat_ids.join(", ")}`;
+  if (config.type === "webhook" && config.headers && config.headers.length > 0) {
+    const count = config.headers.length;
+    return `Webhook · ${count} ${count === 1 ? "header" : "headers"} · secret saved`;
+  }
   return `${CHANNEL_LABEL[config.type]} · secret saved`;
 }

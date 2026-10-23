@@ -30,6 +30,38 @@ import {
   readRedactedChannelConfig,
 } from "./channel-secrets.server";
 
+/**
+ * A webhook's headers, with an omitted value resolved from the stored header
+ * of the same name. Header values are write-only like the URL, so an edit that
+ * changes something else sends the names back without values. A provided
+ * `headers` list replaces the stored one wholesale: a header left out is a
+ * header removed.
+ */
+function resolveWebhookHeaders(
+  input: Extract<AlertingChannelConfigInput, { type: "webhook" }>,
+  previous: AlertingChannelConfig | null,
+): { name: string; value: string }[] {
+  const stored = previous?.type === "webhook" ? (previous.headers ?? []) : [];
+  if (input.headers === undefined) return stored;
+  const storedByName = new Map(stored.map((header) => [header.name.toLowerCase(), header]));
+  return input.headers.map((header) => {
+    const storedHeader = storedByName.get(header.name.toLowerCase());
+    const value = header.value ?? storedHeader?.value;
+    if (!value) {
+      throwAlertingPersistenceError(
+        422,
+        "validation",
+        `webhook header "${header.name}" needs a value`,
+      );
+    }
+    // A value-less entry is a keep, so it keeps the stored spelling too.
+    return {
+      name: header.value ? header.name : (storedHeader?.name ?? header.name),
+      value,
+    };
+  });
+}
+
 /** Turn a write draft into a config that can actually send. Omission retains
  *  a secret only when the saved transport has the same type. */
 function resolveChannelConfig(
@@ -37,7 +69,17 @@ function resolveChannelConfig(
   previous: AlertingChannelConfig | null,
 ): AlertingChannelConfig {
   switch (input.type) {
-    case "webhook":
+    case "webhook": {
+      const url = input.url ?? (previous?.type === "webhook" ? previous.url : undefined);
+      if (!url) {
+        throwAlertingPersistenceError(422, "validation", "webhook URL is required");
+      }
+      return {
+        type: "webhook",
+        url,
+        headers: resolveWebhookHeaders(input, previous),
+      };
+    }
     case "slack":
     case "discord": {
       const url = input.url ?? (previous?.type === input.type ? previous.url : undefined);

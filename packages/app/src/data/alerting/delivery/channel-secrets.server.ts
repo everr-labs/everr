@@ -101,9 +101,24 @@ function redactChannelConfig(config: AlertingChannelConfig): AlertingChannelConf
   switch (config.type) {
     case "telegram":
       return { ...config, bot_token: REDACTED };
+    case "webhook":
+      // Header values are as sensitive as the URL: an Authorization header is
+      // the credential. Names stay visible so an editor can show what is set
+      // without handing back a value it could not read.
+      return {
+        ...config,
+        url: REDACTED,
+        ...(config.headers
+          ? {
+              headers: config.headers.map((header) => ({
+                ...header,
+                value: REDACTED,
+              })),
+            }
+          : {}),
+      };
     case "discord":
     case "slack":
-    case "webhook":
       return { ...config, url: REDACTED };
   }
 }

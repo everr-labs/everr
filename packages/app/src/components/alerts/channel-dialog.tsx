@@ -15,13 +15,16 @@ import { SecretInput } from "@everr/ui/components/secret-input";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import {
   type ChannelConfigDraft,
+  type ChannelHeaderDraft,
   type ChannelType,
   channelConfigDraft,
   channelConfigInput,
   EMPTY_CHANNEL_DRAFT,
+  emptyChannelHeaderDraft,
 } from "#app/data/alerting/delivery/channel-input.ts";
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
@@ -106,10 +109,15 @@ function ChannelForm({
 
   const trimmed = name.trim();
   const duplicate = existingNames.includes(trimmed) && trimmed !== editing?.name;
-  const config = channelConfigInput(draft, editing?.config.type ?? null);
+  const config = channelConfigInput(draft, editing?.config ?? null);
   // On an edit of the stored kind, the secret starts behind an explicit Edit
   // action. A blank draft still means keep the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;
+  const storedHeaderNames = new Set(
+    editing?.config.type === "webhook"
+      ? (editing.config.headers ?? []).map((header) => header.name.toLowerCase())
+      : [],
+  );
   const urlField = CHANNEL_URL_FIELD[draft.type];
   const testable = config !== null;
 
@@ -214,6 +222,14 @@ function ChannelForm({
             />
           </div>
         )}
+        {draft.type === "webhook" && (
+          <WebhookHeaders
+            headers={draft.headers}
+            storedNames={storedHeaderNames}
+            disabled={busy}
+            onChange={(headers) => patch({ headers })}
+          />
+        )}
         {draft.type === "telegram" && (
           <>
             <div className="space-y-1.5">
@@ -283,5 +299,115 @@ function ChannelForm({
         </div>
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+/**
+ * The generic webhook's request headers. Values are write-only like the URL:
+ * a stored name starts locked, and leaving it alone keeps the saved value.
+ * Adding a header is one more row rather than a separate form.
+ */
+function WebhookHeaders({
+  headers,
+  storedNames,
+  disabled,
+  onChange,
+}: {
+  headers: ChannelHeaderDraft[];
+  storedNames: Set<string>;
+  disabled: boolean;
+  onChange: (headers: ChannelHeaderDraft[]) => void;
+}) {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const header of headers) {
+    const key = header.name.trim().toLowerCase();
+    if (!key) continue;
+    if (seen.has(key)) duplicates.add(key);
+    seen.add(key);
+  }
+  const missingValue = headers.some((header) => {
+    const name = header.name.trim();
+    return name.length > 0 && !header.value && !storedNames.has(name.toLowerCase());
+  });
+
+  const update = (index: number, patch: Partial<ChannelHeaderDraft>) =>
+    onChange(
+      headers.map((header, current) => (current === index ? { ...header, ...patch } : header)),
+    );
+
+  return (
+    <div className="space-y-1.5">
+      {/* Not a <label>: each row has its own named controls. */}
+      <span className="text-xs/relaxed leading-none font-medium">Headers</span>
+      <p className="text-muted-foreground text-xs">
+        Sent with every request. Values are write-only; a blank stored value keeps what is saved.
+      </p>
+      {headers.length > 0 && (
+        <div className="space-y-2">
+          {headers.map((header, index) => {
+            const stored = storedNames.has(header.name.trim().toLowerCase());
+            const valueMissing = header.name.trim().length > 0 && !header.value && !stored;
+            return (
+              <div key={header.id} className="flex items-start gap-2">
+                <Input
+                  aria-label={`Header ${index + 1} name`}
+                  aria-invalid={duplicates.has(header.name.trim().toLowerCase()) ? true : undefined}
+                  className="min-w-0 flex-1 font-mono"
+                  placeholder="Authorization"
+                  value={header.name}
+                  disabled={disabled}
+                  onChange={(event) => update(index, { name: event.target.value })}
+                />
+                <div className="min-w-0 flex-1">
+                  <SecretInput
+                    key={`${header.id}:${stored}`}
+                    aria-label={`Header ${index + 1} value`}
+                    aria-invalid={valueMissing ? true : undefined}
+                    className="font-mono"
+                    placeholder="Header value"
+                    value={header.value}
+                    disabled={disabled}
+                    hasStoredSecret={stored}
+                    onValueChange={(value) => update(index, { value })}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mt-0.5"
+                  aria-label={`Remove header ${header.name || index + 1}`}
+                  disabled={disabled}
+                  onClick={() => onChange(headers.filter((_, current) => current !== index))}
+                >
+                  <X />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => onChange([...headers, emptyChannelHeaderDraft()])}
+      >
+        <Plus />
+        Add header
+      </Button>
+      {duplicates.size > 0 && (
+        <p className="text-destructive text-xs" role="alert">
+          Header names must be unique.
+        </p>
+      )}
+      {missingValue && (
+        <p className="text-destructive text-xs" role="alert">
+          Each new header needs a value.
+        </p>
+      )}
+    </div>
   );
 }

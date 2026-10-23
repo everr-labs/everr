@@ -21,6 +21,8 @@ A channel is a named delivery endpoint, created on the Notifications page with *
 
 Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels.
 
+A generic webhook can also send custom request headers, such as `Authorization` or `X-API-Key`. Header names stay visible after saving, but their values are write-only in the same way: a stored header keeps its value unless you replace it, and removing the row removes the header.
+
 Channels can always be deleted. A deleted channel drops out of the default destination. A rule that named it directly does not fall back to the default destination: it stays pointed at the name, so its alerts are not delivered until the name exists again, and each one is recorded as undelivered. The rule's as-code spec keeps the name, so re-creating the channel (or the next `everr apply`) links it up again. Only a channel with notifications still sending is briefly refused; retry once they settle.
 
 ## The default destination

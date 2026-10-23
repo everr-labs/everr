@@ -37,6 +37,31 @@ describe("the channel secret envelope", () => {
     expect(sealed).not.toContain(Buffer.from("123:secret").toString("base64url"));
   });
 
+  it("redacts header values and keeps their names readable", () => {
+    const secret = "Bearer header-secret";
+    const webhook = {
+      type: "webhook" as const,
+      url: "https://203.0.113.10/hook",
+      headers: [
+        { name: "Authorization", value: secret },
+        { name: "X-API-Key", value: "key-secret" },
+      ],
+    };
+    const sealed = encryptChannelConfig(ORG, ID, webhook);
+
+    expect(readRedactedChannelConfig(sealed)).toEqual({
+      ...webhook,
+      url: "***",
+      headers: [
+        { name: "Authorization", value: "***" },
+        { name: "X-API-Key", value: "***" },
+      ],
+    });
+    expect(sealed).not.toContain(secret);
+    expect(sealed).not.toContain(Buffer.from(secret).toString("base64url"));
+    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(webhook);
+  });
+
   it("refuses a public part that was edited under the ciphertext", () => {
     const sealed = encryptChannelConfig(ORG, ID, {
       type: "slack",

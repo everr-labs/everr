@@ -38,19 +38,49 @@ const chatIdsArb = fc.array(
   { minLength: 1, maxLength: 3 },
 );
 
+const headerArb = fc.record({
+  name: hexArb.map((hex) => `X-${hex}`),
+  value: hexArb,
+});
+const webhookHeadersArb = fc.uniqueArray(headerArb, {
+  selector: (header) => header.name.toLowerCase(),
+  maxLength: 4,
+});
+
 const urlConfigArb = fc
   .record({ type: fc.constantFrom<UrlKind>(...URL_KINDS), url: urlArb })
   .map((config): AlertingChannelConfig => config);
 const telegramConfigArb = fc
   .record({ bot_token: botTokenArb, chat_ids: chatIdsArb })
   .map((config): AlertingChannelConfig => ({ type: "telegram", ...config }));
+const webhookConfigArb = fc
+  .record({ url: urlArb, headers: webhookHeadersArb })
+  .map((config): AlertingChannelConfig => ({ type: "webhook", ...config }));
 
 /** A stored channel of any kind the app can send through. */
-const configArb = fc.oneof(urlConfigArb, telegramConfigArb);
+const configArb = fc.oneof(urlConfigArb, telegramConfigArb, webhookConfigArb);
 
 /** The secret of a config, whichever field holds it for that kind. */
 function secretOf(config: AlertingChannelConfig): string {
   return config.type === "telegram" ? config.bot_token : config.url;
+}
+
+/** What a screen may see of a stored config. */
+function redactedConfigOf(config: AlertingChannelConfig): AlertingChannelConfig {
+  if (config.type === "telegram") {
+    return { ...config, bot_token: REDACTED };
+  }
+  if (config.type === "webhook" && config.headers) {
+    return {
+      ...config,
+      url: REDACTED,
+      headers: config.headers.map((header) => ({
+        ...header,
+        value: REDACTED,
+      })),
+    };
+  }
+  return { ...config, url: REDACTED };
 }
 
 describe("a channel config's encrypted envelope", () => {
@@ -75,16 +105,31 @@ describe("a channel config's encrypted envelope", () => {
     );
   });
 
+  it("puts webhook header values nowhere a reader without the key can see", () => {
+    fc.assert(
+      fc.property(webhookConfigArb, (stored) => {
+        if (stored.type !== "webhook") return;
+        const sealed = encryptChannelConfig(ORG, ID, stored);
+        const redacted = readRedactedChannelConfig(sealed);
+        expect(redacted.type).toBe("webhook");
+        if (redacted.type !== "webhook") return;
+        expect(redacted.headers?.map((header) => header.name)).toEqual(
+          stored.headers?.map((header) => header.name),
+        );
+        expect(redacted.headers?.every((header) => header.value === REDACTED)).toBe(true);
+        for (const header of stored.headers ?? []) {
+          expect(sealed).not.toContain(header.value);
+          expect(sealed).not.toContain(Buffer.from(header.value, "utf8").toString("base64url"));
+        }
+      }),
+    );
+  });
+
   it("keeps everything but the secret legible without the key", () => {
     fc.assert(
       fc.property(configArb, (stored) => {
         const sealed = encryptChannelConfig(ORG, ID, stored);
-        const redacted = readRedactedChannelConfig(sealed);
-        expect(redacted).toEqual(
-          stored.type === "telegram"
-            ? { ...stored, bot_token: REDACTED }
-            : { ...stored, url: REDACTED },
-        );
+        expect(readRedactedChannelConfig(sealed)).toEqual(redactedConfigOf(stored));
       }),
     );
   });

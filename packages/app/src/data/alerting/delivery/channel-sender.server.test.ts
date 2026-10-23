@@ -81,6 +81,27 @@ it("leaves an in-limit message untouched", async () => {
   expect(sentDiscordContent()).toBe(`${small.title}\n\n${small.body}`);
 });
 
+it("sends a webhook's configured headers and keeps its own content type", async () => {
+  await sendChannelNotification(
+    {
+      type: "webhook",
+      url: HOOK_URL,
+      headers: [
+        { name: "Authorization", value: "Bearer token" },
+        { name: "X-Tenant", value: "acme" },
+        { name: "Content-Type", value: "text/plain" },
+      ],
+    },
+    { title: "t", body: "b" },
+  );
+
+  const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+  expect(headers.get("authorization")).toBe("Bearer token");
+  expect(headers.get("x-tenant")).toBe("acme");
+  // The payload is always JSON, whatever a header entry tried to say.
+  expect(headers.get("content-type")).toBe("application/json");
+});
+
 it("marks a 400 permanent: retrying an identical malformed request cannot help", async () => {
   fetchMock.mockResolvedValueOnce(new Response("bad payload", { status: 400 }));
 

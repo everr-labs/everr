@@ -12,5 +12,5 @@ export function sendWebhookNotification(
   config: Extract<AlertingChannelConfig, { type: "webhook" }>,
   notification: ChannelNotification,
 ): Promise<void> {
-  return postJson(config.url, notification);
+  return postJson(config.url, notification, config.headers ?? []);
 }
