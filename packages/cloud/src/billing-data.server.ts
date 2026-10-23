@@ -1,4 +1,5 @@
 import { db } from "@everr/app/db/client";
+import type { DbExecutor } from "@everr/app/db/database";
 import { member } from "@everr/app/db/schema";
 import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, ne, sql } from "drizzle-orm";
@@ -30,8 +31,8 @@ function appStateForPlan(
   return subscription?.status === "active" ? "pro" : "suspended";
 }
 
-async function readExplicitPlan(orgId: string) {
-  const [row] = await db
+async function readExplicitPlan(orgId: string, database: DbExecutor) {
+  const [row] = await database
     .select({ plan: organizationBilling.plan })
     .from(organizationBilling)
     .where(eq(organizationBilling.orgId, orgId))
@@ -47,10 +48,13 @@ export type OrgEntitlement = {
   cancelAtPeriodEnd: boolean;
 };
 
-export async function readOrgEntitlement(orgId: string): Promise<OrgEntitlement> {
+export async function readOrgEntitlement(
+  orgId: string,
+  database: DbExecutor = db,
+): Promise<OrgEntitlement> {
   const [storedPlan, subscriptionRows] = await Promise.all([
-    readExplicitPlan(orgId),
-    db.select().from(orgSubscription).where(eq(orgSubscription.orgId, orgId)).limit(1),
+    readExplicitPlan(orgId, database),
+    database.select().from(orgSubscription).where(eq(orgSubscription.orgId, orgId)).limit(1),
   ]);
   const row = subscriptionRows[0];
   const plan: OrganizationPlan = storedPlan?.plan ?? "hobby";

@@ -1,6 +1,6 @@
 # 04: Publish cloud billing, Plan, and readiness facts
 
-Status: implemented, independently reviewed, and ready for commit. Not committed.
+Status: implemented, independently reviewed, and committed as `b3b617cdc`.
 
 Repository: `everr`.
 
