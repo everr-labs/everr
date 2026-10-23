@@ -29,7 +29,7 @@ export function billingIdentityAdapter(factory: ReturnType<typeof drizzleAdapter
         if (!user) return adapter.update<T>(input);
         await billing.beforeUserUpdate(user.id, identity);
         const result = await adapter.update<T>(input);
-        await billing.afterUserUpdate(user.id);
+        await billing.afterUserUpdate(user.id, identity);
         return result;
       });
     };

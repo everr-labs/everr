@@ -3,6 +3,8 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#app/db/database.ts";
 import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
+import type { BusinessEvents } from "#app/composition/business-events.ts";
+import { publishUserFact, userCreated, type UserFact } from "#app/identity/events.ts";
 import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
 export class InstallationSetupError extends Error {}
@@ -55,10 +57,11 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database,
+  events: BusinessEvents<UserFact> = { publish() {} },
 ) {
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
-  return database.transaction(async (tx) => {
+  const result = await database.transaction(async (tx) => {
     // One installation-wide lock, shared by concurrent setup requests and replicas.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(1936028277, 1)`);
     const [existing] = await tx.select({ id: organization.id }).from(organization).limit(1);
@@ -92,6 +95,8 @@ export async function setupWorkspace(
       role: "owner",
       createdAt: now,
     });
-    return { organizationId };
+    return { organizationId, userId };
   });
+  publishUserFact(events, userCreated(result.userId, false));
+  return { organizationId: result.organizationId };
 }

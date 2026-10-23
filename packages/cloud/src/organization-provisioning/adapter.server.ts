@@ -1,4 +1,4 @@
-import { type Database, type DbExecutor, db, runInTransaction } from "@everr/app/db/client";
+import { type DbExecutor, db, runInTransaction } from "@everr/app/db/client";
 import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
@@ -10,7 +10,7 @@ import { preserveOrganizationProvisioningStatus } from "./metadata.server";
 
 // Keep access-entity work in the same commit as the organization mutation.
 // Better Auth's after-hooks cannot provide that guarantee after process death.
-export function organizationLifecycleAdapter(database: Database = db) {
+export function organizationLifecycleAdapter(database: DbExecutor = db) {
   return (options: Parameters<ReturnType<typeof drizzleAdapter>>[0]) => {
     const factory = (executor: DbExecutor) => drizzleAdapter(executor, { provider: "pg" })(options);
     const wrap = (executor: DbExecutor): ReturnType<typeof factory> => {

@@ -1,7 +1,6 @@
 # 01: Add the typed fire-and-forget publisher
 
-Status: implemented and independently reviewed, findings fixed. Ready for the
-coordinating agent to stage and commit.
+Status: implemented, independently reviewed, and committed as `c4dca85c1`.
 
 Repository: `everr`.
 
@@ -112,15 +111,15 @@ repository's documented standards on October 23, 2026.
   payload values, as Zod object schemas do. The envelope is shallow-frozen;
   general deep cloning or arbitrary subscriber mutation isolation is not claimed.
 - Review verification: 17 tests passed across publisher, diagnostics, and shutdown
-  after the fix; app and cloud TypeScript checks and scoped lint passed. The
+  after the fix; app and cloud TypeScript checks, scoped lint, formatting of all
+  20 scoped files, and whitespace checks passed. The
   implementation's earlier 43-test worker-inclusive run remains recorded above.
 - Diagnostic implementation and attributes did not change during review. The
   isolated Everr log/counter proof above therefore remains applicable. `.auth`
   remains absent, so no authenticated UI check is claimed.
 
-Implementation and independent review are complete. The coordinating agent owns
-staging, the commit, and recording its resulting hash; this reviewer made no
-commit.
+Implementation and independent review are complete. The coordinating agent
+committed the scoped change as `c4dca85c1`; the reviewer made no commit.
 
 ## Commit boundary
 

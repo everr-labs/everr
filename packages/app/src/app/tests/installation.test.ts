@@ -11,6 +11,7 @@ import {
 } from "#app/app/installation.server.ts";
 import { createRecoveryLink } from "#app/app/recovery.server.ts";
 import * as schema from "#app/db/schema/index.ts";
+import type { UserFact } from "#app/identity/events.ts";
 import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
 
 const { client, database } = await createAuthTestDatabase();
@@ -28,11 +29,18 @@ const input = {
 };
 it("creates an owner with a usable password", async () => {
   expect(await getInstallation(database)).toBeNull();
-  const result = await setupWorkspace(input, database);
+  const publish = vi.fn();
+  const result = await setupWorkspace(input, database, { publish });
   expect(await getInstallation(database)).toEqual({
     id: result.organizationId,
   });
   const [owner] = await database.select().from(schema.user);
+  expect(publish).toHaveBeenCalledWith({
+    type: "identity.user.created",
+    version: 1,
+    subjectId: owner.id,
+    data: { userId: owner.id, emailVerified: false },
+  } satisfies UserFact);
   const [credential] = await database.select().from(schema.account);
   if (!credential.password) throw new Error("Missing owner credential");
   expect(
@@ -69,7 +77,9 @@ it("rolls back the whole setup after a database constraint failure, allowing ret
   await client.exec(
     "ALTER TABLE member ADD CONSTRAINT reject_initial_owner CHECK (role <> 'owner')",
   );
-  await expect(setupWorkspace(input, database)).rejects.toThrow();
+  const publish = vi.fn();
+  await expect(setupWorkspace(input, database, { publish })).rejects.toThrow();
+  expect(publish).not.toHaveBeenCalled();
   expect(await getInstallation(database)).toBeNull();
   expect(await database.select().from(schema.user)).toHaveLength(0);
   expect(await database.select().from(schema.account)).toHaveLength(0);
@@ -97,7 +107,7 @@ it("admits signup only for a pending, unexpired invitation in the workspace", as
   await expect(
     assertInvitedUser({ email: "stranger@example.test" }, "invite", database),
   ).rejects.toThrow("invitation");
-  await client.exec("UPDATE invitation SET expires_at = now() - interval '1 second'");
+  await client.exec("UPDATE invitation SET expires_at = timestamp '2000-01-01 00:00:00'");
   await expect(
     assertInvitedUser({ email: "teammate@example.test" }, "invite", database),
   ).rejects.toThrow("invitation");

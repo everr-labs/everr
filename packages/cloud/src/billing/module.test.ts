@@ -547,6 +547,21 @@ it("updates email by member ID and refuses to adopt an independent contact", asy
     }),
   ).rejects.toMatchObject({ code: "identity_conflict" });
 });
+it("reconciles persisted identity overrides while the base connection still sees the old row", async () => {
+  await upgrade();
+  const before = required([...members.values()].find((m) => m.externalId === "admin"));
+  await billing.beforeUserUpdate("admin", { email: "committing@example.com", emailVerified: true });
+  await billing.afterUserUpdate("admin", { email: "committing@example.com" });
+  expect(
+    (
+      await database
+        .select({ email: schema.user.email })
+        .from(schema.user)
+        .where(eq(schema.user.id, "admin"))
+    )[0].email,
+  ).toBe("admin@example.com");
+  expect(members.get(before.id)?.email).toBe("committing@example.com");
+});
 it("adopts a matching team and preserves its Polar owner without local owner configuration", async () => {
   await gateway.createTeam({
     orgId: "org",

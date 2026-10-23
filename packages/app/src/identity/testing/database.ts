@@ -1,11 +1,30 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
-import type { Database } from "#app/db/database.ts";
+import { createDatabase, type Database } from "#app/db/database.ts";
+import { withTransactionReads } from "./transaction-reads";
 import * as schema from "#app/db/schema/index.ts";
 
-export async function createAuthTestDatabase() {
-  const client = new PGlite();
-  const database = drizzle(client, { schema }) as unknown as Database;
+interface AuthTestClient {
+  exec(sql: string): Promise<unknown>;
+  query<T extends Record<string, unknown> = Record<string, unknown>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rows: T[] }>;
+  close(): Promise<void>;
+}
+
+export async function createAuthTestDatabase(postgresUrl?: string) {
+  const postgres = postgresUrl ? createDatabase({ connectionString: postgresUrl }) : undefined;
+  const embedded = postgres ? undefined : new PGlite();
+  const client: AuthTestClient = postgres
+    ? {
+        exec: (sql: string) => postgres.pool.query(sql),
+        query: <T extends Record<string, unknown>>(sql: string, params?: unknown[]) =>
+          postgres.pool.query<T>(sql, params),
+        close: () => postgres.pool.end(),
+      }
+    : embedded!;
+  const database = postgres?.db ?? (drizzle(embedded!, { schema }) as unknown as Database);
   await client.exec(`
 CREATE TABLE "user" (id text PRIMARY KEY, name text NOT NULL, email text UNIQUE NOT NULL, email_verified boolean NOT NULL DEFAULT false, image text, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
 CREATE TABLE account (id text PRIMARY KEY, account_id text NOT NULL, provider_id text NOT NULL, user_id text NOT NULL REFERENCES "user"(id), access_token text, refresh_token text, id_token text, access_token_expires_at timestamp, refresh_token_expires_at timestamp, scope text, password text, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
@@ -15,5 +34,5 @@ CREATE TABLE invitation (id text PRIMARY KEY, organization_id text NOT NULL REFE
 CREATE TABLE session (id text PRIMARY KEY, user_id text NOT NULL REFERENCES "user"(id), token text NOT NULL UNIQUE, expires_at timestamp NOT NULL, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(), ip_address text, user_agent text, active_organization_id text);
 CREATE TABLE verification (id text PRIMARY KEY, identifier text NOT NULL, value text NOT NULL, expires_at timestamp NOT NULL, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now());
 `);
-  return { client, database };
+  return { client, database: postgres ? database : withTransactionReads(database) };
 }

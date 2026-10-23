@@ -1,8 +1,8 @@
 # Brevo CRM integration through business events
 
 Status: planning baseline independently reviewed and committed as `8a9145de2`,
-October 23, 2026. Task 01 is implemented and independently reviewed, ready to commit; tasks 02
-through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+October 23, 2026. Task 01 is implemented, independently reviewed, and committed as `c4dca85c1`.
+Task 02 is implemented, independently reviewed, and ready for commit; tasks 03 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -331,8 +331,8 @@ The implementation is split into [individual commit-sized tasks](../todo/issues/
 Each ticket specifies prerequisites, suggested English commit message, repository,
 scope, acceptance criteria, and checks that belong in that commit. Task 00's
 documentation is independently reviewed and committed as `8a9145de2`. Task 01 is
-implemented and independently reviewed, with findings fixed and ready to commit; tasks 02 through 16 remain
-planned. The dependency graph and execution ledger are recorded in the
+implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
+implemented and awaiting independent review; tasks 03 through 16 remain planned. The dependency graph and execution ledger are recorded in the
 task index.
 
 | Increment                            | Tickets            | Result                                                                                                            |

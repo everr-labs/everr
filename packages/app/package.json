@@ -59,6 +59,9 @@
     "./page-layout": "./src/components/page-layout.ts",
     "./testing/alerting-storage": "./src/testing/chdb-database.ts",
     "./db/database": "./src/db/database.ts",
+    "./identity/testing/database": "./src/identity/testing/database.ts",
+    "./identity/testing/transaction-reads": "./src/identity/testing/transaction-reads.ts",
+    "./identity/events": "./src/identity/events.ts",
     "./identity/module": "./src/identity/module.ts",
     "./identity/policy-error": "./src/identity/policy-error.ts",
     "./identity/memberships": "./src/identity/memberships.ts"

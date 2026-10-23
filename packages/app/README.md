@@ -214,6 +214,16 @@ Production self-hosted uses the separate
 [deployment stack](../../deploy/README.md#send-telemetry). Configure exporters
 with the installation's public ingestion URL and an ingest key.
 
+Shared identity publishes User created, updated, email verified, and deleted
+facts through `BusinessEvents<UserFact>`. `identity/user-adapter.ts` captures
+persisted before/after identity under locks and publishes after its outermost
+source transaction commits. Better Auth 1.6.33 also runs queued database
+after-hooks following rollback, so those hooks are not the publication boundary.
+Providers build adapters for the supplied database executor to preserve their
+billing and Organization lifecycle checks inside nested transactions. Installation
+setup publishes its User creation after its own transaction commits. No CRM
+subscribers are selected yet.
+
 Business event publication diagnostics reuse the server OTel providers. The error
 log `business_events.publication.failed` carries event and subject IDs when
 available, static subscriber, failure stage, and semantic exception attributes.
