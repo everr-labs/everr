@@ -15,16 +15,20 @@ import { SecretInput } from "@everr/ui/components/secret-input";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import {
   type ChannelConfigDraft,
   type ChannelType,
   channelConfigDraft,
   channelConfigInput,
+  channelDraftError,
   EMPTY_CHANNEL_DRAFT,
+  type WebhookHeaderDraft,
 } from "#app/data/alerting/delivery/channel-input.ts";
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
+import { ALERTING_WEBHOOK_HEADERS_MAX } from "#app/data/alerting/delivery/webhook-headers.ts";
 import type { AlertingChannelConfigInput } from "#app/data/alerting/types.ts";
 import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
@@ -107,6 +111,7 @@ function ChannelForm({
   const trimmed = name.trim();
   const duplicate = existingNames.includes(trimmed) && trimmed !== editing?.name;
   const config = channelConfigInput(draft, editing?.config.type ?? null);
+  const draftError = channelDraftError(draft, editing?.config.type ?? null);
   // On an edit of the stored kind, the secret starts behind an explicit Edit
   // action. A blank draft still means keep the stored secret.
   const keepsSecret = editing !== null && editing.config.type === draft.type;
@@ -162,7 +167,7 @@ function ChannelForm({
   }
 
   return (
-    <DialogContent className="sm:max-w-md">
+    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{editing ? "Edit channel" : "New channel"}</DialogTitle>
         <DialogDescription>
@@ -213,6 +218,18 @@ function ChannelForm({
               placeholder={urlField.placeholder}
             />
           </div>
+        )}
+        {draft.type === "webhook" && (
+          <WebhookHeadersEditor
+            headers={draft.headers}
+            disabled={busy}
+            onChange={(headers) => patch({ headers })}
+          />
+        )}
+        {draftError && (
+          <p className="text-destructive text-xs" role="alert">
+            {draftError}
+          </p>
         )}
         {draft.type === "telegram" && (
           <>
@@ -283,5 +300,98 @@ function ChannelForm({
         </div>
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+function keepsStoredHeader(header: WebhookHeaderDraft): boolean {
+  return (
+    header.retainedName !== null &&
+    header.name.trim().toLowerCase() === header.retainedName.trim().toLowerCase()
+  );
+}
+
+function WebhookHeadersEditor({
+  headers,
+  disabled,
+  onChange,
+}: {
+  headers: WebhookHeaderDraft[];
+  disabled: boolean;
+  onChange: (headers: WebhookHeaderDraft[]) => void;
+}) {
+  const atMax = headers.length >= ALERTING_WEBHOOK_HEADERS_MAX;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs/relaxed leading-none font-medium">Headers</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || atMax}
+          onClick={() => onChange([...headers, { name: "", value: "", retainedName: null }])}
+        >
+          <Plus className="size-3.5" />
+          Add header
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Optional. Sent with every notification. Values are write-only.
+      </p>
+      {headers.length > 0 && (
+        <ul className="space-y-2">
+          {headers.map((header, index) => (
+            <li
+              // oxlint-disable-next-line react/no-array-index-key -- Header drafts have no id. A new row's name is empty, so position is the only identity, and each input is controlled by the parent list.
+              key={index}
+              className="space-y-1.5 rounded-md border p-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={disabled}
+                  aria-label={`Remove header ${header.name || index + 1}`}
+                  onClick={() => onChange(headers.filter((_, item) => item !== index))}
+                >
+                  <X />
+                </Button>
+              </div>
+              <Input
+                id={`channel-header-name-${index}`}
+                className="font-mono"
+                value={header.name}
+                disabled={disabled}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Authorization"
+                onChange={(event) => {
+                  const next = headers.slice();
+                  next[index] = { ...header, name: event.target.value };
+                  onChange(next);
+                }}
+              />
+              <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
+              <SecretInput
+                id={`channel-header-value-${index}`}
+                className="font-mono"
+                value={header.value}
+                disabled={disabled}
+                hasStoredSecret={keepsStoredHeader(header)}
+                autoComplete="off"
+                placeholder="Bearer token"
+                onValueChange={(value) => {
+                  const next = headers.slice();
+                  next[index] = { ...header, value };
+                  onChange(next);
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

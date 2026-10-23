@@ -372,6 +372,136 @@ describe("the delivery channels the CLI manages", () => {
     expect(await listChannels(TEST_ORG)).toEqual([]);
   });
 
+  it("keeps webhook header values out of the read and retains a blank one", async () => {
+    const created = await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [
+          { name: "Authorization", value: "Bearer stored-secret" },
+          { name: "X-Env", value: "prod" },
+        ],
+      },
+    });
+
+    expect(JSON.stringify(created.config)).not.toContain("stored-secret");
+    expect(created.config).toEqual({
+      type: "webhook",
+      url: "***",
+      headers: [
+        { name: "Authorization", value: "***" },
+        { name: "X-Env", value: "***" },
+      ],
+    });
+
+    await updateChannel(scope, "pager", {
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.11/hook",
+        headers: [{ name: "Authorization" }, { name: "X-Env", value: "staging" }],
+      },
+    });
+
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.11/hook",
+      headers: [
+        { name: "Authorization", value: "Bearer stored-secret" },
+        { name: "X-Env", value: "staging" },
+      ],
+    });
+  });
+
+  it("keeps webhook headers when an edit does not mention them, and clears an empty list", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+      },
+    });
+
+    await updateChannel(scope, "pager", {
+      config: { type: "webhook", url: "https://203.0.113.11/hook" },
+    });
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.11/hook",
+      headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+    });
+
+    await updateChannel(scope, "pager", {
+      config: { type: "webhook", headers: [] },
+    });
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.11/hook",
+    });
+  });
+
+  it("refuses a webhook header that would rewrite the request or repeat a name", async () => {
+    await expect(
+      createChannel(scope, {
+        name: "pager",
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.10/hook",
+          headers: [{ name: "Host", value: "evil.example" }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+
+    await expect(
+      createChannel(scope, {
+        name: "pager",
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.10/hook",
+          headers: [
+            { name: "X-Token", value: "one" },
+            { name: "x-token", value: "two" },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+
+    await expect(
+      createChannel(scope, {
+        name: "pager",
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.10/hook",
+          headers: [{ name: "X-Token", value: "line\nbreak" }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+  });
+
+  it("requires a value for a webhook header that is not already saved", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+      },
+    });
+
+    await expect(
+      updateChannel(scope, "pager", {
+        config: {
+          type: "webhook",
+          headers: [{ name: "X-Token" }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    expect(await storedConfig()).toMatchObject({
+      headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+    });
+  });
+
   it("makes the first channel the organization's default destination", async () => {
     const first = await createChannel(scope, { name: "oncall", config: slack });
     await createChannel(scope, { name: "backup", config: slack });

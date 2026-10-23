@@ -25,6 +25,7 @@ vi.mock("#app/lib/clickhouse.ts", async () => {
 });
 
 import {
+  createChannel,
   listDefaultDestination,
   setDefaultDestination,
   testChannel,
@@ -129,6 +130,41 @@ describe("testing a saved channel", () => {
       expect.objectContaining({
         url: "https://api.telegram.org/botstored-token/sendMessage",
         body: expect.objectContaining({ chat_id: "new-chat" }),
+      }),
+    ]);
+  });
+
+  it("sends a stored webhook header when the test leaves its value blank", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [
+          { name: "Authorization", value: "Bearer stored-secret" },
+          { name: "X-Env", value: "prod" },
+        ],
+      },
+    });
+
+    await expect(
+      testChannel(TEST_ORG, {
+        source: { kind: "saved", name: "pager" },
+        config: {
+          type: "webhook",
+          headers: [{ name: "Authorization" }, { name: "X-Env", value: "staging" }],
+        },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(harness().fetchCalls()).toEqual([
+      expect.objectContaining({
+        url: "https://203.0.113.10/hook",
+        headers: expect.objectContaining({
+          authorization: "Bearer stored-secret",
+          "x-env": "staging",
+          "content-type": "application/json",
+        }),
       }),
     ]);
   });

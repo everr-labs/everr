@@ -83,8 +83,12 @@ export function ChannelMark({
 }
 
 /** What a redacted config still says: the kind, and for Telegram the chats
- *  it reaches. Never the URL or the token, which the read never returns. */
+ *  it reaches. A webhook names its headers. Never the URL, the token, or a
+ *  header value, which the read never returns. */
 export function channelDetail(config: AlertingChannelConfig): string {
   if (config.type === "telegram") return `Telegram · ${config.chat_ids.join(", ")}`;
+  if (config.type === "webhook" && config.headers && config.headers.length > 0) {
+    return `Webhook · ${config.headers.map((header) => header.name).join(", ")}`;
+  }
   return `${CHANNEL_LABEL[config.type]} · secret saved`;
 }

@@ -103,7 +103,21 @@ function redactChannelConfig(config: AlertingChannelConfig): AlertingChannelConf
       return { ...config, bot_token: REDACTED };
     case "discord":
     case "slack":
-    case "webhook":
       return { ...config, url: REDACTED };
+    case "webhook":
+      // Names stay: the editor needs them to know which blank value retains
+      // which secret. Values are credentials and are redacted with the URL.
+      return {
+        type: "webhook",
+        url: REDACTED,
+        ...(config.headers && config.headers.length > 0
+          ? {
+              headers: config.headers.map((header) => ({
+                name: header.name,
+                value: REDACTED,
+              })),
+            }
+          : {}),
+      };
   }
 }

@@ -32,7 +32,11 @@ const DATA: AlertNotificationsData = {
       rules: ["checkout/api-latency"],
     }),
     channel("pager", {
-      config: { type: "webhook", url: "***" },
+      config: {
+        type: "webhook",
+        url: "***",
+        headers: [{ name: "Authorization", value: "super-secret-value" }],
+      },
       tiers: ["critical"],
     }),
     channel("ops-telegram", {
@@ -134,6 +138,8 @@ describe("NotificationsPage", () => {
     const channels = await screen.findByRole("list", { name: /channels/i });
     const rows = within(channels).getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("Critical");
+    expect(rows[1]).toHaveTextContent("Authorization");
+    expect(rows[1]).not.toHaveTextContent("super-secret-value");
     expect(rows[0]).toHaveTextContent("Warning");
     expect(rows[0]).toHaveTextContent("+ 1 rule by name");
     expect(rows[2]).toHaveTextContent("not in use");

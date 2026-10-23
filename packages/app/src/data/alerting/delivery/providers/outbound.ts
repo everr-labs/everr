@@ -138,11 +138,18 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
  * A validated JSON POST to a channel-supplied URL, with the outcome classified
  * into permanent or transient so the send job knows whether a retry can help.
  */
-export async function postJson(urlRaw: string, body: unknown): Promise<void> {
+export async function postJson(
+  urlRaw: string,
+  body: unknown,
+  extraHeaders?: HeadersInit,
+): Promise<void> {
   const url = await validateOutboundUrl(urlRaw);
+  // Set last, so a caller-supplied content-type cannot relabel the JSON body.
+  const headers = new Headers(extraHeaders);
+  headers.set("content-type", "application/json");
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify(body),
     redirect: "error",
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),

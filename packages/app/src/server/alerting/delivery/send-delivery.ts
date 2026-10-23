@@ -6,10 +6,11 @@ import {
 } from "#app/data/alerting/delivery/channel-sender.server.ts";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import { AlertDeliveryTaskPayloadSchema } from "#app/data/alerting/delivery/tasks.ts";
+import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { db } from "#app/db/client.ts";
 import { alertChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { errorMessage } from "#app/telemetry/logger.ts";
-import { sanitizeAlertError } from "../history/content";
+import { redactSecrets, sanitizeAlertError } from "../history/content";
 import { recordAlertNotification, setAlertSpanAttributes } from "../telemetry";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
@@ -135,12 +136,9 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   // Unresolvable until the config decrypts, and the failure path still needs a
   // channel type for the trail.
   let channelType = "unknown";
+  let config: AlertingChannelConfig | undefined;
   try {
-    const config = decryptChannelConfig(
-      row.delivery.organizationId,
-      channel.id,
-      channel.encryptedConfig,
-    );
+    config = decryptChannelConfig(row.delivery.organizationId, channel.id, channel.encryptedConfig);
     channelType = config.type;
     setAlertSpanAttributes({ channelType });
     await sendChannelNotification(config, row.delivery.notification);
@@ -153,10 +151,12 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     // failDelivery's own write can throw too (a transient DB error, say);
     // let that one through unchanged rather than the real send failure it
     // would otherwise replace. `cause` on the original still carries it.
+    const headerSecrets =
+      config?.type === "webhook" ? (config.headers ?? []).map((header) => header.value) : [];
     try {
       await failDelivery(
         channelType,
-        sendFailureDetail(cause).slice(0, 8_000),
+        redactSecrets(sendFailureDetail(cause), headerSecrets).slice(0, 8_000),
         // Computed in the UPDATE, not from the Node-side `row` read: two
         // racing runs of the same delivery would otherwise both compute the
         // same stale count and one attempt would go uncounted. A permanent

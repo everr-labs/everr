@@ -26,6 +26,35 @@ describe("the channel secret envelope", () => {
     expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(TELEGRAM);
   });
 
+  it("redacts webhook header values and keeps the names", () => {
+    const stored = {
+      type: "webhook" as const,
+      url: "https://203.0.113.10/hook",
+      headers: [{ name: "Authorization", value: "Bearer super-secret-value" }],
+    };
+    const sealed = encryptChannelConfig(ORG, ID, stored);
+    expect(readRedactedChannelConfig(sealed)).toEqual({
+      type: "webhook",
+      url: "***",
+      headers: [{ name: "Authorization", value: "***" }],
+    });
+    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(stored);
+    expect(sealed).not.toContain("Bearer super-secret-value");
+  });
+
+  it("reads a webhook saved before headers existed", () => {
+    const stored = {
+      type: "webhook" as const,
+      url: "https://203.0.113.10/hook",
+    };
+    const sealed = encryptChannelConfig(ORG, ID, stored);
+    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(stored);
+    expect(readRedactedChannelConfig(sealed)).toEqual({
+      type: "webhook",
+      url: "***",
+    });
+  });
+
   it("reads the redacted copy without the secret in it", () => {
     const sealed = encryptChannelConfig(ORG, ID, TELEGRAM);
     expect(readRedactedChannelConfig(sealed)).toEqual({

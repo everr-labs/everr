@@ -5,12 +5,19 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => {
   class MockChannelSendError extends Error {
     readonly permanent: boolean;
-    constructor(message: string, opts: { permanent: boolean }) {
+    readonly responseBody?: string;
+    constructor(message: string, opts: { permanent: boolean; responseBody?: string }) {
       super(message);
       this.permanent = opts.permanent;
+      this.responseBody = opts.responseBody;
     }
   }
   return {
+    channelConfig: { type: "webhook", url: "https://hook" } as {
+      type: "webhook";
+      url: string;
+      headers?: { name: string; value: string }[];
+    },
     deliveryRows: [] as unknown[],
     liveRules: [] as unknown[],
     set: vi.fn(),
@@ -42,7 +49,7 @@ vi.mock("./journal-reader", () => ({
   liveRuleForDeliveryQuery: () => Promise.resolve(mocks.liveRules),
 }));
 vi.mock("#app/data/alerting/delivery/channel-secrets.server.ts", () => ({
-  decryptChannelConfig: () => ({ type: "webhook", url: "https://hook" }),
+  decryptChannelConfig: () => mocks.channelConfig,
 }));
 vi.mock("#app/data/alerting/delivery/channel-sender.server.ts", () => ({
   sendChannelNotification: mocks.send,
@@ -124,6 +131,27 @@ describe("sendAlertDelivery send failure", () => {
     mocks.returning.mockReset().mockResolvedValue([]);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
+  });
+
+  it("strips a webhook header secret an endpoint echoed into the failure", async () => {
+    const secret = "Bearer super-secret-value";
+    mocks.channelConfig = {
+      type: "webhook",
+      url: "https://hook",
+      headers: [{ name: "Authorization", value: secret }],
+    };
+    mocks.send.mockReset().mockRejectedValue(
+      new mocks.ChannelSendError("notification webhook failed: 500", {
+        permanent: false,
+        responseBody: `upstream said ${secret}`,
+      }),
+    );
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    const [failedCall] = mocks.set.mock.calls.filter((call) => call[0]?.status === "failed");
+    expect(failedCall?.[0].lastError).not.toContain(secret);
+    expect(failedCall?.[0].lastError).toContain("[redacted-secret]");
   });
 
   it("guards the failure write so a racing sent row can never flip back to failed", async () => {

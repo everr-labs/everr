@@ -5,7 +5,7 @@ import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.t
 import { type DbExecutor, db } from "#app/db/client.ts";
 import { alertChannels, alertDefaultChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
-import { sanitizeAlertError } from "#app/server/alerting/history/content.ts";
+import { redactSecrets, sanitizeAlertError } from "#app/server/alerting/history/content.ts";
 import {
   parseAlertingInput,
   throwAlertingPersistenceError,
@@ -30,6 +30,29 @@ import {
   readRedactedChannelConfig,
 } from "./channel-secrets.server";
 
+function resolveWebhookHeaders(
+  input: { name: string; value?: string }[] | undefined,
+  previous: { name: string; value: string }[] | undefined,
+): { name: string; value: string }[] | undefined {
+  // Omitted means the edit did not speak about headers, so the saved list
+  // stands. An empty list is the edit that clears them.
+  if (input === undefined) return previous;
+  const stored = new Map(
+    (previous ?? []).map((header) => [header.name.toLowerCase(), header.value]),
+  );
+  return input.map((header) => {
+    const value = header.value ?? stored.get(header.name.toLowerCase());
+    if (!value) {
+      throwAlertingPersistenceError(
+        422,
+        "validation",
+        `header value is required for ${header.name}`,
+      );
+    }
+    return { name: header.name, value };
+  });
+}
+
 /** Turn a write draft into a config that can actually send. Omission retains
  *  a secret only when the saved transport has the same type. */
 function resolveChannelConfig(
@@ -37,7 +60,21 @@ function resolveChannelConfig(
   previous: AlertingChannelConfig | null,
 ): AlertingChannelConfig {
   switch (input.type) {
-    case "webhook":
+    case "webhook": {
+      const url = input.url ?? (previous?.type === "webhook" ? previous.url : undefined);
+      if (!url) {
+        throwAlertingPersistenceError(422, "validation", "webhook URL is required");
+      }
+      const headers = resolveWebhookHeaders(
+        input.headers,
+        previous?.type === "webhook" ? previous.headers : undefined,
+      );
+      return {
+        type: "webhook",
+        url,
+        ...(headers && headers.length > 0 ? { headers } : {}),
+      };
+    }
     case "slack":
     case "discord": {
       const url = input.url ?? (previous?.type === input.type ? previous.url : undefined);
@@ -215,13 +252,24 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  * anyway: a lower layer may have put a webhook URL or a bot token in a
  * message, and both are secrets.
  */
-function testChannelError(cause: unknown): string {
+function testChannelError(cause: unknown, secrets: readonly string[]): string {
   const message = cause instanceof Error ? cause.message : String(cause);
-  return truncateWithEllipsis(sanitizeAlertError(message), TEST_CHANNEL_ERROR_MAX);
+  return truncateWithEllipsis(
+    sanitizeAlertError(redactSecrets(message, secrets)),
+    TEST_CHANNEL_ERROR_MAX,
+  );
+}
+
+function headerSecrets(config: AlertingChannelConfig | undefined): string[] {
+  return config?.type === "webhook" ? (config.headers ?? []).map((header) => header.value) : [];
 }
 
 export async function testChannel(organizationId: string, body: unknown) {
   const started = performance.now();
+  // Filled once the config resolves, so a send that throws can still scrub
+  // header values out of the message. A rejection before that has nothing
+  // to scrub, and the message is ours.
+  let secrets: string[] = [];
   try {
     const { sendChannelTest } = await import("./channel-sender.server");
     const input = parseAlertingInput(AlertingChannelTestInputSchema, body);
@@ -231,13 +279,14 @@ export async function testChannel(organizationId: string, body: unknown) {
       ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
       : null;
     const config = resolveChannelConfig(input.config, previous);
+    secrets = headerSecrets(config);
     await sendChannelTest(config);
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {
     return {
       ok: false,
       latency_ms: Math.round(performance.now() - started),
-      error: testChannelError(cause),
+      error: testChannelError(cause, secrets),
     };
   }
 }

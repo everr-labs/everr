@@ -7,7 +7,7 @@ import type {
   RuleStateHistoryData,
 } from "#app/data/alerting/triage/view.ts";
 import { SeverityLabel, StatusIcon } from "./alert-status";
-import { RowTarget, SelectableRow } from "./list-row";
+import { RowTarget, SelectableRow, TRIAGE_ROW_INSET } from "./list-row";
 import { RuleStateChart, StateChartAxis, StateChartLegend } from "./rule-state-chart";
 
 /** Shared empties: a fresh `[]` per rule per render would defeat the memo on
@@ -31,8 +31,8 @@ const COLUMNS =
  */
 // The gutter belongs to the rows, not to the section around them: a selected
 // row has to fill the list column edge to edge, and a section that held the
-// padding left its highlight floating 12px short of both sides. Same division
-// the triage rows above make.
+// padding left its highlight short of both sides. Same inset the triage rows
+// above use, lined up with the topnav breadcrumb.
 export function RuleInventory({
   rules,
   history,
@@ -55,7 +55,7 @@ export function RuleInventory({
           the colours before the first row, not after the last. It hides with
           the column it explains, which a narrow list column does not render
           at all. */}
-      <div className="hidden px-3 pb-2.5 @[44rem]/list:block">
+      <div className={cn(TRIAGE_ROW_INSET, "hidden pb-2.5 @[44rem]/list:block")}>
         <StateChartLegend />
       </div>
 
@@ -63,7 +63,7 @@ export function RuleInventory({
           column's label, and the axis is the state column's: both name their
           column exactly, so a separate heading and a separate axis strip were
           two rows of vertical space spent saying it twice. */}
-      <div className={cn(COLUMNS, "px-3 pb-1.5")}>
+      <div className={cn(COLUMNS, TRIAGE_ROW_INSET, "pb-1.5")}>
         <h2 className="text-sm font-medium">All rules</h2>
         <div className="hidden @[44rem]/list:block">
           {history ? (
@@ -82,7 +82,7 @@ export function RuleInventory({
           key={row.path}
           selected={openPath === row.path}
           onOpen={() => onOpen(row.path)}
-          className={cn(COLUMNS, "border-t px-3 py-2.5 text-sm")}
+          className={cn(COLUMNS, TRIAGE_ROW_INSET, "border-t py-2.5 text-sm")}
         >
           <div className="flex min-w-0 items-center gap-2">
             <StatusIcon status={row.state} className="size-3.5" />

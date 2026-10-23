@@ -35,6 +35,7 @@ export function GroupBand({
   tone = "neutral",
   action,
   children,
+  className,
 }: {
   /** For the rows' `aria-labelledby`. */
   id?: string;
@@ -49,13 +50,26 @@ export function GroupBand({
   action?: ReactNode;
   /** The group's rows, or what stands in for them. */
   children?: ReactNode;
+  /**
+   * Classes for the band bar. Pass a list's row inset here so the band and
+   * its rows share one left edge. It replaces the default `px-3`.
+   */
+  className?: string;
 }) {
   return (
     <section>
       <div className="sticky top-0 z-10 bg-background">
-        {/* `px-3` on the same edge the rows use, so bands and rows all start
-            on one left edge. */}
-        <div className={cn("flex h-10 items-center justify-between gap-3 px-3", TONE[tone].wash)}>
+        {/* Default `px-3` is the edge the rows of most lists use. A caller
+            that insets its rows differently passes that inset as `className`,
+            in place of the default, so the band and the rows still start on
+            one left edge. */}
+        <div
+          className={cn(
+            "flex h-10 items-center justify-between gap-3",
+            className ?? "px-3",
+            TONE[tone].wash,
+          )}
+        >
           <h2 id={id} className="flex items-center gap-2">
             {Icon && <Icon aria-hidden className={cn("size-3 shrink-0", TONE[tone].icon)} />}
             <span className={kickerClass}>{label}</span>
