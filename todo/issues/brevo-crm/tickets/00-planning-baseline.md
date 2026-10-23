@@ -1,8 +1,8 @@
 # 00: Record the agreed integration plan
 
-Status: documentation implementation and independent review complete, ready for
-the coordinating agent's commit. No application implementation is included. Not
-staged or committed.
+Status: complete, independently reviewed and committed by the coordinating agent
+as `8a9145de251c80bea7f46dc494bd0a3d17494351`. No application implementation is
+included in that commit.
 
 Repository: `everr`.
 
@@ -32,7 +32,7 @@ These are starting points, not permission to rewrite unrelated modules.
 - [x] Only the scoped planning files are prepared for review; unrelated docs/research and local changes are excluded.
 - [x] No application implementation is included in the prepared change.
 - [x] A separate review-and-fixes agent has completed independent review.
-- [ ] The coordinating agent has staged only the scoped planning files and committed the reviewed result.
+- [x] The coordinating agent staged only the scoped planning files and committed the reviewed result.
 
 ## Verification in this commit
 
@@ -53,8 +53,9 @@ ownership and publication sites. Rechecked the cited provider documentation;
 isolated-account behavior remains a future implementation check, not a claimed
 pass. Clarified that the agreed activation rule also supersedes the older
 first-ingestion proposal in background-work.md and made the nonthrowing diagnostic
-boundary explicit in the index. No blocking review findings remain. Zero files
-are staged; task 01 remains planned and is next after the task 00 commit.
+boundary explicit in the index. No blocking review findings remain. The coordinating agent committed the reviewed planning result as `8a9145de2`
+(`docs(crm): define Brevo integration and implementation tasks`). Task 01 now has
+its separate implementation and review stages recorded in the execution ledger.
 
 ## Commit boundary
 

@@ -17,3 +17,12 @@ export type { TenantRetention } from "./retention";
 export type { ApplicationRuntime, ApplicationWorker } from "./runtime";
 export type { ApplicationStorage } from "./storage";
 export type { ProductUI, SignInFooterProps } from "./ui";
+
+export type {
+  ApplicationBusinessEvents,
+  BusinessEvent,
+  BusinessEventFact,
+  BusinessEventDefinition,
+  BusinessEvents,
+  BusinessEventSubscriber,
+} from "./business-events";

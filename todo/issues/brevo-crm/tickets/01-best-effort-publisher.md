@@ -1,6 +1,7 @@
 # 01: Add the typed fire-and-forget publisher
 
-Status: planned. This ticket is not implemented.
+Status: implemented and independently reviewed, findings fixed. Ready for the
+coordinating agent to stage and commit.
 
 Repository: `everr`.
 
@@ -30,16 +31,96 @@ These are starting points, not permission to rewrite unrelated modules.
 
 ## Acceptance criteria
 
-- [ ] `events.publish(event)` returns without waiting for a subscriber and never propagates publication errors; source mutations call it only after commit.
-- [ ] A failed subscriber does not prevent another subscriber from running.
-- [ ] An empty registry creates no jobs; no UnitOfWork, outbox, or generic event tables are introduced.
-- [ ] Shutdown and overload have finite behavior and preserve the main operation.
+- [x] `events.publish(event)` returns without waiting for a subscriber and never propagates publication errors; source mutations call it only after commit.
+- [x] A failed subscriber does not prevent another subscriber from running.
+- [x] An empty registry creates no jobs; no UnitOfWork, outbox, or generic event tables are introduced.
+- [x] Shutdown and overload have finite behavior and preserve the main operation.
 
 ## Verification in this commit
 
 - Behavioral tests with deferred/rejected subscribers, synchronous throws, diagnostic failure, saturation, and shutdown.
 - Typecheck both application compositions and verify their import ownership.
 - Force a publication failure and verify the error diagnostic is ingested through Everr.
+
+## Implementation evidence
+
+Implemented against task 00 commit `8a9145de2`. The domain-facing interface is
+`publish(fact): void`; both app compositions contain empty definitions and
+subscribers, so this increment enables no source hooks, jobs, or CRM effects.
+Production feature definitions and mutation coverage belong to tickets 02 onward.
+The source-success/failure behavioral test exercises an already-completed source
+operation double, not a newly wired User database mutation.
+
+Verification on October 23, 2026:
+
+- The focused publisher, diagnostic, shutdown, and existing worker test suite
+  passed (43 tests across 9 files). It covers deferred/rejected subscribers, sibling attempts, source
+  success/failure, schema/metadata failure, broken diagnostics, overload capacity
+  recovery, bounded shutdown, late rejection, empty registration, routing, and
+  static-registration errors. A type-contract check verifies feature payloads.
+- App and cloud TypeScript checks pass. Cloud typechecking includes the shared
+  test files. Scoped lint checks enforce type-only composition and public package
+  ownership, with no cloud imports in shared contracts or the runtime.
+- An isolated CLI collector received the real OTel diagnostic from the new
+  publisher. Everr SQL found exactly one ERROR log at
+  `2026-10-23 15:11:33.292 UTC`, service
+  `everr-business-events-verification`, event
+  `task01-0f6be2c4-86d2-4aa3-8d75-1c23f06c9aee`, subscriber
+  `verification-consumer`, stage `subscriber`, exception type `Error`, message
+  `Task 01 forced enqueue rejection`, and a 504-character stack trace.
+- `everr.business_events.publication.failures` arrived with unit `1`, value `1`,
+  and only `everr.business_event.type`, `everr.business_event.subscriber`, and
+  `everr.business_event.failure_stage`. Force-flush and shutdown exported two
+  cumulative snapshots at value `1`; the in-memory delta check verifies one
+  increment. Log keys were discovered before the detail query. Evidence is kept
+  locally under `.verify-everr/artifacts/task01-business-events/cli/`, which is
+  ignored by Git.
+- The helper used throwaway directories and ports 58238 through 58240. It runs the
+  existing debug CLI/collector binary, unchanged by this ticket. The helper's
+  Linux PID discovery is unavailable on macOS; cleanup additionally verifies
+  these three ports directly. No default local stack was touched.
+- `.auth` is absent in the main worktree and no UI behavior changed, so the
+  authenticated manual app check is skipped per AGENTS.md. No production build,
+  production ingestion, external CRM calls, or migrations are claimed.
+
+Scoped files:
+
+- `packages/app/src/composition/business-events.ts`, `index.ts`, `runtime.ts`
+- `packages/app/src/server/business-events/{publisher,subscriber,telemetry,runtime}.ts`
+- `packages/app/src/server/business-events/{publisher,telemetry}.test.ts`
+- `packages/app/src/server/shutdown.ts` and `shutdown.test.ts`
+- Both `packages/{app,cloud}/src/app/composition/runtime.ts` adapters
+- `packages/app/package.json` public server exports and `packages/app/README.md`
+- `docs/background-work.md`, `docs/brevo-crm-integration-plan.md`, task index,
+  task 00 commit record, and this ticket
+
+## Independent review and fixes
+
+The separate review-and-fixes agent reviewed the scoped tracked and new files
+against task 00's plan, this ticket, AGENTS.md, composition ownership, and the
+repository's documented standards on October 23, 2026.
+
+- Standards: no remaining material findings. Shared contracts stay type-only and
+  have no cloud or CRM dependency. No database schema or source hooks were added.
+- Specification: fixed subscriber adaptation passing the full envelope into a
+  feature's fact parser. Strict schemas rejected the added `id` and `occurredAt`
+  fields after successful publication validation. The adapter now removes those
+  metadata fields before parsing, then restores the original envelope metadata.
+  A strict-schema regression confirms delivery succeeds without a diagnostic.
+- Clarified the existing feature seam, `BusinessEvents<FeatureFact>`, and payload
+  ownership. Feature parsers must leave input unchanged and return independent
+  payload values, as Zod object schemas do. The envelope is shallow-frozen;
+  general deep cloning or arbitrary subscriber mutation isolation is not claimed.
+- Review verification: 17 tests passed across publisher, diagnostics, and shutdown
+  after the fix; app and cloud TypeScript checks and scoped lint passed. The
+  implementation's earlier 43-test worker-inclusive run remains recorded above.
+- Diagnostic implementation and attributes did not change during review. The
+  isolated Everr log/counter proof above therefore remains applicable. `.auth`
+  remains absent, so no authenticated UI check is claimed.
+
+Implementation and independent review are complete. The coordinating agent owns
+staging, the commit, and recording its resulting hash; this reviewer made no
+commit.
 
 ## Commit boundary
 

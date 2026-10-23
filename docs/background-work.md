@@ -46,6 +46,49 @@ and use a runner according to capacity and latency needs; one event category
 does not imply another runner, pool, schema, or process. Do not add unrelated CRM
 work to the reserved provisioning runner without revisiting its capacity.
 
+## Best-effort business event publication
+
+`server/business-events/runtime.ts` composes `events.publish(fact): void` from
+`ApplicationRuntime.businessEvents`. Features own typed definitions and payload
+validation; the application supplies static definitions and subscribers. Both
+applications currently register empty arrays. No source lifecycle hooks or CRM
+handlers are enabled by this first increment.
+
+A producer calls publication after its source commit succeeds, using values
+already available from that operation. Publication constructs an ID and occurrence
+time, validates the fact, and schedules independent subscriber enqueue attempts in
+microtasks. A subscriber can throw or reject without preventing siblings from
+running or changing the source result. `businessEventSubscriber` preserves the
+feature's payload type when adapting its consumer for static routing. The producer
+interface has no transaction argument, and this module persists no outbox.
+
+Features depend on `BusinessEvents<FeatureFact>` to restrict their producer input;
+the application runtime routes the broad fact interface. A feature parser receives
+fact-shaped input without publisher metadata. It must leave its input unchanged
+and return independent payload values, as Zod object schemas do. Treat facts as
+immutable: the publisher freezes only the envelope and does not deep-clone data.
+
+At most 128 publications are in flight per publisher. Excess publications are
+dropped immediately with diagnostics rather than queued or awaited by the
+request. Normal shutdown closes publication admission and waits up to five seconds
+before stopping workers, then flushing telemetry. A timed-out enqueue may settle
+later and still has rejection handling; hard termination can lose accepted facts
+and diagnostics. Constructor configuration errors remain startup errors.
+
+Failures emit `business_events.publication.failed` and increment
+`everr.business_events.publication.failures` (unit `1`). Failure stages are
+`validation`, `envelope`, `subscriber`, `overload`, `closed`, and `drain`. Counter
+attributes are only the registered event type (or `unknown`), static subscriber ID
+(or `publisher`), and stage, under `everr.business_event.*`. IDs and exception
+attributes belong on logs. Payload validation errors are redacted before logging;
+subscribers must keep secrets and contact payloads out of exception messages.
+Logger and counter failures are guarded independently and never recurse.
+
+This best-effort path is for ancillary consumers. Existing transactional worker
+commands below retain their current failure and durability guarantees. Retries
+begin only once a subscriber successfully persists its own Graphile job. Feature
+source hooks and concrete cloud consumers are subsequent implementation tickets.
+
 ## Facts and effects already present
 
 | Owner                        | Fact or input                                                         | Durable effect                                                                        |

@@ -1,8 +1,8 @@
 # Brevo CRM: commit-sized implementation tasks
 
-Status: task 00 documentation implementation and independent review complete,
-ready for the coordinating agent's commit. Task 01 is next after that commit.
-Tasks 01 through 16 remain planned; no application implementation is complete.
+Status: task 00 is independently reviewed and committed as `8a9145de2`. Task 01
+is implemented and independently reviewed, with findings fixed and ready to commit. Tasks 02 through 16 remain planned;
+no CRM source hooks or handlers are enabled.
 
 Source: [integration plan](../../../docs/brevo-crm-integration-plan.md), based on
 `chore/worker-separation` at `aed99bc42`. The active implementation branch is
@@ -36,12 +36,12 @@ including unrelated research, skills, and scripts. Execute tickets sequentially:
 each implementation agent hands its scoped result to a separate review-and-fixes
 agent before the coordinating agent commits and advances to the next ticket.
 
-| Task          | Implementation                               | Independent review                           | Commit                                      |
-| ------------- | -------------------------------------------- | -------------------------------------------- | ------------------------------------------- |
-| 00            | Complete; scoped documentation checks passed | Complete; findings fixed and checks repeated | Not committed; ready for coordinating agent |
-| 01            | Planned; next after task 00 commit           | Not started                                  | Not committed                               |
-| 02 through 15 | Planned                                      | Not started                                  | Not committed                               |
-| 16            | Optional design only, planned                | Not started                                  | Not committed                               |
+| Task          | Implementation                                 | Independent review                                      | Commit        |
+| ------------- | ---------------------------------------------- | ------------------------------------------------------- | ------------- |
+| 00            | Complete; scoped documentation checks passed   | Complete; findings fixed and checks repeated            | `8a9145de2`   |
+| 01            | Complete; checks and isolated ingestion passed | Complete; strict-schema finding fixed and checks passed | Not committed |
+| 02 through 15 | Planned                                        | Not started                                             | Not committed |
+| 16            | Optional design only, planned                  | Not started                                             | Not committed |
 
 Update this ledger and the affected ticket with actual evidence after each
 stage. An implementation checkmark alone does not mean a ticket is reviewed or

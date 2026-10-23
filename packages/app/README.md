@@ -214,6 +214,23 @@ Production self-hosted uses the separate
 [deployment stack](../../deploy/README.md#send-telemetry). Configure exporters
 with the installation's public ingestion URL and an ingest key.
 
+Business event publication diagnostics reuse the server OTel providers. The error
+log `business_events.publication.failed` carries event and subject IDs when
+available, static subscriber, failure stage, and semantic exception attributes.
+The counter `everr.business_events.publication.failures` has unit `1` and only
+bounded event type, subscriber, and stage dimensions. See
+[background work](../../docs/background-work.md#best-effort-business-event-publication)
+for capacity, shutdown, and accepted loss.
+
+For an isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the OTLP
+origin returned by that instance's status, then start the app. For deployed server
+export, configure `EVERR_INGEST_ENDPOINT` and secret `EVERR_INGEST_KEY`, restart
+the app, and query that installation for the log and counter after exercising a
+publication failure. An explicit `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence
+and does not add the Everr ingest-key header. No new exporter configuration or
+production activation is introduced by the publisher. Local test ingestion does
+not prove production ingestion.
+
 Useful package commands include `pnpm --filter @everr/app build`,
 `pnpm --filter @everr/app typecheck`, and
 `pnpm --filter @everr/app test:ci`. Run `pnpm run check` from the
