@@ -42,6 +42,94 @@ export function userChanged(
 
 /** An injected publisher must obey the same nonthrowing boundary as the runtime publisher. */
 export function publishUserFact(events: BusinessEvents<UserFact>, fact: UserFact): void {
+  publishIdentityFact(events, fact);
+}
+
+const organizationData = z.object({ organizationId: z.string().min(1) }).strict();
+const organizationCreated = base
+  .extend({ type: z.literal("organization.created"), data: organizationData })
+  .strict();
+const organizationUpdated = base
+  .extend({ type: z.literal("organization.updated"), data: organizationData })
+  .strict();
+const organizationDeleted = base
+  .extend({ type: z.literal("organization.deleted"), data: organizationData })
+  .strict();
+export type OrganizationFact = z.infer<
+  typeof organizationCreated | typeof organizationUpdated | typeof organizationDeleted
+>;
+export const organizationEventDefinitions = [
+  organizationCreated,
+  organizationUpdated,
+  organizationDeleted,
+].map((schema) => ({
+  type: schema.shape.type.value,
+  version: 1,
+  parse: (input: unknown) => schema.parse(input),
+})) satisfies readonly BusinessEventDefinition<OrganizationFact>[];
+
+const membershipData = z
+  .object({
+    membershipId: z.string().min(1),
+    organizationId: z.string().min(1),
+    userId: z.string().min(1),
+  })
+  .strict();
+const membershipAdded = base
+  .extend({ type: z.literal("membership.added"), data: membershipData })
+  .strict();
+const membershipUpdated = base
+  .extend({ type: z.literal("membership.updated"), data: membershipData })
+  .strict();
+const membershipRemoved = base
+  .extend({ type: z.literal("membership.removed"), data: membershipData })
+  .strict();
+export type MembershipFact = z.infer<
+  typeof membershipAdded | typeof membershipUpdated | typeof membershipRemoved
+>;
+export const membershipEventDefinitions = [
+  membershipAdded,
+  membershipUpdated,
+  membershipRemoved,
+].map((schema) => ({
+  type: schema.shape.type.value,
+  version: 1,
+  parse: (input: unknown) => schema.parse(input),
+})) satisfies readonly BusinessEventDefinition<MembershipFact>[];
+
+export type IdentityFact = UserFact | OrganizationFact | MembershipFact;
+export const identityEventDefinitions = [
+  ...userEventDefinitions,
+  ...organizationEventDefinitions,
+  ...membershipEventDefinitions,
+];
+
+export function organizationChanged(
+  type: OrganizationFact["type"],
+  organizationId: string,
+): OrganizationFact {
+  return { type, version: 1, subjectId: organizationId, data: { organizationId } };
+}
+export function membershipChanged(
+  type: MembershipFact["type"],
+  member: { id: string; organizationId: string; userId: string },
+): MembershipFact {
+  return {
+    type,
+    version: 1,
+    subjectId: member.id,
+    data: { membershipId: member.id, organizationId: member.organizationId, userId: member.userId },
+  };
+}
+
+/** Parent deletion facts require consumers to clean up all associations for that parent.
+ * Cascaded rows do not produce invented membership.removed facts. Explicit member
+ * deletes retain their relationship IDs before the source rows disappear.
+ */
+export function publishIdentityFact<F extends IdentityFact>(
+  events: BusinessEvents<F>,
+  fact: F,
+): void {
   try {
     events.publish(fact);
   } catch {

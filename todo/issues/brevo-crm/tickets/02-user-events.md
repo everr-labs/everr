@@ -1,6 +1,6 @@
 # 02: Publish committed User lifecycle facts
 
-Status: implemented, independently reviewed, and ready for commit. Not committed.
+Status: implemented, independently reviewed, and committed as `9696b6ce5`.
 
 Repository: `everr`.
 
@@ -44,8 +44,8 @@ These are starting points, not permission to rewrite unrelated modules.
 ## Implementation and evidence
 
 Implemented October 23, 2026, against task 01 commit `c4dca85c1`.
-Independent review is complete, and the coordinating agent has not committed
-this ticket.
+Independent review is complete. The coordinating agent committed this ticket as
+`9696b6ce5`.
 
 - Shared identity owns strict versioned User facts and the typed
   `BusinessEvents<UserFact>` producer seam. Payloads contain the stable User ID;
@@ -124,8 +124,8 @@ no code fixes were necessary.
   PostgreSQL evidence remains applicable because review changed documentation
   only. Main-worktree `.auth` is absent, so manual auth checks remain skipped.
 
-Ready for the coordinating agent's scoped commit. This review does not claim the
-ticket has been committed or that CRM handlers are enabled.
+The coordinating agent committed the reviewed scope as `9696b6ce5`. CRM handlers
+remain disabled.
 
 ## Commit boundary
 

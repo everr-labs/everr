@@ -4,7 +4,13 @@ import { z } from "zod";
 import type { Database } from "#app/db/database.ts";
 import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
 import type { BusinessEvents } from "#app/composition/business-events.ts";
-import { publishUserFact, userCreated, type UserFact } from "#app/identity/events.ts";
+import {
+  membershipChanged,
+  organizationChanged,
+  publishIdentityFact,
+  userCreated,
+  type IdentityFact,
+} from "#app/identity/events.ts";
 import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
 export class InstallationSetupError extends Error {}
@@ -57,7 +63,7 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database,
-  events: BusinessEvents<UserFact> = { publish() {} },
+  events: BusinessEvents<IdentityFact> = { publish() {} },
 ) {
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
@@ -68,6 +74,7 @@ export async function setupWorkspace(
     if (existing) throw new InstallationSetupError("This installation is already configured.");
     const userId = crypto.randomUUID();
     const organizationId = crypto.randomUUID();
+    const membershipId = crypto.randomUUID();
     const now = new Date();
     await tx.insert(user).values({
       id: userId,
@@ -89,14 +96,19 @@ export async function setupWorkspace(
       createdAt: now,
     });
     await tx.insert(member).values({
-      id: crypto.randomUUID(),
+      id: membershipId,
       userId,
       organizationId,
       role: "owner",
       createdAt: now,
     });
-    return { organizationId, userId };
+    return { organizationId, userId, membershipId };
   });
-  publishUserFact(events, userCreated(result.userId, false));
+  publishIdentityFact(events, userCreated(result.userId, false));
+  publishIdentityFact(events, organizationChanged("organization.created", result.organizationId));
+  publishIdentityFact(
+    events,
+    membershipChanged("membership.added", { id: result.membershipId, ...result }),
+  );
   return { organizationId: result.organizationId };
 }

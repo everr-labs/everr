@@ -43,8 +43,8 @@ import { createIdentityAuthHooks, type ResolvedSession } from "#app/telemetry/au
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
 import type { BusinessEvents } from "#app/composition/business-events.ts";
-import type { UserFact } from "./events";
-import { userLifecycleAdapter } from "./user-adapter";
+import type { IdentityFact } from "./events";
+import { identityLifecycleAdapter } from "./identity-adapter";
 import { invitationVisibilityPlugin } from "./invitations";
 
 async function getMarkedDeviceOrganizationId(db: Database, session: { userId: string }) {
@@ -127,7 +127,7 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 export interface IdentityDependencies {
-  events: BusinessEvents<UserFact>;
+  events: BusinessEvents<IdentityFact>;
   database: Database;
   baseURL: string;
   secret: string;
@@ -178,7 +178,7 @@ export function createApplicationAuth(
         baseURL.replace("127.0.0.1", "localhost"),
       ]),
     ),
-    database: userLifecycleAdapter(db, identityAdapter, events, provider),
+    database: identityLifecycleAdapter(db, identityAdapter, events, provider),
     ...(socialProviders ? { socialProviders: socialProviders } : {}),
     user: {
       deleteUser: {

@@ -7,7 +7,7 @@ import { createBusinessEventPublisher } from "#app/server/business-events/publis
 import { businessEventSubscriber } from "#app/server/business-events/subscriber.ts";
 import { userEventDefinitions, type UserFact } from "./events";
 import { createAuthTestDatabase } from "./testing/database";
-import { userLifecycleAdapter } from "./user-adapter";
+import { identityLifecycleAdapter } from "./identity-adapter";
 
 const { client, database } = await createAuthTestDatabase(
   process.env.EVERR_IDENTITY_TEST_DATABASE_URL,
@@ -27,7 +27,7 @@ function createAuth(
     emailAndPassword: { enabled: true },
     user: { deleteUser: { enabled: true } },
     ...extra,
-    database: userLifecycleAdapter(
+    database: identityLifecycleAdapter(
       database,
       (executor) => drizzleAdapter(executor, { provider: "pg" }),
       events,

@@ -11,7 +11,7 @@ import {
 } from "#app/app/installation.server.ts";
 import { createRecoveryLink } from "#app/app/recovery.server.ts";
 import * as schema from "#app/db/schema/index.ts";
-import type { UserFact } from "#app/identity/events.ts";
+import { membershipChanged, organizationChanged, type UserFact } from "#app/identity/events.ts";
 import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
 
 const { client, database } = await createAuthTestDatabase();
@@ -41,6 +41,12 @@ it("creates an owner with a usable password", async () => {
     subjectId: owner.id,
     data: { userId: owner.id, emailVerified: false },
   } satisfies UserFact);
+  const [initialMembership] = await database.select().from(schema.member);
+  expect(publish.mock.calls.map(([fact]) => fact)).toEqual([
+    expect.objectContaining({ type: "identity.user.created" }),
+    organizationChanged("organization.created", result.organizationId),
+    membershipChanged("membership.added", initialMembership),
+  ]);
   const [credential] = await database.select().from(schema.account);
   if (!credential.password) throw new Error("Missing owner credential");
   expect(

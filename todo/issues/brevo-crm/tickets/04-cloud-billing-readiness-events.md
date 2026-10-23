@@ -17,6 +17,9 @@ Index: [commit sequence](../README.md).
 - Skip duplicate or older Polar revisions that do not change authoritative state.
 - Publish provisioning readiness only for an actual guarded pending-to-ready transition.
 - Cover downgrade-to-Hobby and its direct Membership removals, which bypass ordinary auth hooks.
+- Cover the direct owner Membership repair insert in `packages/cloud/src/billing/subscription.ts`
+  (`ensureOrganization`) after its billing persistence succeeds. Task 03 covers the shared
+  auth, workspace setup, and onboarding paths; this billing repair bypasses them.
 
 ## Expected locations
 
