@@ -21,6 +21,14 @@ receivers:
             - Authorization
             - Content-Type
         max_request_body_size: 20971520
+  githubactions:
+    path: /webhook/github
+    endpoint: 127.0.0.1:${env:GITHUB_PORT}
+    secret: ${env:GITHUB_APP_WEBHOOK_SECRET}
+    gh_api:
+      auth:
+        app_id: ${env:GITHUB_APP_ID}
+        private_key: ${env:GITHUB_APP_PRIVATE_KEY}
 processors:
   filter/reserved_everr:
     error_mode: propagate
@@ -52,6 +60,26 @@ processors:
       - action: upsert
         key: everr.retention.days
         from_context: auth.retention_metrics_days
+  resource/github_tenant:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        from_context: metadata.x-everr-tenant-id
+  resource/github_retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-traces-days
+  resource/github_retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-logs-days
+  resource/github_retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-metrics-days
 exporters:
   clickhouse:
     endpoint: ${env:CLICKHOUSE_URL}
@@ -104,6 +132,31 @@ service:
         - attributes/strip_user_tenant
         - resource/public_tenant
         - resource/public_retention_logs
+      exporters:
+        - clickhouse
+    traces/github:
+      receivers:
+        - githubactions
+      processors:
+        - resource/github_tenant
+        - resource/github_retention_traces
+      exporters:
+        - clickhouse
+    logs/github:
+      receivers:
+        - githubactions
+      processors:
+        - resource/github_tenant
+        - resource/github_retention_logs
+      exporters:
+        - clickhouse
+    metrics/github:
+      receivers:
+        - githubactions
+      processors:
+        - filter/reserved_everr
+        - resource/github_tenant
+        - resource/github_retention_metrics
       exporters:
         - clickhouse
   telemetry:

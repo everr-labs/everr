@@ -32,14 +32,10 @@ export DEV_APP_NAME="${DEV_APP_NAME:-app}"
 export DEV_CLOUD_NAME="${DEV_CLOUD_NAME:-app-cloud}"
 export DEV_APP_INGEST_NAME="${DEV_APP_INGEST_NAME:-app-ingest}"
 export DEV_CLOUD_INGEST_NAME="${DEV_CLOUD_INGEST_NAME:-cloud-ingest}"
-export DEV_APP_GITHUB_NAME="${DEV_APP_GITHUB_NAME:-app-github}"
-export DEV_CLOUD_GITHUB_NAME="${DEV_CLOUD_GITHUB_NAME:-cloud-github}"
 export DEV_APP_URL="$(portless get "$DEV_APP_NAME")"
 export DEV_CLOUD_URL="$(portless get "$DEV_CLOUD_NAME")"
 export DEV_APP_INGEST_URL="$(portless get "$DEV_APP_INGEST_NAME")"
 export DEV_CLOUD_INGEST_URL="$(portless get "$DEV_CLOUD_INGEST_NAME")"
-export DEV_APP_GITHUB_URL="$(portless get "$DEV_APP_GITHUB_NAME")"
-export DEV_CLOUD_GITHUB_URL="$(portless get "$DEV_CLOUD_GITHUB_NAME")"
 free_port() {
   node --input-type=module -e '
     import net from "node:net";
@@ -52,6 +48,10 @@ free_port() {
 }
 export DEV_APP_GRPC_PORT="${DEV_APP_GRPC_PORT:-$(free_port)}"
 export DEV_CLOUD_GRPC_PORT="${DEV_CLOUD_GRPC_PORT:-$(free_port)}"
+export DEV_APP_GITHUB_PORT="${DEV_APP_GITHUB_PORT:-$(free_port)}"
+export DEV_CLOUD_GITHUB_PORT="${DEV_CLOUD_GITHUB_PORT:-$(free_port)}"
+export DEV_APP_GITHUB_URL="http://127.0.0.1:$DEV_APP_GITHUB_PORT"
+export DEV_CLOUD_GITHUB_URL="http://127.0.0.1:$DEV_CLOUD_GITHUB_PORT"
 exec process-compose --config "$DEV_ROOT/process-compose.yaml" \
   --disable-dotenv --use-uds --unix-socket "$DEV_STATE_DIR/pc.sock" --tui=false \
   --log-file "$DEV_STATE_DIR/process-compose.log" "$@"

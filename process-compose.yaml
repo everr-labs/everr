@@ -55,7 +55,7 @@ processes:
       - INGRESS_COLLECTOR_URL=${DEV_APP_GITHUB_URL}/webhook/github
     depends_on:
       databases: { condition: process_healthy }
-      github-app: { condition: process_healthy }
+      collector-app: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
@@ -75,7 +75,7 @@ processes:
       - INGRESS_COLLECTOR_URL=${DEV_CLOUD_GITHUB_URL}/webhook/github
     depends_on:
       databases: { condition: process_healthy }
-      github-cloud: { condition: process_healthy }
+      collector-cloud: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
@@ -86,89 +86,51 @@ processes:
     shutdown: { timeout_seconds: 15 }
 
   collector-app:
-    command: portless run --name ${DEV_APP_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    command: portless run --name ${DEV_APP_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app node "${DEV_ROOT}/scripts/dev/collector.mjs" app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
     environment:
       - CLICKHOUSE_DATABASE=otel
       - CLICKHOUSE_USERNAME=collector_rw
       - INGEST_VERIFY_URL=${DEV_APP_URL}/api/internal/verify-key
       - OTLP_GRPC_PORT=${DEV_APP_GRPC_PORT}
+      - GITHUB_PORT=${DEV_APP_GITHUB_PORT}
     depends_on:
-      app: { condition: process_healthy }
+      databases: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
       exec:
-        command: test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_APP_INGEST_URL}/v1/logs')" = 401
+        command: >-
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_APP_INGEST_URL}/v1/logs')" = 401 &&
+          test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_APP_GITHUB_URL}/webhook/github')" = 400
       timeout_seconds: 5
       period_seconds: 2
       failure_threshold: 60
     shutdown: { timeout_seconds: 15 }
 
   collector-cloud:
-    command: portless run --name ${DEV_CLOUD_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    command: portless run --name ${DEV_CLOUD_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud node "${DEV_ROOT}/scripts/dev/collector.mjs" cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
     environment:
       - CLICKHOUSE_DATABASE=otel
       - CLICKHOUSE_USERNAME=collector_rw
       - INGEST_VERIFY_URL=${DEV_CLOUD_URL}/api/internal/verify-key
       - OTLP_GRPC_PORT=${DEV_CLOUD_GRPC_PORT}
+      - GITHUB_PORT=${DEV_CLOUD_GITHUB_PORT}
       - EVERR_QUEUE_DIRECTORY=${DEV_STATE_DIR}/cloud-queue
     depends_on:
-      cloud: { condition: process_healthy }
+      databases: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
       exec:
-        command: test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_CLOUD_INGEST_URL}/v1/logs')" = 401
+        command: >-
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_CLOUD_INGEST_URL}/v1/logs')" = 401 &&
+          test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_CLOUD_GITHUB_URL}/webhook/github')" = 400
       timeout_seconds: 5
       period_seconds: 2
       failure_threshold: 60
     shutdown: { timeout_seconds: 15 }
-
-  github-app:
-    command: portless run --name ${DEV_APP_GITHUB_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app node "${DEV_ROOT}/scripts/dev/github-collector.mjs" app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-github-app.yaml"
-    environment:
-      - CLICKHOUSE_DATABASE=otel
-      - CLICKHOUSE_USERNAME=collector_rw
-    depends_on:
-      databases:
-        condition: process_healthy
-      collector-build:
-        condition: process_completed_successfully
-    success_exit_codes:
-      - 143
-    availability:
-      restart: exit_on_failure
-    readiness_probe:
-      exec:
-        command: test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_APP_GITHUB_URL}/webhook/github')" = 400
-      period_seconds: 2
-      failure_threshold: 60
-    shutdown:
-      timeout_seconds: 15
-  github-cloud:
-    command: portless run --name ${DEV_CLOUD_GITHUB_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud node "${DEV_ROOT}/scripts/dev/github-collector.mjs" cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-github-cloud.yaml"
-    environment:
-      - CLICKHOUSE_DATABASE=otel
-      - CLICKHOUSE_USERNAME=collector_rw
-      - EVERR_QUEUE_DIRECTORY=${DEV_STATE_DIR}/github-cloud-queue
-    depends_on:
-      databases:
-        condition: process_healthy
-      collector-build:
-        condition: process_completed_successfully
-    success_exit_codes:
-      - 143
-    availability:
-      restart: exit_on_failure
-    readiness_probe:
-      exec:
-        command: test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_CLOUD_GITHUB_URL}/webhook/github')" = 400
-      period_seconds: 2
-      failure_threshold: 60
-    shutdown:
-      timeout_seconds: 15
 
   ready:
     command: |
@@ -178,5 +140,5 @@ processes:
       echo "Cloud OTLP/gRPC: http://127.0.0.1:${DEV_CLOUD_GRPC_PORT}"
       echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
     depends_on:
-      collector-app: { condition: process_healthy }
-      collector-cloud: { condition: process_healthy }
+      app: { condition: process_healthy }
+      cloud: { condition: process_healthy }

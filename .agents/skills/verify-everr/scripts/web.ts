@@ -321,11 +321,13 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
     SDK_PAGE_ORIGIN: `http://127.0.0.1:${await freePort()}`, PORTLESS_CA: ca,
     DEV_APP_NAME: names.app, DEV_CLOUD_NAME: names.cloud,
     DEV_APP_INGEST_NAME: names.appIngest, DEV_CLOUD_INGEST_NAME: names.cloudIngest,
-    DEV_APP_GITHUB_NAME: `${prefix}-app-github`, DEV_CLOUD_GITHUB_NAME: `${prefix}-cloud-github`,
     WEB_GITHUB: "true",
     DEV_APP_GRPC_PORT: String(await freePort()), DEV_CLOUD_GRPC_PORT: String(await freePort()),
+    DEV_APP_GITHUB_PORT: String(await freePort()), DEV_CLOUD_GITHUB_PORT: String(await freePort()),
   };
   Object.assign(vars, {
+    APP_GITHUB_ORIGIN: `http://127.0.0.1:${vars.DEV_APP_GITHUB_PORT}`,
+    CLOUD_GITHUB_ORIGIN: `http://127.0.0.1:${vars.DEV_CLOUD_GITHUB_PORT}`,
     APP_OTLP_GRPC_ORIGIN: `http://127.0.0.1:${vars.DEV_APP_GRPC_PORT}`,
     CLOUD_OTLP_GRPC_ORIGIN: `http://127.0.0.1:${vars.DEV_CLOUD_GRPC_PORT}`,
     OTLP_GRPC_ORIGIN: `http://127.0.0.1:${product === "app" ? vars.DEV_APP_GRPC_PORT : vars.DEV_CLOUD_GRPC_PORT}`,
@@ -349,7 +351,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   const deadline = Date.now() + 600000;
   console.log(`launching pnpm dev: ${urls.app} + ${urls.cloud} (selected ${product})`);
   let nextUpdate = 0;
-  while (!["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud", "github-app", "github-cloud"].every((name) => processReady(w, name))) {
+  while (!["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud"].every((name) => processReady(w, name))) {
     if (!isAlive(pid) || Date.now() > deadline) {
       tail(log, 30);
       die("pnpm dev did not reach readiness; run web-cleanup to preserve logs and remove this run");
@@ -373,10 +375,11 @@ async function cmdWebDoctor(): Promise<number> {
   const w = webLoad();
   let ok = true;
   const check = (label: string, pass: boolean) => { console.log(`${pass ? "ok  " : "FAIL"} ${label}`); if (!pass) ok = false; };
-  for (const service of ["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud", "github-app", "github-cloud"]) check(`Process Compose ${service} ready`, processReady(w, service));
+  for (const service of ["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud"]) check(`Process Compose ${service} ready`, processReady(w, service));
   const ps = compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]);
   for (const service of ["postgres", "mailpit", "clickhouse-app", "clickhouse-cloud"]) check(`${service} running`, ps.stdout.split("\n").includes(`${service} running`));
   for (const product of ["app", "cloud"] as const) {
+    check(`${product} GitHub receiver validates signatures`, (await http(`${w.vars[product === "app" ? "APP_GITHUB_ORIGIN" : "CLOUD_GITHUB_ORIGIN"]}/webhook/github`)).status === 400);
     check(`${product} HTTP health`, (await http(`${w.vars[product === "app" ? "APP_ORIGIN" : "CLOUD_ORIGIN"]}/api/health`)).ok);
     const url = w.vars[product === "app" ? "APP_CLICKHOUSE_URL" : "CLOUD_CLICKHOUSE_URL"];
     check(`${product} tenant policies`, (await rowPolicies(url)) === expectedRowPolicies(product));
@@ -1056,11 +1059,14 @@ async function cmdWebCleanup(): Promise<number> {
   const toDelete = scratchDirToDelete(dir);
   mkdirSync(art, { recursive: true });
   const cleanupLog = path.join(art, "cleanup.txt");
+  let complete = true;
+  const failed = (message: string) => { complete = false; teeAppend(cleanupLog, message); };
   if (existsSync(path.join(dir, "run.env"))) {
     const w = parseWebRun(runId, dockerCmd() ?? ["docker"]);
     // Stop the owned Process Compose instance before removing its project.
-    const pgid = Number(readPointer(path.join(dir, "web.pgid")));
-    if (pgid > 0) {
+    const pgidFile = path.join(dir, "web.pgid");
+    const pgid = Number(readPointer(pgidFile));
+    if (pgid > 0 && isAlive(pgid)) {
       const signal = (sig: NodeJS.Signals) => {
         try {
           process.kill(-pgid, sig);
@@ -1070,8 +1076,14 @@ async function cmdWebCleanup(): Promise<number> {
       if (stopped.status !== 0) signal("SIGINT");
       const deadline = Date.now() + 90000;
       while (isAlive(pgid) && Date.now() < deadline) await sleep(500);
-      if (isAlive(pgid)) { signal("SIGKILL"); teeAppend(cleanupLog, "WARN supervisor needed SIGKILL after 90s"); }
+      if (isAlive(pgid)) {
+        signal("SIGKILL");
+        teeAppend(cleanupLog, "WARN supervisor needed SIGKILL after 90s");
+        await sleep(500);
+      }
     }
+    if (pgid > 0 && isAlive(pgid)) failed("Supervisor is still running");
+    else rmSync(pgidFile, { force: true });
     stopGroup(path.join(dir, "sdk-page.pgid"));
     await closeBrowser(browserSession(`web-${runId}`), cleanupLog);
     const webLog = path.join(dir, "web.log");
@@ -1079,10 +1091,18 @@ async function cmdWebCleanup(): Promise<number> {
     composeToFile(w, ["logs", "--no-color"], path.join(art, "compose.log"));
     // Only this run's compose project, with its named volumes. Other projects are untouched.
     if (composeToFile(w, ["down", "-v", "--remove-orphans", "--rmi", "local"], cleanupLog, true) !== 0) {
-      teeAppend(cleanupLog, "WARN compose down failed");
+      failed("Docker Compose cleanup failed");
     }
     const leftovers = docker(w, ["ps", "-a", "--filter", `label=com.docker.compose.project=${w.project}`, "--format", "{{.Names}}"]);
-    for (const name of leftovers.stdout.split("\n").filter(Boolean)) teeAppend(cleanupLog, `WARN leftover container: ${name}`);
+    if (leftovers.status !== 0) failed(`Cannot check remaining containers: ${leftovers.stderr.trim()}`);
+    for (const name of leftovers.stdout.split("\n").filter(Boolean)) failed(`Remaining container: ${name}`);
+    const volumes = docker(w, ["volume", "ls", "--filter", `label=com.docker.compose.project=${w.project}`, "--format", "{{.Name}}"]);
+    if (volumes.status !== 0) failed(`Cannot check remaining volumes: ${volumes.stderr.trim()}`);
+    for (const name of volumes.stdout.split("\n").filter(Boolean)) failed(`Remaining volume: ${name}`);
+  } else if (existsSync(dir)) failed(`Cannot clean up ${dir}: run.env is missing`);
+  if (!complete) {
+    teeAppend(cleanupLog, `Cleanup incomplete; state kept at ${dir}. Retry with WEB_RUN_ID=${runId} ${shellQuote(["node", path.join(SCRIPT_DIR, "verify-everr.ts"), "web-cleanup"])}.`);
+    return 1;
   }
   rmSync(toDelete, { recursive: true, force: true });
   if (readPointer(WEB_STATE) === runId) rmSync(WEB_STATE, { force: true });

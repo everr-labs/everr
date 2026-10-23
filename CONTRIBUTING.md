@@ -47,8 +47,8 @@ For a new GitHub App:
 
 Smee forwards to its matching application's `/webhook/github` endpoint using
 Vite's actual port. Each application's worker replays signed events to its own
-native GitHub receiver. Cloud keeps usage accounting and a separate durable
-queue; self-hosted buffers in memory. Production collector configuration is
+native collector's private GitHub receiver. Cloud shares usage accounting and
+durable queues across public OTLP and GitHub replay; self-hosted buffers in memory. Production collector configuration is
 unchanged.
 
 ### Develop bundled skills
