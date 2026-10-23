@@ -106,7 +106,7 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
-  const initDir = join(clickhouseRoot(), "init", "cloud");
+  const initDir = join(clickhouseRoot(), "init", "shared");
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 

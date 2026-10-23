@@ -12,9 +12,6 @@ GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 GRANT SELECT ON app.alert_events  TO sql_api_role;
 GRANT SELECT ON app.traces_trace_id_ts           TO sql_api_role;
 
-GRANT sql_api_role TO sql_api;
-ALTER USER sql_api DEFAULT ROLE sql_api_role;
-
 -- All SQL API callers share this installation's user-based quota.
 CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY user_name

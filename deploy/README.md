@@ -80,10 +80,10 @@ application and check its service in Everr's traces, logs, or metrics explorer.
 The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
 
-The SQL API uses one fixed restricted
-ClickHouse user named `sql_api`; its password is generated in `.env`
-as `CLICKHOUSE_SQL_API_PASSWORD`. The username is fixed by this bundle's schema
-and Compose configuration. GitHub webhook ingestion is not configured by this
+The SQL API uses one restricted ClickHouse user, configured by
+`CLICKHOUSE_SQL_API_USERNAME` (default `sql_api`). Its password is generated in
+`.env` as `CLICKHOUSE_SQL_API_PASSWORD`. Keep the username unchanged when reusing
+an existing ClickHouse volume. GitHub webhook ingestion is not configured by this
 Compose bundle. Retention defaults to 30 days;
 set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
