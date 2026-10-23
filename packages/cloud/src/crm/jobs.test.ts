@@ -78,6 +78,8 @@ it("registers Organization, explicit Membership, readiness and billing consumers
     "organization.provisioned",
     "billing.subscription.changed",
     "organization.plan.changed",
+    "telemetry.first_queryable",
+    "organization.activated",
   ]);
   const removed = consumers.find((consumer) => consumer.definition.type === "membership.removed")!;
   await removed.enqueue({

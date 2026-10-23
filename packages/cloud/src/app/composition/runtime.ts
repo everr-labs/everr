@@ -4,6 +4,12 @@ import { billingEventDefinitions } from "../../billing/events";
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
 import { userSyncSubscribers, organizationSyncSubscribers } from "../../crm/jobs";
+import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
+import { db } from "@everr/app/db/client";
+import {
+  createOrganizationMilestoneStore,
+  createUsefulConsultations,
+} from "../../organizations/milestones";
 
 const crmConfig = readBrevoConfig(process.env);
 
@@ -13,11 +19,15 @@ export const runtime: ApplicationRuntime = {
       ...identityEventDefinitions,
       ...organizationReadinessEventDefinitions,
       ...billingEventDefinitions,
+      ...organizationMilestoneDefinitions,
     ],
     subscribers: [
       ...userSyncSubscribers(crmConfig.mode),
       ...organizationSyncSubscribers(crmConfig.mode),
     ],
+  },
+  createUsefulConsultations(events) {
+    return createUsefulConsultations({ store: createOrganizationMilestoneStore(db), events });
   },
   async migrateDatabase(database) {
     const { migrateDatabase } = await import("../migrations");

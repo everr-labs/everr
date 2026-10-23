@@ -60,3 +60,23 @@ it("drains publications before stopping workers and flushing telemetry", async (
   await stopped;
   expect(order).toEqual(["publications", "workers", "telemetry"]);
 });
+
+it("drains observations before closing domain publication admission", async () => {
+  const { registerShutdownHook, shutdownRuntime } = await freshShutdown();
+  const order: string[] = [];
+  let release!: () => void;
+  registerShutdownHook("consultations", "observations", async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    order.push("marker-committed-and-published");
+  });
+  registerShutdownHook("events", "publications", async () => {
+    order.push("publication-closed");
+  });
+  const stopped = shutdownRuntime();
+  expect(order).toEqual([]);
+  release();
+  await stopped;
+  expect(order).toEqual(["marker-committed-and-published", "publication-closed"]);
+});

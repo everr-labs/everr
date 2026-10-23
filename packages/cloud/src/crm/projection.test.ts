@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test"
 import { crmProjection, organizationBilling, orgSubscription } from "../db/schema";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore, snapshotFingerprint } from "./store";
+import { createMilestoneTestTable } from "../organizations/testing/database";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 vi.mock("../app/env", () => ({ appEnv: { POLAR_PRO_PRODUCT_ID: "product_pro" } }));
@@ -59,6 +60,7 @@ beforeAll(async () => {
     );
   }
   const database = fixture.db as unknown as Database;
+  await createMilestoneTestTable(fixture.client);
   reader = createCrmSnapshotReader(database, "test");
   store = createCrmProjectionStore(database, "test");
 });
@@ -66,7 +68,7 @@ beforeAll(async () => {
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
   // CRM was added after createTestDatabase discovered its tables.
-  await fixture.client.exec("TRUNCATE crm_projection");
+  await fixture.client.exec("TRUNCATE crm_projection, organization_milestones");
   await fixture.truncate();
   await fixture.db
     .insert(user)
@@ -141,8 +143,8 @@ it("uses authoritative entitlements and keeps provisioning independent from acti
     },
     memberships: [{ userId: "user", role: "member" }],
   });
-  expect(pending).not.toHaveProperty("fields.activatedAt");
-  expect(pending).not.toHaveProperty("fields.firstQueryableAt");
+  expect(pending).toHaveProperty("fields.activatedAt", null);
+  expect(pending).toHaveProperty("fields.firstQueryableAt", null);
   await expect(reader.organization("hobby")).resolves.toMatchObject({
     fields: { plan: "hobby", appState: "hobby", subscriptionStatus: null, provisioning: "ready" },
   });
@@ -166,7 +168,7 @@ it("uses authoritative entitlements and keeps provisioning independent from acti
       cancelAtPeriodEnd: true,
     },
   });
-  expect(ready).not.toHaveProperty("fields.activatedAt");
+  expect(ready).toHaveProperty("fields.activatedAt", null);
 });
 
 it("keeps billing product validation authoritative", async () => {

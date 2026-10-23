@@ -86,6 +86,21 @@ Only these fields and the source-owned company name are written. A company PATCH
 accepts documented 200 with a validated company body or verified 204 with no body.
 Read back with `getCompany` when current provider values are needed.
 
+Task 10 adds only these Company attributes, all text, confirmed with isolated
+field creation (201) and inventory readback (200) on October 23, 2026:
+
+| Label                           | Verified internal name          | Source value                                                  |
+| ------------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| `EVERR_FIRST_QUERYABLE_AT`      | `everr_first_queryable_at`      | Stored ISO observation time or empty text for unknown history |
+| `EVERR_ACTIVATED_AT`            | `everr_activated_at`            | Stored ISO observation time or empty text for unknown history |
+| `EVERR_ACTIVATION_RULE_VERSION` | `everr_activation_rule_version` | Decimal rule version, currently `1`, or empty text            |
+
+These fields join the existing owned-field comparison and PATCH behavior. No
+Boolean activation attribute, provider creation date or subscription state stands
+in for a missing marker. No fixture records, messages, campaigns, lists,
+invitations or production configuration were changed by the task 10 field proof.
+The existing adapter CRUD/association contracts were not rerun broadly.
+
 Associations use explicit numeric Contact IDs and Company IDs through the
 link/unlink endpoint. They add or remove only the requested pair, without replacing
 all associations or matching email domains. The task 08 synchronizer owns mapping validation and endpoint serialization across

@@ -1,6 +1,6 @@
 # 09: Handle deletion and stale remote mappings
 
-Status: implemented and independently reviewed; checks passed, awaiting coordinator commit.
+Status: implemented, independently reviewed, and committed as `3b47faa47`.
 
 Repository: `everr`.
 
@@ -70,7 +70,7 @@ changed; the integration stays disabled by default and cloud-only.
 Remote ownership edits after a cached verification and late provider acceptance after
 lock-session loss cannot be conditionally fenced by Brevo. Source transactions never
 span HTTP. Cleanup does not reset stale mappings, recreate removed identities, or
-blindly repeat uncertain creates. Independent review is complete; commit is pending.
+blindly repeat uncertain creates. Independent review is complete; committed as `3b47faa47`.
 
 ## Independent review
 
@@ -88,4 +88,4 @@ scoped lint/format and whitespace checks. The implementation's 33 related and 13
 User real PostgreSQL/Graphile checks and isolated provider proof remain applicable;
 review changed documentation only and made no provider calls. Existing telemetry
 evidence remains applicable because no telemetry changed. `.auth` remains absent.
-Commit: not created by the review agent.
+Commit: `3b47faa47`, created by the coordinator after independent review.

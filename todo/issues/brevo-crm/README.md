@@ -8,8 +8,9 @@ implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
 implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
 Task 08 is implemented, independently reviewed, and committed as `179230af5`.
-Task 09 is implemented and independently reviewed, with focused PostgreSQL/Graphile
-and isolated provider deletion checks passed, awaiting commit. Tasks 10 through 16 remain planned.
+Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
+Task 10 is implemented and independently reviewed, with focused PostgreSQL,
+isolated diagnostics ingestion and provider field checks passed, awaiting commit. Tasks 11 through 16 remain planned.
 User, Organization, Membership, billing, Plan, and readiness source facts are wired;
 cloud User, Organization and Membership CRM consumers and the independent integration runner are implemented,
 disabled by default.
@@ -46,20 +47,21 @@ including unrelated research, skills, and scripts. Execute tickets sequentially:
 each implementation agent hands its scoped result to a separate review-and-fixes
 agent before the coordinating agent commits and advances to the next ticket.
 
-| Task          | Implementation                                                                                                       | Independent review                                                | Commit        |
-| ------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------- |
-| 00            | Complete; scoped documentation checks passed                                                                         | Complete; findings fixed and checks repeated                      | `8a9145de2`   |
-| 01            | Complete; checks and isolated ingestion passed                                                                       | Complete; strict-schema finding fixed and checks passed           | `c4dca85c1`   |
-| 02            | Complete; source, PostgreSQL and regression checks passed                                                            | Complete; no material findings; 133 regression tests passed       | `9696b6ce5`   |
-| 03            | Complete; source, PostgreSQL and provisioning checks passed                                                          | Complete; multi-match mutation finding fixed and verified         | `361211ba8`   |
-| 04            | Complete; 98 focused persistence and regression tests passed                                                         | Complete; no material findings; 98 tests passed independently     | `b3b617cdc`   |
-| 05            | Complete; 16 focused snapshot/storage and entitlement tests passed                                                   | Complete; no material findings; 16 tests passed independently     | `f0bbeef65`   |
-| 06            | Complete; 42 tests and isolated-provider checks passed                                                               | Complete; quota/body cancellation findings fixed; 53 tests passed | `af829e766`   |
-| 07            | Complete; 75 focused/regression tests, final 18 checks and isolated ingestion proof passed                           | Complete; durable retry-budget findings fixed; 73 tests passed    | `05e183370`   |
-| 08            | Complete; 18 PostgreSQL/Graphile, 70 CRM and 17 worker checks; isolated provider and ingestion proof passed          | Complete; dependency recovery fixed; 91 focused cases passed      | `179230af5`   |
-| 09            | Complete; 33 related PostgreSQL/Graphile, 13 User and 60 focused CRM checks; isolated provider deletion proof passed | Complete; no material findings; 60 CRM tests passed independently | Not committed |
-| 10 through 15 | Planned                                                                                                              | Not started                                                       | Not committed |
-| 16            | Optional design only, planned                                                                                        | Not started                                                       | Not committed |
+| Task          | Implementation                                                                                                                                                        | Independent review                                                                    | Commit        |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------- |
+| 00            | Complete; scoped documentation checks passed                                                                                                                          | Complete; findings fixed and checks repeated                                          | `8a9145de2`   |
+| 01            | Complete; checks and isolated ingestion passed                                                                                                                        | Complete; strict-schema finding fixed and checks passed                               | `c4dca85c1`   |
+| 02            | Complete; source, PostgreSQL and regression checks passed                                                                                                             | Complete; no material findings; 133 regression tests passed                           | `9696b6ce5`   |
+| 03            | Complete; source, PostgreSQL and provisioning checks passed                                                                                                           | Complete; multi-match mutation finding fixed and verified                             | `361211ba8`   |
+| 04            | Complete; 98 focused persistence and regression tests passed                                                                                                          | Complete; no material findings; 98 tests passed independently                         | `b3b617cdc`   |
+| 05            | Complete; 16 focused snapshot/storage and entitlement tests passed                                                                                                    | Complete; no material findings; 16 tests passed independently                         | `f0bbeef65`   |
+| 06            | Complete; 42 tests and isolated-provider checks passed                                                                                                                | Complete; quota/body cancellation findings fixed; 53 tests passed                     | `af829e766`   |
+| 07            | Complete; 75 focused/regression tests, final 18 checks and isolated ingestion proof passed                                                                            | Complete; durable retry-budget findings fixed; 73 tests passed                        | `05e183370`   |
+| 08            | Complete; 18 PostgreSQL/Graphile, 70 CRM and 17 worker checks; isolated provider and ingestion proof passed                                                           | Complete; dependency recovery fixed; 91 focused cases passed                          | `179230af5`   |
+| 09            | Complete; 33 related PostgreSQL/Graphile, 13 User and 60 focused CRM checks; isolated provider deletion proof passed                                                  | Complete; no material findings; 60 CRM tests passed independently                     | `3b47faa47`   |
+| 10            | Complete; typed evidence, 6 marker PostgreSQL cases, 33 worker regressions plus latest Company sync, 98 cloud/18 app checks and isolated ingestion/field proof passed | Complete; no material findings; 116 focused cases and both package type checks passed | Not committed |
+| 11 through 15 | Planned                                                                                                                                                               | Not started                                                                           | Not committed |
+| 16            | Optional design only, planned                                                                                                                                         | Not started                                                                           | Not committed |
 
 Update this ledger and the affected ticket with actual evidence after each
 stage. An implementation checkmark alone does not mean a ticket is reviewed or

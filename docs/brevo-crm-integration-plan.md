@@ -9,8 +9,9 @@ Task 05 is implemented, independently reviewed, and committed as `f0bbeef65`.
 Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
 Task 08 is implemented, independently reviewed, and committed as `179230af5`.
-Task 09 is implemented and independently reviewed, with focused PostgreSQL/Graphile
-and isolated provider deletion checks passed, awaiting commit. Tasks 10 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
+Task 10 is implemented and independently reviewed, with focused PostgreSQL,
+isolated diagnostics ingestion and provider field checks passed, awaiting commit. Tasks 11 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -293,6 +294,24 @@ lost, later use may establish the milestone but cannot prove the earlier first
 value time. Record observation coverage and never invent historical first-value
 times for existing Organizations.
 
+Task 10 implements the [server observation contract and cloud marker capability](../packages/cloud/src/organizations/README.md).
+Rule 1 atomically establishes both markers once from a valid useful consultation.
+Observation time is stamped by the server at admission after action completion;
+`observer_started_at` records the winning process capability start, not historical
+coverage. The capability remains available with CRM disabled or paused. There
+are no live completion hooks or action coverage until task 11. Current Company
+snapshots read markers even after lost fact publication; missing markers remain
+unknown. Authorization is verified at the completed action, so later Membership
+departure does not invalidate it. Organization clients can have an authorized
+query grant without an invented User. The observer admits at most 32 in-flight
+operations, drains for at most 3 seconds before publication shutdown, and measures
+validation, overload, clock, storage, publication and lifecycle failures without
+changing the successful action. Source schema changes have no generated or
+applied application migrations. Isolated PostgreSQL tests, fresh Everr log/counter
+queries and the three required Company text-field creation/readback checks passed;
+independent task 10 review found no material standards or spec defects, with
+116 focused regression cases and both package TypeScript checks passing independently.
+
 Brevo events are contact-oriented. An Organization milestone must not invent a
 User or imply every Member performed it. Initially synchronize milestone fields
 on the company. Any later recipient projection needs an explicit policy, such as
@@ -346,8 +365,9 @@ implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
 implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
 Task 08 is implemented, independently reviewed, and committed as `179230af5`.
-Task 09 is implemented and independently reviewed, with PostgreSQL/Graphile and
-isolated provider deletion checks passed, awaiting commit. Tasks 10 through 16 remain planned.
+Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
+Task 10 is implemented and independently reviewed, with focused PostgreSQL,
+isolated diagnostics ingestion and provider field checks passed, awaiting commit. Tasks 11 through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

@@ -6,6 +6,7 @@ import {
   userEventDefinitions,
 } from "@everr/app/identity/events";
 import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
+import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
 import { billingEventDefinitions } from "../billing/events";
 import { addWorkerJob } from "@everr/app/server/worker/jobs";
 import type { TaskSpec } from "graphile-worker";
@@ -124,6 +125,7 @@ export function organizationSyncSubscribers(
     ...membershipEventDefinitions,
     ...organizationReadinessEventDefinitions,
     ...billingEventDefinitions,
+    ...organizationMilestoneDefinitions,
   ];
   return definitions.map((definition) => ({
     id: `crm.brevo.${definition.type}`,

@@ -38,6 +38,11 @@ import { createCrmTaskList } from "./task-list";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { attachCrmRetryPolicy } from "./retries";
+import { createMilestoneTestTable } from "../organizations/testing/database";
+import {
+  createUsefulConsultations,
+  createOrganizationMilestoneStore,
+} from "../organizations/milestones";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 vi.mock("../app/env", () => ({ appEnv: { POLAR_PRO_PRODUCT_ID: "product_pro" } }));
@@ -248,6 +253,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     }
     beforeAll(async () => {
       fixture = await createAuthTestDatabase(process.env.EVERR_IDENTITY_TEST_DATABASE_URL);
+      await createMilestoneTestTable(fixture.client);
       const config = getTableConfig(crmProjection);
       const dialect = new PgDialect();
       const columns = config.columns.map((column) => {
@@ -350,6 +356,50 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       });
       expect(state.provider.companies.get("company-1")!.linkedContactsIds).toEqual([2, 1]);
       expect(state.provider.companies.size).toBe(2);
+    });
+
+    it("synchronizes latest stored milestones after a lost notification without changing Plan or access", async () => {
+      const state = tasks();
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      const unknown = state.provider.companies.get("company-1")!.attributes;
+      expect(unknown.everr_activated_at).toBe("");
+      expect(unknown.everr_first_queryable_at).toBe("");
+      const instant = new Date("2026-10-23T12:00:00.123Z");
+      const observer = createUsefulConsultations({
+        store: createOrganizationMilestoneStore(fixture.database),
+        events: { publish() {} },
+        now: () => instant,
+      });
+      observer.observe({
+        organizationId: "a",
+        principal: {
+          kind: "client",
+          organizationId: "a",
+          clientId: "client",
+          authorization: "organization-query",
+        },
+        data: { organizationId: "a", origin: "production", provenance: "own-customer-telemetry" },
+        trigger: "agent-request",
+        completion: "succeeded",
+        evidence: {
+          kind: "query",
+          surface: "cli",
+          purpose: "telemetry-analysis",
+          matchedOwnRecords: 1,
+        },
+      });
+      await observer.stop();
+      // An unrelated old notification rereads current markers rather than event payload values.
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(state.provider.companies.get("company-1")!.attributes).toMatchObject({
+        everr_activated_at: instant.toISOString(),
+        everr_first_queryable_at: instant.toISOString(),
+        everr_activation_rule_version: "1",
+        everr_plan: "hobby",
+        everr_app_state: "hobby",
+        everr_subscription_status: "",
+        everr_provisioning: "ready",
+      });
     });
 
     it("persists suspended Pro, subscription and provisioning independently and omits unchanged fields", async () => {

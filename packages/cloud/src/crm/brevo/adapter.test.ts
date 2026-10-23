@@ -469,6 +469,9 @@ it.each([200, 204])(
         everr_current_period_end: "",
         everr_cancel_at_period_end: "false",
         everr_provisioning: "ready",
+        everr_first_queryable_at: "",
+        everr_activated_at: "",
+        everr_activation_rule_version: "",
       },
     });
   },
@@ -498,4 +501,32 @@ it("keeps ambiguous provider invalid_parameter failures blocked without guessing
     ),
   ).updateContact(user, current);
   expect(result).toEqual({ ok: false, kind: "permanent", code: "provider_rejected", status: 400 });
+});
+
+it("projects verified milestones as ISO text while preserving existing field ownership", async () => {
+  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
+    reply(undefined, 204),
+  );
+  const result = await createBrevoAdapter(configured, budget(), transport).updateCompany("remote", {
+    ...org,
+    fields: {
+      ...org.fields,
+      firstQueryableAt: "2026-10-23T12:00:00.123Z",
+      activatedAt: "2026-10-23T12:00:00.123Z",
+      activationRuleVersion: 1,
+    },
+  });
+  expect(result.ok).toBe(true);
+  const body = JSON.parse(transport.mock.calls[0][1].body as string);
+  expect(body.attributes).toMatchObject({
+    everr_first_queryable_at: "2026-10-23T12:00:00.123Z",
+    everr_activated_at: "2026-10-23T12:00:00.123Z",
+    everr_activation_rule_version: "1",
+    everr_plan: "hobby",
+    everr_app_state: "hobby",
+    everr_subscription_status: "",
+    everr_provisioning: "ready",
+  });
+  expect(body.attributes).not.toHaveProperty("notes");
+  expect(body).not.toHaveProperty("linkedContactsIds");
 });

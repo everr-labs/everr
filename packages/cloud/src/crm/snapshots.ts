@@ -3,6 +3,7 @@ import { member, organization, user } from "@everr/app/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { readOrgEntitlement, type OrgEntitlement } from "../billing-data.server";
 import { isOrganizationProvisioned } from "../organization-provisioning/metadata";
+import { organizationMilestones } from "../db/schema/organization-milestones";
 
 export type ProjectionKind = "user" | "organization" | "membership";
 export type ProjectionIdentity = { sourceId: string; externalId: string } & (
@@ -77,6 +78,9 @@ export type DesiredProjection = ProjectionIdentity &
           currentPeriodEnd: string | null;
           cancelAtPeriodEnd: boolean;
           provisioning: "ready" | "pending";
+          firstQueryableAt?: string | null;
+          activatedAt?: string | null;
+          activationRuleVersion?: number | null;
         };
         memberships: MembershipSnapshot[];
       }
@@ -125,6 +129,10 @@ export function createCrmSnapshotReader(database: Database, deployment: string) 
           const [row] = await tx.select().from(organization).where(eq(organization.id, id));
           if (!row) return { ...identity, deleted: true };
           const entitlement = await readOrgEntitlement(id, tx);
+          const [milestones] = await tx
+            .select()
+            .from(organizationMilestones)
+            .where(eq(organizationMilestones.organizationId, id));
           const memberships = await tx
             .select({
               id: member.id,
@@ -148,6 +156,9 @@ export function createCrmSnapshotReader(database: Database, deployment: string) 
               currentPeriodEnd: entitlement.currentPeriodEnd?.toISOString() ?? null,
               cancelAtPeriodEnd: entitlement.cancelAtPeriodEnd,
               provisioning: isOrganizationProvisioned(row.metadata) ? "ready" : "pending",
+              firstQueryableAt: milestones?.firstQueryableAt.toISOString() ?? null,
+              activatedAt: milestones?.activatedAt.toISOString() ?? null,
+              activationRuleVersion: milestones?.ruleVersion ?? null,
             },
             memberships,
           };

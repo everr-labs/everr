@@ -22,11 +22,11 @@ The adapter owns provider request formatting and bounded recovery. Custom
 product attributes use the `EVERR_` namespace; the desired snapshot uses the local
 field names below. Source IDs are deployment scoped before leaving Everr.
 
-| Projection   | Source-owned fields                                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| User         | Name, email, original registration date, verified status                                                                         |
-| Organization | Name, creation date, Plan, app access state, subscription status, current period end, scheduled cancellation, provisioning state |
-| Membership   | Current explicit User/Organization association; snapshot membership IDs and roles describe authoritative membership state        |
+| Projection   | Source-owned fields                                                                                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User         | Name, email, original registration date, verified status                                                                                                                                     |
+| Organization | Name, creation date, Plan, app access state, subscription status, current period end, scheduled cancellation, provisioning state, observed first-queryable/activation dates and rule version |
+| Membership   | Current explicit User/Organization association; snapshot membership IDs and roles describe authoritative membership state                                                                    |
 
 Everr owns exactly those profile fields and associations. Brevo owns notes,
 communication preferences, consent and opt-outs. None of those CRM-owned values
@@ -39,9 +39,12 @@ reader calls the same `readOrgEntitlement` policy as the app, with the snapshot'
 transaction executor, including catalog validation. An active Pro subscription
 scheduled to cancel still grants Pro access. Past-due Pro remains Plan Pro with
 suspended access. Provisioning uses the existing readiness policy, including its
-legacy-ready behavior. Activation and first-queryable observations are absent:
-this increment has no milestone storage or evidence. Task 10 adds observed
-milestones; readiness never implies activation or an invented historical date.
+legacy-ready behavior. Activation and first-queryable dates come only from the
+cloud [verified milestone store](../organizations/README.md), in the same snapshot
+transaction. Missing markers remain null (unknown history), never false or an
+invented historical date. Readiness never implies activation. Both milestone
+facts enqueue the existing latest-state Organization synchronization; Plan,
+access, subscription and readiness field ownership remain independent.
 
 ## Reading and persisting
 

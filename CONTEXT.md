@@ -61,6 +61,7 @@ _Avoid_: activated Organization, paid Organization
 
 **Activated organization**:
 A Cloud Organization whose own telemetry is queryable and has been usefully consulted for the first time by a Member or an authorized client in that same Organization. Activation is an achieved milestone, independent of provisioning readiness, current activity, and Plan.
+Rule 1 records the first durable observation of a completed useful consultation of own Production or CI data, with server observation time and rule version. Unobserved history stays unknown; a customer telemetry Timestamp, provisioning, usage bytes, keys or billing cannot establish it. Authorization belongs to the completed action, including Organization-scoped clients without an invented User identity. See [verified milestones](packages/cloud/src/organizations/README.md) for evidence and coverage.
 _Avoid_: provisioned Organization, first ingestion, paid Organization
 
 **Billing details**:
