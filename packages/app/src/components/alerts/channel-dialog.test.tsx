@@ -84,14 +84,17 @@ describe("ChannelDialog webhook headers", () => {
     const onSave = renderDialog();
     const user = userEvent.setup();
 
-    expect(screen.getByDisplayValue("Authorization")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Authorization")).not.toHaveAttribute("aria-invalid");
     expect(screen.getAllByLabelText("Value")[0]).toHaveValue("Stored securely");
+    expect(screen.getAllByLabelText("Value")[0]).not.toHaveAttribute("aria-invalid");
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
     await user.type(names[1], "X-Env");
     const values = screen.getAllByLabelText("Value");
+    expect(values[values.length - 1]).toHaveAttribute("aria-invalid", "true");
     await user.type(values[values.length - 1], "staging");
+    expect(values[values.length - 1]).not.toHaveAttribute("aria-invalid");
     await user.click(screen.getByRole("button", { name: "Save channel" }));
 
     expect(onSave).toHaveBeenCalledWith({
@@ -127,7 +130,25 @@ describe("ChannelDialog webhook headers", () => {
     await user.type(values[values.length - 1], "text/plain");
 
     expect(screen.getByRole("alert")).toHaveTextContent(/cannot be set/i);
+    expect(screen.getByDisplayValue("Content-Type")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByDisplayValue("text/plain")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
+  });
+
+  it("marks every row that repeats a header name", async () => {
+    renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Add header" }));
+    const names = screen.getAllByPlaceholderText("Authorization");
+    await user.type(names[1], "Authorization");
+
+    const repeated = screen.getAllByDisplayValue("Authorization");
+    expect(repeated).toHaveLength(2);
+    for (const input of repeated) {
+      expect(input).toHaveAttribute("aria-invalid", "true");
+    }
+    expect(screen.getAllByLabelText("Value")[0]).not.toHaveAttribute("aria-invalid");
   });
 
   it("asks for header values again when the URL is replaced", async () => {
@@ -141,6 +162,8 @@ describe("ChannelDialog webhook headers", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(/value is required for Authorization/i);
+    expect(screen.getAllByLabelText("Value")[0]).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByDisplayValue("Authorization")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
   });
 });
