@@ -26,6 +26,7 @@ else
   echo 'Install flock or shlock to prevent concurrent starts in this checkout.' >&2
   exit 1
 fi
+node "$DEV_ROOT/scripts/dev/bootstrap-env.mjs" "$@"
 export COMPOSE_FILE="$DEV_ROOT/scripts/dev/compose.yaml"
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)}"
 export DEV_APP_NAME="${DEV_APP_NAME:-app}"

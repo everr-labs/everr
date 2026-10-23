@@ -67,7 +67,7 @@ processes:
 
   cloud:
     working_dir: ${DEV_ROOT}/packages/cloud
-    command: portless run --name ${DEV_CLOUD_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --mode cloud --host 127.0.0.1 --port "$$PORT" --strictPort'
+    command: portless run --name ${DEV_CLOUD_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
     environment:
       - DATABASE_NAME=everr_cloud
       - DATABASE_USER=everr_cloud

@@ -57,16 +57,22 @@ catalogs:
     typescript:
       specifier: ^6.0.3
       version: 6.0.3
+    vite:
+      specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+      version: 1.3.0
     vite-plus:
       specifier: 1.3.0
       version: 1.3.0
+    vitest:
+      specifier: 5.0.5
+      version: 5.0.5
     zod:
       specifier: ^4.4.3
       version: 4.4.3
 
 overrides:
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
-  vitest: 5.0.5
+  vite@*: npm:@voidzero-dev/vite-plus-core@1.3.0
+  vitest@*: 5.0.5
 
 importers:
 
@@ -109,13 +115,13 @@ importers:
         specifier: ^2.9.12
         version: 2.9.12
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 1.3.0(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(esbuild@0.28.1)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)
       vitest:
-        specifier: 5.0.5
+        specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0))(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   .github/actions/everr-action:
@@ -393,7 +399,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plugin-svgr:
         specifier: ^5.2.0
@@ -402,7 +408,7 @@ importers:
         specifier: 'catalog:'
         version: 1.3.0(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(esbuild@0.28.1)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)
       vitest:
-        specifier: 5.0.5
+        specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0))(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/cli:
@@ -518,7 +524,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plugin-svgr:
         specifier: ^5.2.0
@@ -636,7 +642,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plugin-svgr:
         specifier: ^5.2.0
@@ -709,13 +715,13 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 1.3.0(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(esbuild@0.28.1)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)
       vitest:
-        specifier: 5.0.5
+        specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0))(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/otel-errors:
@@ -818,7 +824,7 @@ importers:
         specifier: 'catalog:'
         version: 1.3.0(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(esbuild@0.28.1)(jiti@2.7.0)(jsdom@29.1.1(@noble/hashes@2.2.0))(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)
       vitest:
-        specifier: 5.0.5
+        specifier: 'catalog:'
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5))(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0))(jsdom@29.1.1(@noble/hashes@2.2.0))
 
   packages/storybook:
@@ -873,7 +879,7 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
       vite:
-        specifier: npm:@voidzero-dev/vite-plus-core@1.3.0
+        specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.3.0(@types/node@25.6.2)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
@@ -8991,6 +8997,12 @@ packages:
     resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
     engines: {node: '>=14.19.0'}
 
+  portless@0.15.8:
+    resolution: {integrity: sha512-kzGoG4xLsEytczl7O/COZaBwSAOKsWsZDxHv7/iFHKIC0X71OonpgbsQw58CGO29RklIHIx6yLM31TJMnTtPEw==}
+    engines: {node: '>=24'}
+    os: [darwin, linux, win32]
+    hasBin: true
+
   postcss-selector-parser@6.0.10:
     resolution: {integrity: sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==}
     engines: {node: '>=4'}
@@ -10414,17 +10426,6 @@ packages:
   zx@8.8.5:
     resolution: {integrity: sha512-SNgDF5L0gfN7FwVOdEFguY3orU5AkfFZm9B5YSHog/UDHv+lvmd82ZAsOenOkQixigwH2+yyH198AwNdKhj+RA==}
     engines: {node: '>= 12.17.0'}
-    hasBin: true
-
-  portless@0.15.8:
-    resolution:
-      integrity: sha512-kzGoG4xLsEytczl7O/COZaBwSAOKsWsZDxHv7/iFHKIC0X71OonpgbsQw58CGO29RklIHIx6yLM31TJMnTtPEw==
-    engines:
-      node: ">=24"
-    os:
-      - darwin
-      - linux
-      - win32
     hasBin: true
 
 snapshots:
@@ -18788,6 +18789,8 @@ snapshots:
 
   pngjs@7.0.0: {}
 
+  portless@0.15.8: {}
+
   postcss-selector-parser@6.0.10:
     dependencies:
       cssesc: 3.0.0
@@ -20405,5 +20408,3 @@ snapshots:
   zwitch@2.0.4: {}
 
   zx@8.8.5: {}
-
-  portless@0.15.8: {}

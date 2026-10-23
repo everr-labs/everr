@@ -457,7 +457,7 @@ async function cmdWebWebhook([label, event, payloadArg]: string[]): Promise<numb
   const payload = existsSync(file) ? file : path.join(SCRIPT_DIR, file);
   if (w.vars.WEB_GITHUB !== "true") die("GitHub is disabled in this older run; relaunch using the current development configuration");
   const { loadEnv } = await import("vite");
-  const secret = loadEnv(w.product === "cloud" ? "cloud" : "development", path.join(REPO, "packages", w.product), "").GITHUB_APP_WEBHOOK_SECRET;
+  const secret = loadEnv("development", path.join(REPO, "packages", w.product), "").GITHUB_APP_WEBHOOK_SECRET;
   if (!secret) die("GITHUB_APP_WEBHOOK_SECRET is required for signed webhook verification");
   const sig = `sha256=${createHmac("sha256", secret).update(readFileSync(payload)).digest("hex")}`;
   const delivery = `verify-${Math.floor(Date.now() / 1000)}-${process.pid}`;

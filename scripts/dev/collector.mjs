@@ -5,9 +5,8 @@ if (!binary || !["app", "cloud"].includes(product)) {
   throw new Error("Usage: collector.mjs <app|cloud> <binary> [args...]");
 }
 
-const mode = product === "cloud" ? "cloud" : "development";
 const env = {
-  ...loadEnv(mode, `${process.env.DEV_ROOT}/packages/${product}`, ""),
+  ...loadEnv("development", `${process.env.DEV_ROOT}/packages/${product}`, ""),
   ...Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== undefined)),
 };
 for (const key of ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_WEBHOOK_SECRET"]) {

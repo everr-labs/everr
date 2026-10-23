@@ -7,6 +7,10 @@ Cloud, PostgreSQL, a ClickHouse container for each product, and their native
 collectors. [Worktree development](docs/development.md) covers prerequisites,
 Portless URLs, configuration, and shutdown.
 
+On first startup, packages without local dotenv configuration inherit their
+`.env` from the main worktree with permissions `0600`. Existing worktree settings
+stay untouched. The private key is included in `GITHUB_APP_PRIVATE_KEY`.
+
 Use Node 24, pnpm, Go 1.26, Make, Docker with Compose, and Process Compose.
 For the CLI, install stable Rust and a C/C++ toolchain (Xcode command line tools
 on macOS, the chDB prerequisites on Linux).
@@ -29,8 +33,8 @@ application's optional dotenv file.
 Plain `pnpm dev` starts GitHub receivers for App and Cloud and enables Smee using
 each application's existing configuration. Keep the same `GITHUB_APP_*` and
 `SMEE_CHANNEL` settings in `packages/app/.env` and `packages/cloud/.env`. Cloud
-also loads its existing `.env.cloud` overrides. No extra profile, shell exports,
-or collector configuration copy is required.
+uses the same default Vite modes as App. No extra profile, shell exports, or
+collector configuration copy is required.
 
 For a new GitHub App:
 

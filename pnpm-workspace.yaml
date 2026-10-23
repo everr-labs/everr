@@ -40,8 +40,8 @@ allowBuilds:
   protobufjs: false
   unrs-resolver: false
 overrides:
-  vite: "catalog:"
-  vitest: "catalog:"
+  "vite@*": "catalog:"
+  "vitest@*": "catalog:"
 peerDependencyRules:
   allowAny:
     - vite

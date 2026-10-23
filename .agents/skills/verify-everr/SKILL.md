@@ -60,14 +60,14 @@ Teardown is `$V cleanup` (see Cleanup).
 
 ### B. App and Cloud
 
-Prerequisites are the standard [worktree development](../../../docs/development.md) toolchain, a reachable Docker daemon, and `agent-browser`. Both packages use their existing GitHub settings in dotenv files, just as normal development does. Cloud also reads its required optional-service settings from `packages/cloud/.env`. The helper reserves 6 GiB of available memory for the complete graph; `--ignore-memory` explicitly overrides that guard.
+Prerequisites are the standard [worktree development](../../../docs/development.md) toolchain, a reachable Docker daemon, and `agent-browser`. Both packages use their existing GitHub settings in dotenv files, just as normal development does. The standard startup copies each unconfigured package's `.env` from the primary worktree; existing package configuration stays untouched. Cloud also reads its required optional-service settings from `packages/cloud/.env`. The helper reserves 6 GiB of available memory for the complete graph; `--ignore-memory` explicitly overrides that guard.
 
 ```bash
 $V web-launch <RUN_ID>               # both products, Cloud selected
 $V web-launch <RUN_ID> --app app     # self-hosted App selected
 ```
 
-The helper launches the actual `pnpm dev` command with `process-compose.mail.yaml`. Each run owns a scratch state directory, Compose project and volumes, Portless service names, and the standard Process Compose Unix socket under its state directory (`state/pc.sock`). The helper uses the default development control API; no server flags are added at launch. The developer's usual stack can coexist. GitHub and Smee start by default using the existing package dotenv settings, including Cloud mode overrides. Follow [CONTRIBUTING.md](../../../CONTRIBUTING.md) for their configuration; no extra profile or shell exports are needed.
+The helper launches the actual `pnpm dev` command with `process-compose.mail.yaml`. Each run owns a scratch state directory, Compose project and volumes, Portless service names, and the standard Process Compose Unix socket under its state directory (`state/pc.sock`). The helper uses the default development control API; no server flags are added at launch. The developer's usual stack can coexist. GitHub and Smee start by default using the existing package dotenv settings, using the default development mode for both products. Follow [CONTRIBUTING.md](../../../CONTRIBUTING.md) for their configuration; no extra profile or shell exports are needed.
 
 Ready means both applications, both combined collectors (public OTLP and private GitHub listeners), PostgreSQL, both ClickHouse servers and Mailpit passed the standard development readiness checks. The selected application's migrations must also be applied. Allow up to ten minutes for cold native collector builds and first route compilation.
 
