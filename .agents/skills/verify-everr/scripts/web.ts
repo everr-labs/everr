@@ -303,7 +303,6 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   const id = parseRunId(idArg ?? defaultRunId());
   const dir = webDir(id), art = webArt(id);
   if (existsSync(dir)) die(`scratch directory already exists: ${dir}`);
-  mkdirSync(dir, { recursive: true });
   mkdirSync(art, { recursive: true });
   const prefix = `verify-${createHash("sha256").update(`${REPO}:${id}`).digest("hex").slice(0, 12)}`;
   const names = { app: `${prefix}-app`, cloud: `${prefix}-cloud`, appIngest: `${prefix}-app-ingest`, cloudIngest: `${prefix}-cloud-ingest` };
@@ -332,6 +331,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
     CLOUD_OTLP_GRPC_ORIGIN: `http://127.0.0.1:${vars.DEV_CLOUD_GRPC_PORT}`,
     OTLP_GRPC_ORIGIN: `http://127.0.0.1:${product === "app" ? vars.DEV_APP_GRPC_PORT : vars.DEV_CLOUD_GRPC_PORT}`,
   });
+  mkdirSync(dir, { recursive: true });
   writeEnvFile(path.join(dir, "run.env"), vars);
   writeFileSync(WEB_STATE, `${id}\n`);
   let w = parseWebRun(id, dockerBin);

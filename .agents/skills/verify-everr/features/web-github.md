@@ -35,6 +35,6 @@ Preconditions:
 ## Gotchas
 
 - `web-webhook` signs with the selected application's configured `GITHUB_APP_WEBHOOK_SECRET`, which is what GitHub does with the App's configured secret. It proves the ingress path, not GitHub's side.
-- `gh-install-redirect` and `gh-linked-runs` need `GITHUB_APP_INSTALL_URL`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` and a matching webhook secret in `packages/app/.env`, and `GITHUB_APP_STATE_SECRET` in the selected package's dotenv file. The default graph configures each combined collector's private GitHub receiver directly; no collector configuration copy is needed. Report them as blocked with that list. Never insert `github_installation_organizations` rows to fake a link.
+- `gh-install-redirect` and `gh-linked-runs` need `GITHUB_APP_INSTALL_URL`, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, a matching `GITHUB_APP_WEBHOOK_SECRET` and `GITHUB_APP_STATE_SECRET` in the selected package's dotenv file (`packages/app/.env` or `packages/cloud/.env`). The default graph configures each combined collector's private GitHub receiver directly; no collector configuration copy is needed. Report them as blocked with that list. Never insert `github_installation_organizations` rows to fake a link.
 - The "stale installation dropped" log line goes to the app's OTel logger, not `web.log`. Only the task completion lines are visible there.
 - Both jobs completing with `success` does not mean data was stored; always pair with the `workflow_runs` check.
