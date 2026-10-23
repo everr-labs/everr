@@ -3,7 +3,7 @@
 **Date:** 2026-10-23
 **Status:** implemented in PR #527, not released
 **PR:** [#527](https://github.com/everr-labs/everr/pull/527)
-**Scope:** `collector/`, `clickhouse/`, and the local chdb store
+**Scope:** the Cloud collector and ClickHouse storage
 **Companions:** [WebSDK Recording](./2026-10-22-otel-web-recording.md) (capture, API, transport), [Session Replay](./2026-10-17-session-replay.md) (overall design)
 
 ## Problem Statement
@@ -13,15 +13,13 @@ The WebSDK keeps the last minutes of the page in memory and sends a Clip only wh
 1. A large Clip must not go through the shared Log insert. One 950 KB Segment in the normal Logs batch can fail an ordinary Log write.
 2. The raw rrweb must be stored with the Session, Stream, and Clip, so the player can find and order it.
 3. Tenants must stay isolated, and raw rrweb must stay out of the SQL API and the Agent surface.
-4. Data must expire with the Plan retention on Cloud and with the local TTL on a local Collector.
+4. Data must expire with the Plan retention.
 
 The collector is the boundary for all four. If routing depended on a URL, a client flag, or a tenant id chosen by the browser, the WebSDK would become a security dependency. If Segments landed in the Logs table, replay volume would compete with the app's own telemetry. If storage had no TTL, a Plan downgrade would leave old rrweb behind.
 
 ## Solution
 
 `everr.browser.recording.segment` is the whole routing contract. A Segment is one OTLP Log. Its body is the rrweb events as a JSON array, and its log attributes carry the Session, Stream, Clip, and Segment index. The Cloud collector splits Logs after usage metering with a routing connector. Segments go to a dedicated ClickHouse exporter and its own landing table, `otel.otel_recordings`. A materialized view stamps tenant and retention and writes `app.recordings`. Every other Log, including the recording mark, stays in `app.logs`.
-
-The local Collector has no routing connector. Its chdb exporter splits on the same event name and writes a local `recordings` table beside `logs`.
 
 The `recording` Span is not part of this split. It is a normal Span in `traces`, and it is the small, queryable index that the app and Agents use to find a Clip. The collector never parses rrweb.
 
@@ -163,7 +161,7 @@ receivers:
           allowed_headers: ["Authorization", "Content-Type", "Content-Encoding"]
 ```
 
-The local gateway config adds `Content-Type` and `Content-Encoding` to its own CORS block. This is the collector half of the gzip rollout. Without it, the preflight fails and all browser exports stop, not only Segments. The deployed Cloud config must include the header before the WebSDK release that sends gzip.
+This CORS block is the collector half of the gzip rollout. Without it, the preflight fails and all browser exports stop, not only Segments. The deployed Cloud config must include the header before the WebSDK release that sends gzip.
 
 ### Failure behavior
 
@@ -312,51 +310,22 @@ The manual file contains the landing table, `app.recordings`, its indexes and co
 
 Apply the DDL before deploying the collector config that routes. `otel.otel_recordings` is a `Null` table: if it exists but `app.recordings_mv` does not, inserts succeed and the Segments are discarded. Verify the landing table, the app table, the view, and both policies before enabling the routing connector.
 
-## Local Collector
-
-The local gateway uses the same event name but a different seam. It has no routing connector. `logsJSONExporter.pushLogsData` splits the batch:
-
-1. `splitRecordingSegments` copies records into a non-Segment result and a Segment result.
-2. If there are no Segments, the existing Logs insert runs unchanged, including an empty batch.
-3. If there are Segments, the non-Segment result is inserted into `logs` first, then the Segment result into `recordings`.
-4. A batch with only Segments does not open a Logs insert.
-
-If the Logs insert fails, no Segment insert is attempted and the exporter retries the original batch. If the Segment insert fails after the Logs insert succeeded, the exporter retries the whole batch, so ordinary Logs from that batch can be inserted twice. This is the same at-least-once behavior as the rest of the local exporter.
-
-Each result keeps the resource and scope wrappers it needs. The source batch is not changed. Resource and scope wrappers are created only when at least one record of that wrapper belongs in the result, so an empty scope is not copied. The local path has no tenant or retention columns and no materialized view.
-
-The local `recordings` table is created from `recordings_json_table.sql` when `create_schema` is true, which is the local gateway default. It has the same payload columns as the local `logs` table, plus `session_id`, `stream_id`, and `clip_id`:
-
-- Engine: the configured local engine, `MergeTree` by default.
-- Partition: `toDate(Timestamp)`.
-- Order: `(ServiceName, Timestamp)`.
-- TTL: the local `--ttl`, 7 days by default, on `toDateTime(Timestamp)`.
-- Settings: `index_granularity = 8192`, `ttl_only_drop_parts = 1`.
-- Skip indexes: the Logs indexes (`ResourceAttributesKeys`, `ScopeAttributesKeys`, `LogAttributesKeys`, `TraceId`, `lower(Body)`) plus `idx_session_id`, `idx_stream_id`, and `idx_clip_id` with `bloom_filter(0.001)`.
-- Columns: the local `logs` payload plus the three ids. There is no `tenant_id` and no `retention_days`.
-
-The table name is fixed to `recordings`, not derived from `logs_table_name`. Local table names match the Cloud query-facing names (`logs`, `traces`, `recordings`), so the shared player query runs unchanged.
-
-The local schema version stays at 2. `recordings` is a new table, and `CREATE TABLE IF NOT EXISTS` adds it to a store that is already on version 2 without discarding cached telemetry. `staleTableNames` includes `recordings`, so a future version bump drops it with the rest of the store. `recordings_json_table.sql` is not part of the shaped-template digest. A later change to that DDL must join the digest and bump `localSchemaVersion`; otherwise an existing local store keeps the old shape.
-
-The local SQL gateway has no row policies. `everr local query` can read `recordings`, which is what makes local debugging possible.
-
 ## Storage Map
 
-| Signal or attribute               | Cloud column                         | Local column          |
-| --------------------------------- | ------------------------------------ | --------------------- |
-| `everr.browser.recording.segment` | `EventName`                          | `EventName`           |
-| `session.id`                      | `session_id`                         | `session_id`          |
-| `everr.recording.stream.id`       | `stream_id`                          | `stream_id`           |
-| `everr.recording.clip.id`         | `clip_id`                            | `clip_id`             |
-| `everr.recording.segment.index`   | `LogAttributes` only                 | `LogAttributes` only  |
-| `everr.recording.clip.truncated`  | `LogAttributes` only                 | `LogAttributes` only  |
-| `everr.tenant.id`                 | `tenant_id`                          | not stored            |
-| `everr.retention.days`            | `retention_days`, partition, and TTL | not stored; local TTL |
-| `service.name`                    | `ServiceName`                        | `ServiceName`         |
-| Segment timestamp                 | `Timestamp`                          | `Timestamp`           |
-| `recording` Span                  | `traces`                             | `traces`              |
-| recording mark                    | `logs`                               | `logs`                |
+| Signal or attribute               | Cloud column                         |
+| --------------------------------- | ------------------------------------ |
+| `everr.browser.recording.segment` | `EventName`                          |
+| `session.id`                      | `session_id`                         |
+| `everr.recording.stream.id`       | `stream_id`                          |
+| `everr.recording.clip.id`         | `clip_id`                            |
+| `everr.recording.segment.index`   | `LogAttributes` only                 |
+| `everr.recording.clip.truncated`  | `LogAttributes` only                 |
+| `everr.tenant.id`                 | `tenant_id`                          |
+| `everr.retention.days`            | `retention_days`, partition, and TTL |
+| `service.name`                    | `ServiceName`                        |
+| Segment timestamp                 | `Timestamp`                          |
+| `recording` Span                  | `traces`                             |
+| recording mark                    | `logs`                               |
 
 The recordings table holds raw rrweb. It is not in `SQL_API_TENANT_TABLES`, not in the MCP query tool description, and the telemetry skill tells Agents not to read it. Agents find Clips through the `recording` Span in `traces` and marks through `logs`.
 
@@ -373,24 +342,18 @@ The recordings table holds raw rrweb. It is not in `SQL_API_TENANT_TABLES`, not 
 - **Partition by day and retention.** A Plan change drops whole parts, the same as Logs. The row carries the retention that was in force at write time.
 - **Order by tenant, service, time.** The player always filters on service and a time window, and the row policy always constrains tenant. The three bloom filters cover Session, Stream, and Clip. A body index would not help the player and would cost space on data nobody searches.
 - **Keep raw rrweb off the SQL API.** The table is reachable by `app_ro` through `GRANT SELECT ON app.*`, so the row policy is mandatory. The SQL API role gets no grant and a default-deny policy. The table is not in `SQL_API_TENANT_TABLES`, so no per-org policy is provisioned and the MCP tool does not advertise it.
-- **Split in the local exporter.** The local collector does not ship the routing connector. The chdb exporter already owns the local schema and the local table names, so the split belongs there. The event name is the same, so the wire contract does not fork.
-- **No tenant column locally.** A local store serves one developer and has no per-org access path. Adding a tenant column would make the local schema and the shared queries diverge for no security gain.
 - **No server-side scrub.** Privacy runs in the browser before events enter the buffer. The collector and the database store what the browser sent, and the player masks nothing further.
 
 ## Testing
 
 The tests drive public boundaries: OTLP in, rows out, SQL results out. They do not assert on YAML text.
 
-- `TestRenderCreateRecordingsTableSQL` checks the local table template: database and table name, the three id columns, the three bloom filters, the local order key, and no `SQL_everr_tenant_id`.
-- `TestChDBRoundTripSplitsRecordingSegments` sends a Segment, a mark, and an ordinary Log through the chdb exporter. It asserts the Segment lands in `recordings` with `session_id`, `stream_id`, and `clip_id`, and the other two land in `logs`.
-- `TestRecordingSegmentsLandInRecordings` starts the built local collector, posts OTLP JSON with a Segment, a mark, and an ordinary Log, and queries the local SQL endpoint. It asserts the Segment is in `recordings`, not in `logs`, the mark and ordinary Log are in `logs`, and neither is in `recordings`.
 - `TestRoutedAdmission` checks the usage topology rules: a valid routed admission passes; metering again, a queue without the required settings, no downstream pipeline, a non-routing connector, and two downstream exporters each fail with the expected message.
 - The Cloud integration test in `collector/internal/cloudrecordings` starts ClickHouse on testcontainers, applies the schema init scripts (`03`, `05`, and `10`), starts a collector with the OTLP receiver, the routing connector, and two ClickHouse exporters, and posts a protobuf OTLP batch. It asserts the Segment lands in `app.recordings` with stamped `tenant_id` and `retention_days` and the three ids, while the mark and ordinary Log stay in `app.logs`. The test is behind the `integration` build tag in its own Go module, so `make test-all` does not start containers.
-- `TestLocalGatewayAllowsContentEncodingPreflight` sends a CORS preflight with `Content-Encoding` to the built local gateway and asserts the header is allowed. This tests the behavior, not the YAML.
 - The SQL API and MCP tests assert that `recordings` is not in `SQL_API_TENANT_TABLES` and not in the MCP query tool description.
 - The trace list test asserts that a root Span named `recording` is excluded from the page query.
 - Collector gates: `(cd collector && make test-all)`, plus `go test -tags=integration ./...` in `collector/internal/cloudrecordings` for the Cloud test.
-- Per the project rule, ingestion is verified end to end with Everr: from a real page, confirm Segments land in `app.recordings` under the key's organization, ordinary Logs stay in `app.logs`, the `recording` Span is in `traces`, the player loads the Clip, and a failed fetch produces a network Clip. On the local stack, confirm `everr local query` returns the Segment and the Clip Span.
+- Per the project rule, ingestion is verified end to end with Everr: from a real page, confirm Segments land in `app.recordings` under the key's organization, ordinary Logs stay in `app.logs`, the `recording` Span is in `traces`, the player loads the Clip, and a failed fetch produces a network Clip.
 
 ## Rollout
 
@@ -411,15 +374,13 @@ The collector must be ahead of the WebSDK release. If the SDK ships first, Segme
 - A Segment larger than the public receiver's 20 MiB body limit is rejected at ingest. The client does not retry it. The gap shows in the Segment index.
 - There is no body search index on `app.recordings`, and the SQL API cannot read it. Raw rrweb is for the player, not for exploration.
 - `app.recordings` has no lower-body, snapshot, URL, or error-count columns. The rrweb payload is the source of truth.
-- The local recordings table name is fixed to `recordings`. A custom local `logs_table_name` does not rename it.
-- The local schema version remains 2 while the new table is added with `CREATE TABLE IF NOT EXISTS`. A later change to the recordings DDL must join the template digest and bump the version, or an existing store keeps the old shape.
 - A Plan change affects new rows. Rows already stored keep the `retention_days` they were written with, and their parts expire under that value.
 - Cloud retention is the Logs retention. There is no separate recording retention or recording quota.
 - A `recording` Span can share a Session with another tab or a reload. The Stream id and `clip_id` keep the player on the right document and Clip; the table has no cross-Clip deduplication.
-- Local storage has no tenant isolation. It is a developer store and exposes `recordings` through the local SQL gateway.
 
 ## Out of Scope
 
+- The local Collector and its chdb store. This spec covers the Cloud path only.
 - The WebSDK capture code, Clip API, buffer, privacy, and transport. Covered by `docs/specs/2026-10-22-otel-web-recording.md`.
 - The player UI, Trace and error views, and span seeking. Covered by the overall Session Replay spec and its tickets.
 - A SQL API or MCP surface for `recordings`.
@@ -441,9 +402,6 @@ The collector must be ahead of the WebSDK release. If the SDK ships first, Segme
 - Existing-cluster DDL: `clickhouse/manual/recordings.sql`
 - Cloud collector config: `collector/config.example.yml`, `collector/config/manifest.yaml`
 - Usage topology validation: `collector/extension/everrusageextension/topology.go`
-- Local exporter split: `collector/exporter/chdbexporter/exporter_logs_json.go`
-- Local table template: `collector/exporter/chdbexporter/internal/sqltemplates/recordings_json_table.sql`
-- Local schema version: `collector/exporter/chdbexporter/schema_version.go`
 - Cloud integration test: `collector/internal/cloudrecordings/recordings_test.go`
 - Player read path: `packages/app/src/data/replay/server.ts`
 - Glossary: `CONTEXT.md` (Recording, Stream, Clip, Segment, Replay)
