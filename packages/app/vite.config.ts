@@ -33,11 +33,6 @@ export function createAppConfig(
       envDir: process.cwd(),
       cacheDir: resolve(process.cwd(), "node_modules/.vite"),
       publicDir: resolve(appDirectory, "public"),
-      server: {
-        allowedHosts: ["host.docker.internal"],
-        host: "0.0.0.0",
-        port: 5173,
-      },
       resolve: {
         tsconfigPaths: true,
         dedupe: [

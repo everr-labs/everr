@@ -8,6 +8,8 @@ pnpm dev --tui   # Process Compose's interactive interface
 pnpm dev --help  # Process Compose options
 ```
 
+Help is forwarded directly to Process Compose without acquiring the stack lock or setting up the development environment, so it also works while the stack is running.
+
 Ctrl+C stops the stack. In TUI mode, confirm Process Compose's quit dialog. Database volumes survive ordinary stops. Cloud collector queues persist across restarts. App collector queues are in memory; pending App telemetry is not retained across restarts. The shared Portless proxy remains running for other worktrees.
 
 Prerequisites: Process Compose (tested with 1.122.0, install with `brew install process-compose`), Go 1.26, Make, Node 24, installed workspace dependencies, and Docker with Compose. Docker's normal context and environment are honored. Portless is pinned as a workspace dependency; its initial HTTPS setup may require permission. Run `pnpm exec portless proxy start` first if certificate setup is needed.

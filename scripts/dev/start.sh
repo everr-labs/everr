@@ -1,12 +1,18 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-export DEV_ROOT="$(pwd -P)"
+DEV_ROOT=$(pwd -P)
+export DEV_ROOT
 export PATH="$DEV_ROOT/.dev/bin:$DEV_ROOT/node_modules/.bin:$PATH"
 command -v process-compose >/dev/null || {
   echo 'Install Process Compose first: brew install process-compose' >&2
   exit 1
 }
+for arg do
+  case "$arg" in
+    --help|-h) exec process-compose "$@" ;;
+  esac
+done
 mkdir -p .dev/bin
 export DEV_STATE_DIR="${DEV_STATE_DIR:-$DEV_ROOT/.dev}"
 umask 077
@@ -28,15 +34,17 @@ else
 fi
 node "$DEV_ROOT/scripts/dev/bootstrap-env.mjs" "$@"
 export COMPOSE_FILE="$DEV_ROOT/scripts/dev/compose.yaml"
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)}"
+export COMPOSE_PROJECT_NAME
 export DEV_APP_NAME="${DEV_APP_NAME:-app}"
 export DEV_CLOUD_NAME="${DEV_CLOUD_NAME:-app-cloud}"
 export DEV_APP_INGEST_NAME="${DEV_APP_INGEST_NAME:-app-ingest}"
 export DEV_CLOUD_INGEST_NAME="${DEV_CLOUD_INGEST_NAME:-cloud-ingest}"
-export DEV_APP_URL="$(portless get "$DEV_APP_NAME")"
-export DEV_CLOUD_URL="$(portless get "$DEV_CLOUD_NAME")"
-export DEV_APP_INGEST_URL="$(portless get "$DEV_APP_INGEST_NAME")"
-export DEV_CLOUD_INGEST_URL="$(portless get "$DEV_CLOUD_INGEST_NAME")"
+DEV_APP_URL=$(portless get "$DEV_APP_NAME")
+DEV_CLOUD_URL=$(portless get "$DEV_CLOUD_NAME")
+DEV_APP_INGEST_URL=$(portless get "$DEV_APP_INGEST_NAME")
+DEV_CLOUD_INGEST_URL=$(portless get "$DEV_CLOUD_INGEST_NAME")
+export DEV_APP_URL DEV_CLOUD_URL DEV_APP_INGEST_URL DEV_CLOUD_INGEST_URL
 free_port() {
   node --input-type=module -e '
     import net from "node:net";
@@ -47,10 +55,11 @@ free_port() {
     });
   '
 }
-export DEV_APP_GRPC_PORT="${DEV_APP_GRPC_PORT:-$(free_port)}"
-export DEV_CLOUD_GRPC_PORT="${DEV_CLOUD_GRPC_PORT:-$(free_port)}"
-export DEV_APP_GITHUB_PORT="${DEV_APP_GITHUB_PORT:-$(free_port)}"
-export DEV_CLOUD_GITHUB_PORT="${DEV_CLOUD_GITHUB_PORT:-$(free_port)}"
+DEV_APP_GRPC_PORT="${DEV_APP_GRPC_PORT:-$(free_port)}"
+DEV_CLOUD_GRPC_PORT="${DEV_CLOUD_GRPC_PORT:-$(free_port)}"
+DEV_APP_GITHUB_PORT="${DEV_APP_GITHUB_PORT:-$(free_port)}"
+DEV_CLOUD_GITHUB_PORT="${DEV_CLOUD_GITHUB_PORT:-$(free_port)}"
+export DEV_APP_GRPC_PORT DEV_CLOUD_GRPC_PORT DEV_APP_GITHUB_PORT DEV_CLOUD_GITHUB_PORT
 export DEV_APP_GITHUB_URL="http://127.0.0.1:$DEV_APP_GITHUB_PORT"
 export DEV_CLOUD_GITHUB_URL="http://127.0.0.1:$DEV_CLOUD_GITHUB_PORT"
 exec process-compose --config "$DEV_ROOT/process-compose.yaml" \
