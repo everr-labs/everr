@@ -13,11 +13,11 @@ import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to
 // thread it through the handler or stash it in AsyncLocalStorage ourselves.
-type McpContext = { orgId: string; userId: string; metadata: string | null };
+type McpContext = { orgId: string; userId: string; membershipId: string; metadata: string | null };
 
 function contextOf(extra: { authInfo?: { extra?: Record<string, unknown> } }) {
   const ctx = extra.authInfo?.extra as McpContext | undefined;
-  return ctx?.orgId && ctx?.userId ? ctx : undefined;
+  return ctx?.orgId && ctx?.userId && ctx?.membershipId ? ctx : undefined;
 }
 
 function createTransport() {
@@ -41,6 +41,13 @@ function createTransport() {
             orgId: ctx.orgId,
             metadata: ctx.metadata,
             sql,
+            principal: {
+              kind: "member",
+              organizationId: ctx.orgId,
+              userId: ctx.userId,
+              membershipId: ctx.membershipId,
+              authorization: "current-membership",
+            },
           });
           return {
             isError: result.isError,
@@ -117,7 +124,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
 
   // Re-check membership at request time (revocation / removal after consent).
   // A non-member throws McpMembershipError -> withMcpAuth answers 401.
-  const { metadata } = await assertCurrentMember(userId, orgId);
+  const { metadata, membershipId } = await assertCurrentMember(userId, orgId);
   mergeTelemetryIdentity({ organizationId: orgId, userId });
 
   return {
@@ -125,7 +132,7 @@ async function verifyToken(_req: Request, bearerToken?: string) {
     clientId: typeof payload.azp === "string" ? payload.azp : "",
     scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
-    extra: { orgId, userId, metadata } satisfies McpContext,
+    extra: { orgId, userId, membershipId, metadata } satisfies McpContext,
   };
 }
 

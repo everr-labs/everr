@@ -8,6 +8,8 @@ import { querySqlApi } from "#app/lib/clickhouse.ts";
 import { SCHEMA_PROBE_MESSAGE } from "#app/lib/sql-api-error.ts";
 import { Route } from "./sql";
 
+const { observe } = vi.hoisted(() => ({ observe: vi.fn() }));
+vi.mock("#app/server/organizations/consultations.ts", () => ({ consultations: { observe } }));
 const { assertStorageReady } = storage;
 vi.mock("@composition/storage", () => ({
   storage: { assertStorageReady: vi.fn() },
@@ -21,6 +23,7 @@ const mockedQuerySqlApi = vi.mocked(querySqlApi);
 type PostHandler = (args: {
   request: Request;
   context: {
+    consultationPrincipal: typeof principal;
     organization: { metadata: unknown };
     session: { session: { activeOrganizationId: string } };
   };
@@ -35,13 +38,22 @@ function getHandler(): PostHandler {
   return handler;
 }
 
+const principal = {
+  kind: "member",
+  organizationId: "org-42",
+  userId: "u",
+  membershipId: "m",
+  authorization: "current-membership",
+} as const;
 const context = {
+  consultationPrincipal: principal,
   organization: { metadata: null },
   session: { session: { activeOrganizationId: "org-42" } },
 };
 const span = { setAttribute: vi.fn(), setStatus: vi.fn() };
 
 beforeEach(() => {
+  observe.mockReset();
   vi.clearAllMocks();
   vi.spyOn(trace, "getActiveSpan").mockReturnValue(span as never);
 });
@@ -210,5 +222,59 @@ describe("/api/cli/sql", () => {
     expect(await response.json()).toEqual({
       error: "Unknown identifier 'srvice_name' in scope SELECT srvice_name",
     });
+  });
+});
+
+describe("CLI consultation completion", () => {
+  const traceId = "0123456789abcdef0123456789abcdef";
+  const sql = `SELECT * FROM traces WHERE TraceId = '${traceId}' LIMIT 10`;
+  const row = {
+    TraceId: traceId,
+    ServiceName: "checkout",
+    ResourceAttributes: { "deployment.environment.name": "production" },
+    SpanAttributes: {},
+  };
+  async function post(body: string, authorizedContext = context) {
+    return getHandler()({
+      request: new Request("http://localhost/api/cli/sql", { method: "POST", body }),
+      context: authorizedContext,
+    });
+  }
+  it("observes successful own-data detail using the authorized context", async () => {
+    mockedQuerySqlApi.mockResolvedValue([row]);
+    const response = await post(sql);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(traceId);
+    expect(observe).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        organizationId: "org-42",
+        principal,
+        evidence: expect.objectContaining({ surface: "cli" }),
+      }),
+    );
+  });
+  it("contains observer failure without changing successful NDJSON", async () => {
+    mockedQuerySqlApi.mockResolvedValue([row]);
+    observe.mockImplementation(() => {
+      throw new Error("secret diagnostic");
+    });
+    const response = await post(sql);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(JSON.stringify(row) + "\n");
+  });
+  it.each([
+    "SELECT 1",
+    "SELECT count() FROM traces",
+    "SELECT * FROM workflow_runs LIMIT 1",
+    "DESCRIBE traces",
+  ])("leaves probes, metadata and automatic/list reads unobserved: %s", async (body) => {
+    mockedQuerySqlApi.mockResolvedValue([row]);
+    expect((await post(body)).status).toBe(200);
+    expect(observe).not.toHaveBeenCalled();
+  });
+  it("does not observe an empty successful result", async () => {
+    mockedQuerySqlApi.mockResolvedValue([]);
+    expect((await post(sql)).status).toBe(200);
+    expect(observe).not.toHaveBeenCalled();
   });
 });

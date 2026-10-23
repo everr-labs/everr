@@ -7,7 +7,7 @@ export class McpMembershipError extends Error {}
 /** Throws McpMembershipError if the user is not a current member of the org. */
 export async function assertCurrentMember(userId: string, organizationId: string) {
   const rows = await db
-    .select({ metadata: organization.metadata })
+    .select({ metadata: organization.metadata, membershipId: member.id })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))

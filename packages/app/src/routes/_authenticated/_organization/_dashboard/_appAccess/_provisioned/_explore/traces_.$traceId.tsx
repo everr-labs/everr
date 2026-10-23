@@ -7,6 +7,7 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { createFileRoute, type ErrorComponentProps, Link } from "@tanstack/react-router";
+import { consultTrace } from "#app/data/traces/server.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export const Route = createFileRoute(
@@ -18,10 +19,13 @@ export const Route = createFileRoute(
     hideTimeRangePicker: true,
   },
   validateSearch: TraceDetailParamsSchema,
-  loader: async ({ context: { queryClient }, params }) => {
+  // A skipped intent preload must not cache away the actual navigation loader.
+  preloadStaleTime: 0,
+  loader: async ({ context: { queryClient }, params, preload }) => {
+    if (preload) return;
     await queryClient.ensureQueryData(
       getTraceOptions({
-        repo: remoteTracesRepo,
+        repo: { ...remoteTracesRepo, getTrace: (data) => consultTrace({ data }) },
         traceId: params.traceId,
         refresh: "off",
       }),

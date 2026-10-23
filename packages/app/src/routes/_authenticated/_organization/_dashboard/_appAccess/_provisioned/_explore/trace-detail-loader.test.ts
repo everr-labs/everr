@@ -7,9 +7,11 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import { afterEach, expect, it, vi } from "vite-plus/test";
+import { consultTrace } from "#app/data/traces/server.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 import { Route } from "./traces_.$traceId";
 
+vi.mock("#app/data/traces/server.ts", () => ({ consultTrace: vi.fn(async () => []) }));
 vi.mock("#app/data/traces/remote-repo.ts", () => ({
   remoteTracesRepo: { getTrace: vi.fn(async () => []) },
 }));
@@ -19,7 +21,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it("shares prefetched trace data with the viewer regardless of URL time bounds", async () => {
+it("shares consulted trace data and leaves viewer refresh unobserved", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-19T14:00:00Z"));
   const queryClient = new QueryClient({
@@ -64,13 +66,53 @@ it("shares prefetched trace data with the viewer regardless of URL time bounds",
         refresh: "5s",
       },
     });
-    expect(remoteTracesRepo.getTrace).toHaveBeenCalledExactlyOnceWith({
-      traceId: "trace-1",
+    expect(consultTrace).toHaveBeenCalledExactlyOnceWith({
+      data: {
+        traceId: "trace-1",
+      },
     });
     await observer.refetch();
-    expect(remoteTracesRepo.getTrace).toHaveBeenCalledTimes(2);
+    expect(remoteTracesRepo.getTrace).toHaveBeenCalledTimes(1);
+    expect(consultTrace).toHaveBeenCalledTimes(1);
   } finally {
     unsubscribe();
     queryClient.clear();
   }
+});
+
+it("skips intent preload and consults on the subsequent actual navigation", async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRootRouteWithContext<{ queryClient: QueryClient }>()();
+  const load = Route.options.loader;
+  if (typeof load !== "function") throw new Error("Expected trace route loader");
+  const home = createRoute({ getParentRoute: () => root, path: "/" });
+  const trace = createRoute({
+    getParentRoute: () => root,
+    path: "/traces/$traceId",
+    validateSearch: TraceDetailParamsSchema,
+    preloadStaleTime: Route.options.preloadStaleTime,
+    loader: (args) => load(args as unknown as Parameters<typeof load>[0]),
+  });
+  const router = createRouter({
+    routeTree: root.addChildren([home, trace]),
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+    context: { queryClient },
+  });
+  await router.load();
+  await router.preloadRoute({
+    to: "/traces/$traceId",
+    params: { traceId: "preloaded-trace" },
+    search: {},
+  });
+  expect(consultTrace).not.toHaveBeenCalled();
+  expect(remoteTracesRepo.getTrace).not.toHaveBeenCalled();
+  await router.navigate({
+    to: "/traces/$traceId",
+    params: { traceId: "preloaded-trace" },
+    search: {},
+  });
+  expect(consultTrace).toHaveBeenCalledExactlyOnceWith({
+    data: { traceId: "preloaded-trace" },
+  });
+  queryClient.clear();
 });

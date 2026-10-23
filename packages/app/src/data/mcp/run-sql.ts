@@ -1,3 +1,7 @@
+import {
+  type ConsultationPrincipal,
+  observeTraceQuery,
+} from "#app/server/organizations/consultation-completion.ts";
 import { ClickHouseError } from "@clickhouse/client";
 import {
   MCP_MAX_CELL_CHARS,
@@ -29,6 +33,7 @@ export async function runSqlForConnection(args: {
   orgId: string;
   metadata: unknown;
   sql: string;
+  principal: ConsultationPrincipal;
 }): Promise<RunSqlResult> {
   const sql = args.sql.trim();
   if (!sql) {
@@ -55,6 +60,15 @@ export async function runSqlForConnection(args: {
       lines.push(line);
     }
     const shown = lines.length - 2;
+    if (args.principal.organizationId === args.orgId) {
+      observeTraceQuery({
+        principal: args.principal,
+        surface: "mcp",
+        sql,
+        rows: result.rows.slice(0, shown),
+        columns: result.columns,
+      });
+    }
     return {
       isError: false,
       content: [

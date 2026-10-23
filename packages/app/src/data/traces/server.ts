@@ -7,6 +7,7 @@ import {
   TraceAttributeValuesInputSchema,
   TracesRepository,
 } from "@everr/telemetry-explorer/traces";
+import { observeTraceDetail } from "#app/server/organizations/consultation-completion.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
 function repoFromContext(clickhouse: {
@@ -47,3 +48,12 @@ export const getTraceAttributeValues = createAuthenticatedServerFn({
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).attributeValues(data),
   );
+
+/** Explicit trace navigation. Shared getTrace remains an unobserved refresh read. */
+export const consultTrace = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(GetTraceInputSchema)
+  .handler(async ({ data, context: { clickhouse, consultationPrincipal } }) => {
+    const rows = await repoFromContext(clickhouse).getTrace(data);
+    observeTraceDetail({ principal: consultationPrincipal, rows });
+    return rows;
+  });

@@ -13,6 +13,7 @@ export async function findOrganizationForMember(
       name: organization.name,
       metadata: organization.metadata,
       memberRole: member.role,
+      membershipId: member.id,
     })
     .from(organization)
     .innerJoin(member, eq(member.organizationId, organization.id))

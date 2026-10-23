@@ -1,6 +1,6 @@
 # 10: Persist verified activation milestones and sync their fields
 
-Status: implemented and independently reviewed; focused checks and isolated ingestion/field proofs passed, awaiting coordinator commit.
+Status: implemented, independently reviewed, and committed as `af9102e69`. Focused checks and isolated ingestion/field proofs passed.
 
 Repository: `everr`.
 

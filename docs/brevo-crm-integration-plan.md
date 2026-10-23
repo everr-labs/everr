@@ -10,8 +10,9 @@ Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
 Task 08 is implemented, independently reviewed, and committed as `179230af5`.
 Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
-Task 10 is implemented and independently reviewed, with focused PostgreSQL,
-isolated diagnostics ingestion and provider field checks passed, awaiting commit. Tasks 11 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
+Task 11 is implemented and independently reviewed with conservative trace-detail
+coverage; two findings were fixed and 120 checks passed. Coordinator commit pending. Tasks 12 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -299,7 +300,9 @@ Rule 1 atomically establishes both markers once from a valid useful consultation
 Observation time is stamped by the server at admission after action completion;
 `observer_started_at` records the winning process capability start, not historical
 coverage. The capability remains available with CRM disabled or paused. There
-are no live completion hooks or action coverage until task 11. Current Company
+were no live completion hooks in task 10. Task 11 adds the conservative
+trace-detail coverage documented in the capability README; dashboard rendering
+and generic query coverage remain unsupported. Current Company
 snapshots read markers even after lost fact publication; missing markers remain
 unknown. Authorization is verified at the completed action, so later Membership
 departure does not invalidate it. Organization clients can have an authorized
@@ -366,8 +369,9 @@ implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is im
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
 Task 08 is implemented, independently reviewed, and committed as `179230af5`.
 Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
-Task 10 is implemented and independently reviewed, with focused PostgreSQL,
-isolated diagnostics ingestion and provider field checks passed, awaiting commit. Tasks 11 through 16 remain planned.
+Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
+Task 11 is implemented and independently reviewed with conservative trace-detail
+coverage; two findings were fixed and 120 checks passed. Coordinator commit pending. Tasks 12 through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

@@ -56,7 +56,9 @@ beforeEach(() => {
   mocked.getSession.mockReset();
   mocked.getOrganization
     .mockReset()
-    .mockResolvedValue([{ id: "org_123", metadata: null, memberRole: "owner" }]);
+    .mockResolvedValue([
+      { id: "org_123", metadata: null, membershipId: "membership_123", memberRole: "owner" },
+    ]);
 });
 
 async function loadModule() {
@@ -150,7 +152,9 @@ describe("createOrganizationAdminServerFn", () => {
       user: { id: "user_123" },
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
-    mocked.getOrganization.mockResolvedValue([{ id: "org_123", metadata: null, memberRole: role }]);
+    mocked.getOrganization.mockResolvedValue([
+      { id: "org_123", metadata: null, membershipId: "membership_123", memberRole: role },
+    ]);
 
     const response = await getHandler()({ request, next });
 
@@ -168,7 +172,7 @@ describe("createOrganizationAdminServerFn", () => {
       session: { id: "session_123", activeOrganizationId: "org_123" },
     });
     mocked.getOrganization.mockResolvedValue([
-      { id: "org_123", metadata: null, memberRole: "member" },
+      { id: "org_123", metadata: null, membershipId: "membership_123", memberRole: "member" },
     ]);
 
     await expect(getHandler()({ request, next })).rejects.toBeInstanceOf(NotOrganizationAdminError);
@@ -197,6 +201,13 @@ describe("authMiddleware", () => {
       context: {
         organization: { id: "org_123", metadata: null },
         memberRole: "owner",
+        consultationPrincipal: {
+          kind: "member",
+          organizationId: "org_123",
+          userId: "user_123",
+          membershipId: "membership_123",
+          authorization: "current-membership",
+        },
         session: {
           user: { id: "user_123" },
           session: {
@@ -250,7 +261,9 @@ describe("organization readiness boundary", () => {
         user: { id: "u" },
         session: { activeOrganizationId: "org" },
       });
-      mocked.getOrganization.mockResolvedValue([{ id: "org", metadata, memberRole: "owner" }]);
+      mocked.getOrganization.mockResolvedValue([
+        { id: "org", metadata, membershipId: "membership_123", memberRole: "owner" },
+      ]);
       const next = vi.fn().mockResolvedValue("ok");
       await mocked.allDefinitions[2]?.__handler({
         request: new Request("http://localhost/_server"),
@@ -278,6 +291,7 @@ describe("organization readiness boundary", () => {
       {
         id: "org",
         metadata: { clickhouseReady: false },
+        membershipId: "membership_123",
         memberRole: "owner",
       },
     ]);

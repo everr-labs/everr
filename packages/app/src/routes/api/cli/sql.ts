@@ -1,3 +1,4 @@
+import { observeTraceQuery } from "#app/server/organizations/consultation-completion.ts";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createFileRoute } from "@tanstack/react-router";
 import { createOrganizationSql } from "#app/lib/organization-sql.ts";
@@ -38,11 +39,20 @@ export const Route = createFileRoute("/api/cli/sql")({
           span?.setAttribute("everr.sql_query.outcome", "ok");
           span?.setAttribute("everr.sql_query.result_rows", rows.length);
 
-          return new Response(toNdjson(rows), {
+          const response = new Response(toNdjson(rows), {
             headers: {
               "content-type": "application/x-ndjson; charset=utf-8",
             },
           });
+          if (context.consultationPrincipal.organizationId === orgId) {
+            observeTraceQuery({
+              principal: context.consultationPrincipal,
+              surface: "cli",
+              sql,
+              rows,
+            });
+          }
+          return response;
         } catch (error) {
           const { outcome, kind } = classifySqlQueryError(error);
           if (span) {
