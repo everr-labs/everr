@@ -4,7 +4,7 @@ How alerting history becomes queryable through `everr cloud query`.
 
 This is a design overview, not a specification. The code is the source of
 truth: for the table's exact shape read
-`clickhouse/init/cloud/12-create-alert-events.sql`, and for the caller-facing
+`clickhouse/init/shared/12-create-alert-events.sql`, and for the caller-facing
 reference (every column, the event-type table, worked queries) read the
 shipped skill file
 `skills/everr-use-telemetry/rules/alert-history.md`.
@@ -333,7 +333,7 @@ the whole alerting stack, with plain commits rather than a cascade.
 
 | Concern                           | File                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| Table DDL                         | `clickhouse/init/cloud/12-create-alert-events.sql`                 |
+| Table DDL                         | `clickhouse/init/shared/12-create-alert-events.sql`                |
 | Caller-facing reference           | `skills/everr-use-telemetry/rules/alert-history.md`                |
 | Row builders and the insert       | `server/alerting/history/clickhouse.ts`                            |
 | Deterministic history ids         | `data/alerting/history/ids.ts`                                     |
@@ -366,7 +366,7 @@ one migration rather than accumulate a file per change. Edit
 scratch and has not shipped. Patch `drizzle/meta/0011_snapshot.json` to
 match, and apply the change to the dev database by hand.
 
-ClickHouse is different again: fresh installs read `clickhouse/init/cloud/`,
+ClickHouse is different again: fresh installs read `clickhouse/init/shared/`,
 while existing deployments need a migration whose every statement carries
 its own `SETTINGS`. `ORDER BY` and `PARTITION BY` are immutable, so a
 change to either means recreating the table. `app.alert_events` can be

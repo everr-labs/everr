@@ -252,7 +252,7 @@ func renderCreateLogsTableSQL(cfg *Config) (string, error) {
 
 // The logs table keeps bloom_filter map indexes on every ClickHouse version.
 // Upstream switches to TYPE text(...) on 26.2 and later; the cloud DDL in
-// clickhouse/init/cloud/10-create-mvs.sql carries the measurement for keeping bloom.
+// clickhouse/init/shared/10-create-mvs.sql carries the measurement for keeping bloom.
 func createLogsTable(ctx context.Context, cfg *Config, db driver.Conn) error {
 	sql, err := renderCreateLogsTableSQL(cfg)
 	if err != nil {

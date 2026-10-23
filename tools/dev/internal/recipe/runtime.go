@@ -33,7 +33,7 @@ func Exec(args []string) error {
 	if err := json.Unmarshal(data, &env); err != nil {
 		return err
 	}
-	ch, err := dockerPort("clickhouse", "8123")
+	ch, err := dockerPort("clickhouse-"+variant, "8123")
 	if err != nil {
 		return err
 	}

@@ -28,7 +28,7 @@ services:
       CLICKHOUSE_PASSWORD: ${APP_RO_PASSWORD:?Run ./configure.sh first}
       CLICKHOUSE_ADMIN_USERNAME: web_app_admin
       CLICKHOUSE_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
-      CLICKHOUSE_SQL_API_USERNAME: ${CLICKHOUSE_SQL_API_USERNAME:-sql_api}
+      CLICKHOUSE_SQL_API_USERNAME: sql_api
       CLICKHOUSE_SQL_API_PASSWORD: ${CLICKHOUSE_SQL_API_PASSWORD:?Run ./configure.sh first}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Run ./configure.sh first}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
@@ -79,16 +79,17 @@ services:
       COLLECTOR_RW_PASSWORD: ${COLLECTOR_RW_PASSWORD:?Run ./configure.sh first}
       APP_RO_PASSWORD: ${APP_RO_PASSWORD:?Run ./configure.sh first}
       WEB_APP_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
-      CLICKHOUSE_SQL_API_USERNAME: ${CLICKHOUSE_SQL_API_USERNAME:-sql_api}
       CLICKHOUSE_SQL_API_PASSWORD: ${CLICKHOUSE_SQL_API_PASSWORD:?Run ./configure.sh first}
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          'clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --query ''SELECT 1 FROM app.alert_events LIMIT 0''',
-        ]
+        - CMD-SHELL
+        - >-
+          clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --multiquery --query
+          "SELECT 1 FROM app.alert_events LIMIT 0;
+          SELECT throwIf(count() != 1, 'SQL API access is not initialized')
+          FROM system.quotas WHERE name = 'sql_api_quota'"
       interval: 5s
       timeout: 5s
       start_period: 30s

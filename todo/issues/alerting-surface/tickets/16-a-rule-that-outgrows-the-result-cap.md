@@ -10,7 +10,7 @@ the limit is visible before it starts failing.
 
 `sql_api_profile` sets `max_result_rows = 1000` with
 `result_overflow_mode = 'throw'`
-(`clickhouse/init/cloud/15-create-sql-api-role.sql`). Rule evaluation runs through
+(`clickhouse/init/shared/13-create-sql-api-profile.sql`). Rule evaluation runs through
 that profile (`querySqlApiWithMeta` in `evaluation/rule.ts`), so a rule whose
 result grows past 1000 rows throws on every evaluation from then on. The
 engine handles it correctly: the rule goes degraded, the failure is

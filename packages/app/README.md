@@ -195,8 +195,10 @@ The launcher supplies local connection settings and credentials. Application
 `.env` files are for optional integration settings; the launcher does not copy
 or read them. See `.env.example` for those settings.
 
-App's ClickHouse schema and access rules live in
-`clickhouse/init/self-hosted/`; Cloud's live in `clickhouse/init/cloud/`.
+Shared ClickHouse table definitions and SQL query limits live in
+`clickhouse/init/shared/`. App's access rules live in `clickhouse/init/self-hosted/`;
+Cloud's live in `clickhouse/init/cloud/`. Each application has its own ClickHouse
+container, using the same `app` and `otel` database names.
 Each worktree has its own database volumes and Portless URLs. Ctrl+C stops the
 stack while retaining database data. In TUI mode, confirm the quit dialog.
 

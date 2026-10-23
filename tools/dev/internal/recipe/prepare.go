@@ -16,26 +16,18 @@ const devSecret = "everr-development-only-not-a-secret"
 
 func Prepare(state, runtime string) error {
 	for _, variant := range []string{"app", "cloud"} {
-		prefix := ""
-		database := "app"
-		if variant == "app" {
-			prefix = "installation_"
-			database = "installation"
-		}
 		env := map[string]string{
 			"NODE_ENV": "development", "SKIP_ENV_VALIDATION": "false", "DATABASE_HOST": "127.0.0.1", "DATABASE_NAME": "everr_" + variant, "DATABASE_USER": "everr_" + variant, "DATABASE_PASSWORD": devPassword, "DATABASE_SSL": "false",
-			"CLICKHOUSE_DATABASE": database, "CLICKHOUSE_USERNAME": prefix + "app_ro", "CLICKHOUSE_PASSWORD": devPassword, "CLICKHOUSE_ADMIN_USERNAME": prefix + "web_app_admin", "CLICKHOUSE_ADMIN_PASSWORD": devPassword,
-			"CLICKHOUSE_SQL_API_USERNAME": "installation_sql_api", "CLICKHOUSE_SQL_API_PASSWORD": devPassword, "CLICKHOUSE_SQL_API_MASTER_KEY": devSecret,
+			"CLICKHOUSE_DATABASE": "app", "CLICKHOUSE_USERNAME": "app_ro", "CLICKHOUSE_PASSWORD": devPassword, "CLICKHOUSE_ADMIN_USERNAME": "web_app_admin", "CLICKHOUSE_ADMIN_PASSWORD": devPassword,
+			"CLICKHOUSE_SQL_API_USERNAME": "sql_api", "CLICKHOUSE_SQL_API_PASSWORD": devPassword, "CLICKHOUSE_SQL_API_MASTER_KEY": devSecret,
 			"BETTER_AUTH_SECRET": devSecret, "INGEST_VERIFY_SHARED_SECRET": devSecret,
 			"EVERR_GITHUB_ENABLED": "false", "SMEE_CHANNEL": "", "GITHUB_APP_ID": "", "GITHUB_APP_PRIVATE_KEY": "", "GITHUB_APP_WEBHOOK_SECRET": "", "GITHUB_APP_INSTALL_URL": "",
 		}
 		collectorEnv := map[string]string{
-			"CLICKHOUSE_USERNAME": prefix + "collector_rw", "CLICKHOUSE_PASSWORD": devPassword,
+			"CLICKHOUSE_USERNAME": "collector_rw", "CLICKHOUSE_PASSWORD": devPassword,
 			"CLICKHOUSE_DATABASE": "otel", "INGEST_VERIFY_SHARED_SECRET": devSecret,
 		}
-		if variant == "app" {
-			collectorEnv["CLICKHOUSE_DATABASE"] = "installation_otel"
-		} else {
+		if variant == "cloud" {
 			collectorEnv["EVERR_QUEUE_DIRECTORY"] = filepath.Join(state, "cloud-queue")
 		}
 		if err := writeJSON(filepath.Join(runtime, variant+".collector.env.json"), collectorEnv); err != nil {
@@ -63,9 +55,6 @@ func Databases(ctx context.Context) error {
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = strings.NewReader(input)
 		return cmd.Run()
-	}
-	if err := run("", "exec", "-T", "clickhouse", "bash", "/dev-init/bootstrap.sh"); err != nil {
-		return err
 	}
 	if err := run("ALTER ROLE postgres PASSWORD 'dev';\n", "exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1"); err != nil {
 		return err

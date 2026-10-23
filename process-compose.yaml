@@ -8,16 +8,19 @@ processes:
   databases:
     command: |
       trap 'docker compose down --timeout 60' EXIT
-      docker compose up --abort-on-container-exit postgres clickhouse
+      docker compose up --build --abort-on-container-exit postgres clickhouse-app clickhouse-cloud
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
       exec:
-        command: docker compose exec -T postgres pg_isready -U postgres && docker compose exec -T clickhouse clickhouse-client --query 'SELECT 1'
+        command: >-
+          docker compose exec -T postgres pg_isready -U postgres &&
+          docker compose exec -T clickhouse-app clickhouse-client --host clickhouse-app --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0' &&
+          docker compose exec -T clickhouse-cloud clickhouse-client --host clickhouse-cloud --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0'
       period_seconds: 2
       failure_threshold: 90
     shutdown:
-      command: docker compose stop --timeout 60 postgres clickhouse
+      command: docker compose stop --timeout 60 postgres clickhouse-app clickhouse-cloud
       timeout_seconds: 90
 
   provision:

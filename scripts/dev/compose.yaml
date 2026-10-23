@@ -15,32 +15,58 @@ services:
       interval: 1s
       timeout: 3s
       retries: 60
-  clickhouse:
-    image: clickhouse/clickhouse-server:26.5
+  clickhouse-app:
+    build:
+      context: ../../clickhouse
+      target: self-hosted
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: dev
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-      CLICKHOUSE_SQL_API_USERNAME: installation_sql_api
       CLICKHOUSE_SQL_API_PASSWORD: dev
-      CLOUD_COLLECTOR_PASSWORD: dev
-      CLOUD_READER_PASSWORD: dev
-      CLOUD_WRITER_PASSWORD: dev
-      APP_COLLECTOR_PASSWORD: dev
-      APP_READER_PASSWORD: dev
-      APP_WRITER_PASSWORD: dev
+      COLLECTOR_RW_PASSWORD: dev
+      APP_RO_PASSWORD: dev
+      WEB_APP_ADMIN_PASSWORD: dev
     ports:
       - target: 8123
         host_ip: 127.0.0.1
     volumes:
-      - clickhouse:/var/lib/clickhouse
-      - ${DEV_ROOT}/clickhouse/init/cloud:/dev-init/cloud:ro
-      - ${DEV_ROOT}/clickhouse/init/self-hosted:/dev-init/app:ro
-      - ${DEV_ROOT}/scripts/dev/init-clickhouse.sh:/dev-init/bootstrap.sh:ro
+      - clickhouse-app:/var/lib/clickhouse
     labels:
       dev.checkout: ${DEV_ROOT}
     healthcheck:
-      test: [CMD-SHELL, 'clickhouse-client --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1"']
+      test:
+        [
+          CMD-SHELL,
+          'clickhouse-client --host "$$HOSTNAME" --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1 FROM app.alert_events LIMIT 0"',
+        ]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+  clickhouse-cloud:
+    build:
+      context: ../../clickhouse
+      target: cloud
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: dev
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      COLLECTOR_RW_PASSWORD: dev
+      APP_RO_PASSWORD: dev
+      WEB_APP_ADMIN_PASSWORD: dev
+    ports:
+      - target: 8123
+        host_ip: 127.0.0.1
+    volumes:
+      - clickhouse-cloud:/var/lib/clickhouse
+    labels:
+      dev.checkout: ${DEV_ROOT}
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'clickhouse-client --host "$$HOSTNAME" --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1 FROM app.alert_events LIMIT 0"',
+        ]
       interval: 1s
       timeout: 3s
       retries: 60
@@ -48,6 +74,9 @@ volumes:
   postgres:
     labels:
       dev.checkout: ${DEV_ROOT}
-  clickhouse:
+  clickhouse-app:
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse-cloud:
     labels:
       dev.checkout: ${DEV_ROOT}

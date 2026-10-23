@@ -40,9 +40,12 @@ exists, and concurrent attempts cannot create another workspace.
 The self-hosted app applies the application PostgreSQL migration history during
 startup. The image contains only that history. ClickHouse initializes
 its schema and access roles on the first start with an empty data volume.
-Both products use the same tenant-aware table definitions. Self-hosted telemetry
-does not stamp a tenant, and self-hosted queries do not filter by tenant. Only the
-access setup differs from Cloud.
+The self-hosted image loads the table definitions and SQL query limits from
+`clickhouse/init/shared/` and its access setup from `clickhouse/init/self-hosted/`.
+It creates `otel` landing tables, `app` read tables, and installation-wide users,
+without Cloud tenant policies or per-organization provisioning privileges. Local
+development uses this same image in a separate container from Cloud.
+Self-hosted telemetry does not stamp a tenant, and queries do not filter by tenant.
 Workers run inside the app; no separate worker service is needed.
 
 ## Remote access
@@ -78,8 +81,9 @@ The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
 
 The SQL API uses one fixed restricted
-ClickHouse user named `sql_api`; its password is generated in `.env` as
-`CLICKHOUSE_SQL_API_PASSWORD`. GitHub webhook ingestion is not configured by this
+ClickHouse user named `sql_api`; its password is generated in `.env`
+as `CLICKHOUSE_SQL_API_PASSWORD`. The username is fixed by this bundle's schema
+and Compose configuration. GitHub webhook ingestion is not configured by this
 Compose bundle. Retention defaults to 30 days;
 set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
