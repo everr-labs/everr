@@ -14,7 +14,7 @@ Prerequisites: Process Compose (tested with 1.122.0, install with `brew install 
 
 ## What starts
 
-Process Compose runs App, Cloud, and a separate native collector for each application. The existing Make targets build both the cloud and self-hosted collector distributions for the host. Docker runs PostgreSQL and a separate ClickHouse container for each application.
+Process Compose runs App, Cloud, and native public-ingest and GitHub collectors for each application. The existing Make targets build both the cloud and self-hosted collector distributions for the host. Docker runs PostgreSQL and a separate ClickHouse container for each application.
 
 Portless handles HTTP port allocation and worktree prefixes. Application service names remain `app` and `app-cloud`; collector names are `app-ingest` and `cloud-ingest`. For a worktree named `portless`, the URLs are:
 
@@ -25,7 +25,7 @@ Portless handles HTTP port allocation and worktree prefixes. Application service
 | App ingest   | `https://portless.app-ingest.localhost`   |
 | Cloud ingest | `https://portless.cloud-ingest.localhost` |
 
-The actual URLs are obtained with `portless get` and printed at startup. This development collector configuration exposes authenticated OTLP/HTTP (`/v1/logs`, `/v1/traces`, `/v1/metrics`). It does not expose a separate OTLP/gRPC listener. Production collector configuration is unchanged.
+The actual URLs are obtained with `portless get` and printed at startup. Development exposes authenticated OTLP/HTTP (`/v1/logs`, `/v1/traces`, `/v1/metrics`) through Portless and authenticated OTLP/gRPC on separate loopback listeners. The gRPC ports are assigned at startup and printed with the HTTP URLs; they remain stable for collector restarts within that run. Portless forwards HTTP/1 to backends, so gRPC clients use the printed direct addresses. Production collector configuration is unchanged.
 
 Applications start after database provisioning, with their stable ingest URLs already configured. Process Compose checks PostgreSQL's TCP listener and both ClickHouse schemas before starting App and Cloud. Each collector starts after its application's health check passes and verifies keys through the application's HTTPS URL. There is no endpoint handshake, Docker-to-host callback, or waiting application wrapper. Vite and the collectors bind to loopback.
 
@@ -40,11 +40,21 @@ Both ClickHouse images use the table definitions and SQL query limits in `clickh
 
 ## Configuration and data
 
-The entry point does not copy or read application dotenv files. Applications load their own optional settings. Cloud requires its Polar configuration and both `EMAIL_DSN` and `EMAIL_FROM` in every environment, including development. SMTP remains optional for the self-hosted App. GitHub ingress and Smee are disabled in this basic stack.
+The entry point does not copy or read application dotenv files. Applications load their own optional settings. Cloud requires its Polar configuration and both `EMAIL_DSN` and `EMAIL_FROM` in every environment, including development. SMTP remains optional for the self-hosted App. GitHub ingress and Smee start by default using each package's existing `GITHUB_APP_*` and `SMEE_CHANNEL` settings. The native GitHub receiver loads the same dotenv mode as its application, including Cloud's `.env.cloud` overrides; credentials do not need to be exported again.
+
+Mailpit remains optional:
+
+```sh
+pnpm dev -f process-compose.mail.yaml
+```
+
+Mailpit gets checkout-scoped, Docker-assigned SMTP and UI ports. The mail override points both applications at it. GitHub receivers start with the default graph and use their own Portless URLs. See [Contributing](../CONTRIBUTING.md) for existing GitHub settings. Cloud's GitHub receiver uses a separate durable queue under `.dev/github-cloud-queue/`.
 
 Process Compose declares fixed development settings, which override application dotenv values. The stack uses `dev` for database passwords and a fixed development-only auth/verification secret. No environment files or credentials are generated. Each ClickHouse container initializes its own schema and users on its first start. PostgreSQL's standard entrypoint runs `scripts/dev/init-postgres.sql` on fresh storage to create the application databases and roles. Switching from the earlier generated auth secret requires signing in again; locally stored encrypted integration settings may need to be recreated. The self-hosted App collector uses in-memory buffering without Cloud usage accounting. The Cloud collector retains usage accounting and durable queues under `.dev/cloud-queue/`. Process Compose writes its log to `.dev/process-compose.log`. Old App queue directories and Docker queue volumes are no longer used.
 
 Instance identity comes from the canonical checkout path. Branch changes in the same checkout preserve data; distinct paths use distinct Docker projects and volumes. The entry script uses macOS `shlock` or Linux `flock` to prevent concurrent starts in one checkout.
+
+The verification helper runs this same graph with its own `DEV_STATE_DIR`, `COMPOSE_PROJECT_NAME`, Portless service names and supervisor socket. It can coexist with the usual development stack without sharing databases, queues or routes. See the [verification skill](../.agents/skills/verify-everr/SKILL.md) for launch and cleanup.
 
 ## Implementation
 
@@ -52,6 +62,8 @@ Instance identity comes from the canonical checkout path. Branch changes in the 
 - `scripts/dev/compose.yaml` declares the database containers and volumes and builds each product's ClickHouse image. The standard ClickHouse entrypoint initializes each server directly. This file is used through `pnpm dev`; Process Compose owns readiness, so the dev containers do not declare Docker health checks. The separate deployment Compose file retains its health checks.
 - `scripts/dev/collector-app.yaml` declares self-hosted public ingestion with in-memory buffering.
 - `scripts/dev/collector-cloud.yaml` retains Cloud usage accounting and durable queues. Both preserve authentication, tenant isolation, and retention processors from `collector/config.example.yml`.
+- `scripts/dev/github-collector.mjs` loads existing package dotenv settings and replaces itself with the native GitHub collector.
+- `scripts/dev/collector-github-app.yaml` and `collector-github-cloud.yaml` configure the signed worker replay endpoints.
 - `scripts/dev/init-postgres.sql` creates the App and Cloud PostgreSQL databases and roles on fresh storage.
 - `scripts/dev/start.sh` establishes the checkout environment and executes Process Compose with forwarded arguments.
 - `scripts/dev/exec.sh` resolves the application's Docker ports, forwards its Portless origin and local certificate settings, and executes the command supplied by YAML.

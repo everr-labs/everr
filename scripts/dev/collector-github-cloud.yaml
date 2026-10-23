@@ -1,0 +1,142 @@
+# GitHub worker replay. Retention and tenant metadata come from the application.
+extensions:
+  everr_usage:
+    max_series: 30000
+  file_storage/ingestion:
+    directory: ${env:EVERR_QUEUE_DIRECTORY}
+    create_directory: true
+    fsync: true
+connectors:
+  everr_usage_connector:
+    interval: 60s
+    timeout: 10s
+receivers:
+  githubactions:
+    path: /webhook/github
+    endpoint: 127.0.0.1:${env:PORT}
+    secret: ${env:GITHUB_APP_WEBHOOK_SECRET}
+    gh_api:
+      auth:
+        app_id: ${env:GITHUB_APP_ID}
+        private_key: ${env:GITHUB_APP_PRIVATE_KEY}
+processors:
+  everr_usage: {}
+  delta_to_cumulative/usage:
+    max_stale: 5m
+    max_streams: 60000
+  filter/reserved_everr:
+    error_mode: propagate
+    metric_conditions:
+      - IsMatch(metric.name, "^everr[.]")
+  resource:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        from_context: metadata.x-everr-tenant-id
+  resource/retention_traces:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-traces-days
+  resource/retention_logs:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-logs-days
+  resource/retention_metrics:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: metadata.x-everr-retention-metrics-days
+exporters:
+  clickhouse:
+    endpoint: ${env:CLICKHOUSE_URL}
+    username: ${env:CLICKHOUSE_USERNAME}
+    password: ${env:CLICKHOUSE_PASSWORD}
+    database: ${env:CLICKHOUSE_DATABASE}
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+      materialized_views_ignore_errors: "0"
+    json: true
+    sending_queue:
+      enabled: true
+      wait_for_result: false
+      queue_size: 10000
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
+      storage: file_storage/ingestion
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
+  clickhouse/usage:
+    endpoint: ${env:CLICKHOUSE_URL}
+    username: ${env:CLICKHOUSE_USERNAME}
+    password: ${env:CLICKHOUSE_PASSWORD}
+    database: ${env:CLICKHOUSE_DATABASE}
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+      materialized_views_ignore_errors: "0"
+    json: true
+    sending_queue:
+      enabled: true
+      wait_for_result: false
+      block_on_overflow: true
+      queue_size: 10000
+      num_consumers: 10
+      batch:
+        min_size: 8192
+        flush_timeout: 1s
+      storage: file_storage/ingestion
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
+service:
+  extensions:
+    - everr_usage
+    - file_storage/ingestion
+  pipelines:
+    metrics/usage:
+      receivers:
+        - everr_usage_connector
+      processors:
+        - delta_to_cumulative/usage
+      exporters:
+        - clickhouse/usage
+    traces:
+      receivers:
+        - githubactions
+      processors:
+        - resource
+        - resource/retention_traces
+        - everr_usage
+      exporters:
+        - clickhouse
+        - everr_usage_connector
+    logs:
+      receivers:
+        - githubactions
+      processors:
+        - resource
+        - resource/retention_logs
+        - everr_usage
+      exporters:
+        - clickhouse
+        - everr_usage_connector
+    metrics:
+      receivers:
+        - githubactions
+      processors:
+        - filter/reserved_everr
+        - resource
+        - resource/retention_metrics
+        - everr_usage
+      exporters:
+        - clickhouse
+        - everr_usage_connector
+  telemetry:
+    metrics:
+      level: none

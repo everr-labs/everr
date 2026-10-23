@@ -15,6 +15,8 @@
     "stale-suppressions": "error",
   },
   "entry": [
+    // Native GitHub collector launcher invoked by Process Compose.
+    "scripts/dev/github-collector.mjs",
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",

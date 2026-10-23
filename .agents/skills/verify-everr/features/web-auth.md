@@ -22,7 +22,7 @@ A new user creates an account with name, email and password, lands on a short "S
 
 Preconditions:
 
-- `$V web-launch` printed `WEB READY` and `$V web-doctor` ends with `WEB DOCTOR OK`.
+- Default Cloud selected (`web-launch`, or `--app cloud`); `$V web-launch` printed `WEB READY` and `$V web-doctor` ends with `WEB DOCTOR OK`.
 - `VERIFY_NAME`, `VERIFY_EMAIL` (unique per run), `VERIFY_PASSWORD` exported (see SKILL.md Drive).
 
 - The run's browser: `eval "$($V web-browser-env)"` in the driving shell (SKILL.md Browser). Evidence lands in `$SHOTS`.
@@ -61,7 +61,7 @@ Preconditions:
 
 - The setup screen enforces a 2.5s minimum and navigates only while it stays open. Opening `/` yourself while it shows restarts the timer; wait for it to navigate (`wait --fn "location.pathname === '/'"`), as the recipe does.
 - A loose URL wait such as `wait --url "**/"` or `!location.pathname.startsWith('/auth')` also matches `/organization-setup`. Wait for an exact path plus text instead.
-- Sign-up always tries to send a verification email to the hardcoded dev SMTP `localhost:1025`. Nothing in the flow needs it. Failures are logged only through the app's OTel logger (pointed at a dead port by default), not in `web.log`. Do not depend on reading that email; on a shared host port 1025 may belong to someone else's mailpit.
+- Sign-up sends verification email to the run's Mailpit. Inspect `MAILPIT_ORIGIN/api/v1/messages` from `web-env` when testing email; sign-in does not require email verification.
 - `Sign in with Google` renders but only works with `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (see SKILL.md boundary). Report it as skipped.
-- `Forgot password?` relies on the same email delivery and is not scripted.
+- `Forgot password?` delivers to this run's Mailpit; inspect its messages when exercising that path.
 - The cookie-consent banner ("We use analytics") overlays the bottom right. It covers the sign-in/sign-up submit button, so submit with `agent-browser press Enter`; never click `Accept all` (it turns on analytics storage). `web-onboard` answers it with `Deny`, after which screenshots are clean.

@@ -1,12 +1,12 @@
 # Everr verification map
 
-This directory is the maintained source for verifying the user-facing behavior of the Everr CLI with its local stack (surface A) and the hosted web app `packages/app` (surface B). Read the index before driving, then use the matching feature file as the recipe. `V` below is `.agents/skills/verify-everr/scripts/verify-everr.ts`.
+This directory is the maintained source for verifying the user-facing behavior of the Everr CLI with its local stack (surface A) and App/Cloud through `pnpm dev` (surface B). Read the index before driving, then use the matching feature file as the recipe. `V` below is `.agents/skills/verify-everr/scripts/verify-everr.ts`.
 
 ## Baseline preconditions
 
 Surface A (CLI):
 
-- Linux host: the helper uses `ss` (iproute2) to map run ports to PIDs. macOS is untested and lacks `ss`.
+- Port ownership checks use `ss` (iproute2) on Linux or `lsof` on macOS.
 - The debug CLI is built from this checkout with `$V build` (`pnpm dev:cli`), and `$V doctor` shows no "sources newer than binary" warning.
 - One isolated instance per run, started with `$V launch`: random ports, `EVERR_TELEMETRY_DIR` and `EVERR_LOCAL_LOG_DIR` under `/tmp/verify-everr/<RUN_ID>/`, throwaway `HOME`/`XDG_*`.
 - `$V doctor` ends with `DOCTOR OK` before any recipe.
@@ -15,10 +15,10 @@ Surface A (CLI):
 
 Surface B (web app):
 
-- Docker works (`docker` or `sudo -n docker`), and `$V web-launch` printed `WEB READY`; `$V web-doctor` ends with `WEB DOCTOR OK`.
-- The database starts empty. The first browser recipe is always `web-auth.md` Sign up with a unique `VERIFY_EMAIL`, then `$V web-onboard` unless the recipe is about onboarding; later recipes reuse that session (this run's `agent-browser` session keeps its cookies until cleanup).
+- Docker works directly, and `$V web-launch` printed `WEB READY`; `$V web-doctor` ends with `WEB DOCTOR OK`.
+- The database starts empty. For default Cloud runs, start with `web-auth.md` Sign up and `$V web-onboard`. For `--app app`, start with `web-installation.md` installation setup; later recipes reuse that session (this run's `agent-browser` session keeps its cookies until cleanup).
 - `VERIFY_NAME`, `VERIFY_EMAIL`, `VERIFY_PASSWORD`, `VERIFY_KEY_NAME` exported (SKILL.md Drive).
-- Never drive or stop the developer's own stack (compose project `everr`, ports 5173/5432/8123/8080/4317/4318/1025/8025).
+- Drive and stop only the project, service names, browser and supervisor socket recorded for this run.
 
 ## Driving conventions
 
@@ -57,6 +57,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 Web app (surface B):
 
+- [Self-hosted installation setup](./web-installation.md): workspace and owner setup, persistence and App keys.
 - [Web sign-up, sign-in and session](./web-auth.md): sign-up, organization setup, home, log out, route guard, wrong password, sign back in.
 - [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`, and public keys with allowed origins.
 - [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
@@ -79,7 +80,7 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `packages/app/src/routes/**/logs*`, `traces*`, `errors*`, `src/data/**` (Explore queries) | `web-explore.md` (empty + seeded) |
 | `packages/app/src/**/replay*`, `src/data/replay/**` | `web-browser-sdk.md`, `web-replay.md` |
 | `packages/otel-web/**` | `web-browser-sdk.md` (+ `web-replay.md` when `src/recording*` changed) |
-| `collector/config.example.yml`, `collector/**` (public edge, processors, exporters) | Web Launch + Doctor (CORS and config checks), `web-explore.md` Seed, `web-browser-sdk.md` |
+| `scripts/dev/collector-*.yaml`, `collector/**` (public edge, processors, exporters) | Web Launch + Doctor (CORS and config checks), `web-explore.md` Seed, `web-browser-sdk.md` |
 | `clickhouse/init/**`, `clickhouse/manual/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded, `web-replay.md` if `recordings` changed |
 | `packages/app/drizzle/**` | Web Launch + Doctor (migrations), `web-auth.md` |
 | `packages/app/src/**/github*`, `/webhook/github` | `web-github.md` |

@@ -1,5 +1,4 @@
-// Web app (packages/app) commands for verify-everr: compose ClickHouse+Postgres in a per-run
-// project with its own ports and volumes, run `pnpm dev:web` against it, drive and record it.
+// Web verification drives the same pnpm dev graph as development, with isolated data and service names.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
@@ -15,9 +14,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { type CollectorPorts, EXAMPLE_CONFIG, type GeneratedConfig, generateCollectorConfig } from "./collector-config.ts";
+import os from "node:os";
+import { getCACertificates, setDefaultCACertificates } from "node:tls";
+import { createRequire } from "node:module";
+import { connect } from "node:http2";
 import {
-  AGENT_BROWSER_HINT,
   REPO,
   SCRATCH_ROOT,
   SCRIPT_DIR,
@@ -54,14 +55,15 @@ import {
   tail,
   teeAppend,
   writeEnvFile,
+  which,
 } from "./common.ts";
 
-export const WEB_USAGE = `# Web app (packages/app) commands:
+export const WEB_USAGE = `# Web verification through pnpm dev (both products, Cloud selected by default):
 #
-#   verify-everr web-launch [RUN_ID] [--ignore-memory]   compose ClickHouse+Postgres+OTLP collector (own project/ports/
-#                                        volumes) + pnpm dev:web; refuses when free memory cannot fit a run
+#   verify-everr web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]
+#                                        isolated pnpm dev graph, data, service names, and supervisor socket
 #   verify-everr web-doctor              read-only health of this web run
-#   verify-everr web-env                 print the app env of this web run
+#   verify-everr web-env                 print this run's non-secret connection metadata
 #   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
 #                                        SDK_PAGE_ORIGIN, and SDK_URL once web-sdk-page ran
 #   verify-everr web-http <label> <METHOD> <path> [curl args...]   HTTP against the app, recorded
@@ -75,10 +77,9 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-net <label> <seconds> [--reload]   clear the browser's network log, (reload,) wait, save
 #                                        it, count /_serverFn/ calls per function and new page errors
 #   verify-everr web-report [RUN_ID]     write <evidence>/report.md: every video and screenshot with its caption
-#   verify-everr web-images [--prune]    list this skill's per-tree verify images; --prune removes stale ones
 #   verify-everr web-seed [--key-name N | --key-file F]   send fixed logs/spans/error over OTLP with a saved
 #                                        key (default name: secret), wait until they land
-#   verify-everr web-collector-restart   regenerate the collector config from collector/config.example.yml, recreate it
+#   verify-everr web-collector-restart   restart the selected native collector through Process Compose
 #   verify-everr web-record --steps F [record.ts args]   record a scripted journey as mp4 + key frames into
 #                                        <evidence>/video/ (base URL and the run browser's session filled in)
 #   verify-everr web-sdk-page [--local]  bundle packages/otel-web/src into a test page, serve it on SDK_PAGE_ORIGIN
@@ -86,7 +87,6 @@ export const WEB_USAGE = `# Web app (packages/app) commands:
 #   verify-everr web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
 
 const WEB_STATE = path.join(STATE_DIR, "current-web");
-const SECRET_LINE = /SECRET|MASTER_KEY|PRIVATE_KEY|PASSWORD|TOKEN/;
 
 const webDir = (id: string) => path.join(SCRATCH_ROOT, `web-${id}`);
 const webArt = (id: string) => path.join(STATE_DIR, "artifacts", `web-${id}`);
@@ -98,21 +98,21 @@ type WebRun = {
   docker: string[];
   vars: Record<string, string>;
   project: string;
+  product: "app" | "cloud";
   origin: string;
   port: string;
   clickhouse: string;
   otlp: string;
 };
 
-/** `docker`, or `sudo -n docker` when the user is not in the docker group. */
+/** Use the same Docker access as pnpm dev. */
 function dockerCmd(): string[] | undefined {
   if (run("docker", ["info"]).status === 0) return ["docker"];
-  if (run("sudo", ["-n", "docker", "info"]).status === 0) return ["sudo", "-n", "docker"];
   return undefined;
 }
 
 function requireDocker(): string[] {
-  return dockerCmd() ?? die("docker is not usable (neither 'docker' nor 'sudo -n docker' can reach the daemon)");
+  return dockerCmd() ?? die("docker cannot reach the daemon; pnpm dev requires direct Docker access");
 }
 
 function parseWebRun(id: RunId, docker: string[]): WebRun {
@@ -120,7 +120,11 @@ function parseWebRun(id: RunId, docker: string[]): WebRun {
   const vars = readEnvFile(path.join(dir, "run.env"));
   const { WEB_PROJECT: project, WEB_ORIGIN: origin, WEB_PORT: port, CLICKHOUSE_URL: clickhouse, OTLP_HTTP_ORIGIN: otlp } = vars;
   if (!project || !origin || !port || !clickhouse || !otlp) die(`${dir}/run.env is missing the run's settings`);
-  return { id, dir, art: webArt(id), docker, vars, project, origin, port, clickhouse, otlp };
+  if (vars.PORTLESS_CA) {
+    setDefaultCACertificates([...getCACertificates("default"), readFileSync(vars.PORTLESS_CA, "utf8")]);
+  }
+  const product = vars.WEB_APP === "app" ? "app" : "cloud";
+  return { id, dir, art: webArt(id), docker, vars, project, product, origin, port, clickhouse, otlp };
 }
 
 function webLoad(): WebRun {
@@ -135,80 +139,74 @@ function webLoad(): WebRun {
 
 function composeArgs(w: WebRun, args: string[]): [string, string[]] {
   const [cmd, ...pre] = w.docker;
-  return [
-    cmd,
-    [
-      ...pre, "compose", "-p", w.project, "--env-file", path.join(w.dir, "compose.env"),
-      "-f", path.join(REPO, "docker-compose.yaml"), "-f", path.join(SCRIPT_DIR, "compose.verify.yaml"), ...args,
-    ],
-  ];
+  return [cmd, [...pre, "compose", "-p", w.project, "--profile", "mail", "-f", path.join(REPO, "scripts/dev/compose.yaml"), ...args]];
 }
-
-const compose = (w: WebRun, args: string[]) => run(...composeArgs(w, args));
-
+const composeEnv = () => ({ ...process.env, DEV_ROOT: REPO });
+const compose = (w: WebRun, args: string[]) => run(...composeArgs(w, args), { env: composeEnv() });
 const composeToFile = (w: WebRun, args: string[], file: string, append = false) =>
-  runToFiles(...composeArgs(w, args), { stdout: file, append });
-
+  runToFiles(...composeArgs(w, args), { stdout: file, append }, { env: composeEnv() });
 const docker = (w: WebRun, args: string[]) => run(w.docker[0], [...w.docker.slice(1), ...args]);
-
-/** Image tag for a source dir: its git tree hash, or `dirty-<hash>` of the working copy when it has
- * local changes. Checkouts with different sources never share (and race on) a tag. */
-function sourceTag(dir: string): { tag: string; dirty: boolean } {
-  const tree = run("git", ["-C", REPO, "rev-parse", `HEAD:${dir}`]).stdout.trim();
-  const status = run("git", ["-C", REPO, "status", "--porcelain", "--", dir]).stdout;
-  if (!status.trim()) return { tag: tree.slice(0, 16) || "untracked", dirty: false };
-  const h = createHash("sha256").update(tree).update(run("git", ["-C", REPO, "diff", "HEAD", "--binary", "--", dir]).stdout);
-  for (const f of run("git", ["-C", REPO, "ls-files", "--others", "--exclude-standard", "--", dir]).stdout.split("\n").filter(Boolean)) {
-    h.update(f).update(readFileSync(path.join(REPO, f)));
-  }
-  return { tag: `dirty-${h.digest("hex").slice(0, 16)}`, dirty: true };
+const pcBin = () => which("process-compose") ?? path.join(REPO, ".dev/bin/process-compose");
+const pc = (w: WebRun, args: string[]) => run(pcBin(), ["-U", "-u", path.join(w.dir, "pc.sock"), ...args]);
+function processReady(w: WebRun, name: string): boolean {
+  const result = pc(w, ["process", "get", name, "-o", "json"]);
+  try {
+    const parsed = JSON.parse(result.stdout);
+    const state = Array.isArray(parsed) ? parsed.find((item) => item.name === name) : parsed;
+    return result.status === 0 && state.is_ready === "Ready" && state.is_running === true;
+  } catch { return false; }
 }
-
-const collectorPorts = (w: WebRun): CollectorPorts => ({
-  otlpHttp: portOf(w.otlp),
-  otlpGrpc: w.vars.OTLP_GRPC_PORT ?? die(`${w.dir}/run.env has no OTLP_GRPC_PORT`),
-  clickhouse: portOf(w.clickhouse),
-  web: `http://127.0.0.1:${w.port}`,
-});
-
-/** Write the run's collector config (scratch, mounted by compose) and a copy in the evidence dir. */
-function writeCollectorConfig(w: WebRun): GeneratedConfig {
-  const g = generateCollectorConfig(collectorPorts(w));
-  writeFileSync(path.join(w.dir, "collector-config.yaml"), g.text);
-  writeFileSync(path.join(w.art, "collector-config.yaml"), g.text);
-  const summary = Object.entries(g.pipelines).map(([n, p]) => `${n}: ${p.receivers.join(",")} -> ${p.exporters.join(",")}`);
-  console.log(`collector config from ${path.relative(REPO, EXAMPLE_CONFIG)}: dropped pipelines [${g.removedPipelines.join(", ")}]; CORS headers [${g.corsHeaders.join(", ") || "none"}]`);
-  for (const s of summary) console.log(`  ${s}`);
-  return g;
+const collectorConfig = (product: string) => path.join(REPO, "scripts/dev", `collector-${product}.yaml`);
+function snapshotCollectors(w: WebRun, products: string[] = ["app", "cloud"]): void {
+  for (const product of products) copyFileSync(collectorConfig(product), path.join(w.art, `collector-${product}.yaml`));
 }
-
-/** CORS preflight a browser sends before an OTLP export: status and Access-Control-Allow-Origin. */
-async function corsPreflight(w: WebRun, g: GeneratedConfig): Promise<{ status: number; allowOrigin: string }> {
-  const origin = g.corsOrigins.find((o) => o !== "*") ?? "http://127.0.0.1:1";
+function corsConfig(w: WebRun): { corsOrigins: string[]; corsHeaders: string[] } {
+  const yaml = createRequire(path.join(REPO, "packages/app/package.json"))("yaml");
+  const config = yaml.parse(readFileSync(collectorConfig(w.product), "utf8"));
+  const cors = config.receivers["otlp/public"].protocols.http.cors;
+  return { corsOrigins: cors.allowed_origins, corsHeaders: cors.allowed_headers };
+}
+async function corsPreflight(w: WebRun): Promise<{ status: number; allowOrigin: string }> {
+  const cors = corsConfig(w);
   try {
     const res = await fetch(`${w.otlp}/v1/logs`, {
       method: "OPTIONS",
       headers: {
-        Origin: origin,
+        Origin: cors.corsOrigins.find((o) => o !== "*") ?? "http://127.0.0.1:1",
         "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": // Browsers send these lowercased and sorted; the collector's CORS library rejects other orders.
-        g.corsHeaders.map((h) => h.toLowerCase()).sort().join(","),
+        "Access-Control-Request-Headers": cors.corsHeaders.map((h) => h.toLowerCase()).sort().join(","),
       },
       signal: AbortSignal.timeout(5000),
     });
     return { status: res.status, allowOrigin: res.headers.get("access-control-allow-origin") ?? "" };
-  } catch {
-    return { status: 0, allowOrigin: "" };
-  }
+  } catch { return { status: 0, allowOrigin: "" }; }
 }
 
 async function waitCollector(w: WebRun): Promise<void> {
   // The collector has no healthcheck: ready = its OTLP/HTTP receiver answers and rejects a request without a key.
   const deadline = Date.now() + 60000;
-  while ((await otlpUnauthStatus(w)) !== 401) {
-    if (Date.now() >= deadline) die("collector OTLP receiver never answered 401 without a key; see 'compose logs collector'");
+  while (!processReady(w, `collector-${w.product}`) || (await otlpUnauthStatus(w)) !== 401) {
+    if (Date.now() >= deadline) die("collector did not reach readiness; see this run's web.log");
     await sleep(1000);
   }
+}
+
+async function grpcUnauthStatus(w: WebRun): Promise<number> {
+  return new Promise((resolve) => {
+    const client = connect(w.vars.OTLP_GRPC_ORIGIN);
+    let status = 0;
+    const done = (value: number) => { client.destroy(); resolve(value); };
+    client.on("error", () => done(0));
+    const req = client.request({ ":method": "POST", ":path": "/opentelemetry.proto.collector.logs.v1.LogsService/Export", "content-type": "application/grpc", te: "trailers" });
+    const onHeaders = (headers: Record<string, unknown>) => { if (headers["grpc-status"] !== undefined) status = Number(headers["grpc-status"]); };
+    req.on("response", onHeaders);
+    req.on("trailers", onHeaders);
+    req.on("error", () => done(0));
+    req.on("end", () => done(status));
+    req.setTimeout(5000, () => done(0));
+    req.resume();
+    req.end(Buffer.alloc(5));
+  });
 }
 
 const keyFile = (w: WebRun, name: string) => {
@@ -216,9 +214,9 @@ const keyFile = (w: WebRun, name: string) => {
   return path.join(w.dir, "keys", name);
 };
 
-/** ClickHouse SQL as the default user (`curl -fsS -u default:everr --data-binary`). */
+/** ClickHouse SQL as the default user (`curl -fsS -u default:dev --data-binary`). */
 async function chSql(clickhouse: string, sql: string): Promise<{ ok: boolean; text: string }> {
-  const r = await http(`${clickhouse}/`, { method: "POST", body: sql, headers: { Authorization: basicAuth("default", "everr") } });
+  const r = await http(`${clickhouse}/`, { method: "POST", body: sql, headers: { Authorization: basicAuth("default", "dev") } });
   return { ok: r.ok, text: r.ok ? r.text : `${r.error ?? `HTTP ${r.status}`}\n${r.text}` };
 }
 
@@ -226,7 +224,8 @@ const rowPolicies = async (clickhouse: string) =>
   // Per-organization policies (sql_api_org_*) appear when the app provisions an org; count the init ones.
   (await chSql(clickhouse, "SELECT count() FROM system.row_policies WHERE short_name NOT LIKE 'sql_api_org_%'")).text.trim();
 
-function expectedRowPolicies(): string {
+function expectedRowPolicies(product: string): string {
+  if (product === "app") return "0";
   const dir = path.join(REPO, "clickhouse/init/cloud");
   let n = 0;
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
@@ -243,328 +242,164 @@ const otlpUnauthStatus = async (w: WebRun) =>
   (await http(`${w.otlp}/v1/logs`, { method: "POST", body: "{}", headers: { "content-type": "application/json" }, timeoutMs: 5000 })).status;
 
 const appliedMigrations = (w: WebRun) =>
-  compose(w, ["exec", "-T", "postgres", "psql", "-U", "postgres", "-tAc", "select count(*) from drizzle.__drizzle_migrations"]).stdout.replace(/\s/g, "");
-
-/** KEY=value lines as `set -a; source` reads them: later keys win, surrounding quotes stripped. */
-function parseDotenv(text: string): Record<string, string> {
-  const vars: Record<string, string> = {};
-  for (const m of text.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/gm)) {
-    let v = m[2];
-    if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).replace(/\\(["\\$`])/g, "$1");
-    else if (v.length >= 2 && v.startsWith("'") && v.endsWith("'")) v = v.slice(1, -1);
-    vars[m[1]] = v;
-  }
-  return vars;
-}
+  compose(w, ["exec", "-T", "postgres", "psql", "-U", "postgres", "-d", `everr_${w.product}`, "-tAc", "select count(*) from drizzle.__drizzle_migrations"]).stdout.replace(/\s/g, "");
 
 const SCHEMA_ERROR_RE = /\bschema detection failed\b/;
 
-/** Measured on 2026-10-20: a web run takes about 2.5 GiB right after launch (ClickHouse ~0.9,
- * dev server ~1.2, Postgres + collector ~0.3) and grows past 3 GiB once pages compile and queries
- * run. Hosts without swap get OOM kills instead of slowdowns, so keep this headroom. */
-const WEB_RUN_MIB = 3584;
-const WEB_DOCTOR_LOW_MIB = 1024;
-
+// Reserve headroom for two Vite servers, two native collectors, and three database containers.
+const WEB_RUN_MIB = 6144;
 function meminfo(): { availMiB: number; totalMiB: number; swapMiB: number } {
-  const text = readText("/proc/meminfo") ?? "";
-  const kb = (k: string) => Number(new RegExp(`^${k}:\\s+(\\d+)`, "m").exec(text)?.[1] ?? Number.NaN);
+  const text = readText("/proc/meminfo");
+  if (!text) {
+    let available = os.freemem();
+    if (process.platform === "darwin") {
+      const vm = run("vm_stat", []).stdout;
+      const pageSize = Number(/page size of (\d+) bytes/.exec(vm)?.[1]);
+      const pages = (name: string) => Number(new RegExp(`^Pages ${name}:\\s+(\\d+)`, "m").exec(vm)?.[1] ?? 0);
+      if (pageSize) available = pageSize * (pages("free") + pages("inactive") + pages("speculative"));
+    }
+    return { availMiB: Math.floor(available / 1048576), totalMiB: Math.floor(os.totalmem() / 1048576), swapMiB: 0 };
+  }
+  const kb = (k: string) => Number(new RegExp(`^${k}:\\s+(\\d+)`, "m").exec(text)?.[1] ?? 0);
   return { availMiB: Math.floor(kb("MemAvailable") / 1024), totalMiB: Math.floor(kb("MemTotal") / 1024), swapMiB: Math.floor(kb("SwapTotal") / 1024) };
 }
-
-/** MiB used by this run: its compose containers plus the dev server's process group. */
-function runMemoryMiB(w: WebRun): { containers: number; devServer: number } {
-  const toMiB = (s: string) => {
-    const m = /^([\d.]+)\s*([KMG]i?B)/.exec(s.trim());
-    if (!m) return 0;
-    const n = Number(m[1]);
-    return m[2].startsWith("G") ? n * 1024 : m[2].startsWith("K") ? n / 1024 : n;
-  };
-  const stats = docker(w, ["stats", "--no-stream", "--format", "{{.Name}}\t{{.MemUsage}}"]).stdout.split("\n");
-  let containers = 0;
-  for (const line of stats) {
-    const [name, usage] = line.split("\t");
-    if (name?.startsWith(`${w.project}-`) && usage) containers += toMiB(usage.split("/")[0]);
-  }
-  const pgid = readPointer(path.join(w.dir, "web.pgid"));
-  const rss = pgid ? run("ps", ["-o", "rss=", "-g", pgid]).stdout.split("\n").reduce((s, l) => s + (Number(l.trim()) || 0), 0) : 0;
-  return { containers: Math.round(containers), devServer: Math.round(rss / 1024) };
+function serviceUrl(name: string): string {
+  const result = run("pnpm", ["exec", "portless", "get", name], { cwd: REPO });
+  if (result.status !== 0) die(`portless get ${name}: ${result.stderr}`);
+  return new URL(result.stdout.trim()).origin;
 }
-
+function routePort(origin: string): string {
+  const result = run("pnpm", ["exec", "portless", "list"], { cwd: REPO });
+  const line = result.stdout.split("\n").find((l) => l.trim().startsWith(`${origin} `));
+  return line?.match(/->\s+localhost:(\d+)/)?.[1] ?? "0";
+}
+function dockerPort(w: WebRun, service: string, port = "8123"): string {
+  const result = compose(w, ["port", service, port]);
+  if (result.status !== 0) die(`cannot resolve ${service}: ${result.stderr}`);
+  return result.stdout.trim().split(":").at(-1) ?? die(`missing ${service} port`);
+}
 async function cmdWebLaunch(argv: string[]): Promise<number> {
-  const ignoreMemory = argv.includes("--ignore-memory");
-  const arg = argv.find((a) => !a.startsWith("--"));
+  let product: "app" | "cloud" = "cloud";
+  let idArg: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--app") {
+      const value = argv[++i];
+      if (value !== "app" && value !== "cloud") die("--app must be app or cloud");
+      product = value;
+    } else if (argv[i] !== "--ignore-memory") {
+      if (argv[i].startsWith("--") || idArg) die(`unexpected launch argument: ${argv[i]}`);
+      idArg = argv[i];
+    }
+  }
   const mem = meminfo();
-  const memLine = `${mem.availMiB} MiB available of ${mem.totalMiB} MiB, swap ${mem.swapMiB} MiB; a web run needs about ${WEB_RUN_MIB} MiB`;
-  if (mem.availMiB < WEB_RUN_MIB) {
-    console.log(`MEMORY: this run will not fit: ${memLine}. Other stacks on this host (see 'docker ps') hold the rest.`);
-    if (!ignoreMemory) die("refusing to launch (an OOM kill mid-run corrupts the proof); free memory or pass --ignore-memory");
-  } else {
-    console.log(`memory: ${memLine}`);
-  }
-  const live = readPointer(WEB_STATE);
-  if (live && existsSync(path.join(webDir(live), "run.env"))) {
-    die(`web run ${live} is still live; run 'verify-everr web-cleanup' first`);
-  }
+  console.log(`memory: ${mem.availMiB} MiB free/available of ${mem.totalMiB} MiB; reserving ${WEB_RUN_MIB} MiB for the complete development graph`);
+  if (mem.availMiB < WEB_RUN_MIB && !argv.includes("--ignore-memory")) die("not enough free memory; close other stacks or pass --ignore-memory");
+  if (readPointer(WEB_STATE)) die("a web run is already selected; run web-cleanup first");
   const dockerBin = requireDocker();
-  if (Number(process.versions.node.split(".")[0]) < 23) {
-    die(`need Node >= 23 on PATH (repo pins ${(readText(path.join(REPO, ".nvmrc")) ?? "").trim()})`);
+  if (Number(process.versions.node.split(".")[0]) < 24) die("pnpm dev requires Node >= 24");
+  if (!existsSync(path.join(REPO, "node_modules"))) {
+    if (runInherit("pnpm", ["install", "--frozen-lockfile"], { cwd: REPO }) !== 0) die("dependency installation failed");
   }
-  if (!existsSync(path.join(REPO, "node_modules"))) runInherit("pnpm", ["install", "--frozen-lockfile"], { cwd: REPO });
-  const id = parseRunId(arg || defaultRunId());
-  const dir = webDir(id);
-  const art = webArt(id);
+  const id = parseRunId(idArg ?? defaultRunId());
+  const dir = webDir(id), art = webArt(id);
+  if (existsSync(dir)) die(`scratch directory already exists: ${dir}`);
   mkdirSync(dir, { recursive: true });
   mkdirSync(art, { recursive: true });
-  const ch = await freePort();
-  const pg = await freePort();
-  const web = await freePort();
-  const otlpHttp = await freePort();
-  const otlpGrpc = await freePort();
-  const sdkPage = await freePort();
-  const project = `verify-everr-${id.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
-  // App telemetry: into this checkout's live CLI verification run if there is one, else a dead port,
-  // so it never lands in someone else's collector (the app defaults to 127.0.0.1:54318).
-  let otlp = "http://127.0.0.1:9";
-  const cliRun = readPointer(path.join(STATE_DIR, "current"));
-  const cliEnv = cliRun ? path.join(SCRATCH_ROOT, cliRun, "env") : "";
-  if (cliEnv && existsSync(cliEnv)) otlp = readEnvFile(cliEnv).EVERR_OTLP_HTTP_ORIGIN || otlp;
-  // Base: the repo's own packages/app/.env.example (non-secret dev defaults and placeholders),
-  // then per-run overrides. Secrets the app needs locally are generated per run, never reused.
-  const example = (readText(path.join(REPO, "packages/app/.env.example")) ?? "")
-    .split("\n")
-    .filter((l) => /^[A-Z_][A-Z0-9_]*=/.test(l));
-  const secretValues = Object.fromEntries(
-    [
-      "BETTER_AUTH_SECRET", "CLICKHOUSE_SQL_API_MASTER_KEY", "GITHUB_APP_STATE_SECRET",
-      "GITHUB_APP_WEBHOOK_SECRET", "POLAR_WEBHOOK_SECRET", "INGEST_VERIFY_SHARED_SECRET",
-    ].map((s) => [s, randomBytes(24).toString("hex")]),
-  );
-  const secrets = Object.entries(secretValues).map(([k, v]) => `${k}=${v}`);
-  // Compose interpolation for compose.verify.yaml. The collector shares the app's per-run
-  // INGEST_VERIFY_SHARED_SECRET, which guards /api/internal/verify-key.
-  const chImage = sourceTag("clickhouse");
-  const colImage = sourceTag("collector");
-  writeFileSync(
-    path.join(dir, "compose.env"),
-    [
-      `VERIFY_CH_PORT=${ch}`, `VERIFY_PG_PORT=${pg}`,
-      `VERIFY_COLLECTOR_CONFIG=${path.join(dir, "collector-config.yaml")}`,
-      `VERIFY_CLICKHOUSE_TAG=${chImage.tag}`, `VERIFY_COLLECTOR_TAG=${colImage.tag}`,
-      `INGEST_VERIFY_SHARED_SECRET=${secretValues.INGEST_VERIFY_SHARED_SECRET}`, "",
-    ].join("\n"),
-  );
-  const appEnv = [
-    ...example,
-    "DATABASE_HOST=127.0.0.1",
-    `DATABASE_PORT=${pg}`,
-    `CLICKHOUSE_URL=http://127.0.0.1:${ch}`,
-    `BETTER_AUTH_URL=http://localhost:${web}`,
-    ...secrets,
-    "SMEE_CHANNEL=",
-    "INGRESS_COLLECTOR_URL=http://127.0.0.1:9/webhook/github",
-    `OTEL_EXPORTER_OTLP_ENDPOINT=${otlp}`,
-    `VITE_EVERR_INGEST_ENDPOINT=${otlp}`,
-    "EVERR_INGEST_KEY=",
-  ];
-  writeFileSync(path.join(dir, "app.env"), `${appEnv.join("\n")}\n`);
-  writeEnvFile(path.join(dir, "run.env"), {
-    WEB_RUN_ID: id,
-    WEB_PROJECT: project,
-    WEB_ORIGIN: `http://localhost:${web}`,
-    WEB_PORT: String(web),
-    CLICKHOUSE_URL: `http://127.0.0.1:${ch}`,
-    PG_PORT: String(pg),
-    OTLP_HTTP_ORIGIN: `http://127.0.0.1:${otlpHttp}`,
-    OTLP_GRPC_PORT: String(otlpGrpc),
-    SDK_PAGE_ORIGIN: `http://127.0.0.1:${sdkPage}`,
+  const prefix = `verify-${createHash("sha256").update(`${REPO}:${id}`).digest("hex").slice(0, 12)}`;
+  const names = { app: `${prefix}-app`, cloud: `${prefix}-cloud`, appIngest: `${prefix}-app-ingest`, cloudIngest: `${prefix}-cloud-ingest` };
+  // Ask the same Portless wrapper used by development for its public local CA.
+  const caProbe = run("pnpm", ["exec", "portless", "run", "--name", `${prefix}-bootstrap`, "node", "-e", "console.log('VERIFY_CA='+(process.env.NODE_EXTRA_CA_CERTS||''))"], { cwd: REPO });
+  if (caProbe.status !== 0) die(`Portless is not ready: ${caProbe.stderr || caProbe.stdout}`);
+  const ca = /^VERIFY_CA=(.*)$/m.exec(caProbe.stdout)?.[1] ?? "";
+  const urls = { app: serviceUrl(names.app), cloud: serviceUrl(names.cloud), appIngest: serviceUrl(names.appIngest), cloudIngest: serviceUrl(names.cloudIngest) };
+  const vars = {
+    WEB_RUN_ID: id, WEB_APP: product, WEB_PROJECT: `verify-everr-${prefix.slice(7)}`,
+    WEB_ORIGIN: urls[product], WEB_PORT: "0", CLICKHOUSE_URL: "http://127.0.0.1:0",
+    APP_ORIGIN: urls.app, CLOUD_ORIGIN: urls.cloud,
+    APP_OTLP_ORIGIN: urls.appIngest, CLOUD_OTLP_ORIGIN: urls.cloudIngest,
+    OTLP_HTTP_ORIGIN: product === "app" ? urls.appIngest : urls.cloudIngest,
+    SDK_PAGE_ORIGIN: `http://127.0.0.1:${await freePort()}`, PORTLESS_CA: ca,
+    DEV_APP_NAME: names.app, DEV_CLOUD_NAME: names.cloud,
+    DEV_APP_INGEST_NAME: names.appIngest, DEV_CLOUD_INGEST_NAME: names.cloudIngest,
+    DEV_APP_GITHUB_NAME: `${prefix}-app-github`, DEV_CLOUD_GITHUB_NAME: `${prefix}-cloud-github`,
+    WEB_GITHUB: "true",
+    DEV_APP_GRPC_PORT: String(await freePort()), DEV_CLOUD_GRPC_PORT: String(await freePort()),
+  };
+  Object.assign(vars, {
+    APP_OTLP_GRPC_ORIGIN: `http://127.0.0.1:${vars.DEV_APP_GRPC_PORT}`,
+    CLOUD_OTLP_GRPC_ORIGIN: `http://127.0.0.1:${vars.DEV_CLOUD_GRPC_PORT}`,
+    OTLP_GRPC_ORIGIN: `http://127.0.0.1:${product === "app" ? vars.DEV_APP_GRPC_PORT : vars.DEV_CLOUD_GRPC_PORT}`,
   });
+  writeEnvFile(path.join(dir, "run.env"), vars);
   writeFileSync(WEB_STATE, `${id}\n`);
-  const w = parseWebRun(id, dockerBin);
-  writeFileSync(path.join(art, "app.env.redacted"), `${appEnv.filter((l) => !SECRET_LINE.test(l)).join("\n")}\n`);
-  copyFileSync(path.join(dir, "run.env"), path.join(art, "run.env"));
-  const runTxt = path.join(art, "run.txt");
-  writeFileSync(
-    runTxt,
-    [
-      `web_run_id: ${id}`,
-      `compose_project: ${project}`,
-      `git_head: ${run("git", ["-C", REPO, "rev-parse", "HEAD"]).stdout.trim()}`,
-      `git_branch: ${run("git", ["-C", REPO, "rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim()}`,
-      `docker: ${dockerBin.join(" ")} (${docker(w, ["version", "--format", "{{.Server.Version}}"]).stdout.trim()})`,
-      `images: everr-verify-clickhouse:${chImage.tag} everr-verify-collector:${colImage.tag}`,
-      `launched_at: ${stamp()}`,
-      "",
-    ].join("\n"),
-  );
-  console.log(`launching web run ${id} (project ${project}, ch :${ch}, pg :${pg}, web :${web}, otlp http :${otlpHttp} grpc :${otlpGrpc}, sdk page :${sdkPage})`);
-  writeCollectorConfig(w);
-
-  const t0 = Date.now();
-  const secs = () => Math.floor((Date.now() - t0) / 1000);
-  const buildLog = path.join(art, "compose-build.log");
-  // Build only what this source tree has no image for yet (a dirty tree always rebuilds).
-  const toBuild = [
-    ["clickhouse", "everr-verify-clickhouse", chImage],
-    ["collector", "everr-verify-collector", colImage],
-  ] as const;
-  const services = toBuild
-    .filter(([, repo, img]) => img.dirty || docker(w, ["image", "inspect", `${repo}:${img.tag}`]).status !== 0)
-    .map(([svc]) => svc);
-  if (services.length) {
-    console.log(`building ${services.join(" + ")} image(s) for this source tree (cold collector build ~80s)`);
-    if (composeToFile(w, ["build", ...services], buildLog) !== 0) {
-      tail(buildLog, 20);
-      die(`${services.join("/")} image build failed`);
+  let w = parseWebRun(id, dockerBin);
+  snapshotCollectors(w);
+  const otlp = "http://127.0.0.1:9";
+  const env = { ...process.env, ...vars, DEV_STATE_DIR: path.join(dir, "state"), COMPOSE_PROJECT_NAME: vars.WEB_PROJECT,
+    OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "" };
+  const log = path.join(dir, "web.log"), logFd = openSync(log, "w");
+  const args = ["dev", "--no-server=false", "-U", "-u", path.join(dir, "pc.sock"), "-f", path.join(REPO, "process-compose.mail.yaml")];
+  const server = spawn("pnpm", args, { cwd: REPO, env, detached: true, stdio: ["ignore", logFd, logFd] });
+  closeSync(logFd);
+  const pid = server.pid ?? die("could not start pnpm dev");
+  writeFileSync(path.join(dir, "web.pgid"), `${pid}\n`);
+  server.on("error", (error) => console.error(error.message));
+  server.unref();
+  writeFileSync(path.join(art, "run.txt"), `run: ${id}\nselected_app: ${product}\ncommand: pnpm ${args.join(" ")}\nproject: ${vars.WEB_PROJECT}\ngit_head: ${run("git", ["-C", REPO, "rev-parse", "HEAD"]).stdout.trim()}\nlaunched_at: ${stamp()}\n`);
+  const deadline = Date.now() + 600000;
+  console.log(`launching pnpm dev: ${urls.app} + ${urls.cloud} (selected ${product})`);
+  let nextUpdate = 0;
+  while (!["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud", "github-app", "github-cloud"].every((name) => processReady(w, name))) {
+    if (!isAlive(pid) || Date.now() > deadline) {
+      tail(log, 30);
+      die("pnpm dev did not reach readiness; run web-cleanup to preserve logs and remove this run");
     }
-  } else {
-    writeFileSync(buildLog, `images for this source tree already exist: everr-verify-clickhouse:${chImage.tag} everr-verify-collector:${colImage.tag}\n`);
-  }
-  const upLog = path.join(art, "compose-up.log");
-  // The collector is NOT started here: its ClickHouse exporters detect the table schema once at
-  // startup, and against a half-initialized ClickHouse that fails ("connection reset") and the
-  // collector then writes logs without the attribute-key columns (/errors shows nothing).
-  if (composeToFile(w, ["up", "-d", "--wait", "clickhouse", "postgres"], upLog) !== 0) {
-    tail(upLog, 20);
-    die("compose up failed; run 'verify-everr web-cleanup'");
-  }
-  // Healthy is not ready: wait until the last ClickHouse init script created every row policy.
-  const wantRp = expectedRowPolicies();
-  let deadline = Date.now() + 120000;
-  while ((await rowPolicies(w.clickhouse)) !== wantRp) {
-    if (Date.now() >= deadline) die(`ClickHouse init never created ${wantRp} row policies; see 'compose logs clickhouse'`);
+    if (Date.now() > nextUpdate) { console.log("waiting for Process Compose readiness; startup log: " + log); nextUpdate = Date.now() + 30000; }
     await sleep(1000);
   }
-  // ClickHouse init is complete (every row policy exists): only now start the collector.
-  if (composeToFile(w, ["up", "-d", "--no-deps", "collector"], upLog, true) !== 0) {
-    tail(upLog, 20);
-    die("collector start failed; run 'verify-everr web-cleanup'");
-  }
-  await waitCollector(w);
-  console.log(`stack ready in ${secs()}s (ClickHouse ${wantRp} row policies, Postgres healthy, collector OTLP on :${otlpHttp})`);
-
-  // Start the repo's own dev command in its own session/process group (detached = setsid), bound to loopback.
-  const webLog = path.join(dir, "web.log");
-  const logFd = openSync(webLog, "w");
-  const server = spawn("pnpm", ["dev:web", "--port", String(web), "--strictPort", "--host", "127.0.0.1"], {
-    cwd: REPO,
-    env: { ...process.env, ...parseDotenv(appEnv.join("\n")) },
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-  });
-  closeSync(logFd);
-  let serverExited = false;
-  server.on("exit", () => {
-    serverExited = true;
-  });
-  server.on("error", () => {
-    serverExited = true;
-  });
-  const pgid = server.pid ?? die("could not start pnpm dev:web");
-  writeFileSync(path.join(dir, "web.pgid"), `${pgid}\n`);
-  // Ready = health answers, every drizzle migration applied (the server runs them on first load),
-  // and both Graphile Worker runners connected.
-  const wantMig = expectedMigrations();
-  deadline = Date.now() + 240000;
-  const ready = async () =>
-    (await http(`${w.origin}/api/health`, { timeoutMs: 60000 })).text.includes('"ok":true') &&
-    appliedMigrations(w) === wantMig &&
-    (readText(webLog) ?? "").split("Worker connected and looking for jobs").length - 1 >= 2;
-  while (!(await ready())) {
-    if (serverExited || !isAlive(pgid)) {
-      tail(webLog, 30);
-      die("dev server exited; run 'verify-everr web-cleanup'");
-    }
-    if (Date.now() >= deadline) {
-      tail(webLog, 30);
-      die("web app not ready in 240s; run 'verify-everr web-cleanup'");
-    }
-    await sleep(2000);
-  }
-  server.unref();
-  const pids = `web_port_pids=${portPids(web)}\n`;
-  writeFileSync(path.join(dir, "pids"), pids);
-  writeFileSync(path.join(art, "pids.txt"), pids);
-  writeFileSync(runTxt, `launch_seconds: ${secs()}\n`, { flag: "a" });
-  console.log(`WEB READY run=${id} url=${w.origin} migrations=${wantMig}/${wantMig} (${secs()}s)`);
+  vars.WEB_PORT = routePort(vars.WEB_ORIGIN);
+  vars.CLICKHOUSE_URL = `http://127.0.0.1:${dockerPort(w, `clickhouse-${product}`)}`;
+  const more = { MAILPIT_ORIGIN: `http://127.0.0.1:${dockerPort(w, "mailpit", "8025")}`, APP_CLICKHOUSE_URL: `http://127.0.0.1:${dockerPort(w, "clickhouse-app")}`, CLOUD_CLICKHOUSE_URL: `http://127.0.0.1:${dockerPort(w, "clickhouse-cloud")}` };
+  if (vars.WEB_PORT === "0") die("Portless did not report the selected app's backing port");
+  writeEnvFile(path.join(dir, "run.env"), { ...vars, ...more });
+  copyFileSync(path.join(dir, "run.env"), path.join(art, "run.env"));
+  w = parseWebRun(id, dockerBin);
+  if (appliedMigrations(w) !== expectedMigrations()) die("selected app migrations did not finish");
+  writeFileSync(path.join(dir, "pids"), `web_port_pids=${portPids(w.port)}\n`);
+  console.log(`WEB READY run=${id} app=${product} url=${w.origin}`);
   return 0;
 }
-
 async function cmdWebDoctor(): Promise<number> {
   const w = webLoad();
   let ok = true;
-  const check = (label: string, pass: boolean) => {
-    console.log(`${pass ? "ok  " : "FAIL"} ${label}`);
-    if (!pass) ok = false;
-  };
-  console.log(`web run: ${w.id}  project: ${w.project}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
-  const ps = compose(w, ["ps", "--format", "{{.Service}} {{.Health}}"]).stdout.split("\n");
-  for (const svc of ["clickhouse", "postgres"]) {
-    check(`${svc} container of project ${w.project} is healthy`, ps.includes(`${svc} healthy`));
+  const check = (label: string, pass: boolean) => { console.log(`${pass ? "ok  " : "FAIL"} ${label}`); if (!pass) ok = false; };
+  for (const service of ["databases", "mailpit", "app", "cloud", "collector-app", "collector-cloud", "github-app", "github-cloud"]) check(`Process Compose ${service} ready`, processReady(w, service));
+  const ps = compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]);
+  for (const service of ["postgres", "mailpit", "clickhouse-app", "clickhouse-cloud"]) check(`${service} running`, ps.stdout.split("\n").includes(`${service} running`));
+  for (const product of ["app", "cloud"] as const) {
+    check(`${product} HTTP health`, (await http(`${w.vars[product === "app" ? "APP_ORIGIN" : "CLOUD_ORIGIN"]}/api/health`)).ok);
+    const url = w.vars[product === "app" ? "APP_CLICKHOUSE_URL" : "CLOUD_CLICKHOUSE_URL"];
+    check(`${product} tenant policies`, (await rowPolicies(url)) === expectedRowPolicies(product));
+    check(`${product} collector config matches source`, readText(collectorConfig(product)) === readText(path.join(w.art, `collector-${product}.yaml`)));
   }
-  check(`collector container of project ${w.project} is running`, compose(w, ["ps", "--format", "{{.Service}} {{.State}}"]).stdout.split("\n").includes("collector running"));
-  check(`collector OTLP/HTTP on :${portOf(w.otlp)} rejects a request without a key (401)`, (await otlpUnauthStatus(w)) === 401);
-  // Schema detection runs once at collector start; a failure there silently drops columns. The
-  // ClickHouse exporter logs exactly `schema detection failed` (with the cause, e.g. connection reset).
-  const collectorLog = compose(w, ["logs", "--no-color", "collector"]);
-  const schemaErrors = `${collectorLog.stdout}${collectorLog.stderr}`.split("\n").filter((l) => SCHEMA_ERROR_RE.test(l));
-  check(`collector log has no ClickHouse schema-detection errors (${schemaErrors.length} found)`, schemaErrors.length === 0);
-  if (schemaErrors.length) console.log(`     ${schemaErrors[0].slice(0, 200)}\n     the collector started before ClickHouse was ready: run '$V web-collector-restart'`);
-  // The running config must be what collector/config.example.yml generates now (else: web-collector-restart).
-  const fresh = generateCollectorConfig(collectorPorts(w));
-  const usedConfig = readText(path.join(w.dir, "collector-config.yaml")) ?? "";
-  const kept = Object.values(fresh.pipelines);
-  const exporters = [...new Set(kept.flatMap((p) => p.exporters))].filter((e) => fresh.exporters.includes(e)).sort();
-  check(
-    `collector config matches collector/config.example.yml (pipelines ${Object.keys(fresh.pipelines).length}, exporters ${exporters.join(", ")})`,
-    usedConfig === fresh.text,
-  );
-  if (usedConfig !== fresh.text) console.log("     the example changed since launch (or the file was edited): run '$V web-collector-restart'");
-  if (fresh.corsHeaders.length) {
-    const pre = await corsPreflight(w, fresh);
-    check(
-      `CORS preflight with the example's allowed_headers [${fresh.corsHeaders.join(", ")}] -> ${pre.status} (want 204 + Access-Control-Allow-Origin)`,
-      pre.status === 204 && pre.allowOrigin !== "",
-    );
-  } else {
-    console.log("info collector/config.example.yml sets no CORS on the public OTLP/HTTP receiver; browser ingest is not expected to work");
-  }
-  const appRo = await http(`${w.clickhouse}/?query=SELECT%201`, { headers: { Authorization: basicAuth("app_ro", "app-dev") } });
-  check(`ClickHouse on :${w.clickhouse.slice(w.clickhouse.lastIndexOf(":") + 1)} answers as app_ro (app-dev)`, appRo.ok);
-  const wantRp = expectedRowPolicies();
-  check(`ClickHouse row policies = ${wantRp}`, (await rowPolicies(w.clickhouse)) === wantRp);
-  const wantMig = expectedMigrations();
-  check(`Postgres drizzle migrations applied = ${wantMig}`, appliedMigrations(w) === wantMig);
-  const pgid = Number(readPointer(path.join(w.dir, "web.pgid")));
-  check(`dev server process group ${pgid} alive`, pgid > 0 && isAlive(pgid));
-  const want = (readText(path.join(w.dir, "pids")) ?? "").split("=")[1]?.trim() ?? "";
-  const now = portPids(w.port);
-  check(`web port ${w.port} owned by launch pids [${want}]`, want !== "" && want === now);
-  const health = await http(`${w.origin}/api/health`);
-  check('GET /api/health is {"ok":true}', health.ok && health.text.includes('"ok":true'));
-  const signIn = await http(`${w.origin}/auth/sign-in`);
-  check("GET /auth/sign-in serves the app shell", signIn.ok && signIn.text.includes("<html"));
-  const mem = meminfo();
-  const used = runMemoryMiB(w);
-  const memMsg = `host memory: ${mem.availMiB} MiB available of ${mem.totalMiB} MiB (swap ${mem.swapMiB} MiB); this run uses ~${used.containers + used.devServer} MiB (containers ${used.containers}, dev server ${used.devServer})`;
-  if (mem.availMiB < WEB_DOCTOR_LOW_MIB) console.log(`WARN ${memMsg}: below ${WEB_DOCTOR_LOW_MIB} MiB, expect OOM kills${mem.swapMiB ? "" : " (no swap)"}`);
-  else console.log(`ok   ${memMsg}`);
-  const others = docker(w, ["ps", "--format", "{{.Names}}"]).stdout.split("\n").filter((n) => n && !n.startsWith(`${w.project}-`));
-  if (others.length) console.log(`info other containers exist on this host (not ours, never touched): ${others.join(" ")} `);
-  const ab = agentBrowserVersion();
-  check(ab ? `agent-browser on PATH (${ab})` : `agent-browser on PATH (missing; ${AGENT_BROWSER_HINT})`, Boolean(ab));
-  if (ok) {
-    console.log("WEB DOCTOR OK");
-    return 0;
-  }
-  console.log("WEB DOCTOR FAILED");
-  return 1;
+  check("selected collector enforces HTTP authentication", (await otlpUnauthStatus(w)) === 401);
+  check("selected collector enforces gRPC authentication", (await grpcUnauthStatus(w)) === 16);
+  const pre = await corsPreflight(w);
+  check("selected collector CORS preflight", pre.status === 204 && pre.allowOrigin !== "");
+  check("shared application migrations applied", appliedMigrations(w) === expectedMigrations());
+  check("pnpm dev process group alive", isAlive(Number(readPointer(path.join(w.dir, "web.pgid")))));
+  const oldPids = (readText(path.join(w.dir, "pids")) ?? "").split("=")[1]?.trim();
+  check("selected app still owns its backing port", Boolean(oldPids) && oldPids === portPids(w.port));
+  const log = readText(path.join(w.dir, "web.log")) ?? "";
+  check("collector schema detection succeeded", !SCHEMA_ERROR_RE.test(log));
+  check("agent-browser available", Boolean(agentBrowserVersion()));
+  console.log(ok ? "WEB DOCTOR OK" : "WEB DOCTOR FAILED");
+  return ok ? 0 : 1;
 }
 
 function cmdWebEnv(): number {
   const w = webLoad();
   process.stdout.write(readText(path.join(w.dir, "run.env")) ?? "");
-  const app = (readText(path.join(w.dir, "app.env")) ?? "").split("\n").filter((l) => l && !SECRET_LINE.test(l));
-  console.log(app.join("\n"));
   return 0;
 }
 
@@ -582,6 +417,9 @@ function cmdWebBrowserEnv(): number {
     // The dev server compiles a route on its first visit, which can outlast agent-browser's 25s default.
     AGENT_BROWSER_DEFAULT_TIMEOUT: "90000",
     WEB: w.origin,
+    APP_WEB: w.vars.APP_ORIGIN,
+    CLOUD_WEB: w.vars.CLOUD_ORIGIN,
+    WEB_APP: w.product,
     SDK_PAGE_ORIGIN: w.vars.SDK_PAGE_ORIGIN ?? "",
     ...(existsSync(path.join(w.dir, "sdk-page.url")) ? { SDK_URL: (readText(path.join(w.dir, "sdk-page.url")) ?? "").trim() } : {}),
   };
@@ -607,14 +445,17 @@ function cmdWebHttp([label, method, urlPath, ...curlArgs]: string[]): number {
 }
 
 /** POST a GitHub webhook to /webhook/github signed with THIS run's GITHUB_APP_WEBHOOK_SECRET
- * (generated at web-launch), exactly as GitHub signs deliveries for a configured App. */
-function cmdWebWebhook([label, event, payloadArg]: string[]): number {
+ * from the selected application's real configuration, exactly as GitHub signs deliveries. */
+async function cmdWebWebhook([label, event, payloadArg]: string[]): Promise<number> {
   const w = webLoad();
   const name = required(label, "label");
   const ev = required(event, "event");
   const file = required(payloadArg, "payload file");
   const payload = existsSync(file) ? file : path.join(SCRIPT_DIR, file);
-  const secret = parseDotenv(readText(path.join(w.dir, "app.env")) ?? "").GITHUB_APP_WEBHOOK_SECRET ?? "";
+  if (w.vars.WEB_GITHUB !== "true") die("GitHub is disabled in this older run; relaunch using the current development configuration");
+  const { loadEnv } = await import("vite");
+  const secret = loadEnv(w.product === "cloud" ? "cloud" : "development", path.join(REPO, "packages", w.product), "").GITHUB_APP_WEBHOOK_SECRET;
+  if (!secret) die("GITHUB_APP_WEBHOOK_SECRET is required for signed webhook verification");
   const sig = `sha256=${createHmac("sha256", secret).update(readFileSync(payload)).digest("hex")}`;
   const delivery = `verify-${Math.floor(Date.now() / 1000)}-${process.pid}`;
   writeFileSync(path.join(w.dir, "last-delivery"), `${delivery}\n`);
@@ -646,10 +487,10 @@ function cmdWebPsql([label, sql]: string[]): number {
   const query = required(sql, "sql");
   const out = dbEvidence(w, required(label, "label"), query);
   const [cmd, args] = composeArgs(w, [
-    "exec", "-T", "postgres", "psql", "-U", "postgres", "-v", "ON_ERROR_STOP=1",
+    "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", `everr_${w.product}`, "-v", "ON_ERROR_STOP=1",
     "-c", "SET default_transaction_read_only = on", "-c", query,
   ]);
-  return printDbResult(out, runToFiles(cmd, args, { stdout: path.join(out, "stdout"), stderr: path.join(out, "stderr") }));
+  return printDbResult(out, runToFiles(cmd, args, { stdout: path.join(out, "stdout"), stderr: path.join(out, "stderr") }, { env: composeEnv() }));
 }
 
 async function cmdWebCh([label, sql]: string[]): Promise<number> {
@@ -681,7 +522,7 @@ function seedPayloads(): { traceId: string; traces: unknown; logs: unknown } {
   const ago = (ms: number) => String(now - BigInt(ms) * 1000000n);
   const str = (key: string, value: string) => ({ key, value: { stringValue: value } });
   const resource = {
-    attributes: [str("service.name", SEED.service), str("deployment.environment", "verify"), str("everr.tenant.id", SEED.spoofTenant)],
+    attributes: [str("service.name", SEED.service), str("deployment.environment.name", "verify"), str("everr.tenant.id", SEED.spoofTenant)],
   };
   const scope = { name: "verify-everr-seed" };
   const traceId = hex(16);
@@ -689,7 +530,7 @@ function seedPayloads(): { traceId: string; traces: unknown; logs: unknown } {
   const span = (spanId: string, parentSpanId: string, name: string, startAgo: number, endAgo: number, error: boolean) => ({
     traceId, spanId, parentSpanId, name, kind: parentSpanId ? 3 : 2,
     startTimeUnixNano: ago(startAgo), endTimeUnixNano: ago(endAgo),
-    attributes: [str("verify.seed", "1")],
+    attributes: [str("everr.verify.seed", "1")],
     status: error ? { code: 2, message: SEED.exceptionMessage } : { code: 1 },
   });
   const spans = [
@@ -770,7 +611,7 @@ async function cmdWebSeed(args: string[]): Promise<number> {
   const bad = await send("logs", logs, "Bearer ek_verify_invalid_key_000000000000");
   teeAppend(summary, `POST ${w.otlp}/v1/logs (invalid key) -> ${bad}`);
   if (!bad.startsWith("401")) ok = false;
-  if (!ok) die(`ingest did not answer as expected; see ${summary} and 'compose logs collector'`);
+  if (!ok) die(`ingest did not answer as expected; see ${summary} and this run's web.log`);
 
   // Ingest is asynchronous (exporter queue + materialized views): wait for every row.
   const sql = `SELECT 'logs' AS signal, tenant_id, count() AS n, countIf(SeverityNumber >= 17) AS errors FROM app.logs WHERE ServiceName = '${SEED.service}' GROUP BY tenant_id
@@ -786,19 +627,19 @@ async function cmdWebSeed(args: string[]): Promise<number> {
     if (count("logs") >= SEED.logs.length && count("traces") >= SEED.spans) break;
     if (Date.now() >= deadline) {
       writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
-      die(`seeded rows not in ClickHouse after 60s (got ${JSON.stringify(rows)}); see 'compose logs collector'`);
+      die(`seeded rows not in ClickHouse after 60s (got ${JSON.stringify(rows)}); see this run's web.log`);
     }
     await sleep(1000);
   }
   writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
   // The key's organization (better-auth apikey.reference_id) is the tenant every row must carry.
   const [cmd, psqlArgs] = composeArgs(w, [
-    "exec", "-T", "postgres", "psql", "-U", "postgres", "-tA", "-c",
+    "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", `everr_${w.product}`, "-tA", "-c",
     // better-auth stores the key hashed plus its first characters in `start`; the key matched
     // /ek_[A-Za-z0-9_-]+/ above, so it is safe to inline.
     `select reference_id from apikey where start <> '' and strpos('${key}', start) = 1 order by created_at desc limit 1`,
   ]);
-  const org = run(cmd, psqlArgs).stdout.trim();
+  const org = run(cmd, psqlArgs, { env: composeEnv() }).stdout.trim();
   const tenants = [...new Set(rows.map((r) => r.tenant_id))];
   const tenantOk = tenants.length === 1 && tenants[0] === org && org !== SEED.spoofTenant;
   teeAppend(summary, `rows after ${Math.round((Date.now() - t0) / 1000)}s: ${rows.map((r) => `${r.signal}=${r.n} (${r.signal === "logs" ? "severity >= 17" : "status Error"}: ${r.errors})`).join(", ")}`);
@@ -812,14 +653,11 @@ async function cmdWebSeed(args: string[]): Promise<number> {
 
 async function cmdWebCollectorRestart(): Promise<number> {
   const w = webLoad();
-  writeCollectorConfig(w);
-  const log = path.join(w.art, "compose-collector-restart.log");
-  if (composeToFile(w, ["up", "-d", "--force-recreate", "--no-deps", "collector"], log, true) !== 0) {
-    tail(log, 20);
-    die("collector recreate failed");
-  }
+  const result = pc(w, ["process", "restart", `collector-${w.product}`]);
+  if (result.status !== 0) die(`collector restart failed: ${result.stderr || result.stdout}`);
   await waitCollector(w);
-  console.log(`COLLECTOR READY otlp=${w.otlp}`);
+  snapshotCollectors(w, [w.product]);
+  console.log(`COLLECTOR READY app=${w.product} otlp=${w.otlp}`);
   return 0;
 }
 
@@ -1019,10 +857,10 @@ function cmdWebOnboard(): number {
     );
   });
   const [cmd, psqlArgs] = composeArgs(w, [
-    "exec", "-T", "postgres", "psql", "-U", "postgres", "-tA", "-c",
+    "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", `everr_${w.product}`, "-tA", "-c",
     "select count(*) from organization where metadata::jsonb ->> 'onboardingCompleted' = 'true'",
   ]);
-  const done = run(cmd, psqlArgs).stdout.trim();
+  const done = run(cmd, psqlArgs, { env: composeEnv() }).stdout.trim();
   writeFileSync(path.join(w.art, "web", "onboard-db.txt"), `organizations with onboardingCompleted=true: ${done}\n`);
   if (done === "0" || done === "") die("Home shows the dashboard but no organization has onboardingCompleted=true");
   console.log(`ONBOARDED orgs_completed=${done} (evidence web/onboard-*)`);
@@ -1154,43 +992,6 @@ async function cmdWebNet(args: string[]): Promise<number> {
   return 0;
 }
 
-const VERIFY_IMAGE_REPOS = ["everr-verify-clickhouse", "everr-verify-collector"] as const;
-// Tags web-launch creates: a 16-hex git tree hash or dirty-<16 hex>. Other tags (`local`, hand-made
-// ones such as `pr528`) are not ours to remove, even under these repository names.
-const OWN_TAG_RE = /^(?:dirty-)?[0-9a-f]{16}$/;
-
-/** List, and with --prune remove, this skill's per-tree images that nothing uses. Keeps the current
- * tree's tags and any tag a container (running or stopped, any project) was created from. */
-function cmdWebImages(args: string[]): number {
-  const prune = args.includes("--prune");
-  const dockerBin = requireDocker();
-  const dk = (a: string[]) => run(dockerBin[0], [...dockerBin.slice(1), ...a]);
-  const current = new Set([`everr-verify-clickhouse:${sourceTag("clickhouse").tag}`, `everr-verify-collector:${sourceTag("collector").tag}`]);
-  const used = new Set(dk(["ps", "-a", "--format", "{{.Image}}"]).stdout.split("\n").filter(Boolean));
-  let removed = 0;
-  let kept = 0;
-  for (const repo of VERIFY_IMAGE_REPOS) {
-    const rows = dk(["images", repo, "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"]).stdout.split("\n").filter(Boolean);
-    for (const row of rows) {
-      const [ref, size, created] = row.split("\t");
-      const tag = ref.slice(repo.length + 1);
-      let verdict: string;
-      if (!OWN_TAG_RE.test(tag)) verdict = "keep (not a tag this skill creates)";
-      else if (current.has(ref)) verdict = "keep (this checkout's current tree)";
-      else if (used.has(ref)) verdict = "keep (a container uses it)";
-      else verdict = prune ? "remove" : "stale (removed by --prune)";
-      if (verdict === "remove") {
-        const r = dk(["image", "rm", ref]);
-        verdict = r.status === 0 ? "removed" : `remove failed: ${r.stderr.trim().slice(0, 120)}`;
-        if (r.status === 0) removed++;
-      } else kept++;
-      console.log(`${ref.padEnd(48)} ${String(size).padStart(9)}  ${String(created).padEnd(16)} ${verdict}`);
-    }
-  }
-  console.log(`IMAGES ${prune ? `pruned=${removed}` : "listed"} kept=${kept}${prune ? "" : " (run with --prune to remove the stale ones)"}`);
-  return 0;
-}
-
 /** One markdown file with every image and video of the run, captioned, linked relatively:
  * <evidence>/report.md. Captions come from <label>.caption (ab_save's 2nd argument), else the URL. */
 function cmdWebReport(args: string[]): number {
@@ -1257,7 +1058,7 @@ async function cmdWebCleanup(): Promise<number> {
   const cleanupLog = path.join(art, "cleanup.txt");
   if (existsSync(path.join(dir, "run.env"))) {
     const w = parseWebRun(runId, dockerCmd() ?? ["docker"]);
-    // Dev server: signal the process group we started (session leader), never by name.
+    // Stop the owned Process Compose instance before removing its project.
     const pgid = Number(readPointer(path.join(dir, "web.pgid")));
     if (pgid > 0) {
       const signal = (sig: NodeJS.Signals) => {
@@ -1265,11 +1066,11 @@ async function cmdWebCleanup(): Promise<number> {
           process.kill(-pgid, sig);
         } catch {}
       };
-      signal("SIGTERM");
-      const deadline = Date.now() + 15000;
-      while (portPids(w.port) && Date.now() < deadline) await sleep(500);
-      signal("SIGKILL");
-      if (portPids(w.port)) teeAppend(cleanupLog, `WARN web port ${w.port} still listening`);
+      const stopped = pc(w, ["down"]);
+      if (stopped.status !== 0) signal("SIGINT");
+      const deadline = Date.now() + 90000;
+      while (isAlive(pgid) && Date.now() < deadline) await sleep(500);
+      if (isAlive(pgid)) { signal("SIGKILL"); teeAppend(cleanupLog, "WARN supervisor needed SIGKILL after 90s"); }
     }
     stopGroup(path.join(dir, "sdk-page.pgid"));
     await closeBrowser(browserSession(`web-${runId}`), cleanupLog);
@@ -1277,7 +1078,7 @@ async function cmdWebCleanup(): Promise<number> {
     if (existsSync(webLog)) copyFileSync(webLog, path.join(art, "web.log"));
     composeToFile(w, ["logs", "--no-color"], path.join(art, "compose.log"));
     // Only this run's compose project, with its named volumes. Other projects are untouched.
-    if (composeToFile(w, ["down", "-v", "--remove-orphans"], cleanupLog, true) !== 0) {
+    if (composeToFile(w, ["down", "-v", "--remove-orphans", "--rmi", "local"], cleanupLog, true) !== 0) {
       teeAppend(cleanupLog, "WARN compose down failed");
     }
     const leftovers = docker(w, ["ps", "-a", "--filter", `label=com.docker.compose.project=${w.project}`, "--format", "{{.Names}}"]);
@@ -1305,7 +1106,6 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-onboard": cmdWebOnboard,
   "web-apply": cmdWebApply,
   "web-net": cmdWebNet,
-  "web-images": cmdWebImages,
   "web-report": cmdWebReport,
   "web-collector-restart": cmdWebCollectorRestart,
   "web-sdk-page": cmdWebSdkPage,

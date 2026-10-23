@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 
 export const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(SCRIPT_DIR, "../../../..");
-export const BIN = path.join(REPO, "target/debug/everr-dev");
+export const BIN = path.join(REPO, "target/debug/everr");
 export const STATE_DIR = path.join(REPO, ".verify-everr");
 export const SCRATCH_ROOT = process.env.EVERR_VERIFY_SCRATCH || "/tmp/verify-everr";
 
@@ -196,10 +196,14 @@ export function freePort(): Promise<number> {
 
 export const portOf = (origin: string): string => origin.slice(origin.lastIndexOf(":") + 1);
 
-/** PIDs listening on a TCP port, space-separated ("" if none). Needs ss from iproute2 (Linux). */
+/** PIDs listening on a TCP port, space-separated ("" if none). Uses ss on Linux and lsof on macOS. */
 export function portPids(port: string | number): string {
-  const out = run("ss", ["-Hltnp", `sport = :${port}`]).stdout;
-  const pids = new Set([...out.matchAll(/pid=(\d+)/g)].map((m) => Number(m[1])));
+  const out = process.platform === "darwin"
+    ? run("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"]).stdout
+    : run("ss", ["-Hltnp", `sport = :${port}`]).stdout;
+  const pids = new Set(process.platform === "darwin"
+    ? out.split(/\s+/).filter(Boolean).map(Number)
+    : [...out.matchAll(/pid=(\d+)/g)].map((m) => Number(m[1])));
   return [...pids].sort((a, b) => a - b).join(" ");
 }
 

@@ -16,6 +16,10 @@ connectors:
 receivers:
   otlp/public:
     protocols:
+      grpc:
+        endpoint: 127.0.0.1:${env:OTLP_GRPC_PORT}
+        auth:
+          authenticator: everr_apikey
       http:
         endpoint: 127.0.0.1:${env:PORT}
         auth:

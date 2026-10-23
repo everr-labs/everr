@@ -1,4 +1,14 @@
 services:
+  mailpit:
+    profiles: [mail]
+    image: axllent/mailpit:v1.20.4
+    ports:
+      - target: 1025
+        host_ip: 127.0.0.1
+      - target: 8025
+        host_ip: 127.0.0.1
+    labels:
+      dev.checkout: ${DEV_ROOT}
   postgres:
     image: postgres:17.11-alpine3.23
     environment:

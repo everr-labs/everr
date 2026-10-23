@@ -3,7 +3,6 @@
   "private": true,
   "scripts": {
     "dev": "sh scripts/dev/start.sh",
-    "dev:web": "pnpm --filter @everr/app dev",
     "dev:cli": "pnpm --filter @everr/cli build:debug",
     "dev:docs": "pnpm --filter @everr/docs dev",
     "dev:storybook": "pnpm --filter @everr/storybook storybook",

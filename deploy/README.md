@@ -130,8 +130,8 @@ migrations run automatically, but ClickHouse initialization scripts are not an
 upgrade migration mechanism. Review schema changes before upgrading an existing
 installation; this bundle currently targets fresh installations.
 
-The repository root's `docker-compose.yaml` remains the development dependency
-stack. Run installation commands from this directory to select this stack.
+Development uses `pnpm dev` and its separate dependency configuration.
+Run installation commands from this directory to select the deployment stack.
 
 ## Account recovery
 

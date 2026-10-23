@@ -25,6 +25,10 @@ if [ "$kind" = app ]; then
   postgres_port=$(port postgres 5432)
   export DATABASE_PORT="$postgres_port"
   export BETTER_AUTH_URL="$PORTLESS_URL"
+  if [ "${DEV_MAIL:-false}" = true ]; then
+    smtp_port=$(port mailpit 1025)
+    export EMAIL_DSN="smtp://127.0.0.1:$smtp_port"
+  fi
 else
   if [ -n "${EVERR_QUEUE_DIRECTORY:-}" ]; then
     mkdir -p "$EVERR_QUEUE_DIRECTORY"
