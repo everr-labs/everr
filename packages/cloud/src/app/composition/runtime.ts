@@ -5,8 +5,8 @@ export const runtime: ApplicationRuntime = {
     const { migrateDatabase } = await import("../migrations");
     return migrateDatabase(database);
   },
-  async startAppWorkers() {
-    const { startOrganizationWorker } = await import("../../organization-provisioning/worker");
-    return startOrganizationWorker();
+  async registerWorkers() {
+    const { organizationWorker } = await import("../../organization-provisioning/worker");
+    return [organizationWorker];
   },
 };

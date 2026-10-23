@@ -149,6 +149,9 @@ describe("worker runtime", () => {
       "clickhouse/provision-organization",
       "clickhouse/scan-pending-organizations",
     ]);
+    expect(Object.keys(general.taskList)).toContain("alerts/evaluate");
+    for (const identifier of Object.keys(organizations.taskList))
+      expect(general.taskList).not.toHaveProperty(identifier);
     expect(runtimeMocks.poolOptions).toEqual([
       {
         host: "database",

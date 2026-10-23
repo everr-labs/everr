@@ -101,6 +101,16 @@ control flow, so user polling does not flood exception telemetry.
 
 Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
+# Background work
+
+The common runtime always owns the product worker (alerting, optional GitHub
+handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
+registers only its organization lifecycle worker, without starting it. Both
+runners remain in the web process, with the existing reserved provisioning pool.
+See [background work and domain events](../../docs/background-work.md) for task
+ownership, transactional enqueue, payload compatibility and future CRM facts.
+Billing callbacks remain synchronous; no CRM integration is registered.
+
 # Package composition
 
 This package depends on `@everr/app` and supplies its product policy, client

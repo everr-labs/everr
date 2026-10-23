@@ -1,6 +1,7 @@
 import { type DbExecutor, db } from "@everr/app/db/client";
 import { addWorkerJobUsing } from "@everr/app/server/worker/jobs";
 import { sql } from "drizzle-orm";
+import { organizationLifecyclePayloadSchema } from "./contracts";
 
 export const ORGANIZATION_MAX_ATTEMPTS = 1_000;
 
@@ -47,7 +48,7 @@ export async function enqueueOrganizationProvisioning(
   await addWorkerJobUsing(
     executor,
     PROVISION_ORGANIZATION_TASK,
-    { organizationId },
+    organizationLifecyclePayloadSchema.parse({ organizationId }),
     lifecycleSpec(organizationId, "provision"),
   );
 }
@@ -59,7 +60,7 @@ export async function enqueueOrganizationDeprovisioning(
   await addWorkerJobUsing(
     executor,
     DEPROVISION_ORGANIZATION_TASK,
-    { organizationId },
+    organizationLifecyclePayloadSchema.parse({ organizationId }),
     lifecycleSpec(organizationId, "deprovision"),
   );
 }

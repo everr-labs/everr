@@ -5,7 +5,7 @@ export const runtime: ApplicationRuntime = {
     const { migrateDatabase } = await import("#app/db/migrations.ts");
     return migrateDatabase(database);
   },
-  async startAppWorkers() {
-    return { async stop() {} };
+  async registerWorkers() {
+    return [];
   },
 };
