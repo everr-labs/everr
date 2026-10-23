@@ -31,6 +31,16 @@ function hasControlCharacter(value: string): boolean {
   return false;
 }
 
+// Fetch accepts a header value only as a ByteString: every code unit at most
+// 255. A character above that saves, then Headers.append rejects it and the
+// delivery fails for good.
+function hasNonLatin1(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    if (value.charCodeAt(index) > 0xff) return true;
+  }
+  return false;
+}
+
 // Names the send owns, or that rewrite the request rather than describe it.
 // `content-type` stays application/json because the body is the notification.
 // Hop-by-hop and Fetch-forbidden names are rejected here so the failure is
@@ -84,6 +94,9 @@ function webhookHeaderValueProblem(value: string, opts: { allowRedacted: boolean
     hasControlCharacter(value)
   ) {
     return "header value must be a single line without control characters";
+  }
+  if (hasNonLatin1(value)) {
+    return "header value must contain only latin-1 characters";
   }
   return null;
 }

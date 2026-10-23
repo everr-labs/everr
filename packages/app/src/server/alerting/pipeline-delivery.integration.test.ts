@@ -782,9 +782,8 @@ describe("the alerting pipeline's delivery", () => {
     });
 
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    // Both a webhook and a telegram provider can echo request details back in
-    // an error body (the reason `sanitizeAlertError` exists at all); this
-    // simulates that for each.
+    // The endpoint can echo the URL, a header, or the bot token. The send
+    // must not record that answer.
     harness().setFetchResponse((url) =>
       url.includes("telegram")
         ? { status: 403, body: `invalid bot token ${leakedToken} supplied` }
@@ -804,15 +803,17 @@ describe("the alerting pipeline's delivery", () => {
     ]);
     for (const delivery of deliveries) {
       expect(delivery.lastError).not.toContain("https://");
+      expect(delivery.lastError).not.toContain(leakedUrl);
       expect(delivery.lastError).not.toContain(leakedToken);
+      expect(delivery.lastError).not.toContain("forbidden, retry");
+      expect(delivery.lastError).not.toContain("invalid bot token");
       // Telegram's own message never carries which chat failed in the first
       // place (channel-sender.server.ts / providers/telegram.ts); this
       // confirms that holds all the way to the stored row.
       expect(delivery.lastError).not.toContain(leakedChatId);
-      // The endpoint's answer still reaches the trail, minus its secrets:
-      // stripping it entirely would leave an operator with a status code and
-      // no reason.
-      expect(delivery.lastError).toContain("[redacted-");
+      // The outcome stays. The endpoint's answer does not: it can carry the
+      // URL or a credential, and the trail is append-only.
+      expect(delivery.lastError).toContain("403");
     }
 
     const failedRows = harness()
@@ -826,8 +827,12 @@ describe("the alerting pipeline's delivery", () => {
     for (const row of failedRows) {
       const error = row.error as string;
       expect(error).not.toContain("https://");
+      expect(error).not.toContain(leakedUrl);
       expect(error).not.toContain(leakedToken);
       expect(error).not.toContain(leakedChatId);
+      expect(error).not.toContain("forbidden, retry");
+      expect(error).not.toContain("invalid bot token");
+      expect(error).toContain("403");
     }
   });
 

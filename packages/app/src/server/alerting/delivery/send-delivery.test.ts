@@ -5,11 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => {
   class MockChannelSendError extends Error {
     readonly permanent: boolean;
-    readonly responseBody?: string;
-    constructor(message: string, opts: { permanent: boolean; responseBody?: string }) {
+    constructor(message: string, opts: { permanent: boolean }) {
       super(message);
       this.permanent = opts.permanent;
-      this.responseBody = opts.responseBody;
     }
   }
   return {

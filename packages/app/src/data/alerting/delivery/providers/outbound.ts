@@ -1,7 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-export const SEND_TIMEOUT_MS = 10_000;
+const SEND_TIMEOUT_MS = 10_000;
 
 // A 4xx from the provider means retrying the identical request cannot
 // succeed (a revoked webhook, a malformed payload), except 408 and 429,
@@ -10,31 +10,20 @@ export const SEND_TIMEOUT_MS = 10_000;
 const RETRYABLE_CLIENT_ERROR_STATUSES = new Set([408, 429]);
 
 /**
- * A failed send, split by who wrote the text.
- *
- * `message` is ours and never carries a word the endpoint returned.
- * `responseBody` is the endpoint's own answer. They are kept apart because
- * they go to different readers.
- *
- * The history trail records both, sanitized, because the endpoint's answer is
- * what tells an operator what to fix. A channel test shows only the message:
- * the URL under test is whatever the member typed, so reflecting the response
- * would make the test a way to read any HTTP endpoint the server can reach.
+ * A failed send. `message` is ours: a status, a timeout, or a network
+ * failure. It never carries the endpoint's answer, the request URL, or a
+ * header value. Any of those can be a secret, and this text is stored and
+ * logged, so the send leaves them out instead of redacting them afterwards.
  */
 export class ChannelSendError extends Error {
   readonly permanent: boolean;
   readonly status?: number;
-  readonly responseBody?: string;
 
-  constructor(
-    message: string,
-    opts: { permanent: boolean; status?: number; responseBody?: string },
-  ) {
+  constructor(message: string, opts: { permanent: boolean; status?: number }) {
     super(message);
     this.name = "ChannelSendError";
     this.permanent = opts.permanent;
     this.status = opts.status;
-    this.responseBody = opts.responseBody;
   }
 }
 
@@ -44,7 +33,7 @@ export class ChannelSendError extends Error {
  * their own request instead of going through `postJson`, so a dead endpoint
  * costs one attempt rather than the whole retry budget.
  */
-export function isPermanentStatus(status: number): boolean {
+function isPermanentStatus(status: number): boolean {
   return status >= 400 && status < 500 && !RETRYABLE_CLIENT_ERROR_STATUSES.has(status);
 }
 
@@ -126,12 +115,61 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
     throw new Error("notification URL must not target an internal address");
   }
   if (!isIP(literal)) {
-    const addresses = await lookup(hostname, { all: true, verbatim: true });
+    // A resolver error names the host. The URL can be the secret, so the
+    // message that gets stored stays generic.
+    let addresses: { address: string }[];
+    try {
+      addresses = await lookup(hostname, { all: true, verbatim: true });
+    } catch {
+      throw new Error("notification URL could not be resolved");
+    }
     if (addresses.length === 0 || addresses.some((item) => blockedAddress(item.address))) {
       throw new Error("notification URL resolved to an internal address");
     }
   }
   return url;
+}
+
+function outboundFailureReason(cause: unknown): "timeout" | "network" {
+  if (cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError")) {
+    return "timeout";
+  }
+  return "network";
+}
+
+/**
+ * POST that reports only our outcome. The endpoint's body is cancelled
+ * unread, and a transport error is replaced: both can repeat the request
+ * URL or a header, and neither is safe to store.
+ */
+export async function postOutbound(
+  url: URL | string,
+  init: { body: string; headers?: HeadersInit; redirect?: RequestRedirect },
+  label: string,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: init.headers,
+      body: init.body,
+      redirect: init.redirect,
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
+  } catch (cause) {
+    // The runtime error quotes the URL. Leave it off this error: the message
+    // is what the trail and the job log keep.
+    throw new ChannelSendError(`${label} failed: ${outboundFailureReason(cause)}`, {
+      permanent: false,
+    });
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ChannelSendError(`${label} failed: ${response.status}`, {
+      permanent: isPermanentStatus(response.status),
+      status: response.status,
+    });
+  }
 }
 
 /**
@@ -147,18 +185,9 @@ export async function postJson(
   // Set last, so a caller-supplied content-type cannot relabel the JSON body.
   const headers = new Headers(extraHeaders);
   headers.set("content-type", "application/json");
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    redirect: "error",
-    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new ChannelSendError(`notification webhook failed: ${response.status}`, {
-      permanent: isPermanentStatus(response.status),
-      status: response.status,
-      responseBody: await response.text().catch(() => ""),
-    });
-  }
+  await postOutbound(
+    url,
+    { body: JSON.stringify(body), headers, redirect: "error" },
+    "notification webhook",
+  );
 }

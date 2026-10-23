@@ -254,14 +254,11 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  * What a failed channel test may say.
  *
  * The URL under test is whatever the member typed, so the send is a fetch the
- * server makes on their behalf. Handing back the endpoint's response would
- * turn the test into a way to read any HTTP service the application plane can
- * reach.
- *
- * A ChannelSendError keeps that response in `responseBody`, out of its
- * message, so what is returned here is only text we wrote. The sender has
- * already removed secrets from that message. This still strips a URL or a
- * bot token a lower layer may have shaped into the text.
+ * server makes on their behalf. Handing back the endpoint's response, or the
+ * URL itself, would reveal a secret or a service the application plane can
+ * reach. The sender's message names the outcome and leaves both out. This
+ * still strips a URL or a bot token a lower layer may have shaped into the
+ * text.
  */
 function testChannelError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);

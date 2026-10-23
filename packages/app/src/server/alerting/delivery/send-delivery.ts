@@ -14,16 +14,6 @@ import { recordAlertNotification, setAlertSpanAttributes } from "../telemetry";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
 
-// The provider holds the endpoint's own answer apart from its error message
-// so a channel test cannot reflect it back. The trail is where that answer is
-// worth keeping: "channel_not_found" is what tells an operator what to fix.
-// failDelivery sanitizes the joined text before it lands.
-function sendFailureDetail(cause: unknown): string {
-  const message = errorMessage(cause);
-  const body = cause instanceof ChannelSendError ? cause.responseBody : "";
-  return body ? `${message} ${body}` : message;
-}
-
 export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   const { dedupKey } = AlertDeliveryTaskPayloadSchema.parse(rawPayload);
   const [row] = await db
@@ -44,10 +34,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   if (!row || row.delivery.status === "sent") return;
   setAlertSpanAttributes({ tenant: row.delivery.organizationId });
   const failDelivery = async (channelType: string, rawError: string, attempts: number | SQL) => {
-    // A provider's error text routinely echoes back the webhook URL, which
-    // for Slack, Discord and Telegram IS the secret; sanitize before it
-    // reaches Postgres, same as the identical string already does on the
-    // ClickHouse path (deliveryHistoryRow).
+    // The send's own message does not include the URL. This still strips a
+    // URL or a bot token that reached the text anyway: for Slack, Discord,
+    // and Telegram that string is the secret, and the same text is written
+    // to ClickHouse.
     const error = sanitizeAlertError(rawError);
     const failedAt = new Date();
     await db
@@ -148,8 +138,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     // A permanent failure (a 4xx other than 408/429: a revoked webhook, a
     // malformed payload) cannot succeed on retry, so it is recorded
     // terminally at the max attempts and not rethrown. Anything else is
-    // transient and must reach Graphile's retry. The sender already removed
-    // secrets from this error.
+    // transient and must reach Graphile's retry. The message names our
+    // outcome and leaves out the endpoint's answer and the request URL.
     const permanent = cause instanceof ChannelSendError && cause.permanent;
     // failDelivery's own write can throw too (a transient DB error, say);
     // let that one through unchanged rather than the real send failure it
@@ -157,7 +147,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     try {
       await failDelivery(
         channelType,
-        sendFailureDetail(cause).slice(0, 8_000),
+        errorMessage(cause).slice(0, 8_000),
         // Computed in the UPDATE, not from the Node-side `row` read: two
         // racing runs of the same delivery would otherwise both compute the
         // same stale count and one attempt would go uncounted. A permanent

@@ -233,43 +233,43 @@ it("names no chat id and no bot token in the error it hands the history row", as
   expect(message).toContain("2 of 2 chats");
 });
 
-// The endpoint under a channel URL is not ours, and a channel test hands its
-// failure straight back to the member who typed that URL. Keeping the answer
-// in a field of its own is what lets the test report the failure without
-// reporting the response.
-it("keeps the endpoint's answer out of the error message", async () => {
-  fetchMock.mockResolvedValueOnce(new Response("who=root&password=hunter2", { status: 403 }));
+// Everything string-valued on the error, including a cause. The stack is
+// ours and never holds the request. A secret that survives in any other
+// field is what the trail and the job log would keep.
+function failureText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts = [error.message];
+  if (error.cause !== undefined) parts.push(failureText(error.cause));
+  const record = error as unknown as Record<string, unknown>;
+  for (const key of Object.getOwnPropertyNames(error)) {
+    if (key === "stack" || key === "message") continue;
+    const value = record[key];
+    if (typeof value === "string") parts.push(value);
+  }
+  return parts.join("\n");
+}
 
-  const error = (await sendChannelNotification(
-    { type: "webhook", url: HOOK_URL },
-    { title: "t", body: "b" },
-  ).catch((caught: unknown) => caught)) as ChannelSendError;
-
-  expect(error.message).toContain("403");
-  expect(error.message).not.toContain("hunter2");
-  expect(error.status).toBe(403);
-  // Still carried, because the trail is where it is worth reading.
-  expect(error.responseBody).toBe("who=root&password=hunter2");
-});
-
-// The value has no shape, so only the sender, which just attached it, can
-// take it back out of an answer that repeats it.
-it("strips a webhook header secret an endpoint echoed back", async () => {
-  const authorization = "Bearer super-secret-value";
+// The endpoint under a channel URL is not ours. Its answer can repeat a
+// header or the URL, and both can be secrets, so a failure keeps neither.
+it("leaves the endpoint's answer and the request URL out of a failure", async () => {
+  const url = "https://8.8.8.8/hook/super-secret-path";
+  const authorization = 'Bearer shared-"secret"';
   fetchMock.mockImplementationOnce(async (_input, init) => {
     const headers = new Headers(init?.headers);
     return new Response(
-      `upstream said ${headers.get("authorization")} env ${headers.get("x-env")}`,
-      {
-        status: 500,
-      },
+      JSON.stringify({
+        retry: url,
+        authorization: headers.get("authorization"),
+        env: headers.get("x-env"),
+      }),
+      { status: 403 },
     );
   });
 
   const error = (await sendChannelNotification(
     {
       type: "webhook",
-      url: HOOK_URL,
+      url,
       headers: [
         { name: "Authorization", value: authorization },
         { name: "X-Env", value: "prod" },
@@ -279,9 +279,80 @@ it("strips a webhook header secret an endpoint echoed back", async () => {
   ).catch((caught: unknown) => caught)) as ChannelSendError;
 
   expect(error).toBeInstanceOf(ChannelSendError);
-  expect(error.permanent).toBe(false);
-  expect(error.message).not.toContain(authorization);
-  expect(error.responseBody).toBe("upstream said [redacted-secret] env [redacted-secret]");
+  expect(error.permanent).toBe(true);
+  expect(error.status).toBe(403);
+  expect(error.message).toBe("notification webhook failed: 403");
+  const text = failureText(error);
+  expect(text).not.toContain(url);
+  expect(text).not.toContain("super-secret-path");
+  expect(text).not.toContain(authorization);
+  expect(text).not.toContain("shared-");
+  expect(text).not.toContain("prod");
+});
+
+// A one-character secret used to be substituted into the redaction marker
+// itself, so eleven of them turned a one-character answer into hundreds of
+// thousands of characters before the trail truncated it.
+it("does not expand a failure when header values are single characters", async () => {
+  const secrets = ["a", "e", "d", "c", "t", "r", "s", "-", "[", "]", "o"];
+  fetchMock.mockResolvedValueOnce(new Response(secrets[0], { status: 500 }));
+
+  const error = await sendChannelNotification(
+    {
+      type: "webhook",
+      url: HOOK_URL,
+      headers: secrets.map((value, index) => ({ name: `X-${index}`, value })),
+    },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as Error).message).toBe("notification webhook failed: 500");
+  expect(failureText(error).length).toBeLessThan(200);
+});
+
+it("does not log the webhook url when the connection fails", async () => {
+  const url = "https://8.8.8.8/services/SUPER-SECRET-PATH";
+  fetchMock.mockRejectedValueOnce(new TypeError(`fetch failed ${url}`));
+
+  const error = await sendChannelNotification(
+    { type: "webhook", url, headers: [{ name: "X-Token", value: "shared-secret" }] },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as ChannelSendError).permanent).toBe(false);
+  expect((error as Error).message).toBe("notification webhook failed: network");
+  expect(failureText(error)).not.toContain("SUPER-SECRET-PATH");
+  expect(failureText(error)).not.toContain("shared-secret");
+});
+
+it("names a timeout without the url", async () => {
+  const url = "https://8.8.8.8/hook/SUPER-SECRET-PATH";
+  const timeout = new Error(`The operation was aborted due to timeout ${url}`);
+  timeout.name = "TimeoutError";
+  fetchMock.mockRejectedValueOnce(timeout);
+
+  const error = await sendChannelNotification(
+    { type: "slack", url },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect((error as Error).message).toBe("slack webhook failed: timeout");
+  expect(failureText(error)).not.toContain("SUPER-SECRET-PATH");
+});
+
+it("does not log the bot token when telegram cannot be reached", async () => {
+  fetchMock.mockRejectedValueOnce(
+    new TypeError(`fetch failed https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`),
+  );
+
+  const error = await sendChannelNotification(telegram, { title: "t", body: "b" }).catch(
+    (caught: unknown) => caught,
+  );
+
+  expect(failureText(error)).not.toContain(BOT_TOKEN);
+  expect((error as Error).message).toContain("telegram sendMessage failed: network");
 });
 
 it("fails permanently and sends nothing when the bot token is missing", async () => {

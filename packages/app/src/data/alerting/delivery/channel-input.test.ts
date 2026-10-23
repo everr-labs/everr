@@ -170,6 +170,21 @@ describe("webhook headers on a draft", () => {
     });
   });
 
+  it("rejects a header value the request cannot send", () => {
+    const draft = {
+      ...EMPTY_CHANNEL_DRAFT,
+      type: "webhook" as const,
+      url: "https://x",
+      headers: [{ id: "latin1", name: "X-Token", value: "token-\u0100", retainedName: null }],
+    };
+    expect(readChannelDraft(draft, null)).toEqual({
+      error: {
+        message: "header value must contain only latin-1 characters",
+        rows: [{ name: false, value: true }],
+      },
+    });
+  });
+
   it("rejects a header the send is not allowed to set", () => {
     const draft = {
       ...EMPTY_CHANNEL_DRAFT,

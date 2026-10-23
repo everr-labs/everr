@@ -2,7 +2,7 @@ import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
-import { ChannelSendError, isPermanentStatus, SEND_TIMEOUT_MS } from "./outbound";
+import { ChannelSendError, postOutbound } from "./outbound";
 
 // Alert messages are deliberately plain text. With no parse_mode and no
 // inline buttons, Telegram has nothing to validate or reject, so a send fails
@@ -22,21 +22,16 @@ async function sendTelegramMessage(botToken: string, chatId: string, text: strin
   const bounded = truncateWithEllipsis(text, CHANNEL_TEXT_MAX.telegram);
 
   // The endpoint is ours, not the channel's, so this is the one provider that
-  // needs no outbound-URL guard: no user input reaches the host.
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: bounded }),
-    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    throw new ChannelSendError(`telegram sendMessage failed: ${response.status}`, {
-      permanent: isPermanentStatus(response.status),
-      status: response.status,
-      responseBody: await response.text().catch(() => ""),
-    });
-  }
+  // needs no outbound-URL guard: no user input reaches the host. The token
+  // is in the URL, so a failure must not repeat that URL.
+  await postOutbound(
+    `https://api.telegram.org/bot${token}/sendMessage`,
+    {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: bounded }),
+    },
+    "telegram sendMessage",
+  );
 }
 
 /**
@@ -70,14 +65,12 @@ export async function sendTelegramNotification(
     (reason) => reason instanceof ChannelSendError && reason.permanent,
   );
   const first = failures[0];
-  const detail = first instanceof Error ? first.message : String(first);
+  // Only a message we wrote. An unknown rejection can quote the request URL,
+  // and the bot token is in that URL.
+  const detail =
+    first instanceof ChannelSendError ? first.message : "telegram sendMessage failed: network";
   throw new ChannelSendError(
     `telegram delivery failed for ${failures.length} of ${config.chat_ids.length} chats: ${detail}`,
-    {
-      permanent,
-      // Telegram's own answer travels on, so the trail keeps the one detail
-      // that names the cause ("chat not found", "bot was blocked").
-      responseBody: first instanceof ChannelSendError ? first.responseBody : undefined,
-    },
+    { permanent },
   );
 }
