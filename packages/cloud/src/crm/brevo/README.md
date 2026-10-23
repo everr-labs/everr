@@ -1,7 +1,8 @@
 # Brevo HTTP adapter
 
-Task 06 supplies an inert cloud-only provider adapter, configuration validation and
-shared request permits. No CRM subscribers, runners or startup HTTP are registered.
+Task 06 supplies the cloud-only provider adapter, configuration validation and
+shared request permits. Task 07 adds the separately gated User consumer and runner;
+constructing the adapter makes no startup HTTP calls.
 The adapter emits no telemetry and never logs requests, provider bodies or errors.
 Its failure values contain only bounded local codes, HTTP status, scheduling time
 and, when available, an accepted remote ID. The transport seam permits deterministic
@@ -97,10 +98,11 @@ The adapter makes no automatic retries. Network errors, HTTP deadlines and
 are `ambiguous_create`, because the provider may already have committed it. A
 successful create with a lost/malformed response is also ambiguous. If an accepted
 ID was parsed before a later cooldown persistence failure, the failure carries
-`remoteId` so the handler can bind it before recovery. A caller must persist a
+`remoteId` so the handler can bind it before recovery. A Company caller must persist a
 create-attempt guard before issuing POST, retain uncertain outcomes, and never
-translate an ambiguous result into another blind POST. Consumers and this durable
-execution policy belong to tasks 07 and 08.
+translate an ambiguous result into another blind POST. Company execution policy
+belongs to task 08. Task 07 contacts recover through their unique external ID and
+persist any returned remote ID before retrying.
 
 429 returns a rate-limited outcome. Credential/schema errors remain inspectable
 permanent failures. 404 is explicit `not_found`, allowing deletion handlers to

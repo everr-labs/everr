@@ -60,6 +60,29 @@ const reply = (data: unknown, status = 200, headers?: HeadersInit) =>
   new Response(status === 204 ? undefined : JSON.stringify(data), { status, headers });
 afterEach(() => vi.useRealTimers());
 
+it("omits unchanged owned fields and makes no write for an unchanged contact", async () => {
+  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
+    reply(undefined, 204),
+  );
+  const adapter = createBrevoAdapter(configured, budget(), transport);
+  const same = {
+    ...current,
+    email: user.fields.email,
+    attributes: {
+      EXT_ID: user.externalId,
+      EVERR_NAME: user.fields.name,
+      EVERR_REGISTERED_AT: user.fields.registeredAt,
+      EVERR_EMAIL_VERIFIED: user.fields.emailVerified,
+    },
+  };
+  expect(await adapter.updateContact(user, same)).toEqual({ ok: true, value: undefined });
+  expect(transport).not.toHaveBeenCalled();
+  await adapter.updateContact({ ...user, fields: { ...user.fields, name: "Renamed" } }, same);
+  expect(JSON.parse(transport.mock.calls[0][1].body as string).attributes).toEqual({
+    EVERR_NAME: "Renamed",
+  });
+});
+
 it("validates configured/paused settings without leaking values and keeps disabled startup inert", async () => {
   const transport = vi.fn();
   const quota = budget();

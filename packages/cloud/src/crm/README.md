@@ -1,8 +1,8 @@
 # Cloud CRM projection state
 
-This module stores desired CRM state and includes an inert cloud-only
-[Brevo adapter and account request budgets](brevo/README.md). It does not register
-consumers, run a worker or make startup provider calls. Cloud's schema entry point exports
+This module stores desired CRM state and includes cloud-only User consumers, an
+independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
+The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
 Only schema source changes are included, with no generated migration artifacts.
 
@@ -51,8 +51,8 @@ billing and Memberships share one committed view. Membership reads test whether
 the pair currently exists. Missing sources produce identity-only deletion desired
 state without retaining old contact fields. Membership arrays have stable ID order.
 
-`createCrmProjectionStore` has five operations: read desired state, persist a desired
-snapshot, bind remote IDs, mark success, and mark failure/blocking. Identical
+`createCrmProjectionStore` supports reading desired state, persisting a desired
+snapshot, binding remote IDs, marking success/failure, and guarding retry allowances. Identical
 fingerprints retain the revision and previous outcome. Changed desired state
 increments the revision and becomes pending, retaining prior synchronized
 fingerprint/revision and success time. Completion and failure updates require the
@@ -80,6 +80,83 @@ request finishing after a new one. Association consumers must ensure both endpoi
 mappings exist, reconcile additions and removals, and coordinate them with parent
 deletion. No source transaction is held open during provider calls.
 
+## User synchronization and execution
+
+Cloud registers consumers for User creation, updates and email verification in
+`configured` and `paused` modes. Each consumer independently persists an ID-only
+`crm/sync-user` command after best-effort publication. Disabled mode registers no
+consumers or integration runner; self-hosted imports none of this module. Paused
+mode keeps admitting commands but starts no CRM consumer, preserving pending jobs.
+Missing enabled configuration fails validation rather than consuming work.
+
+Configured mode registers `everrIntegrationWorker` with one execution slot and a
+reserved pool of at most four connections. The existing managed supervisor owns
+startup rollback, retry, HMR and shutdown, independently of product and organization
+provisioning capacity. Shutdown cancels provider requests and short permit waits,
+then stops the runner and drains retry bookkeeping before closing its pool.
+
+Every User job uses one of 64 fixed Graphile queues, hashed by source User ID.
+Graphile serializes that queue across replicas for the entire source read, desired
+state save, remote lookup/write and outcome. Keep this partition mapping stable
+while any admitted jobs remain. No domain transaction spans HTTP. The handler
+reads current authoritative state, honors terminal tombstones returned by the store,
+and rechecks the source after lookup and after HTTP. Changed state receives another
+persisted attempt rather than acknowledging stale success. Identical synchronized
+revisions skip provider work; contact updates omit unchanged Everr-owned fields.
+Remote mapping conflicts block work and never merge contacts.
+
+An external request cannot be atomic with source deletion. A deletion that commits
+after the final source check can still race an already-started HTTP request. The
+post-request check captures a terminal tombstone and retains any remote ID for
+cleanup, without marking it synced. Missing sources never initiate contact creation.
+Deletion event consumers, remote cleanup and lost-deletion reconciliation remain
+task 09 work; a missing/deleted source is inspectable `deletion_cleanup_required` work.
+This slice does not claim complete remote deletion safety until task 09 lands.
+
+Known transient/ambiguous failures persist a successor with an incremented failure
+count and exponential backoff (up to one hour), honoring any later adapter `retryAt`.
+Each desired revision has eight durable failure allowances. Before HTTP, the store
+reserves one allowance with revision/count guards. Known quota/pause/cancellation
+deferrals refund it before scheduling. Success and changed desired state reset the
+count; continuation counts apply only to their recorded desired revision. A crash
+or unexpected failure after reservation conservatively spends the allowance,
+including when no HTTP reached the provider. This bounds admitted executions and
+does not claim atomic provider/database receipts or exact external request counts.
+An exhausted projection prevents further HTTP even if successor insertion failed
+and Graphile retries an older payload. Each successor is inserted
+before its predecessor completes, so a crash can duplicate work but cannot erase
+the persisted retry. Contact external-ID uniqueness permits lookup recovery after
+an ambiguous create; any returned remote ID is bound before recovery. No company
+create is implemented here. Normal contact permit gaps wait at most 250 milliseconds
+with cancellation; longer gaps defer durably. Task 08 must implement resumable phases
+for the 36-second general/company permit interval to avoid read/defer starvation.
+
+Graphile additionally retains an eight-attempt native fallback for database or
+successor-insertion failures, with sanitized errors. The durable reservation
+survives that retry. A crash after HTTP but before successor insertion can repeat
+an idempotent contact lookup/write only while allowance remains. Terminal failures use the public
+`permanently_fail_jobs` API after Graphile unlocks the job; if that optimization
+fails or the process dies, blocked/exhausted state short-circuits subsequent HTTP
+and native retries still retain the job. Exhausted/blocked jobs remain available
+through Graphile's public inspection/replay APIs, with no automatic cleanup.
+
+## Telemetry
+
+The existing application OTel provider exports `crm.user.sync` logs,
+`everr.crm.sync.outcomes` (unit `1`) and `everr.crm.sync.lag` (unit `s`). Only bounded
+outcome and entity-kind dimensions appear on metrics. Event, User and job IDs
+appear on logs, never emails, names, payloads, secrets or raw database/provider
+errors. The existing publisher emits enqueue failure exceptions and counters.
+
+For isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the collector
+URL returned by `everr local status`. For a selected remote installation, set
+`EVERR_INGEST_ENDPOINT` to its ingest URL and `EVERR_INGEST_KEY` to its server ingest
+key, leave the unauthenticated `OTEL_EXPORTER_OTLP_ENDPOINT` override unset, restart
+the app, then query its logs/metrics with `everr cloud query`. CRM activation separately requires validated `CRM_BREVO_MODE`,
+`CRM_BREVO_API_KEY`, `CRM_BREVO_DEPLOYMENT` and `CRM_BREVO_ACCOUNT_SCOPE`, plus prepared
+schema/provider fields. Production activation remains gated by tasks 01 through 15;
+this task changed no production configuration and generated/applied no migrations.
+
 ## Checks
 
 `projection.test.ts` runs snapshot and storage behavior against disposable PGlite,
@@ -87,5 +164,20 @@ including the new schema source's columns, constraints and unique indexes. It
 covers latest identity fields, deployment separation, several Organizations,
 Plan/access/readiness distinctions, unknown billing products, deleted sources,
 Membership re-addition, unchanged fingerprints, stale revisions, retained remote
-IDs and outcome transitions. It does not verify provider behavior or cross-replica
-HTTP ordering, which belong to the adapter and synchronizers.
+IDs and outcome transitions. `user-sync.integration.test.ts` uses an explicitly
+supplied disposable `EVERR_IDENTITY_TEST_DATABASE_URL` for real PostgreSQL/Graphile
+job persistence, two-runner HTTP ordering, stale/deleted sources, auth success on
+enqueue rejection, payload validation, quota/pause budgets, exhaustion and native
+retry after failed successor insertion. Provider transport is controlled in these
+worker tests; task 06's isolated-provider proof covers the actual contact contract.
+Worker lifecycle tests cover separate capacity, pause, startup rollback and shutdown.
+
+Task 07's isolated Everr proof created a real Better Auth User/account despite a
+rejected cloud enqueue, then observed a persisted adapter 500 retry followed by
+success after its full 60-second delay. Local evidence is under
+`.verify-everr/artifacts/task07-user-sync/`; marker
+`task07-b8bbf282-4344-4655-acd6-efe0028ff9c9` correlates the one enqueue exception
+with the separate `-retry` job's retry/success logs. Counters and lag histogram
+were queried from the same isolated collector. No real Brevo fixtures were needed
+for this increment. `.auth` is absent, so authenticated manual app checks were
+skipped; there is no UI change. Production ingestion remains unverified.

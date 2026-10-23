@@ -30,6 +30,7 @@ export const crmProjection = pgTable(
     desiredRevision: integer("desired_revision").default(1).notNull(),
     syncedRevision: integer("synced_revision"),
     syncedFingerprint: text("synced_fingerprint"),
+    retryFailures: integer("retry_failures").default(0).notNull(),
     outcome: text("outcome", { enum: ["pending", "synced", "failed", "blocked"] })
       .default("pending")
       .notNull(),
@@ -59,6 +60,7 @@ export const crmProjection = pgTable(
       "crm_projection_revision_check",
       sql`${table.desiredRevision} > 0 and (${table.syncedRevision} is null or ${table.syncedRevision} <= ${table.desiredRevision})`,
     ),
+    check("crm_projection_retry_failures_check", sql`${table.retryFailures} >= 0`),
   ],
 );
 

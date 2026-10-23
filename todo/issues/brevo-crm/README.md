@@ -5,12 +5,12 @@ is implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
 implemented, independently reviewed, and committed as `9696b6ce5`. Task 03 is
 implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
 implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
-implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is
-implemented and independently reviewed, with 53 focused/regression tests and
-isolated-provider checks passed; it is ready for commit.
-Tasks 07 through 16 remain planned.
+implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
+Task 07 is implemented and independently reviewed, with durable retry-budget
+findings fixed, focused checks and isolated telemetry proof passed. Tasks 08 through 16 remain planned.
 User, Organization, Membership, billing, Plan, and readiness source facts are wired;
-no CRM subscribers or handlers are enabled.
+cloud User CRM consumers and the independent integration runner are implemented,
+disabled by default.
 
 Source: [integration plan](../../../docs/brevo-crm-integration-plan.md), based on
 `chore/worker-separation` at `aed99bc42`. The active implementation branch is
@@ -44,17 +44,18 @@ including unrelated research, skills, and scripts. Execute tickets sequentially:
 each implementation agent hands its scoped result to a separate review-and-fixes
 agent before the coordinating agent commits and advances to the next ticket.
 
-| Task          | Implementation                                                     | Independent review                                                | Commit        |
-| ------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------- |
-| 00            | Complete; scoped documentation checks passed                       | Complete; findings fixed and checks repeated                      | `8a9145de2`   |
-| 01            | Complete; checks and isolated ingestion passed                     | Complete; strict-schema finding fixed and checks passed           | `c4dca85c1`   |
-| 02            | Complete; source, PostgreSQL and regression checks passed          | Complete; no material findings; 133 regression tests passed       | `9696b6ce5`   |
-| 03            | Complete; source, PostgreSQL and provisioning checks passed        | Complete; multi-match mutation finding fixed and verified         | `361211ba8`   |
-| 04            | Complete; 98 focused persistence and regression tests passed       | Complete; no material findings; 98 tests passed independently     | `b3b617cdc`   |
-| 05            | Complete; 16 focused snapshot/storage and entitlement tests passed | Complete; no material findings; 16 tests passed independently     | `f0bbeef65`   |
-| 06            | Complete; 42 tests and isolated-provider checks passed             | Complete; quota/body cancellation findings fixed; 53 tests passed | Not committed |
-| 07 through 15 | Planned                                                            | Not started                                                       | Not committed |
-| 16            | Optional design only, planned                                      | Not started                                                       | Not committed |
+| Task          | Implementation                                                                             | Independent review                                                | Commit        |
+| ------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ------------- |
+| 00            | Complete; scoped documentation checks passed                                               | Complete; findings fixed and checks repeated                      | `8a9145de2`   |
+| 01            | Complete; checks and isolated ingestion passed                                             | Complete; strict-schema finding fixed and checks passed           | `c4dca85c1`   |
+| 02            | Complete; source, PostgreSQL and regression checks passed                                  | Complete; no material findings; 133 regression tests passed       | `9696b6ce5`   |
+| 03            | Complete; source, PostgreSQL and provisioning checks passed                                | Complete; multi-match mutation finding fixed and verified         | `361211ba8`   |
+| 04            | Complete; 98 focused persistence and regression tests passed                               | Complete; no material findings; 98 tests passed independently     | `b3b617cdc`   |
+| 05            | Complete; 16 focused snapshot/storage and entitlement tests passed                         | Complete; no material findings; 16 tests passed independently     | `f0bbeef65`   |
+| 06            | Complete; 42 tests and isolated-provider checks passed                                     | Complete; quota/body cancellation findings fixed; 53 tests passed | `af829e766`   |
+| 07            | Complete; 75 focused/regression tests, final 18 checks and isolated ingestion proof passed | Complete; durable retry-budget findings fixed; 73 tests passed    | Not committed |
+| 08 through 15 | Planned                                                                                    | Not started                                                       | Not committed |
+| 16            | Optional design only, planned                                                              | Not started                                                       | Not committed |
 
 Update this ledger and the affected ticket with actual evidence after each
 stage. An implementation checkmark alone does not mean a ticket is reviewed or

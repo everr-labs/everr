@@ -30,7 +30,12 @@ const contact = z.object({
   email: z.string(),
   emailBlacklisted: z.boolean(),
   smsBlacklisted: z.boolean(),
-  attributes: z.object({ EXT_ID: z.string() }),
+  attributes: z.object({
+    EXT_ID: z.string(),
+    EVERR_NAME: z.string().optional(),
+    EVERR_REGISTERED_AT: z.string().optional(),
+    EVERR_EMAIL_VERIFIED: z.boolean().optional(),
+  }),
 });
 const company = z.object({
   id: z.string().min(1),
@@ -134,6 +139,7 @@ export function createBrevoAdapter(
     try {
       permit = await budget.acquire(group);
     } catch {
+      if (signal?.aborted) return failure("cancelled", "request_cancelled");
       return {
         ...failure("transient", "quota_unavailable"),
         retryAt: new Date(Date.now() + 60_000),
@@ -319,13 +325,21 @@ export function createBrevoAdapter(
       if (current.attributes.EXT_ID !== snapshot.externalId)
         return failure("identity_conflict", "external_id_mismatch");
       const emailChanged = current.email !== snapshot.fields.email;
+      const attributes = Object.fromEntries(
+        Object.entries(contactAttributes(snapshot)).filter(
+          ([key, value]) =>
+            Object.entries(current.attributes).find(([name]) => name === key)?.[1] !== value,
+        ),
+      );
+      if (!emailChanged && Object.keys(attributes).length === 0)
+        return { ok: true as const, value: undefined };
       return request(
         "PUT",
         `/contacts/${current.id}?identifierType=contact_id`,
         z.undefined(),
         {
           attributes: {
-            ...contactAttributes(snapshot),
+            ...attributes,
             ...(emailChanged ? { EMAIL: snapshot.fields.email } : {}),
           },
           forceMerge: false,

@@ -6,9 +6,9 @@ Task 02 is implemented, independently reviewed, and committed as `9696b6ce5`.
 Task 03 is implemented, independently reviewed, and committed as `361211ba8`.
 Task 04 is implemented, independently reviewed, and committed as `b3b617cdc`.
 Task 05 is implemented, independently reviewed, and committed as `f0bbeef65`.
-Task 06 is implemented and independently reviewed, with 53 local tests and
-isolated-provider checks passed; it is ready for commit. Tasks 07 through 16
-remain planned. Implementation work is on `feat/crm-utilities`,
+Task 06 is implemented, independently reviewed, and committed as `af829e766`.
+Task 07 is implemented and independently reviewed, with durable retry-budget
+findings fixed, focused checks and isolated telemetry proof passed. Tasks 08 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -341,9 +341,9 @@ implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
 implemented, independently reviewed, and committed as `9696b6ce5`. Task 03 is
 implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
 implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
-implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is
-implemented and independently reviewed, with 53 local tests and isolated-provider
-checks passed; it is ready for commit. Tasks 07 through 16 remain planned.
+implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
+Task 07 is implemented and independently reviewed, with durable retry-budget
+findings fixed, checks and isolated telemetry proof passed. Tasks 08 through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

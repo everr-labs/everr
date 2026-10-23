@@ -1,7 +1,7 @@
 # 06: Implement the Brevo HTTP adapter and request budgets
 
 Status: implemented and independently reviewed; local checks and isolated-provider
-verification passed. Ready for commit, not committed.
+verification passed. Committed as `af829e766`.
 
 Repository: `everr`.
 

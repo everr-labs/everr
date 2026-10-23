@@ -3,6 +3,25 @@ import { drizzle } from "drizzle-orm/pglite";
 import { createDatabase, type Database } from "#app/db/database.ts";
 import { withTransactionReads } from "./transaction-reads";
 import * as schema from "#app/db/schema/index.ts";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import type { BusinessEvents } from "#app/composition/business-events.ts";
+import { identityLifecycleAdapter } from "../identity-adapter";
+import type { UserFact } from "../events";
+
+/** Exercise the real committed auth adapter from a consumer's isolated database tests. */
+export function createIdentityTestAuth(database: Database, events: BusinessEvents<UserFact>) {
+  return betterAuth({
+    baseURL: "http://localhost:3000",
+    secret: "identity-consumer-integration-secret-long-enough",
+    emailAndPassword: { enabled: true },
+    database: identityLifecycleAdapter(
+      database,
+      (executor) => drizzleAdapter(executor, { provider: "pg" }),
+      events,
+    ),
+  });
+}
 
 interface AuthTestClient {
   exec(sql: string): Promise<unknown>;

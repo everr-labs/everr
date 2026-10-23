@@ -307,3 +307,23 @@ it("enforces namespace ownership and non-reassignable remote mappings", async ()
   );
   expect(getTableConfig(crmProjection).foreignKeys).toHaveLength(0);
 });
+
+it("guards retry reservations and refunds against stale counts, revisions and success", async () => {
+  const row = await store.desire(await reader.user("user"));
+  expect(await store.setRetryFailures(row, 1, 0, 1)).toBe(true);
+  expect(await store.setRetryFailures(row, 1, 0, 1)).toBe(false);
+  expect(await store.setRetryFailures(row, 1, 1, 0)).toBe(true);
+  expect(await store.setRetryFailures(row, 1, 0, 7)).toBe(true);
+  expect((await store.desire(await reader.user("user"))).retryFailures).toBe(7);
+  await fixture.db.update(user).set({ name: "Changed" }).where(eq(user.id, "user"));
+  expect(await store.desire(await reader.user("user"))).toMatchObject({
+    desiredRevision: 2,
+    retryFailures: 0,
+  });
+  expect(await store.setRetryFailures(row, 1, 7, 6)).toBe(false);
+  expect(await store.setRetryFailures(row, 2, 0, 1)).toBe(true);
+  expect(await store.markSynced(row, 2)).toBe(true);
+  expect((await store.read(row))?.retryFailures).toBe(0);
+  expect(await store.setRetryFailures(row, 2, 0, 1)).toBe(false);
+  await expect(store.setRetryFailures(row, 2, 0, -1)).rejects.toThrow("retry allowance");
+});

@@ -75,6 +75,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             desired: snapshot,
             desiredFingerprint: fingerprint,
             desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
+            retryFailures: 0,
             outcome: "pending",
             deletedAt: snapshot.deleted ? sql`coalesce(${crmProjection.deletedAt}, ${now})` : null,
             lastErrorCode: null,
@@ -92,6 +93,27 @@ export function createCrmProjectionStore(database: Database, deployment: string)
       const saved = await read(expected);
       if (!saved) throw new Error("CRM projection was not saved.");
       return saved;
+    },
+    /** Reserve before HTTP, or refund a known deferral, under the entity execution lock.
+     * Both guards prevent a stale refund from restoring a newer revision's allowance.
+     */
+    async setRetryFailures(key: ProjectionKey, revision: number, expected: number, next: number) {
+      if (![expected, next].every((value) => Number.isInteger(value) && value >= 0))
+        throw new Error("Invalid CRM retry allowance.");
+      const rows = await database
+        .update(crmProjection)
+        .set({ retryFailures: next, updatedAt: new Date() })
+        .where(
+          and(
+            where(key),
+            eq(crmProjection.desiredRevision, revision),
+            eq(crmProjection.retryFailures, expected),
+            isNull(crmProjection.deletedAt),
+            sql`${crmProjection.syncedRevision} is distinct from ${revision}`,
+          ),
+        )
+        .returning();
+      return rows.length === 1;
     },
     /** Bind uncertain/old create results before recording completion, even if desired advanced. */
     async bindRemote(
@@ -137,6 +159,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
         .update(crmProjection)
         .set({
           syncedRevision: revision,
+          retryFailures: 0,
           syncedFingerprint: sql`${crmProjection.desiredFingerprint}`,
           outcome: "synced",
           lastSuccessAt: new Date(),
