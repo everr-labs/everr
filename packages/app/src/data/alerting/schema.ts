@@ -141,8 +141,9 @@ const AlertingChannelSecretInputSchema = z
 /** What create, update, and test accept. A saved channel may omit its secret;
  *  the repository decides whether there is a same-type secret to retain. */
 export const AlertingChannelConfigInputSchema = z.discriminatedUnion("type", [
-  // Omitting `headers` keeps the saved list. An empty list clears it. A
-  // header with no `value` keeps the saved value for that name.
+  // Omitting `headers` keeps the saved list while the URL stays the same.
+  // An empty list clears it. A header with no `value` keeps the saved value
+  // for that name. A different URL does not inherit those values.
   z.object({
     type: z.literal("webhook"),
     url: AlertingChannelSecretInputSchema.optional(),

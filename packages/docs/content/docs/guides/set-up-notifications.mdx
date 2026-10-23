@@ -19,7 +19,7 @@ Your first channel automatically becomes the default destination, so creating on
 
 A channel is a named delivery endpoint, created on the Notifications page with **New channel** and edited or deleted from its row. Each row shows what the channel receives, how many notifications reached it in the selected time range, how many never got through, and when it last sent. Channel types: **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-A webhook can also send HTTP headers, such as `Authorization`. Header names stay visible on the channel. Header values are write-only, the same way the URL is: editing shows the name and a stored-value field, and leaving the value blank keeps the saved one. Removing a header stops sending it.
+A webhook can also send HTTP headers, such as `Authorization`. Header names stay visible on the channel. Header values are write-only, the same way the URL is: editing shows the name and a stored-value field, and leaving the value blank keeps the saved one while the URL stays the same. Changing the URL requires the header values again. Removing a header stops sending it.
 
 Webhook URLs (generic, Slack, and Discord), webhook header values, and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels.
 

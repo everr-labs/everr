@@ -168,4 +168,33 @@ describe("testing a saved channel", () => {
       }),
     ]);
   });
+
+  it("does not send a stored webhook header to a different URL", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+      },
+    });
+
+    await expect(
+      testChannel(TEST_ORG, {
+        source: { kind: "saved", name: "pager" },
+        config: { type: "webhook", url: "https://203.0.113.99/hook" },
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      testChannel(TEST_ORG, {
+        source: { kind: "saved", name: "pager" },
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.99/hook",
+          headers: [{ name: "Authorization" }],
+        },
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    expect(harness().fetchCalls()).toEqual([]);
+  });
 });

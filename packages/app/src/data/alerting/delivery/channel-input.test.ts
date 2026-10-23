@@ -79,12 +79,21 @@ const WEBHOOK = {
 
 describe("webhook headers on a draft", () => {
   it("keeps stored header names and never the values", () => {
-    expect(channelConfigDraft(WEBHOOK)).toEqual({
-      ...EMPTY_CHANNEL_DRAFT,
+    const draft = channelConfigDraft(WEBHOOK);
+    expect(draft).toMatchObject({
       type: "webhook",
-      headers: [{ name: "Authorization", value: "", retainedName: "Authorization" }],
+      url: "",
+      botToken: "",
+      chatIds: [],
     });
-    expect(channelConfigInput(channelConfigDraft(WEBHOOK), "webhook")).toEqual({
+    expect(draft.headers).toEqual([
+      expect.objectContaining({
+        name: "Authorization",
+        value: "",
+        retainedName: "Authorization",
+      }),
+    ]);
+    expect(channelConfigInput(draft, "webhook")).toEqual({
       type: "webhook",
       headers: [{ name: "Authorization" }],
     });
@@ -103,6 +112,18 @@ describe("webhook headers on a draft", () => {
     });
   });
 
+  it("requires header values again when the URL is replaced", () => {
+    const draft = { ...channelConfigDraft(WEBHOOK), url: "https://203.0.113.11/hook" };
+    expect(channelConfigInput(draft, "webhook")).toBeNull();
+    expect(channelDraftError(draft, "webhook")).toBe("Header value is required for Authorization");
+    draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
+    expect(channelConfigInput(draft, "webhook")).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.11/hook",
+      headers: [{ name: "Authorization", value: "Bearer next" }],
+    });
+  });
+
   it("requires a value once the stored name is changed", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], name: "X-Token" };
@@ -115,7 +136,7 @@ describe("webhook headers on a draft", () => {
       ...channelConfigDraft(WEBHOOK),
       headers: [
         ...channelConfigDraft(WEBHOOK).headers,
-        { name: "", value: "", retainedName: null },
+        { id: "blank", name: "", value: "", retainedName: null },
       ],
     };
     expect(channelConfigInput(draft, "webhook")).toEqual({
@@ -123,6 +144,7 @@ describe("webhook headers on a draft", () => {
       headers: [{ name: "Authorization" }],
     });
     draft.headers[1] = {
+      id: "second",
       name: "authorization",
       value: "second",
       retainedName: null,
@@ -136,7 +158,7 @@ describe("webhook headers on a draft", () => {
       ...EMPTY_CHANNEL_DRAFT,
       type: "webhook" as const,
       url: "https://x",
-      headers: [{ name: "Content-Type", value: "text/plain", retainedName: null }],
+      headers: [{ id: "blocked", name: "Content-Type", value: "text/plain", retainedName: null }],
     };
     expect(channelConfigInput(draft, null)).toBeNull();
     expect(channelDraftError(draft, null)).toMatch(/cannot be set/);

@@ -33,12 +33,23 @@ import {
 function resolveWebhookHeaders(
   input: { name: string; value?: string }[] | undefined,
   previous: { name: string; value: string }[] | undefined,
+  urlChanged: boolean,
 ): { name: string; value: string }[] | undefined {
   // Omitted means the edit did not speak about headers, so the saved list
-  // stands. An empty list is the edit that clears them.
-  if (input === undefined) return previous;
+  // stands. An empty list is the edit that clears them. A new URL does not
+  // inherit either: the values are credentials for the previous endpoint.
+  if (input === undefined) {
+    if (urlChanged && (previous?.length ?? 0) > 0) {
+      throwAlertingPersistenceError(
+        422,
+        "validation",
+        "header values must be set again when the webhook URL changes",
+      );
+    }
+    return urlChanged ? undefined : previous;
+  }
   const stored = new Map(
-    (previous ?? []).map((header) => [header.name.toLowerCase(), header.value]),
+    (urlChanged ? [] : (previous ?? [])).map((header) => [header.name.toLowerCase(), header.value]),
   );
   return input.map((header) => {
     const value = header.value ?? stored.get(header.name.toLowerCase());
@@ -61,14 +72,14 @@ function resolveChannelConfig(
 ): AlertingChannelConfig {
   switch (input.type) {
     case "webhook": {
-      const url = input.url ?? (previous?.type === "webhook" ? previous.url : undefined);
+      const previousWebhook = previous?.type === "webhook" ? previous : undefined;
+      const url = input.url ?? previousWebhook?.url;
       if (!url) {
         throwAlertingPersistenceError(422, "validation", "webhook URL is required");
       }
-      const headers = resolveWebhookHeaders(
-        input.headers,
-        previous?.type === "webhook" ? previous.headers : undefined,
-      );
+      // Stored header values stay with the endpoint they were saved for.
+      const urlChanged = previousWebhook !== undefined && url !== previousWebhook.url;
+      const headers = resolveWebhookHeaders(input.headers, previousWebhook?.headers, urlChanged);
       return {
         type: "webhook",
         url,

@@ -14,6 +14,8 @@ export type ChannelType = AlertingChannelConfig["type"];
  *  header a blank value keeps. A row the reader added has none, so a blank
  *  value there is incomplete rather than a retain. */
 export type WebhookHeaderDraft = {
+  /** Stable for the life of the row, so removing one does not reuse the next row's edit state. */
+  id: string;
   name: string;
   value: string;
   retainedName: string | null;
@@ -47,6 +49,7 @@ export function channelConfigDraft(stored: AlertingChannelConfig): ChannelConfig
     headers:
       stored.type === "webhook"
         ? (stored.headers ?? []).map((header) => ({
+            id: crypto.randomUUID(),
             name: header.name,
             value: "",
             retainedName: header.name,
@@ -60,9 +63,12 @@ function sameHeaderName(left: string, right: string): boolean {
 }
 
 /** The header list a webhook write should carry, or why it cannot yet.
- *  Fully blank rows are the unused "add header" slot and are dropped. */
+ *  Fully blank rows are the unused "add header" slot and are dropped.
+ *  A blank value keeps a stored header only while the URL stays the one it
+ *  was saved for. A typed URL is a new endpoint, so that value has to be entered. */
 function webhookHeadersFromDraft(
   headers: WebhookHeaderDraft[],
+  retainStored: boolean,
 ): { headers: { name: string; value?: string }[] } | { error: string } {
   const filled = headers.filter((header) => header.name.trim() !== "" || header.value !== "");
   const seen = new Set<string>();
@@ -73,7 +79,8 @@ function webhookHeadersFromDraft(
     const key = name.toLowerCase();
     if (seen.has(key)) return { error: `Header ${name} is already set` };
     seen.add(key);
-    const retains = header.retainedName !== null && sameHeaderName(name, header.retainedName);
+    const retains =
+      retainStored && header.retainedName !== null && sameHeaderName(name, header.retainedName);
     if (!header.value) {
       if (!retains) return { error: `Header value is required for ${name}` };
       result.push({ name });
@@ -99,7 +106,7 @@ export function channelConfigInput(
   switch (draft.type) {
     case "webhook": {
       if (!draft.url && !keepsSecret) return null;
-      const headers = webhookHeadersFromDraft(draft.headers);
+      const headers = webhookHeadersFromDraft(draft.headers, keepsSecret && draft.url === "");
       if ("error" in headers) return null;
       config = {
         type: "webhook",
@@ -142,7 +149,10 @@ export function channelDraftError(
   storedType: ChannelType | null,
 ): string | null {
   if (draft.type !== "webhook") return null;
-  const headers = webhookHeadersFromDraft(draft.headers);
+  const headers = webhookHeadersFromDraft(
+    draft.headers,
+    storedType === "webhook" && draft.url === "",
+  );
   if ("error" in headers) return headers.error;
   if (!draft.url && storedType !== "webhook") return null;
   const parsed = AlertingChannelConfigInputSchema.safeParse({

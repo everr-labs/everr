@@ -398,14 +398,13 @@ describe("the delivery channels the CLI manages", () => {
     await updateChannel(scope, "pager", {
       config: {
         type: "webhook",
-        url: "https://203.0.113.11/hook",
         headers: [{ name: "Authorization" }, { name: "X-Env", value: "staging" }],
       },
     });
 
     expect(await storedConfig()).toEqual({
       type: "webhook",
-      url: "https://203.0.113.11/hook",
+      url: "https://203.0.113.10/hook",
       headers: [
         { name: "Authorization", value: "Bearer stored-secret" },
         { name: "X-Env", value: "staging" },
@@ -424,11 +423,11 @@ describe("the delivery channels the CLI manages", () => {
     });
 
     await updateChannel(scope, "pager", {
-      config: { type: "webhook", url: "https://203.0.113.11/hook" },
+      config: { type: "webhook" },
     });
     expect(await storedConfig()).toEqual({
       type: "webhook",
-      url: "https://203.0.113.11/hook",
+      url: "https://203.0.113.10/hook",
       headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
     });
 
@@ -437,7 +436,59 @@ describe("the delivery channels the CLI manages", () => {
     });
     expect(await storedConfig()).toEqual({
       type: "webhook",
+      url: "https://203.0.113.10/hook",
+    });
+  });
+
+  it("does not carry webhook header values to a new URL", async () => {
+    await createChannel(scope, {
+      name: "pager",
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.10/hook",
+        headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+      },
+    });
+
+    await expect(
+      updateChannel(scope, "pager", {
+        config: { type: "webhook", url: "https://203.0.113.11/hook" },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    await expect(
+      updateChannel(scope, "pager", {
+        config: {
+          type: "webhook",
+          url: "https://203.0.113.11/hook",
+          headers: [{ name: "Authorization" }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.10/hook",
+      headers: [{ name: "Authorization", value: "Bearer stored-secret" }],
+    });
+
+    await updateChannel(scope, "pager", {
+      config: {
+        type: "webhook",
+        url: "https://203.0.113.11/hook",
+        headers: [{ name: "Authorization", value: "Bearer next-secret" }],
+      },
+    });
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
       url: "https://203.0.113.11/hook",
+      headers: [{ name: "Authorization", value: "Bearer next-secret" }],
+    });
+
+    await updateChannel(scope, "pager", {
+      config: { type: "webhook", url: "https://203.0.113.12/hook", headers: [] },
+    });
+    expect(await storedConfig()).toEqual({
+      type: "webhook",
+      url: "https://203.0.113.12/hook",
     });
   });
 

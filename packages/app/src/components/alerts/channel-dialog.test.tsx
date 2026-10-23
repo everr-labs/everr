@@ -129,4 +129,18 @@ describe("ChannelDialog webhook headers", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/cannot be set/i);
     expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
   });
+
+  it("asks for header values again when the URL is replaced", async () => {
+    renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getAllByRole("button", { name: "Edit secret" })[0]);
+    await user.type(
+      screen.getByRole("textbox", { name: "Webhook URL" }),
+      "https://203.0.113.11/hook",
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/value is required for Authorization/i);
+    expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
+  });
 });

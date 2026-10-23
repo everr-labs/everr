@@ -329,7 +329,12 @@ function WebhookHeadersEditor({
           variant="outline"
           size="sm"
           disabled={disabled || atMax}
-          onClick={() => onChange([...headers, { name: "", value: "", retainedName: null }])}
+          onClick={() =>
+            onChange([
+              ...headers,
+              { id: crypto.randomUUID(), name: "", value: "", retainedName: null },
+            ])
+          }
         >
           <Plus className="size-3.5" />
           Add header
@@ -341,11 +346,7 @@ function WebhookHeadersEditor({
       {headers.length > 0 && (
         <ul className="space-y-2">
           {headers.map((header, index) => (
-            <li
-              // oxlint-disable-next-line react/no-array-index-key -- Header drafts have no id. A new row's name is empty, so position is the only identity, and each input is controlled by the parent list.
-              key={index}
-              className="space-y-1.5 rounded-md border p-2"
-            >
+            <li key={header.id} className="space-y-1.5 rounded-md border p-2">
               <div className="flex items-center justify-between gap-2">
                 <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
                 <Button
