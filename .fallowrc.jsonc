@@ -15,8 +15,10 @@
     "stale-suppressions": "error",
   },
   "entry": [
-    // Invoked by the ClickHouse Docker build and local schema harness.
-    "clickhouse/render.mjs",
+    // Worktree dotenv bootstrap invoked by scripts/dev/start.sh.
+    "scripts/dev/bootstrap-env.mjs",
+    // Native collector launcher invoked by Process Compose.
+    "scripts/dev/collector.mjs",
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",
@@ -46,6 +48,8 @@
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
+    // Invoked by scripts/dev/start.sh and process-compose.yaml.
+    "portless",
     "@tanstack/eslint-plugin-query",
     "@tanstack/eslint-plugin-router",
     "vite-plus",

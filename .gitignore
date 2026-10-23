@@ -77,3 +77,6 @@ reports
 
 # verify-everr skill evidence (.agents/skills/verify-everr)
 .verify-everr/
+
+# Worktree development state and binaries
+.dev/

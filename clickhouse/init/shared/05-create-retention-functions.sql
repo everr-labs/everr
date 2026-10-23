@@ -4,7 +4,7 @@
 --
 -- init/ runs only on a fresh server. Apply to an existing cluster with:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < clickhouse/init/05-create-retention-functions.sql
+--     < clickhouse/init/shared/05-create-retention-functions.sql
 CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->
   toUInt16OrZero(resourceAttributes['everr.retention.days'])
     + throwIf(

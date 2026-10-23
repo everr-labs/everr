@@ -2,8 +2,7 @@
   "name": "everr",
   "private": true,
   "scripts": {
-    "dev": "turbo run dev",
-    "dev:web": "pnpm --filter @everr/app dev",
+    "dev": "sh scripts/dev/start.sh",
     "dev:cli": "pnpm --filter @everr/cli build:debug",
     "dev:docs": "pnpm --filter @everr/docs dev",
     "dev:storybook": "pnpm --filter @everr/storybook storybook",
@@ -32,6 +31,7 @@
     "fallow": "^2.75.0",
     "lefthook": "^2.1.6",
     "oxlint-plugin-eslint": "^1.88.0",
+    "portless": "0.15.8",
     "turbo": "^2.9.12",
     "vite": "catalog:",
     "vite-plus": "catalog:",

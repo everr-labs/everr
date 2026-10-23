@@ -488,7 +488,7 @@ async function insertAlertHistoryRows(
       };
     }),
   );
-  return insertRows("app.alert_events", stamped, {
+  return insertRows("alert_events", stamped, {
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",

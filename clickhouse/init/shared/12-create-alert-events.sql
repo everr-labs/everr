@@ -144,10 +144,3 @@ SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, 
 
 GRANT SELECT ON app.alert_events TO app_ro;
 GRANT INSERT, SELECT ON app.alert_events TO web_app_admin;
-
-DROP ROW POLICY IF EXISTS tenant_filter_alert_events ON app.alert_events;
-CREATE ROW POLICY tenant_filter_alert_events
-ON app.alert_events
-FOR SELECT
-USING tenant_id = getSetting('SQL_everr_tenant_id')
-TO app_ro;

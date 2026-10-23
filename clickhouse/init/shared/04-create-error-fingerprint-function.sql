@@ -17,7 +17,7 @@
 --
 -- init/ runs only on a fresh server. Apply to an existing cluster with:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < clickhouse/init/04-create-error-fingerprint-function.sql
+--     < clickhouse/init/shared/04-create-error-fingerprint-function.sql
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
     fingerprint != '',

@@ -2,93 +2,83 @@
 
 ## Development
 
+Install dependencies with `pnpm install`, then run `pnpm dev`. This starts App,
+Cloud, PostgreSQL, a ClickHouse container for each product, and their native
+collectors. [Worktree development](docs/development.md) covers prerequisites,
+Portless URLs, configuration, and shutdown.
+
+On first startup, packages without local dotenv configuration inherit their
+`.env` from the main worktree with permissions `0600`. Existing worktree settings
+stay untouched. The private key is included in `GITHUB_APP_PRIVATE_KEY`.
+
+Use Node 24, pnpm, Go 1.26, Make, Docker with Compose, and Process Compose.
+For the CLI, install stable Rust and a C/C++ toolchain (Xcode command line tools
+on macOS, the chDB prerequisites on Linux).
+
+### Local email with Mailpit
+
+```sh
+pnpm dev -f process-compose.mail.yaml
+```
+
+The override starts a checkout-scoped Mailpit with Docker-assigned loopback ports
+and points both apps at its SMTP listener. Open its UI using the address returned
+by `docker compose -p <project> -f scripts/dev/compose.yaml port mailpit 8025`.
+The project name is printed by Docker during startup. Mailpit's messages are
+throwaway development data. The default `pnpm dev` uses the SMTP settings in each
+application's optional dotenv file.
+
+### GitHub webhooks and Smee
+
+Plain `pnpm dev` starts GitHub receivers for App and Cloud and enables Smee using
+each application's existing configuration. Keep the same `GITHUB_APP_*` and
+`SMEE_CHANNEL` settings in `packages/app/.env` and `packages/cloud/.env`. Cloud
+uses the same default Vite modes as App. No extra profile, shell exports, or
+collector configuration copy is required.
+
+For a new GitHub App:
+
+1. Create a channel at <https://smee.io/new> and put its id in `SMEE_CHANNEL` in
+   the selected package's dotenv file.
+2. Create a GitHub App in [GitHub developer settings](https://github.com/settings/apps).
+   Set its webhook URL to the Smee channel URL. Give it Actions read permission
+   and subscribe to Workflow job and Workflow run events.
+3. Put the App ID, install URL, private key, state secret and matching webhook
+   secret in the existing `GITHUB_APP_*` settings shown in that package's
+   `.env.example`. Reuse configured values when they already exist.
+4. Run `pnpm dev`, connect the installation from `/github`, and redeliver a
+   workflow webhook to check Runs and logs.
+
+Smee forwards to its matching application's `/webhook/github` endpoint using
+Vite's actual port. Each application's worker replays signed events to its own
+native collector's private GitHub receiver. Cloud shares usage accounting and
+durable queues across public OTLP and GitHub replay; self-hosted buffers in memory. Production collector configuration is
+unchanged.
+
 ### Develop bundled skills
 
-The public Everr skills live in `skills/`. The CLI embeds these files at build time, and `npx skills add everr-labs/everr` discovers them for installation.
+The public Everr skills live in `skills/`. The CLI embeds them at build time, and
+`npx skills add everr-labs/everr` discovers them. Their `.agents/skills/` symlinks
+and `.claude/skills` pointer use those same files during development.
 
-Each public skill is symlinked into `.agents/skills/`, and `.claude/skills` points to `.agents/skills`. Local assistants therefore use the same files we distribute. Edit either path to develop a skill without keeping an installed copy in sync. If an assistant does not pick up a change, restart its session.
-
-To check what users can install without installing anything:
-
-```bash
+```sh
 npx skills add . --list
 ```
 
-### System prerequisites
+### Other development surfaces
 
-You need the standard toolchains on every platform: Rust (stable), Node + pnpm,
-Go (for the collector), and Docker with the Compose plugin.
+Use `pnpm dev:docs` for the docs site and `pnpm dev:storybook` for Storybook.
+`pnpm dev:local` starts the CLI browser UI, Rust backend, and local collector;
+`pnpm dev:local:ui` starts only its Vite surface against a running development CLI.
+`pnpm dev:cli` rebuilds embedded assets and the debug CLI, and `pnpm build:cli`
+builds the release. The CLI version comes from `packages/cli/package.json`;
+signing settings can be supplied in `packages/cli/.env`.
 
-On macOS, install the Xcode command line tools. On Linux, install a C/C++ build toolchain and the libraries required by chDB. The local UI runs in your browser.
+### Verify a change
 
-### Set up GitHub webhook forwarding
-
-The web app starts a [`smee`](https://smee.io/) client during Vite dev when `SMEE_CHANNEL` is set.
-
-1. Create or open a smee channel at `https://smee.io/new`.
-2. Copy the channel id from the generated URL. For example, the channel id for `https://smee.io/abc123` is `abc123`.
-3. Set the channel id in `packages/app/.env`:
-   ```bash
-   SMEE_CHANNEL="abc123"
-   ```
-4. Start the web app with `pnpm dev:web`. The dev server forwards events from `https://smee.io/<SMEE_CHANNEL>` to `http://localhost:5173/webhook/github`.
-
-### Start the local services (Postgres, ClickHouse, collector, mail)
-
-```bash
-docker compose up -d
-```
-
-> [!NOTE]
-> **Fedora / SELinux:** the bind mounts in `docker-compose.yaml` carry the `:Z`
-> / `:z` flag, so Docker relabels the host paths for SELinux automatically — no
-> manual `chcon` is needed (the flag is ignored on macOS/Docker Desktop). Just
-> install the Compose plugin from Fedora's repositories
-> (`sudo dnf install docker-compose`) rather than the docker-ce
-> `docker-compose-plugin`, which conflicts with Fedora's `docker-buildx`.
-
-### Install dependencies and build
-
-```bash
-pnpm i
-pnpm build
-```
-
-### Create a GitHub App
-
-1. On GitHub, go to [Settings -> Developer settings -> GitHub Apps](https://github.com/settings/apps) and click **New GitHub App**.
-2. Choose an app name and set a homepage URL.
-3. Under **Webhook**, enable **Active** and set the webhook URL to your smee channel URL, for example: `https://smee.io/<SMEE_CHANNEL>`.
-4. Set a webhook secret and store it in both `packages/app/.env` as `GITHUB_APP_WEBHOOK_SECRET` and in `collector/config.yml` as `receivers.githubactions.secret`.
-5. Under **Repository permissions**, set **Actions** to **Read-only**.
-6. Under **Subscribe to events**, select **Workflow job** and **Workflow run**.
-7. Create the app.
-8. In the app settings page, scroll to **Private keys** and click **Generate a private key** to download the `.pem` file.
-9. Move the downloaded `.pem` file into `collector/` and set restrictive permissions:
-   ```bash
-   mv ~/Downloads/<your-app-name>*.pem collector/dev-everr-app.pem
-   chmod 600 collector/dev-everr-app.pem
-   ```
-10. Install the app on the repository you want to observe.
-11. Get the **App ID** from the GitHub App settings page (shown at the top of the page).
-12. Copy `collector/config.example.yml` to `collector/config.yml` and fill in
-    the two values you just collected:
-    ```bash
-    cp collector/config.example.yml collector/config.yml
-    ```
-    ```yaml
-    receivers:
-      githubactions:
-        secret: <webhook-secret>
-        gh_api:
-          auth:
-            app_id: <app-id>
-            private_key_path: ./dev-everr-app.pem
-    ```
-    Do not hand-write the `processors` block. The example is the maintained
-    copy: it stamps the tenant and the retention the views expect, and a
-    resource that reaches ClickHouse without retention is rejected.
-13. Try to redeliver the ping to validate that everything is ok
+The [verification skill](.agents/skills/verify-everr/SKILL.md) launches an isolated
+`pnpm dev` graph with its own state, database project, Portless service names, and
+Mailpit. It uses the same startup and collector configuration as development.
 
 ### GitHub installation ownership model
 
@@ -114,37 +104,3 @@ Practical examples:
   A user adds/removes repositories inside an existing GitHub installation. The `installation_id` does not change, so tenant ownership stays the same.
 - Uninstall and reinstall:
   If the app is uninstalled and reinstalled, GitHub may create a new installation context. The new install goes through link flow again and creates/updates mapping for that new `installation_id`.
-
-### Fill the collector config
-
-Update `collector/config.yml` with your Grafana Cloud values.
-
-### Set app environment variables
-
-```bash
-cp packages/app/.env.example packages/app/.env
-```
-
-Then review and update values in `packages/app/.env` if needed.
-
-### Start the collector
-
-```bash
-cd collector
-make run
-```
-
-### Run the dev stack
-
-> [!NOTE]
-> The app now owns the GitHub webhook ingress, queue polling, and workflow status writes into Postgres. Start the full dev stack after Postgres and ClickHouse are up.
-
-```bash
-pnpm dev
-```
-
-Use `pnpm dev:web` or `pnpm dev:docs` to start a web surface. Run `pnpm dev:local` to start the local UI with hot reload and its Rust CLI backend and collector. The command opens `http://127.0.0.1:1420`, watches Rust changes for rebuilds and restarts, and stops all its processes on Ctrl+C. Use `--no-open` to suppress browser launch. Use `pnpm dev:web` for the hosted app and development Cloud sign-in.
-
-Use `pnpm dev:local:ui` to run only Vite against an already running development CLI. Run `pnpm dev:cli` to rebuild the CLI's embedded UI and collector assets, then `./target/debug/everr-dev local start` to check the packaged experience.
-
-For a release build, run `pnpm build:cli`. The CLI version comes from `packages/cli/package.json`. Build signing inputs can be provided in `packages/cli/.env`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verify-everr: launch, inspect, drive, and tear down an ISOLATED everr-dev local instance
+// verify-everr: launch, inspect, drive, and tear down an ISOLATED everr local instance
 // (collector + chDB + local UI), and the web app (web.ts), for verification runs.
 // Run directly (`./verify-everr.ts ...` or `node verify-everr.ts ...`); Node >= 23 strips the types.
 import { type Dirent, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -42,14 +42,14 @@ import {
 } from "./common.ts";
 import { WEB_COMMANDS, WEB_USAGE } from "./web.ts";
 
-const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr-dev
+const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr
 # local instance (collector + chDB + local UI) for verification runs.
 #
 #   verify-everr build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
 #   verify-everr launch [RUN_ID]        # start an isolated detached instance, wait until queryable
 #   verify-everr doctor                 # read-only: is this run's instance worth driving?
 #   verify-everr env                    # print the export lines for the current run
-#   verify-everr cli <label> -- ARGS... # run everr-dev ARGS in the run's env, record evidence
+#   verify-everr cli <label> -- ARGS... # run everr ARGS in the run's env, record evidence
 #   verify-everr cli-until <label> <text> -- ARGS... # retry a read until stdout has text
 #   verify-everr ui-get <path>          # GET a path on this run's local UI
 #   verify-everr ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
@@ -67,7 +67,7 @@ type Run = {
   id: RunId;
   dir: string;
   art: string;
-  /** The run's env file, applied to every everr-dev call. */
+  /** The run's env file, applied to every everr call. */
   vars: Record<string, string>;
   sql: string;
   otlp: string;
@@ -266,7 +266,7 @@ function cmdEnv(): number {
 /** Drop a leading `--` separator. */
 const afterDashes = (args: string[]) => (args[0] === "--" ? args.slice(1) : args);
 
-/** verify-everr cli <label> -- everr args...: run everr-dev in the run's env, record evidence. */
+/** verify-everr cli <label> -- everr args...: run everr in the run's env, record evidence. */
 function cmdCli(r: Run, label: string, args: string[], quiet = false): number {
   const out = path.join(r.art, "cli", label);
   mkdirSync(out, { recursive: true });

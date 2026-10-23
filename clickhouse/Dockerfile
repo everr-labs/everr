@@ -1,7 +1,8 @@
 FROM clickhouse/clickhouse-server:26.5 AS base
-COPY init/ /docker-entrypoint-initdb.d/
+COPY init/shared/ /docker-entrypoint-initdb.d/
 
 FROM base AS self-hosted
-COPY --chmod=755 self-hosted/99-configure-access.sh /docker-entrypoint-initdb.d/
+COPY init/self-hosted/ /docker-entrypoint-initdb.d/
 
 FROM base AS cloud
+COPY init/cloud/ /docker-entrypoint-initdb.d/

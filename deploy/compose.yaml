@@ -85,10 +85,12 @@ services:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          'clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --query ''SELECT 1 FROM app.alert_events LIMIT 0''',
-        ]
+        - CMD-SHELL
+        - >-
+          clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --multiquery --query
+          "SELECT 1 FROM app.alert_events LIMIT 0;
+          SELECT throwIf(count() != 1, 'SQL API access is not initialized')
+          FROM system.quotas WHERE name = 'sql_api_quota'"
       interval: 5s
       timeout: 5s
       start_period: 30s

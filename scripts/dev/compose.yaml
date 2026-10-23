@@ -1,0 +1,70 @@
+services:
+  mailpit:
+    profiles: [mail]
+    image: axllent/mailpit:v1.20.4
+    ports:
+      - target: 1025
+        host_ip: 127.0.0.1
+      - target: 8025
+        host_ip: 127.0.0.1
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  postgres:
+    image: postgres:17.11-alpine3.23
+    environment:
+      POSTGRES_PASSWORD: dev
+    ports:
+      - target: 5432
+        host_ip: 127.0.0.1
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ${DEV_ROOT}/scripts/dev/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse-app:
+    build:
+      context: ../../clickhouse
+      target: self-hosted
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: dev
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      CLICKHOUSE_SQL_API_PASSWORD: dev
+      COLLECTOR_RW_PASSWORD: dev
+      APP_RO_PASSWORD: dev
+      WEB_APP_ADMIN_PASSWORD: dev
+    ports:
+      - target: 8123
+        host_ip: 127.0.0.1
+    volumes:
+      - clickhouse-app:/var/lib/clickhouse
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse-cloud:
+    build:
+      context: ../../clickhouse
+      target: cloud
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: dev
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      COLLECTOR_RW_PASSWORD: dev
+      APP_RO_PASSWORD: dev
+      WEB_APP_ADMIN_PASSWORD: dev
+    ports:
+      - target: 8123
+        host_ip: 127.0.0.1
+    volumes:
+      - clickhouse-cloud:/var/lib/clickhouse
+    labels:
+      dev.checkout: ${DEV_ROOT}
+volumes:
+  postgres:
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse-app:
+    labels:
+      dev.checkout: ${DEV_ROOT}
+  clickhouse-cloud:
+    labels:
+      dev.checkout: ${DEV_ROOT}

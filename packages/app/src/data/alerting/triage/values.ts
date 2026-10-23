@@ -119,7 +119,7 @@ export async function loadInstanceValues(
                 JSONExtractString(sample, 'fingerprint') AS fingerprint,
                 JSONExtractRaw(sample, 'labels') AS labels_json,
                 JSONExtractFloat(sample, 'value') AS v
-           FROM app.alert_events
+           FROM alert_events
            ARRAY JOIN JSONExtractArrayRaw(samples_json) AS sample
           WHERE slug IN ({slugs:Array(String)})
             AND is_live

@@ -2,7 +2,7 @@ import { attributeExists, attributeText } from "../../sql/json-attributes";
 
 // Everr's stable identity for an Error. The expression lives in the
 // `errorFingerprint` ClickHouse UDF
-// (clickhouse/init/04-create-error-fingerprint-function.sql and the local
+// (clickhouse/init/shared/04-create-error-fingerprint-function.sql and the local
 // collector's copy), so the web app, local collector, agents, and skills all
 // group Errors identically instead of each carrying a copy of the SQL. Callers
 // pass ServiceName and the three attributes the UDF reads, each as text, so

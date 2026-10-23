@@ -1,0 +1,144 @@
+version: "0.5"
+is_strict: true
+ordered_shutdown: true
+
+environment:
+  - NODE_ENV=development
+  - SKIP_ENV_VALIDATION=false
+  - DATABASE_HOST=127.0.0.1
+  - DATABASE_PASSWORD=dev
+  - DATABASE_SSL=false
+  - CLICKHOUSE_DATABASE=app
+  - CLICKHOUSE_USERNAME=app_ro
+  - CLICKHOUSE_PASSWORD=dev
+  - CLICKHOUSE_ADMIN_USERNAME=web_app_admin
+  - CLICKHOUSE_ADMIN_PASSWORD=dev
+  - CLICKHOUSE_SQL_API_USERNAME=sql_api
+  - CLICKHOUSE_SQL_API_PASSWORD=dev
+  - CLICKHOUSE_SQL_API_MASTER_KEY=everr-development-only-not-a-secret
+  - BETTER_AUTH_SECRET=everr-development-only-not-a-secret
+  - INGEST_VERIFY_SHARED_SECRET=everr-development-only-not-a-secret
+
+# SIGTERM is expected during ordered shutdown. exit_on_end in 1.122.0
+# can re-enter shutdown, so required services use exit_on_failure.
+processes:
+  databases:
+    command: |
+      trap 'docker compose down --timeout 60' EXIT
+      docker compose up --build --abort-on-container-exit postgres clickhouse-app clickhouse-cloud
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: >-
+          docker compose exec -T postgres pg_isready --host postgres -U postgres &&
+          docker compose exec -T clickhouse-app clickhouse-client --host clickhouse-app --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0' &&
+          docker compose exec -T clickhouse-cloud clickhouse-client --host clickhouse-cloud --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0'
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown:
+      command: docker compose stop --timeout 60 postgres clickhouse-app clickhouse-cloud
+      timeout_seconds: 90
+
+  collector-build:
+    command: make -C collector build && make -C collector build EVERR_BUILD_TARGET=self-hosted
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+
+  app:
+    working_dir: ${DEV_ROOT}/packages/app
+    command: portless run --name ${DEV_APP_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    environment:
+      - DATABASE_NAME=everr_app
+      - DATABASE_USER=everr_app
+      - EVERR_PUBLIC_INGEST_URL=${DEV_APP_INGEST_URL}
+      - INGRESS_COLLECTOR_URL=${DEV_APP_GITHUB_URL}/webhook/github
+    depends_on:
+      databases: { condition: process_healthy }
+      collector-app: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec: { command: 'curl --fail --silent "${DEV_APP_URL}/api/health"' }
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown: { timeout_seconds: 15 }
+
+  cloud:
+    working_dir: ${DEV_ROOT}/packages/cloud
+    command: portless run --name ${DEV_CLOUD_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    environment:
+      - DATABASE_NAME=everr_cloud
+      - DATABASE_USER=everr_cloud
+      - VITE_EVERR_PUBLIC_INGEST_URL=${DEV_CLOUD_INGEST_URL}
+      - INGRESS_COLLECTOR_URL=${DEV_CLOUD_GITHUB_URL}/webhook/github
+    depends_on:
+      databases: { condition: process_healthy }
+      collector-cloud: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec: { command: 'curl --fail --silent "${DEV_CLOUD_URL}/api/health"' }
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 90
+    shutdown: { timeout_seconds: 15 }
+
+  collector-app:
+    command: portless run --name ${DEV_APP_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app node "${DEV_ROOT}/scripts/dev/collector.mjs" app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    environment:
+      - CLICKHOUSE_DATABASE=otel
+      - CLICKHOUSE_USERNAME=collector_rw
+      - INGEST_VERIFY_URL=${DEV_APP_URL}/api/internal/verify-key
+      - OTLP_GRPC_PORT=${DEV_APP_GRPC_PORT}
+      - GITHUB_PORT=${DEV_APP_GITHUB_PORT}
+    depends_on:
+      databases: { condition: process_healthy }
+      collector-build: { condition: process_completed_successfully }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: >-
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_APP_INGEST_URL}/v1/logs')" = 401 &&
+          test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_APP_GITHUB_URL}/webhook/github')" = 400
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 60
+    shutdown: { timeout_seconds: 15 }
+
+  collector-cloud:
+    command: portless run --name ${DEV_CLOUD_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud node "${DEV_ROOT}/scripts/dev/collector.mjs" cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    environment:
+      - CLICKHOUSE_DATABASE=otel
+      - CLICKHOUSE_USERNAME=collector_rw
+      - INGEST_VERIFY_URL=${DEV_CLOUD_URL}/api/internal/verify-key
+      - OTLP_GRPC_PORT=${DEV_CLOUD_GRPC_PORT}
+      - GITHUB_PORT=${DEV_CLOUD_GITHUB_PORT}
+      - EVERR_QUEUE_DIRECTORY=${DEV_STATE_DIR}/cloud-queue
+    depends_on:
+      databases: { condition: process_healthy }
+      collector-build: { condition: process_completed_successfully }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: >-
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST '${DEV_CLOUD_INGEST_URL}/v1/logs')" = 401 &&
+          test "$(curl -s -o /dev/null -w '%{http_code}' '${DEV_CLOUD_GITHUB_URL}/webhook/github')" = 400
+      timeout_seconds: 5
+      period_seconds: 2
+      failure_threshold: 60
+    shutdown: { timeout_seconds: 15 }
+
+  ready:
+    command: |
+      echo "App: ${DEV_APP_URL} (ingest: ${DEV_APP_INGEST_URL})"
+      echo "Cloud: ${DEV_CLOUD_URL} (ingest: ${DEV_CLOUD_INGEST_URL})"
+      echo "App OTLP/gRPC: http://127.0.0.1:${DEV_APP_GRPC_PORT}"
+      echo "Cloud OTLP/gRPC: http://127.0.0.1:${DEV_CLOUD_GRPC_PORT}"
+      echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
+    depends_on:
+      app: { condition: process_healthy }
+      cloud: { condition: process_healthy }
