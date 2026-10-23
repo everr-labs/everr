@@ -33,6 +33,8 @@ export function createAppConfig(
       envDir: process.cwd(),
       cacheDir: resolve(process.cwd(), "node_modules/.vite"),
       publicDir: resolve(appDirectory, "public"),
+      // Prerender fetches must reach the preview listener inside IPv4-only containers.
+      preview: { host: "127.0.0.1" },
       resolve: {
         tsconfigPaths: true,
         dedupe: [
