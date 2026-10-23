@@ -215,18 +215,19 @@ describe("hotSingleton", () => {
     expect(start).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects explicit stop failures and allows a later restart", async () => {
+  it("propagates explicit cleanup failures and observes hot-dispose failures", async () => {
     const error = new Error("stop boom");
     const start = vi.fn(async () => ({ id: 1 }));
     const stop = vi.fn(async () => {
       throw error;
     });
     const onError = vi.fn();
+    const hot = createMockHot();
     const singleton = hotSingleton({
       key: uniqueKey(),
       start,
       stop,
-      hot: undefined,
+      hot: hot.hot,
       onError,
     });
 
@@ -235,22 +236,6 @@ describe("hotSingleton", () => {
     expect(onError).not.toHaveBeenCalled();
     await singleton.start();
     expect(start).toHaveBeenCalledTimes(2);
-    await expect(singleton.stop()).rejects.toBe(error);
-  });
-  it("observes hot-dispose failures while explicit shutdown still rejects", async () => {
-    const error = new Error("hot cleanup failed");
-    const hot = createMockHot();
-    const onError = vi.fn();
-    const singleton = hotSingleton({
-      key: uniqueKey(),
-      hot: hot.hot,
-      start: async () => ({}),
-      stop: async () => {
-        throw error;
-      },
-      onError,
-    });
-    await singleton.start();
     hot.triggerDispose();
     await flush();
     expect(onError).toHaveBeenCalledExactlyOnceWith(error);
