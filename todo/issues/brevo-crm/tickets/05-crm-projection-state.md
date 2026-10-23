@@ -1,6 +1,6 @@
 # 05: Add cloud CRM projection state and snapshot mapping
 
-Status: implemented, independently reviewed, and ready for commit. Not committed.
+Status: implemented, independently reviewed, and committed as `f0bbeef65`.
 
 Repository: `everr`.
 
@@ -89,5 +89,5 @@ independent review, and commit status separately and truthfully.
   `/private/tmp/task05-review-types.log` (TypeScript, exit 0), and
   `/private/tmp/task05-review-style.log` (scoped lint, formatting, whitespace and
   ownership checks). No new migration artifacts, provider calls, activation,
-  shared CRM imports or telemetry were introduced. Root commits this reviewed
-  task separately; it remains uncommitted here.
+  shared CRM imports or telemetry were introduced. The coordinating agent committed
+  this independently reviewed task as `f0bbeef65`.

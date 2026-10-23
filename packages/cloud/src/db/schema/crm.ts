@@ -61,3 +61,17 @@ export const crmProjection = pgTable(
     ),
   ],
 );
+
+/** Account-wide outbound limits, deliberately independent of deployment and API-key rotation. */
+export const crmBrevoBudget = pgTable(
+  "crm_brevo_budget",
+  {
+    accountScope: text("account_scope").notNull(),
+    group: text("endpoint_group", { enum: ["contacts", "general"] }).notNull(),
+    nextAllowedAt: timestamp("next_allowed_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accountScope, table.group] }),
+    check("crm_brevo_budget_group_check", sql`${table.group} in ('contacts', 'general')`),
+  ],
+);

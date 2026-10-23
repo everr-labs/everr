@@ -1,7 +1,8 @@
 # Cloud CRM projection state
 
-This module stores desired CRM state. It does not register consumers, run a worker,
-read Brevo configuration, or call a provider. Cloud's schema entry point exports
+This module stores desired CRM state and includes an inert cloud-only
+[Brevo adapter and account request budgets](brevo/README.md). It does not register
+consumers, run a worker or make startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
 Only schema source changes are included, with no generated migration artifacts.
 
@@ -15,9 +16,9 @@ maps the User/Organization pair, independently of a Membership row ID or email
 domain. One User can belong to several Organizations. Never change a deployment
 namespace after syncing its records without a deliberate mapping migration.
 
-Contact external identity is intended for Brevo's `ext_id`. Company identity is
-intended for the `EVERR_ORG_ID` attribute, alongside its persisted provider ID.
-The adapter in task 06 owns provider request formatting and verification. Custom
+Contact external identity is intended for Brevo's `ext_id`. Company identity uses the `EVERR_ORG_ID` attribute label (verified provider internal
+name `everr_org_id`), alongside its persisted provider ID.
+The adapter owns provider request formatting and bounded recovery. Custom
 product attributes use the `EVERR_` namespace; the desired snapshot uses the local
 field names below. Source IDs are deployment scoped before leaving Everr.
 
