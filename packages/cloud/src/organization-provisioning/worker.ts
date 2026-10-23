@@ -1,3 +1,4 @@
+import { events as businessEvents } from "@everr/app/server/business-events/runtime";
 import { EventEmitter } from "node:events";
 import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
@@ -27,7 +28,7 @@ export const organizationWorker = managedWorker({
         events,
         noHandleSignals: true,
         pollInterval: 1000,
-        taskList: createOrganizationTaskList(database, retries.capPendingRetries),
+        taskList: createOrganizationTaskList(database, retries.capPendingRetries, businessEvents),
         parsedCronItems: organizationProvisioningCronItems,
         preset: { worker: { gracefulShutdownAbortTimeout: 5000 } },
       });

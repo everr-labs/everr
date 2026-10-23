@@ -3,7 +3,8 @@
 Status: planning baseline independently reviewed and committed as `8a9145de2`,
 October 23, 2026. Task 01 is implemented, independently reviewed, and committed as `c4dca85c1`.
 Task 02 is implemented, independently reviewed, and committed as `9696b6ce5`.
-Task 03 is implemented, independently reviewed, and ready for commit; tasks 04 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+Task 03 is implemented, independently reviewed, and committed as `361211ba8`.
+Task 04 is implemented, independently reviewed, and ready for commit; tasks 05 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -334,7 +335,8 @@ scope, acceptance criteria, and checks that belong in that commit. Task 00's
 documentation is independently reviewed and committed as `8a9145de2`. Task 01 is
 implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
 implemented, independently reviewed, and committed as `9696b6ce5`. Task 03 is
-implemented, independently reviewed, and ready for commit; tasks 04 through 16 remain planned. The dependency graph and execution ledger are recorded in the
+implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
+implemented, independently reviewed, and ready for commit; tasks 05 through 16 remain planned. The dependency graph and execution ledger are recorded in the
 task index.
 
 | Increment                            | Tickets            | Result                                                                                                            |

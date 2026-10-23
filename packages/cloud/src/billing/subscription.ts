@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { member, organization } from "@everr/app/db/schema";
+import {
+  membershipChanged,
+  publishIdentityFact,
+  type MembershipFact,
+} from "@everr/app/identity/events";
 import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { eq } from "drizzle-orm";
 import { proOrganizationCheckout } from "../db/schema";
@@ -21,7 +26,7 @@ export function createBillingSubscriptions(
   store: BillingStore,
   identity: ReturnType<typeof createBillingIdentity>,
 ) {
-  const { db, polar, lock } = deps;
+  const { db, polar, lock, events } = deps;
   async function ensureOrganization(
     intent: Awaited<ReturnType<typeof readIntent>>,
     createOrganization: CreateOrganization,
@@ -58,13 +63,15 @@ export function createBillingSubscriptions(
       );
     const memberships = await db.select().from(member).where(eq(member.organizationId, org.id));
     if (!memberships.length && !intent.completedAt) {
-      await db.insert(member).values({
+      const repaired = {
         id: randomUUID(),
         organizationId: org.id,
         userId: intent.ownerId,
         role: "owner",
         createdAt: new Date(),
-      });
+      };
+      await db.insert(member).values(repaired);
+      publishIdentityFact<MembershipFact>(events, membershipChanged("membership.added", repaired));
     } else if (
       !intent.completedAt &&
       !memberships.some((m) => m.userId === intent.ownerId && isOrganizationOwner(m.role))

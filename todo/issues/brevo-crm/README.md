@@ -3,9 +3,10 @@
 Status: task 00 is independently reviewed and committed as `8a9145de2`. Task 01
 is implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
 implemented, independently reviewed, and committed as `9696b6ce5`. Task 03 is
-implemented, independently reviewed, and ready for commit. Tasks 04 through 16 remain planned.
-User, Organization, and Membership source facts are wired; no CRM subscribers or
-handlers are enabled.
+implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
+implemented, independently reviewed, and ready for commit. Tasks 05 through 16 remain planned.
+User, Organization, Membership, billing, Plan, and readiness source facts are wired;
+no CRM subscribers or handlers are enabled.
 
 Source: [integration plan](../../../docs/brevo-crm-integration-plan.md), based on
 `chore/worker-separation` at `aed99bc42`. The active implementation branch is
@@ -39,14 +40,15 @@ including unrelated research, skills, and scripts. Execute tickets sequentially:
 each implementation agent hands its scoped result to a separate review-and-fixes
 agent before the coordinating agent commits and advances to the next ticket.
 
-| Task          | Implementation                                              | Independent review                                          | Commit        |
-| ------------- | ----------------------------------------------------------- | ----------------------------------------------------------- | ------------- |
-| 00            | Complete; scoped documentation checks passed                | Complete; findings fixed and checks repeated                | `8a9145de2`   |
-| 01            | Complete; checks and isolated ingestion passed              | Complete; strict-schema finding fixed and checks passed     | `c4dca85c1`   |
-| 02            | Complete; source, PostgreSQL and regression checks passed   | Complete; no material findings; 133 regression tests passed | `9696b6ce5`   |
-| 03            | Complete; source, PostgreSQL and provisioning checks passed | Complete; multi-match mutation finding fixed and verified   | Not committed |
-| 04 through 15 | Planned                                                     | Not started                                                 | Not committed |
-| 16            | Optional design only, planned                               | Not started                                                 | Not committed |
+| Task          | Implementation                                               | Independent review                                            | Commit        |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------- | ------------- |
+| 00            | Complete; scoped documentation checks passed                 | Complete; findings fixed and checks repeated                  | `8a9145de2`   |
+| 01            | Complete; checks and isolated ingestion passed               | Complete; strict-schema finding fixed and checks passed       | `c4dca85c1`   |
+| 02            | Complete; source, PostgreSQL and regression checks passed    | Complete; no material findings; 133 regression tests passed   | `9696b6ce5`   |
+| 03            | Complete; source, PostgreSQL and provisioning checks passed  | Complete; multi-match mutation finding fixed and verified     | `361211ba8`   |
+| 04            | Complete; 98 focused persistence and regression tests passed | Complete; no material findings; 98 tests passed independently | Not committed |
+| 05 through 15 | Planned                                                      | Not started                                                   | Not committed |
+| 16            | Optional design only, planned                                | Not started                                                   | Not committed |
 
 Update this ledger and the affected ticket with actual evidence after each
 stage. An implementation checkmark alone does not mean a ticket is reviewed or

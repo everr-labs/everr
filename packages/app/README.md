@@ -93,7 +93,9 @@ Shared membership mutations belong to `@everr/app/identity/memberships`.
 `restrictOrganizationToOwner` checks the retained Owner, removes other Members,
 and cancels pending invitations within the caller's transaction. Cloud owns
 downgrade eligibility and billing coordination and composes this shared operation
-with its plan update.
+with its plan update. The operation returns the actual removed Membership IDs
+for publication after that transaction commits; the shared module imports no
+cloud billing types.
 
 ## Extending the application
 

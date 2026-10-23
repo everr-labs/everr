@@ -1,6 +1,6 @@
 # 03: Publish Organization and Membership facts
 
-Status: implemented, independently reviewed, and ready for commit. Not committed.
+Status: implemented, independently reviewed, and committed as `361211ba8`.
 
 Repository: `everr`.
 
@@ -132,7 +132,7 @@ deprovisioning enqueue. No new policy restriction or generic abstraction was add
 - Main-worktree `.auth` remains absent, so authenticated manual checks remain
   skipped. No telemetry changed, and no new ingestion claim is made.
 
-Ready for the coordinating agent's scoped commit. No material findings remain.
+Committed by the coordinating agent as `361211ba8`. No material findings remained at commit.
 
 ## Commit boundary
 

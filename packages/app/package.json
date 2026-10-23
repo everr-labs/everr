@@ -27,6 +27,7 @@
     "./identity/server": "./src/identity/server.ts",
     "./lib/clickhouse": "./src/lib/clickhouse.ts",
     "./lib/clickhouse-writer": "./src/lib/clickhouse-writer.ts",
+    "./organizations/events": "./src/organizations/events.ts",
     "./organizations/cleanup": "./src/lib/organization-data-cleanup.server.ts",
     "./identity/roles": "./src/lib/organization-role.ts",
     "./lib/route-access": "./src/lib/route-access.ts",

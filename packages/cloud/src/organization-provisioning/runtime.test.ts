@@ -11,6 +11,7 @@ import { isOrganizationProvisioned } from "./metadata";
 
 const mocks = vi.hoisted(() => ({
   database: undefined as unknown,
+  publish: vi.fn(),
   provision: vi.fn(),
   deprovision: vi.fn(),
   error: vi.fn(),
@@ -56,11 +57,14 @@ const scan = () => tasks["clickhouse/scan-pending-organizations"]?.({}, {} as ne
 beforeAll(async () => {
   fixture = await createTestDatabase();
   mocks.database = fixture.db;
-  tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {});
+  tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {}, {
+    publish: mocks.publish,
+  });
 });
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
   await fixture.truncate();
+  mocks.publish.mockReset();
   mocks.error.mockClear();
   mocks.info.mockClear();
   mocks.provision.mockReset().mockResolvedValue(undefined);
@@ -84,10 +88,17 @@ describe("organization provisioning", () => {
     mocks.provision.mockRejectedValueOnce(new Error("Timeout error"));
     await expect(provision()).rejects.toThrow("Timeout error");
     expect(await ready()).toBe(false);
+    expect(mocks.publish).not.toHaveBeenCalled();
     await provision();
     expect(await ready()).toBe(true);
     await provision();
     expect(mocks.provision).toHaveBeenCalledTimes(2);
+    expect(mocks.publish).toHaveBeenCalledExactlyOnceWith({
+      type: "organization.provisioned",
+      version: 1,
+      subjectId: orgId,
+      data: { organizationId: orgId },
+    });
   });
 
   it("scans missed enqueues without resetting retry attempts or scheduling", async () => {
@@ -160,6 +171,7 @@ describe("organization provisioning", () => {
     });
     await provision();
     expect(await ready()).toBeUndefined();
+    expect(mocks.publish).not.toHaveBeenCalled();
     expect(mocks.deprovision).toHaveBeenCalledWith(orgId, undefined);
   });
 
@@ -202,9 +214,13 @@ it("reports stalled setup and still scans when retry recovery fails", async () =
     .update(organization)
     .set({ createdAt: new Date(Date.now() - 180_000) })
     .where(eq(organization.id, orgId));
-  const scanTasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {
-    throw new Error("recovery unavailable");
-  });
+  const scanTasks = createOrganizationTaskList(
+    fixture.db as unknown as Database,
+    async () => {
+      throw new Error("recovery unavailable");
+    },
+    { publish: mocks.publish },
+  );
   await scanTasks["clickhouse/scan-pending-organizations"]?.({}, {} as never);
   expect(mocks.error).toHaveBeenCalledWith(
     "clickhouse.organization.retry_recovery.failed",
@@ -265,3 +281,41 @@ it.each([PROVISION_ORGANIZATION_TASK, DEPROVISION_ORGANIZATION_TASK])(
     expect(await ready()).toBe(false);
   },
 );
+
+it("does not announce readiness when another attempt already committed the guarded transition", async () => {
+  mocks.provision.mockImplementationOnce(async () => {
+    await fixture.db
+      .update(organization)
+      .set({ metadata: JSON.stringify({ clickhouseReady: true }) })
+      .where(eq(organization.id, orgId));
+  });
+  await provision();
+  expect(await ready()).toBe(true);
+  expect(mocks.publish).not.toHaveBeenCalled();
+});
+
+it("preserves readiness when publication throws", async () => {
+  mocks.publish.mockImplementation(() => {
+    throw new Error("publication unavailable");
+  });
+  await expect(provision()).resolves.toBeUndefined();
+  expect(await ready()).toBe(true);
+  await provision();
+  expect(mocks.publish).toHaveBeenCalledOnce();
+});
+
+it("does not publish readiness when its guarded database write fails, and retries normally", async () => {
+  await fixture.client.exec(
+    `ALTER TABLE organization ADD CONSTRAINT reject_ready CHECK (metadata::jsonb ->> 'clickhouseReady' <> 'true')`,
+  );
+  try {
+    await expect(provision()).rejects.toThrow();
+    expect(await ready()).toBe(false);
+    expect(mocks.publish).not.toHaveBeenCalled();
+  } finally {
+    await fixture.client.exec("ALTER TABLE organization DROP CONSTRAINT reject_ready");
+  }
+  await provision();
+  expect(await ready()).toBe(true);
+  expect(mocks.publish).toHaveBeenCalledOnce();
+});

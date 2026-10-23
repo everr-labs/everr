@@ -188,3 +188,15 @@ configuration passes cloud migrations and the schema target to the shared
 alerting harness; the suites exercise the same behavior against this
 application's database setup. Provisioning fixtures remain in `src/testing`,
 and the cloud-only tenant-column assertion stays in this package.
+
+## Billing and readiness facts
+
+Cloud registers subscription and Plan business facts, together with the shared
+identity and readiness contracts, with no CRM subscribers enabled. Billing publishes
+a subscription fact only after accepting and committing a newer provider revision.
+Plan changes describe actual stored transitions: an inactive Pro subscription can
+suspend access without changing Plan. Hobby downgrade facts follow its local
+transaction, and owner Membership repair facts follow their standalone insert.
+Provisioning publishes readiness only for a guarded pending-to-ready update that
+returns a row. Publication is fire and forget and preserves the existing billing
+locks, provider checks, critical provisioning jobs, and cleanup guarantees.

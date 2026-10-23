@@ -51,8 +51,9 @@ work to the reserved provisioning runner without revisiting its capacity.
 `server/business-events/runtime.ts` composes `events.publish(fact): void` from
 `ApplicationRuntime.businessEvents`. Features own typed definitions and payload
 validation; the application supplies static definitions and subscribers. Both
-applications register the shared User, Organization, and Membership definitions
-with empty subscriber arrays. CRM handlers remain disabled.
+applications register the shared User, Organization, Membership, and readiness
+definitions; cloud also registers subscription and Plan definitions. Subscriber
+arrays remain empty. CRM handlers remain disabled.
 
 A producer calls publication after its source commit succeeds, using values
 already available from that operation. Publication constructs an ID and occurrence
@@ -118,9 +119,20 @@ Better Auth currently commits an Organization insert separately from its creator
 Membership insert. If the latter fails, the Organization and its creation fact
 remain committed. Cloud provisioning intent stays atomic with the Organization
 row. An explicit source transaction rollback discards all its captured facts;
-a publication failure never changes the committed source result. Direct cloud
-billing Membership repairs and downgrade removals, plus provisioning readiness,
-remain task 04.
+a publication failure never changes the committed source result.
+
+Cloud billing publishes `billing.subscription.changed` after an accepted provider
+revision commits in `saveSubscription`. Its conditional Plan upsert publishes
+`organization.plan.changed` only for an actual Hobby-to-Pro transition. Inactive
+Pro subscriptions retain their Pro Plan and can independently suspend app access.
+A Hobby downgrade publishes captured Membership removals and its Pro-to-Hobby
+Plan transition after the local transaction, even if subsequent external billing
+reconciliation fails. The retained Owner has no fabricated update. Direct owner
+Membership repair publishes after its standalone insert succeeds, before later
+checkout steps. The provisioning runner publishes shared `organization.provisioned`
+only when its guarded pending-to-ready update returns a row; retries and concurrent
+attempts that transition no row publish nothing. These ancillary facts preserve
+critical provisioning enqueue, cleanup, billing verification, and lock behavior.
 
 ## Facts and effects already present
 
