@@ -59,11 +59,6 @@ export function sanitizeAlertError(text: string): string {
     .replace(BOT_TOKEN_RE, "[redacted-token]");
 }
 
-// Shorter than this, a header value is too likely to be an ordinary word in
-// the error ("ok", "true"). Those stay. A credential long enough to matter
-// is still removed before the text is stored.
-const SECRET_REDACTION_MIN = 8;
-
 /**
  * Replace known secret strings before a pattern sanitizer runs.
  *
@@ -71,10 +66,11 @@ const SECRET_REDACTION_MIN = 8;
  * The send path knows the values it just used, so an endpoint that echoes
  * one of them back does not get that echo written into the trail.
  * Longer secrets go first so a short one that is a prefix of a longer one
- * cannot punch a hole in it.
+ * cannot punch a hole in it. An empty string matches every position, so it
+ * is dropped.
  */
 export function redactSecrets(text: string, secrets: readonly string[]): string {
-  const unique = [...new Set(secrets.filter((secret) => secret.length >= SECRET_REDACTION_MIN))];
+  const unique = [...new Set(secrets.filter((secret) => secret.length > 0))];
   unique.sort((a, b) => b.length - a.length);
   let redacted = text;
   for (const secret of unique) {

@@ -83,11 +83,13 @@ describe("sanitizeAlertError", () => {
     const secret = "Bearer super-secret-value";
     const sanitized = redactSecrets(`upstream echoed ${secret} and then said try again`, [
       secret,
-      "ok",
+      "",
     ]);
-    expect(sanitized).not.toContain(secret);
-    expect(sanitized).toContain("[redacted-secret]");
-    expect(sanitized).toContain("try again");
+    expect(sanitized).toBe("upstream echoed [redacted-secret] and then said try again");
+  });
+
+  it("strips a short header secret", () => {
+    expect(redactSecrets("env was prod", ["prod"])).toBe("env was [redacted-secret]");
   });
 
   it("passes a plain message through unchanged", () => {
