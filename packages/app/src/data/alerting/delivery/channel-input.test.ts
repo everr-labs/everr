@@ -115,7 +115,10 @@ describe("webhook headers on a draft", () => {
   it("requires header values again when the URL is replaced", () => {
     const draft = { ...channelConfigDraft(WEBHOOK), url: "https://203.0.113.11/hook" };
     expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toBe("Header value is required for Authorization");
+    expect(channelDraftError(draft, "webhook")).toEqual({
+      message: "Header value is required for Authorization",
+      rows: [{ name: false, value: true }],
+    });
     draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
     expect(channelConfigInput(draft, "webhook")).toEqual({
       type: "webhook",
@@ -128,7 +131,10 @@ describe("webhook headers on a draft", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], name: "X-Token" };
     expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toBe("Header value is required for X-Token");
+    expect(channelDraftError(draft, "webhook")).toEqual({
+      message: "Header value is required for X-Token",
+      rows: [{ name: false, value: true }],
+    });
   });
 
   it("ignores an unused blank row and rejects a duplicate name", () => {
@@ -150,7 +156,13 @@ describe("webhook headers on a draft", () => {
       retainedName: null,
     };
     expect(channelConfigInput(draft, "webhook")).toBeNull();
-    expect(channelDraftError(draft, "webhook")).toMatch(/already set/);
+    expect(channelDraftError(draft, "webhook")).toEqual({
+      message: "Header authorization is already set",
+      rows: [
+        { name: true, value: false },
+        { name: true, value: false },
+      ],
+    });
   });
 
   it("rejects a header the send is not allowed to set", () => {
@@ -161,6 +173,9 @@ describe("webhook headers on a draft", () => {
       headers: [{ id: "blocked", name: "Content-Type", value: "text/plain", retainedName: null }],
     };
     expect(channelConfigInput(draft, null)).toBeNull();
-    expect(channelDraftError(draft, null)).toMatch(/cannot be set/);
+    expect(channelDraftError(draft, null)).toEqual({
+      message: "header Content-Type cannot be set",
+      rows: [{ name: true, value: false }],
+    });
   });
 });

@@ -62,33 +62,86 @@ function sameHeaderName(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
-/** The header list a webhook write should carry, or why it cannot yet.
- *  Fully blank rows are the unused "add header" slot and are dropped.
+/** Which controls on one draft row the reader has to change. Parallel to
+ *  `ChannelConfigDraft["headers"]`, including a blank row the write drops. */
+export type WebhookHeaderRowInvalid = {
+  name: boolean;
+  value: boolean;
+};
+
+/** Why a webhook draft cannot be saved, and which row fields say so. */
+export type ChannelDraftProblem = {
+  message: string;
+  rows: WebhookHeaderRowInvalid[];
+};
+
+/** The header list a webhook write should carry, plus the row fields that
+ *  block it. Fully blank rows are the unused "add header" slot and are dropped.
  *  A blank value keeps a stored header only while the URL stays the one it
  *  was saved for. A typed URL is a new endpoint, so that value has to be entered. */
-function webhookHeadersFromDraft(
-  headers: WebhookHeaderDraft[],
-  retainStored: boolean,
-): { headers: { name: string; value?: string }[] } | { error: string } {
-  const filled = headers.filter((header) => header.name.trim() !== "" || header.value !== "");
-  const seen = new Set<string>();
-  const result: { name: string; value?: string }[] = [];
-  for (const header of filled) {
+function webhookHeadersFromDraft(headers: WebhookHeaderDraft[], retainStored: boolean) {
+  const rows: WebhookHeaderRowInvalid[] = headers.map(() => ({ name: false, value: false }));
+  const filledIndexes: number[] = [];
+  const seen = new Map<string, number[]>();
+  const write: { name: string; value?: string }[] = [];
+  let message: string | null = null;
+  const fail = (text: string) => {
+    message ??= text;
+  };
+
+  for (const [index, header] of headers.entries()) {
     const name = header.name.trim();
-    if (name === "") return { error: "Header name is required" };
+    if (name === "" && header.value === "") continue;
+    filledIndexes.push(index);
+    if (name === "") {
+      rows[index].name = true;
+      fail("Header name is required");
+      continue;
+    }
     const key = name.toLowerCase();
-    if (seen.has(key)) return { error: `Header ${name} is already set` };
-    seen.add(key);
+    const prior = seen.get(key);
+    if (prior) {
+      rows[index].name = true;
+      for (const other of prior) rows[other].name = true;
+      prior.push(index);
+      fail(`Header ${name} is already set`);
+    } else {
+      seen.set(key, [index]);
+    }
     const retains =
       retainStored && header.retainedName !== null && sameHeaderName(name, header.retainedName);
     if (!header.value) {
-      if (!retains) return { error: `Header value is required for ${name}` };
-      result.push({ name });
+      if (!retains) {
+        rows[index].value = true;
+        fail(`Header value is required for ${name}`);
+      } else if (message === null) {
+        write.push({ name });
+      }
       continue;
     }
-    result.push({ name, value: header.value });
+    if (message === null) write.push({ name, value: header.value });
   }
-  return { headers: result };
+
+  return { message, rows, headers: write, filledIndexes };
+}
+
+/** A schema issue's path addresses the filtered write list. Mark the draft
+ *  row that produced that entry. */
+function markHeaderIssues(
+  rows: WebhookHeaderRowInvalid[],
+  filledIndexes: number[],
+  issues: readonly { path: PropertyKey[] }[],
+) {
+  for (const issue of issues) {
+    const fieldAt = issue.path.findIndex((part) => part === "name" || part === "value");
+    if (fieldAt < 1) continue;
+    const index = issue.path[fieldAt - 1];
+    if (typeof index !== "number") continue;
+    const row = filledIndexes[index];
+    if (row === undefined || !rows[row]) continue;
+    if (issue.path[fieldAt] === "name") rows[row].name = true;
+    else rows[row].value = true;
+  }
 }
 
 /**
@@ -107,7 +160,7 @@ export function channelConfigInput(
     case "webhook": {
       if (!draft.url && !keepsSecret) return null;
       const headers = webhookHeadersFromDraft(draft.headers, keepsSecret && draft.url === "");
-      if ("error" in headers) return null;
+      if (headers.message) return null;
       config = {
         type: "webhook",
         ...(draft.url ? { url: draft.url } : {}),
@@ -143,17 +196,18 @@ export function channelConfigInput(
 }
 
 /** Why a webhook draft cannot be saved, when the reason is something the
- *  reader typed rather than a secret they have not typed yet. */
+ *  reader typed rather than a secret they have not typed yet. `rows` lines
+ *  up with `draft.headers` so the editor can mark the control to change. */
 export function channelDraftError(
   draft: ChannelConfigDraft,
   storedType: ChannelType | null,
-): string | null {
+): ChannelDraftProblem | null {
   if (draft.type !== "webhook") return null;
   const headers = webhookHeadersFromDraft(
     draft.headers,
     storedType === "webhook" && draft.url === "",
   );
-  if ("error" in headers) return headers.error;
+  if (headers.message) return { message: headers.message, rows: headers.rows };
   if (!draft.url && storedType !== "webhook") return null;
   const parsed = AlertingChannelConfigInputSchema.safeParse({
     type: "webhook",
@@ -161,5 +215,9 @@ export function channelDraftError(
     headers: headers.headers,
   });
   if (parsed.success) return null;
-  return parsed.error.issues[0]?.message ?? firstZodIssue(parsed.error);
+  markHeaderIssues(headers.rows, headers.filledIndexes, parsed.error.issues);
+  return {
+    message: parsed.error.issues[0]?.message ?? firstZodIssue(parsed.error),
+    rows: headers.rows,
+  };
 }

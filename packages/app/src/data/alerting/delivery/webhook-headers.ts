@@ -61,7 +61,7 @@ const BLOCKED_HEADER_NAMES = new Set([
   "via",
 ]);
 
-export function webhookHeaderNameProblem(name: string): string | null {
+function webhookHeaderNameProblem(name: string): string | null {
   if (name.length === 0) return "header name is required";
   if (name.length > ALERTING_WEBHOOK_HEADER_NAME_MAX || !HEADER_NAME_RE.test(name)) {
     return "header name must be an HTTP token";
@@ -73,10 +73,7 @@ export function webhookHeaderNameProblem(name: string): string | null {
   return null;
 }
 
-export function webhookHeaderValueProblem(
-  value: string,
-  opts: { allowRedacted: boolean },
-): string | null {
+function webhookHeaderValueProblem(value: string, opts: { allowRedacted: boolean }): string | null {
   if (!opts.allowRedacted && value === REDACTED_HEADER_VALUE) {
     return "the redacted channel secret cannot be written";
   }

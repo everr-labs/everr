@@ -25,14 +25,11 @@ import {
   channelDraftError,
   EMPTY_CHANNEL_DRAFT,
   type WebhookHeaderDraft,
+  type WebhookHeaderRowInvalid,
 } from "#app/data/alerting/delivery/channel-input.ts";
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
-import {
-  ALERTING_WEBHOOK_HEADERS_MAX,
-  webhookHeaderNameProblem,
-  webhookHeaderValueProblem,
-} from "#app/data/alerting/delivery/webhook-headers.ts";
+import { ALERTING_WEBHOOK_HEADERS_MAX } from "#app/data/alerting/delivery/webhook-headers.ts";
 import type { AlertingChannelConfigInput } from "#app/data/alerting/types.ts";
 import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
@@ -226,14 +223,14 @@ function ChannelForm({
         {draft.type === "webhook" && (
           <WebhookHeadersEditor
             headers={draft.headers}
-            retainStored={keepsSecret && draft.url === ""}
+            invalid={draftError?.rows ?? []}
             disabled={busy}
             onChange={(headers) => patch({ headers })}
           />
         )}
         {draftError && (
           <p className="text-destructive text-xs" role="alert">
-            {draftError}
+            {draftError.message}
           </p>
         )}
         {draft.type === "telegram" && (
@@ -315,33 +312,19 @@ function keepsStoredHeader(header: WebhookHeaderDraft): boolean {
   );
 }
 
-/** Names that appear more than once, compared the way the wire does. */
-function duplicateHeaderNames(headers: WebhookHeaderDraft[]): Set<string> {
-  const seen = new Set<string>();
-  const duplicates = new Set<string>();
-  for (const header of headers) {
-    const key = header.name.trim().toLowerCase();
-    if (!key) continue;
-    if (seen.has(key)) duplicates.add(key);
-    seen.add(key);
-  }
-  return duplicates;
-}
-
 function WebhookHeadersEditor({
   headers,
-  retainStored,
+  invalid,
   disabled,
   onChange,
 }: {
   headers: WebhookHeaderDraft[];
-  /** A blank value keeps the stored secret. False once the URL is being replaced. */
-  retainStored: boolean;
+  /** Parallel to `headers`. Empty while the draft can be saved. */
+  invalid: WebhookHeaderRowInvalid[];
   disabled: boolean;
   onChange: (headers: WebhookHeaderDraft[]) => void;
 }) {
   const atMax = headers.length >= ALERTING_WEBHOOK_HEADERS_MAX;
-  const duplicates = duplicateHeaderNames(headers);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -367,68 +350,54 @@ function WebhookHeadersEditor({
       </p>
       {headers.length > 0 && (
         <ul className="space-y-2">
-          {headers.map((header, index) => {
-            const name = header.name.trim();
-            const retains = retainStored && keepsStoredHeader(header);
-            // The invalid control is the one the reader has to change. A
-            // duplicate or a forbidden name is the name; a value the send
-            // cannot keep is the value. An unused blank row is neither.
-            const nameInvalid =
-              (name !== "" && duplicates.has(name.toLowerCase())) ||
-              (name !== "" && webhookHeaderNameProblem(name) !== null) ||
-              (name === "" && header.value !== "");
-            const valueInvalid = header.value
-              ? webhookHeaderValueProblem(header.value, { allowRedacted: false }) !== null
-              : name !== "" && !retains;
-            return (
-              <li key={header.id} className="space-y-1.5 rounded-md border p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    aria-label={`Remove header ${header.name || index + 1}`}
-                    onClick={() => onChange(headers.filter((_, item) => item !== index))}
-                  >
-                    <X />
-                  </Button>
-                </div>
-                <Input
-                  id={`channel-header-name-${index}`}
-                  aria-invalid={nameInvalid ? true : undefined}
-                  className="font-mono"
-                  value={header.name}
+          {headers.map((header, index) => (
+            <li key={header.id} className="space-y-1.5 rounded-md border p-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   disabled={disabled}
-                  autoComplete="off"
-                  spellCheck={false}
-                  placeholder="Authorization"
-                  onChange={(event) => {
-                    const next = headers.slice();
-                    next[index] = { ...header, name: event.target.value };
-                    onChange(next);
-                  }}
-                />
-                <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
-                <SecretInput
-                  id={`channel-header-value-${index}`}
-                  aria-invalid={valueInvalid ? true : undefined}
-                  className="font-mono"
-                  value={header.value}
-                  disabled={disabled}
-                  hasStoredSecret={keepsStoredHeader(header)}
-                  autoComplete="off"
-                  placeholder="Bearer token"
-                  onValueChange={(value) => {
-                    const next = headers.slice();
-                    next[index] = { ...header, value };
-                    onChange(next);
-                  }}
-                />
-              </li>
-            );
-          })}
+                  aria-label={`Remove header ${header.name || index + 1}`}
+                  onClick={() => onChange(headers.filter((_, item) => item !== index))}
+                >
+                  <X />
+                </Button>
+              </div>
+              <Input
+                id={`channel-header-name-${index}`}
+                aria-invalid={invalid[index]?.name ? true : undefined}
+                className="font-mono"
+                value={header.name}
+                disabled={disabled}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Authorization"
+                onChange={(event) => {
+                  const next = headers.slice();
+                  next[index] = { ...header, name: event.target.value };
+                  onChange(next);
+                }}
+              />
+              <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
+              <SecretInput
+                id={`channel-header-value-${index}`}
+                aria-invalid={invalid[index]?.value ? true : undefined}
+                className="font-mono"
+                value={header.value}
+                disabled={disabled}
+                hasStoredSecret={keepsStoredHeader(header)}
+                autoComplete="off"
+                placeholder="Bearer token"
+                onValueChange={(value) => {
+                  const next = headers.slice();
+                  next[index] = { ...header, value };
+                  onChange(next);
+                }}
+              />
+            </li>
+          ))}
         </ul>
       )}
     </div>
