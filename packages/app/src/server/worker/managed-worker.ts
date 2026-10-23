@@ -1,3 +1,4 @@
+import type { ApplicationWorker } from "#app/composition/runtime.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { hotSingleton } from "./hot-singleton";
 
@@ -10,8 +11,8 @@ export function managedWorker(options: {
   start(): Promise<WorkerHandle>;
   hot: Parameters<typeof hotSingleton>[0]["hot"];
   retryDelayMs?: number;
-}) {
-  return hotSingleton<WorkerHandle>({
+}): ApplicationWorker {
+  const worker = hotSingleton<WorkerHandle>({
     key: options.name,
     hot: options.hot,
     start: async () => {
@@ -25,7 +26,7 @@ export function managedWorker(options: {
           let worker: WorkerHandle | undefined;
           try {
             worker = await options.start();
-            if (!stopping) await Promise.race([worker.promise, stopped]);
+            await Promise.race([worker.promise, stopped]);
             if (!stopping) throw new Error("Worker stopped unexpectedly");
           } catch (error) {
             if (!stopping)
@@ -33,16 +34,16 @@ export function managedWorker(options: {
                 ...exceptionAttributes(error),
                 "everr.worker.pool": options.name,
               });
-          } finally {
-            if (worker) {
-              try {
-                await worker.stop();
-              } catch (error) {
-                serverLogger.error("worker.runtime.stop_failed", {
-                  ...exceptionAttributes(error),
-                  "everr.worker.pool": options.name,
-                });
-              }
+          }
+          if (worker) {
+            try {
+              await worker.stop();
+            } catch (error) {
+              if (stopping) throw error;
+              serverLogger.error("worker.runtime.stop_failed", {
+                ...exceptionAttributes(error),
+                "everr.worker.pool": options.name,
+              });
             }
           }
           if (!stopping) {
@@ -73,4 +74,10 @@ export function managedWorker(options: {
         "everr.worker.pool": options.name,
       }),
   });
+  return {
+    start: async () => {
+      await worker.start();
+    },
+    stop: worker.stop,
+  };
 }

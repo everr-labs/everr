@@ -17,11 +17,16 @@ refactoring.
 `ApplicationRuntime.registerWorkers()` returns supervised workers without
 starting them. The self-hosted composition returns none. The cloud composition
 returns the organization lifecycle worker, whose task list contains provisioning,
-deprovisioning, and the pending-organization scanner. The common runtime starts
-the product worker and registered workers, releases partial startups, and drains
-all of them before telemetry shutdown. A composition never imports or
-re-registers the product task list. The shared app imports only composition
-contracts, with no cloud package dependency.
+deprovisioning, and the pending-organization scanner. The common runtime manages
+the product worker and registered workers as one list, releases partial
+startups, and drains all of them before telemetry shutdown. Registration acquires
+no running resources. `start()` returns no handle and resolves when supervision is installed, before a database connection
+is necessarily ready. Every `stop()` caller waits for the same drain, including
+when shutdown overlaps hot reload. Explicit shutdown rejects on cleanup failure
+after every worker cleanup attempt has settled; detached hot-reload failures
+are logged. A composition never imports or re-registers the product task list.
+The shared app imports only composition contracts, with no cloud package
+dependency.
 
 Registration is separate from execution capacity. Both runners remain embedded
 in the web process and share the durable Graphile schema:

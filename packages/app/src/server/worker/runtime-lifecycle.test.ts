@@ -62,7 +62,7 @@ it("cleans up product workers when registration fails", async () => {
 it("cleans up application workers when product startup fails", async () => {
   const error = new Error("product startup failed");
   mocks.generalStart.mockRejectedValueOnce(error);
-  await expect(startWorkerRuntime()).rejects.toBe(error);
+  await expect(startWorkerRuntime()).rejects.toMatchObject({ errors: [error] });
   expect(mocks.generalStop).toHaveBeenCalledOnce();
   expect(mocks.appStop).toHaveBeenCalledOnce();
 });
@@ -115,9 +115,7 @@ it("drains every worker even when one shutdown fails", async () => {
   expect(rejected).not.toHaveBeenCalled();
   finishStop();
   await stopping;
-  expect(rejected).toHaveBeenCalledWith(
-    expect.objectContaining({ errors: [expect.objectContaining({ errors: [error] })] }),
-  );
+  expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ errors: [error] }));
   expect(mocks.generalStop).toHaveBeenCalledOnce();
   expect(mocks.appStop).toHaveBeenCalledOnce();
 });

@@ -171,6 +171,22 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
   });
 
+  it("reports a real runner cleanup failure after draining its sibling", async () => {
+    const runtime = await loadRuntime();
+    const handle = await runtime.startWorkerRuntime();
+    const error = new Error("Product runner cleanup failed");
+    const product =
+      runtimeMocks.runners[
+        runtimeMocks.runOptions.findIndex((options) => options.pgPool === runtimeMocks.pool)
+      ];
+    if (!product) throw new Error("Missing product runner");
+    product.stop.mockRejectedValueOnce(error);
+    await expect(handle.stop()).rejects.toMatchObject({ errors: [error] });
+    for (const runner of runtimeMocks.runners) expect(runner.stop).toHaveBeenCalledOnce();
+    expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
+    activeRuntime = undefined;
+  });
+
   it("keeps the organization worker alive when the general worker cannot start", async () => {
     const runtime = await loadRuntime();
     const start = runtimeMocks.run.getMockImplementation();
