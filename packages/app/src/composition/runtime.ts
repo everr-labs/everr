@@ -1,13 +1,15 @@
 import type { MigrationDatabase } from "#app/db/migrations.ts";
 
 /**
- * A supervised background worker. Registration must not start it.
+ * A supervised background worker. Initial registration must not acquire running
+ * resources or start it.
  * start() is idempotent and resolves once supervision is installed; individual
  * connection failures retry inside the supervisor. stop() drains startup and
- * running work. Signal handling belongs to the application runtime.
+ * running work, including a concurrent stop, and rejects on cleanup failure.
+ * Stopping before start is safe. Signal handling belongs to the application runtime.
  */
 export interface ApplicationWorker {
-  start(this: void): Promise<unknown>;
+  start(this: void): Promise<void>;
   stop(this: void): Promise<void>;
 }
 

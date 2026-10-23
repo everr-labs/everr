@@ -9,30 +9,19 @@ function throwFailures(results: PromiseSettledResult<unknown>[], message: string
 }
 
 export async function startWorkerRuntime() {
-  let applicationWorkers: readonly ApplicationWorker[] = [];
-  const application = Promise.resolve().then(async () => {
-    applicationWorkers = await runtime.registerWorkers();
-    const results = await Promise.allSettled(
-      applicationWorkers.map((worker) => Promise.resolve().then(() => worker.start())),
-    );
-    throwFailures(results, "Application worker startup failed");
-  });
+  const workers: ApplicationWorker[] = [productWorker];
+  const starting = (async () => {
+    workers.push(...(await runtime.registerWorkers()));
+    const results = await Promise.allSettled(workers.map(async (worker) => worker.start()));
+    throwFailures(results, "Worker startup failed");
+  })();
   let stopping: Promise<void> | undefined;
   const stop = () => {
     stopping ??= (async () => {
-      const results = await Promise.allSettled([
-        productWorker.stop(),
-        application
-          .catch(() => {})
-          .then(async () => {
-            // Also release registrations whose startup failed, and drain every
-            // successful sibling before reporting any shutdown failure.
-            const stopped = await Promise.allSettled(
-              applicationWorkers.map((worker) => Promise.resolve().then(() => worker.stop())),
-            );
-            throwFailures(stopped, "Application worker shutdown failed");
-          }),
-      ]);
+      // Drain registration and startup before releasing all workers, including
+      // those whose start failed. The caller retains any startup error.
+      await starting.catch(() => {});
+      const results = await Promise.allSettled(workers.map(async (worker) => worker.stop()));
       throwFailures(results, "Worker shutdown failed");
     })();
     return stopping;
@@ -40,7 +29,7 @@ export async function startWorkerRuntime() {
   registerShutdownHook("worker.runtime", "workers", stop);
 
   try {
-    await Promise.all([productWorker.start(), application]);
+    await starting;
     return { stop };
   } catch (error) {
     try {
