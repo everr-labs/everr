@@ -2,7 +2,7 @@
 
 Status: implemented and independently reviewed; dependency recovery finding fixed and
 checks passed. Real isolated provider relationships and telemetry ingestion passed.
-Awaiting coordinator commit.
+Committed as `179230af5`.
 
 Repository: `everr`.
 

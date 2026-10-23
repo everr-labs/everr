@@ -8,9 +8,9 @@ Task 04 is implemented, independently reviewed, and committed as `b3b617cdc`.
 Task 05 is implemented, independently reviewed, and committed as `f0bbeef65`.
 Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
-Task 08 is implemented and independently reviewed, with dependency recovery fixed,
-focused checks and real isolated provider/telemetry proof passed, awaiting commit.
-Tasks 09 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+Task 08 is implemented, independently reviewed, and committed as `179230af5`.
+Task 09 is implemented and independently reviewed, with focused PostgreSQL/Graphile
+and isolated provider deletion checks passed, awaiting commit. Tasks 10 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -345,8 +345,9 @@ implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
 implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
 implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
 Task 07 is implemented, independently reviewed, and committed as `05e183370`.
-Task 08 is implemented with focused checks, real isolated provider relationships and
-telemetry proof passed, awaiting independent review and commit. Tasks 09 through 16 remain planned.
+Task 08 is implemented, independently reviewed, and committed as `179230af5`.
+Task 09 is implemented and independently reviewed, with PostgreSQL/Graphile and
+isolated provider deletion checks passed, awaiting commit. Tasks 10 through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

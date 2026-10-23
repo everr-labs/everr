@@ -35,7 +35,7 @@ in the web process and share the durable Graphile schema:
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------- | --------------------------------------------- |
 | Product                                 | Alert evaluation, notification delivery, history projection and retention; GitHub replay/status; preview retention | 2               | Shared app pool                               |
 | Cloud organization lifecycle            | ClickHouse provisioning, cleanup and recovery scan                                                                 | 2               | Reserved pool, maximum 4 connections          |
-| Cloud CRM integration (configured mode) | User/contact projection sync                                                                                       | 1               | Separate reserved pool, maximum 4 connections |
+| Cloud CRM integration (configured mode) | User, Company and explicit pair sync/cleanup                                                                       | 1               | Separate reserved pool, maximum 4 connections |
 
 The reserved organization runner already protects signup from long alert or
 GitHub jobs. Removing that isolation would change user-visible readiness
@@ -54,8 +54,9 @@ work to the reserved provisioning runner without revisiting its capacity.
 validation; the application supplies static definitions and subscribers. Both
 applications register the shared User, Organization, Membership, and readiness
 definitions; cloud also registers subscription and Plan definitions. Subscriber
-arrays remain empty in self-hosted. Cloud registers User create/update/verification
-CRM subscribers only in configured or paused modes. CRM remains disabled by default.
+arrays remain empty in self-hosted. Cloud registers User, Organization, Membership,
+billing and readiness CRM subscribers, including parent deletion, only in configured
+or paused modes. CRM remains disabled by default.
 Paused mode persists pending work without starting its integration consumer. See
 [cloud CRM execution](../packages/cloud/src/crm/README.md#user-synchronization-and-execution)
 for fixed queue serialization, persisted retry budgets and deletion boundaries.

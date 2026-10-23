@@ -1,4 +1,5 @@
 import type { JobHelpers, Task } from "graphile-worker";
+import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import {
   MEMBERSHIP_SYNC_TASK,
@@ -13,7 +14,11 @@ import {
   type OrganizationSyncPayload,
   type UserSyncPayload,
 } from "./jobs";
-import type { createCrmSnapshotReader, DesiredProjection } from "./snapshots";
+import {
+  projectionIdentity,
+  type createCrmSnapshotReader,
+  type DesiredProjection,
+} from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
 import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 import { RetainedCrmWork } from "./user-sync";
@@ -23,7 +28,7 @@ type Store = ReturnType<typeof createCrmProjectionStore>;
 type Reader = ReturnType<typeof createCrmSnapshotReader>;
 type Adapter = Pick<
   ReturnType<typeof createBrevoAdapter>,
-  "getCompany" | "recoverCompany" | "createCompany" | "updateCompany" | "associate"
+  "getCompany" | "getContact" | "recoverCompany" | "createCompany" | "updateCompany" | "associate"
 >;
 type Failure = Extract<Awaited<ReturnType<Adapter["getCompany"]>>, { ok: false }>;
 const deferred = (result: Failure) =>
@@ -38,14 +43,14 @@ export function membershipFanout(store: Store) {
     helpers: JobHelpers,
     origin: UserSyncPayload | Payload,
   ) => {
-    if (snapshot.kind === "membership" || snapshot.deleted) return;
+    if (snapshot.kind === "membership") return;
     const prior = await store.memberships(
       snapshot.kind === "user"
         ? { userId: snapshot.sourceId }
         : { organizationId: snapshot.sourceId },
     );
     const pairs = new Map<string, { userId: string; organizationId: string }>();
-    for (const pair of [...prior, ...snapshot.memberships]) {
+    for (const pair of [...prior, ...(snapshot.deleted ? [] : snapshot.memberships)]) {
       if (!pair.userId || !pair.organizationId) continue;
       pairs.set(JSON.stringify([pair.userId, pair.organizationId]), {
         userId: pair.userId,
@@ -81,6 +86,7 @@ export function createRelatedSyncTasks(options: {
   store: Store;
   adapter: Adapter;
   diagnostic?: SyncDiagnostic;
+  cleanup?: DeletionCleanup;
 }) {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
   const fanout = membershipFanout(store);
@@ -99,6 +105,15 @@ export function createRelatedSyncTasks(options: {
           ? reader.organization(payload.organizationId)
           : reader.membership(payload.userId, payload.organizationId);
       let saved = await store.desire(await load());
+      if (
+        saved.kind === "membership" &&
+        saved.desired.deleted &&
+        payload.eventType === "crm.reconciliation.requested" &&
+        payload.recheckDeletionRevision === saved.desiredRevision &&
+        saved.syncedRevision === saved.desiredRevision
+      ) {
+        saved = (await store.recheckDeletion(saved, saved.desiredRevision)) ?? saved;
+      }
       const initial = saved;
       const key = { kind: saved.kind, sourceId: saved.sourceId };
       const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
@@ -139,7 +154,10 @@ export function createRelatedSyncTasks(options: {
       };
       const terminal = () =>
         saved.kind !== "membership" && (saved.desired.deleted || !!saved.deletedAt);
-      if (terminal()) return block("deletion_cleanup_required");
+      if (terminal())
+        return options.cleanup
+          ? options.cleanup(saved, raw, helpers)
+          : block("deletion_cleanup_required");
       if (saved.syncedRevision === saved.desiredRevision) {
         if (kind === "organization") await fanout(saved.desired, helpers, payload);
         report("synced");
@@ -194,7 +212,7 @@ export function createRelatedSyncTasks(options: {
       };
       const refresh = async () => {
         saved = await store.desire(await load());
-        if (terminal()) return block("deletion_cleanup_required");
+        if (terminal()) return false;
         return saved.desiredRevision === initial.desiredRevision;
       };
       const complete = async () => {
@@ -348,6 +366,45 @@ export function createRelatedSyncTasks(options: {
       if (!Number.isSafeInteger(contactId) || contactId <= 0)
         return block("invalid_contact_mapping");
       if (!(await reserve())) return soon();
+      if (!linked) {
+        const contact = await adapter.getContact(
+          projectionIdentity(options.deployment, { kind: "user", id: payload.userId }).externalId,
+          helpers.abortSignal,
+        );
+        if (!contact.ok) return contact.kind === "not_found" ? complete() : failure(contact);
+        if (
+          String(contact.value.id) !== remoteContactId ||
+          contact.value.attributes.EXT_ID !==
+            projectionIdentity(options.deployment, { kind: "user", id: payload.userId }).externalId
+        )
+          return block("remote_identity_conflict");
+        let company = saved.cleanupCompanyRead;
+        if (!company) {
+          const result = await adapter.getCompany(remoteCompanyId, helpers.abortSignal);
+          if (!result.ok) return result.kind === "not_found" ? complete() : failure(result);
+          company = result.value;
+          if (
+            company.id !== remoteCompanyId ||
+            company.attributes.everr_org_id !==
+              projectionIdentity(options.deployment, {
+                kind: "organization",
+                id: payload.organizationId,
+              }).externalId
+          )
+            return block("remote_identity_conflict");
+          await store.cleanupCompanyRead(key, company);
+        }
+        if (
+          company.id !== remoteCompanyId ||
+          company.attributes.everr_org_id !==
+            projectionIdentity(options.deployment, {
+              kind: "organization",
+              id: payload.organizationId,
+            }).externalId
+        )
+          return block("remote_identity_conflict");
+        if (!(await refresh())) return soon();
+      }
       const result = await adapter.associate(
         remoteCompanyId,
         contactId,

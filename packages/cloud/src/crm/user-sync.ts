@@ -1,4 +1,5 @@
 import type { JobHelpers, Task } from "graphile-worker";
+import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import {
   USER_SYNC_RETRIES,
@@ -27,6 +28,7 @@ export function createUserSyncTask(options: {
     payload: UserSyncPayload,
   ) => Promise<void>;
   diagnostic?: SyncDiagnostic;
+  cleanup?: DeletionCleanup;
 }): Task {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
   const execute: Task = async (raw, helpers) => {
@@ -65,9 +67,10 @@ export function createUserSyncTask(options: {
       report(nextFailures === failures ? "deferred" : "retry");
     };
     if (saved.desired.deleted || saved.deletedAt) {
+      if (options.cleanup) return options.cleanup(saved, raw, helpers);
       await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
       report("blocked");
-      throw new RetainedCrmWork("CRM deletion cleanup required (task09).");
+      throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
     }
     if (saved.syncedRevision === saved.desiredRevision) {
       await options.reconcileMemberships?.(saved.desired, helpers, payload);
@@ -98,9 +101,10 @@ export function createUserSyncTask(options: {
       if (result.remoteId) await store.bindRemote(key, { remoteId: result.remoteId });
       saved = await store.desire(await reader.user(payload.userId));
       if (saved.desired.deleted || saved.deletedAt) {
+        if (options.cleanup) return defer(new Date(Date.now() + 1000));
         await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
         report("blocked");
-        throw new RetainedCrmWork("CRM deletion cleanup required (task09).");
+        throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
       }
       if (saved.desiredRevision !== attemptRevision) {
         await defer(new Date(Date.now() + 1000));
@@ -170,14 +174,15 @@ export function createUserSyncTask(options: {
       return;
     }
     // HTTP cannot be atomic with deletion. Capture a terminal tombstone and retain the
-    // mapping for task09 cleanup; never acknowledge stale success or recreate the source.
+    // mapping for deletion cleanup; never acknowledge stale success or recreate the source.
     const latest = await reader.user(payload.userId);
     const unchanged = snapshotFingerprint(latest) === saved.desiredFingerprint;
     saved = await store.desire(latest);
     if (saved.desired.deleted || saved.deletedAt) {
+      if (options.cleanup) return defer(new Date(Date.now() + 1000));
       await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
       report("blocked");
-      throw new RetainedCrmWork("CRM deletion cleanup required (task09).");
+      throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
     }
     if (!unchanged) {
       await defer(new Date(Date.now() + 1000));

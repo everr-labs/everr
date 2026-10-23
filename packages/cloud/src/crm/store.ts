@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Database } from "@everr/app/db/database";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { CompanyRecord } from "./brevo/adapter";
 import { crmProjection } from "../db/schema/crm";
 import {
@@ -55,6 +55,62 @@ export function createCrmProjectionStore(database: Database, deployment: string)
               : eq(crmProjection.organizationId, parent.organizationId),
           ),
         );
+    },
+    /** Keyset page for bounded orphan checks. Never deletes or mutates source rows. */
+    async page(after?: ProjectionKey, limit = 100) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+        throw new Error("Invalid CRM reconciliation page size.");
+      return database
+        .select()
+        .from(crmProjection)
+        .where(
+          and(
+            eq(crmProjection.deployment, deployment),
+            after
+              ? or(
+                  gt(crmProjection.kind, after.kind),
+                  and(
+                    eq(crmProjection.kind, after.kind),
+                    gt(crmProjection.sourceId, after.sourceId),
+                  ),
+                )
+              : undefined,
+          ),
+        )
+        .orderBy(asc(crmProjection.kind), asc(crmProjection.sourceId))
+        .limit(limit);
+    },
+    /** A repair command opens one cleanup revision only from the completed revision
+     * it observed. Replayed/duplicated commands cannot repeatedly reset its allowance.
+     */
+    async recheckDeletion(key: ProjectionKey, completedRevision: number) {
+      const [row] = await database
+        .update(crmProjection)
+        .set({
+          desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
+          retryFailures: 0,
+          cleanupCompanyRead: null,
+          outcome: "pending",
+          lastErrorCode: null,
+          lastErrorAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            where(key),
+            isNotNull(crmProjection.deletedAt),
+            eq(crmProjection.desiredRevision, completedRevision),
+            eq(crmProjection.syncedRevision, completedRevision),
+          ),
+        )
+        .returning();
+      return row;
+    },
+    async cleanupCompanyRead(key: ProjectionKey, current: CompanyRecord | null) {
+      await database
+        .update(crmProjection)
+        .set({ cleanupCompanyRead: current, updatedAt: new Date() })
+        .where(where(key));
     },
     async companyRead(sourceId: string, current: CompanyRecord | null) {
       await database
@@ -119,6 +175,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             desiredFingerprint: fingerprint,
             desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
             retryFailures: 0,
+            cleanupCompanyRead: null,
             outcome: "pending",
             deletedAt: snapshot.deleted ? sql`coalesce(${crmProjection.deletedAt}, ${now})` : null,
             lastErrorCode: null,
@@ -151,7 +208,6 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             where(key),
             eq(crmProjection.desiredRevision, revision),
             eq(crmProjection.retryFailures, expected),
-            key.kind === "membership" ? undefined : isNull(crmProjection.deletedAt),
             sql`${crmProjection.syncedRevision} is distinct from ${revision}`,
           ),
         )

@@ -53,7 +53,8 @@ state without retaining old contact fields. Membership arrays have stable ID ord
 
 `createCrmProjectionStore` supports reading desired state, persisting a desired
 snapshot, binding remote IDs, marking success/failure, and guarding retry allowances. Identical
-fingerprints retain the revision and previous outcome. Changed desired state
+fingerprints retain the revision and previous outcome outside an explicit completed
+cleanup recheck. Changed desired state
 increments the revision and becomes pending, retaining prior synchronized
 fingerprint/revision and success time. Completion and failure updates require the
 current desired revision. A late failure cannot overwrite success for that same
@@ -82,7 +83,7 @@ deletion. No source transaction is held open during provider calls.
 
 ## User synchronization and execution
 
-Cloud registers consumers for User creation, updates and email verification in
+Cloud registers consumers for User creation, updates, deletion and email verification in
 `configured` and `paused` modes. Each consumer independently persists an ID-only
 `crm/sync-user` command after best-effort publication. Disabled mode registers no
 consumers or integration runner; self-hosted imports none of this module. Paused
@@ -109,9 +110,9 @@ An external request cannot be atomic with source deletion. A deletion that commi
 after the final source check can still race an already-started HTTP request. The
 post-request check captures a terminal tombstone and retains any remote ID for
 cleanup, without marking it synced. Missing sources never initiate contact creation.
-Deletion event consumers, remote cleanup and lost-deletion reconciliation remain
-task 09 work; a missing/deleted source is inspectable `deletion_cleanup_required` work.
-This slice does not claim complete remote deletion safety until task 09 lands.
+The next coordinated execution cleans the retained remote identity after deletion.
+Missing sources never initiate contact creation, and terminal tombstones prevent stale
+upserts from recreating deleted entities.
 
 Known transient/ambiguous failures persist a successor with an incremented failure
 count and exponential backoff (up to one hour), honoring any later adapter `retryAt`.
@@ -142,8 +143,7 @@ through Graphile's public inspection/replay APIs, with no automatic cleanup.
 ## Organization and explicit Membership synchronization
 
 Cloud also subscribes to Organization creation/updates, explicit Membership additions,
-updates/removals, readiness, subscription and Plan facts. Deletion event consumers and
-full remote entity/orphan cleanup remain task 09. Commands contain source IDs only.
+updates/removals, deletion, readiness, subscription and Plan facts. Commands contain source IDs only.
 Two Organizations sharing a domain keep distinct Company IDs. A Contact can link to
 several Companies, and unlink removes only the requested pair. Membership row replacement
 and stale event order are resolved by rereading the latest User/Organization pair.
@@ -185,7 +185,65 @@ the lock connection aborts the outbound request and destroys that connection; wo
 recoverable/inspectable. Brevo has no fencing token. A previously sent request can still
 be accepted after a connection loss, and no atomic remote ordering guarantee is claimed
 for that failure window. Source deletion can likewise race the final pre-request check.
-Terminal entity tombstones remain authoritative and remote IDs stay available for task 09.
+Terminal entity tombstones remain authoritative and remote IDs stay available for cleanup.
+
+## Deletion and bounded orphan checks
+
+Deletion facts enter the existing User/Organization commands. Cleanup runs under the
+same endpoint advisory locks as upserts and associations, with the same revision-scoped
+retry allowance, quota refunds, durable continuations and native Graphile fallback.
+It retains identity-only tombstones, remote bindings and Company create intent after
+success. Parent deletion fans out retained pairs after cleanup; an absent endpoint
+makes pair removal successful without modifying another Company or Contact.
+
+Contact cleanup looks up the exact deployment-scoped `ext_id`, checks any retained
+remote ID, then deletes only that verified Contact. Company cleanup verifies the
+exact `everr_org_id` and remote ID. An attempted but unbound Company create uses
+bounded inventory recovery; invisible, duplicate or full inventories never authorize
+another POST or an assumption of absence. Identity mismatches stay blocked for
+inspection. A 404 from a mapped lookup or DELETE is successful cleanup. Email and
+domain never select a cleanup target, so a new User with the same email remains a
+distinct external identity. No source operation waits for CRM execution.
+
+`cleanup_company_read` persists a separate ownership read for Company deletion and
+pair unlink across the general 36-second permit gap. An ordinary upsert read cannot
+authorize cleanup, and a changed desired revision clears cleanup progress. Unlink
+also verifies the Contact's exact identity and removes only the retained pair.
+Brevo offers no conditional ownership write or fencing token. Ownership changes
+made remotely after the verified read, or late acceptance after lock-session loss,
+cannot be fenced atomically. The cached read can survive deferred attempts; cleanup
+assumes these external identity attributes remain stable during that phase. An
+externally renamed/missing mapping is never reset or recreated automatically.
+
+`enqueueCrmOrphans` checks at most 100 retained projections per keyset page against
+current source IDs, including cascaded pairs. It returns the checked/admitted counts
+and cursor for task 13, and queues normal coordinated jobs without changing source
+rows or racing a worker's desired-state save. Callers persist a cursor only after
+successful admission and repeat full scans to cover concurrent inserts. Completed
+tombstones stay retained and are rechecked by the same bounded primitive, including
+remote creates accepted after an earlier cleanup observed 404. Repair jobs use
+`crm.reconciliation.requested`, a check ID and detection time, without fabricating a
+historical deletion fact. The job carries the completed revision it observed; under
+the endpoint lock, only that exact completed revision can open one new cleanup
+revision. Duplicate or older repair commands cannot repeatedly reset the allowance.
+Pending, blocked or exhausted cleanup never receives a fresh allowance from a check.
+This increment adds no periodic scheduler or bootstrap.
+
+Task 09 verification passed 33 related PostgreSQL/Graphile cases, 13 existing User
+cases and 60 focused CRM cases. The isolated provider proof under
+`.verify-everr/artifacts/task09-deletion-cleanup/` used the coordinated handlers to
+create and delete one Contact and one Company, then verified remote 404 responses
+and retained tombstones. Four general and five contact requests used the existing
+shared budgets. All provider fixtures were removed. Existing diagnostics are reused
+without new telemetry fields or metrics; production ingestion remains unverified.
+`.auth` is absent, so authenticated manual app checks were skipped.
+
+Independent task 09 standards/spec review found no material issues requiring code
+changes. All 60 focused CRM tests, cloud TypeScript and scoped lint/format checks
+passed independently. Review checked source changes after orphan paging, exact
+completed-revision rechecks, retained blocked/exhausted allowances and destructive
+ownership checks. Existing PostgreSQL/Graphile and provider evidence remains
+applicable; review made no provider calls or telemetry changes.
 
 ## Telemetry
 
@@ -239,8 +297,7 @@ The actual isolated provider proof and new log/metric ingestion evidence are und
 removed one pair, read both back, and deleted its two Companies plus one Contact. The proof
 exposed eager fanout amplification; the final code coalesces admissions and delays fanout,
 verified by the PostgreSQL bounded-job regression. Provider/telemetry evidence was preserved
-without another provider run. Production activation/ingestion and full deletion cleanup
-remain unverified; `.auth` is absent, so authenticated manual app checks were skipped.
+without another provider run. Production activation/ingestion remain unverified; `.auth` is absent, so authenticated manual app checks were skipped.
 
 Independent task 08 review fixed a derived dependency block that otherwise prevented an
 unchanged pair from resuming after parent recovery. All 19 related PostgreSQL/Graphile

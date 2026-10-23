@@ -27,6 +27,8 @@ export const crmProjection = pgTable(
     companyCreateAttemptedAt: timestamp("company_create_attempted_at", { withTimezone: true }),
     // A successful GET is durable so the next general permit can perform PATCH.
     companyRead: jsonb("company_read").$type<CompanyRecord>(),
+    // Fresh ownership read for cleanup, separate from an earlier upsert read.
+    cleanupCompanyRead: jsonb("cleanup_company_read").$type<CompanyRecord>(),
     // Association endpoint IDs remain available even after source cascades.
     remoteContactId: text("remote_contact_id"),
     remoteCompanyId: text("remote_company_id"),

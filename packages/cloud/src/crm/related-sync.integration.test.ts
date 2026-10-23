@@ -33,6 +33,7 @@ import {
   relatedSyncSpec,
   userSyncSpec,
 } from "./jobs";
+import { enqueueCrmOrphans } from "./orphans";
 import { createCrmTaskList } from "./task-list";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
@@ -83,6 +84,8 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           smsBlacklisted: boolean;
         }
       >();
+      let nextContactId = 1;
+      let nextCompanyId = 1;
       const config = readBrevoConfig({
         CRM_BREVO_MODE: "configured",
         CRM_BREVO_API_KEY: "fixture",
@@ -91,6 +94,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       });
       const hooks = {
         loseCreate: false,
+        failDelete: false,
         failAssociation: false,
         generalAllowed: true,
         afterRequest: undefined as undefined | ((method: string, path: string) => Promise<void>),
@@ -100,8 +104,9 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         const method = init.method!;
         const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
         let response: Response;
+        if (method === "DELETE" && hooks.failDelete) return new Response("{}", { status: 500 });
         if (path === "/companies" && method === "POST") {
-          const id = `company-${companies.size + 1}`;
+          const id = `company-${nextCompanyId++}`;
           companies.set(id, { id, ...body, linkedContactsIds: [] });
           if (hooks.loseCreate) {
             hooks.loseCreate = false;
@@ -115,7 +120,8 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
             hooks.failAssociation = false;
             return new Response("{}", { status: 500 });
           }
-          const company = companies.get(path.split("/").at(-1)!)!;
+          const company = companies.get(path.split("/").at(-1)!);
+          if (!company) return new Response("{}", { status: 404 });
           company.linkedContactsIds = body.linkContactIds
             ? [...new Set([...company.linkedContactsIds, ...body.linkContactIds])]
             : company.linkedContactsIds.filter((id) => !body.unlinkContactIds.includes(id));
@@ -124,7 +130,10 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           const company = companies.get(path.split("/").at(-1)!);
           if (!company) response = new Response("{}", { status: 404 });
           else if (method === "GET") response = Response.json(company);
-          else {
+          else if (method === "DELETE") {
+            companies.delete(company.id);
+            response = new Response(undefined, { status: 204 });
+          } else {
             Object.assign(company, {
               ...(body.name ? { name: body.name } : {}),
               attributes: { ...company.attributes, ...body.attributes },
@@ -132,7 +141,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
             response = new Response(undefined, { status: 204 });
           }
         } else if (path === "/contacts" && method === "POST") {
-          const id = contacts.size + 1;
+          const id = nextContactId++;
           contacts.set(body.ext_id, {
             id,
             email: body.email,
@@ -144,6 +153,19 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         } else if (path.startsWith("/contacts/") && method === "GET") {
           const contact = contacts.get(decodeURIComponent(path.slice("/contacts/".length)));
           response = contact ? Response.json(contact) : new Response("{}", { status: 404 });
+        } else if (path.startsWith("/contacts/") && method === "DELETE") {
+          const contact = [...contacts.entries()].find(
+            ([, entry]) => entry.id === Number(path.split("/").at(-1)),
+          );
+          if (!contact) response = new Response("{}", { status: 404 });
+          else {
+            contacts.delete(contact[0]);
+            for (const company of companies.values())
+              company.linkedContactsIds = company.linkedContactsIds.filter(
+                (id) => id !== contact[1].id,
+              );
+            response = new Response(undefined, { status: 204 });
+          }
         } else if (path.startsWith("/contacts/") && method === "PUT") {
           const contact = [...contacts.values()].find(
             (entry) => entry.id === Number(path.split("/").at(-1)),
@@ -556,19 +578,445 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         if (method === "POST" && path === "/companies")
           await fixture.database.delete(organization).where(eq(organization.id, "a"));
       };
-      await expect(state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"))).rejects.toThrow(
-        "requires inspection",
-      );
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
       expect(await store.read(orgKey())).toMatchObject({
         remoteId: "company-1",
         desired: { deleted: true },
-        outcome: "blocked",
+        outcome: "pending",
       });
+      state.provider.hooks.afterRequest = undefined;
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(state.provider.companies.size).toBe(0);
       await fixture.database
         .insert(organization)
         .values({ id: "a", name: "Invalid reused ID", slug: "reused", createdAt: new Date() });
-      await expect(state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"))).rejects.toThrow();
-      expect(state.provider.companies.size).toBe(1);
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(state.provider.companies.size).toBe(0);
+      expect(await store.read(orgKey())).toMatchObject({
+        desired: { deleted: true },
+        outcome: "synced",
+      });
+    });
+
+    const userPayload = (userId = "u") => ({
+      version: 1,
+      userId,
+      eventId: "deletion-event",
+      eventType: "identity.user.deleted",
+      occurredAt: new Date().toISOString(),
+      failures: 0,
+    });
+
+    it("pages retained mappings and repairs lost deletion events with real persisted jobs after cascades", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization", "b"));
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership", "b"));
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      let after: { kind: "user" | "organization" | "membership"; sourceId: string } | undefined;
+      let checked = 0;
+      let enqueued = 0;
+      do {
+        const page = await enqueueCrmOrphans({
+          store,
+          reader,
+          enqueue: utils.addJob,
+          after,
+          limit: 1,
+          checkId: "orphan-check",
+          detectedAt: new Date().toISOString(),
+        });
+        checked += page.checked;
+        enqueued += page.enqueued;
+        after = page.after;
+      } while (after);
+      expect(checked).toBe(5);
+      expect(enqueued).toBe(2);
+      await start(state);
+      await until(
+        async () =>
+          (await store.read(orgKey()))?.outcome === "synced" &&
+          (await store.read(pairKey()))?.desired.deleted &&
+          (await store.read(pairKey()))?.outcome === "synced",
+      );
+      expect(state.provider.companies.has("company-1")).toBe(false);
+      expect(state.provider.companies.get("company-2")!.linkedContactsIds).toEqual([1]);
+      expect(state.provider.contacts.size).toBe(1);
+      expect(await store.read(orgKey())).toMatchObject({
+        remoteId: "company-1",
+        deletedAt: expect.any(Date),
+      });
+      expect(await store.read(pairKey())).toMatchObject({
+        remoteContactId: "1",
+        remoteCompanyId: "company-1",
+      });
+    });
+
+    it("cleans a deleted User without touching other contacts and keeps a same-email new identity distinct", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      await state.invoke(USER_SYNC_TASK, {
+        ...userPayload("v"),
+        eventType: "identity.user.updated",
+      });
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership", "a", "v"));
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      // A newer identity is never selected by the old user's deletion job.
+      await fixture.database
+        .insert(user)
+        .values({ id: "replacement", name: "New", email: "one@same.example.test" });
+      await state.invoke(USER_SYNC_TASK, {
+        ...userPayload("replacement"),
+        eventType: "identity.user.created",
+      });
+      await state.invoke(USER_SYNC_TASK, userPayload());
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      const remaining = [...state.provider.contacts.values()];
+      expect(remaining.map((entry) => entry.attributes.EXT_ID)).toEqual([
+        projectionIdentity("test", { kind: "user", id: "v" }).externalId,
+        projectionIdentity("test", { kind: "user", id: "replacement" }).externalId,
+      ]);
+      expect(state.provider.companies.get("company-1")!.linkedContactsIds).toEqual([2]);
+      expect(await store.read(userKey)).toMatchObject({
+        remoteId: "1",
+        desired: { deleted: true },
+        outcome: "synced",
+      });
+      const calls = state.provider.transport.mock.calls.length;
+      await state.invoke(USER_SYNC_TASK, { ...userPayload(), eventType: "identity.user.created" });
+      expect(state.provider.transport).toHaveBeenCalledTimes(calls);
+    });
+
+    it("cleans a Contact whose accepted create lost its local binding", async () => {
+      const state = tasks();
+      const binding = vi
+        .spyOn(store, "bindRemote")
+        .mockRejectedValueOnce(new Error("binding unavailable"));
+      await expect(
+        state.invoke(USER_SYNC_TASK, { ...userPayload(), eventType: "identity.user.created" }),
+      ).rejects.toThrow("persisted work");
+      binding.mockRestore();
+      expect((await store.read(userKey))?.remoteId).toBeNull();
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      await state.invoke(USER_SYNC_TASK, userPayload());
+      expect(state.provider.contacts.size).toBe(0);
+      expect(await store.read(userKey)).toMatchObject({ remoteId: "1", outcome: "synced" });
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "POST"),
+      ).toHaveLength(1);
+    });
+
+    it("cleans deletion during User PUT under the same parent lock before stale upserts can recreate it", async () => {
+      const state = tasks();
+      await ready(state);
+      await fixture.database.update(user).set({ name: "Changed" }).where(eq(user.id, "u"));
+      let enter!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      state.provider.hooks.afterRequest = async (method) => {
+        if (method === "PUT") {
+          enter();
+          await held;
+        }
+      };
+      await start(state);
+      await start(state);
+      await utils.addJob(
+        USER_SYNC_TASK,
+        { ...userPayload(), eventType: "identity.user.updated" },
+        userSyncSpec("u"),
+      );
+      await entered;
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      await utils.addJob(USER_SYNC_TASK, userPayload(), userSyncSpec("u"));
+      await delay(100);
+      expect(state.provider.contacts.size).toBe(1);
+      state.provider.hooks.afterRequest = undefined;
+      release();
+      await until(
+        async () =>
+          (await store.read(userKey))?.desired.deleted &&
+          (await store.read(userKey))?.outcome === "synced",
+      );
+      expect(state.provider.contacts.size).toBe(0);
+      await state.invoke(USER_SYNC_TASK, { ...userPayload(), eventType: "identity.user.created" });
+      expect(state.provider.contacts.size).toBe(0);
+    });
+
+    it("treats remote GET/DELETE 404 as success and preserves the retained cleanup identity", async () => {
+      const state = tasks();
+      await ready(state);
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      state.provider.contacts.clear();
+      await state.invoke(USER_SYNC_TASK, userPayload());
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      state.provider.hooks.afterRequest = async (method) => {
+        if (method === "GET") state.provider.companies.clear();
+      };
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(await store.read(userKey)).toMatchObject({ outcome: "synced", remoteId: "1" });
+      expect(await store.read(orgKey())).toMatchObject({
+        outcome: "synced",
+        remoteId: "company-1",
+      });
+    });
+
+    it("refuses mismatched Company, Contact and unlink ownership before destructive HTTP", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      state.provider.companies.get("company-1")!.attributes.everr_org_id = "foreign";
+      await fixture.database.delete(member).where(eq(member.id, "ma"));
+      await expect(state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"))).rejects.toThrow(
+        "requires inspection",
+      );
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      await expect(state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"))).rejects.toThrow(
+        "requires inspection",
+      );
+      [...state.provider.contacts.values()][0].id = 99;
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      await expect(state.invoke(USER_SYNC_TASK, userPayload())).rejects.toThrow(
+        "requires inspection",
+      );
+      expect(state.provider.companies.get("company-1")!.linkedContactsIds).toEqual([1]);
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "DELETE"),
+      ).toHaveLength(0);
+    });
+
+    it("recovers and deletes an unbound accepted Company create after source deletion, without another POST", async () => {
+      const state = tasks();
+      state.provider.hooks.loseCreate = true;
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(await store.read(orgKey())).toMatchObject({
+        remoteId: null,
+        companyCreateAttemptedAt: expect.any(Date),
+      });
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(await store.read(orgKey())).toMatchObject({
+        remoteId: "company-1",
+        outcome: "synced",
+        companyCreateAttemptedAt: expect.any(Date),
+      });
+      expect(state.provider.companies.size).toBe(0);
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "POST"),
+      ).toHaveLength(1);
+    });
+
+    it.each(["invisible", "duplicate", "full"])(
+      "fails closed on %s uncertain-create cleanup inventory",
+      async (mode) => {
+        const state = tasks();
+        const desired = await store.desire(await reader.organization("a"));
+        await store.companyCreateIntent("a", desired.desiredRevision);
+        const externalId = desired.externalId;
+        const count = mode === "duplicate" ? 2 : mode === "full" ? 100 : 0;
+        for (let i = 0; i < count; i++)
+          state.provider.companies.set(`foreign-${i}`, {
+            id: `foreign-${i}`,
+            name: "retained",
+            attributes: { everr_org_id: externalId },
+            linkedContactsIds: [],
+          });
+        await fixture.database.delete(organization).where(eq(organization.id, "a"));
+        for (let i = 0; i < (mode === "duplicate" ? 0 : 8); i++)
+          await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+        await expect(state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"))).rejects.toThrow(
+          mode === "duplicate" ? "requires inspection" : "allowance exhausted",
+        );
+        expect((await store.read(orgKey()))?.outcome).not.toBe("synced");
+        expect(
+          state.provider.transport.mock.calls.filter(
+            ([, init]) => init.method === "DELETE" || init.method === "POST",
+          ),
+        ).toHaveLength(0);
+        expect(state.provider.companies.size).toBe(count);
+      },
+    );
+
+    it("persists a fresh cleanup read across quota deferral and never reuses an upsert ownership cache", async () => {
+      const state = tasks();
+      await ready(state);
+      await store.companyRead("a", { id: "company-1", attributes: { everr_org_id: "foreign" } });
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      state.provider.hooks.afterRequest = async (method) => {
+        if (method === "GET") state.provider.hooks.generalAllowed = false;
+      };
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(await store.read(orgKey())).toMatchObject({
+        retryFailures: 0,
+        cleanupCompanyRead: {
+          id: "company-1",
+          attributes: { everr_org_id: (await reader.organization("a")).externalId },
+        },
+      });
+      const reads = state.provider.transport.mock.calls.filter(
+        ([, init]) => init.method === "GET",
+      ).length;
+      state.provider.hooks.generalAllowed = true;
+      state.provider.hooks.afterRequest = undefined;
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "GET"),
+      ).toHaveLength(reads);
+      expect(await store.read(orgKey())).toMatchObject({
+        outcome: "synced",
+        cleanupCompanyRead: null,
+      });
+    });
+
+    it("coordinates Organization deletion with an in-flight association across independent runners", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization", "b"));
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership", "b"));
+      let enter!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      state.provider.hooks.afterRequest = async (_method, path) => {
+        if (path.includes("link-unlink")) {
+          enter();
+          await held;
+        }
+      };
+      await start(state);
+      await start(state);
+      await utils.addJob(MEMBERSHIP_SYNC_TASK, payload("membership"), relatedSyncSpec("a", "u"));
+      await entered;
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      await utils.addJob(ORGANIZATION_SYNC_TASK, payload("organization"), relatedSyncSpec("a"));
+      await delay(150);
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "DELETE"),
+      ).toHaveLength(0);
+      state.provider.hooks.afterRequest = undefined;
+      release();
+      await until(
+        async () =>
+          (await store.read(orgKey()))?.desired.deleted &&
+          (await store.read(orgKey()))?.outcome === "synced",
+      );
+      expect(state.provider.companies.has("company-1")).toBe(false);
+      expect(state.provider.companies.get("company-2")!.linkedContactsIds).toEqual([1]);
+    });
+
+    it("rechecks a completed tombstone when a Contact create is accepted late, without reopening on duplicate repair", async () => {
+      const state = tasks();
+      // The accepted create lost its local binding, then is invisible at initial cleanup.
+      const binding = vi
+        .spyOn(store, "bindRemote")
+        .mockRejectedValueOnce(new Error("binding unavailable"));
+      await expect(
+        state.invoke(USER_SYNC_TASK, { ...userPayload(), eventType: "identity.user.created" }),
+      ).rejects.toThrow("persisted work");
+      binding.mockRestore();
+      const externalId = (await store.read(userKey))!.externalId;
+      const lateContact = state.provider.contacts.get(externalId)!;
+      state.provider.contacts.delete(externalId);
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      await state.invoke(USER_SYNC_TASK, userPayload());
+      const firstCleanup = (await store.read(userKey))!;
+      expect(firstCleanup).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: true },
+        remoteId: null,
+      });
+      state.provider.contacts.set(externalId, lateContact);
+      const detectedAt = new Date().toISOString();
+      const enqueue = vi.fn(async () => undefined);
+      await enqueueCrmOrphans({ store, reader, enqueue, checkId: "late-check", detectedAt });
+      expect(enqueue).toHaveBeenCalledWith(
+        USER_SYNC_TASK,
+        expect.objectContaining({
+          eventType: "crm.reconciliation.requested",
+          occurredAt: detectedAt,
+          recheckDeletionRevision: firstCleanup.desiredRevision,
+        }),
+        userSyncSpec("u"),
+      );
+      const repair = {
+        ...userPayload(),
+        eventType: "crm.reconciliation.requested",
+        occurredAt: detectedAt,
+        recheckDeletionRevision: firstCleanup.desiredRevision,
+      };
+      await state.invoke(USER_SYNC_TASK, repair);
+      expect(state.provider.contacts.size).toBe(0);
+      expect(await store.read(userKey)).toMatchObject({
+        desiredRevision: firstCleanup.desiredRevision + 1,
+        outcome: "synced",
+        remoteId: "1",
+        deletedAt: firstCleanup.deletedAt,
+      });
+      const calls = state.provider.transport.mock.calls.length;
+      await state.invoke(USER_SYNC_TASK, repair);
+      expect(state.provider.transport).toHaveBeenCalledTimes(calls);
+      expect((await store.read(userKey))?.desiredRevision).toBe(firstCleanup.desiredRevision + 1);
+    });
+
+    it("keeps durable deletion exhaustion after successor persistence failure and native Graphile retry", async () => {
+      const state = tasks();
+      await ready(state);
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      const tombstone = await store.desire(await reader.organization("a"));
+      await store.setRetryFailures(orgKey(), tombstone.desiredRevision, 0, 7);
+      state.provider.hooks.failDelete = true;
+      const handler = state.taskList[ORGANIZATION_SYNC_TASK]!;
+      state.taskList[ORGANIZATION_SYNC_TASK] = (body, helpers) =>
+        handler(body, {
+          ...helpers,
+          addJob: async (...args) => {
+            if (args[0] === ORGANIZATION_SYNC_TASK) throw new Error("successor unavailable");
+            return helpers.addJob(...args);
+          },
+        });
+      await start(state);
+      const job = await utils.addJob(
+        ORGANIZATION_SYNC_TASK,
+        payload("organization"),
+        relatedSyncSpec("a"),
+      );
+      await until(async () => (await store.read(orgKey()))?.retryFailures === 8);
+      await until(async () => {
+        const result = await fixture.client.query<{ locked: boolean }>(
+          "SELECT locked_at IS NOT NULL AS locked FROM graphile_worker.jobs WHERE id = $1",
+          [String(job.id)],
+        );
+        return result.rows[0] !== undefined && !result.rows[0].locked;
+      });
+      const deletes = state.provider.transport.mock.calls.filter(
+        ([, init]) => init.method === "DELETE",
+      ).length;
+      await utils.rescheduleJobs([String(job.id)], { runAt: new Date() });
+      await until(async () => {
+        const result = await fixture.client.query<{ attempts: number; max_attempts: number }>(
+          "SELECT attempts, max_attempts FROM graphile_worker.jobs WHERE id = $1",
+          [String(job.id)],
+        );
+        return result.rows[0]?.attempts === result.rows[0]?.max_attempts;
+      });
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "DELETE"),
+      ).toHaveLength(deletes);
+      expect(await store.read(orgKey())).toMatchObject({
+        retryFailures: 8,
+        lastErrorCode: "retry_budget_exhausted",
+      });
     });
 
     it("refunds ordinary quota and paused deferrals, and bounds unknown/crashed reservations", async () => {

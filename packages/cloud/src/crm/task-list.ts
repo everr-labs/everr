@@ -1,6 +1,7 @@
 import type { TaskList } from "graphile-worker";
 import type { Pool } from "pg";
 import type { createBrevoAdapter } from "./brevo/adapter";
+import { createDeletionCleanup } from "./deletion";
 import { coordinateCrmTask } from "./coordination";
 import {
   MEMBERSHIP_SYNC_TASK,
@@ -27,10 +28,21 @@ export function createCrmTaskList(options: {
   adapter: ReturnType<typeof createBrevoAdapter>;
   diagnostic?: SyncDiagnostic;
 }): TaskList {
-  const related = createRelatedSyncTasks(options);
+  const fanout = membershipFanout(options.store);
+  const cleanup = createDeletionCleanup({
+    ...options,
+    reconcileMemberships: (saved, helpers, raw) =>
+      fanout(
+        saved.desired,
+        helpers,
+        saved.kind === "user" ? userSyncPayload.parse(raw) : organizationSyncPayload.parse(raw),
+      ),
+  });
+  const related = createRelatedSyncTasks({ ...options, cleanup });
   const user = createUserSyncTask({
     ...options,
-    reconcileMemberships: membershipFanout(options.store),
+    reconcileMemberships: fanout,
+    cleanup,
   });
   return {
     [USER_SYNC_TASK]: coordinateCrmTask(

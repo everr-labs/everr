@@ -22,10 +22,13 @@ export const userSyncPayload = z
       "identity.user.created",
       "identity.user.updated",
       "identity.email.verified",
+      "identity.user.deleted",
+      "crm.reconciliation.requested",
     ]),
     occurredAt: z.iso.datetime({ offset: true }),
     failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
     desiredRevision: z.number().int().positive().optional(),
+    recheckDeletionRevision: z.number().int().positive().optional(),
   })
   .strict();
 export type UserSyncPayload = z.infer<typeof userSyncPayload>;
@@ -46,33 +49,31 @@ export function userSyncSubscribers(
   enqueue: typeof addWorkerJob = addWorkerJob,
 ): ApplicationBusinessEvents["subscribers"] {
   if (mode === "disabled") return [];
-  return userEventDefinitions
-    .filter((definition) => definition.type !== "identity.user.deleted")
-    .map((definition) => ({
-      id: `crm.brevo.${definition.type}`,
-      definition,
-      async enqueue(event) {
-        const fact = definition.parse({
-          type: event.type,
-          version: event.version,
-          subjectId: event.subjectId,
-          ...(event.actorId ? { actorId: event.actorId } : {}),
-          data: event.data,
-        });
-        if (fact.subjectId !== fact.data.userId) throw new Error("Invalid CRM user subject.");
-        const payload = userSyncPayload.parse({
-          version: 1,
-          userId: fact.data.userId,
-          eventId: event.id,
-          eventType: event.type,
-          occurredAt: event.occurredAt,
-          failures: 0,
-        });
-        await enqueue(USER_SYNC_TASK, payload, {
-          ...userSyncSpec(payload.userId),
-        });
-      },
-    }));
+  return userEventDefinitions.map((definition) => ({
+    id: `crm.brevo.${definition.type}`,
+    definition,
+    async enqueue(event) {
+      const fact = definition.parse({
+        type: event.type,
+        version: event.version,
+        subjectId: event.subjectId,
+        ...(event.actorId ? { actorId: event.actorId } : {}),
+        data: event.data,
+      });
+      if (fact.subjectId !== fact.data.userId) throw new Error("Invalid CRM user subject.");
+      const payload = userSyncPayload.parse({
+        version: 1,
+        userId: fact.data.userId,
+        eventId: event.id,
+        eventType: event.type,
+        occurredAt: event.occurredAt,
+        failures: 0,
+      });
+      await enqueue(USER_SYNC_TASK, payload, {
+        ...userSyncSpec(payload.userId),
+      });
+    },
+  }));
 }
 
 export const ORGANIZATION_SYNC_TASK = "crm/sync-organization";
@@ -84,6 +85,7 @@ const relatedPayload = z.object({
   occurredAt: z.iso.datetime({ offset: true }),
   failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
   desiredRevision: z.number().int().positive().optional(),
+  recheckDeletionRevision: z.number().int().positive().optional(),
   organizationId: z.string().min(1).max(512),
 });
 export const organizationSyncPayload = relatedPayload
@@ -118,9 +120,7 @@ export function organizationSyncSubscribers(
 ): ApplicationBusinessEvents["subscribers"] {
   if (mode === "disabled") return [];
   const definitions = [
-    ...organizationEventDefinitions.filter(
-      (definition) => definition.type !== "organization.deleted",
-    ),
+    ...organizationEventDefinitions,
     ...membershipEventDefinitions,
     ...organizationReadinessEventDefinitions,
     ...billingEventDefinitions,

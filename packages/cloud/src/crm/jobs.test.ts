@@ -7,13 +7,14 @@ import { contactPermitGap } from "./worker";
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 afterEach(() => vi.useRealTimers());
 
-it("registers three cloud consumers while disabled mode remains inert", () => {
+it("registers cloud lifecycle consumers while disabled mode remains inert", () => {
   expect(userSyncSubscribers("disabled")).toEqual([]);
   const consumers = userSyncSubscribers("paused");
   expect(consumers.map((consumer) => consumer.definition.type)).toEqual([
     "identity.user.created",
     "identity.user.updated",
     "identity.email.verified",
+    "identity.user.deleted",
   ]);
   expect(
     new Set(Array.from({ length: 1000 }, (_, id) => userSyncSpec(String(id)).queueName)).size,
@@ -70,6 +71,7 @@ it("registers Organization, explicit Membership, readiness and billing consumers
   expect(consumers.map((consumer) => consumer.definition.type)).toEqual([
     "organization.created",
     "organization.updated",
+    "organization.deleted",
     "membership.added",
     "membership.updated",
     "membership.removed",
@@ -94,4 +96,40 @@ it("registers Organization, explicit Membership, readiness and billing consumers
   expect(
     new Set(Array.from({ length: 1000 }, (_, id) => relatedSyncSpec(String(id)).queueName)).size,
   ).toBeLessThanOrEqual(64);
+});
+
+it("admits deletion facts using only retained source identities in paused mode", async () => {
+  const { organizationSyncSubscribers } = await import("./jobs");
+  const enqueue = vi.fn(async () => undefined);
+  const userDeleted = userSyncSubscribers("paused", enqueue).find(
+    (consumer) => consumer.definition.type === "identity.user.deleted",
+  );
+  const organizationDeleted = organizationSyncSubscribers("paused", enqueue).find(
+    (consumer) => consumer.definition.type === "organization.deleted",
+  );
+  if (!userDeleted || !organizationDeleted) throw new Error("Missing deletion subscribers");
+  const common = { id: "delete-event", version: 1, occurredAt: new Date().toISOString() };
+  await userDeleted.enqueue({
+    ...common,
+    type: "identity.user.deleted",
+    subjectId: "gone-user",
+    data: { userId: "gone-user" },
+  });
+  await organizationDeleted.enqueue({
+    ...common,
+    type: "organization.deleted",
+    subjectId: "gone-org",
+    data: { organizationId: "gone-org" },
+  });
+  expect(enqueue).toHaveBeenCalledTimes(2);
+  expect(enqueue).toHaveBeenNthCalledWith(
+    1,
+    "crm/sync-user",
+    expect.objectContaining({
+      userId: "gone-user",
+      eventType: "identity.user.deleted",
+      failures: 0,
+    }),
+    userSyncSpec("gone-user"),
+  );
 });
