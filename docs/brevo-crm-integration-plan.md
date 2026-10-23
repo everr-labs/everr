@@ -1,10 +1,11 @@
 # Brevo CRM integration through business events
 
-Status: tasks 00 through 13 are implemented, independently reviewed and committed.
-Task 13 is committed as `f23e32eeb`. Task 14 operational documentation, a narrow Company-name read-contract fix and
-isolated verification/canary are implemented and independently reviewed;
-no coordinator commit or production enablement is implied. Task 15 remains a separate deployment
-change in `everr-deploy`; task 16 is optional campaign design outside this rollout.
+Status: tasks 00 through 14 are implemented, independently reviewed and committed.
+Task 14 is committed as `54c768cac`. Task 15's disabled-default deployment
+configuration is independently reviewed and committed as `1df983b` in
+`everr-deploy`; target rollout remains pending. Task 16's optional campaign
+specification is independently reviewed and included with this specification
+commit, outside this rollout.
 The [execution ledger](../todo/issues/brevo-crm/README.md) preserves individual
 commit identities and verification history.
 
@@ -245,6 +246,12 @@ and receipt persistence. Brevo's documented Events API does not establish a
 general event-id idempotency guarantee. Do not promise exactly-once email
 automation triggers from it; test and design suppression/recovery first.
 
+The optional [campaign delivery design](crm-campaign-delivery-design.md) specifies
+retained-fact limits, actor-preserving recipient selection, separate delivery
+receipts, conservative unknown-outcome recovery and the missing remote verification.
+It adds no runtime exporter or automation. Its scenario table is a design review,
+not proof of live duplicate suppression or automation entry behavior.
+
 ## Activation, confirmed definition
 
 An Activated organization is a Cloud Organization whose own telemetry is
@@ -345,8 +352,11 @@ Brevo configuration, event outbox, CRM synchronization tables, or handler import
 
 Preserve opt-outs and consent across bootstrap, sync, and email changes. Brevo
 documents that changing a blocklisted contact's email can remove its blocklist;
-the adapter must prevent unintended resubscription. Initial import updates
-profiles without scheduling marketing campaigns or welcome automations.
+the adapter must prevent unintended resubscription. Initial import emits no
+historical or welcome events and does not explicitly enroll Contacts. Before
+target import, audit account automations because profile creation/updates may
+match independent provider entry filters. The campaign design records the gate
+and its official provider sources; omitting Events API calls alone is insufficient.
 
 ## Implementation sequence and acceptance
 
@@ -355,8 +365,10 @@ Each ticket specifies prerequisites, suggested English commit message, repositor
 scope, acceptance criteria and evidence. The task index records implementation,
 independent review and coordinator commit separately. Task 13's final independent
 review passed 145 behavior checks and fixed retained-terminal repair admission;
-its coordinator commit is `f23e32eeb`. Task 14 is prepared separately and keeps
-production disabled until the target-specific runbook gates and task 15 review.
+its coordinator commit is `f23e32eeb`. Task 14 is committed as `54c768cac` and task
+15's separate reviewed configuration as `1df983b`. Production remains disabled
+until target-specific schema/canary proof, durable settings, CI adoption and
+explicit authorized rollout. Task 14's isolated proof is not target-account proof.
 
 | Increment                            | Tickets            | Result                                                                                                            |
 | ------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------- |

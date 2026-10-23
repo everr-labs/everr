@@ -1,11 +1,12 @@
 # Brevo CRM: commit-sized implementation tasks
 
-Status: tasks 00 through 13 are implemented, independently reviewed and committed.
-Task 13 is committed as `f23e32eeb`, with its retained-terminal repair finding fixed
-and 145 independent behavior checks passed. Task 14 is implemented with operational documentation, a narrow Company-name
-readback fix and a passed isolated exercise/canary. Independent review is complete;
-coordinator commit remains pending.
-Task 15 remains planned in `everr-deploy`; task 16 is optional design only.
+Status: tasks 00 through 14 are implemented, independently reviewed and committed.
+Task 14 is committed as `54c768cac`, with operational documentation, a narrow
+Company-name readback fix and a passed isolated exercise/canary. Task 15's
+disabled-default configuration is independently reviewed and committed as
+`1df983b` in `everr-deploy`; target rollout and production proof remain pending.
+Task 16's optional specification is independently reviewed and included with this
+specification commit.
 User, Organization, Membership, billing, Plan, and readiness source facts are wired;
 cloud User, Organization and Membership CRM consumers and the independent integration runner are implemented,
 disabled by default.
@@ -42,25 +43,25 @@ including unrelated research, skills, and scripts. Execute tickets sequentially:
 each implementation agent hands its scoped result to a separate review-and-fixes
 agent before the coordinating agent commits and advances to the next ticket.
 
-| Task | Implementation                                                                                                                                                        | Independent review                                                                     | Commit        |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------- |
-| 00   | Complete; scoped documentation checks passed                                                                                                                          | Complete; findings fixed and checks repeated                                           | `8a9145de2`   |
-| 01   | Complete; checks and isolated ingestion passed                                                                                                                        | Complete; strict-schema finding fixed and checks passed                                | `c4dca85c1`   |
-| 02   | Complete; source, PostgreSQL and regression checks passed                                                                                                             | Complete; no material findings; 133 regression tests passed                            | `9696b6ce5`   |
-| 03   | Complete; source, PostgreSQL and provisioning checks passed                                                                                                           | Complete; multi-match mutation finding fixed and verified                              | `361211ba8`   |
-| 04   | Complete; 98 focused persistence and regression tests passed                                                                                                          | Complete; no material findings; 98 tests passed independently                          | `b3b617cdc`   |
-| 05   | Complete; 16 focused snapshot/storage and entitlement tests passed                                                                                                    | Complete; no material findings; 16 tests passed independently                          | `f0bbeef65`   |
-| 06   | Complete; 42 tests and isolated-provider checks passed                                                                                                                | Complete; quota/body cancellation findings fixed; 53 tests passed                      | `af829e766`   |
-| 07   | Complete; 75 focused/regression tests, final 18 checks and isolated ingestion proof passed                                                                            | Complete; durable retry-budget findings fixed; 73 tests passed                         | `05e183370`   |
-| 08   | Complete; 18 PostgreSQL/Graphile, 70 CRM and 17 worker checks; isolated provider and ingestion proof passed                                                           | Complete; dependency recovery fixed; 91 focused cases passed                           | `179230af5`   |
-| 09   | Complete; 33 related PostgreSQL/Graphile, 13 User and 60 focused CRM checks; isolated provider deletion proof passed                                                  | Complete; no material findings; 60 CRM tests passed independently                      | `3b47faa47`   |
-| 10   | Complete; typed evidence, 6 marker PostgreSQL cases, 33 worker regressions plus latest Company sync, 98 cloud/18 app checks and isolated ingestion/field proof passed | Complete; no material findings; 116 focused cases and both package type checks passed  | `af9102e69`   |
-| 11   | Complete; conservative trace-detail UI/CLI/MCP completion, 117 focused/regression cases, package typechecks and isolated marker/ingestion proof passed                | Complete; provenance fallback and preload-navigation findings fixed; 120 checks passed | `827cd6b51`   |
-| 12   | Complete; checkpointed source admission, 44 PostgreSQL/Graphile cases, 61 CRM checks and isolated provider recovery proof passed                                      | Complete; cancellation finding fixed; 46 PostgreSQL/Graphile and 61 CRM cases passed   | `5b0b092f8`   |
-| 13   | Complete; bounded periodic admission, fresh remote verification, guarded recovery and isolated Everr proof                                                            | Complete; retained-terminal repair gap fixed; 145 checks passed independently          | `f23e32eeb`   |
-| 14   | Complete; operational runbook, Company-name contract fix and isolated exercise/canary passed                                                                          | Complete; no material findings; 44 adapter cases passed independently                  | Not committed |
-| 15   | Planned, separate deployment repository                                                                                                                               | Not started                                                                            | Not committed |
-| 16   | Optional design only, planned                                                                                                                                         | Not started                                                                            | Not committed |
+| Task | Implementation                                                                                                                                                        | Independent review                                                                            | Commit                    |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------- |
+| 00   | Complete; scoped documentation checks passed                                                                                                                          | Complete; findings fixed and checks repeated                                                  | `8a9145de2`               |
+| 01   | Complete; checks and isolated ingestion passed                                                                                                                        | Complete; strict-schema finding fixed and checks passed                                       | `c4dca85c1`               |
+| 02   | Complete; source, PostgreSQL and regression checks passed                                                                                                             | Complete; no material findings; 133 regression tests passed                                   | `9696b6ce5`               |
+| 03   | Complete; source, PostgreSQL and provisioning checks passed                                                                                                           | Complete; multi-match mutation finding fixed and verified                                     | `361211ba8`               |
+| 04   | Complete; 98 focused persistence and regression tests passed                                                                                                          | Complete; no material findings; 98 tests passed independently                                 | `b3b617cdc`               |
+| 05   | Complete; 16 focused snapshot/storage and entitlement tests passed                                                                                                    | Complete; no material findings; 16 tests passed independently                                 | `f0bbeef65`               |
+| 06   | Complete; 42 tests and isolated-provider checks passed                                                                                                                | Complete; quota/body cancellation findings fixed; 53 tests passed                             | `af829e766`               |
+| 07   | Complete; 75 focused/regression tests, final 18 checks and isolated ingestion proof passed                                                                            | Complete; durable retry-budget findings fixed; 73 tests passed                                | `05e183370`               |
+| 08   | Complete; 18 PostgreSQL/Graphile, 70 CRM and 17 worker checks; isolated provider and ingestion proof passed                                                           | Complete; dependency recovery fixed; 91 focused cases passed                                  | `179230af5`               |
+| 09   | Complete; 33 related PostgreSQL/Graphile, 13 User and 60 focused CRM checks; isolated provider deletion proof passed                                                  | Complete; no material findings; 60 CRM tests passed independently                             | `3b47faa47`               |
+| 10   | Complete; typed evidence, 6 marker PostgreSQL cases, 33 worker regressions plus latest Company sync, 98 cloud/18 app checks and isolated ingestion/field proof passed | Complete; no material findings; 116 focused cases and both package type checks passed         | `af9102e69`               |
+| 11   | Complete; conservative trace-detail UI/CLI/MCP completion, 117 focused/regression cases, package typechecks and isolated marker/ingestion proof passed                | Complete; provenance fallback and preload-navigation findings fixed; 120 checks passed        | `827cd6b51`               |
+| 12   | Complete; checkpointed source admission, 44 PostgreSQL/Graphile cases, 61 CRM checks and isolated provider recovery proof passed                                      | Complete; cancellation finding fixed; 46 PostgreSQL/Graphile and 61 CRM cases passed          | `5b0b092f8`               |
+| 13   | Complete; bounded periodic admission, fresh remote verification, guarded recovery and isolated Everr proof                                                            | Complete; retained-terminal repair gap fixed; 145 checks passed independently                 | `f23e32eeb`               |
+| 14   | Complete; operational runbook, Company-name contract fix and isolated exercise/canary passed                                                                          | Complete; no material findings; 44 adapter cases passed independently                         | `54c768cac`               |
+| 15   | Complete configuration preparation in `everr-deploy`; disabled by default; target rollout pending                                                                     | Complete; rollout-scope wording fixed; 19 isolated plans, 6 setup cases and validation passed | `1df983b`                 |
+| 16   | Optional specification complete; provider documentation and synthetic scenario review; remote automation behavior unverified                                          | Complete; recipient and enrollment wording clarified; scoped document checks passed           | This specification commit |
 
 Update this ledger and the affected ticket with actual evidence after each
 stage. An implementation checkmark alone does not mean a ticket is reviewed or
@@ -110,6 +111,9 @@ alone does not apply configuration or migrations.
 
 Task 16 is a separate specification for future campaigns. It does not block the
 CRM projection and does not enable historical event exports or send emails.
+The [campaign delivery design](../../../docs/crm-campaign-delivery-design.md)
+records actor/recipient limits, uncertain delivery and the future no-message
+provider experiment. Profile import still requires an account automation audit.
 
 ## Review rule for each commit
 

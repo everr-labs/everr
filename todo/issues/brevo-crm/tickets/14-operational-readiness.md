@@ -1,6 +1,6 @@
 # 14: Document and prove CRM operational readiness
 
-Status: implemented and independently reviewed, awaiting coordinator commit.
+Status: implemented, independently reviewed and committed as `54c768cac`.
 The focused isolated exercise and corrected real provider canary passed. Task 13
 is committed as `f23e32eeb`. Production remains disabled.
 
@@ -156,7 +156,7 @@ cleanup evidence and proof sources remain under the ignored artifact directory.
 No schema migration, production setting, campaign, external Google/Polar flow or
 sibling deployment write occurred. Actual target build/schema delivery, field
 inventory/canary proof and target telemetry ingestion remain rollout prerequisites.
-Independent review is complete and no task 14 commit exists yet.
+Independent review is complete; coordinator commit is `54c768cac`.
 
 ## Independent review
 
