@@ -127,8 +127,18 @@ function parseWebRun(id: RunId, docker: string[]): WebRun {
   return { id, dir, art: webArt(id), docker, vars, project, product, origin, port, clickhouse, otlp };
 }
 
+/** The selected run wins: `run.env` carries WEB_RUN_ID, so a shell that sourced an earlier run's file
+ * would otherwise point every command at that (possibly deleted) run. WEB_RUN_ID only picks a run
+ * when none is selected, e.g. to retry cleanup of a run whose selection was already cleared. */
+function webRunId(): string {
+  const selected = readPointer(WEB_STATE);
+  const fromEnv = process.env.WEB_RUN_ID;
+  if (selected && fromEnv && fromEnv !== selected) console.error(`ignoring WEB_RUN_ID=${fromEnv}: the selected web run is ${selected}`);
+  return selected || fromEnv || "";
+}
+
 function webLoad(): WebRun {
-  const id = process.env.WEB_RUN_ID || readPointer(WEB_STATE);
+  const id = webRunId();
   if (!id) die("no current web run; run 'verify-everr web-launch' first");
   const runId = parseRunId(id);
   if (!existsSync(path.join(webDir(runId), "run.env"))) {
@@ -371,6 +381,21 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   console.log(`WEB READY run=${id} app=${product} url=${w.origin}`);
   return 0;
 }
+/** The ClickHouse reader a product's dev server is started with: process-compose.yaml's global
+ * environment, overridden by that product's process environment. */
+function appClickhouseReader(product: "app" | "cloud"): { user: string; password: string; database: string } {
+  const yaml = createRequire(path.join(REPO, "packages/app/package.json"))("yaml");
+  const config = yaml.parse(readFileSync(path.join(REPO, "process-compose.yaml"), "utf8"));
+  const env: Record<string, string> = {};
+  for (const list of [config.environment, config.processes?.[product]?.environment]) {
+    for (const entry of (list ?? []) as string[]) {
+      const i = entry.indexOf("=");
+      if (i > 0) env[entry.slice(0, i)] = entry.slice(i + 1);
+    }
+  }
+  return { user: env.CLICKHOUSE_USERNAME ?? "", password: env.CLICKHOUSE_PASSWORD ?? "", database: env.CLICKHOUSE_DATABASE ?? "app" };
+}
+
 async function cmdWebDoctor(): Promise<number> {
   const w = webLoad();
   let ok = true;
@@ -383,6 +408,12 @@ async function cmdWebDoctor(): Promise<number> {
     check(`${product} HTTP health`, (await http(`${w.vars[product === "app" ? "APP_ORIGIN" : "CLOUD_ORIGIN"]}/api/health`)).ok);
     const url = w.vars[product === "app" ? "APP_CLICKHOUSE_URL" : "CLOUD_CLICKHOUSE_URL"];
     check(`${product} tenant policies`, (await rowPolicies(url)) === expectedRowPolicies(product));
+    // Health and policies pass even when the app's own reader is missing or lacks grants.
+    const reader = appClickhouseReader(product);
+    // Cloud's tenant row policies read SQL_everr_tenant_id, which the app sets on every query.
+    const tenant = product === "cloud" ? "&SQL_everr_tenant_id=0" : "";
+    const read = await http(`${url}/?query=${encodeURIComponent(`SELECT count() FROM ${reader.database}.logs`)}${tenant}`, { headers: { Authorization: basicAuth(reader.user, reader.password) } });
+    check(`${product} ClickHouse reader ${reader.user || "(unset)"} can read ${reader.database}.logs`, read.ok);
     check(`${product} collector config matches source`, readText(collectorConfig(product)) === readText(path.join(w.art, `collector-${product}.yaml`)));
   }
   check("selected collector enforces HTTP authentication", (await otlpUnauthStatus(w)) === 401);
@@ -827,6 +858,10 @@ function dismissBanner(w: WebRun): boolean {
   return true;
 }
 
+/** A panel title of each product's Home dashboard (productClient.homeDashboardId): traces-overview
+ * on the App, telemetry-usage on Cloud. */
+const HOME_DASHBOARD_TEXT = { app: "Reporting services", cloud: "Usage by signal" } as const;
+
 /** Finish Home onboarding (4 steps) the way a user does, so later recipes see the Home dashboard.
  * Also sets the evidence viewport and dismisses the consent banner for the rest of the session. */
 function cmdWebOnboard(): number {
@@ -836,17 +871,18 @@ function cmdWebOnboard(): number {
   abOk(w, ["wait", "--text", "Home"], "wait for the app shell");
   if (dismissBanner(w)) console.log("consent banner: answered Deny");
   const body = () => ab(w, ["get", "text", "body"]).stdout;
-  abOk(w, ["wait", "--fn", "document.body.innerText.includes('Welcome to Everr') || document.body.innerText.includes('Usage by signal')"], "wait for Home");
+  const dashboard = HOME_DASHBOARD_TEXT[w.product];
+  abOk(w, ["wait", "--fn", `document.body.innerText.includes('Welcome to Everr') || document.body.innerText.includes(${JSON.stringify(dashboard)})`], "wait for Home");
   if (!body().includes("Welcome to Everr")) {
     abSave(w, "onboard-00-already-done");
-    console.log("ONBOARDED already (Home shows the usage dashboard)");
+    console.log("ONBOARDED already (Home shows its dashboard)");
     return 0;
   }
   const steps: [string, string][] = [
     ["Continue", "Step 2 of 4"],
     ["Check my telemetry", "Step 3 of 4"],
     ["I can see my local telemetry", "Step 4 of 4"],
-    ["Finish onboarding", "Usage by signal"],
+    ["Finish onboarding", dashboard],
   ];
   abSave(w, "onboard-01-step-1", "Home onboarding, step 1 of 4 (Install Everr), banner dismissed");
   steps.forEach(([button, next], i) => {
@@ -856,7 +892,7 @@ function cmdWebOnboard(): number {
     abSave(
       w,
       `onboard-0${i + 2}-${last ? "done" : `step-${i + 2}`}`,
-      last ? "Onboarding finished: Home shows the usage dashboard" : `After '${button}': onboarding ${next}`,
+      last ? `Onboarding finished: Home shows its dashboard (${dashboard})` : `After '${button}': onboarding ${next}`,
     );
   });
   const [cmd, psqlArgs] = composeArgs(w, [
@@ -1034,6 +1070,18 @@ function cmdWebReport(args: string[]): number {
       lines.push(`### ${label}`, "", caption || "*(no caption: add one with `ab_save <label> \"<claim>\"`)*", "", url ? `\`${url}\`` : "", "", `![${label}](${rel(path.join(shotsDir, s))})`, "");
     }
   }
+  // A byte-identical copy saved under a second label backs two claims with one frame.
+  const byHash = new Map<string, string[]>();
+  for (const s of shots) {
+    const h = createHash("sha256").update(readFileSync(path.join(shotsDir, s))).digest("hex");
+    byHash.set(h, [...(byHash.get(h) ?? []), s.slice(0, -4)]);
+  }
+  const dupes = [...byHash.values()].filter((labels) => labels.length > 1);
+  if (dupes.length) {
+    lines.push("## Duplicate screenshots", "", "Byte-identical frames saved under different labels; retake each so every claim has its own frame:", "");
+    for (const labels of dupes) lines.push(`- ${labels.map((l) => `\`${l}\``).join(" = ")}`);
+    lines.push("");
+  }
   lines.push(
     "## Checklist",
     "",
@@ -1043,12 +1091,13 @@ function cmdWebReport(args: string[]): number {
   );
   const out = path.join(art, "report.md");
   writeFileSync(out, `${lines.join("\n")}\n`);
-  console.log(`REPORT ${path.relative(REPO, out)} videos=${videos.length} screenshots=${shots.length} uncaptioned=${uncaptioned}`);
+  console.log(`REPORT ${path.relative(REPO, out)} videos=${videos.length} screenshots=${shots.length} uncaptioned=${uncaptioned} duplicates=${dupes.reduce((n, l) => n + l.length - 1, 0)}`);
+  for (const labels of dupes) console.log(`DUPLICATE ${labels.join(" = ")}`);
   return 0;
 }
 
 async function cmdWebCleanup(): Promise<number> {
-  const id = process.env.WEB_RUN_ID || readPointer(WEB_STATE);
+  const id = webRunId();
   if (!id) {
     console.log("no web run to clean up");
     return 0;
