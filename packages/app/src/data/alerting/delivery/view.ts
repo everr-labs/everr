@@ -9,9 +9,8 @@ import type { AlertingChannelConfig, AlertingSeverity } from "../types";
 
 export type NotificationChannelView = {
   name: string;
-  /** Secrets redacted: the config names the kind, the webhook header names,
-   *  and for Telegram the chats it reaches. Never a URL, a token, or a
-   *  header value. */
+  /** Secrets redacted: the config names the kind and, for Telegram, the
+   *  chats it reaches, never a URL or a token. */
   config: AlertingChannelConfig;
   /** The default tiers that deliver here: `["all"]` while the destination
    *  is unsplit, the severities that name it while split, empty when none. */
