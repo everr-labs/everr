@@ -2,7 +2,7 @@
 
 Status: implemented and independently reviewed with conservative trace-detail
 coverage. Two findings fixed; 120 checks and both package type checks passed.
-Isolated marker/ingestion proof retained. Coordinator commit pending.
+Isolated marker/ingestion proof retained. Committed as `827cd6b51`.
 
 Repository: `everr`.
 

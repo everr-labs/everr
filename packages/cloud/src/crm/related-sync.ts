@@ -108,7 +108,8 @@ export function createRelatedSyncTasks(options: {
       if (
         saved.kind === "membership" &&
         saved.desired.deleted &&
-        payload.eventType === "crm.reconciliation.requested" &&
+        (payload.eventType === "crm.reconciliation.requested" ||
+          payload.eventType === "crm.bootstrap.requested") &&
         payload.recheckDeletionRevision === saved.desiredRevision &&
         saved.syncedRevision === saved.desiredRevision
       ) {

@@ -307,3 +307,89 @@ unchanged pair from resuming after parent recovery. All 19 related PostgreSQL/Gr
 cases, 13 existing User integration cases and 59 focused CRM cases passed independently,
 along with the cloud TypeScript check and scoped formatting/lint checks. The existing
 provider and ingestion evidence remains applicable; review made no provider calls.
+
+## Resumable bootstrap
+
+The cloud command `pnpm --filter @everr/app-cloud crm:bootstrap --page-size 100 --max-pages 10`
+admits existing source state without making provider calls. Both bounds are
+required: a page has 1 through 100 rows and an invocation has 1 through 1,000 pages,
+including empty pages that advance phases. Memory stays bounded to one page.
+Prepare the cloud schema from source before use; this increment generates and
+applies no application migrations. Graphile must already have its worker schema.
+
+Supply `DATABASE_URL` and the runner's validated `CRM_BREVO_MODE`,
+`CRM_BREVO_DEPLOYMENT`, `CRM_BREVO_ACCOUNT_SCOPE` and `CRM_BREVO_API_KEY` through
+the process environment. The command uses only the database and never sends the
+key. Its account scope is stable across API-key rotation. Use the same database,
+deployment namespace and account scope as the integration runner. One logical
+installation and namespace is supported per Graphile database; replicas share it.
+The checkpoint scope does not route jobs between installations. Stage and
+production use separate databases/namespaces and appropriately isolated CRM
+accounts/budgets. Production integration remains disabled until rollout gates pass.
+
+`bootstrapCrm` is the reusable cloud primitive for later reconciliation. It scans
+Users, Organizations, explicit Membership rows (coalesced by User/Organization
+pair), then retained projection identities. Each uses primary-key keyset order.
+The last pass admits both live and missing mappings, retaining deletion safeguards,
+including exact completed-tombstone revision rechecks. No desired state or remote
+mapping is overwritten during pagination. The usual coordinated handlers reread
+current profiles, Memberships, billing and already stored milestones. Missing
+activation history remains null. No User-created/deleted business fact, welcome
+event, list/campaign enrollment or historical activation is invented.
+
+`crm_bootstrap` holds one current scan per deployment/account, with a scan ID,
+phase, cursor and cumulative admission/page counts. The short transaction uses a
+PostgreSQL advisory transaction lock and commits its page's public Graphile
+`add_job` admissions and checkpoint together. A NULL receipt or error rolls both
+back. No source transaction survives an HTTP operation. Concurrent invocations can
+advance separate pages safely; overlap returns an error and preserves progress.
+This is an administrative job-admission transaction, separate from the unchanged
+fire-and-forget domain publisher. It is not a business-event outbox.
+
+The command uses PoolClient's public Graphile SQL directly, rather than the app's
+Drizzle wrapper, to avoid importing an application database singleton and unrelated
+environment validation. Both use the same payload/spec definitions, stable job
+keys, `preserve_run_at` coalescing, fixed queue partitions and NULL-receipt guard.
+The provider runs only through normal workers, sharing live endpoint budgets and
+preserving durable failure allowances, blocked work and ambiguous Company-create
+intent. Replacing a pending bootstrap payload cannot replenish those allowances.
+
+Repeating the command resumes committed progress. Completed scans return unchanged
+unless `--new-scan` explicitly starts another full pass; that option rejects an
+unfinished scan. SIGINT/SIGTERM stops after committed work and rolls back a partial
+page. The command reports `admissionCompleted`, phase and cursor; its
+`remoteConverged: false` means provider convergence was not measured. Check worker
+lag, pending/blocked/exhausted jobs and projection outcomes separately. Paused mode
+can complete admission while retaining all work for a later configured runner.
+Disabled mode exits unsuccessfully before creating a checkpoint or jobs.
+
+A scan is not a globally consistent source snapshot. Live updates/deletions before
+execution are resolved by authoritative worker reads. Concurrent inserts behind a
+completed cursor, or updates after successful worker execution whose notification
+was lost, require an explicit subsequent scan or task 13 reconciliation. No
+periodic scheduler is introduced here. Counts describe admissions, including
+coalesced duplicates and retained mappings, rather than unique provider writes.
+
+The PostgreSQL/Graphile suite covers bounded pages, resume/repeat, atomic rollback,
+NULL receipts, cancellation, concurrent commands, inserts behind cursors, live
+source changes, durable quota deferral and unchanged blocked/exhausted allowances.
+No new telemetry fields or metrics are introduced; existing sync diagnostics apply.
+`.auth` is absent and authenticated app checks are skipped.
+
+The CLI deliberately emits one fixed failure message without raw database errors
+or configuration values. On failure, check the required bounds and `--new-scan`
+rule first, then mode and the four CRM configuration values, `DATABASE_URL`
+connectivity, prepared `crm_bootstrap`/`crm_projection` tables, and the public
+`graphile_worker.add_job` function/permissions. An overlapping page may be retried.
+Inspect `crm_bootstrap` phase/cursor/counts in that database to find committed
+progress; a failed partial page has no checkpoint advance or durable admissions.
+Do not reset blocked projections, Company-create intent or retry counters to make
+a bootstrap appear complete. Operational errors require inspection and a rerun
+from committed progress. The runtime is the package's `tsx` script, not direct
+Node execution of extensionless TypeScript imports.
+
+Independent task 12 review added a final cancellation check before page commit,
+covering signals received during the last admission or checkpoint query. All 46
+related PostgreSQL/Graphile cases and 61 focused CRM cases passed independently,
+alongside cloud TypeScript and scoped lint/format checks. Existing isolated-provider
+proof remains applicable; review made no provider calls or telemetry changes.

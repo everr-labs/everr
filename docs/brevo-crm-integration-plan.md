@@ -12,7 +12,10 @@ Task 08 is implemented, independently reviewed, and committed as `179230af5`.
 Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
 Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
 Task 11 is implemented and independently reviewed with conservative trace-detail
-coverage; two findings were fixed and 120 checks passed. Coordinator commit pending. Tasks 12 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+coverage; two findings were fixed, 120 checks passed, and it is committed as
+`827cd6b51`. Task 12 is implemented and independently reviewed; the cancellation
+finding is fixed and the coordinator commit is pending. Tasks 13
+through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -371,7 +374,10 @@ Task 08 is implemented, independently reviewed, and committed as `179230af5`.
 Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
 Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
 Task 11 is implemented and independently reviewed with conservative trace-detail
-coverage; two findings were fixed and 120 checks passed. Coordinator commit pending. Tasks 12 through 16 remain planned.
+coverage; two findings were fixed, 120 checks passed, and it is committed as
+`827cd6b51`. Task 12 is implemented and independently reviewed; the cancellation
+finding is fixed and the coordinator commit is pending. Tasks 13
+through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

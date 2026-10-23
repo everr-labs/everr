@@ -37,7 +37,8 @@ export function createDeletionCleanup(options: {
       saved.kind === "user" ? userSyncPayload.parse(raw) : organizationSyncPayload.parse(raw);
     const key = { kind: saved.kind, sourceId: saved.sourceId };
     if (
-      payload.eventType === "crm.reconciliation.requested" &&
+      (payload.eventType === "crm.reconciliation.requested" ||
+        payload.eventType === "crm.bootstrap.requested") &&
       payload.recheckDeletionRevision === saved.desiredRevision &&
       saved.syncedRevision === saved.desiredRevision
     ) {

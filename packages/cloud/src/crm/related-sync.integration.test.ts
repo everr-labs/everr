@@ -23,7 +23,9 @@ import {
   it,
   vi,
 } from "vite-plus/test";
-import { crmProjection } from "../db/schema/crm";
+import { crmProjection, crmBootstrap, crmBrevoBudget } from "../db/schema/crm";
+import { bootstrapCrm } from "./bootstrap";
+import { createBrevoBudget } from "./brevo/budget";
 import { createBrevoAdapter } from "./brevo/adapter";
 import { readBrevoConfig } from "./brevo/config";
 import {
@@ -254,6 +256,20 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     beforeAll(async () => {
       fixture = await createAuthTestDatabase(process.env.EVERR_IDENTITY_TEST_DATABASE_URL);
       await createMilestoneTestTable(fixture.client);
+      for (const table of [crmBootstrap, crmBrevoBudget]) {
+        const config = getTableConfig(table);
+        const columns = config.columns.map((column) => {
+          const value =
+            column.default instanceof SQL
+              ? new PgDialect().sqlToQuery(column.default).sql
+              : JSON.stringify(column.default);
+          return `"${column.name}" ${column.getSQLType()}${column.notNull ? " NOT NULL" : ""}${value === undefined ? "" : ` DEFAULT ${value}`}`;
+        });
+        const pk = config.primaryKeys[0].columns.map((column) => `"${column.name}"`).join(",");
+        await fixture.client.exec(
+          `CREATE TABLE ${config.name} (${columns.join(",")}, PRIMARY KEY (${pk}))`,
+        );
+      }
       const config = getTableConfig(crmProjection);
       const dialect = new PgDialect();
       const columns = config.columns.map((column) => {
@@ -275,7 +291,9 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await utils.migrate();
     });
     beforeEach(async () => {
-      await fixture.client.exec('TRUNCATE "user", organization, crm_projection CASCADE');
+      await fixture.client.exec(
+        'TRUNCATE "user", organization, crm_projection, crm_bootstrap, crm_brevo_budget CASCADE',
+      );
       const jobs = await fixture.client.query<{ id: string }>(
         "SELECT id FROM graphile_worker.jobs",
       );
@@ -1369,6 +1387,315 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         outcome: "synced",
       });
       expect(state.provider.companies.size).toBe(1);
+    });
+    const bootstrapPayloads = new Map<string, Record<string, unknown>>();
+    function bootstrap(overrides: Partial<Parameters<typeof bootstrapCrm>[0]> = {}) {
+      const { pool = fixture.database.$client, ...rest } = overrides;
+      const recordingPool = {
+        async connect() {
+          const client = await pool.connect();
+          const query = client.query.bind(client);
+          return new Proxy(client, {
+            get(target, key) {
+              if (key !== "query") return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                const result = await query(text, values);
+                if (text.includes("graphile_worker.add_job") && result.rows[0]?.id)
+                  bootstrapPayloads.set(String(result.rows[0].id), JSON.parse(String(values![1])));
+                return result;
+              };
+            },
+          });
+        },
+      };
+      return bootstrapCrm({
+        pool: recordingPool,
+        mode: "paused",
+        deployment: "test",
+        accountScope: "account",
+        pageSize: 1,
+        maxPages: 1,
+        ...rest,
+      });
+    }
+    async function bootstrapJobs() {
+      return (
+        await fixture.client.query<{ id: string; task_identifier: string; run_at: Date }>(
+          "SELECT id, task_identifier, run_at FROM graphile_worker.jobs ORDER BY id",
+        )
+      ).rows.map((job) => ({ ...job, payload: bootstrapPayloads.get(String(job.id))! }));
+    }
+
+    it("bootstraps bounded keyset pages, resumes durably and requires explicit completed repeat", async () => {
+      const first = await bootstrap();
+      expect(first).toMatchObject({
+        phase: "user",
+        cursor: "u",
+        admitted: 1,
+        admissionCompleted: false,
+        remoteConverged: false,
+      });
+      expect(await bootstrapJobs()).toHaveLength(1);
+      const resumed = await bootstrap({ maxPages: 100 });
+      expect(resumed).toMatchObject({
+        phase: "completed",
+        admitted: 7,
+        admissionCompleted: true,
+        remoteConverged: false,
+      });
+      expect(resumed.scan_id).toBe(first.scan_id);
+      expect(await bootstrapJobs()).toHaveLength(7);
+      expect(await bootstrap({ maxPages: 100 })).toEqual(resumed);
+      const repeated = await bootstrap({ maxPages: 100, newScan: true });
+      expect(repeated.scan_id).not.toBe(first.scan_id);
+      expect(repeated.admitted).toBe(7);
+      expect(await bootstrapJobs()).toHaveLength(7);
+      expect(
+        (await bootstrapJobs()).every((job) => job.payload.eventType === "crm.bootstrap.requested"),
+      ).toBe(true);
+    });
+    it("rolls back an admission failure and its page cursor, then replays safely", async () => {
+      await bootstrap();
+      const pool = fixture.database.$client;
+      const wrapped = {
+        async connect() {
+          const client = await pool.connect();
+          const query = client.query.bind(client);
+          return new Proxy(client, {
+            get(target, key) {
+              if (key !== "query") return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                if (text.startsWith("UPDATE crm_bootstrap SET scan_id"))
+                  throw new Error("Injected checkpoint failure");
+                return query(text, values);
+              };
+            },
+          });
+        },
+      };
+      await expect(bootstrap({ pool: wrapped, pageSize: 100 })).rejects.toThrow(
+        "checkpoint failure",
+      );
+      expect(await bootstrapJobs()).toHaveLength(1);
+      const progress = await bootstrap();
+      expect(progress).toMatchObject({ cursor: "v", admitted: 2 });
+      expect(await bootstrapJobs()).toHaveLength(2);
+    });
+    it("treats a NULL Graphile admission receipt as failure and rolls back the actual page", async () => {
+      const pool = fixture.database.$client;
+      const wrapped = {
+        async connect() {
+          const client = await pool.connect();
+          const query = client.query.bind(client);
+          return new Proxy(client, {
+            get(target, key) {
+              if (key !== "query") return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                const result = await query(text, values);
+                return text.includes("graphile_worker.add_job")
+                  ? { ...result, rows: [{ id: null }] }
+                  : result;
+              };
+            },
+          });
+        },
+      };
+      await expect(bootstrap({ pool: wrapped, pageSize: 100 })).rejects.toThrow("admission failed");
+      expect(await bootstrapJobs()).toHaveLength(0);
+      expect(await bootstrap()).toMatchObject({ cursor: "u", admitted: 1 });
+    });
+    it("covers inserts behind an earlier cursor on an explicit subsequent scan", async () => {
+      await bootstrap();
+      await fixture.database.insert(user).values({
+        id: "a",
+        name: "Concurrent",
+        email: "concurrent@example.test",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      expect((await bootstrap({ maxPages: 100 })).admitted).toBe(7);
+      expect((await bootstrap({ maxPages: 100, newScan: true })).admitted).toBe(8);
+      expect(await bootstrapJobs()).toHaveLength(8);
+    });
+    it.each(["partial admission", "last admission", "checkpoint"])(
+      "cancels after %s without committing the page",
+      async (stage) => {
+        const controller = new AbortController();
+        const pool = fixture.database.$client;
+        const wrapped = {
+          async connect() {
+            const client = await pool.connect();
+            const query = client.query.bind(client);
+            return new Proxy(client, {
+              get(target, key) {
+                if (key !== "query") return Reflect.get(target, key);
+                return async (text: string, values?: unknown[]) => {
+                  const result = await query(text, values);
+                  if (
+                    stage === "checkpoint"
+                      ? text.startsWith("UPDATE crm_bootstrap SET scan_id")
+                      : text.includes("graphile_worker.add_job")
+                  )
+                    controller.abort();
+                  return result;
+                };
+              },
+            });
+          },
+        };
+        await expect(
+          bootstrap({
+            pool: wrapped,
+            pageSize: stage === "last admission" ? 1 : 100,
+            signal: controller.signal,
+          }),
+        ).rejects.toThrow();
+        expect(await bootstrapJobs()).toHaveLength(0);
+        expect(await bootstrap()).toMatchObject({ cursor: "u", admitted: 1 });
+      },
+    );
+    it("rejects overlapping page admission without corrupting the checkpoint", async () => {
+      const pool = fixture.database.$client;
+      let entered!: () => void;
+      let release!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const wrapped = {
+        async connect() {
+          const client = await pool.connect();
+          const query = client.query.bind(client);
+          return new Proxy(client, {
+            get(target, key) {
+              if (key !== "query") return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                const result = await query(text, values);
+                if (
+                  text.startsWith(
+                    "SELECT scan_id, phase, cursor, cursor_kind, admitted, pages FROM crm_bootstrap",
+                  )
+                ) {
+                  entered();
+                  await gate;
+                }
+                return result;
+              };
+            },
+          });
+        },
+      };
+      const first = bootstrap({ pool: wrapped });
+      await ready;
+      await expect(bootstrap()).rejects.toThrow("already admitting");
+      release();
+      expect(await first).toMatchObject({ cursor: "u", admitted: 1 });
+      expect(await bootstrap()).toMatchObject({ cursor: "v", admitted: 2 });
+    });
+    it("refuses disabled and unsafe restarts, bounds memory, and separates account progress", async () => {
+      await expect(bootstrap({ mode: "disabled" })).rejects.toThrow("disabled");
+      await expect(bootstrap({ pageSize: 101 })).rejects.toThrow("pageSize");
+      await expect(bootstrap({ maxPages: 0 })).rejects.toThrow("pageSize");
+      await bootstrap();
+      await expect(bootstrap({ newScan: true })).rejects.toThrow("Complete the current");
+      expect(await bootstrap({ accountScope: "another" })).toMatchObject({
+        cursor: "u",
+        admitted: 1,
+      });
+      expect(await bootstrap()).toMatchObject({ cursor: "v", admitted: 2 });
+    });
+    it("uses latest state after live updates, deletion and pair replacement; repeats without duplicates", async () => {
+      const state = tasks();
+      await ready(state);
+      await bootstrap({ maxPages: 100 });
+      await fixture.database.update(user).set({ name: "Latest name" }).where(eq(user.id, "u"));
+      await fixture.database.delete(user).where(eq(user.id, "v"));
+      await fixture.database.delete(member).where(eq(member.id, "ma"));
+      await fixture.database.insert(member).values({
+        id: "replacement",
+        userId: "u",
+        organizationId: "a",
+        role: "admin",
+        createdAt: new Date(),
+      });
+      for (const job of await bootstrapJobs()) await state.invoke(job.task_identifier, job.payload);
+      for (const job of state.queued.splice(0)) await state.invoke(job.name, job.body);
+      expect(await store.read(userKey)).toMatchObject({
+        outcome: "synced",
+        desired: { fields: { name: "Latest name" } },
+      });
+      expect(await store.read({ kind: "user", sourceId: "v" })).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: true },
+      });
+      expect(await store.read(pairKey())).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: false },
+      });
+      expect(state.provider.contacts.size).toBe(1);
+      expect(state.provider.companies.size).toBe(2);
+      expect(await reader.organization("b")).toMatchObject({
+        fields: { firstQueryableAt: null, activatedAt: null },
+      });
+      const before = state.provider.transport.mock.calls.length;
+      await bootstrap({ maxPages: 100, newScan: true });
+      for (const job of await bootstrapJobs()) await state.invoke(job.task_identifier, job.payload);
+      expect(state.provider.contacts.size).toBe(1);
+      expect(state.provider.companies.size).toBe(2);
+      // Completed deletions may receive an explicit ownership recheck, all live upserts skip HTTP.
+      expect(
+        state.provider.transport.mock.calls
+          .slice(before)
+          .every(([, init]) => init.method !== "POST"),
+      ).toBe(true);
+    });
+    it("retains real Graphile quota deferrals and shares bootstrap/live account permits", async () => {
+      const budget = createBrevoBudget(fixture.database, "account");
+      const replica = createBrevoBudget(fixture.database, "account");
+      expect((await budget.acquire("general")).allowed).toBe(true);
+      expect((await replica.acquire("general")).allowed).toBe(false);
+      const state = tasks();
+      state.provider.hooks.generalAllowed = false;
+      await bootstrap({ maxPages: 100 });
+      await start(state);
+      await until(
+        async () =>
+          (await store.read(orgKey()))?.retryFailures === 0 &&
+          (await bootstrapJobs()).some(
+            (job) =>
+              job.task_identifier === ORGANIZATION_SYNC_TASK && job.run_at.getTime() > Date.now(),
+          ),
+      );
+      expect(await store.read(orgKey())).toMatchObject({
+        retryFailures: 0,
+        remoteId: null,
+        outcome: "pending",
+        companyCreateAttemptedAt: null,
+      });
+      expect(state.provider.companies.size).toBe(0);
+      expect((await bootstrap()).admissionCompleted).toBe(true);
+    });
+    it("does not replenish blocked or exhausted work or ambiguous Company create intent", async () => {
+      const saved = await store.desire(await reader.organization("a"));
+      await store.setRetryFailures(orgKey(), saved.desiredRevision, 0, 8);
+      await store.companyCreateIntent("a", saved.desiredRevision);
+      await store.markFailed(orgKey(), saved.desiredRevision, "identity_conflict", true);
+      await bootstrap({ maxPages: 100 });
+      const state = tasks();
+      const job = (await bootstrapJobs()).find(
+        (job) => job.payload.organizationId === "a" && job.payload.kind === "organization",
+      )!;
+      await expect(state.invoke(job.task_identifier, job.payload)).rejects.toThrow(
+        "requires inspection",
+      );
+      expect(await store.read(orgKey())).toMatchObject({
+        retryFailures: 8,
+        outcome: "blocked",
+        companyCreateAttemptedAt: expect.any(Date),
+      });
+      expect(state.provider.transport).not.toHaveBeenCalled();
     });
   },
 );

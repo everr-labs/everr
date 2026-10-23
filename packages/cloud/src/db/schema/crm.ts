@@ -84,3 +84,30 @@ export const crmBrevoBudget = pgTable(
     check("crm_brevo_budget_group_check", sql`${table.group} in ('contacts', 'general')`),
   ],
 );
+
+/** Admission progress only. No source FKs or historical lifecycle facts. */
+export const crmBootstrap = pgTable(
+  "crm_bootstrap",
+  {
+    deployment: text("deployment").notNull(),
+    accountScope: text("account_scope").notNull(),
+    scanId: text("scan_id").notNull(),
+    phase: text("phase", {
+      enum: ["user", "organization", "member", "projection", "completed"],
+    }).notNull(),
+    cursor: text("cursor"),
+    cursorKind: text("cursor_kind"),
+    admitted: integer("admitted").default(0).notNull(),
+    pages: integer("pages").default(0).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.deployment, table.accountScope] }),
+    check(
+      "crm_bootstrap_phase_check",
+      sql`${table.phase} in ('user', 'organization', 'member', 'projection', 'completed')`,
+    ),
+    check("crm_bootstrap_progress_check", sql`${table.admitted} >= 0 and ${table.pages} >= 0`),
+  ],
+);
