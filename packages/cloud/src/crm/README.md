@@ -1,7 +1,7 @@
 # Cloud CRM projection state
 
-This module stores desired CRM state and includes cloud-only User consumers, an
-independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
+This module stores desired CRM state and includes cloud-only User, Organization and
+Membership consumers, an independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
 Only schema source changes are included, with no generated migration artifacts.
@@ -126,10 +126,9 @@ An exhausted projection prevents further HTTP even if successor insertion failed
 and Graphile retries an older payload. Each successor is inserted
 before its predecessor completes, so a crash can duplicate work but cannot erase
 the persisted retry. Contact external-ID uniqueness permits lookup recovery after
-an ambiguous create; any returned remote ID is bound before recovery. No company
-create is implemented here. Normal contact permit gaps wait at most 250 milliseconds
-with cancellation; longer gaps defer durably. Task 08 must implement resumable phases
-for the 36-second general/company permit interval to avoid read/defer starvation.
+an ambiguous create; any returned remote ID is bound before recovery. Company create recovery is described below. Normal contact permit gaps wait at most 250 milliseconds
+with cancellation; longer gaps defer durably. Company reads persist their owned-field response before PATCH, so the next
+36-second general permit can resume the write without repeating GET.
 
 Graphile additionally retains an eight-attempt native fallback for database or
 successor-insertion failures, with sanitized errors. The durable reservation
@@ -140,9 +139,58 @@ fails or the process dies, blocked/exhausted state short-circuits subsequent HTT
 and native retries still retain the job. Exhausted/blocked jobs remain available
 through Graphile's public inspection/replay APIs, with no automatic cleanup.
 
+## Organization and explicit Membership synchronization
+
+Cloud also subscribes to Organization creation/updates, explicit Membership additions,
+updates/removals, readiness, subscription and Plan facts. Deletion event consumers and
+full remote entity/orphan cleanup remain task 09. Commands contain source IDs only.
+Two Organizations sharing a domain keep distinct Company IDs. A Contact can link to
+several Companies, and unlink removes only the requested pair. Membership row replacement
+and stale event order are resolved by rereading the latest User/Organization pair.
+
+`createCrmTaskList` wraps all three task types with PostgreSQL session advisory locks.
+Parent tasks lock their endpoint; association tasks try both endpoint locks in sorted
+order and defer immediately on contention. There is no source transaction across HTTP.
+The existing 64 User Graphile queue partitions are unchanged, with another 64 fixed
+Organization/association queues. Stable projection job keys and `preserve_run_at` coalesce
+source events, prerequisites, fanout and continuations. Retry progress lives in the
+revision-scoped projection allowance, so replacing an unlocked payload cannot replenish
+it. Prerequisite waits enqueue parent work and defer for at least 60 seconds. Parent
+fanout runs after successful/already synchronized work, preventing a quota-deferral
+feedback loop. The one-slot runner never waits for its own queued task.
+
+Company creation persists `company_create_attempted_at` before non-idempotent POST.
+A crash after intent, provider acceptance or failed local binding resumes bounded
+inventory recovery, never another blind create. A known returned ID is bound even if
+desired state changed. Only an adapter-confirmed unsent quota/pause/cancellation deferral
+clears the intent. Invisible, duplicate or full recovery inventory retains inspectable
+bounded work. This favors duplicate prevention over automatically recreating an entity
+whose initial attempt may never have reached Brevo.
+
+Successful Company GET stores `company_read`, containing only parsed owned fields and
+explicit linked IDs. A deferred PATCH resumes from that record and omits unchanged fields.
+The handler rechecks source before writes and after HTTP, clears read progress after a
+successful write, and schedules changed desired state. Link work requires both safe parent
+mappings; mapped-but-blocked parents cannot authorize links. Association mappings retain
+both remote endpoint IDs before HTTP, including partial/ambiguous success. Unlink still
+works when a parent is blocked, and an absent remote Company is already unlinked.
+Removed pairs can reserve/refund retry allowances despite their deletion marker.
+An unchanged pair blocked only by `prerequisite_blocked` reassesses current parents on
+its next execution, so recovered parents can authorize progress without resetting the
+pair's revision or retry allowance. Pair identity/provider blocks remain inspectable.
+
+The reserved pool still has at most four connections. One session connection holds
+endpoint locks while other connections perform short source/storage operations. Losing
+the lock connection aborts the outbound request and destroys that connection; work remains
+recoverable/inspectable. Brevo has no fencing token. A previously sent request can still
+be accepted after a connection loss, and no atomic remote ordering guarantee is claimed
+for that failure window. Source deletion can likewise race the final pre-request check.
+Terminal entity tombstones remain authoritative and remote IDs stay available for task 09.
+
 ## Telemetry
 
-The existing application OTel provider exports `crm.user.sync` logs,
+The existing application OTel provider exports `crm.user.sync`, `crm.organization.sync`
+and `crm.membership.sync` logs,
 `everr.crm.sync.outcomes` (unit `1`) and `everr.crm.sync.lag` (unit `s`). Only bounded
 outcome and entity-kind dimensions appear on metrics. Event, User and job IDs
 appear on logs, never emails, names, payloads, secrets or raw database/provider
@@ -181,3 +229,21 @@ with the separate `-retry` job's retry/success logs. Counters and lag histogram
 were queried from the same isolated collector. No real Brevo fixtures were needed
 for this increment. `.auth` is absent, so authenticated manual app checks were
 skipped; there is no UI change. Production ingestion remains unverified.
+
+Task 08 adds 18 real PostgreSQL/Graphile checks for multi-company relationships, multiple
+Owners, source changes, pair re-addition/removal, partial link failures, durable Company
+intent/read phases, pause/quota refunds, bounded admission, two-runner parent coordination,
+lock-session loss, native successor-insertion failure and accepted-create binding failure.
+The actual isolated provider proof and new log/metric ingestion evidence are under
+`.verify-everr/artifacts/task08-organization-sync/`. It linked one Contact to two Companies,
+removed one pair, read both back, and deleted its two Companies plus one Contact. The proof
+exposed eager fanout amplification; the final code coalesces admissions and delays fanout,
+verified by the PostgreSQL bounded-job regression. Provider/telemetry evidence was preserved
+without another provider run. Production activation/ingestion and full deletion cleanup
+remain unverified; `.auth` is absent, so authenticated manual app checks were skipped.
+
+Independent task 08 review fixed a derived dependency block that otherwise prevented an
+unchanged pair from resuming after parent recovery. All 19 related PostgreSQL/Graphile
+cases, 13 existing User integration cases and 59 focused CRM cases passed independently,
+along with the cloud TypeScript check and scoped formatting/lint checks. The existing
+provider and ingestion evidence remains applicable; review made no provider calls.

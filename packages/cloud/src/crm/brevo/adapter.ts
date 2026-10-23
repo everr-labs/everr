@@ -38,10 +38,21 @@ const contact = z.object({
   }),
 });
 const company = z.object({
+  name: z.string().optional(),
   id: z.string().min(1),
-  attributes: z.object({ everr_org_id: z.string().optional() }),
+  attributes: z.object({
+    everr_org_id: z.string().optional(),
+    everr_created_at: z.string().optional(),
+    everr_plan: z.string().optional(),
+    everr_app_state: z.string().optional(),
+    everr_subscription_status: z.string().optional(),
+    everr_current_period_end: z.string().optional(),
+    everr_cancel_at_period_end: z.string().optional(),
+    everr_provisioning: z.string().optional(),
+  }),
   linkedContactsIds: z.array(z.number().int()).optional(),
 });
+export type CompanyRecord = z.infer<typeof company>;
 const failure = (kind: Failure["kind"], code: string, status?: number): Failure => ({
   ok: false,
   kind,
@@ -379,13 +390,37 @@ export function createBrevoAdapter(
         signal,
       );
     },
-    async updateCompany(remoteId: string, snapshot: Company, signal?: AbortSignal) {
+    async updateCompany(
+      remoteId: string,
+      snapshot: Company,
+      signal?: AbortSignal,
+      current?: CompanyRecord,
+    ) {
       if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
+      if (
+        current &&
+        (current.id !== remoteId || current.attributes.everr_org_id !== snapshot.externalId)
+      )
+        return failure("identity_conflict", "external_id_mismatch");
+      const desired = companyBody(snapshot);
+      const attributes = Object.fromEntries(
+        Object.entries(desired.attributes).filter(
+          ([key, value]) =>
+            !current ||
+            Object.entries(current.attributes).find(([name]) => name === key)?.[1] !== value,
+        ),
+      );
+      const nameChanged = !current || current.name !== desired.name;
+      if (!nameChanged && Object.keys(attributes).length === 0)
+        return { ok: true as const, value: undefined };
       return request(
         "PATCH",
         `/companies/${encodeURIComponent(remoteId)}`,
         z.union([company, z.undefined()]),
-        companyBody(snapshot),
+        {
+          ...(nameChanged ? { name: desired.name } : {}),
+          ...(Object.keys(attributes).length ? { attributes } : {}),
+        },
         signal,
       );
     },

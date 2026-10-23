@@ -4,15 +4,14 @@ import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
 import { managedWorker } from "@everr/app/server/worker/managed-worker";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { run, type WorkerEvents } from "graphile-worker";
+import { run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { createBrevoAdapter } from "./brevo/adapter";
 import { createBrevoBudget, type BrevoBudget } from "./brevo/budget";
 import { readBrevoConfig } from "./brevo/config";
-import { USER_SYNC_TASK } from "./jobs";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
-import { createUserSyncTask } from "./user-sync";
+import { createCrmTaskList } from "./task-list";
 import { attachCrmRetryPolicy } from "./retries";
 
 /** Avoid GET/defer starvation for the ordinary 100ms contact permit gap.
@@ -44,7 +43,9 @@ export const integrationWorker = managedWorker({
     const events: WorkerEvents = new EventEmitter();
     const retries = attachCrmRetryPolicy(events, pool);
     try {
-      const task = createUserSyncTask({
+      const tasks = createCrmTaskList({
+        pool,
+        deployment: config.deployment,
         reader: createCrmSnapshotReader(database, config.deployment),
         store: createCrmProjectionStore(database, config.deployment),
         adapter: createBrevoAdapter(
@@ -52,16 +53,19 @@ export const integrationWorker = managedWorker({
           contactPermitGap(createBrevoBudget(database, config.accountScope), controller.signal),
         ),
       });
+      const taskList: TaskList = {};
+      for (const [name, task] of Object.entries(tasks)) {
+        if (task)
+          taskList[name] = (payload, helpers) =>
+            task(payload, { ...helpers, abortSignal: controller.signal });
+      }
       const runner = await run({
         concurrency: 1,
         pgPool: pool,
         events,
         noHandleSignals: true,
         pollInterval: 1000,
-        taskList: {
-          [USER_SYNC_TASK]: (payload, helpers) =>
-            task(payload, { ...helpers, abortSignal: controller.signal }),
-        },
+        taskList,
         preset: { worker: { gracefulShutdownAbortTimeout: 5000 } },
       });
       let stopped = false;

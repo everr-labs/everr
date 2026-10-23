@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Database } from "@everr/app/db/database";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
+import type { CompanyRecord } from "./brevo/adapter";
 import { crmProjection } from "../db/schema/crm";
 import {
   projectionIdentity,
@@ -41,6 +42,48 @@ export function createCrmProjectionStore(database: Database, deployment: string)
   };
   return {
     read,
+    async memberships(parent: { userId: string } | { organizationId: string }) {
+      return database
+        .select()
+        .from(crmProjection)
+        .where(
+          and(
+            eq(crmProjection.deployment, deployment),
+            eq(crmProjection.kind, "membership"),
+            "userId" in parent
+              ? eq(crmProjection.userId, parent.userId)
+              : eq(crmProjection.organizationId, parent.organizationId),
+          ),
+        );
+    },
+    async companyRead(sourceId: string, current: CompanyRecord | null) {
+      await database
+        .update(crmProjection)
+        .set({ companyRead: current, updatedAt: new Date() })
+        .where(where({ kind: "organization", sourceId }));
+    },
+    async companyCreateIntent(sourceId: string, revision: number) {
+      const rows = await database
+        .update(crmProjection)
+        .set({ companyCreateAttemptedAt: new Date() })
+        .where(
+          and(
+            where({ kind: "organization", sourceId }),
+            eq(crmProjection.desiredRevision, revision),
+            isNull(crmProjection.remoteId),
+            isNull(crmProjection.deletedAt),
+            isNull(crmProjection.companyCreateAttemptedAt),
+          ),
+        )
+        .returning();
+      return rows.length === 1;
+    },
+    async refundCompanyCreateIntent(sourceId: string) {
+      await database
+        .update(crmProjection)
+        .set({ companyCreateAttemptedAt: null })
+        .where(and(where({ kind: "organization", sourceId }), isNull(crmProjection.remoteId)));
+    },
     /** Call with the latest reader result under the synchronization lock (task 07). */
     async desire(snapshot: DesiredProjection) {
       const expected: ProjectionIdentity =
@@ -108,7 +151,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             where(key),
             eq(crmProjection.desiredRevision, revision),
             eq(crmProjection.retryFailures, expected),
-            isNull(crmProjection.deletedAt),
+            key.kind === "membership" ? undefined : isNull(crmProjection.deletedAt),
             sql`${crmProjection.syncedRevision} is distinct from ${revision}`,
           ),
         )

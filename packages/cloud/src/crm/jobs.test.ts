@@ -61,3 +61,37 @@ it("waits only for the normal contact permit gap and honors cancellation", async
   controller.abort();
   await expect(cancelled).rejects.toThrow();
 });
+
+it("registers Organization, explicit Membership, readiness and billing consumers only in cloud enabled modes", async () => {
+  const { organizationSyncSubscribers, relatedSyncSpec } = await import("./jobs");
+  expect(organizationSyncSubscribers("disabled")).toEqual([]);
+  const enqueue = vi.fn(async () => undefined);
+  const consumers = organizationSyncSubscribers("paused", enqueue);
+  expect(consumers.map((consumer) => consumer.definition.type)).toEqual([
+    "organization.created",
+    "organization.updated",
+    "membership.added",
+    "membership.updated",
+    "membership.removed",
+    "organization.provisioned",
+    "billing.subscription.changed",
+    "organization.plan.changed",
+  ]);
+  const removed = consumers.find((consumer) => consumer.definition.type === "membership.removed")!;
+  await removed.enqueue({
+    id: "event",
+    type: "membership.removed",
+    version: 1,
+    subjectId: "row-old",
+    data: { membershipId: "row-old", organizationId: "org", userId: "user" },
+    occurredAt: new Date().toISOString(),
+  });
+  expect(enqueue).toHaveBeenCalledWith(
+    "crm/sync-membership",
+    expect.objectContaining({ userId: "user", organizationId: "org" }),
+    expect.anything(),
+  );
+  expect(
+    new Set(Array.from({ length: 1000 }, (_, id) => relatedSyncSpec(String(id)).queueName)).size,
+  ).toBeLessThanOrEqual(64);
+});

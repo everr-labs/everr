@@ -1,7 +1,13 @@
-import type { Task } from "graphile-worker";
+import type { JobHelpers, Task } from "graphile-worker";
 import type { createBrevoAdapter } from "./brevo/adapter";
-import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncPayload, userSyncSpec } from "./jobs";
-import type { createCrmSnapshotReader } from "./snapshots";
+import {
+  USER_SYNC_RETRIES,
+  USER_SYNC_TASK,
+  userSyncPayload,
+  userSyncSpec,
+  type UserSyncPayload,
+} from "./jobs";
+import type { createCrmSnapshotReader, DesiredProjection } from "./snapshots";
 import { snapshotFingerprint, type createCrmProjectionStore } from "./store";
 import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 
@@ -15,6 +21,11 @@ export function createUserSyncTask(options: {
     ReturnType<typeof createBrevoAdapter>,
     "getContact" | "createContact" | "updateContact"
   >;
+  reconcileMemberships?: (
+    snapshot: DesiredProjection,
+    helpers: JobHelpers,
+    payload: UserSyncPayload,
+  ) => Promise<void>;
   diagnostic?: SyncDiagnostic;
 }): Task {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
@@ -38,7 +49,7 @@ export function createUserSyncTask(options: {
     );
     const defer = async (at: Date, nextFailures = failures) => {
       // Persist the successor before acknowledging this job. A crash may duplicate work,
-      // but cannot erase its retry budget. No job key can overwrite a newer continuation.
+      // but cannot erase its durable retry budget. Coalesced jobs reread current state.
       await helpers.addJob(
         USER_SYNC_TASK,
         {
@@ -59,6 +70,7 @@ export function createUserSyncTask(options: {
       throw new RetainedCrmWork("CRM deletion cleanup required (task09).");
     }
     if (saved.syncedRevision === saved.desiredRevision) {
+      await options.reconcileMemberships?.(saved.desired, helpers, payload);
       report("synced");
       return;
     }
@@ -84,6 +96,16 @@ export function createUserSyncTask(options: {
       result: Exclude<Awaited<ReturnType<typeof adapter.getContact>>, { ok: true }>,
     ) => {
       if (result.remoteId) await store.bindRemote(key, { remoteId: result.remoteId });
+      saved = await store.desire(await reader.user(payload.userId));
+      if (saved.desired.deleted || saved.deletedAt) {
+        await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
+        report("blocked");
+        throw new RetainedCrmWork("CRM deletion cleanup required (task09).");
+      }
+      if (saved.desiredRevision !== attemptRevision) {
+        await defer(new Date(Date.now() + 1000));
+        return;
+      }
       if (
         result.kind === "paused" ||
         result.kind === "disabled" ||
@@ -162,6 +184,7 @@ export function createUserSyncTask(options: {
       return;
     }
     await store.markSynced(key, saved.desiredRevision);
+    await options.reconcileMemberships?.(saved.desired, helpers, payload);
     report("synced");
   };
   return async (raw, helpers) => {

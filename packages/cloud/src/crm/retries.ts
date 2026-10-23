@@ -1,7 +1,7 @@
 import { serverLogger } from "@everr/app/telemetry/logger";
 import type { WorkerEvents } from "graphile-worker";
 import type { Pool } from "pg";
-import { USER_SYNC_TASK } from "./jobs";
+import { USER_SYNC_TASK, ORGANIZATION_SYNC_TASK, MEMBERSHIP_SYNC_TASK } from "./jobs";
 import { RetainedCrmWork } from "./user-sync";
 
 /** Native retries protect DB/continuation failures; known terminal work stays inspectable.
@@ -11,7 +11,13 @@ import { RetainedCrmWork } from "./user-sync";
 export function attachCrmRetryPolicy(events: WorkerEvents, pool: Pick<Pool, "query">) {
   const pending = new Set<Promise<void>>();
   events.on("job:complete", ({ job, error }) => {
-    if (job.task_identifier !== USER_SYNC_TASK || !(error instanceof RetainedCrmWork)) return;
+    if (
+      ![USER_SYNC_TASK, ORGANIZATION_SYNC_TASK, MEMBERSHIP_SYNC_TASK].includes(
+        job.task_identifier,
+      ) ||
+      !(error instanceof RetainedCrmWork)
+    )
+      return;
     const update = pool
       .query("SELECT graphile_worker.permanently_fail_jobs(ARRAY[$1::bigint], $2)", [
         String(job.id),

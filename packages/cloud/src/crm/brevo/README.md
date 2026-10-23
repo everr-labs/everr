@@ -1,7 +1,7 @@
 # Brevo HTTP adapter
 
 Task 06 supplies the cloud-only provider adapter, configuration validation and
-shared request permits. Task 07 adds the separately gated User consumer and runner;
+shared request permits. Tasks 07 and 08 add separately gated User/Organization/Membership consumers and runner;
 constructing the adapter makes no startup HTTP calls.
 The adapter emits no telemetry and never logs requests, provider bodies or errors.
 Its failure values contain only bounded local codes, HTTP status, scheduling time
@@ -88,8 +88,8 @@ Read back with `getCompany` when current provider values are needed.
 
 Associations use explicit numeric Contact IDs and Company IDs through the
 link/unlink endpoint. They add or remove only the requested pair, without replacing
-all associations or matching email domains. Future synchronizers own mapping
-validation and entity serialization, including deletion races, across replicas.
+all associations or matching email domains. The task 08 synchronizer owns mapping validation and endpoint serialization across
+replicas, with retained pair endpoints for removal and task 09 entity cleanup.
 
 ## Errors and uncertain creates
 
@@ -100,8 +100,7 @@ successful create with a lost/malformed response is also ambiguous. If an accept
 ID was parsed before a later cooldown persistence failure, the failure carries
 `remoteId` so the handler can bind it before recovery. A Company caller must persist a
 create-attempt guard before issuing POST, retain uncertain outcomes, and never
-translate an ambiguous result into another blind POST. Company execution policy
-belongs to task 08. Task 07 contacts recover through their unique external ID and
+translate an ambiguous result into another blind POST. Task 08 persists that guard and the resumable lookup/write phase in the projection. Task 07 contacts recover through their unique external ID and
 persist any returned remote ID before retrying.
 
 429 returns a rate-limited outcome. Credential/schema errors remain inspectable
@@ -154,3 +153,10 @@ Primary contracts checked October 23, 2026: [contact creation](https://developer
 [explicit associations](https://developers.brevo.com/reference/link-and-unlink-company-with-contact-and-deal),
 [rate limits](https://developers.brevo.com/docs/api-limits), and
 [reset headers](https://developers.brevo.com/docs/limit-headers).
+
+Task 08 verified the actual source/Graphile worker slice against the isolated account:
+one Contact linked to two distinct Companies, then one pair removed while the other
+remained linked in GET readbacks. All two Company fixtures and the one Contact fixture
+were deleted using the shared request budget. No preexisting Contact was changed. Evidence:
+`.verify-everr/artifacts/task08-organization-sync/`. Company/association synchronization
+still defaults to disabled and no production configuration was changed.

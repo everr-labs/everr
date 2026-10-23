@@ -9,6 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { CompanyRecord } from "../../crm/brevo/adapter";
 import type { DesiredProjection } from "../../crm/snapshots";
 
 /** Deliberately no source FKs: entity and association cleanup survives cascades. */
@@ -22,6 +23,10 @@ export const crmProjection = pgTable(
     userId: text("user_id"),
     organizationId: text("organization_id"),
     remoteId: text("remote_id"),
+    // Intent survives crashes and desired revisions. Only a definitive unsent deferral clears it.
+    companyCreateAttemptedAt: timestamp("company_create_attempted_at", { withTimezone: true }),
+    // A successful GET is durable so the next general permit can perform PATCH.
+    companyRead: jsonb("company_read").$type<CompanyRecord>(),
     // Association endpoint IDs remain available even after source cascades.
     remoteContactId: text("remote_contact_id"),
     remoteCompanyId: text("remote_company_id"),

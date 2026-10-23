@@ -3,7 +3,7 @@ import { organizationReadinessEventDefinitions } from "@everr/app/organizations/
 import { billingEventDefinitions } from "../../billing/events";
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
-import { userSyncSubscribers } from "../../crm/jobs";
+import { userSyncSubscribers, organizationSyncSubscribers } from "../../crm/jobs";
 
 const crmConfig = readBrevoConfig(process.env);
 
@@ -14,7 +14,10 @@ export const runtime: ApplicationRuntime = {
       ...organizationReadinessEventDefinitions,
       ...billingEventDefinitions,
     ],
-    subscribers: userSyncSubscribers(crmConfig.mode),
+    subscribers: [
+      ...userSyncSubscribers(crmConfig.mode),
+      ...organizationSyncSubscribers(crmConfig.mode),
+    ],
   },
   async migrateDatabase(database) {
     const { migrateDatabase } = await import("../migrations");

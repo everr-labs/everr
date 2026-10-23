@@ -1,7 +1,7 @@
 # 07: Synchronize Users through a cloud integration runner
 
 Status: implemented and independently reviewed, with retry-budget findings fixed
-and focused checks plus isolated telemetry proof passed. Not committed.
+and focused checks plus isolated telemetry proof passed. Committed as `05e183370`.
 
 Repository: `everr`.
 
