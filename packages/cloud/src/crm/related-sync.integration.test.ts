@@ -23,7 +23,8 @@ import {
   it,
   vi,
 } from "vite-plus/test";
-import { crmProjection, crmBootstrap, crmBrevoBudget } from "../db/schema/crm";
+import { crmProjection, crmBootstrap, crmBrevoBudget, crmReconciliation } from "../db/schema/crm";
+import { createReconciliationTask } from "./reconciliation";
 import { bootstrapCrm } from "./bootstrap";
 import { createBrevoBudget } from "./brevo/budget";
 import { createBrevoAdapter } from "./brevo/adapter";
@@ -256,7 +257,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     beforeAll(async () => {
       fixture = await createAuthTestDatabase(process.env.EVERR_IDENTITY_TEST_DATABASE_URL);
       await createMilestoneTestTable(fixture.client);
-      for (const table of [crmBootstrap, crmBrevoBudget]) {
+      for (const table of [crmBootstrap, crmBrevoBudget, crmReconciliation]) {
         const config = getTableConfig(table);
         const columns = config.columns.map((column) => {
           const value =
@@ -292,7 +293,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
     });
     beforeEach(async () => {
       await fixture.client.exec(
-        'TRUNCATE "user", organization, crm_projection, crm_bootstrap, crm_brevo_budget CASCADE',
+        'TRUNCATE "user", organization, crm_projection, crm_bootstrap, crm_brevo_budget, crm_reconciliation CASCADE',
       );
       const jobs = await fixture.client.query<{ id: string }>(
         "SELECT id FROM graphile_worker.jobs",
@@ -1575,7 +1576,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
                 const result = await query(text, values);
                 if (
                   text.startsWith(
-                    "SELECT scan_id, phase, cursor, cursor_kind, admitted, pages FROM crm_bootstrap",
+                    "SELECT scan_id, phase, cursor, cursor_kind, admitted, pages, updated_at FROM crm_bootstrap",
                   )
                 ) {
                   entered();
@@ -1696,6 +1697,475 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         companyCreateAttemptedAt: expect.any(Date),
       });
       expect(state.provider.transport).not.toHaveBeenCalled();
+    });
+
+    function periodic(overrides: Partial<Parameters<typeof bootstrapCrm>[0]> = {}) {
+      return bootstrap({ mode: "configured", periodic: true, ...overrides });
+    }
+    async function runAdmissions(state: ReturnType<typeof tasks>) {
+      for (const job of await bootstrapJobs()) await state.invoke(job.task_identifier, job.payload);
+      const jobs = await fixture.client.query<{ id: string }>(
+        "SELECT id FROM graphile_worker.jobs",
+      );
+      await utils.completeJobs(jobs.rows.map((row) => row.id));
+      for (const job of state.queued.splice(0)) await state.invoke(job.name, job.body);
+    }
+    it("repairs dropped initial User, Organization, Membership and current Plan/milestone publication", async () => {
+      const state = tasks();
+      await fixture.client.exec(
+        "INSERT INTO organization_billing(org_id, plan) VALUES ('a', 'pro'); INSERT INTO org_subscription(org_id, polar_subscription_id, polar_product_id, status, polar_modified_at) VALUES ('a', 'sub', 'product_pro', 'active', now())",
+      );
+      const milestones = createOrganizationMilestoneStore(fixture.database);
+      await milestones.establish({
+        observedAt: new Date(),
+        observerStartedAt: new Date(),
+        evidence: {
+          organizationId: "a",
+          principal: {
+            kind: "member",
+            organizationId: "a",
+            userId: "u",
+            membershipId: "ma",
+            authorization: "current-membership",
+          },
+          data: { organizationId: "a", origin: "production", provenance: "own-customer-telemetry" },
+          completion: "succeeded",
+          trigger: "user",
+          evidence: {
+            kind: "query",
+            surface: "cli",
+            purpose: "telemetry-analysis",
+            matchedOwnRecords: 1,
+          },
+        },
+      });
+      // No domain publication or handler ran. Only current authoritative rows exist.
+      await periodic({ maxPages: 100 });
+      await runAdmissions(state);
+      expect(await store.read(userKey)).toMatchObject({ outcome: "synced" });
+      expect(await store.read(orgKey())).toMatchObject({
+        outcome: "synced",
+        desired: { fields: { plan: "pro", activatedAt: expect.any(String) } },
+      });
+      expect(await store.read(pairKey())).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: false },
+      });
+      expect(await reader.organization("b")).toMatchObject({ fields: { activatedAt: null } });
+    });
+    it("freshly verifies owned remote fields and explicit pair drift, with no writes for unchanged state", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      state.queued.splice(0);
+      const contact = [...state.provider.contacts.values()][0];
+      const company = [...state.provider.companies.values()][0];
+      contact.attributes.EVERR_NAME = "Remote drift";
+      company.name = "Remote drift";
+      company.linkedContactsIds = [];
+      await periodic({ maxPages: 100 });
+      await runAdmissions(state);
+      expect(contact.attributes.EVERR_NAME).toBe("Owner");
+      expect(company.name).toBe("First");
+      expect(company.linkedContactsIds).toContain(contact.id);
+      state.queued.splice(0);
+      await fixture.client.exec(
+        "UPDATE crm_reconciliation SET updated_at = now() - interval '2 days'",
+      );
+      const before = state.provider.transport.mock.calls.length;
+      await periodic({ maxPages: 100 });
+      await runAdmissions(state);
+      expect(
+        state.provider.transport.mock.calls
+          .slice(before)
+          .every(([, init]) => init.method === "GET"),
+      ).toBe(true);
+    });
+    it.each(["user", "organization"])(
+      "detects mapped missing %s conservatively without recreating it",
+      async (kind) => {
+        const state = tasks();
+        await ready(state);
+        state.queued.splice(0);
+        if (kind === "user") state.provider.contacts.clear();
+        else state.provider.companies.clear();
+        const key = kind === "user" ? userKey : orgKey();
+        const prior = (await store.read(key))!;
+        const body =
+          kind === "user"
+            ? {
+                version: 1,
+                userId: "u",
+                failures: 0,
+                eventId: "check",
+                occurredAt: new Date().toISOString(),
+                eventType: "crm.reconciliation.requested",
+                verifyRemoteRevision: prior.desiredRevision,
+              }
+            : {
+                ...payload("organization"),
+                eventType: "crm.reconciliation.requested",
+                verifyRemoteRevision: prior.desiredRevision,
+              };
+        const before = state.provider.transport.mock.calls.length;
+        await expect(
+          state.invoke(kind === "user" ? USER_SYNC_TASK : ORGANIZATION_SYNC_TASK, body),
+        ).rejects.toThrow();
+        expect(await store.read(key)).toMatchObject({
+          outcome: "blocked",
+          remoteId: prior.remoteId,
+          lastErrorCode: kind === "user" ? "mapped_contact_missing" : "mapped_company_missing",
+        });
+        expect(
+          state.provider.transport.mock.calls
+            .slice(before)
+            .every(([, init]) => init.method === "GET"),
+        ).toBe(true);
+      },
+    );
+    it("preserves exhausted allowances and ambiguous intent across duplicate checks; explicit expected revision recovers once", async () => {
+      const state = tasks();
+      const saved = await store.desire(await reader.organization("a"));
+      await store.companyCreateIntent("a", saved.desiredRevision);
+      await store.setRetryFailures(orgKey(), saved.desiredRevision, 0, 8);
+      await periodic({ maxPages: 100 });
+      const body = {
+        ...payload("organization"),
+        eventType: "crm.reconciliation.requested",
+        verifyRemoteRevision: saved.desiredRevision,
+      };
+      for (let n = 0; n < 2; n++)
+        await expect(state.invoke(ORGANIZATION_SYNC_TASK, body)).rejects.toThrow();
+      expect(await store.read(orgKey())).toMatchObject({
+        desiredRevision: 1,
+        retryFailures: 8,
+        companyCreateAttemptedAt: expect.any(Date),
+      });
+      expect(state.provider.transport).not.toHaveBeenCalled();
+      await state.invoke(ORGANIZATION_SYNC_TASK, {
+        ...body,
+        eventType: "crm.recovery.requested",
+        recoverExhaustedRevision: 1,
+      });
+      const recovered = (await store.read(orgKey()))!;
+      expect(recovered.desiredRevision).toBe(2);
+      expect(recovered.companyCreateAttemptedAt).toEqual(
+        (await store.read(orgKey()))!.companyCreateAttemptedAt,
+      );
+      expect(state.provider.transport.mock.calls.every(([, init]) => init.method === "GET")).toBe(
+        true,
+      );
+      await state.invoke(ORGANIZATION_SYNC_TASK, {
+        ...body,
+        eventType: "crm.recovery.requested",
+        recoverExhaustedRevision: 1,
+      });
+      expect((await store.read(orgKey()))!.desiredRevision).toBe(2);
+    });
+    it("resumes periodic pages and repeats a completed cycle to cover inserts behind a cursor", async () => {
+      const first = await periodic();
+      expect(first).toMatchObject({ cursor: "u", admitted: 1 });
+      await fixture.database.insert(user).values({
+        id: "a",
+        name: "Behind",
+        email: "behind@example.test",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      expect(await periodic()).toMatchObject({ cursor: "v", admitted: 2 });
+      const finished = await periodic({ maxPages: 100 });
+      expect(finished.admissionCompleted).toBe(true);
+      expect((await periodic()).scan_id).toBe(first.scan_id);
+      await fixture.client.exec(
+        "UPDATE crm_reconciliation SET updated_at = now() - interval '2 days'",
+      );
+      expect((await periodic()).scan_id).not.toBe(first.scan_id);
+      expect((await bootstrapJobs()).some((job) => job.payload.userId === "a")).toBe(true);
+    });
+    it("paused/disabled periodic work never completes or admits, and backpressure ignores retained terminal jobs", async () => {
+      await expect(periodic({ mode: "paused" })).rejects.toThrow("paused");
+      await expect(periodic({ mode: "disabled" })).rejects.toThrow("disabled");
+      expect((await fixture.client.query("SELECT * FROM crm_reconciliation")).rows).toHaveLength(0);
+      const ids = [];
+      for (let i = 0; i < 100; i++)
+        ids.push(String((await utils.addJob(USER_SYNC_TASK, {}, { jobKey: `cap-${i}` })).id));
+      await expect(periodic()).rejects.toThrow("backlog");
+      expect((await fixture.client.query("SELECT * FROM crm_reconciliation")).rows).toHaveLength(0);
+      await utils.permanentlyFailJobs(ids, "fixture retained");
+      expect(await periodic()).toMatchObject({ admitted: 1 });
+    });
+    it("does not downgrade queued live jobs or replace their pending retry metadata", async () => {
+      await utils.addJob(USER_SYNC_TASK, { live: true }, { ...userSyncSpec("u"), priority: -10 });
+      const before = (
+        await fixture.client.query(
+          "SELECT * FROM graphile_worker.jobs WHERE key = 'crm-user-projection:u'",
+        )
+      ).rows[0];
+      await periodic();
+      const after = (
+        await fixture.client.query(
+          "SELECT * FROM graphile_worker.jobs WHERE key = 'crm-user-projection:u'",
+        )
+      ).rows[0];
+      expect(after).toEqual(before);
+    });
+    it("reassesses retained terminal work after a lost source change without refreshing unchanged exhaustion", async () => {
+      const state = tasks();
+      const saved = await store.desire(await reader.user("u"));
+      await store.setRetryFailures(userKey, saved.desiredRevision, 0, 8);
+      await store.markFailed(userKey, saved.desiredRevision, "retry_budget_exhausted");
+      const retained = await utils.addJob(USER_SYNC_TASK, { retained: true }, userSyncSpec("u"));
+      await utils.permanentlyFailJobs([String(retained.id)], "fixture exhausted");
+
+      await periodic();
+      const first = (await bootstrapJobs()).reverse().find((job) => job.payload?.userId === "u")!;
+      expect(first).toBeDefined();
+      await start(state);
+      await until(
+        async () =>
+          (
+            await fixture.client.query<{ retained: boolean }>(
+              "SELECT attempts >= max_attempts AS retained FROM graphile_worker.jobs WHERE id = $1",
+              [first.id],
+            )
+          ).rows[0]?.retained ?? false,
+      );
+      expect(await store.read(userKey)).toMatchObject({
+        desiredRevision: saved.desiredRevision,
+        retryFailures: 8,
+      });
+      expect(state.provider.transport).not.toHaveBeenCalled();
+
+      // No new publication accompanies this authoritative source change.
+      await fixture.database
+        .update(user)
+        .set({ name: "Recovered current name" })
+        .where(eq(user.id, "u"));
+      await periodic({ maxPages: 100 });
+      await until(async () => (await store.read(userKey))?.outcome === "synced");
+      expect(await store.read(userKey)).toMatchObject({
+        desiredRevision: saved.desiredRevision + 1,
+        retryFailures: 0,
+        outcome: "synced",
+        desired: { fields: { name: "Recovered current name" } },
+      });
+      expect(state.provider.contacts.get(saved.externalId)?.attributes.EVERR_NAME).toBe(
+        "Recovered current name",
+      );
+    });
+    it("tracks the oldest known pending start across retries and exposes periodic progress/failure execution", async () => {
+      const saved = await store.desire(await reader.user("u"));
+      await fixture.client.exec(
+        "UPDATE crm_projection SET pending_since = now() - interval '2 hours'",
+      );
+      await store.setRetryFailures(userKey, saved.desiredRevision, 0, 1);
+      await store.markFailed(userKey, saved.desiredRevision, "provider_unavailable");
+      expect((await store.read(userKey))!.pendingSince!.getTime()).toBeLessThan(
+        Date.now() - 3600_000,
+      );
+      const task = createReconciliationTask({
+        pool: fixture.database.$client,
+        mode: "configured",
+        deployment: "test",
+        accountScope: "account",
+      });
+      await task({}, { abortSignal: new AbortController().signal } as JobHelpers);
+      expect(
+        (await fixture.client.query("SELECT pages FROM crm_reconciliation")).rows[0].pages,
+      ).toBe(1);
+      await store.markSynced(userKey, saved.desiredRevision);
+      expect((await store.read(userKey))!.pendingSince).toBeNull();
+    });
+
+    it("repairs lost deletion and removed pair notifications from retained identities", async () => {
+      const state = tasks();
+      await ready(state);
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
+      state.queued.splice(0);
+      await fixture.database.delete(member).where(eq(member.id, "ma"));
+      await periodic({ maxPages: 100 });
+      await runAdmissions(state);
+      expect([...state.provider.companies.values()][0].linkedContactsIds).not.toContain(1);
+      await fixture.database.delete(user).where(eq(user.id, "u"));
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      await fixture.client.exec(
+        "UPDATE crm_reconciliation SET updated_at = now() - interval '2 days'",
+      );
+      await periodic({ maxPages: 100 });
+      await runAdmissions(state);
+      expect(await store.read(userKey)).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: true },
+      });
+      expect(await store.read(orgKey())).toMatchObject({
+        outcome: "synced",
+        desired: { deleted: true },
+      });
+    });
+    it("duplicate completed checks cannot replenish pending verification allowance under quota deferral", async () => {
+      const state = tasks();
+      await ready(state);
+      state.queued.splice(0);
+      const saved = (await store.read(orgKey()))!;
+      const body = {
+        ...payload("organization"),
+        eventType: "crm.reconciliation.requested",
+        verifyRemoteRevision: saved.desiredRevision,
+      };
+      state.provider.hooks.generalAllowed = false;
+      await state.invoke(ORGANIZATION_SYNC_TASK, body);
+      const checking = (await store.read(orgKey()))!;
+      await store.setRetryFailures(orgKey(), checking.desiredRevision, 0, 7);
+      await state.invoke(ORGANIZATION_SYNC_TASK, body);
+      expect(await store.read(orgKey())).toMatchObject({
+        desiredRevision: checking.desiredRevision,
+        retryFailures: 7,
+      });
+      expect(
+        state.provider.transport.mock.calls.filter(([, init]) => init.method === "POST"),
+      ).toHaveLength(2);
+    });
+    it("rechecks latest source when a live mutation commits during fresh verification", async () => {
+      const state = tasks();
+      await ready(state);
+      state.queued.splice(0);
+      const saved = (await store.read(userKey))!;
+      state.provider.hooks.afterRequest = async (method, path) => {
+        if (method === "GET" && path.startsWith("/contacts/")) {
+          state.provider.hooks.afterRequest = undefined;
+          await fixture.database.update(user).set({ name: "Live latest" }).where(eq(user.id, "u"));
+        }
+      };
+      await state.invoke(USER_SYNC_TASK, {
+        version: 1,
+        userId: "u",
+        eventId: "verify",
+        eventType: "crm.reconciliation.requested",
+        occurredAt: new Date().toISOString(),
+        failures: 0,
+        verifyRemoteRevision: saved.desiredRevision,
+      });
+      expect(await store.read(userKey)).toMatchObject({
+        outcome: "pending",
+        desired: { fields: { name: "Live latest" } },
+      });
+      for (const job of state.queued.splice(0)) await state.invoke(job.name, job.body);
+      expect([...state.provider.contacts.values()][0].attributes.EVERR_NAME).toBe("Live latest");
+    });
+
+    it("does not repeat a source-phase verification in the retained phase of the same cycle", async () => {
+      const state = tasks();
+      await ready(state);
+      state.queued.splice(0);
+      const initial = (await store.read(userKey))!;
+      const first = await periodic({ pageSize: 1 });
+      await runAdmissions(state);
+      const verified = (await store.read(userKey))!;
+      expect(verified.desiredRevision).toBe(initial.desiredRevision + 1);
+      expect(verified.remoteCheckId).toBe(first.scan_id);
+      await periodic({ maxPages: 100 });
+      const sameUser = (await bootstrapJobs()).filter(
+        (job) => job.payload.userId === "u" && job.task_identifier === USER_SYNC_TASK,
+      );
+      expect(sameUser).toHaveLength(0);
+      expect((await store.read(userKey))!.desiredRevision).toBe(verified.desiredRevision);
+    });
+
+    it("a stale operator recovery still processes newer live pending work without resetting its budget", async () => {
+      const state = tasks();
+      await ready(state);
+      state.queued.splice(0);
+      await fixture.database.update(user).set({ name: "New live" }).where(eq(user.id, "u"));
+      const newer = await store.desire(await reader.user("u"));
+      await store.setRetryFailures(userKey, newer.desiredRevision, 0, 7);
+      await state.invoke(USER_SYNC_TASK, {
+        version: 1,
+        userId: "u",
+        eventId: "old-recovery",
+        eventType: "crm.recovery.requested",
+        occurredAt: new Date().toISOString(),
+        failures: 0,
+        recoverExhaustedRevision: 1,
+      });
+      expect(await store.read(userKey)).toMatchObject({
+        desiredRevision: newer.desiredRevision,
+        outcome: "synced",
+        desired: { fields: { name: "New live" } },
+      });
+      expect([...state.provider.contacts.values()][0].attributes.EVERR_NAME).toBe("New live");
+    });
+    it("retains a failed scanner page and emits a bounded failure diagnostic", async () => {
+      const pool = fixture.database.$client;
+      const broken = Object.create(pool);
+      broken.query = async () => {
+        throw new Error("Fixture query unavailable");
+      };
+      broken.connect = async () => {
+        throw new Error("Fixture contains private SQL values");
+      };
+      const task = createReconciliationTask({
+        pool: broken,
+        mode: "configured",
+        deployment: "test",
+        accountScope: "account",
+      });
+      await expect(
+        task({}, { abortSignal: new AbortController().signal } as JobHelpers),
+      ).rejects.toThrow("CRM reconciliation failed; committed progress remains resumable.");
+      expect((await fixture.client.query("SELECT * FROM crm_reconciliation")).rows).toHaveLength(0);
+    });
+
+    it("serializes concurrent periodic page admissions and rolls back an interrupted page", async () => {
+      const attempts = await Promise.allSettled([periodic(), periodic()]);
+      const completed = attempts.filter((result) => result.status === "fulfilled");
+      const checkpoint = (
+        await fixture.client.query<{ admitted: number }>("SELECT admitted FROM crm_reconciliation")
+      ).rows[0];
+      expect(checkpoint.admitted).toBe(completed.length);
+      const before = checkpoint.admitted;
+      const controller = new AbortController();
+      const pool = fixture.database.$client;
+      const wrapped = {
+        async connect() {
+          const client = await pool.connect();
+          const query = client.query.bind(client);
+          return new Proxy(client, {
+            get(target, key) {
+              if (key !== "query") return Reflect.get(target, key);
+              return async (text: string, values?: unknown[]) => {
+                const result = await query(text, values);
+                if (text.startsWith("UPDATE crm_reconciliation SET scan_id")) controller.abort();
+                return result;
+              };
+            },
+          });
+        },
+      };
+      await expect(periodic({ pool: wrapped, signal: controller.signal })).rejects.toThrow();
+      expect(
+        (await fixture.client.query("SELECT admitted FROM crm_reconciliation")).rows[0].admitted,
+      ).toBe(before);
+      await expect(periodic()).resolves.toBeDefined();
+    });
+
+    it("includes durable sync jobs that have no projection in oldest known pending age", async () => {
+      await utils.addJob(USER_SYNC_TASK, {}, userSyncSpec("v"));
+      await delay(20);
+      const diagnostic = vi.fn();
+      const task = createReconciliationTask({
+        pool: fixture.database.$client,
+        mode: "configured",
+        deployment: "test",
+        accountScope: "account",
+        diagnostic,
+      });
+      await task({}, { abortSignal: new AbortController().signal } as JobHelpers);
+      expect(diagnostic).toHaveBeenCalledWith(
+        "progress",
+        expect.objectContaining({ oldestKnownPendingSeconds: expect.any(Number) }),
+      );
+      expect(diagnostic.mock.calls[0][1].oldestKnownPendingSeconds).toBeGreaterThan(0);
+      expect(await store.read({ kind: "user", sourceId: "v" })).toBeUndefined();
     });
   },
 );

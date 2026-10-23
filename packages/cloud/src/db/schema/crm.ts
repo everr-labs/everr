@@ -35,6 +35,7 @@ export const crmProjection = pgTable(
     desired: jsonb("desired").$type<DesiredProjection>().notNull(),
     desiredFingerprint: text("desired_fingerprint").notNull(),
     desiredRevision: integer("desired_revision").default(1).notNull(),
+    remoteCheckId: text("remote_check_id"),
     syncedRevision: integer("synced_revision"),
     syncedFingerprint: text("synced_fingerprint"),
     retryFailures: integer("retry_failures").default(0).notNull(),
@@ -45,6 +46,7 @@ export const crmProjection = pgTable(
     lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    pendingSince: timestamp("pending_since", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -110,4 +112,24 @@ export const crmBootstrap = pgTable(
     ),
     check("crm_bootstrap_progress_check", sql`${table.admitted} >= 0 and ${table.pages} >= 0`),
   ],
+);
+
+/** Separate periodic progress, so an operator bootstrap never resets a repair cycle. */
+export const crmReconciliation = pgTable(
+  "crm_reconciliation",
+  {
+    deployment: text("deployment").notNull(),
+    accountScope: text("account_scope").notNull(),
+    scanId: text("scan_id").notNull(),
+    phase: text("phase", {
+      enum: ["user", "organization", "member", "projection", "completed"],
+    }).notNull(),
+    cursor: text("cursor"),
+    cursorKind: text("cursor_kind"),
+    admitted: integer("admitted").default(0).notNull(),
+    pages: integer("pages").default(0).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.deployment, table.accountScope] })],
 );

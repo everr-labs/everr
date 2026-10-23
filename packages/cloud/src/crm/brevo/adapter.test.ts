@@ -75,7 +75,11 @@ it("omits unchanged owned fields and makes no write for an unchanged contact", a
       EVERR_EMAIL_VERIFIED: user.fields.emailVerified,
     },
   };
-  expect(await adapter.updateContact(user, same)).toEqual({ ok: true, value: undefined });
+  expect(await adapter.updateContact(user, same)).toEqual({
+    ok: true,
+    value: undefined,
+    changed: false,
+  });
   expect(transport).not.toHaveBeenCalled();
   await adapter.updateContact({ ...user, fields: { ...user.fields, name: "Renamed" } }, same);
   expect(JSON.parse(transport.mock.calls[0][1].body as string).attributes).toEqual({

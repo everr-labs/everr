@@ -41,3 +41,43 @@ export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId) => {
     /* Diagnostics cannot alter persisted work. */
   }
 };
+
+const reconciliation = meter.createCounter("everr.crm.reconciliation.outcomes", { unit: "1" });
+const pendingAge = meter.createGauge("everr.crm.sync.oldest_known_pending", { unit: "s" });
+/** Bounded operational metadata. Unknown pre-existing pending start times stay unknown. */
+export function reconciliationDiagnostic(
+  outcome: "progress" | "deferred" | "failure" | "drift" | "missing",
+  metadata: {
+    kind?: "user" | "organization" | "membership";
+    pages?: number;
+    admitted?: number;
+    oldestKnownPendingSeconds?: number;
+  } = {},
+) {
+  try {
+    const dimensions = {
+      "everr.crm.reconciliation.outcome": outcome,
+      ...(metadata.kind ? { "everr.crm.entity_kind": metadata.kind } : {}),
+    };
+    reconciliation.add(1, dimensions);
+    if (metadata.oldestKnownPendingSeconds !== undefined)
+      pendingAge.record(metadata.oldestKnownPendingSeconds);
+    serverLogger[outcome === "failure" || outcome === "missing" ? "error" : "info"](
+      "crm.reconciliation",
+      {
+        ...dimensions,
+        ...(metadata.pages === undefined
+          ? {}
+          : { "everr.crm.reconciliation.pages": metadata.pages }),
+        ...(metadata.admitted === undefined
+          ? {}
+          : { "everr.crm.reconciliation.admitted": metadata.admitted }),
+        ...(metadata.oldestKnownPendingSeconds === undefined
+          ? {}
+          : { "everr.crm.oldest_known_pending_seconds": metadata.oldestKnownPendingSeconds }),
+      },
+    );
+  } catch {
+    /* Diagnostics cannot alter persisted work. */
+  }
+}

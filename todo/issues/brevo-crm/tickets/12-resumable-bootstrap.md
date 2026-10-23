@@ -1,6 +1,6 @@
 # 12: Add resumable CRM bootstrap
 
-Status: implemented and independently reviewed. Cancellation finding fixed. Not committed.
+Status: implemented, independently reviewed and committed as `5b0b092f8`. Cancellation finding fixed.
 
 Repository: `everr`.
 
@@ -67,7 +67,7 @@ never provider convergence. Scope and operational constraints are documented in
 
 Implementation checks and isolated-provider evidence are recorded under
 `.verify-everr/artifacts/task12-resumable-bootstrap/`. Independent review is complete;
-the coordinator commit is pending. No production activation or application
+the coordinator committed it as `5b0b092f8`. No production activation or application
 migration generation/application occurred. `.auth` is absent, so authenticated
 manual app verification is skipped under AGENTS.md.
 

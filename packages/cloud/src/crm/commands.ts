@@ -16,10 +16,13 @@ export const userSyncPayload = z
       "identity.user.deleted",
       "crm.reconciliation.requested",
       "crm.bootstrap.requested",
+      "crm.recovery.requested",
     ]),
     occurredAt: z.iso.datetime({ offset: true }),
     failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
     desiredRevision: z.number().int().positive().optional(),
+    recoverExhaustedRevision: z.number().int().positive().optional(),
+    verifyRemoteRevision: z.number().int().positive().optional(),
     recheckDeletionRevision: z.number().int().positive().optional(),
   })
   .strict();
@@ -45,6 +48,8 @@ const relatedPayload = z.object({
   occurredAt: z.iso.datetime({ offset: true }),
   failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
   desiredRevision: z.number().int().positive().optional(),
+  recoverExhaustedRevision: z.number().int().positive().optional(),
+  verifyRemoteRevision: z.number().int().positive().optional(),
   recheckDeletionRevision: z.number().int().positive().optional(),
   organizationId: z.string().min(1).max(512),
 });

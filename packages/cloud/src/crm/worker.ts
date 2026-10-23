@@ -4,7 +4,7 @@ import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
 import { managedWorker } from "@everr/app/server/worker/managed-worker";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { run, type TaskList, type WorkerEvents } from "graphile-worker";
+import { parseCronItems, run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { createBrevoAdapter } from "./brevo/adapter";
 import { createBrevoBudget, type BrevoBudget } from "./brevo/budget";
@@ -12,6 +12,7 @@ import { readBrevoConfig } from "./brevo/config";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { createCrmTaskList } from "./task-list";
+import { createReconciliationTask, RECONCILIATION_TASK } from "./reconciliation";
 import { attachCrmRetryPolicy } from "./retries";
 
 /** Avoid GET/defer starvation for the ordinary 100ms contact permit gap.
@@ -59,7 +60,23 @@ export const integrationWorker = managedWorker({
           taskList[name] = (payload, helpers) =>
             task(payload, { ...helpers, abortSignal: controller.signal });
       }
+      const reconcile = createReconciliationTask({ pool, ...config });
+      taskList[RECONCILIATION_TASK] = (payload, helpers) =>
+        reconcile(payload, { ...helpers, abortSignal: controller.signal });
       const runner = await run({
+        parsedCronItems: parseCronItems([
+          {
+            task: RECONCILIATION_TASK,
+            match: "* * * * *",
+            options: {
+              backfillPeriod: 0,
+              priority: 100,
+              maxAttempts: 3,
+              jobKey: "crm-reconcile",
+              jobKeyMode: "preserve_run_at",
+            },
+          },
+        ]),
         concurrency: 1,
         pgPool: pool,
         events,

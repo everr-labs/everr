@@ -73,7 +73,11 @@ export function createDeletionCleanup(options: {
     };
     const complete = async () => {
       await store.cleanupCompanyRead(key, null);
-      await store.markSynced(key, saved.desiredRevision);
+      await store.markSynced(
+        key,
+        saved.desiredRevision,
+        payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
+      );
       await options.reconcileMemberships(saved, helpers, raw);
       report("synced");
     };

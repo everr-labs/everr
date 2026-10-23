@@ -10,7 +10,7 @@ import {
 } from "./jobs";
 import type { createCrmSnapshotReader, DesiredProjection } from "./snapshots";
 import { snapshotFingerprint, type createCrmProjectionStore } from "./store";
-import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
+import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 
 export class RetainedCrmWork extends Error {}
 
@@ -42,6 +42,11 @@ export function createUserSyncTask(options: {
     const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
       diagnostic(outcome, payload, String(helpers.job.id));
     let saved = await store.desire(await reader.user(payload.userId));
+    if (payload.eventType === "crm.reconciliation.requested" && payload.verifyRemoteRevision)
+      saved =
+        (await store.verifyRemote(key, payload.verifyRemoteRevision, payload.eventId)) ?? saved;
+    if (payload.eventType === "crm.recovery.requested" && payload.recoverExhaustedRevision)
+      saved = (await store.recoverExhausted(key, payload.recoverExhaustedRevision)) ?? saved;
     const attemptRevision = saved.desiredRevision;
     // Continuations describe one desired revision. An old exhausted command must
     // not consume the fresh allowance created by a newer authoritative snapshot.
@@ -154,6 +159,7 @@ export function createUserSyncTask(options: {
       return;
     }
     if (!current.ok && saved.remoteId) {
+      reconciliationDiagnostic("missing", { kind: "user" });
       await store.markFailed(key, saved.desiredRevision, "mapped_contact_missing", true);
       report("blocked");
       throw new RetainedCrmWork("Mapped CRM contact missing.");
@@ -167,6 +173,8 @@ export function createUserSyncTask(options: {
     const result = current.ok
       ? await adapter.updateContact(snapshot, current.value, helpers.abortSignal)
       : await adapter.createContact(snapshot, helpers.abortSignal);
+    if (result.ok && ("changed" in result ? result.changed : !current.ok))
+      reconciliationDiagnostic("drift", { kind: "user" });
     if (result.ok && result.value)
       await store.bindRemote(key, { remoteId: String(result.value.id) });
     if (!result.ok) {
@@ -188,7 +196,11 @@ export function createUserSyncTask(options: {
       await defer(new Date(Date.now() + 1000));
       return;
     }
-    await store.markSynced(key, saved.desiredRevision);
+    await store.markSynced(
+      key,
+      saved.desiredRevision,
+      payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
+    );
     await options.reconcileMemberships?.(saved.desired, helpers, payload);
     report("synced");
   };

@@ -87,6 +87,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
       const [row] = await database
         .update(crmProjection)
         .set({
+          pendingSince: sql`coalesce(${crmProjection.pendingSince}, now())`,
           desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
           retryFailures: 0,
           cleanupCompanyRead: null,
@@ -101,6 +102,57 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             isNotNull(crmProjection.deletedAt),
             eq(crmProjection.desiredRevision, completedRevision),
             eq(crmProjection.syncedRevision, completedRevision),
+          ),
+        )
+        .returning();
+      return row;
+    },
+    /** Only a completed observation can open a new remote check. Never refresh pending budgets. */
+    async verifyRemote(key: ProjectionKey, completedRevision: number, checkId: string) {
+      const [row] = await database
+        .update(crmProjection)
+        .set({
+          desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
+          retryFailures: 0,
+          outcome: "pending",
+          companyRead: null,
+          cleanupCompanyRead: null,
+          remoteCheckId: checkId,
+          lastErrorCode: null,
+          lastErrorAt: null,
+          pendingSince: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            where(key),
+            eq(crmProjection.desiredRevision, completedRevision),
+            eq(crmProjection.syncedRevision, completedRevision),
+            sql`${crmProjection.remoteCheckId} is distinct from ${checkId}`,
+            isNull(crmProjection.deletedAt),
+          ),
+        )
+        .returning();
+      return row;
+    },
+    /** Explicit operator recovery only, under endpoint locks. Retains every mapping and create intent. */
+    async recoverExhausted(key: ProjectionKey, revision: number) {
+      const [row] = await database
+        .update(crmProjection)
+        .set({
+          desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
+          retryFailures: 0,
+          outcome: "pending",
+          lastErrorCode: null,
+          lastErrorAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            where(key),
+            eq(crmProjection.desiredRevision, revision),
+            sql`${crmProjection.retryFailures} >= 8`,
+            sql`${crmProjection.syncedRevision} is distinct from ${revision}`,
           ),
         )
         .returning();
@@ -173,6 +225,7 @@ export function createCrmProjectionStore(database: Database, deployment: string)
           set: {
             desired: snapshot,
             desiredFingerprint: fingerprint,
+            pendingSince: sql`coalesce(${crmProjection.pendingSince}, now())`,
             desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
             retryFailures: 0,
             cleanupCompanyRead: null,
@@ -253,10 +306,12 @@ export function createCrmProjectionStore(database: Database, deployment: string)
       if (!rows.length) throw new Error("CRM mapping missing or remote identity conflict.");
       return rows[0];
     },
-    async markSynced(key: ProjectionKey, revision: number) {
+    async markSynced(key: ProjectionKey, revision: number, checkId?: string) {
       const rows = await database
         .update(crmProjection)
         .set({
+          ...(checkId ? { remoteCheckId: checkId } : {}),
+          pendingSince: null,
           syncedRevision: revision,
           retryFailures: 0,
           syncedFingerprint: sql`${crmProjection.desiredFingerprint}`,

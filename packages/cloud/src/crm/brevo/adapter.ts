@@ -337,7 +337,11 @@ export function createBrevoAdapter(
       );
     },
     /** Caller loads this record separately, under the entity synchronization lock. */
-    async updateContact(snapshot: User, current: z.infer<typeof contact>, signal?: AbortSignal) {
+    async updateContact(
+      snapshot: User,
+      current: z.infer<typeof contact>,
+      signal?: AbortSignal,
+    ): Promise<Result<undefined> & { changed?: boolean }> {
       if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
       if (current.attributes.EXT_ID !== snapshot.externalId)
         return failure("identity_conflict", "external_id_mismatch");
@@ -349,8 +353,8 @@ export function createBrevoAdapter(
         ),
       );
       if (!emailChanged && Object.keys(attributes).length === 0)
-        return { ok: true as const, value: undefined };
-      return request(
+        return { ok: true as const, value: undefined, changed: false };
+      const result = await request(
         "PUT",
         `/contacts/${current.id}?identifierType=contact_id`,
         z.undefined(),
@@ -367,6 +371,7 @@ export function createBrevoAdapter(
         },
         signal,
       );
+      return result.ok ? { ...result, changed: true } : result;
     },
     deleteContact(remoteId: number, signal?: AbortSignal) {
       return request(
@@ -401,7 +406,7 @@ export function createBrevoAdapter(
       snapshot: Company,
       signal?: AbortSignal,
       current?: CompanyRecord,
-    ) {
+    ): Promise<Result<CompanyRecord | undefined> & { changed?: boolean }> {
       if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
       if (
         current &&
@@ -418,8 +423,8 @@ export function createBrevoAdapter(
       );
       const nameChanged = !current || current.name !== desired.name;
       if (!nameChanged && Object.keys(attributes).length === 0)
-        return { ok: true as const, value: undefined };
-      return request(
+        return { ok: true as const, value: undefined, changed: false };
+      const result = await request(
         "PATCH",
         `/companies/${encodeURIComponent(remoteId)}`,
         z.union([company, z.undefined()]),
@@ -429,6 +434,7 @@ export function createBrevoAdapter(
         },
         signal,
       );
+      return result.ok ? { ...result, changed: true } : result;
     },
     deleteCompany(remoteId: string, signal?: AbortSignal) {
       return request(

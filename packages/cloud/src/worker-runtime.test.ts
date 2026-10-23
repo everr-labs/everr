@@ -127,7 +127,27 @@ describe("worker runtime", () => {
       Object.keys(options.taskList).includes("crm/sync-user"),
     );
     expect(integration).toMatchObject({ concurrency: 1, noHandleSignals: true });
-    expect(Object.keys(integration!.taskList)).toEqual(["crm/sync-user"]);
+    expect(Object.keys(integration!.taskList).sort()).toEqual([
+      "crm/reconcile",
+      "crm/sync-membership",
+      "crm/sync-organization",
+      "crm/sync-user",
+    ]);
+    expect(integration).toMatchObject({
+      parsedCronItems: [
+        {
+          task: "crm/reconcile",
+          match: "* * * * *",
+          options: {
+            priority: 100,
+            backfillPeriod: 0,
+            maxAttempts: 3,
+            jobKey: "crm-reconcile",
+            jobKeyMode: "preserve_run_at",
+          },
+        },
+      ],
+    });
     expect(runtimeMocks.poolOptions).toHaveLength(2);
     await activeRuntime!.stop();
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
@@ -138,7 +158,11 @@ describe("worker runtime", () => {
     await runtime.startWorkerRuntime();
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const { runtime: composition } = await import("./app/composition/runtime");
-    expect(composition.businessEvents.subscribers).toHaveLength(3);
+    expect(
+      composition.businessEvents.subscribers.some((subscriber) =>
+        subscriber.id.startsWith("crm.brevo."),
+      ),
+    ).toBe(true);
     expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
       true,
     );

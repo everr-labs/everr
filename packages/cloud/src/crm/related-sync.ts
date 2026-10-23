@@ -20,7 +20,7 @@ import {
   type DesiredProjection,
 } from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
-import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
+import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 import { RetainedCrmWork } from "./user-sync";
 
 type Payload = MembershipSyncPayload | OrganizationSyncPayload;
@@ -58,6 +58,16 @@ export function membershipFanout(store: Store) {
       });
     }
     for (const pair of pairs.values()) {
+      const previous = prior.find(
+        (row) => row.userId === pair.userId && row.organizationId === pair.organizationId,
+      );
+      const recheck =
+        origin.eventType === "crm.reconciliation.requested" &&
+        previous &&
+        previous.syncedRevision === previous.desiredRevision &&
+        previous.remoteCheckId !== origin.eventId
+          ? previous.desiredRevision
+          : undefined;
       await helpers.addJob(
         MEMBERSHIP_SYNC_TASK,
         {
@@ -67,6 +77,11 @@ export function membershipFanout(store: Store) {
           eventId: origin.eventId,
           eventType: origin.eventType,
           occurredAt: origin.occurredAt,
+          ...(recheck
+            ? previous?.desired.deleted
+              ? { recheckDeletionRevision: recheck }
+              : { verifyRemoteRevision: recheck }
+            : {}),
           failures: 0,
         },
         {
@@ -115,6 +130,11 @@ export function createRelatedSyncTasks(options: {
       ) {
         saved = (await store.recheckDeletion(saved, saved.desiredRevision)) ?? saved;
       }
+      if (payload.eventType === "crm.reconciliation.requested" && payload.verifyRemoteRevision)
+        saved =
+          (await store.verifyRemote(saved, payload.verifyRemoteRevision, payload.eventId)) ?? saved;
+      if (payload.eventType === "crm.recovery.requested" && payload.recoverExhaustedRevision)
+        saved = (await store.recoverExhausted(saved, payload.recoverExhaustedRevision)) ?? saved;
       const initial = saved;
       const key = { kind: saved.kind, sourceId: saved.sourceId };
       const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
@@ -149,6 +169,8 @@ export function createRelatedSyncTasks(options: {
       };
       const soon = () => defer(new Date(Date.now() + 1000));
       const block = async (code: string) => {
+        if (code === "mapped_company_missing")
+          reconciliationDiagnostic("missing", { kind: saved.kind });
         await store.markFailed(key, saved.desiredRevision, code, true);
         report("blocked");
         throw new RetainedCrmWork("CRM synchronization requires inspection.");
@@ -195,6 +217,8 @@ export function createRelatedSyncTasks(options: {
           );
           return;
         }
+        if (result.code === "mapped_company_missing")
+          reconciliationDiagnostic("missing", { kind: saved.kind });
         const retryable = result.kind === "transient" || result.kind === "ambiguous_create";
         await store.markFailed(key, saved.desiredRevision, result.code, !retryable);
         if (!retryable) {
@@ -218,7 +242,11 @@ export function createRelatedSyncTasks(options: {
       };
       const complete = async () => {
         if (!(await refresh())) return soon();
-        await store.markSynced(key, saved.desiredRevision);
+        await store.markSynced(
+          key,
+          saved.desiredRevision,
+          payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
+        );
         if (kind === "organization") await fanout(saved.desired, helpers, payload);
         report("synced");
       };
@@ -282,6 +310,7 @@ export function createRelatedSyncTasks(options: {
           current,
         );
         if (!result.ok) return failure(result);
+        if (result.changed) reconciliationDiagnostic("drift", { kind: "organization" });
         await store.companyRead(payload.organizationId, null);
         return complete();
       }
@@ -394,6 +423,7 @@ export function createRelatedSyncTasks(options: {
           )
             return block("remote_identity_conflict");
           await store.cleanupCompanyRead(key, company);
+          saved = { ...saved, cleanupCompanyRead: company };
         }
         if (
           company.id !== remoteCompanyId ||
@@ -406,6 +436,41 @@ export function createRelatedSyncTasks(options: {
           return block("remote_identity_conflict");
         if (!(await refresh())) return soon();
       }
+      if (linked) {
+        let company = saved.cleanupCompanyRead;
+        if (!company) {
+          const result = await adapter.getCompany(remoteCompanyId, helpers.abortSignal);
+          if (!result.ok)
+            return result.kind === "not_found" ? block("mapped_company_missing") : failure(result);
+          company = result.value;
+          if (
+            company.id !== remoteCompanyId ||
+            company.attributes.everr_org_id !==
+              projectionIdentity(options.deployment, {
+                kind: "organization",
+                id: payload.organizationId,
+              }).externalId
+          )
+            return block("remote_identity_conflict");
+          await store.cleanupCompanyRead(key, company);
+          saved = { ...saved, cleanupCompanyRead: company };
+        }
+        if (
+          company.id !== remoteCompanyId ||
+          company.attributes.everr_org_id !==
+            projectionIdentity(options.deployment, {
+              kind: "organization",
+              id: payload.organizationId,
+            }).externalId
+        )
+          return block("remote_identity_conflict");
+        if (!(await refresh())) return soon();
+        if (company.linkedContactsIds?.includes(contactId)) return complete();
+      } else if (
+        saved.cleanupCompanyRead?.linkedContactsIds &&
+        !saved.cleanupCompanyRead.linkedContactsIds.includes(contactId)
+      )
+        return complete();
       const result = await adapter.associate(
         remoteCompanyId,
         contactId,
@@ -413,6 +478,7 @@ export function createRelatedSyncTasks(options: {
         helpers.abortSignal,
       );
       if (!result.ok && !(result.kind === "not_found" && !linked)) return failure(result);
+      if (result.ok) reconciliationDiagnostic("drift", { kind: "membership" });
       if (!(await refresh())) return soon();
       // A source pair may be removed/re-added during HTTP. The next revision corrects it.
       if (linked) {
@@ -431,6 +497,7 @@ export function createRelatedSyncTasks(options: {
         )
           return block("prerequisite_blocked");
       }
+      await store.cleanupCompanyRead(key, null);
       return complete();
     };
     return async (raw, helpers) => {

@@ -13,9 +13,9 @@ Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
 Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
 Task 11 is implemented and independently reviewed with conservative trace-detail
 coverage; two findings were fixed, 120 checks passed, and it is committed as
-`827cd6b51`. Task 12 is implemented and independently reviewed; the cancellation
-finding is fixed and the coordinator commit is pending. Tasks 13
-through 16 remain planned. Implementation work is on `feat/crm-utilities`,
+`827cd6b51`. Task 12 is implemented, independently reviewed and committed as
+`5b0b092f8`. Task 13 is implemented and independently reviewed, with the retained-terminal
+repair finding fixed and 145 checks passed. Coordinator commit remains pending. Tasks 14 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
 starting at commit
 `aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
 baseline). This document specifies the CRM integration. The activation definition
@@ -375,9 +375,9 @@ Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
 Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
 Task 11 is implemented and independently reviewed with conservative trace-detail
 coverage; two findings were fixed, 120 checks passed, and it is committed as
-`827cd6b51`. Task 12 is implemented and independently reviewed; the cancellation
-finding is fixed and the coordinator commit is pending. Tasks 13
-through 16 remain planned.
+`827cd6b51`. Task 12 is implemented, independently reviewed and committed as
+`5b0b092f8`. Task 13 is implemented and independently reviewed, with the retained-terminal
+repair finding fixed and 145 checks passed. Coordinator commit remains pending. Tasks 14 through 16 remain planned.
 The dependency graph and execution ledger are recorded in the
 task index.
 

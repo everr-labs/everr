@@ -12,9 +12,9 @@ Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
 Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
 Task 11 is implemented and independently reviewed with conservative trace-detail
 coverage; two findings were fixed, 120 checks passed, and it is committed as
-`827cd6b51`. Task 12 is implemented and independently reviewed; the cancellation
-finding is fixed and the coordinator commit is pending. Tasks 13
-through 16 remain planned.
+`827cd6b51`. Task 12 is implemented, independently reviewed and committed as
+`5b0b092f8`. Task 13 is implemented and independently reviewed, with the retained-terminal
+repair finding fixed and 145 checks passed. Coordinator commit remains pending. Tasks 14 through 16 remain planned.
 User, Organization, Membership, billing, Plan, and readiness source facts are wired;
 cloud User, Organization and Membership CRM consumers and the independent integration runner are implemented,
 disabled by default.
@@ -65,8 +65,9 @@ agent before the coordinating agent commits and advances to the next ticket.
 | 09            | Complete; 33 related PostgreSQL/Graphile, 13 User and 60 focused CRM checks; isolated provider deletion proof passed                                                  | Complete; no material findings; 60 CRM tests passed independently                      | `3b47faa47`   |
 | 10            | Complete; typed evidence, 6 marker PostgreSQL cases, 33 worker regressions plus latest Company sync, 98 cloud/18 app checks and isolated ingestion/field proof passed | Complete; no material findings; 116 focused cases and both package type checks passed  | `af9102e69`   |
 | 11            | Complete; conservative trace-detail UI/CLI/MCP completion, 117 focused/regression cases, package typechecks and isolated marker/ingestion proof passed                | Complete; provenance fallback and preload-navigation findings fixed; 120 checks passed | `827cd6b51`   |
-| 12            | Complete; checkpointed source admission, 44 PostgreSQL/Graphile cases, 61 CRM checks and isolated provider recovery proof passed                                      | Complete; cancellation finding fixed; 46 PostgreSQL/Graphile and 61 CRM cases passed   | Not committed |
-| 13 through 15 | Planned                                                                                                                                                               | Not started                                                                            | Not committed |
+| 12            | Complete; checkpointed source admission, 44 PostgreSQL/Graphile cases, 61 CRM checks and isolated provider recovery proof passed                                      | Complete; cancellation finding fixed; 46 PostgreSQL/Graphile and 61 CRM cases passed   | `5b0b092f8`   |
+| 13            | Complete; bounded periodic admission, fresh remote verification, guarded recovery and isolated Everr proof                                                            | Complete; retained-terminal repair gap fixed; 145 checks passed independently          | Not committed |
+| 14 through 15 | Planned                                                                                                                                                               | Not started                                                                            | Not committed |
 | 16            | Optional design only, planned                                                                                                                                         | Not started                                                                            | Not committed |
 
 Update this ledger and the affected ticket with actual evidence after each

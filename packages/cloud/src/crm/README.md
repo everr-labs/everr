@@ -142,6 +142,10 @@ an idempotent contact lookup/write only while allowance remains. Terminal failur
 fails or the process dies, blocked/exhausted state short-circuits subsequent HTTP
 and native retries still retain the job. Exhausted/blocked jobs remain available
 through Graphile's public inspection/replay APIs, with no automatic cleanup.
+Graphile replay alone does not reset projection blocks or exhausted allowances.
+The guarded recovery command below only admits exhausted revisions; ordinary
+blocks with fewer than eight failures and mapped missing records require separate
+inspection and a supported recovery procedure.
 
 ## Organization and explicit Membership synchronization
 
@@ -393,3 +397,126 @@ covering signals received during the last admission or checkpoint query. All 46
 related PostgreSQL/Graphile cases and 61 focused CRM cases passed independently,
 alongside cloud TypeScript and scoped lint/format checks. Existing isolated-provider
 proof remains applicable; review made no provider calls or telemetry changes.
+
+## Periodic current-state reconciliation
+
+Configured cloud runners schedule `crm/reconcile` through Graphile's public cron
+interface once per minute, priority 100, without cron backfill. Each execution
+admits at most 10 rows in one short transaction. `crm_reconciliation` has a
+separate deployment/account checkpoint with scan ID, phase, keyset cursor and
+committed admission/page counts. It reuses the bootstrap source/retained-identity
+passes and atomic admission/checkpoint primitive. Interrupted pages roll back;
+replicas serialize pages with a transaction advisory lock. No source transaction
+or worker slot waits for a parent task or long provider permit.
+
+An unfinished cycle resumes. A completed admission cycle waits 24 hours before
+starting again. It is not a global source snapshot: a later cycle covers inserts
+behind earlier cursors. Completion describes admission only, never measured remote
+convergence. At 100 active CRM sync jobs, the scanner defers without advancing its
+checkpoint. Permanently failed jobs are excluded from this admission cap, while
+remaining inspectable. A page can cross the threshold by at most 10 admissions;
+normal parent fanout may add further jobs. Live work has the usual priority 0;
+periodic coalesced sync jobs keep that same priority so replacing a live payload
+cannot lower its priority. Existing active keyed work is left alone. Retained
+terminal jobs can be admitted again so the worker observes a newer source change
+whose notification was lost. An unchanged snapshot retains its block or exhausted
+allowance and makes no provider request. The scanner itself
+runs below live jobs, and bounded admission plus the cap limits repair pressure.
+Live work and repair share endpoint locks and the persisted account request budgets.
+
+Paused mode registers live subscribers and retains queued work, but starts no
+outbound runner or periodic scan. The periodic primitive also explicitly defers
+paused work before creating progress. Disabled mode registers neither subscribers
+nor runner, and refuses administrative admission. Self-hosted imports none of the
+CRM configuration, runners or schema. No production setting was enabled here.
+
+Source passes queue latest-state reads for missed User, Organization, Membership,
+Plan and stored milestone changes. The retained pass also covers deleted sources,
+cascaded pairs and completed tombstones, including late accepted creates. These
+are detection/check commands, never invented User lifecycle or activation facts.
+Unknown activation history remains null.
+
+Completed live mappings receive `verifyRemoteRevision`, the completed revision
+observed by the scanner. Under normal endpoint locks, only that exact completed
+revision can open one fresh check. A persisted `remote_check_id` marks the cycle,
+including successful source-phase sync, and parent fanout preserves pair checks.
+The retained phase therefore cannot reopen a snapshot already checked in this
+cycle. Duplicate commands cannot replenish pending, blocked or exhausted work.
+Company intent and bindings remain intact. Each new cycle can make fresh provider
+reads; fingerprints alone never prove remote correctness.
+
+Fresh Contact/Company reads verify exact external identity and apply only changed
+owned fields. Pair checks verify the exact owned Company and its explicit linked
+Contact IDs, skipping the write when the requested association already matches.
+Deferred Company/pair writes retain their owned read across the general permit
+gap; a fresh check revision clears that cache. Changes during provider work are
+resolved by authoritative rereads and another persisted execution. Provider
+ownership changes after a verified read remain subject to the provider's existing
+lack of conditional writes/fencing.
+
+Mapped missing Contacts/Companies are detected as `mapped_contact_missing` or
+`mapped_company_missing`, blocked and logged without another create. This increment
+does not implement remote mapping replacement. Inspect the exact deployment-scoped
+external identity, retained remote ID, all pair endpoint mappings, source state and
+Company-create intent. Recovery of a truly removed remote entity requires a
+separate reviewed mapping-replacement procedure with fresh exact ownership/absence
+verification and consistent pair mapping changes under endpoint locks. There is no
+supported command here to clear bindings or re-POST Companies. An ordinary retry
+cannot replace an immutable binding, and must not be presented as missing-record
+auto-repair. Other identity conflicts remain blocked for inspection.
+
+### Explicit exhausted-work recovery
+
+After inspecting an exhausted projection and resolving its cause, use
+`pnpm --filter @everr/app-cloud crm:recover --kind user --source-id <id> --expected-revision <revision>`.
+Kinds are `user`, `organization` and `membership`; a Membership source ID is the
+JSON User/Organization pair stored in `crm_projection.source_id`. Use the same
+process configuration and database as bootstrap. No provider request occurs in
+this command. It admits an ID-only `crm.recovery.requested` job and reports
+`recovered: false`, because execution has not yet happened. Paused mode admits the
+command; disabled mode rejects it. Invalid/stale admission preconditions fail with
+a fixed sanitized diagnostic.
+
+The coordinated worker checks the expected desired revision and exhausted count
+again under endpoint locks. Only a matching unsynchronized revision with at least
+eight failures opens one new allowance. Bindings, Company-create intent and known
+pending start remain intact. An ambiguous Company create resumes bounded inventory
+recovery, never a blind second POST. A duplicate/old recovery request cannot reset
+a newer allowance and still processes newer current pending state, so coalescing
+cannot discard valid live work. This command does not recover ordinary identity
+blocks or replace mapped missing records.
+
+### Reconciliation telemetry
+
+The existing application OTel pipeline now exports `crm.reconciliation` logs and
+`everr.crm.reconciliation.outcomes` (counter, unit `1`) with bounded outcomes:
+`progress`, `deferred`, `failure`, `drift`, `missing`. Drift records successful
+owned-field/association corrections, including ordinary sync corrections; it is
+not a distinct-entity count or an atomic external receipt. Missing-record and
+scanner-failure logs have error severity. Progress includes committed page and
+admission counts. IDs, profile data, payloads, SQL and provider errors are absent
+from these new signals; only bounded outcome/entity-kind metric dimensions exist.
+
+`everr.crm.sync.oldest_known_pending` (gauge, unit `s`) reports the oldest known
+pending observation across unsynchronized projection `pending_since` values and
+active sync jobs' `created_at` from Graphile's public jobs view. The minimum is
+safe when a job also has a projection. Retrying does not move a projection's
+pending start; success clears it, and later detected work establishes a new start.
+A queued job is covered before its projection exists. Legacy NULL projection
+starts remain unknown; job creation and first detection are lower bounds, not
+fabricated historical publication times. Zero means no known pending timestamp.
+This gauge is not the total historical age of every lost event or backlog item.
+It is sampled by configured periodic executions, including backlog deferral.
+Paused runners emit no periodic samples. Existing local/remote exporter activation
+instructions above apply unchanged; production ingestion remains unverified.
+
+Task 13 evidence is retained under
+`.verify-everr/artifacts/task13-periodic-reconciliation/`. The implementation adds
+current-state/remote-drift, missing mapping, cycle deduplication, resumability,
+concurrency, quota, mode and guarded operator recovery checks. Isolated Everr
+queries prove fresh progress, drift, missing-record/failure logs and the new
+counter/gauge. The actual recovery CLI was exercised in paused and disabled modes.
+Task 12's isolated Contact/two-Company proof continues to establish the unchanged
+provider CRUD/link contract; no real provider records were created for task 13.
+`.auth` is absent, so authenticated manual app checks are skipped. No UI changed,
+no application migration was generated/applied, and production remains disabled.
