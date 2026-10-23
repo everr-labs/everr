@@ -9,6 +9,10 @@ and, when available, an accepted remote ID. The transport seam permits determini
 HTTP tests without credentials. Redirects are rejected so credentials cannot follow
 a provider redirect.
 
+The [operations runbook](../../../../../docs/crm-operations.md) lists every required
+field and the mandatory inventory plus fixture readback gate. Brevo may silently
+ignore unknown attributes; successful HTTP alone is insufficient.
+
 ## Configuration and scheduling
 
 `readBrevoConfig` reads these cloud environment fields:
@@ -63,7 +67,7 @@ creation explicitly disables update-or-create, requests email/SMS suppression an
 not add lists, campaigns, consent groups or automations. Contact updates explicitly
 set `forceMerge: false`.
 
-Load a contact separately before updating, under the future entity synchronization
+Load a contact separately before updating, under the entity synchronization
 lock. This keeps permit deferrals between read and write resumable. Pass that
 current record to `updateContact`, which checks its external identity. It never
 writes a false suppression flag. Email changes always include
@@ -85,6 +89,16 @@ provider's own `created_at` is read-only and is never used as Everr's creation d
 Only these fields and the source-owned company name are written. A company PATCH
 accepts documented 200 with a validated company body or verified 204 with no body.
 Read back with `getCompany` when current provider values are needed.
+
+The task 14 exact-record gate corrected a read-contract mismatch: Brevo returns
+its standard Company name as `attributes.name`, as in the
+[Company read contract](https://developers.brevo.com/reference/get-a-company).
+The adapter normalizes it to `CompanyRecord.name`, separately from owned custom
+attributes, retaining the older top-level representation for persisted-read
+compatibility. This prevents unchanged Companies from receiving a redundant name
+PATCH during repair. Earlier custom-field/association proofs did not establish
+this standard-name readback or GET-only convergence. The task 14 canary explicitly
+checks create/name readback, rename PATCH/readback and no write after convergence.
 
 Task 10 adds only these Company attributes, all text, confirmed with isolated
 field creation (201) and inventory readback (200) on October 23, 2026:

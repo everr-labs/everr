@@ -22,9 +22,9 @@ retries left with longer delays by an older deployment or an interrupted
 reschedule.
 Each runner has an independent supervisor that restarts startup and runtime
 failures every five seconds. A retry-recovery failure is logged and does not
-stop either runner. Organization handlers and the scanner use their reserved
+stop the other runners. Organization handlers and the scanner use their reserved
 Postgres pool too.
-SIGTERM and SIGINT drain both runners before flushing telemetry. ClickHouse
+SIGTERM and SIGINT drain all runners before flushing telemetry. ClickHouse
 requests receive Graphile's shutdown abort signal after five seconds, allowing
 normal shutdown to release job and queue locks. Hard kills can leave locks
 behind. Inspect `graphile_worker.jobs`, confirm the owning workers are dead,
@@ -105,11 +105,15 @@ Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 The common runtime always owns the product worker (alerting, optional GitHub
 handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
-registers only its organization lifecycle worker, without starting it. Both
-runners remain in the web process, with the existing reserved provisioning pool.
-See [background work and domain events](../../docs/background-work.md) for task
-ownership, transactional enqueue, payload compatibility and future CRM facts.
-Billing callbacks remain synchronous; no CRM integration is registered.
+registers its organization lifecycle worker and, in configured mode, the independent
+one-slot CRM worker, without starting either. They remain in the web process with
+separate reserved pools (maximum four connections each). Paused mode admits CRM
+commands without running outbound work; disabled mode registers no CRM consumers
+or runner. Billing callbacks remain synchronous. See
+[background work and domain events](../../docs/background-work.md) for task
+ownership and the [CRM operations runbook](../../docs/crm-operations.md) for the
+required schema/field readback gates, bounded bootstrap, repair and recovery.
+Configuration validation does not establish operational readiness.
 
 # Package composition
 
@@ -192,7 +196,8 @@ and the cloud-only tenant-column assertion stays in this package.
 ## Billing and readiness facts
 
 Cloud registers subscription and Plan business facts, together with the shared
-identity and readiness contracts, with no CRM subscribers enabled. Billing publishes
+identity and readiness contracts. Configured and paused CRM modes register their
+ancillary subscribers; disabled remains the default. Billing publishes
 a subscription fact only after accepting and committing a newer provider revision.
 Plan changes describe actual stored transitions: an inactive Pro subscription can
 suspend access without changing Plan. Hobby downgrade facts follow its local

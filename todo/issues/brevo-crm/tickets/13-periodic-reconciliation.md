@@ -1,6 +1,6 @@
 # 13: Repair CRM drift after lost events
 
-Status: implemented and independently reviewed. One repair finding fixed. Not committed. Prerequisite task 12 is committed as `5b0b092f8`.
+Status: implemented, independently reviewed and committed as `f23e32eeb`. One repair finding fixed. Prerequisite task 12 is committed as `5b0b092f8`.
 
 Repository: `everr`.
 
@@ -95,4 +95,4 @@ mapped missing records require a separate supported recovery procedure.
 
 Existing isolated Everr and provider evidence remains applicable. Review made no
 provider calls, telemetry changes, production changes or migrations. The isolated
-review PostgreSQL container was removed. Coordinator commit remains pending.
+review PostgreSQL container was removed. Coordinator commit: `f23e32eeb`.

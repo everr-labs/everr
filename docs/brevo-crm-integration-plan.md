@@ -1,48 +1,34 @@
 # Brevo CRM integration through business events
 
-Status: planning baseline independently reviewed and committed as `8a9145de2`,
-October 23, 2026. Task 01 is implemented, independently reviewed, and committed as `c4dca85c1`.
-Task 02 is implemented, independently reviewed, and committed as `9696b6ce5`.
-Task 03 is implemented, independently reviewed, and committed as `361211ba8`.
-Task 04 is implemented, independently reviewed, and committed as `b3b617cdc`.
-Task 05 is implemented, independently reviewed, and committed as `f0bbeef65`.
-Task 06 is implemented, independently reviewed, and committed as `af829e766`.
-Task 07 is implemented, independently reviewed, and committed as `05e183370`.
-Task 08 is implemented, independently reviewed, and committed as `179230af5`.
-Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
-Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
-Task 11 is implemented and independently reviewed with conservative trace-detail
-coverage; two findings were fixed, 120 checks passed, and it is committed as
-`827cd6b51`. Task 12 is implemented, independently reviewed and committed as
-`5b0b092f8`. Task 13 is implemented and independently reviewed, with the retained-terminal
-repair finding fixed and 145 checks passed. Coordinator commit remains pending. Tasks 14 through 16 remain planned. Implementation work is on `feat/crm-utilities`,
-starting at commit
-`aed99bc42859cbabf1e75898abb1e3d49a3bce3a` (the `chore/worker-separation`
-baseline). This document specifies the CRM integration. The activation definition
-and best-effort, fire-and-forget event publication below were confirmed in the
-planning session.
+Status: tasks 00 through 13 are implemented, independently reviewed and committed.
+Task 13 is committed as `f23e32eeb`. Task 14 operational documentation, a narrow Company-name read-contract fix and
+isolated verification/canary are implemented and independently reviewed;
+no coordinator commit or production enablement is implied. Task 15 remains a separate deployment
+change in `everr-deploy`; task 16 is optional campaign design outside this rollout.
+The [execution ledger](../todo/issues/brevo-crm/README.md) preserves individual
+commit identities and verification history.
 
-This plan supersedes the transactional event-publication proposal and the
-first-ingestion activation proposal in the future-CRM section of
-`background-work.md`; that document still describes the current implemented
-workers. Product mutations remain authoritative even if publishing or saving an
-ancillary business event fails.
+The [CRM operations runbook](crm-operations.md) is the current configuration,
+schema, provider-field/readback gate, bootstrap, diagnosis and rollout contract.
+The [background-work document](background-work.md) now describes implemented
+ownership. This plan records the design and its intentional limits. Product
+mutations remain authoritative if ancillary publication or consumer enqueue fails.
 
-## Starting point
+## Implemented foundation
 
 - [Background work](background-work.md) already separates domain facts from worker
   commands and documents transactional enqueue and at-least-once execution.
 - The product runner owns alerting, GitHub tasks, and preview retention. Cloud
-  registers its reserved organization provisioning runner through
-  `ApplicationRuntime.registerWorkers()`.
+  registers its reserved organization provisioning runner and independent CRM
+  runner through `ApplicationRuntime.registerWorkers()`.
 - The existing standalone `addWorkerJob(...)` path can persist consumer jobs
   independently of a source mutation. Reuse Graphile for durable execution after
   best-effort enqueue, without a new generic event outbox or dispatcher table.
 - Organization creation/deletion already persists lifecycle commands in the
   Better Auth persistence adapter. Billing applies conditional subscription
-  updates inside transactions. There is no general business-event publisher yet.
+  updates inside transactions. The bounded typed publisher fans out best effort after the source commit.
 
-## Proposed architecture
+## Architecture
 
 ```text
 Feature mutation
@@ -278,8 +264,9 @@ backfill, and redundant panel refreshes. The first dashboard consultation counts
 once, not once per panel. An empty query result alone does not prove own data is
 queryable and cannot establish initial activation.
 
-Task 11 must map these supported actions to current server completion paths and
-record their evidence. Surface, authenticated scope, and evidence must be
+The current implementation supports only the conservative trace-detail paths
+documented below, with server completion evidence. The broader candidate actions
+are future coverage, not current guarantees. Surface, authenticated scope, and evidence must be
 established server-side. A successful useful consultation can establish
 queryability and activation together; there is no need to scan all tenants on
 every ingestion. These rules are self-contained and do not depend on unrelated
@@ -337,7 +324,9 @@ additional product-runner task is required.
 Each handler has bounded HTTP timeouts, cancellation where supported, and
 persisted retry/backoff. Retry network/429/5xx failures; honor provider rate-limit
 reset information. Treat invalid schema/credentials as inspectable blocked work,
-not an endless fast retry. Preserve exhausted work and support explicit replay.
+not an endless fast retry. Preserve exhausted work and admit guarded expected-revision recovery only for
+exhausted allowances. Ordinary permanent blocks and mapping replacement have no
+supported reset command; Graphile replay alone does not bypass durable guards.
 Never hold a domain transaction open while calling Brevo.
 
 Enforce request budgets per endpoint group, including across replicas. Brevo's
@@ -346,7 +335,8 @@ endpoints, relevant to company operations. Avoid writing unchanged snapshots;
 backfill and reconciliation consume the same budget as live sync. Fixed worker
 concurrency alone is not a rate limiter.
 
-An enabled integration must have validated configuration. Support a pause mode
+An enabled integration must pass configuration validation and the runbook
+schema, field-inventory and exact-record readback gates. Support a pause mode
 that preserves pending work; do not make missing credentials silently consume
 jobs. Cloud without configured CRM remains usable, with an explicit disabled
 mode and later bootstrap. A temporary pause preserves the integration's persisted
@@ -362,24 +352,11 @@ profiles without scheduling marketing campaigns or welcome automations.
 
 The implementation is split into [individual commit-sized tasks](../todo/issues/brevo-crm/README.md).
 Each ticket specifies prerequisites, suggested English commit message, repository,
-scope, acceptance criteria, and checks that belong in that commit. Task 00's
-documentation is independently reviewed and committed as `8a9145de2`. Task 01 is
-implemented, independently reviewed, and committed as `c4dca85c1`. Task 02 is
-implemented, independently reviewed, and committed as `9696b6ce5`. Task 03 is
-implemented, independently reviewed, and committed as `361211ba8`. Task 04 is
-implemented, independently reviewed, and committed as `b3b617cdc`. Task 05 is
-implemented, independently reviewed, and committed as `f0bbeef65`. Task 06 is implemented, independently reviewed, and committed as `af829e766`.
-Task 07 is implemented, independently reviewed, and committed as `05e183370`.
-Task 08 is implemented, independently reviewed, and committed as `179230af5`.
-Task 09 is implemented, independently reviewed, and committed as `3b47faa47`.
-Task 10 is implemented, independently reviewed, and committed as `af9102e69`.
-Task 11 is implemented and independently reviewed with conservative trace-detail
-coverage; two findings were fixed, 120 checks passed, and it is committed as
-`827cd6b51`. Task 12 is implemented, independently reviewed and committed as
-`5b0b092f8`. Task 13 is implemented and independently reviewed, with the retained-terminal
-repair finding fixed and 145 checks passed. Coordinator commit remains pending. Tasks 14 through 16 remain planned.
-The dependency graph and execution ledger are recorded in the
-task index.
+scope, acceptance criteria and evidence. The task index records implementation,
+independent review and coordinator commit separately. Task 13's final independent
+review passed 145 behavior checks and fixed retained-terminal repair admission;
+its coordinator commit is `f23e32eeb`. Task 14 is prepared separately and keeps
+production disabled until the target-specific runbook gates and task 15 review.
 
 | Increment                            | Tickets            | Result                                                                                                            |
 | ------------------------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -408,7 +385,7 @@ exhausted jobs, synchronization failures, reconciliation drift, and oldest
 unsynchronized entity. Add a behavioral check that forces enqueue failure,
 confirms the User is still created, and verifies the diagnostic arrives in Everr.
 
-## Proposed module locations
+## Module locations
 
 - `packages/app/src/identity/events.ts` and feature equivalents: event schemas.
 - `packages/app/src/server/business-events/`: typed best-effort publisher,

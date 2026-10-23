@@ -1,5 +1,10 @@
 # Cloud CRM projection state
 
+For current configuration, schema and provider field prerequisites, rollout,
+pause and diagnosis, use the [operations runbook](../../../../docs/crm-operations.md).
+Its field inventory plus owned-fixture readback is a mandatory pre-enable gate.
+Environment validation alone does not prove schema, fields or the deployed build.
+
 This module stores desired CRM state and includes cloud-only User, Organization and
 Membership consumers, an independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
@@ -76,8 +81,8 @@ remote cleanup for reconciliation and stale-job protection. Entity tombstones
 are terminal because source IDs are not reusable. Removed Membership pairs can
 be added again with a newer revision and the same stable external identity.
 
-The store is a persistence seam, not outbound-write coordination. Tasks 07 and 08
-must serialize each entity's load, desired-state update, provider work and outcome
+The store is a persistence seam, not outbound-write coordination. The workers
+serialize each entity's load, desired-state update, provider work and outcome
 across replicas, then reread current source state for subsequent work. Revision
 guards protect local acknowledgements, but cannot prevent an old in-flight HTTP
 request finishing after a new one. Association consumers must ensure both endpoint
@@ -224,7 +229,7 @@ externally renamed/missing mapping is never reset or recreated automatically.
 
 `enqueueCrmOrphans` checks at most 100 retained projections per keyset page against
 current source IDs, including cascaded pairs. It returns the checked/admitted counts
-and cursor for task 13, and queues normal coordinated jobs without changing source
+and cursor for bounded repair callers, and queues normal coordinated jobs without changing source
 rows or racing a worker's desired-state save. Callers persist a cursor only after
 successful admission and repeat full scans to cover concurrent inserts. Completed
 tombstones stay retained and are rechecked by the same bounded primitive, including
@@ -234,7 +239,7 @@ historical deletion fact. The job carries the completed revision it observed; un
 the endpoint lock, only that exact completed revision can open one new cleanup
 revision. Duplicate or older repair commands cannot repeatedly reset the allowance.
 Pending, blocked or exhausted cleanup never receives a fresh allowance from a check.
-This increment adds no periodic scheduler or bootstrap.
+Bootstrap and periodic scheduling are described below.
 
 Task 09 verification passed 33 related PostgreSQL/Graphile cases, 13 existing User
 cases and 60 focused CRM cases. The isolated provider proof under

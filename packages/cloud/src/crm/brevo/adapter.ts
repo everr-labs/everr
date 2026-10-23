@@ -37,24 +37,33 @@ const contact = z.object({
     EVERR_EMAIL_VERIFIED: z.boolean().optional(),
   }),
 });
-const company = z.object({
-  name: z.string().optional(),
-  id: z.string().min(1),
-  attributes: z.object({
-    everr_org_id: z.string().optional(),
-    everr_created_at: z.string().optional(),
-    everr_plan: z.string().optional(),
-    everr_app_state: z.string().optional(),
-    everr_subscription_status: z.string().optional(),
-    everr_current_period_end: z.string().optional(),
-    everr_cancel_at_period_end: z.string().optional(),
-    everr_provisioning: z.string().optional(),
-    everr_first_queryable_at: z.string().optional(),
-    everr_activated_at: z.string().optional(),
-    everr_activation_rule_version: z.string().optional(),
-  }),
-  linkedContactsIds: z.array(z.number().int()).optional(),
-});
+const company = z
+  .object({
+    name: z.string().optional(),
+    id: z.string().min(1),
+    attributes: z.object({
+      name: z.string().optional(),
+      everr_org_id: z.string().optional(),
+      everr_created_at: z.string().optional(),
+      everr_plan: z.string().optional(),
+      everr_app_state: z.string().optional(),
+      everr_subscription_status: z.string().optional(),
+      everr_current_period_end: z.string().optional(),
+      everr_cancel_at_period_end: z.string().optional(),
+      everr_provisioning: z.string().optional(),
+      everr_first_queryable_at: z.string().optional(),
+      everr_activated_at: z.string().optional(),
+      everr_activation_rule_version: z.string().optional(),
+    }),
+    linkedContactsIds: z.array(z.number().int()).optional(),
+  })
+  .transform(({ attributes: { name, ...attributes }, ...record }) => ({
+    ...record,
+    // Brevo returns its standard Company name inside attributes on reads.
+    // Retain top-level compatibility for previously persisted owned reads.
+    ...(name === undefined ? {} : { name }),
+    attributes,
+  }));
 export type CompanyRecord = z.infer<typeof company>;
 const failure = (kind: Failure["kind"], code: string, status?: number): Failure => ({
   ok: false,

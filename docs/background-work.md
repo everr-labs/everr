@@ -16,17 +16,17 @@ refactoring.
 
 `ApplicationRuntime.registerWorkers()` returns supervised workers without
 starting them. The self-hosted composition returns none. The cloud composition
-returns the organization lifecycle worker, whose task list contains provisioning,
-deprovisioning, and the pending-organization scanner. The common runtime manages
-the product worker and registered workers as one list, releases partial
-startups, and drains all of them before telemetry shutdown. Registration acquires
-no running resources. `start()` returns no handle and resolves when supervision is installed, before a database connection
-is necessarily ready. Every `stop()` caller waits for the same drain, including
-when shutdown overlaps hot reload. Explicit shutdown rejects on cleanup failure
-after every worker cleanup attempt has settled; detached hot-reload failures
-are logged. A composition never imports or re-registers the product task list.
-The shared app imports only composition contracts, with no cloud package
-dependency.
+returns the organization lifecycle worker (provisioning, deprovisioning and its
+pending scanner), plus the independent CRM runner in configured mode. The common
+runtime manages the product worker and registered workers as one list, releases
+partial startups, and drains all of them before telemetry shutdown. Registration
+acquires no running resources. `start()` returns no handle and resolves when
+supervision is installed, before a database connection is necessarily ready.
+Every `stop()` caller waits for the same drain, including when shutdown overlaps
+hot reload. Explicit shutdown rejects on cleanup failure after every worker
+cleanup attempt has settled; detached hot-reload failures are logged. A composition
+never imports or re-registers the product task list. The shared app imports only
+composition contracts, with no cloud package dependency.
 
 Registration is separate from execution capacity. The runners remain embedded
 in the web process and share the durable Graphile schema:
@@ -94,7 +94,7 @@ Logger and counter failures are guarded independently and never recurse.
 This best-effort path is for ancillary consumers. Existing transactional worker
 commands below retain their current failure and durability guarantees. Retries
 begin only once a subscriber successfully persists its own Graphile job. Feature
-cloud consumers are subsequent implementation tickets.
+cloud consumers persist their own latest-state CRM commands independently.
 
 Shared identity uses `identityLifecycleAdapter` around the provider persistence
 adapter. It reuses the real root transaction, retains cloud billing and
@@ -165,9 +165,11 @@ belong in cloud, after the authoritative local change.
 
 ## Durability, transactions and replay
 
-Enqueue through `addWorkerJobInTransaction` or `addWorkerJobUsing(tx, ...)`
-when a Postgres mutation creates work. These use Graphile's public SQL function,
-so domain state and execution intent commit or roll back together. Enqueue
+For critical commands, enqueue through `addWorkerJobInTransaction` or
+`addWorkerJobUsing(tx, ...)` when a Postgres mutation creates required work.
+These helpers use Graphile's public SQL function, so domain state and execution
+intent commit or roll back together. Ancillary business-event publication above
+deliberately has a different guarantee. Enqueue
 failure, including a NULL result under job-key contention, is an error. An
 after-commit hook or an in-memory emitter cannot provide this guarantee.
 
@@ -212,46 +214,43 @@ independently every five seconds. Graphile's
 `replace` is not an exactly-once guarantee and why `unsafe_dedupe` must not be
 used for arbitrary changing events.
 
-## Future CRM facts, without implementing an integration
+## Current cloud CRM facts and effects
 
-| Candidate fact        | Owner and authoritative transition                                                                                                   | Future consumer responsibility                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| User created          | Shared identity, committed User insertion, regardless of email/password or OAuth entry                                               | Cloud may upsert a contact keyed by User ID                 |
-| Email verified        | Shared identity, actual false-to-true verification transition, not every User update or session                                      | Cloud may update that contact's verified identity           |
-| Organization ready    | Shared meaning of storage readiness; cloud owns the ClickHouse transition from pending to ready                                      | Cloud may upsert a company keyed by Organization ID         |
-| First valid ingestion | Shared ingestion meaning; durable accepted/stored telemetry for an Organization, not a key creation, UI visit, or provisioning probe | Cloud may record activation once per Organization           |
-| Subscription changed  | Cloud billing, accepted newer subscription state after provider identity and timestamp validation                                    | Cloud may update the company's plan and subscription fields |
+Shared identity owns committed User, Organization and Membership facts. Cloud
+owns accepted subscription and Plan transitions. Shared readiness means storage
+readiness; cloud publishes it only after the guarded pending-to-ready update
+commits. These producers publish after their source commits. Subscriber failure
+cannot change a completed signup, billing operation, consultation or provisioning.
+A source persistence or critical command failure remains a real error.
 
-A User can belong to several Organizations. Contacts represent Users; companies
-represent Organizations. Plan and subscription belong to the Organization and
-must not be copied onto a User as a single personal plan. Readiness, first valid
-ingestion and a paid subscription are independent facts.
+Cloud consumers synchronize Contacts for Users, Companies for Organizations and
+explicit pairs for current Memberships. One User can belong to several
+Organizations. Plan, subscription, access, readiness and activation remain distinct.
+The independent one-slot CRM runner owns outbound requests, deletion cleanup and
+periodic current-state repair. It never borrows the reserved provisioning runner.
+Self-hosted registers no CRM subscribers, configuration, schema or jobs.
 
-No new fact stream, CRM handler, first-ingestion detector, external account or
-CRM network call is introduced here. When a concrete consumer is added, use a
-small typed contract owned by the feature, with a stable event ID, payload
-version, occurrence time and subject ID. Capture the fact and consumer job in
-the authoritative transaction; the cloud composition supplies only its
-handlers. An optional feature-specific transaction participant is enough if
-shared identity must enqueue cloud work. Do not make shared identity depend on
-a CRM SDK or cloud event types, or register shared domain handlers twice.
+Activation rule 1 observes only the supported standalone trace-detail UI read and
+exact raw trace-detail SQL on CLI/MCP, with server-verified scope and conservative
+own Production/receiver-shaped CI evidence. It persists first-queryable and
+activation markers together, then publishes their facts best effort. Provisioning,
+usage bytes, keys and billing do not activate an Organization. Dashboards, other
+details, aggregates, preloads/refetches and cached actions without a read remain
+unobserved. Historical actions lost before marker persistence remain unknown.
+See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths-task-11)
+for the grammar, provenance and scripted-request limits.
 
-For subscription facts, enqueue inside `saveSubscription` only when the
-conditional upsert actually accepts a newer provider revision, in the same
-transaction that writes the subscription and plan. For readiness, enqueue only
-when the guarded readiness update returns a transitioned row. For ingestion,
-Postgres and ClickHouse cannot share that transaction: a durable per-organization
-activation marker plus a repair/reconciliation strategy must be designed with
-the ingestion path before promising a reliable fact. The existing ClickHouse
-journal projection is a precedent for repair, not an activation detector.
+Bootstrap and periodic repair admit current-state commands through short
+checkpoint/job transactions, independently of domain publication. These are
+administrative admissions, not an outbox or historical event replay. Graphile
+execution is at least once after admission; immutable mappings, endpoint locks,
+revision guards and retained Company-create intent constrain provider writes.
+A missing mapped remote record stays blocked, with no automatic replacement.
 
-For independent consumers, persist separate commands with consumer-specific
-idempotency keys. For a CRM projection, upsert by stable Everr IDs and read the
-latest authoritative state so delayed jobs cannot regress a newer plan or
-email. External calls need bounded timeouts, Graphile's abort signal where
-supported, and idempotent provider requests where available. A generic event
-bus, catch-all event task, or long-lived event archive has no current consumer
-requirement and is deliberately absent.
+The [CRM operations runbook](crm-operations.md) is the current configuration,
+field/readback gate, admission, repair, diagnosis and recovery contract. The
+[CRM module README](../packages/cloud/src/crm/README.md) records implementation
+limits. Campaign/event delivery is outside this rollout.
 
 ## Operations
 

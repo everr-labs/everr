@@ -534,3 +534,61 @@ it("projects verified milestones as ISO text while preserving existing field own
   expect(body.attributes).not.toHaveProperty("notes");
   expect(body).not.toHaveProperty("linkedContactsIds");
 });
+
+it("reads the provider's nested Company name and skips a redundant owned-field update", async () => {
+  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
+    reply({
+      id: "remote",
+      attributes: {
+        name: org.fields.name,
+        everr_org_id: org.externalId,
+        everr_created_at: org.fields.createdAt,
+        everr_plan: "hobby",
+        everr_app_state: "hobby",
+        everr_subscription_status: "",
+        everr_current_period_end: "",
+        everr_cancel_at_period_end: "false",
+        everr_provisioning: "ready",
+        everr_first_queryable_at: "",
+        everr_activated_at: "",
+        everr_activation_rule_version: "",
+      },
+    }),
+  );
+  const adapter = createBrevoAdapter(configured, budget(), transport);
+  const read = await adapter.getCompany("remote");
+  expect(read.ok).toBe(true);
+  if (!read.ok) throw new Error("Expected owned Company read");
+  expect(read.value.name).toBe(org.fields.name);
+  expect(read.value.attributes).not.toHaveProperty("name");
+  expect(await adapter.updateCompany("remote", org, undefined, read.value)).toEqual({
+    ok: true,
+    value: undefined,
+    changed: false,
+  });
+  expect(transport).toHaveBeenCalledOnce();
+  const renamed = { ...org, fields: { ...org.fields, name: "Changed" } };
+  await adapter.updateCompany("remote", renamed, undefined, read.value);
+  expect(JSON.parse(transport.mock.calls[1][1].body as string)).toEqual({ name: "Changed" });
+});
+
+it("normalizes provider Company names for inventory recovery and 200 update responses", async () => {
+  const body = {
+    id: "remote",
+    name: "legacy",
+    attributes: { name: "Provider", everr_org_id: org.externalId },
+  };
+  const transport = vi
+    .fn<(url: string, init: RequestInit) => Promise<Response>>()
+    .mockResolvedValueOnce(reply({ items: [body] }))
+    .mockResolvedValueOnce(reply(body));
+  const adapter = createBrevoAdapter(configured, budget(), transport);
+  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({
+    ok: true,
+    value: { name: "Provider" },
+  });
+  expect(await adapter.updateCompany("remote", org)).toMatchObject({
+    ok: true,
+    value: { name: "Provider" },
+  });
+});
