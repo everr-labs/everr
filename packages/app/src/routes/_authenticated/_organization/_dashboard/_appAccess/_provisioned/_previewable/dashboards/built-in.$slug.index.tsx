@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Info } from "lucide-react";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { CreateFromBuiltin } from "#app/components/dashboards/create-from-builtin.tsx";
@@ -15,16 +15,12 @@ import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
 import { telemetryCapabilitiesOptions } from "#app/data/dashboards/options.ts";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
+import { dashboardBreadcrumb } from "./-dashboard-route";
 
 export const Route = createFileRoute(
-  "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug",
+  "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/",
 )({
-  staticData: {
-    breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", link: <Link to="/dashboards" /> },
-      { label: match.loaderData?.name ?? "Built-in dashboard" },
-    ],
-  },
+  staticData: { breadcrumb: dashboardBreadcrumb },
   loader: ({ context: { session }, params: { slug }, preload }) => {
     const builtin = getBuiltinDashboard(slug);
     if (!builtin) throw notFound();
@@ -95,6 +91,7 @@ function BuiltinDashboardPage() {
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
           notice={notice}
+          panelFullscreenTo={{ kind: "builtin", slug }}
           actions={
             needsSetup ? (
               <InstrumentFromBuiltin name={builtin.name} missing={needsSetup.missing} />
