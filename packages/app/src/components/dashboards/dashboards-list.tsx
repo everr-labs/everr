@@ -104,9 +104,10 @@ export function DashboardsList({ preview }: { preview?: string }) {
   // A deep link can land on an unready built-in; no disclosure may hide the
   // active row, or the list stops saying where you are: a collapsed group
   // shows just that row. Matched by route identity rather than param shape,
-  // so a future sibling route with a `slug` param cannot mis-detect.
+  // so a future sibling route with a `slug` param cannot mis-detect. Fuzzy,
+  // so a built-in's panel page keeps its row active.
   const matchRoute = useMatchRoute();
-  const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug" });
+  const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug", fuzzy: true });
   const activeBuiltin = builtinMatch ? builtinMatch.slug : undefined;
   const pinnedActive = (builtins: BuiltinDashboard[]) =>
     builtins.filter((builtin) => builtin.id === activeBuiltin);
