@@ -142,7 +142,7 @@ type RecordingClip = {
 
 `recorder.pause()` stops the rrweb recorder. Nothing is buffered while paused, so no Clip can contain that time. `recorder.resume()` starts the recorder again with a full snapshot. Both act on the current page only.
 
-Pause and resume travel inside the Segment body as rrweb custom events with tags `everr.recording.pause` and `everr.recording.resume`, so the player can draw the paused range instead of guessing from event silence. Repeated calls are no-ops.
+Pause and resume travel inside the Segment body as rrweb custom events with tags `everr.recording.pause` and `everr.recording.resume`, so the player can draw the paused range instead of guessing from event silence. Repeated calls are no-ops. The throttle and oversized-event markers (see Mutation throttle and Oversized events) travel the same way.
 
 ### Server entry
 
@@ -170,11 +170,44 @@ A Stream is the in-memory buffer of one document in one Session.
 
 - One Stream per document per Session. Two tabs of one Session give two Streams at once.
 - Each Stream gets a random `everr.recording.stream.id`. While the Stream buffers, the instrumentation sets it through the same ambient set as `setAttributes()`, so later Logs and Spans carry it on the envelope. It is cleared when the Stream ends.
-- The buffer holds the last 5 minutes, capped at 10 MB of raw rrweb JSON. Past the cap, the oldest events go first. The newest event is always kept, even when it alone is over the cap.
-- A full snapshot (rrweb checkout) is taken every 10 seconds. Every snapshot from the last 60 seconds is kept. Older snapshots are thinned to one per minute. The Meta event in front of a kept snapshot stays, because the player reads the viewport from it.
+- The buffer holds the last 5 minutes, capped at 10 MB of raw rrweb JSON. Past the cap, the oldest events go first. The newest event is always kept. No single event is over the cap, because larger events are dropped before the buffer (see Oversized events).
+- A full snapshot (rrweb checkout) is taken every 10 seconds. Every snapshot from the last 60 seconds is kept. Older snapshots are thinned to one per minute. The Meta event in front of a kept snapshot stays, because the player reads the viewport from it. Catch-up snapshots from the mutation throttle are thinned the same way.
 - When the Session id changes during a page, the current Stream ends, its buffer is dropped, and sampling is decided again. If the new Session is sampled, a new Stream starts with a full snapshot. A Clip never mixes two Sessions.
 - A hard navigation or reload starts a new document, so it starts a new Stream. SPA navigation keeps the Stream and rotates only the page view.
 - The buffer does not keep the Session alive. Segments and the `recording` Span read the Session id through a passive read that does not move the activity time. Only the app's own records keep it alive. Without this, a busy recorder could extend a Session indefinitely.
+
+### Order of the emit path
+
+Every rrweb event passes these steps in the emit callback, in this order, before it enters the buffer:
+
+1. Privacy: attribute masking and file input removal (see Privacy).
+2. Mutation throttle.
+3. Oversized events.
+
+An event dropped by step 2 or 3 never enters the buffer, so it cannot push older events out of the 5-minute window or the 10 MB cap.
+
+### Mutation throttle
+
+A page that animates through the DOM, or re-renders a large list in a loop, can emit thousands of mutations per second. Without a limit, a storm fills the 10 MB buffer in seconds and evicts the snapshot and the moments before an error, which are what the Clip exists to keep. The throttle runs on rrweb mutation events (incremental snapshot, source Mutation) only.
+
+- **Attribute mutations, per node.** Each node has a token bucket of 100 tokens that refills at 10 tokens per second. Each attribute mutation on a node takes one token. With no token left, the mutation is removed from the event. An element inside an `<svg>` takes tokens from its nearest `<svg>` ancestor, because an animated SVG changes many children at once.
+- **Adds, removes, and texts, per event.** An event with more than 1,000 adds, removes, and text changes combined is dropped whole. Removing part of a batch of adds would leave the player with children whose parents never arrived. The limit is tunable. 1,000 is above what an ordinary route change or modal adds in one rrweb flush. A flush above it is a bulk rebuild, such as a large list rendered at once, and the catch-up snapshot records its result in one event.
+- **Empty events.** An event that the throttle emptied is dropped.
+- **Marker.** The first mutation dropped in a throttle episode adds an rrweb custom event with tag `everr.recording.throttled` to the buffer, the same mechanism as pause and resume. The player draws a throttled range from the marker to the next full snapshot.
+- **Catch-up snapshot.** The episode schedules one full snapshot 1 second after its first dropped mutation. Later drops in the same episode do not schedule another. At most one catch-up runs per 10-second checkout interval; when one ran less than 10 seconds ago, the next regular checkout is the catch-up. The snapshot shows the state the dropped mutations led to. Together with the regular checkout, this at most doubles the snapshot rate.
+- **Reset.** The catch-up snapshot ends the episode and clears the per-node flags. A node that storms again later opens a new episode, with a new marker and a new catch-up. Token buckets are not reset; they refill on their own.
+- **Count.** The `recording` Span carries `everr.recording.mutations.throttled`, the number of mutations dropped inside the Clip range. It is absent when nothing was dropped.
+
+Prior art: PostHog's `MutationRateLimiter`, as used by HyperDX ([limiter](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/sessionrecording-utils.ts#L122-L228), [wiring](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/index.ts#L128-L157)). It uses the same bucket and SVG rule but limits only attribute mutations. It also flags a node once for the life of the page ([flag](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/sessionrecording-utils.ts#L209-L212)), so a node that storms again gets no new snapshot.
+
+### Oversized events
+
+- Each event is measured as UTF-8 bytes of its serialized JSON, not string length. The serialization is the one the buffer already stores.
+- Above 5 MB, image `data:` URIs are replaced with a fixed placeholder image, and other `data:` URIs are removed. 5 MB is half the buffer cap, so one inlined image or font cannot fill the buffer on its own. An event under 5 MB is not rewritten.
+- An event still over 10 MB after stripping is dropped. The buffer gets an rrweb custom event with tag `everr.recording.oversized` in its place, and the `recording` Span counts it in `everr.recording.events.oversized`. 10 MB is the buffer cap, and it leaves room under the public receiver's 20 MiB body limit for the OTLP envelope, string escaping, and a request sent without gzip. The WebSDK never sends an event that the receiver would reject.
+- Events are never split across Segments. An event between 950 KB and 10 MB goes alone in its own Segment. Splitting a serialized event at byte offsets breaks multi-byte characters at the cut, and the player would need to reassemble chunks in order; HyperDX does both ([split](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/index.ts#L201-L218), [assembler](https://github.com/hyperdxio/hyperdx/blob/cf00ae53f75ac35f6082a6279bbbf1d84bafed87/packages/app/src/utils/rrwebChunkAssembler.ts#L108-L151)).
+
+Prior art: HyperDX strips `data:` URIs above 5,000,000 characters of string length ([source](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/sessionrecording-utils.ts#L94-L120)).
 
 ### Clip start and truncation
 
@@ -186,7 +219,7 @@ rrweb can only play from a full snapshot.
 
 ### Segments
 
-- A Segment holds up to about 950 KB of JSON. One event that is already larger goes alone in its own Segment.
+- A Segment holds up to about 950 KB of JSON. One event that is already larger goes alone in its own Segment. No event is larger than 10 MB (see Oversized events).
 - `everr.recording.segment.index` counts from 0 per Clip. A gap in the index means a request was lost or dropped at exit.
 - Each Segment is one OTLP Log named `everr.browser.recording.segment`. Its body is the JSON array of rrweb events.
 - A Segment is sent on its own request through the logs path. It does not enter the shared logs queue, and it does not attach the active Span, because a Clip carries no span ids.
@@ -199,7 +232,7 @@ rrweb can only play from a full snapshot.
 
 - One root Span per Clip, named `recording`.
 - It starts at the requested start, even when the Clip's first event is an earlier snapshot, and ends when the Clip handle closes (through `end()`, `next`, the 60-second cap, or page hide).
-- It carries `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.trigger`, and `everr.recording.clip.truncated` when the Clip starts late.
+- It carries `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.trigger`, and `everr.recording.clip.truncated` when the Clip starts late. It carries `everr.recording.mutations.throttled` and `everr.recording.events.oversized` when the Clip range has throttled mutations or dropped events.
 - It is created with `root: true`, so later Logs, clicks, and requests do not become its children.
 - It is emitted when the Clip ends, through `clip.end()`, `next`, the 60-second cap, or the hide listener when the page hides during a tail. In the hide case, the Span goes in the exit flush.
 - Its envelope comes from a passive Session read.
@@ -268,15 +301,19 @@ The exit flush is unchanged for Spans and Logs. It keeps the 64 KB keepalive bud
 
 ## Emitted Telemetry
 
-| Name                              | Kind       | Value                                                                        |
-| --------------------------------- | ---------- | ---------------------------------------------------------------------------- |
-| `everr.browser.recording.segment` | event name | one per Segment; the collector routing key                                   |
-| `everr.recording.stream.id`       | attr       | random id per document per Session; on the envelope while the Stream buffers |
-| `everr.recording.clip.id`         | attr       | random id per Clip; on Segments and the `recording` Span                     |
-| `everr.recording.clip.truncated`  | attr       | `true` when the Clip starts later than requested                             |
-| `everr.recording.segment.index`   | log attr   | int from 0 per Clip; a gap is a lost or dropped request                      |
-| `everr.recording.trigger`         | span attr  | `error`, `network`, or `manual`                                              |
-| `recording`                       | span name  | one root Span per Clip, covering its range                                   |
+| Name                                  | Kind       | Value                                                                        |
+| ------------------------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `everr.browser.recording.segment`     | event name | one per Segment; the collector routing key                                   |
+| `everr.recording.stream.id`           | attr       | random id per document per Session; on the envelope while the Stream buffers |
+| `everr.recording.clip.id`             | attr       | random id per Clip; on Segments and the `recording` Span                     |
+| `everr.recording.clip.truncated`      | attr       | `true` when the Clip starts later than requested                             |
+| `everr.recording.segment.index`       | log attr   | int from 0 per Clip; a gap is a lost or dropped request                      |
+| `everr.recording.trigger`             | span attr  | `error`, `network`, or `manual`                                              |
+| `everr.recording.mutations.throttled` | span attr  | int; mutations dropped by the throttle inside the Clip range; absent when 0  |
+| `everr.recording.events.oversized`    | span attr  | int; events over 10 MB dropped inside the Clip range; absent when 0          |
+| `recording`                           | span name  | one root Span per Clip, covering its range                                   |
+
+The tags `everr.recording.pause`, `everr.recording.resume`, `everr.recording.throttled`, and `everr.recording.oversized` are rrweb custom events inside the Segment body, not OTLP attributes.
 
 The envelope (`session.id`, `everr.page_view.id`, URL, route, `user.*`, and `everr.recording.stream.id` while a Stream buffers) is written as on every other record. There is no marker attribute `everr.recording`; the collector routes on the event name.
 
@@ -307,13 +344,15 @@ The browser events catalog in `skills/everr-use-telemetry/rules/browser-events.m
 - **Passive Session reads.** A Clip can be large and can arrive long after the last user action. Counting it as activity would keep the Session alive and merge unrelated page loads. Segments and the `recording` Span read the id without sliding the activity time.
 - **Automatic cap on the Session.** The cap is 5 per Session, not per page, so reloads and tabs share it. The count is written immediately so a reload cannot reset it.
 - **No Segment exit path.** A Clip that is open at page hide closes and sends its `recording` Span through the normal Span exit path. Unsent tail Segments are dropped, and the index gap shows the loss. A special Segment exit path adds cross-cutting budget, queue, and ordering code for a best-effort tail, which is not worth it.
+- **Throttle before the buffer.** The buffer is the scarce resource: 5 minutes and 10 MB. A mutation storm that reaches it evicts the history a Clip needs. Dropping mutations and repairing with a catch-up snapshot loses detail inside the storm, and the marker tells the player where.
+- **Whole events, no chunking.** One event per Segment when it is large, and a hard 10 MB drop above that, keeps every Segment parseable on its own. Chunking would add a reassembly step to the player and the byte-split bug HyperDX hit.
 - **Browser-side privacy.** Masking before the buffer means unmasked data never leaves the page, even if the collector is misconfigured. There is no server scrub to maintain. rrweb options cover text, inputs, Block, and Ignore; the emit callback covers attributes because rrweb 2.1.7 has no hook.
 
 ## Testing
 
 The tests drive the public boundaries and assert on what crosses them. They do not reach into rrweb internals, buffer variables, or private functions.
 
-- `recording.test.ts` covers: nothing sent before `recorder.emitClip()` or `recorder.startClip()`; the chunk not loaded; unsampled Sessions; sampling by `hashUnit` and across reloads and tabs; one recorder per page and recording again after shutdown; the 5-minute buffer; Clip start at a full snapshot; whole-buffer, `last`, `since` by timestamp, and `next`; `emitClip()` with the default `next` and with a tail; `clip.end()` and idempotence; inert handles before the chunk loads, in unsampled Sessions, with no snapshot, and after the Session was cleared; truncation; 950 KB Segments and index order; Stream id on the envelope; one root `recording` Span per Clip; the buffer surviving a Clip; the 10 MB cap; snapshot thinning; oversized events; Session rotation; cleared identity; passive Session reads; pause and resume; automatic Clips from errors, filtered errors, 5xx, no response, 4xx, and aborts; tail merge and the 60-second cap; the 5-Clip Session cap across reloads; manual Clips not merging or counting; no fetch patch; page hide closing the Clip and dropping the unsent tail.
+- `recording.test.ts` covers: nothing sent before `recorder.emitClip()` or `recorder.startClip()`; the chunk not loaded; unsampled Sessions; sampling by `hashUnit` and across reloads and tabs; one recorder per page and recording again after shutdown; the 5-minute buffer; Clip start at a full snapshot; whole-buffer, `last`, `since` by timestamp, and `next`; `emitClip()` with the default `next` and with a tail; `clip.end()` and idempotence; inert handles before the chunk loads, in unsampled Sessions, with no snapshot, and after the Session was cleared; truncation; 950 KB Segments and index order; the mutation throttle: the per-node bucket and refill, SVG descendants charged to the nearest `<svg>`, the 1,000 adds, removes, and texts cap, dropping emptied events, one `everr.recording.throttled` marker per episode, at most one catch-up snapshot per checkout interval, the flag reset after a catch-up, and the throttled count on the `recording` Span; oversized events: UTF-8 byte measurement, image `data:` URI replacement and other `data:` URI removal above 5 MB, and the drop with an `everr.recording.oversized` marker and Span count above 10 MB; Stream id on the envelope; one root `recording` Span per Clip; the buffer surviving a Clip; the 10 MB cap; snapshot thinning; large events alone in their own Segment; Session rotation; cleared identity; passive Session reads; pause and resume; automatic Clips from errors, filtered errors, 5xx, no response, 4xx, and aborts; tail merge and the 60-second cap; the 5-Clip Session cap across reloads; manual Clips not merging or counting; no fetch patch; page hide closing the Clip and dropping the unsent tail.
 - `recording.privacy.test.ts` covers the default bundle in development and production (the `dev` option does not change it), markers, selector options, `unmask` and `unblock` precedence, passwords, file inputs, attribute masking, `maskFn`, and the media list.
 - `emitter.test.ts` covers the immediate Segment path, passive envelopes, the existing exit budget for Spans and Logs, and host send.
 - `transport.test.ts` covers endpoint resolution, keepalive on the exit path, and the host receiving a string.
@@ -335,7 +374,10 @@ The tests drive the public boundaries and assert on what crosses them. They do n
 - A Clip whose requested start is before the oldest snapshot starts later than asked and is marked truncated.
 - A CSS `background-image` is not Blocked.
 - A Blocked parent drops its children, so `unblock` cannot reveal an element inside it.
-- rrweb has no mutation cap, so a page with very many DOM changes costs more CPU.
+- The throttle bounds what enters the buffer, not rrweb's own observer cost. A page with very many DOM changes still costs CPU to observe.
+- Between a dropped mutation and the catch-up snapshot, the player shows a stale page inside the throttled range.
+- Adds, removes, and texts are capped per event, not per node. A loop that re-renders a small subtree every frame stays under the cap and is not throttled.
+- An event over 10 MB after `data:` URI stripping is dropped. The marker and the Span count are the only trace of it.
 - A full page load or reload document request is its own Trace and has no Session.
 - A cross-origin request that does not send `traceparent` is its own Trace.
 - Cron, webhooks, and other Traces with no browser Client Span have no Session and no player.

@@ -170,7 +170,7 @@ This CORS block is the collector half of the gzip rollout. Without it, the prefl
 - A recordings insert that fails the materialized view is retried indefinitely, because the exporter has unlimited retries. It holds one consumer; a persistent failure can back up the recordings queue.
 - The recordings queue does not block on overflow. When it is full, admission fails, the OTLP request fails, and the client does not retry, so that Segment is lost. The gap shows in the Clip's Segment index.
 - The client does not retry any failed Segment. The collector's exporter retries the Segments it accepted.
-- A Segment that the public receiver rejects, for example because the request is over the 20 MiB body limit, is lost at ingest and the gap shows in the Clip's Segment index.
+- A Segment that the public receiver rejects is lost at ingest and the gap shows in the Clip's Segment index. The WebSDK drops any event over 10 MB before the buffer, so a WebSDK Segment stays under the 20 MiB body limit.
 
 ## Cloud ClickHouse
 
@@ -371,7 +371,7 @@ The collector must be ahead of the WebSDK release. If the SDK ships first, Segme
 - A full recordings queue rejects admission. The WebSDK does not retry, so that Segment is lost and the gap shows in the Segment index. The queue does not wait for capacity.
 - A batch that fails the materialized view, for example because `everr.retention.days` is missing, is retried indefinitely and holds a consumer. A persistent failure can back up the recordings queue. Ordinary Logs and Traces are unaffected because they use a different exporter and queue.
 - A partially applied manual DDL can silently drop Segments. The landing table is `Null`; without the materialized view, an insert succeeds and stores nothing.
-- A Segment larger than the public receiver's 20 MiB body limit is rejected at ingest. The client does not retry it. The gap shows in the Segment index.
+- A Segment larger than the public receiver's 20 MiB body limit is rejected at ingest. The WebSDK does not send one, because it drops events over 10 MB. Another OTLP sender can. The client does not retry it. The gap shows in the Segment index.
 - There is no body search index on `app.recordings`, and the SQL API cannot read it. Raw rrweb is for the player, not for exploration.
 - `app.recordings` has no lower-body, snapshot, URL, or error-count columns. The rrweb payload is the source of truth.
 - A Plan change affects new rows. Rows already stored keep the `retention_days` they were written with, and their parts expire under that value.
