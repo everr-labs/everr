@@ -21,7 +21,7 @@ const runtimeMocks = vi.hoisted(() => ({
   serverLoggerInfo: vi.fn(),
 }));
 vi.mock("@composition/runtime", () => ({
-  runtime: { startAppWorkers: vi.fn(async () => ({ stop: vi.fn() })) },
+  runtime: { registerWorkers: vi.fn(async () => []) },
 }));
 vi.mock("#app/db/client.ts", () => ({ db: {}, pool: runtimeMocks.pool }));
 vi.mock("#app/lib/clickhouse-writer.ts", () => ({ insertRows: vi.fn() }));

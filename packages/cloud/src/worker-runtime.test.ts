@@ -149,6 +149,9 @@ describe("worker runtime", () => {
       "clickhouse/provision-organization",
       "clickhouse/scan-pending-organizations",
     ]);
+    expect(Object.keys(general.taskList)).toContain("alerts/evaluate");
+    for (const identifier of Object.keys(organizations.taskList))
+      expect(general.taskList).not.toHaveProperty(identifier);
     expect(runtimeMocks.poolOptions).toEqual([
       {
         host: "database",
@@ -160,12 +163,15 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.query).toHaveBeenCalledOnce();
   });
 
-  it("stops both runners and closes the reserved pool", async () => {
+  it("drains both runners and closes the reserved pool even if cleanup fails", async () => {
     const runtime = await loadRuntime();
     const handle = await runtime.startWorkerRuntime();
-    await handle.stop();
+    const error = new Error("Runner cleanup failed");
+    runtimeMocks.runners[0].stop.mockRejectedValueOnce(error);
+    await expect(handle.stop()).rejects.toMatchObject({ errors: [error] });
     for (const runner of runtimeMocks.runners) expect(runner.stop).toHaveBeenCalledOnce();
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
+    activeRuntime = undefined;
   });
 
   it("keeps the organization worker alive when the general worker cannot start", async () => {

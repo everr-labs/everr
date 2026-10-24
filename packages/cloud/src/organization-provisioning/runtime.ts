@@ -7,8 +7,8 @@ import { exceptionAttributes, serverLogger } from "@everr/app/telemetry/logger";
 import { context, ROOT_CONTEXT, SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { and, eq, sql } from "drizzle-orm";
 import { parseCronItems, type Task, type TaskList } from "graphile-worker";
-import { z } from "zod";
 import { deprovisionSqlApiOrgUser, provisionSqlApiOrgUser } from "../clickhouse/provisioning";
+import { organizationLifecyclePayloadSchema } from "./contracts";
 import {
   DEPROVISION_ORGANIZATION_TASK,
   enqueueOrganizationProvisioning,
@@ -21,7 +21,6 @@ import {
   provisionedOrganizationMetadata,
 } from "./metadata.server";
 
-const payloadSchema = z.object({ organizationId: z.string().min(1) });
 const SCAN_PENDING_TASK = "clickhouse/scan-pending-organizations";
 const PROVISIONING_STALLED_SECONDS = 120;
 const tracer = trace.getTracer("everr-app.organization-provisioning");
@@ -70,7 +69,7 @@ function organizationLifecycleJob(
   run: (organizationId: string, helpers: Parameters<Task>[1]) => Promise<void>,
 ): Task {
   return organizationJob(name, async (payload, helpers) => {
-    const { organizationId } = payloadSchema.parse(payload);
+    const { organizationId } = organizationLifecyclePayloadSchema.parse(payload);
     mergeTelemetryIdentity({ organizationId });
     await run(organizationId, helpers);
   });

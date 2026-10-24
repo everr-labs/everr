@@ -36,7 +36,7 @@ The Membership role with full control of an Organization. A Pro Organization can
 _Avoid_: creator, administrator
 
 **Plan**:
-The Organization's `plan`, Hobby or Pro, which determines its available capabilities. It is stored directly on the Organization.
+The Organization's Plan, Hobby or Pro, which determines its available capabilities. A User has no independent Plan across their Organizations.
 _Avoid_: Tier, User plan, subscription status
 
 **Polar Product**:
@@ -54,6 +54,10 @@ _Avoid_: Team (synonym; use Pro)
 **Suspended Organization**:
 A Pro Organization whose subscription is no longer active. Its recovery page provides payment-method updates and a downgrade process.
 _Avoid_: Hobby Organization, deleted Organization
+
+**Provisioned organization**:
+An Organization whose data access has been prepared and verified. Provisioning readiness is independent of its subscription and whether it has ingested telemetry.
+_Avoid_: activated Organization, paid Organization
 
 **Billing details**:
 The legal name, tax identifier, billing email, and postal address used to bill an Organization. They may differ from the Organization's display name.
