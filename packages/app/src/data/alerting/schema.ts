@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { ALERTING_DEFAULT_TIERS } from "#app/data/alerting/delivery/defaults.ts";
+import {
+  WebhookHeaderInputsSchema,
+  WebhookHeadersSchema,
+} from "#app/data/alerting/delivery/webhook-headers.ts";
 import { PreviewStatusSchema } from "#app/data/previews/overlay.ts";
 import { alertingChannelNamesSchema, alertingResourceNameSchema } from "./resource/schema";
 import {
@@ -111,7 +115,13 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
 export const ALERTING_REDACTED_SECRET = "***";
 
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("webhook"), url: z.string() }),
+  // `headers` stays optional with no default. Channels saved before headers
+  // existed have no key, and a webhook with none stores none.
+  z.object({
+    type: z.literal("webhook"),
+    url: z.string(),
+    headers: WebhookHeadersSchema.optional(),
+  }),
   z.object({ type: z.literal("slack"), url: z.string() }),
   z.object({ type: z.literal("discord"), url: z.string() }),
   z.object({
@@ -131,9 +141,13 @@ const AlertingChannelSecretInputSchema = z
 /** What create, update, and test accept. A saved channel may omit its secret;
  *  the repository decides whether there is a same-type secret to retain. */
 export const AlertingChannelConfigInputSchema = z.discriminatedUnion("type", [
+  // Omitting `headers` keeps the saved list while the URL stays the same.
+  // An empty list clears it. A header with no `value` keeps the saved value
+  // for that name. A different URL does not inherit those values.
   z.object({
     type: z.literal("webhook"),
     url: AlertingChannelSecretInputSchema.optional(),
+    headers: WebhookHeaderInputsSchema.optional(),
   }),
   z.object({
     type: z.literal("slack"),

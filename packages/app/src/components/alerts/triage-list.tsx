@@ -7,7 +7,7 @@ import type { TriageStatus } from "#app/data/alerting/rules/read.ts";
 import type { TriageAlert } from "#app/data/alerting/triage/view.ts";
 import { AlertSparkline } from "./alert-sparkline";
 import { STATUS_META, StatusChip } from "./alert-status";
-import { RowTarget, SelectableRow } from "./list-row";
+import { RowTarget, SelectableRow, TRIAGE_ROW_INSET } from "./list-row";
 
 /** "firing for", not "since": the row already says how long, and the verb
  *  names which clock is running. */
@@ -43,7 +43,8 @@ function TriageRow({
         // column, the second is the full table. Without them, opening the
         // detail panel would keep five columns in half the width and crush
         // the rule name, the one thing the reader is scanning for.
-        "grid grid-cols-1 items-center gap-x-6 gap-y-3 border-t px-3 py-3.5 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
+        "grid grid-cols-1 items-center gap-x-6 gap-y-3 border-t py-3.5 @[44rem]/list:grid-cols-[minmax(0,1fr)_10rem_7rem_6.5rem] @[53rem]/list:grid-cols-[minmax(0,1fr)_12rem_7rem_5rem_6.5rem]",
+        TRIAGE_ROW_INSET,
         dimmed && "opacity-60",
       )}
     >
@@ -178,6 +179,7 @@ export function TriageList({
             count={rows.length}
             icon={meta.icon}
             tone={meta.tone}
+            className={TRIAGE_ROW_INSET}
           >
             {rows.map((alert) => (
               <TriageRow

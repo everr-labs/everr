@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => {
     }
   }
   return {
+    channelConfig: { type: "webhook", url: "https://hook" } as {
+      type: "webhook";
+      url: string;
+      headers?: { name: string; value: string }[];
+    },
     deliveryRows: [] as unknown[],
     liveRules: [] as unknown[],
     set: vi.fn(),
@@ -42,7 +47,7 @@ vi.mock("./journal-reader", () => ({
   liveRuleForDeliveryQuery: () => Promise.resolve(mocks.liveRules),
 }));
 vi.mock("#app/data/alerting/delivery/channel-secrets.server.ts", () => ({
-  decryptChannelConfig: () => ({ type: "webhook", url: "https://hook" }),
+  decryptChannelConfig: () => mocks.channelConfig,
 }));
 vi.mock("#app/data/alerting/delivery/channel-sender.server.ts", () => ({
   sendChannelNotification: mocks.send,

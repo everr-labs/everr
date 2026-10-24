@@ -1,12 +1,7 @@
 import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
-import {
-  ChannelSendError,
-  isPermanentStatus,
-  SEND_TIMEOUT_MS,
-  validateOutboundUrl,
-} from "./outbound";
+import { postOutbound, validateOutboundUrl } from "./outbound";
 
 /**
  * Slack reads a `mrkdwn` block as markup, so the three characters that start
@@ -49,43 +44,37 @@ export async function sendSlackNotification(
   notification: ChannelNotification,
 ): Promise<void> {
   const url = await validateOutboundUrl(config.url);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      attachments: [
-        {
-          color: STATUS_COLOR[notification.status ?? "none"],
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: composeText(
-                  {
-                    ...notification,
-                    title: escapeSlackMarkup(notification.title),
-                    body: escapeSlackMarkup(notification.body),
-                  },
-                  CHANNEL_TEXT_MAX.slack,
-                ),
+  // The status is the failure signal. The body stays unread: the webhook URL
+  // is a secret, and the answer can repeat it.
+  await postOutbound(
+    url,
+    {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        attachments: [
+          {
+            color: STATUS_COLOR[notification.status ?? "none"],
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: composeText(
+                    {
+                      ...notification,
+                      title: escapeSlackMarkup(notification.title),
+                      body: escapeSlackMarkup(notification.body),
+                    },
+                    CHANNEL_TEXT_MAX.slack,
+                  ),
+                },
               },
-            },
-          ],
-        },
-      ],
-    }),
-    redirect: "error",
-    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-  });
-
-  // Slack answers a bad request with a non-200 and a short body such as
-  // "invalid_payload", so any non-2xx is the failure signal.
-  if (!response.ok) {
-    throw new ChannelSendError(`slack webhook failed: ${response.status}`, {
-      permanent: isPermanentStatus(response.status),
-      status: response.status,
-      responseBody: await response.text().catch(() => ""),
-    });
-  }
+            ],
+          },
+        ],
+      }),
+      redirect: "error",
+    },
+    "slack webhook",
+  );
 }

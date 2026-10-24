@@ -18,7 +18,7 @@ type FetchResponder = FetchResponse | ((url: string) => FetchResponse);
 export interface AlertingHarness {
   db: TestDatabase["db"];
   clickhouse: TestClickHouse;
-  fetchCalls(): { url: string; body: unknown }[];
+  fetchCalls(): { url: string; body: unknown; headers: Record<string, string> }[];
   setFetchResponse(responder: FetchResponder): void;
   runDueJobs(opts?: { limit?: number }): Promise<number>;
   pendingJobs(): ReturnType<typeof pendingJobs>;
@@ -58,7 +58,7 @@ export async function createAlertingHarness(
   await seedOrganization();
 
   let responder: FetchResponder = { status: 200, body: "ok" };
-  const calls: { url: string; body: unknown }[] = [];
+  const calls: { url: string; body: unknown; headers: Record<string, string> }[] = [];
 
   vi.stubGlobal(
     "fetch",
@@ -73,7 +73,11 @@ export async function createAlertingHarness(
           // A provider that posts form-encoded text keeps its raw string.
         }
       }
-      calls.push({ url, body });
+      const headers: Record<string, string> = {};
+      new Headers(init?.headers).forEach((value, key) => {
+        headers[key] = value;
+      });
+      calls.push({ url, body, headers });
       const response = typeof responder === "function" ? responder(url) : responder;
       return new Response(response.body ?? "", { status: response.status });
     }),

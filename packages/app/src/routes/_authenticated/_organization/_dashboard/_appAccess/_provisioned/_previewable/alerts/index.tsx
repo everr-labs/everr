@@ -1,6 +1,7 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -9,6 +10,7 @@ import {
   AlertDetailShell,
   useAlertDetail,
 } from "#app/components/alerts/alert-detail-shell.tsx";
+import { TRIAGE_ROW_INSET } from "#app/components/alerts/list-row.tsx";
 import { RuleInventory } from "#app/components/alerts/rule-inventory.tsx";
 import { SilenceDialog } from "#app/components/alerts/silence-dialog.tsx";
 import { TriageList } from "#app/components/alerts/triage-list.tsx";
@@ -43,7 +45,7 @@ const ASSISTANT_ALERT_PROMPT =
 
 function TriageSkeleton() {
   return (
-    <div className="space-y-2 p-3">
+    <div className={cn("space-y-2", TRIAGE_ROW_INSET)}>
       {[0, 1, 2, 3].map((i) => (
         <Skeleton key={i} className="h-16 w-full" />
       ))}
@@ -94,7 +96,7 @@ function AlertingTriagePage() {
           viewport breakpoint cannot see that happen. */}
         <ScrollArea
           className="min-h-0 min-w-0"
-          viewportClassName="@container/list space-y-5 overscroll-y-contain pb-6"
+          viewportClassName="@container/list space-y-5 overscroll-y-contain pt-3 pb-6"
         >
           {triage.isPending ? (
             <TriageSkeleton />

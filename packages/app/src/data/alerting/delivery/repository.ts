@@ -30,6 +30,40 @@ import {
   readRedactedChannelConfig,
 } from "./channel-secrets.server";
 
+function resolveWebhookHeaders(
+  input: { name: string; value?: string }[] | undefined,
+  previous: { name: string; value: string }[] | undefined,
+  urlChanged: boolean,
+): { name: string; value: string }[] | undefined {
+  // Omitted means the edit did not speak about headers, so the saved list
+  // stands. An empty list is the edit that clears them. A new URL does not
+  // inherit either: the values are credentials for the previous endpoint.
+  if (input === undefined) {
+    if (urlChanged && (previous?.length ?? 0) > 0) {
+      throwAlertingPersistenceError(
+        422,
+        "validation",
+        "header values must be set again when the webhook URL changes",
+      );
+    }
+    return urlChanged ? undefined : previous;
+  }
+  const stored = new Map(
+    (urlChanged ? [] : (previous ?? [])).map((header) => [header.name.toLowerCase(), header.value]),
+  );
+  return input.map((header) => {
+    const value = header.value ?? stored.get(header.name.toLowerCase());
+    if (!value) {
+      throwAlertingPersistenceError(
+        422,
+        "validation",
+        `header value is required for ${header.name}`,
+      );
+    }
+    return { name: header.name, value };
+  });
+}
+
 /** Turn a write draft into a config that can actually send. Omission retains
  *  a secret only when the saved transport has the same type. */
 function resolveChannelConfig(
@@ -37,7 +71,21 @@ function resolveChannelConfig(
   previous: AlertingChannelConfig | null,
 ): AlertingChannelConfig {
   switch (input.type) {
-    case "webhook":
+    case "webhook": {
+      const previousWebhook = previous?.type === "webhook" ? previous : undefined;
+      const url = input.url ?? previousWebhook?.url;
+      if (!url) {
+        throwAlertingPersistenceError(422, "validation", "webhook URL is required");
+      }
+      // Stored header values stay with the endpoint they were saved for.
+      const urlChanged = previousWebhook !== undefined && url !== previousWebhook.url;
+      const headers = resolveWebhookHeaders(input.headers, previousWebhook?.headers, urlChanged);
+      return {
+        type: "webhook",
+        url,
+        ...(headers && headers.length > 0 ? { headers } : {}),
+      };
+    }
     case "slack":
     case "discord": {
       const url = input.url ?? (previous?.type === input.type ? previous.url : undefined);
@@ -206,14 +254,11 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  * What a failed channel test may say.
  *
  * The URL under test is whatever the member typed, so the send is a fetch the
- * server makes on their behalf. Handing back the endpoint's response would
- * turn the test into a way to read any HTTP service the application plane can
- * reach.
- *
- * A ChannelSendError keeps that response in `responseBody`, out of its
- * message, so what is returned here is only text we wrote. It is sanitized
- * anyway: a lower layer may have put a webhook URL or a bot token in a
- * message, and both are secrets.
+ * server makes on their behalf. Handing back the endpoint's response, or the
+ * URL itself, would reveal a secret or a service the application plane can
+ * reach. The sender's message names the outcome and leaves both out. This
+ * still strips a URL or a bot token a lower layer may have shaped into the
+ * text.
  */
 function testChannelError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);
