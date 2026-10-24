@@ -14,7 +14,7 @@ export function DashboardPanelPage({ panel, panelKey }: { panel: Panel; panelKey
     <div className="flex h-full min-h-0 flex-col">
       <DashboardToolbar />
       <div className="min-h-0 flex-1">
-        <DashboardPanel panel={panel} panelKey={panelKey} fill />
+        <DashboardPanel panel={panel} panelKey={panelKey} />
       </div>
     </div>
   );

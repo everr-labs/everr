@@ -9,14 +9,17 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 import { z } from "zod";
 import { DashboardBreadcrumb } from "#app/components/dashboard-breadcrumb.tsx";
+import { DashboardsList } from "#app/components/dashboards/dashboards-list.tsx";
 import { DashboardHome } from "#app/components/home/dashboard-home.tsx";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
+import { listDashboards } from "#app/data/dashboards/server.ts";
+import { writeBuiltinsCollapsed } from "#app/data/dashboards/ui-prefs.ts";
 import type { Dashboard, Panel } from "#app/data/dashboards/schema.ts";
 import { Route as DashboardIndexFileRoute } from "./$project.$slug.index";
 import { Route as DashboardPanelFileRoute } from "./$project.$slug.panel.$panelKey";
@@ -120,7 +123,7 @@ const testSearchSchema = TimeRangeSearchSchema.extend({
 // `useTimeRange()` reads need the dashboard search schema in the chain.
 function renderDashboardRoutes(
   initialEntry: string,
-  { breadcrumb = false }: { breadcrumb?: boolean } = {},
+  { breadcrumb = false, rail = false }: { breadcrumb?: boolean; rail?: boolean } = {},
 ) {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -134,14 +137,15 @@ function renderDashboardRoutes(
     // Opt-in: the shell's breadcrumb (DashboardLayout renders it), so the
     // way back from the panel page is exercised as a real link. Off by
     // default because its last crumb repeats the panel's name.
-    component: breadcrumb
-      ? () => (
-          <>
-            <DashboardBreadcrumb />
-            <Outlet />
-          </>
-        )
-      : Outlet,
+    // Opt-in too: the dashboards rail, to check which row a panel page keeps
+    // selected.
+    component: () => (
+      <>
+        {rail && <DashboardsList />}
+        {breadcrumb && <DashboardBreadcrumb />}
+        <Outlet />
+      </>
+    ),
     validateSearch: testSearchSchema,
   });
   // `id`/`getParentRoute` aren't in `.update()`'s public type: only the
@@ -335,4 +339,37 @@ describe("dashboard panel full-screen route", () => {
       });
     },
   );
+
+  it("keeps the parent dashboard selected in the rail on a panel page, its folder open", async () => {
+    vi.mocked(listDashboards).mockResolvedValueOnce([
+      {
+        project: "demo",
+        slug: "traffic",
+        name: "Traffic",
+        folderPath: "team/web",
+        previewStatus: undefined,
+      },
+    ]);
+    renderDashboardRoutes("/dashboards/demo/traffic/panel/rps", { rail: true });
+
+    // Rendered at all only because the deep link opened its folders.
+    const row = await screen.findByRole("link", { name: "Traffic" });
+    expect(row).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps a built-in's row pinned and selected in a collapsed rail on its panel page", async () => {
+    writeBuiltinsCollapsed(true);
+    onTestFinished(() => writeBuiltinsCollapsed(false));
+    const builtin = getBuiltinDashboard("http-endpoints");
+    if (!builtin) throw new Error("missing http-endpoints built-in");
+    const panelKey = Object.keys(builtin.document.spec.panels)[0];
+    renderDashboardRoutes(`/dashboards/built-in/http-endpoints/panel/${panelKey}`, {
+      rail: true,
+    });
+
+    const section = await screen.findByRole("region", { name: "Built-in dashboards" });
+    const row = await within(section).findByRole("link", { name: builtin.name });
+    expect(row).toHaveAttribute("aria-current", "page");
+    expect(within(section).getAllByRole("link")).toHaveLength(1);
+  });
 });

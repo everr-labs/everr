@@ -54,11 +54,6 @@ interface DashboardPanelProps {
    * page exists (runbook embeds).
    */
   fullscreenTo?: PanelFullscreenTo;
-  /**
-   * On when this panel is already the page (the full-screen view): the
-   * maximize link is hidden and the card fills the pane's height.
-   */
-  fill?: boolean;
 }
 
 function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
@@ -145,13 +140,7 @@ function MaximizeLink({
   );
 }
 
-export function DashboardPanel({
-  panel,
-  panelKey,
-  action,
-  fullscreenTo,
-  fill = false,
-}: DashboardPanelProps) {
+export function DashboardPanel({ panel, panelKey, action, fullscreenTo }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
 
@@ -179,10 +168,9 @@ export function DashboardPanel({
     [navigate],
   );
 
-  const maximize =
-    fullscreenTo && !fill ? (
-      <MaximizeLink panelKey={panelKey} fullscreenTo={fullscreenTo} />
-    ) : undefined;
+  const maximize = fullscreenTo ? (
+    <MaximizeLink panelKey={panelKey} fullscreenTo={fullscreenTo} />
+  ) : undefined;
   const headerAction =
     maximize || action || specWarnings.length > 0 ? (
       <div className="flex items-center gap-1.5">
