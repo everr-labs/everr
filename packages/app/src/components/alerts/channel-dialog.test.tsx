@@ -3,12 +3,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
+import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import { ChannelDialog, type ChannelTarget } from "./channel-dialog";
 
 vi.mock("#app/data/alerting/delivery/server.ts", () => ({ testAlertingChannel: vi.fn() }));
 
 const client = new QueryClient();
-afterEach(() => client.clear());
+afterEach(() => {
+  client.clear();
+  vi.mocked(testAlertingChannel).mockReset();
+});
 
 it.each<{ mode: string; target: ChannelTarget }>([
   { mode: "create", target: { mode: "new", name: "custom-hook" } },
@@ -90,12 +94,9 @@ describe("ChannelDialog webhook headers", () => {
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
-    await user.clear(names[1]);
     await user.type(names[1], "X-Env");
     const values = screen.getAllByLabelText("Value");
-    expect(values[values.length - 1]).toHaveAttribute("aria-invalid", "true");
     await user.type(values[values.length - 1], "staging");
-    expect(values[values.length - 1]).not.toHaveAttribute("aria-invalid");
     await user.click(screen.getByRole("button", { name: "Save channel" }));
 
     expect(onSave).toHaveBeenCalledWith({
@@ -120,21 +121,74 @@ describe("ChannelDialog webhook headers", () => {
     });
   });
 
-  it("refuses a header the send is not allowed to set", async () => {
+  it("starts a new header row empty, with no error before a save", async () => {
     renderDialog();
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
-    await user.clear(names[1]);
+    expect(names[1]).toHaveValue("");
+    await user.type(names[1], "X-Env");
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    for (const input of [...names, ...screen.getAllByLabelText("Value")]) {
+      expect(input).not.toHaveAttribute("aria-invalid");
+    }
+  });
+
+  it("shows a missing header value once Save is clicked, then follows the edits", async () => {
+    const onSave = renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Add header" }));
+    await user.type(screen.getAllByPlaceholderText("Authorization")[1], "X-Env");
+    await user.click(screen.getByRole("button", { name: "Save channel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/value is required for X-Env/i);
+    const values = screen.getAllByLabelText("Value");
+    expect(values[1]).toHaveAttribute("aria-invalid", "true");
+
+    await user.type(values[1], "staging");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(values[1]).not.toHaveAttribute("aria-invalid");
+    await user.click(screen.getByRole("button", { name: "Save channel" }));
+    expect(onSave).toHaveBeenCalledWith({
+      name: "pager",
+      config: {
+        type: "webhook",
+        headers: [{ name: "Authorization" }, { name: "X-Env", value: "staging" }],
+      },
+    });
+  });
+
+  it("shows why an invalid draft cannot be tested, without sending it", async () => {
+    renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Add header" }));
+    await user.type(screen.getAllByPlaceholderText("Authorization")[1], "X-Env");
+    await user.click(screen.getByRole("button", { name: "Send test" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/value is required for X-Env/i);
+    expect(testAlertingChannel).not.toHaveBeenCalled();
+  });
+
+  it("refuses a header the send is not allowed to set", async () => {
+    const onSave = renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Add header" }));
+    const names = screen.getAllByPlaceholderText("Authorization");
     await user.type(names[1], "Content-Type");
     const values = screen.getAllByLabelText("Value");
     await user.type(values[values.length - 1], "text/plain");
+    await user.click(screen.getByRole("button", { name: "Save channel" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/cannot be set/i);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/cannot be set/i);
     expect(screen.getByDisplayValue("Content-Type")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByDisplayValue("text/plain")).not.toHaveAttribute("aria-invalid");
-    expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
   });
 
   it("marks every row that repeats a header name", async () => {
@@ -142,6 +196,8 @@ describe("ChannelDialog webhook headers", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
+    await user.type(screen.getAllByPlaceholderText("Authorization")[1], "Authorization");
+    await user.click(screen.getByRole("button", { name: "Save channel" }));
     const repeated = screen.getAllByDisplayValue("Authorization");
     expect(repeated).toHaveLength(2);
     for (const input of repeated) {
@@ -151,7 +207,7 @@ describe("ChannelDialog webhook headers", () => {
   });
 
   it("asks for header values again when the URL is replaced", async () => {
-    renderDialog();
+    const onSave = renderDialog();
     const user = userEvent.setup();
 
     await user.click(screen.getAllByRole("button", { name: "Edit secret" })[0]);
@@ -159,10 +215,62 @@ describe("ChannelDialog webhook headers", () => {
       screen.getByRole("textbox", { name: "Webhook URL" }),
       "https://203.0.113.11/hook",
     );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save channel" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(/value is required for Authorization/i);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /value is required for Authorization/i,
+    );
     expect(screen.getAllByLabelText("Value")[0]).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByDisplayValue("Authorization")).not.toHaveAttribute("aria-invalid");
-    expect(screen.getByRole("button", { name: "Save channel" })).toBeDisabled();
+  });
+});
+
+describe("ChannelDialog validation", () => {
+  it("names a taken channel name only once Create is clicked", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <ChannelDialog
+          target={{ mode: "new", name: "pager" }}
+          channels={[PAGER]}
+          pending={false}
+          onClose={() => {}}
+          onSave={onSave}
+          onDelete={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Incoming webhook URL" }),
+      "https://hooks.slack.com/services/T000/B000/x",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create channel" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "A channel with this name already exists.",
+    );
+    expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("sends a test of a valid draft, keeping the stored secrets", async () => {
+    vi.mocked(testAlertingChannel).mockResolvedValue({ ok: true, latency_ms: 12 });
+    renderDialog();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Send test" }));
+
+    expect(testAlertingChannel).toHaveBeenCalledWith({
+      data: {
+        config: { type: "webhook", headers: [{ name: "Authorization" }] },
+        source: { kind: "saved", name: "pager" },
+      },
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("Delivered in 12ms");
   });
 });
