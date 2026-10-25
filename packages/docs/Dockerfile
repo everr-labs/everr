@@ -1,4 +1,4 @@
-FROM node:24.4-alpine3.22 AS base
+FROM node:24.22.1-alpine3.23@sha256:0468540aa58203ff9e40c2aab3907c52644ab818af6176b1c70a026137dc92a2 AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY packages/docs ./packages/docs
 RUN pnpm --filter docs build
 
 # Stage 3: production
-FROM node:24.4-alpine3.22 AS runner
+FROM node:24.22.1-alpine3.23@sha256:0468540aa58203ff9e40c2aab3907c52644ab818af6176b1c70a026137dc92a2 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \

@@ -1,4 +1,4 @@
-FROM node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS base
+FROM node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -45,8 +45,8 @@ RUN set -eu; \
     done
 
 # Stage 3: production
-# Node 24.21.0, keep in sync with the builder and .node-version.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runner
+# Node 24.22.1, keep in sync with the builder and .node-version.
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
