@@ -3,7 +3,7 @@ import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncSpec, type UserSyncPayload } from "./jobs";
 import type { createCrmSnapshotReader } from "./snapshots";
-import { snapshotFingerprint, type createCrmProjectionStore } from "./store";
+import type { createCrmProjectionStore } from "./store";
 import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 import { RetainedCrmWork, type CrmTask } from "./coordination";
 
@@ -179,17 +179,9 @@ export function createUserSyncTask(options: {
       }
       // HTTP cannot be atomic with deletion. Capture a terminal tombstone and retain the
       // mapping for deletion cleanup; never acknowledge stale success or recreate the source.
-      const latest = await reader.user(payload.userId);
-      const unchanged = snapshotFingerprint(latest) === saved.desiredFingerprint;
-      diagnosticState.retryFailures = undefined;
-      saved = await store.desire(latest);
-      diagnosticState.retryFailures = saved.retryFailures;
-      if (saved.desired.deleted || saved.deletedAt) {
+      saved = await readCurrentProjection();
+      if (saved.desired.deleted || saved.deletedAt || saved.desiredRevision !== attemptRevision) {
         return await defer(new Date(Date.now() + 1000));
-      }
-      if (!unchanged) {
-        await defer(new Date(Date.now() + 1000));
-        return;
       }
       diagnosticState.retryFailures = undefined;
       const synced = await store.markSynced(
