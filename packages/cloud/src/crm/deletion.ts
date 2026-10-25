@@ -38,7 +38,12 @@ export function createDeletionCleanup(options: {
     saved: Saved,
     payload: UserSyncPayload | OrganizationSyncPayload,
     helpers: JobHelpers,
+    diagnosticState: { retryFailures?: number } = {},
   ) => {
+    const observe = () => {
+      diagnosticState.retryFailures = saved.retryFailures;
+    };
+    observe();
     if (saved.kind === "membership" || !saved.desired.deleted || !saved.deletedAt)
       throw new Error("CRM cleanup requires a retained entity tombstone.");
     const matches =
@@ -55,21 +60,35 @@ export function createDeletionCleanup(options: {
       payload.recheckDeletionRevision === saved.desiredRevision &&
       saved.syncedRevision === saved.desiredRevision
     ) {
+      diagnosticState.retryFailures = undefined;
       saved = (await store.recheckDeletion(key, saved.desiredRevision)) ?? saved;
     }
-    const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
-      diagnostic(outcome, payload, String(helpers.job.id));
-    const failures = Math.max(
-      saved.retryFailures,
-      payload.desiredRevision === saved.desiredRevision ? payload.failures : 0,
-    );
+    observe();
+    const report = (outcome: Parameters<SyncDiagnostic>[0]) => {
+      diagnostic(outcome, payload, String(helpers.job.id), diagnosticState.retryFailures);
+    };
+    const failures = saved.retryFailures;
     let reserved = false;
-    const defer = async (at: Date, next = failures) => {
-      if (reserved && next === failures)
-        await store.setRetryFailures(key, saved.desiredRevision, failures + 1, failures);
+    const defer = async (at: Date, outcome: "deferred" | "retry" = "deferred") => {
+      if (reserved && outcome === "deferred") {
+        diagnosticState.retryFailures = undefined;
+        const refunded = await store.setRetryFailures(
+          key,
+          saved.desiredRevision,
+          failures + 1,
+          failures,
+        );
+        if (refunded) {
+          saved = { ...saved, retryFailures: failures };
+          observe();
+        }
+      }
+      // Old workers require failures, but only the projection stores the budget.
+      const continuation = { ...payload, failures: 0 };
+      delete continuation.desiredRevision;
       await helpers.addJob(
         saved.kind === "user" ? USER_SYNC_TASK : ORGANIZATION_SYNC_TASK,
-        { ...payload, desiredRevision: saved.desiredRevision, failures: next },
+        continuation,
         {
           ...(saved.kind === "user"
             ? userSyncSpec(saved.sourceId)
@@ -77,7 +96,7 @@ export function createDeletionCleanup(options: {
           runAt: at,
         },
       );
-      report(next === failures ? "deferred" : "retry");
+      report(outcome);
     };
     const block = async (code: string) => {
       await store.markFailed(key, saved.desiredRevision, code, true);
@@ -86,11 +105,16 @@ export function createDeletionCleanup(options: {
     };
     const complete = async () => {
       await store.cleanupCompanyRead(key, null);
-      await store.markSynced(
+      diagnosticState.retryFailures = undefined;
+      const synced = await store.markSynced(
         key,
         saved.desiredRevision,
         payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
       );
+      if (synced) {
+        saved = { ...saved, retryFailures: 0 };
+        observe();
+      }
       await options.reconcileMemberships(saved, helpers, payload);
       report("synced");
     };
@@ -108,6 +132,7 @@ export function createDeletionCleanup(options: {
       report("exhausted");
       throw new RetainedCrmWork("CRM deletion retry allowance exhausted.");
     }
+    diagnosticState.retryFailures = undefined;
     reserved = await store.setRetryFailures(
       key,
       saved.desiredRevision,
@@ -115,6 +140,8 @@ export function createDeletionCleanup(options: {
       failures + 1,
     );
     if (!reserved) return defer(new Date(Date.now() + 1000));
+    saved = { ...saved, retryFailures: failures + 1 };
+    observe();
     const failure = async (
       result: Extract<Awaited<ReturnType<Adapter["getCompany"]>>, { ok: false }>,
     ) => {
@@ -132,7 +159,7 @@ export function createDeletionCleanup(options: {
             result.retryAt?.getTime() ?? 0,
           ),
         ),
-        failures + 1,
+        "retry",
       );
     };
     if (saved.kind === "user") {

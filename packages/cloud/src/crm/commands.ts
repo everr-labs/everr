@@ -19,7 +19,9 @@ export const userSyncPayload = z
       "crm.recovery.requested",
     ]),
     occurredAt: z.iso.datetime({ offset: true }),
+    // Legacy v1 wire compatibility only. Retry continuations write 0; execution uses the row.
     failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
+    // Accepted from queued legacy continuations, never an instruction or retry authority.
     desiredRevision: z.number().int().positive().optional(),
     recoverExhaustedRevision: z.number().int().positive().optional(),
     verifyRemoteRevision: z.number().int().positive().optional(),
@@ -46,6 +48,7 @@ const relatedPayload = z.object({
   eventId: z.string().min(1).max(512),
   eventType: z.string().min(1).max(128),
   occurredAt: z.iso.datetime({ offset: true }),
+  // Legacy retry mirrors are accepted but inert, as in the User command above.
   failures: z.number().int().min(0).max(USER_SYNC_RETRIES),
   desiredRevision: z.number().int().positive().optional(),
   recoverExhaustedRevision: z.number().int().positive().optional(),

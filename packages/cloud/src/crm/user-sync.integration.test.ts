@@ -65,6 +65,15 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       failures,
       desiredRevision: 1,
     });
+    async function seedFailures(count: number) {
+      const saved = await store.desire(
+        await createCrmSnapshotReader(fixture.database, "test").user("u"),
+      );
+      expect(
+        await store.setRetryFailures(key, saved.desiredRevision, saved.retryFailures, count),
+      ).toBe(true);
+      return saved;
+    }
     const contact = () => ({
       id: 42,
       email: "person@example.test",
@@ -339,10 +348,11 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           retryAt,
         } as never);
         const helper = helpers();
+        await seedFailures(7);
         await task(remote)(payload(7), helper);
         expect(helper.addJob).toHaveBeenCalledWith(
           USER_SYNC_TASK,
-          expect.objectContaining({ failures: 7 }),
+          expect.objectContaining({ failures: 0 }),
           expect.objectContaining({ runAt: retryAt }),
         );
         expect((await store.read(key))?.outcome).toBe("pending");
@@ -358,10 +368,12 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         code: "transport_failure",
       } as never);
       const helper = helpers();
+      await seedFailures(2);
       await task(remote)(payload(2), helper);
       const spec = helper.addJob.mock.calls[0][2]!;
-      expect(helper.addJob.mock.calls[0][1]).toMatchObject({ failures: 3 });
+      expect(helper.addJob.mock.calls[0][1]).toMatchObject({ failures: 0 });
       expect(spec.runAt!.getTime()).toBeGreaterThan(Date.now() + 7000);
+      await seedFailures(8);
       await utils.addJob(USER_SYNC_TASK, payload(8), userSyncSpec("u"));
       await start(task(remote));
       await until(
@@ -381,6 +393,150 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       await expect(task(remote)(payload(), helpers())).rejects.toThrow("requires inspection");
       expect(remote.getContact).toHaveBeenCalledOnce();
     });
+
+    it.each([
+      { durable: 2, legacy: 8, revision: 1 },
+      { durable: 7, legacy: 0, revision: 1 },
+      { durable: 3, legacy: 8, revision: 99 },
+    ])(
+      "uses durable $durable despite legacy $legacy at revision $revision",
+      async ({ durable, legacy, revision }) => {
+        await seedFailures(durable);
+        const remote = adapter();
+        remote.getContact.mockResolvedValue({
+          ok: false,
+          kind: "transient",
+          code: "transport_failure",
+        });
+        const helper = helpers();
+        await task(remote)({ ...payload(legacy), desiredRevision: revision }, helper);
+        expect(remote.getContact).toHaveBeenCalledOnce();
+        expect((await store.read(key))?.retryFailures).toBe(durable + 1);
+        const next = helper.addJob.mock.calls[0][1];
+        expect(next).toMatchObject({ version: 1, failures: 0 });
+        expect(next).not.toHaveProperty("desiredRevision");
+      },
+    );
+
+    it("ignores low legacy mirrors on exhausted durable work", async () => {
+      await seedFailures(8);
+      const remote = adapter();
+      await expect(task(remote)(payload(0), helpers())).rejects.toThrow("requires inspection");
+      expect(remote.getContact).not.toHaveBeenCalled();
+      expect((await store.read(key))?.retryFailures).toBe(8);
+    });
+
+    it("does not import a high legacy mirror after guarded recovery or stale recovery replay", async () => {
+      await seedFailures(8);
+      const remote = adapter();
+      remote.getContact.mockResolvedValue({
+        ok: false,
+        kind: "transient",
+        code: "transport_failure",
+      });
+      const body = {
+        ...payload(8),
+        eventType: "crm.recovery.requested" as const,
+        desiredRevision: 2,
+        recoverExhaustedRevision: 1,
+      };
+      await task(remote)(body, helpers());
+      expect(await store.read(key)).toMatchObject({ desiredRevision: 2, retryFailures: 1 });
+      await task(remote)(body, helpers());
+      expect(await store.read(key)).toMatchObject({ desiredRevision: 2, retryFailures: 2 });
+      expect(remote.getContact).toHaveBeenCalledTimes(2);
+    });
+
+    it("spends an unknown crashed reservation and reports it on infrastructure retry", async () => {
+      await seedFailures(7);
+      const remote = adapter();
+      remote.getContact.mockRejectedValue(new Error("private unknown transport outcome"));
+      const diagnostic = vi.fn();
+      const body = payload(0);
+      await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
+        "CRM coordination failed",
+      );
+      expect((await store.read(key))?.retryFailures).toBe(8);
+      expect(diagnostic).toHaveBeenLastCalledWith("retry", body, "manual-test", 8);
+      await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
+        "requires inspection",
+      );
+      expect(remote.getContact).toHaveBeenCalledOnce();
+      expect(diagnostic).toHaveBeenLastCalledWith("exhausted", body, "manual-test", 8);
+    });
+
+    it("a stale same-revision refund cannot affect a later reserved attempt", async () => {
+      const saved = await seedFailures(2);
+      expect(await store.setRetryFailures(key, saved.desiredRevision, 2, 3)).toBe(true);
+      expect(await store.setRetryFailures(key, saved.desiredRevision, 3, 4)).toBe(true);
+      expect(await store.setRetryFailures(key, saved.desiredRevision, 3, 2)).toBe(false);
+      expect((await store.read(key))?.retryFailures).toBe(4);
+      await fixture.database.update(user).set({ name: "New revision" }).where(eq(user.id, "u"));
+      const newer = await store.desire(
+        await createCrmSnapshotReader(fixture.database, "test").user("u"),
+      );
+      expect(await store.setRetryFailures(key, newer.desiredRevision, 0, 1)).toBe(true);
+      expect(await store.setRetryFailures(key, saved.desiredRevision, 4, 3)).toBe(false);
+      expect((await store.read(key))?.retryFailures).toBe(1);
+    });
+
+    it("omits the old count if a source revision reset commits before its readback fails", async () => {
+      await seedFailures(6);
+      const remote = adapter();
+      remote.getContact.mockImplementationOnce(async () => {
+        await fixture.database.update(user).set({ name: "New source" }).where(eq(user.id, "u"));
+        return { ok: true, value: contact() };
+      });
+      const original = store.desire;
+      vi.spyOn(store, "desire")
+        .mockImplementationOnce(original)
+        .mockImplementationOnce(async (snapshot) => {
+          await original(snapshot);
+          throw new Error("private lost revision readback");
+        });
+      const diagnostic = vi.fn();
+      const body = payload(8);
+      await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
+        "CRM coordination failed",
+      );
+      expect(await store.read(key)).toMatchObject({ desiredRevision: 2, retryFailures: 0 });
+      expect(diagnostic).toHaveBeenLastCalledWith("retry", body, "manual-test", undefined);
+      vi.restoreAllMocks();
+    });
+
+    it.each(["recoverExhausted", "verifyRemote"] as const)(
+      "omits the old count after an uncertain %s reset",
+      async (operation) => {
+        await seedFailures(operation === "recoverExhausted" ? 8 : 5);
+        if (operation === "verifyRemote") await store.markSynced(key, 1);
+        const original = store[operation];
+        vi.spyOn(store, operation).mockImplementationOnce(
+          async (key: Parameters<typeof store.recoverExhausted>[0], revision: number) => {
+            await original(key, revision, "check");
+            throw new Error("private lost instruction readback");
+          },
+        );
+        const remote = adapter();
+        const diagnostic = vi.fn();
+        const body: UserSyncPayload = {
+          ...payload(8),
+          eventType:
+            operation === "recoverExhausted"
+              ? "crm.recovery.requested"
+              : "crm.reconciliation.requested",
+          ...(operation === "recoverExhausted"
+            ? { recoverExhaustedRevision: 1 }
+            : { verifyRemoteRevision: 1 }),
+        };
+        await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
+          "CRM coordination failed",
+        );
+        expect(await store.read(key)).toMatchObject({ desiredRevision: 2, retryFailures: 0 });
+        expect(diagnostic).toHaveBeenLastCalledWith("retry", body, "manual-test", undefined);
+        expect(remote.getContact).not.toHaveBeenCalled();
+        vi.restoreAllMocks();
+      },
+    );
 
     it("rejects invalid persisted payloads before loading or calling the provider", async () => {
       const remote = adapter();
@@ -418,6 +574,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           },
         }),
       );
+      await seedFailures(7);
       await utils.addJob(USER_SYNC_TASK, payload(7), userSyncSpec("u"));
       await until(
         async () =>
@@ -467,7 +624,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       });
     });
 
-    it("keeps native retry when successor persistence fails, without resetting the payload budget", async () => {
+    it("keeps native retry when successor persistence fails, without replenishing the durable allowance", async () => {
       const remote = adapter();
       const handler = task(remote);
       let first = true;
@@ -488,6 +645,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           });
         } else await handler(body, helper);
       });
+      await seedFailures(7);
       await utils.addJob(USER_SYNC_TASK, payload(7), userSyncSpec("u"));
       await until(
         async () =>

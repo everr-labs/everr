@@ -1124,6 +1124,95 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       expect(await store.read(pairKey())).toMatchObject({ outcome: "synced", retryFailures: 0 });
     });
 
+    it.each(["organization", "membership"] as const)(
+      "ignores high and low same-revision legacy mirrors for %s",
+      async (kind) => {
+        const state = tasks();
+        if (kind === "membership") await ready(state);
+        const snapshot =
+          kind === "organization"
+            ? await reader.organization("a")
+            : await reader.membership("u", "a");
+        const saved = await store.desire(snapshot);
+        const key = kind === "organization" ? orgKey() : pairKey();
+        await store.setRetryFailures(key, saved.desiredRevision, 0, 2);
+        state.provider.hooks.generalAllowed = false;
+        const name = kind === "organization" ? ORGANIZATION_SYNC_TASK : MEMBERSHIP_SYNC_TASK;
+        const body = { ...payload(kind), failures: 8, desiredRevision: saved.desiredRevision };
+        await state.invoke(name, body);
+        expect((await store.read(key))?.retryFailures).toBe(2);
+        const next = [...state.queued].reverse().find((job) => job.name === name)!.body;
+        expect(next).toMatchObject({ version: 1, failures: 0 });
+        expect(next).not.toHaveProperty("desiredRevision");
+        expect(state.diagnostic).toHaveBeenLastCalledWith("deferred", body, "manual", 2);
+        await store.setRetryFailures(key, saved.desiredRevision, 2, 8);
+        const calls = state.provider.transport.mock.calls.length;
+        await expect(state.invoke(name, { ...body, failures: 0 })).rejects.toThrow(
+          "allowance exhausted",
+        );
+        expect(state.provider.transport).toHaveBeenCalledTimes(calls);
+        expect((await store.read(key))?.retryFailures).toBe(8);
+      },
+    );
+
+    it("ignores legacy mirrors in deletion cleanup and reports the refunded durable allowance", async () => {
+      const state = tasks();
+      await ready(state);
+      await fixture.database.delete(organization).where(eq(organization.id, "a"));
+      const tombstone = await store.desire(await reader.organization("a"));
+      await store.setRetryFailures(orgKey(), tombstone.desiredRevision, 0, 3);
+      state.provider.hooks.generalAllowed = false;
+      const body = {
+        ...payload("organization"),
+        failures: 8,
+        desiredRevision: tombstone.desiredRevision,
+      };
+      await state.invoke(ORGANIZATION_SYNC_TASK, body);
+      expect((await store.read(orgKey()))?.retryFailures).toBe(3);
+      expect(state.diagnostic).toHaveBeenLastCalledWith("deferred", body, "manual", 3);
+      const next = [...state.queued]
+        .reverse()
+        .find((job) => job.name === ORGANIZATION_SYNC_TASK)!.body;
+      expect(next).toMatchObject({ version: 1, failures: 0 });
+      expect(next).not.toHaveProperty("desiredRevision");
+      await store.setRetryFailures(orgKey(), tombstone.desiredRevision, 3, 8);
+      const calls = state.provider.transport.mock.calls.length;
+      await expect(state.invoke(ORGANIZATION_SYNC_TASK, { ...body, failures: 0 })).rejects.toThrow(
+        "allowance exhausted",
+      );
+      expect(state.provider.transport).toHaveBeenCalledTimes(calls);
+    });
+
+    it("omits the old deletion count if a guarded recheck commits before its readback fails", async () => {
+      const state = tasks();
+      const snapshot = {
+        ...projectionIdentity("test", { kind: "organization" as const, id: "a" }),
+        deleted: true as const,
+      };
+      const saved = await store.desire(snapshot);
+      await store.markSynced(saved, saved.desiredRevision);
+      const original = store.recheckDeletion;
+      vi.spyOn(store, "recheckDeletion").mockImplementationOnce(async (...args) => {
+        await original(...args);
+        throw new Error("private lost deletion readback");
+      });
+      const body = {
+        ...payload("organization"),
+        eventType: "crm.reconciliation.requested",
+        recheckDeletionRevision: saved.desiredRevision,
+      };
+      await expect(state.invoke(ORGANIZATION_SYNC_TASK, body)).rejects.toThrow(
+        "CRM coordination failed",
+      );
+      expect(await store.read(orgKey())).toMatchObject({
+        desiredRevision: saved.desiredRevision + 1,
+        retryFailures: 0,
+      });
+      expect(state.diagnostic).toHaveBeenLastCalledWith("retry", body, "manual", undefined);
+      expect(state.provider.transport).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    });
+
     it("uses the single worker slot to create prerequisites instead of waiting for itself", async () => {
       const state = tasks();
       await start(state);
@@ -1846,6 +1935,8 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         ...body,
         eventType: "crm.recovery.requested",
         recoverExhaustedRevision: 1,
+        failures: 8,
+        desiredRevision: 2,
       });
       const recovered = (await store.read(orgKey()))!;
       expect(recovered.desiredRevision).toBe(2);
@@ -1859,6 +1950,8 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         ...body,
         eventType: "crm.recovery.requested",
         recoverExhaustedRevision: 1,
+        failures: 8,
+        desiredRevision: 2,
       });
       expect((await store.read(orgKey()))!.desiredRevision).toBe(2);
     });
@@ -2084,8 +2177,9 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventId: "old-recovery",
         eventType: "crm.recovery.requested",
         occurredAt: new Date().toISOString(),
-        failures: 0,
         recoverExhaustedRevision: 1,
+        failures: 8,
+        desiredRevision: 2,
       });
       expect(await store.read(userKey)).toMatchObject({
         desiredRevision: newer.desiredRevision,

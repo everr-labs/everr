@@ -10,10 +10,14 @@ export type SyncDiagnostic = (
   outcome: SyncOutcome,
   payload?: UserSyncPayload | OrganizationSyncPayload | MembershipSyncPayload,
   jobId?: string,
+  retryFailures?: number,
 ) => void;
 
-/** No provider bodies, exceptions, email or profile fields, and bounded metric dimensions. */
-export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId) => {
+/** The optional count is observed durable state, never the legacy command mirror.
+ * Unknown budgets (for example invalid commands) omit the attribute.
+ * No provider bodies, exceptions, email or profile fields, and bounded metric dimensions.
+ */
+export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, retryFailures) => {
   try {
     const kind = payload && "kind" in payload ? payload.kind : "user";
     const dimensions = { "everr.crm.outcome": outcome, "everr.crm.entity_kind": kind };
@@ -24,6 +28,7 @@ export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId) => {
       outcome === "blocked" || outcome === "exhausted" || outcome === "invalid" ? "error" : "info"
     ](`crm.${kind}.sync`, {
       ...dimensions,
+      ...(retryFailures === undefined ? {} : { "everr.crm.failures": retryFailures }),
       ...(jobId ? { "everr.worker.job.id": jobId } : {}),
       ...(payload
         ? {
@@ -33,7 +38,6 @@ export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId) => {
             ...("organizationId" in payload
               ? { "everr.crm.organization.id": payload.organizationId }
               : {}),
-            "everr.crm.failures": payload.failures,
           }
         : {}),
     });

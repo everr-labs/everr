@@ -102,8 +102,11 @@ The coordinated Graphile entry strictly validates each persisted version-1 comma
 once, before acquiring a pool connection. Its copied command supplies endpoint
 locks, contention scheduling, concrete execution, deletion cleanup and Membership
 fanout. Invalid jobs retain the existing bounded diagnostic and inspection policy
-before source reads or provider calls. Command fields and retry accounting remain
-unchanged.
+before source reads or provider calls. Legacy v1 `failures` and `desiredRevision`
+retry mirrors remain accepted for queued work but are ignored by execution. New
+continuations write the inert `failures: 0` field for old-worker compatibility and
+omit `desiredRevision`. Explicit `recoverExhaustedRevision`, `verifyRemoteRevision`
+and `recheckDeletionRevision` remain guarded instructions.
 
 Configured mode registers `everrIntegrationWorker` with one execution slot and a
 reserved pool of at most four connections. The existing managed supervisor owns
@@ -129,12 +132,16 @@ The next coordinated execution cleans the retained remote identity after deletio
 Missing sources never initiate contact creation, and terminal tombstones prevent stale
 upserts from recreating deleted entities.
 
-Known transient/ambiguous failures persist a successor with an incremented failure
-count and exponential backoff (up to one hour), honoring any later adapter `retryAt`.
+Known transient/ambiguous failures retain the reserved database allowance and
+persist a successor with exponential backoff (up to one hour), honoring any later
+adapter `retryAt`.
 Each desired revision has eight durable failure allowances. Before HTTP, the store
 reserves one allowance with revision/count guards. Known quota/pause/cancellation
 deferrals refund it before scheduling. Success and changed desired state reset the
-count; continuation counts apply only to their recorded desired revision. A crash
+count. `crm_projection.retry_failures`, scoped to the desired revision, is the sole
+provider-retry authority. Replays and coalesced jobs cannot replenish it. Native
+Graphile attempts separately cover infrastructure and successor persistence
+failures. A crash
 or unexpected failure after reservation conservatively spends the allowance,
 including when no HTTP reached the provider. This bounds admitted executions and
 does not claim atomic provider/database receipts or exact external request counts.
@@ -271,7 +278,9 @@ and `crm.membership.sync` logs,
 `everr.crm.sync.outcomes` (unit `1`) and `everr.crm.sync.lag` (unit `s`). Only bounded
 outcome and entity-kind dimensions appear on metrics. Event, User and job IDs
 appear on logs, never emails, names, payloads, secrets or raw database/provider
-errors. The existing publisher emits enqueue failure exceptions and counters.
+errors. `everr.crm.failures` reports the known database count after reservation,
+refund or revision refresh; it is omitted when that count is unknown. Legacy
+command counters never supply diagnostic state. The existing publisher emits enqueue failure exceptions and counters.
 
 For isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the collector
 URL returned by `everr local status`. For a selected remote installation, set

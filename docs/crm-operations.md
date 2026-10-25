@@ -216,7 +216,13 @@ revision, outcome, `retry_failures`, bounded `last_error_code`, last success,
 `pending_since`, immutable remote identity, pair endpoint IDs and Company-create
 intent. Those records contain profile snapshots, so do not export them to generic
 logs. Check active jobs' attempts, maximum attempts, run time, lock owner and key;
-a completed admission checkpoint alone is insufficient. Never edit Graphile's
+a completed admission checkpoint alone is insufficient. `retry_failures` for the
+current desired revision is the only provider-retry budget (eight allowances).
+Graphile attempts track infrastructure retries independently. Legacy queued
+`failures` and `desiredRevision` mirrors are inert; new continuations carry only
+`failures: 0` for rolling worker compatibility. Do not use that wire constant to
+measure remaining allowance. Sync logs report `everr.crm.failures` only when a
+database count is known. Never edit Graphile's
 private tables or unlock a live worker.
 
 | Symptom                                             | Diagnosis and supported response                                                                                                                                                                                  |

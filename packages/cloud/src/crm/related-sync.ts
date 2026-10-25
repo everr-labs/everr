@@ -105,12 +105,20 @@ export function createRelatedSyncTasks(options: {
   const fanout = membershipFanout(store);
   function task<P extends Payload>(kind: P["kind"]): CrmTask<P> {
     const identifier = kind === "organization" ? ORGANIZATION_SYNC_TASK : MEMBERSHIP_SYNC_TASK;
-    const execute: CrmTask<P> = async (payload, helpers) => {
+    const execute = async (
+      payload: P,
+      helpers: JobHelpers,
+      diagnosticState: { retryFailures?: number },
+    ) => {
+      const observe = <T extends { retryFailures: number }>(row: T): T => {
+        diagnosticState.retryFailures = row.retryFailures;
+        return row;
+      };
       const load = () =>
         payload.kind === "organization"
           ? reader.organization(payload.organizationId)
           : reader.membership(payload.userId, payload.organizationId);
-      let saved = await store.desire(await load());
+      let saved = observe(await store.desire(await load()));
       if (
         saved.kind === "membership" &&
         saved.desired.deleted &&
@@ -119,44 +127,49 @@ export function createRelatedSyncTasks(options: {
         payload.recheckDeletionRevision === saved.desiredRevision &&
         saved.syncedRevision === saved.desiredRevision
       ) {
-        saved = (await store.recheckDeletion(saved, saved.desiredRevision)) ?? saved;
+        diagnosticState.retryFailures = undefined;
+        saved = observe((await store.recheckDeletion(saved, saved.desiredRevision)) ?? saved);
       }
-      if (payload.eventType === "crm.reconciliation.requested" && payload.verifyRemoteRevision)
-        saved =
-          (await store.verifyRemote(saved, payload.verifyRemoteRevision, payload.eventId)) ?? saved;
-      if (payload.eventType === "crm.recovery.requested" && payload.recoverExhaustedRevision)
-        saved = (await store.recoverExhausted(saved, payload.recoverExhaustedRevision)) ?? saved;
+      if (payload.eventType === "crm.reconciliation.requested" && payload.verifyRemoteRevision) {
+        diagnosticState.retryFailures = undefined;
+        saved = observe(
+          (await store.verifyRemote(saved, payload.verifyRemoteRevision, payload.eventId)) ?? saved,
+        );
+      }
+      if (payload.eventType === "crm.recovery.requested" && payload.recoverExhaustedRevision) {
+        diagnosticState.retryFailures = undefined;
+        saved = observe(
+          (await store.recoverExhausted(saved, payload.recoverExhaustedRevision)) ?? saved,
+        );
+      }
       const initial = saved;
       const key = { kind: saved.kind, sourceId: saved.sourceId };
       const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
-        diagnostic(outcome, payload, String(helpers.job.id));
-      const failures = Math.max(
-        saved.retryFailures,
-        payload.desiredRevision === saved.desiredRevision ? payload.failures : 0,
-      );
+        diagnostic(outcome, payload, String(helpers.job.id), diagnosticState.retryFailures);
+      const failures = saved.retryFailures;
       let reserved = false;
-      const defer = async (at: Date, nextFailures = failures) => {
-        if (reserved && nextFailures === failures)
-          await store.setRetryFailures(key, initial.desiredRevision, failures + 1, failures);
-        await helpers.addJob(
-          identifier,
-          {
-            ...payload,
-            desiredRevision: saved.desiredRevision,
-            failures:
-              saved.desiredRevision === initial.desiredRevision
-                ? nextFailures
-                : saved.retryFailures,
-          },
-          {
-            ...relatedSyncSpec(
-              payload.organizationId,
-              payload.kind === "membership" ? payload.userId : undefined,
-            ),
-            runAt: at,
-          },
-        );
-        report(nextFailures === failures ? "deferred" : "retry");
+      const defer = async (at: Date, outcome: "deferred" | "retry" = "deferred") => {
+        if (reserved && outcome === "deferred") {
+          diagnosticState.retryFailures = undefined;
+          const refunded = await store.setRetryFailures(
+            key,
+            initial.desiredRevision,
+            failures + 1,
+            failures,
+          );
+          if (refunded) saved = observe({ ...saved, retryFailures: failures });
+        }
+        // Retain only an inert v1 compatibility value, never a second retry budget.
+        const continuation = { ...payload, failures: 0 };
+        delete continuation.desiredRevision;
+        await helpers.addJob(identifier, continuation, {
+          ...relatedSyncSpec(
+            payload.organizationId,
+            payload.kind === "membership" ? payload.userId : undefined,
+          ),
+          runAt: at,
+        });
+        report(outcome);
       };
       const soon = () => defer(new Date(Date.now() + 1000));
       const block = async (code: string) => {
@@ -170,7 +183,7 @@ export function createRelatedSyncTasks(options: {
         saved.kind !== "membership" && (saved.desired.deleted || !!saved.deletedAt);
       if (terminal() && payload.kind === "organization")
         return options.cleanup
-          ? options.cleanup(saved, payload, helpers)
+          ? options.cleanup(saved, payload, helpers, diagnosticState)
           : block("deletion_cleanup_required");
       if (saved.syncedRevision === saved.desiredRevision) {
         if (kind === "organization") await fanout(saved.desired, helpers, payload);
@@ -185,18 +198,19 @@ export function createRelatedSyncTasks(options: {
       if (saved.outcome === "blocked" && !reassessParents)
         return block(saved.lastErrorCode ?? "projection_blocked");
       if (failures >= USER_SYNC_RETRIES) {
-        await store.setRetryFailures(key, saved.desiredRevision, saved.retryFailures, failures);
         await store.markFailed(key, saved.desiredRevision, "retry_budget_exhausted");
         report("exhausted");
         throw new RetainedCrmWork("CRM retry allowance exhausted.");
       }
       const reserve = async () => {
+        diagnosticState.retryFailures = undefined;
         reserved = await store.setRetryFailures(
           key,
           saved.desiredRevision,
           saved.retryFailures,
           failures + 1,
         );
+        if (reserved) saved = observe({ ...saved, retryFailures: failures + 1 });
         return reserved;
       };
       const failure = async (result: Failure) => {
@@ -223,21 +237,24 @@ export function createRelatedSyncTasks(options: {
               result.retryAt?.getTime() ?? 0,
             ),
           ),
-          failures + 1,
+          "retry",
         );
       };
       const refresh = async () => {
-        saved = await store.desire(await load());
+        diagnosticState.retryFailures = undefined;
+        saved = observe(await store.desire(await load()));
         if (terminal()) return false;
         return saved.desiredRevision === initial.desiredRevision;
       };
       const complete = async () => {
         if (!(await refresh())) return soon();
-        await store.markSynced(
+        diagnosticState.retryFailures = undefined;
+        const synced = await store.markSynced(
           key,
           saved.desiredRevision,
           payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
         );
+        if (synced) saved = observe({ ...saved, retryFailures: 0 });
         if (kind === "organization") await fanout(saved.desired, helpers, payload);
         report("synced");
       };
@@ -356,10 +373,12 @@ export function createRelatedSyncTasks(options: {
             );
           return defer(new Date(Date.now() + 60_000));
         }
-        saved = await store.bindRemote(key, {
-          remoteContactId: contact.remoteId,
-          remoteCompanyId: company.remoteId,
-        });
+        saved = observe(
+          await store.bindRemote(key, {
+            remoteContactId: contact.remoteId,
+            remoteCompanyId: company.remoteId,
+          }),
+        );
       }
       // No mapping means this pair never linked, so removing it requires no provider call.
       if (!saved.remoteContactId || !saved.remoteCompanyId) return complete();
@@ -414,7 +433,7 @@ export function createRelatedSyncTasks(options: {
           )
             return block("remote_identity_conflict");
           await store.cleanupCompanyRead(key, company);
-          saved = { ...saved, cleanupCompanyRead: company };
+          saved = observe({ ...saved, cleanupCompanyRead: company });
         }
         if (
           company.id !== remoteCompanyId ||
@@ -444,7 +463,7 @@ export function createRelatedSyncTasks(options: {
           )
             return block("remote_identity_conflict");
           await store.cleanupCompanyRead(key, company);
-          saved = { ...saved, cleanupCompanyRead: company };
+          saved = observe({ ...saved, cleanupCompanyRead: company });
         }
         if (
           company.id !== remoteCompanyId ||
@@ -492,14 +511,17 @@ export function createRelatedSyncTasks(options: {
       return complete();
     };
     return async (payload, helpers) => {
+      // Ephemeral diagnostics only. Provider policy always uses the loaded projection row.
+      const diagnosticState: { retryFailures?: number } = {};
       try {
-        await execute(payload, helpers);
+        await execute(payload, helpers, diagnosticState);
       } catch (error) {
         if (error instanceof RetainedCrmWork) throw error;
         diagnostic(
           helpers.job.attempts >= helpers.job.max_attempts ? "exhausted" : "retry",
           payload,
           String(helpers.job.id),
+          diagnosticState.retryFailures,
         );
         // eslint-disable-next-line preserve-caught-error -- Raw DB/provider errors may contain profile data.
         throw new Error("CRM task failed; persisted work remains available for retry.");

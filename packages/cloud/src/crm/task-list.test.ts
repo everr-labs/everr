@@ -62,6 +62,7 @@ function fixture(kind: string, deleted = false) {
   const store = {
     desire: vi.fn(async () => saved),
     memberships: vi.fn(async () => [] as { userId: string; organizationId: string }[]),
+    read: vi.fn(async () => undefined),
     setRetryFailures: vi.fn(async () => true),
   };
   const adapter = { getContact: vi.fn(), getCompany: vi.fn(), associate: vi.fn() };
@@ -85,7 +86,7 @@ function fixture(kind: string, deleted = false) {
       addJob,
       job: { id: "job", task_identifier: name, attempts: 1, max_attempts: 8 },
     } as unknown as JobHelpers);
-  return { reader, store, adapter, client, pool, diagnostic, addJob, invoke };
+  return { saved, reader, store, adapter, client, pool, diagnostic, addJob, invoke };
 }
 
 it.each(entries)(
@@ -98,7 +99,7 @@ it.each(entries)(
     expect(parse).toHaveBeenCalledTimes(1);
     expect(parseThrowing).not.toHaveBeenCalled();
     expect(state.store.desire).toHaveBeenCalledOnce();
-    expect(state.diagnostic).toHaveBeenCalledWith("synced", body, "job");
+    expect(state.diagnostic).toHaveBeenCalledWith("synced", body, "job", 0);
     expect(state.client.release).toHaveBeenCalledWith(false);
   },
 );
@@ -168,7 +169,7 @@ it("keeps execution and lock IDs stable when the original raw object mutates dur
     [hash.readInt32BE(0), hash.readInt32BE(4)],
   ]);
   expect(state.reader.user).toHaveBeenCalledWith("u");
-  expect(state.diagnostic).toHaveBeenCalledWith("synced", { ...common, userId: "u" }, "job");
+  expect(state.diagnostic).toHaveBeenCalledWith("synced", { ...common, userId: "u" }, "job", 0);
   expect(parse).toHaveBeenCalledTimes(1);
   expect(parseThrowing).not.toHaveBeenCalled();
 });
@@ -221,7 +222,7 @@ it.each(entries)(
     await expect(state.invoke(name, body)).rejects.toThrow(
       "CRM coordination failed; persisted work remains available for retry.",
     );
-    expect(state.diagnostic).toHaveBeenCalledWith("retry", body, "job");
+    expect(state.diagnostic).toHaveBeenCalledWith("retry", body, "job", undefined);
     expect(parse).toHaveBeenCalledTimes(1);
     expect(parseThrowing).not.toHaveBeenCalled();
   },
@@ -247,3 +248,21 @@ it("rejects a User cleanup command for an Organization tombstone", async () => {
   expect(state.store.memberships).not.toHaveBeenCalled();
   for (const request of Object.values(state.adapter)) expect(request).not.toHaveBeenCalled();
 });
+
+it.each(["user", "organization"])(
+  "omits unknown %s budget after reservation CAS rejection without diagnostic reads",
+  async (kind) => {
+    const entry = entries.find((entry) => entry.kind === kind)!;
+    const state = fixture(kind);
+    state.saved.syncedRevision = 0;
+    state.store.setRetryFailures.mockResolvedValueOnce(false);
+    await state.invoke(entry.name, entry.body);
+    expect(state.store.read).not.toHaveBeenCalled();
+    expect(state.diagnostic).toHaveBeenLastCalledWith("deferred", entry.body, "job", undefined);
+    expect(state.adapter.getContact).not.toHaveBeenCalled();
+    expect(state.adapter.getCompany).not.toHaveBeenCalled();
+    const next = state.addJob.mock.calls[0][1];
+    expect(next).toMatchObject({ failures: 0 });
+    expect(next).not.toHaveProperty("desiredRevision");
+  },
+);
