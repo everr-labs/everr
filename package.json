@@ -28,7 +28,7 @@
     "@vitest/ui": "catalog:",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-boundaries": "^7.2.0",
-    "fallow": "^2.75.0",
+    "fallow": "^3.35.0",
     "lefthook": "^2.1.6",
     "oxlint-plugin-eslint": "^1.88.0",
     "portless": "0.15.8",

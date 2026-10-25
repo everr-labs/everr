@@ -17,7 +17,6 @@ export function registerShutdownHook(name: string, phase: Phase, run: () => Prom
 }
 
 // Exposed for tests that verify worker draining before telemetry flushing.
-// fallow-ignore-next-line unused-export
 export function shutdownRuntime(): Promise<void> {
   state.stopping ??= (async () => {
     const errors: unknown[] = [];

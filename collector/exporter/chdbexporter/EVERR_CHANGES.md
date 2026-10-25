@@ -51,7 +51,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   the test cannot pass here.
 - Keeps `bloom_filter` map indexes and `tokenbf_v1` on `lower(Body)` for the
   logs table on every ClickHouse version. Upstream switches them to
-  `TYPE text(...)` on 26.2 and later, and the local store runs chDB 26.5, so
+  `TYPE text(...)` on 26.2 and later, and the local store runs chDB 26.7.3, so
   upstream's server-version gate gave the local logs table text indexes.
   Measured on the cloud schema (the note in `clickhouse/init/shared/10-create-mvs.sql`
   carries the numbers), both types read the same rows for the two predicates

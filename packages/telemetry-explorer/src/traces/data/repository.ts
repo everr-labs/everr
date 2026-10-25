@@ -247,7 +247,6 @@ export class TracesRepository {
     return this.client.execute<TraceSummary>(sql, params);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async getTrace(input: GetTraceInput): Promise<Span[]> {
     validateTableName(this.tableName);
     // Resolve the scan window through the TraceId-sorted lookup table, across
@@ -290,7 +289,6 @@ export class TracesRepository {
     return rows.map(rowToSpan);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
     validateTableName(this.tableName);
     const { sql, params } = buildAttributeKeysQuery(input, {
@@ -304,7 +302,6 @@ export class TracesRepository {
     return decodeAttributeKeyRows(rows);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async attributeValues(input: AttributeValuesInput): Promise<string[]> {
     validateTableName(this.tableName);
     const { sql, params } = buildAttributeValuesQuery(input, {
@@ -317,7 +314,6 @@ export class TracesRepository {
     return decodeAttributeValueRows(rows);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async listServiceIdentities(input: ListServiceIdentitiesInput): Promise<ServiceIdentity[]> {
     validateTableName(this.tableName);
     const sql = /* sql */ `

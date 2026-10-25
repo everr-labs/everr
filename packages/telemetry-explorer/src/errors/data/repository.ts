@@ -75,14 +75,12 @@ export class ErrorsRepository {
     this.tableName = options.tableName ?? "logs";
   }
 
-  // fallow-ignore-next-line unused-class-member
   async searchIssues(input: SearchErrorIssuesInput): Promise<ErrorIssuesResult> {
     const { sql, params } = buildSummaryQuery(input, this.tableName);
     const rows = await this.client.execute<ErrorIssueSummaryRow>(sql, params);
     return { issues: rows.map(mapSummary) };
   }
 
-  // fallow-ignore-next-line unused-class-member
   async getIssue(input: GetErrorIssueInput): Promise<ErrorIssueDetail> {
     const summaryQuery = buildSummaryQuery(
       {
@@ -114,7 +112,6 @@ export class ErrorsRepository {
     return { summary, latest, occurrences };
   }
 
-  // fallow-ignore-next-line unused-class-member
   async listServices(input: ListErrorServicesInput): Promise<string[]> {
     const { sql, params } = buildServicesQuery(
       { fromTs: input.fromTs, toTs: input.toTs, attributes: input.attributes },
@@ -124,7 +121,6 @@ export class ErrorsRepository {
     return rows.map((row) => row.serviceName).filter(Boolean);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
     const { sql, params } = buildAttributeKeysQuery(input, {
       tableName: this.tableName,
@@ -138,7 +134,6 @@ export class ErrorsRepository {
     return decodeAttributeKeyRows(rows);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async attributeValues(input: AttributeValuesInput): Promise<string[]> {
     const { sql, params } = buildAttributeValuesQuery(input, {
       tableName: this.tableName,
