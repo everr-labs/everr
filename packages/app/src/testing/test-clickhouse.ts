@@ -31,15 +31,12 @@ export class TestClickHouse {
   private chdb: ChdbDatabase | undefined;
 
   /** What `app.test_signal` holds, which is what a default rule selects. */
-  // Called only through the harness's `clickhouse` property, which fallow
-  // does not trace back to this class through the AlertingHarness interface.
-  // fallow-ignore-next-line unused-class-member
+  // Called through the harness's `clickhouse` property.
   setSignal(rows: Record<string, unknown>[]): void {
     this.database().setSignal(rows);
   }
 
   /** Every row app.alert_events actually holds, read back out of it. */
-  // fallow-ignore-next-line unused-class-member
   historyRows(): Record<string, unknown>[] {
     return this.database().historyRows();
   }

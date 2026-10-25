@@ -26,7 +26,7 @@ const repoDir = path.resolve(packageDir, "..", "..");
 const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 const envFile = path.join(packageDir, ".env");
 const cliEmbeddedAssetsDir = path.dirname(embeddedAssets.collectorGz);
-export const CHDB_RELEASE_VERSION = "v26.5.0";
+export const CHDB_RELEASE_VERSION = "v26.7.3";
 
 export type ChdbAsset = { assetName: string; sha256: string };
 
@@ -37,15 +37,15 @@ export type ChdbAsset = { assetName: string; sha256: string };
 export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   "darwin-arm64": {
     assetName: "macos-arm64-libchdb.tar.gz",
-    sha256: "86a77d5aa775902740d312153eddfbdc641b8fd5a2e028ddfd18d002ade9ec38",
+    sha256: "5640e50dccf711bf3dd5551333d08e43f433edf7bd94b2289f36c2539e627762",
   },
   "linux-arm64": {
     assetName: "linux-aarch64-libchdb.tar.gz",
-    sha256: "ba590a475ff8824bdf7d463dded08a4f987ea4687cfb0a1de262b7e7d7bf2554",
+    sha256: "d153adad1ff39b2e3caf0417f09d8bd9edd41939c7c67a3c4978a61e73fb9227",
   },
   "linux-x64": {
     assetName: "linux-x86_64-libchdb.tar.gz",
-    sha256: "8dc5155d80b20a27d3e7322bb49ce003807ebd2b8cbd43896c829d16d24b0cdf",
+    sha256: "bc33260c32acf78eade2ac41a9115f38e00404651fa42e3bb4c419e4f011c031",
   },
 };
 

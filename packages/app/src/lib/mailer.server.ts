@@ -1,5 +1,4 @@
-import nodemailer from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import nodemailer, { type SMTPTransportOptions, type Transporter } from "nodemailer";
 import { env } from "#app/env/index.ts";
 
 interface SendEmailParams {
@@ -17,15 +16,11 @@ interface Mailer {
 }
 
 class NodemailerMailer implements Mailer {
-  private transport: nodemailer.Transporter;
+  private transport: Transporter;
   private from: string;
   private replyTo?: string;
 
-  constructor(
-    from: string,
-    replyTo: string | undefined,
-    transport: SMTPTransport.Options | string,
-  ) {
+  constructor(from: string, replyTo: string | undefined, transport: SMTPTransportOptions | string) {
     this.transport = nodemailer.createTransport(transport);
     this.from = from;
     this.replyTo = replyTo;

@@ -222,7 +222,7 @@ func withChDBLibEnv(t *testing.T, cmd *exec.Cmd) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	candidate := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "target", "chdb", "v26.5.0-extract", "libchdb.so")
+	candidate := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "target", "chdb", "v26.7.3-extract", "libchdb.so")
 	if _, err := os.Stat(candidate); err == nil {
 		cmd.Env = append(os.Environ(), "CHDB_LIB_PATH="+candidate)
 	}

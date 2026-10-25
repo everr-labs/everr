@@ -65,7 +65,6 @@ export class LogsRepository {
     return decodeTotalsRows(rows, input.levels);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async histogram(input: LogHistogramInput): Promise<LogHistogramBucket[]> {
     const built = buildHistogramQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<HistogramRowRaw>(built.sql, built.params);
@@ -82,7 +81,6 @@ export class LogsRepository {
     return mapDetailRow(row);
   }
 
-  // fallow-ignore-next-line unused-class-member
   async filterOptions(input: { timeRange: TimeRange }): Promise<LogFilterOptions> {
     const { sql, params } = buildFilterOptionsQuery(input, {
       tableName: this.tableName,

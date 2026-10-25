@@ -1,4 +1,4 @@
-FROM clickhouse/clickhouse-server:26.5 AS base
+FROM clickhouse/clickhouse-server:26.8.34.13 AS base
 COPY init/shared/ /docker-entrypoint-initdb.d/
 
 FROM base AS self-hosted

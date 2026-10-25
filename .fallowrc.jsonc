@@ -57,6 +57,7 @@
     // Loaded by Oxlint and its boundary plugin from oxlint.boundaries.mts.
     "eslint-plugin-boundaries",
     "eslint-import-resolver-typescript",
+    "oxlint-plugin-eslint",
     // size-limit resolves its preset from package.json at runtime; nothing
     // imports it.
     "@size-limit/preset-small-lib",
