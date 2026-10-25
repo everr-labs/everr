@@ -33,11 +33,9 @@ export const crmProjection = pgTable(
     remoteContactId: text("remote_contact_id"),
     remoteCompanyId: text("remote_company_id"),
     desired: jsonb("desired").$type<DesiredProjection>().notNull(),
-    desiredFingerprint: text("desired_fingerprint").notNull(),
     desiredRevision: integer("desired_revision").default(1).notNull(),
     remoteCheckId: text("remote_check_id"),
     syncedRevision: integer("synced_revision"),
-    syncedFingerprint: text("synced_fingerprint"),
     retryFailures: integer("retry_failures").default(0).notNull(),
     outcome: text("outcome", { enum: ["pending", "synced", "failed", "blocked"] })
       .default("pending")

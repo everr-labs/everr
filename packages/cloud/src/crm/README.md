@@ -36,7 +36,7 @@ field names below. Source IDs are deployment scoped before leaving Everr.
 Everr owns exactly those profile fields and associations. Brevo owns notes,
 communication preferences, consent and opt-outs. None of those CRM-owned values
 are in desired state. An adapter must update only owned fields and preserve
-opt-outs during email changes. A fingerprint describes the Everr-owned snapshot,
+opt-outs during email changes. The desired snapshot describes Everr-owned state,
 not the entire remote record, and cannot prove the CRM has not drifted.
 
 Plan, subscription status and effective app access are distinct. The snapshot
@@ -60,11 +60,12 @@ the pair currently exists. Missing sources produce identity-only deletion desire
 state without retaining old contact fields. Membership arrays have stable ID order.
 
 `createCrmProjectionStore` supports reading desired state, persisting a desired
-snapshot, binding remote IDs, marking success/failure, and guarding retry allowances. Identical
-fingerprints retain the revision and previous outcome outside an explicit completed
-cleanup recheck. Changed desired state
-increments the revision and becomes pending, retaining prior synchronized
-fingerprint/revision and success time. Completion and failure updates require the
+snapshot, binding remote IDs, marking success/failure, and guarding retry allowances.
+PostgreSQL compares the desired JSONB directly, ignoring object key order and preserving
+the reader's stable membership array order. Identical snapshots retain the revision and
+previous outcome. Explicit remote checks, cleanup rechecks and exhausted-work recovery
+can open a new guarded revision. Changed desired state increments the revision and
+becomes pending, retaining the prior synchronized revision and success time. Completion and failure updates require the
 current desired revision. A late failure cannot overwrite success for that same
 revision. Failure codes are bounded identifiers, never provider response bodies,
 contact payloads or secrets. Binding remote IDs is separate from completion so an
@@ -297,7 +298,7 @@ this task changed no production configuration and generated/applied no migration
 including the new schema source's columns, constraints and unique indexes. It
 covers latest identity fields, deployment separation, several Organizations,
 Plan/access/readiness distinctions, unknown billing products, deleted sources,
-Membership re-addition, unchanged fingerprints, stale revisions, retained remote
+Membership re-addition, unchanged snapshots, reordered object keys, stale revisions, retained remote
 IDs and outcome transitions. `user-sync.integration.test.ts` uses an explicitly
 supplied disposable `EVERR_IDENTITY_TEST_DATABASE_URL` for real PostgreSQL/Graphile
 job persistence, two-runner HTTP ordering, stale/deleted sources, auth success on
@@ -464,7 +465,7 @@ including successful source-phase sync, and parent fanout preserves pair checks.
 The retained phase therefore cannot reopen a snapshot already checked in this
 cycle. Duplicate commands cannot replenish pending, blocked or exhausted work.
 Company intent and bindings remain intact. Each new cycle can make fresh provider
-reads; fingerprints alone never prove remote correctness.
+reads; local snapshots alone never prove remote correctness.
 
 Fresh Contact/Company reads verify exact external identity and apply only changed
 owned fields. Pair checks verify the exact owned Company and its explicit linked

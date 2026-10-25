@@ -11,7 +11,7 @@ import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { crmProjection, organizationBilling, orgSubscription } from "../db/schema";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
-import { createCrmProjectionStore, snapshotFingerprint } from "./store";
+import { createCrmProjectionStore } from "./store";
 import { createMilestoneTestTable } from "../organizations/testing/database";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
@@ -122,7 +122,6 @@ it("loads current user fields and all memberships while preserving stable deploy
     externalId: first.externalId,
     fields: { name: "Changed", email: "after@example.test", emailVerified: true },
   });
-  expect(snapshotFingerprint(latest)).not.toBe(snapshotFingerprint(first));
   expect(projectionIdentity("other", { kind: "user", id: "user" }).externalId).not.toBe(
     first.externalId,
   );
@@ -195,7 +194,6 @@ it("avoids unchanged revisions, retains last success, and rejects stale outcomes
   expect(synced).toMatchObject({
     outcome: "synced",
     syncedRevision: 1,
-    syncedFingerprint: initial.desiredFingerprint,
     lastSuccessAt: expect.any(Date),
     lastErrorCode: null,
   });
@@ -217,6 +215,55 @@ it("avoids unchanged revisions, retains last success, and rejects stale outcomes
     lastErrorCode: "invalid_schema",
   });
   expect(await store.markSynced(changed, 2)).toBe(true);
+});
+
+it("retains synchronized state across reordered object keys and advances for nested changes", async () => {
+  const snapshot = await reader.user("user");
+  if (snapshot.kind !== "user" || snapshot.deleted) throw new Error("Expected live User snapshot");
+  const initial = await store.desire(snapshot);
+  await store.markSynced(initial, initial.desiredRevision);
+  const synced = await store.read(initial);
+  const reordered = {
+    memberships: snapshot.memberships.map(({ role, organizationId, userId, id }) => ({
+      role,
+      organizationId,
+      userId,
+      id,
+    })),
+    fields: {
+      emailVerified: snapshot.fields.emailVerified,
+      registeredAt: snapshot.fields.registeredAt,
+      email: snapshot.fields.email,
+      name: snapshot.fields.name,
+    },
+    deleted: snapshot.deleted,
+    organizationId: snapshot.organizationId,
+    userId: snapshot.userId,
+    externalId: snapshot.externalId,
+    sourceId: snapshot.sourceId,
+    kind: snapshot.kind,
+  };
+  expect(await store.desire(reordered)).toEqual(synced);
+
+  const renamed = { ...reordered, fields: { ...reordered.fields, name: "Changed" } };
+  const changed = await store.desire(renamed);
+  expect(changed).toMatchObject({
+    desiredRevision: 2,
+    syncedRevision: 1,
+    lastSuccessAt: synced!.lastSuccessAt,
+    outcome: "pending",
+  });
+  expect(await store.desire({ ...renamed, memberships: [...renamed.memberships] })).toEqual(
+    changed,
+  );
+  expect(
+    await store.desire({
+      ...renamed,
+      memberships: renamed.memberships.map((membership, index) =>
+        index === 0 ? { ...membership, role: "admin" } : membership,
+      ),
+    }),
+  ).toMatchObject({ desiredRevision: 3, syncedRevision: 1, outcome: "pending" });
 });
 
 it.each(["user", "organization"] as const)(

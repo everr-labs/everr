@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type { Database } from "@everr/app/db/database";
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { CompanyRecord } from "./brevo/adapter";
@@ -11,22 +10,6 @@ import {
 } from "./snapshots";
 
 type ProjectionKey = { kind: ProjectionKind; sourceId: string };
-
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-/** Field order does not cause writes; ordered membership arrays come from the reader. */
-export function snapshotFingerprint(snapshot: DesiredProjection) {
-  return createHash("sha256").update(canonical(snapshot)).digest("hex");
-}
 
 export function createCrmProjectionStore(database: Database, deployment: string) {
   if (!deployment.trim()) throw new Error("CRM deployment namespace is required.");
@@ -185,7 +168,6 @@ export function createCrmProjectionStore(database: Database, deployment: string)
         snapshot.organizationId !== expected.organizationId
       )
         throw new Error("CRM snapshot identity mismatch.");
-      const fingerprint = snapshotFingerprint(snapshot);
       const now = new Date();
       await database
         .insert(crmProjection)
@@ -193,14 +175,12 @@ export function createCrmProjectionStore(database: Database, deployment: string)
           deployment,
           ...expected,
           desired: snapshot,
-          desiredFingerprint: fingerprint,
           deletedAt: snapshot.deleted ? now : null,
         })
         .onConflictDoUpdate({
           target: [crmProjection.deployment, crmProjection.kind, crmProjection.sourceId],
           set: {
             desired: snapshot,
-            desiredFingerprint: fingerprint,
             pendingSince: sql`coalesce(${crmProjection.pendingSince}, now())`,
             desiredRevision: sql`${crmProjection.desiredRevision} + 1`,
             retryFailures: 0,
@@ -211,9 +191,11 @@ export function createCrmProjectionStore(database: Database, deployment: string)
             lastErrorAt: null,
             updatedAt: now,
           },
+          // Compare the stored JSONB directly: object key order is irrelevant, while
+          // membership arrays retain the reader's stable ordering.
           // Entity deletion is terminal. Associations can be added again after removal.
           setWhere: and(
-            sql`${crmProjection.desiredFingerprint} <> ${fingerprint}`,
+            sql`${crmProjection.desired} is distinct from excluded.desired`,
             snapshot.deleted || snapshot.kind === "membership"
               ? undefined
               : isNull(crmProjection.deletedAt),
@@ -290,7 +272,6 @@ export function createCrmProjectionStore(database: Database, deployment: string)
           pendingSince: null,
           syncedRevision: revision,
           retryFailures: 0,
-          syncedFingerprint: sql`${crmProjection.desiredFingerprint}`,
           outcome: "synced",
           lastSuccessAt: new Date(),
           lastErrorCode: null,
