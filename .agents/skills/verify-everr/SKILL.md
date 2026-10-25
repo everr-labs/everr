@@ -213,7 +213,17 @@ Visual proof (required for any change that touches UI):
 - One claim, one piece of media with a one-line caption. Do not narrate in prose what the media shows, and do not write up bugs found and fixed during the work: the report shows only the final behavior. Text is for the not-verified list and the checks table.
 - For a layout claim, put the measured value in the caption, for example `content at x=268, 12px padding, at 1280x800 and 2000x635`. Read it with `agent-browser eval` (`getBoundingClientRect()`, `getComputedStyle()`).
 - A claim about timing or interaction (validation on submit rather than on change, a transition, a loading state) needs a `web-record` video, because a still shows only the end state. Keep it 10 to 25 s at 1280x800, with `r.hold` pauses so a reviewer can follow each step. When the PR changes behavior, record a before and an after clip of the same journey.
-- To record the before clip, keep the PR's stack running and run `git checkout origin/main -- <changed UI files>` in the same worktree (Vite reloads them). Record, then run `git checkout HEAD -- <files>` and confirm `git status` is clean. The caption names the source of the before clip (`before: origin/main channel-dialog.tsx`).
+- To record the before clip, keep the PR's stack running and swap every file the PR changed in the affected package to main's copy in the same worktree (Vite reloads them). Swap all of them, not only the UI files, so main's component never runs against the branch's helpers. Files the PR added do not exist on main, so delete them. `git checkout HEAD -- <path>` drops uncommitted edits, so `git status --porcelain` must print nothing before the swap and again after the restore. If `git diff --name-status origin/main...HEAD -- "$pkg"` shows deleted (`D`) or renamed (`R`) files, handle them by hand. The caption names the source of the before clip (`before: origin/main channel-dialog.tsx`).
+
+  ```bash
+  pkg=packages/app
+  git status --porcelain    # must print nothing; commit or stash first
+  git diff --name-only --diff-filter=M origin/main...HEAD -- "$pkg" | xargs -r git checkout origin/main --
+  git diff --name-only --diff-filter=A origin/main...HEAD -- "$pkg" | xargs -r rm --
+  # record the before clip
+  git checkout HEAD -- "$pkg"
+  git status --porcelain    # must print nothing
+  ```
 - Take screenshots after the data renders: `wait --text` for the asserted text first, then `ab_save`. Dismiss the consent banner first (`$V web-onboard` does it) and use the 1280x800 viewport (`web-onboard` sets it; otherwise `agent-browser set viewport 1280 800`; `web-record` defaults to it).
 - `ab_save` sleeps 0.7s before the screenshot: after a client-side navigation the DOM (what `wait` and the `.txt` see) updates before the compositor paints, and an immediate screenshot showed the previous page (observed 2026-10-20 on the dashboards panel link). Also wait for something that only the new page lacks or has, not text both pages share.
 - Before reporting, open each image (Read the PNG) and confirm it shows what its caption claims: the asserted data is visible, nothing covers it, it is the right page. Fix or drop captions that do not match. For a video, extract frames (`ffmpeg -i <name>.mp4 -vf fps=2 <dir>/f-%03d.png`) and open the frames at each step the caption names. When a shot is re-taken, copy it to a new file name before opening it again: an image viewer can serve the earlier version of a path it already showed.
@@ -240,7 +250,8 @@ ffmpeg -i after.mp4 -vf "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palett
 
 - Commit stills, GIFs and MP4s to the `pr-media` branch under `<pr>/v<N>/`, and use a new `v<N>` folder for each re-record instead of overwriting.
 - Embed them with commit-pinned URLs, `https://raw.githubusercontent.com/everr-labs/everr/<pr-media sha>/<pr>/v<N>/<file>`, and check that each URL returns 200 (`curl -s -o /dev/null -w '%{http_code}' <url>`) before posting.
-- After a follow-up commit that touches the verified UI, re-record, publish to a new `v<N>`, and edit the existing verification comment and PR body in place (`gh api -X PATCH repos/everr-labs/everr/issues/comments/<id> -F body=@report.md`). Do not post a new comment.
+- After a follow-up commit that touches the verified UI, re-record, publish to a new `v<N>`, and edit the existing verification comment and PR body in place. Do not post a new comment.
+- `report.md` links media relative to the evidence dir, so those links break on GitHub. Use it to review the run locally, and write the comment as a separate file (`comment.md`) whose embeds are the commit-pinned `pr-media` URLs: `gh api -X PATCH repos/everr-labs/everr/issues/comments/<id> -F body=@comment.md`.
 
 Note: `web/api-keys-03-issued.*` and `web/api-keys-07-public-issued.*` contain the freshly issued `ek_` keys (the helper reads keys from the scratch dir, never from evidence). It is only valid against the run's database, which cleanup destroys.
 
