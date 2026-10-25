@@ -4,14 +4,14 @@ import {
   ORGANIZATION_SYNC_TASK,
   USER_SYNC_TASK,
   USER_SYNC_RETRIES,
-  organizationSyncPayload,
-  userSyncPayload,
+  type OrganizationSyncPayload,
+  type UserSyncPayload,
   relatedSyncSpec,
   userSyncSpec,
 } from "./jobs";
 import type { createCrmProjectionStore } from "./store";
 import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
-import { RetainedCrmWork } from "./user-sync";
+import { RetainedCrmWork } from "./coordination";
 
 type Store = ReturnType<typeof createCrmProjectionStore>;
 type Saved = NonNullable<Awaited<ReturnType<Store["read"]>>>;
@@ -27,14 +27,27 @@ export function createDeletionCleanup(options: {
   store: Store;
   adapter: Adapter;
   diagnostic?: SyncDiagnostic;
-  reconcileMemberships: (saved: Saved, helpers: JobHelpers, raw: unknown) => Promise<void>;
+  reconcileMemberships: (
+    saved: Saved,
+    helpers: JobHelpers,
+    payload: UserSyncPayload | OrganizationSyncPayload,
+  ) => Promise<void>;
 }) {
   const { store, adapter, diagnostic = syncDiagnostic } = options;
-  return async (saved: Saved, raw: unknown, helpers: JobHelpers) => {
+  return async (
+    saved: Saved,
+    payload: UserSyncPayload | OrganizationSyncPayload,
+    helpers: JobHelpers,
+  ) => {
     if (saved.kind === "membership" || !saved.desired.deleted || !saved.deletedAt)
       throw new Error("CRM cleanup requires a retained entity tombstone.");
-    const payload =
-      saved.kind === "user" ? userSyncPayload.parse(raw) : organizationSyncPayload.parse(raw);
+    const matches =
+      saved.kind === "user"
+        ? !("kind" in payload) && payload.userId === saved.sourceId
+        : "kind" in payload &&
+          payload.kind === "organization" &&
+          payload.organizationId === saved.sourceId;
+    if (!matches) throw new Error("CRM cleanup command does not match retained identity.");
     const key = { kind: saved.kind, sourceId: saved.sourceId };
     if (
       (payload.eventType === "crm.reconciliation.requested" ||
@@ -78,11 +91,11 @@ export function createDeletionCleanup(options: {
         saved.desiredRevision,
         payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
       );
-      await options.reconcileMemberships(saved, helpers, raw);
+      await options.reconcileMemberships(saved, helpers, payload);
       report("synced");
     };
     if (saved.syncedRevision === saved.desiredRevision) {
-      await options.reconcileMemberships(saved, helpers, raw);
+      await options.reconcileMemberships(saved, helpers, payload);
       report("synced");
       return;
     }

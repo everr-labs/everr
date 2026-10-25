@@ -98,6 +98,13 @@ consumers or integration runner; self-hosted imports none of this module. Paused
 mode keeps admitting commands but starts no CRM consumer, preserving pending jobs.
 Missing enabled configuration fails validation rather than consuming work.
 
+The coordinated Graphile entry strictly validates each persisted version-1 command
+once, before acquiring a pool connection. Its copied command supplies endpoint
+locks, contention scheduling, concrete execution, deletion cleanup and Membership
+fanout. Invalid jobs retain the existing bounded diagnostic and inspection policy
+before source reads or provider calls. Command fields and retry accounting remain
+unchanged.
+
 Configured mode registers `everrIntegrationWorker` with one execution slot and a
 reserved pool of at most four connections. The existing managed supervisor owns
 startup rollback, retry, HMR and shutdown, independently of product and organization

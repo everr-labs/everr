@@ -68,7 +68,9 @@ microtasks. A subscriber can throw or reject without preventing siblings from
 running or changing the source result. `eventRegistration` infers each
 consumer payload from its feature definition. Publication validates once through
 that definition, then copies the validated snapshot for each consumer. Persisted
-command payload validation remains separate at admission and worker execution. The producer
+command payload validation remains separate at admission and worker execution.
+The CRM worker validates once at its coordinated raw entry, then uses that copied
+command for endpoint locks, continuations, execution and deletion cleanup. The producer
 interface has no transaction argument, and this module persists no outbox.
 
 Source injection seams normalize publishers once with `safeEventPublisher`.

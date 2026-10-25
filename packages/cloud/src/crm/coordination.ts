@@ -1,23 +1,35 @@
 import { createHash } from "node:crypto";
-import type { Task, TaskSpec } from "graphile-worker";
+import type { JobHelpers, Task, TaskSpec } from "graphile-worker";
 import type { Pool } from "pg";
-import { RetainedCrmWork } from "./user-sync";
+import type { z } from "zod";
+import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
+import type { UserSyncPayload, OrganizationSyncPayload, MembershipSyncPayload } from "./jobs";
+
+export class RetainedCrmWork extends Error {}
+
+/** Internal execution seam. Only the coordinated Graphile entry accepts raw persisted data. */
+export type CrmTask<Payload> = (payload: Payload, helpers: JobHelpers) => Promise<void>;
 
 /** Session locks cover whole HTTP executions, without a source transaction or lock waits.
  * Association tasks take both endpoint locks in stable order. Parent tasks take one.
  * A lost connection aborts HTTP; the provider has no fencing token, so late acceptance
  * remains possible and is recovered through persisted identity/attempt state.
  */
-export function coordinateCrmTask(
-  pool: Pick<Pool, "connect">,
-  deployment: string,
-  endpoints: (raw: unknown) => string[],
-  task: Task,
-  spec: (raw: unknown) => TaskSpec,
-): Task {
-  const execute: Task = async (raw, helpers) => {
-    const keys = [...new Set(endpoints(raw))].sort();
-    if (!keys.length) return task(raw, helpers); // Let the handler retain invalid payloads.
+export function coordinateCrmTask<
+  Payload extends UserSyncPayload | OrganizationSyncPayload | MembershipSyncPayload,
+>(options: {
+  pool: Pick<Pool, "connect">;
+  deployment: string;
+  schema: z.ZodType<Payload>;
+  endpoints: (payload: Payload) => string[];
+  task: CrmTask<Payload>;
+  spec: (payload: Payload) => TaskSpec;
+  invalidMessage: string;
+  diagnostic?: SyncDiagnostic;
+}): Task {
+  const { pool, deployment, endpoints, task, spec, schema, diagnostic = syncDiagnostic } = options;
+  const execute: CrmTask<Payload> = async (payload, helpers) => {
+    const keys = [...new Set(endpoints(payload))].sort();
     const client = await pool.connect();
     const controller = new AbortController();
     let lost = false;
@@ -38,8 +50,8 @@ export function coordinateCrmTask(
           lock,
         );
         if (!result.rows[0].acquired) {
-          await helpers.addJob(helpers.job.task_identifier, raw, {
-            ...spec(raw),
+          await helpers.addJob(helpers.job.task_identifier, payload, {
+            ...spec(payload),
             runAt: new Date(Date.now() + 1000),
           });
           return;
@@ -49,7 +61,7 @@ export function coordinateCrmTask(
       const signal = helpers.abortSignal
         ? AbortSignal.any([helpers.abortSignal, controller.signal])
         : controller.signal;
-      await task(raw, { ...helpers, abortSignal: signal });
+      await task(payload, { ...helpers, abortSignal: signal });
       if (lost) throw new Error("CRM synchronization lock connection lost.");
     } finally {
       try {
@@ -66,7 +78,14 @@ export function coordinateCrmTask(
   };
   return async (raw, helpers) => {
     try {
-      await execute(raw, helpers);
+      // Zod copies the strict, scalar-only command before any asynchronous work.
+      // Keep this snapshot for locks, execution, cleanup and every continuation.
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        diagnostic("invalid", undefined, String(helpers.job.id));
+        throw new RetainedCrmWork(options.invalidMessage);
+      }
+      await execute(parsed.data, helpers);
     } catch (error) {
       if (error instanceof RetainedCrmWork) throw error;
       // eslint-disable-next-line preserve-caught-error -- Connection errors must not escape to worker logs.

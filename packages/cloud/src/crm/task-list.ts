@@ -31,12 +31,7 @@ export function createCrmTaskList(options: {
   const fanout = membershipFanout(options.store);
   const cleanup = createDeletionCleanup({
     ...options,
-    reconcileMemberships: (saved, helpers, raw) =>
-      fanout(
-        saved.desired,
-        helpers,
-        saved.kind === "user" ? userSyncPayload.parse(raw) : organizationSyncPayload.parse(raw),
-      ),
+    reconcileMemberships: (saved, helpers, payload) => fanout(saved.desired, helpers, payload),
   });
   const related = createRelatedSyncTasks({ ...options, cleanup });
   const user = createUserSyncTask({
@@ -45,43 +40,32 @@ export function createCrmTaskList(options: {
     cleanup,
   });
   return {
-    [USER_SYNC_TASK]: coordinateCrmTask(
-      options.pool,
-      options.deployment,
-      (raw) => {
-        const parsed = userSyncPayload.safeParse(raw);
-        return parsed.success ? [JSON.stringify(["user", parsed.data.userId])] : [];
-      },
-      user,
-      (raw) => userSyncSpec(userSyncPayload.parse(raw).userId),
-    ),
-    [ORGANIZATION_SYNC_TASK]: coordinateCrmTask(
-      options.pool,
-      options.deployment,
-      (raw) => {
-        const parsed = organizationSyncPayload.safeParse(raw);
-        return parsed.success ? [JSON.stringify(["organization", parsed.data.organizationId])] : [];
-      },
-      related.organization,
-      (raw) => relatedSyncSpec(organizationSyncPayload.parse(raw).organizationId),
-    ),
-    [MEMBERSHIP_SYNC_TASK]: coordinateCrmTask(
-      options.pool,
-      options.deployment,
-      (raw) => {
-        const parsed = membershipSyncPayload.safeParse(raw);
-        return parsed.success
-          ? [
-              JSON.stringify(["organization", parsed.data.organizationId]),
-              JSON.stringify(["user", parsed.data.userId]),
-            ]
-          : [];
-      },
-      related.membership,
-      (raw) => {
-        const payload = membershipSyncPayload.parse(raw);
-        return relatedSyncSpec(payload.organizationId, payload.userId);
-      },
-    ),
+    [USER_SYNC_TASK]: coordinateCrmTask({
+      ...options,
+      schema: userSyncPayload,
+      endpoints: (payload) => [JSON.stringify(["user", payload.userId])],
+      task: user,
+      spec: (payload) => userSyncSpec(payload.userId),
+      invalidMessage: "Invalid CRM user task payload.",
+    }),
+    [ORGANIZATION_SYNC_TASK]: coordinateCrmTask({
+      ...options,
+      schema: organizationSyncPayload,
+      endpoints: (payload) => [JSON.stringify(["organization", payload.organizationId])],
+      task: related.organization,
+      spec: (payload) => relatedSyncSpec(payload.organizationId),
+      invalidMessage: "Invalid CRM related task payload.",
+    }),
+    [MEMBERSHIP_SYNC_TASK]: coordinateCrmTask({
+      ...options,
+      schema: membershipSyncPayload,
+      endpoints: (payload) => [
+        JSON.stringify(["organization", payload.organizationId]),
+        JSON.stringify(["user", payload.userId]),
+      ],
+      task: related.membership,
+      spec: (payload) => relatedSyncSpec(payload.organizationId, payload.userId),
+      invalidMessage: "Invalid CRM related task payload.",
+    }),
   };
 }

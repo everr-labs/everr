@@ -1,4 +1,4 @@
-import type { JobHelpers, Task } from "graphile-worker";
+import type { JobHelpers } from "graphile-worker";
 import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import {
@@ -6,8 +6,6 @@ import {
   ORGANIZATION_SYNC_TASK,
   USER_SYNC_RETRIES,
   USER_SYNC_TASK,
-  membershipSyncPayload,
-  organizationSyncPayload,
   relatedSyncSpec,
   userSyncSpec,
   type MembershipSyncPayload,
@@ -21,7 +19,7 @@ import {
 } from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
 import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
-import { RetainedCrmWork } from "./user-sync";
+import { RetainedCrmWork, type CrmTask } from "./coordination";
 
 type Payload = MembershipSyncPayload | OrganizationSyncPayload;
 type Store = ReturnType<typeof createCrmProjectionStore>;
@@ -105,16 +103,9 @@ export function createRelatedSyncTasks(options: {
 }) {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
   const fanout = membershipFanout(store);
-  function task(kind: Payload["kind"]): Task {
-    const schema = kind === "organization" ? organizationSyncPayload : membershipSyncPayload;
+  function task<P extends Payload>(kind: P["kind"]): CrmTask<P> {
     const identifier = kind === "organization" ? ORGANIZATION_SYNC_TASK : MEMBERSHIP_SYNC_TASK;
-    const execute: Task = async (raw, helpers) => {
-      const parsed = schema.safeParse(raw);
-      if (!parsed.success) {
-        diagnostic("invalid", undefined, String(helpers.job.id));
-        throw new RetainedCrmWork("Invalid CRM related task payload.");
-      }
-      const payload = parsed.data;
+    const execute: CrmTask<P> = async (payload, helpers) => {
       const load = () =>
         payload.kind === "organization"
           ? reader.organization(payload.organizationId)
@@ -177,9 +168,9 @@ export function createRelatedSyncTasks(options: {
       };
       const terminal = () =>
         saved.kind !== "membership" && (saved.desired.deleted || !!saved.deletedAt);
-      if (terminal())
+      if (terminal() && payload.kind === "organization")
         return options.cleanup
-          ? options.cleanup(saved, raw, helpers)
+          ? options.cleanup(saved, payload, helpers)
           : block("deletion_cleanup_required");
       if (saved.syncedRevision === saved.desiredRevision) {
         if (kind === "organization") await fanout(saved.desired, helpers, payload);
@@ -500,15 +491,14 @@ export function createRelatedSyncTasks(options: {
       await store.cleanupCompanyRead(key, null);
       return complete();
     };
-    return async (raw, helpers) => {
+    return async (payload, helpers) => {
       try {
-        await execute(raw, helpers);
+        await execute(payload, helpers);
       } catch (error) {
         if (error instanceof RetainedCrmWork) throw error;
-        const parsed = schema.safeParse(raw);
         diagnostic(
           helpers.job.attempts >= helpers.job.max_attempts ? "exhausted" : "retry",
-          parsed.success ? parsed.data : undefined,
+          payload,
           String(helpers.job.id),
         );
         // eslint-disable-next-line preserve-caught-error -- Raw DB/provider errors may contain profile data.
@@ -516,5 +506,8 @@ export function createRelatedSyncTasks(options: {
       }
     };
   }
-  return { organization: task("organization"), membership: task("membership") };
+  return {
+    organization: task<OrganizationSyncPayload>("organization"),
+    membership: task<MembershipSyncPayload>("membership"),
+  };
 }

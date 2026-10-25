@@ -1,18 +1,11 @@
-import type { JobHelpers, Task } from "graphile-worker";
+import type { JobHelpers } from "graphile-worker";
 import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
-import {
-  USER_SYNC_RETRIES,
-  USER_SYNC_TASK,
-  userSyncPayload,
-  userSyncSpec,
-  type UserSyncPayload,
-} from "./jobs";
+import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncSpec, type UserSyncPayload } from "./jobs";
 import type { createCrmSnapshotReader, DesiredProjection } from "./snapshots";
 import { snapshotFingerprint, type createCrmProjectionStore } from "./store";
 import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
-
-export class RetainedCrmWork extends Error {}
+import { RetainedCrmWork, type CrmTask } from "./coordination";
 
 /** Only run through the partitioned Graphile task: no process-local lock or source TX over HTTP. */
 export function createUserSyncTask(options: {
@@ -29,15 +22,9 @@ export function createUserSyncTask(options: {
   ) => Promise<void>;
   diagnostic?: SyncDiagnostic;
   cleanup?: DeletionCleanup;
-}): Task {
+}): CrmTask<UserSyncPayload> {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
-  const execute: Task = async (raw, helpers) => {
-    const parsed = userSyncPayload.safeParse(raw);
-    if (!parsed.success) {
-      diagnostic("invalid", undefined, String(helpers.job.id));
-      throw new RetainedCrmWork("Invalid CRM user task payload.");
-    }
-    const payload = parsed.data;
+  const execute: CrmTask<UserSyncPayload> = async (payload, helpers) => {
     const key = { kind: "user" as const, sourceId: payload.userId };
     const report = (outcome: Parameters<SyncDiagnostic>[0]) =>
       diagnostic(outcome, payload, String(helpers.job.id));
@@ -72,7 +59,7 @@ export function createUserSyncTask(options: {
       report(nextFailures === failures ? "deferred" : "retry");
     };
     if (saved.desired.deleted || saved.deletedAt) {
-      if (options.cleanup) return options.cleanup(saved, raw, helpers);
+      if (options.cleanup) return options.cleanup(saved, payload, helpers);
       await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
       report("blocked");
       throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
@@ -204,16 +191,15 @@ export function createUserSyncTask(options: {
     await options.reconcileMemberships?.(saved.desired, helpers, payload);
     report("synced");
   };
-  return async (raw, helpers) => {
+  return async (payload, helpers) => {
     try {
-      await execute(raw, helpers);
+      await execute(payload, helpers);
     } catch (error) {
       if (error instanceof RetainedCrmWork) throw error;
       // Source/database errors can embed SQL parameters. Never give them to Graphile's logger.
-      const parsed = userSyncPayload.safeParse(raw);
       diagnostic(
         helpers.job.attempts >= helpers.job.max_attempts ? "exhausted" : "retry",
-        parsed.success ? parsed.data : undefined,
+        payload,
         String(helpers.job.id),
       );
       // An infrastructure failure is retried by Graphile without changing this payload.

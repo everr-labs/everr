@@ -33,8 +33,15 @@ import {
 import { crmProjection } from "../db/schema/crm";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
-import { USER_SYNC_TASK, userSyncSubscribers, userSyncSpec, type UserSyncPayload } from "./jobs";
+import {
+  USER_SYNC_TASK,
+  userSyncSubscribers,
+  userSyncSpec,
+  userSyncPayload,
+  type UserSyncPayload,
+} from "./jobs";
 import { createUserSyncTask } from "./user-sync";
+import { coordinateCrmTask } from "./coordination";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import { attachCrmRetryPolicy } from "./retries";
 
@@ -80,16 +87,28 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       })),
     });
     function task(remote = adapter(), diagnostic = vi.fn()) {
-      return createUserSyncTask({
-        reader: createCrmSnapshotReader(fixture.database, "test"),
-        store,
-        adapter: remote,
+      return coordinateCrmTask({
+        pool: fixture.database.$client,
+        deployment: "test",
+        schema: userSyncPayload,
+        endpoints: (command) => [JSON.stringify(["user", command.userId])],
+        spec: (command) => userSyncSpec(command.userId),
+        invalidMessage: "Invalid CRM user task payload.",
         diagnostic,
+        task: createUserSyncTask({
+          reader: createCrmSnapshotReader(fixture.database, "test"),
+          store,
+          adapter: remote,
+          diagnostic,
+        }),
       });
     }
     function helpers() {
       const addJob = vi.fn<JobHelpers["addJob"]>();
-      return { addJob, job: { id: "manual-test" } } as unknown as JobHelpers & {
+      return {
+        addJob,
+        job: { id: "manual-test", task_identifier: USER_SYNC_TASK, attempts: 1, max_attempts: 8 },
+      } as unknown as JobHelpers & {
         addJob: typeof addJob;
       };
     }
