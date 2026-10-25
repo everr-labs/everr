@@ -456,16 +456,15 @@ it.each([200, 204])(
     const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
       reply({ id: "remote", attributes: { everr_org_id: org.externalId } }, status),
     );
-    const result = await createBrevoAdapter(configured, budget(), transport).updateCompany(
-      "remote",
-      org,
-    );
+    const result = await createBrevoAdapter(configured, budget(), transport).updateCompany(org, {
+      id: "remote",
+      attributes: { everr_org_id: org.externalId },
+    });
     expect(result.ok).toBe(true);
     const body = JSON.parse(transport.mock.calls[0][1].body as string);
     expect(body).toEqual({
       name: "Fixture",
       attributes: {
-        everr_org_id: org.externalId,
         everr_created_at: org.fields.createdAt,
         everr_plan: "hobby",
         everr_app_state: "hobby",
@@ -511,15 +510,18 @@ it("projects verified milestones as ISO text while preserving existing field own
   const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
     reply(undefined, 204),
   );
-  const result = await createBrevoAdapter(configured, budget(), transport).updateCompany("remote", {
-    ...org,
-    fields: {
-      ...org.fields,
-      firstQueryableAt: "2026-10-23T12:00:00.123Z",
-      activatedAt: "2026-10-23T12:00:00.123Z",
-      activationRuleVersion: 1,
+  const result = await createBrevoAdapter(configured, budget(), transport).updateCompany(
+    {
+      ...org,
+      fields: {
+        ...org.fields,
+        firstQueryableAt: "2026-10-23T12:00:00.123Z",
+        activatedAt: "2026-10-23T12:00:00.123Z",
+        activationRuleVersion: 1,
+      },
     },
-  });
+    { id: "remote", attributes: { everr_org_id: org.externalId } },
+  );
   expect(result.ok).toBe(true);
   const body = JSON.parse(transport.mock.calls[0][1].body as string);
   expect(body.attributes).toMatchObject({
@@ -561,14 +563,14 @@ it("reads the provider's nested Company name and skips a redundant owned-field u
   if (!read.ok) throw new Error("Expected owned Company read");
   expect(read.value.name).toBe(org.fields.name);
   expect(read.value.attributes).not.toHaveProperty("name");
-  expect(await adapter.updateCompany("remote", org, undefined, read.value)).toEqual({
+  expect(await adapter.updateCompany(org, read.value)).toEqual({
     ok: true,
     value: undefined,
     changed: false,
   });
   expect(transport).toHaveBeenCalledOnce();
   const renamed = { ...org, fields: { ...org.fields, name: "Changed" } };
-  await adapter.updateCompany("remote", renamed, undefined, read.value);
+  await adapter.updateCompany(renamed, read.value);
   expect(JSON.parse(transport.mock.calls[1][1].body as string)).toEqual({ name: "Changed" });
 });
 
@@ -587,8 +589,72 @@ it("normalizes provider Company names for inventory recovery and 200 update resp
     ok: true,
     value: { name: "Provider" },
   });
-  expect(await adapter.updateCompany("remote", org)).toMatchObject({
+  expect(
+    await adapter.updateCompany(org, {
+      id: "remote",
+      attributes: { everr_org_id: org.externalId },
+    }),
+  ).toMatchObject({
     ok: true,
     value: { name: "Provider" },
   });
+});
+
+it("waits through a short contact permit gap before sending the request", async () => {
+  vi.useFakeTimers();
+  const quota = budget();
+  vi.mocked(quota.acquire).mockResolvedValueOnce({
+    allowed: false,
+    retryAt: new Date(Date.now() + 100),
+  });
+  const transport = vi.fn(async () => reply(current));
+  const pending = createBrevoAdapter(configured, quota, transport).getContact(user.externalId);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(transport).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(await pending).toMatchObject({ ok: true, value: current });
+  expect(quota.acquire).toHaveBeenCalledTimes(2);
+  expect(transport).toHaveBeenCalledOnce();
+});
+
+it.each(["long contact cooldown", "general permit gap"])(
+  "defers %s without waiting or sending HTTP",
+  async (kind) => {
+    vi.useFakeTimers();
+    const quota = budget();
+    const retryAt = new Date(Date.now() + (kind === "long contact cooldown" ? 60_000 : 100));
+    vi.mocked(quota.acquire).mockResolvedValue({ allowed: false, retryAt });
+    const transport = vi.fn();
+    const adapter = createBrevoAdapter(configured, quota, transport);
+    const result =
+      kind === "long contact cooldown"
+        ? await adapter.getContact(user.externalId)
+        : await adapter.getCompany("remote");
+    expect(result).toMatchObject({ ok: false, kind: "rate_limited", retryAt });
+    expect(quota.acquire).toHaveBeenCalledOnce();
+    expect(transport).not.toHaveBeenCalled();
+  },
+);
+
+it("cancels a short contact permit wait before sending HTTP", async () => {
+  const quota = budget();
+  let entered!: () => void;
+  const acquired = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  vi.mocked(quota.acquire).mockImplementation(async () => {
+    entered();
+    return { allowed: false, retryAt: new Date(Date.now() + 200) };
+  });
+  const transport = vi.fn();
+  const controller = new AbortController();
+  const pending = createBrevoAdapter(configured, quota, transport).getContact(
+    user.externalId,
+    controller.signal,
+  );
+  await acquired;
+  controller.abort();
+  expect(await pending).toMatchObject({ ok: false, kind: "cancelled" });
+  expect(quota.acquire).toHaveBeenCalledOnce();
+  expect(transport).not.toHaveBeenCalled();
 });

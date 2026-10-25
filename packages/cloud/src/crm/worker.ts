@@ -1,5 +1,4 @@
 import { EventEmitter } from "node:events";
-import { setTimeout as delay } from "node:timers/promises";
 import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
 import { managedWorker } from "@everr/app/server/worker/managed-worker";
@@ -7,30 +6,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { parseCronItems, run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { createBrevoAdapter } from "./brevo/adapter";
-import { createBrevoBudget, type BrevoBudget } from "./brevo/budget";
+import { createBrevoBudget } from "./brevo/budget";
 import { readBrevoConfig } from "./brevo/config";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { createCrmTaskList } from "./task-list";
 import { createReconciliationTask, RECONCILIATION_TASK } from "./reconciliation";
 import { attachCrmRetryPolicy } from "./retries";
-
-/** Avoid GET/defer starvation for the ordinary 100ms contact permit gap.
- * Longer cooldowns are returned immediately to the persisted scheduling path.
- */
-export function contactPermitGap(budget: BrevoBudget, signal: AbortSignal): BrevoBudget {
-  return {
-    cooldown: (group, delayMs) => budget.cooldown(group, delayMs),
-    async acquire(group) {
-      const permit = await budget.acquire(group);
-      if (permit.allowed || group !== "contacts") return permit;
-      const waitMs = permit.retryAt.getTime() - Date.now();
-      if (waitMs < 0 || waitMs > 250) return permit;
-      await delay(Math.min(250, waitMs + 1), undefined, { signal });
-      return budget.acquire(group);
-    },
-  };
-}
 
 export const integrationWorker = managedWorker({
   name: "everrIntegrationWorker",
@@ -49,10 +31,7 @@ export const integrationWorker = managedWorker({
         deployment: config.deployment,
         reader: createCrmSnapshotReader(database, config.deployment),
         store: createCrmProjectionStore(database, config.deployment),
-        adapter: createBrevoAdapter(
-          config,
-          contactPermitGap(createBrevoBudget(database, config.accountScope), controller.signal),
-        ),
+        adapter: createBrevoAdapter(config, createBrevoBudget(database, config.accountScope)),
       });
       const taskList: TaskList = {};
       for (const [name, task] of Object.entries(tasks)) {

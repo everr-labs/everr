@@ -1,3 +1,4 @@
+import { enqueueMembershipSyncs } from "./membership-jobs";
 import type { JobHelpers } from "graphile-worker";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import {
@@ -27,11 +28,6 @@ export function createDeletionCleanup(options: {
   store: Store;
   adapter: Adapter;
   diagnostic?: SyncDiagnostic;
-  reconcileMemberships: (
-    saved: Saved,
-    helpers: JobHelpers,
-    payload: UserSyncPayload | OrganizationSyncPayload,
-  ) => Promise<void>;
 }) {
   const { store, adapter, diagnostic = syncDiagnostic } = options;
   return async (
@@ -83,12 +79,9 @@ export function createDeletionCleanup(options: {
           observe();
         }
       }
-      // Old workers require failures, but only the projection stores the budget.
-      const continuation = { ...payload, failures: 0 };
-      delete continuation.desiredRevision;
       await helpers.addJob(
         saved.kind === "user" ? USER_SYNC_TASK : ORGANIZATION_SYNC_TASK,
-        continuation,
+        payload,
         {
           ...(saved.kind === "user"
             ? userSyncSpec(saved.sourceId)
@@ -115,18 +108,15 @@ export function createDeletionCleanup(options: {
         saved = { ...saved, retryFailures: 0 };
         observe();
       }
-      await options.reconcileMemberships(saved, helpers, payload);
+      await enqueueMembershipSyncs(store, saved.desired, helpers, payload);
       report("synced");
     };
     if (saved.syncedRevision === saved.desiredRevision) {
-      await options.reconcileMemberships(saved, helpers, payload);
+      await enqueueMembershipSyncs(store, saved.desired, helpers, payload);
       report("synced");
       return;
     }
-    // Earlier increments retained this explicit placeholder. Actual identity/provider
-    // blocks are not reset merely because another deletion command arrives.
-    if (saved.outcome === "blocked" && saved.lastErrorCode !== "deletion_cleanup_required")
-      return block(saved.lastErrorCode ?? "projection_blocked");
+    if (saved.outcome === "blocked") return block(saved.lastErrorCode ?? "projection_blocked");
     if (failures >= USER_SYNC_RETRIES) {
       await store.markFailed(key, saved.desiredRevision, "retry_budget_exhausted");
       report("exhausted");

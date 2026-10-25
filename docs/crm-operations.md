@@ -218,10 +218,9 @@ intent. Those records contain profile snapshots, so do not export them to generi
 logs. Check active jobs' attempts, maximum attempts, run time, lock owner and key;
 a completed admission checkpoint alone is insufficient. `retry_failures` for the
 current desired revision is the only provider-retry budget (eight allowances).
-Graphile attempts track infrastructure retries independently. Legacy queued
-`failures` and `desiredRevision` mirrors are inert; new continuations carry only
-`failures: 0` for rolling worker compatibility. Do not use that wire constant to
-measure remaining allowance. Sync logs report `everr.crm.failures` only when a
+Graphile attempts track infrastructure retries independently. Queued
+commands carry no `failures` or `desiredRevision` mirrors. Read the projection row
+to measure remaining allowance. Sync logs report `everr.crm.failures` only when a
 database count is known. Never edit Graphile's
 private tables or unlock a live worker.
 

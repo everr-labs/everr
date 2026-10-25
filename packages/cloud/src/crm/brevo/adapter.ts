@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import * as z from "zod";
 import type { DesiredProjection } from "../snapshots";
 import type { BrevoBudget } from "./budget";
@@ -164,6 +165,15 @@ export function createBrevoAdapter(
     let permit: Awaited<ReturnType<BrevoBudget["acquire"]>>;
     try {
       permit = await budget.acquire(group);
+      // Wait through the ordinary contact permit gap so a GET cannot starve its write.
+      // Longer cooldowns return to durable scheduling without holding this task open.
+      if (!permit.allowed && group === "contacts") {
+        const waitMs = permit.retryAt.getTime() - Date.now();
+        if (waitMs >= 0 && waitMs <= 250) {
+          await delay(Math.min(250, waitMs + 1), undefined, { signal });
+          permit = await budget.acquire(group);
+        }
+      }
     } catch {
       if (signal?.aborted) return failure("cancelled", "request_cancelled");
       return {
@@ -411,31 +421,26 @@ export function createBrevoAdapter(
       );
     },
     async updateCompany(
-      remoteId: string,
       snapshot: Company,
+      current: CompanyRecord,
       signal?: AbortSignal,
-      current?: CompanyRecord,
     ): Promise<Result<CompanyRecord | undefined> & { changed?: boolean }> {
       if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
-      if (
-        current &&
-        (current.id !== remoteId || current.attributes.everr_org_id !== snapshot.externalId)
-      )
+      if (current.attributes.everr_org_id !== snapshot.externalId)
         return failure("identity_conflict", "external_id_mismatch");
       const desired = companyBody(snapshot);
       const attributes = Object.fromEntries(
         Object.entries(desired.attributes).filter(
           ([key, value]) =>
-            !current ||
             Object.entries(current.attributes).find(([name]) => name === key)?.[1] !== value,
         ),
       );
-      const nameChanged = !current || current.name !== desired.name;
+      const nameChanged = current.name !== desired.name;
       if (!nameChanged && Object.keys(attributes).length === 0)
         return { ok: true as const, value: undefined, changed: false };
       const result = await request(
         "PATCH",
-        `/companies/${encodeURIComponent(remoteId)}`,
+        `/companies/${encodeURIComponent(current.id)}`,
         z.union([company, z.undefined()]),
         {
           ...(nameChanged ? { name: desired.name } : {}),

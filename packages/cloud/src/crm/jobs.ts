@@ -38,7 +38,6 @@ export function userSyncSubscribers(
           eventId: event.id,
           eventType: event.type,
           occurredAt: event.occurredAt,
-          failures: 0,
         });
         await enqueue(USER_SYNC_TASK, payload, {
           ...userSyncSpec(payload.userId),
@@ -76,7 +75,6 @@ export function organizationSyncSubscribers(
           eventId: event.id,
           eventType: event.type,
           occurredAt: event.occurredAt,
-          failures: 0,
         };
         // The pair, not membership row identity or domain, is authoritative.
         const payload =

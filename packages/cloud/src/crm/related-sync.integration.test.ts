@@ -70,7 +70,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         eventId: "event",
         eventType: "membership.updated",
         occurredAt: new Date().toISOString(),
-        failures: 0,
       };
     }
     function remote() {
@@ -228,7 +227,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         eventId: "event",
         eventType: "identity.user.updated",
         occurredAt: new Date().toISOString(),
-        failures: 0,
       });
       await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization", organizationId));
     }
@@ -342,7 +340,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventId: "event-v",
         eventType: "identity.user.updated",
         occurredAt: new Date().toISOString(),
-        failures: 0,
       });
       await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
       await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership", "b"));
@@ -666,7 +663,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       eventId: "deletion-event",
       eventType: "identity.user.deleted",
       occurredAt: new Date().toISOString(),
-      failures: 0,
     });
 
     it("pages retained mappings and repairs lost deletion events with real persisted jobs after cascades", async () => {
@@ -1083,13 +1079,9 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await store.desire(await reader.membership("u", "a"));
       const removed = (await store.read(pairKey()))!;
       expect(await store.setRetryFailures(pairKey(), removed.desiredRevision, 0, 8)).toBe(true);
-      await expect(
-        state.invoke(MEMBERSHIP_SYNC_TASK, {
-          ...payload("membership"),
-          failures: 8,
-          desiredRevision: removed.desiredRevision,
-        }),
-      ).rejects.toThrow("allowance exhausted");
+      await expect(state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"))).rejects.toThrow(
+        "allowance exhausted",
+      );
       await fixture.database.insert(member).values({
         id: "new",
         userId: "u",
@@ -1097,16 +1089,12 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         role: "owner",
         createdAt: new Date(),
       });
-      await state.invoke(MEMBERSHIP_SYNC_TASK, {
-        ...payload("membership"),
-        failures: 8,
-        desiredRevision: removed.desiredRevision,
-      });
+      await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
       expect(await store.read(pairKey())).toMatchObject({ outcome: "synced", retryFailures: 0 });
     });
 
     it.each(["organization", "membership"] as const)(
-      "ignores high and low same-revision legacy mirrors for %s",
+      "preserves persisted allowances on quota deferral and exhaustion for %s",
       async (kind) => {
         const state = tasks();
         if (kind === "membership") await ready(state);
@@ -1119,46 +1107,42 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         await store.setRetryFailures(key, saved.desiredRevision, 0, 2);
         state.provider.hooks.generalAllowed = false;
         const name = kind === "organization" ? ORGANIZATION_SYNC_TASK : MEMBERSHIP_SYNC_TASK;
-        const body = { ...payload(kind), failures: 8, desiredRevision: saved.desiredRevision };
+        const body = payload(kind);
         await state.invoke(name, body);
         expect((await store.read(key))?.retryFailures).toBe(2);
         const next = [...state.queued].reverse().find((job) => job.name === name)!.body;
-        expect(next).toMatchObject({ version: 1, failures: 0 });
+        expect(next).toMatchObject({ version: 1 });
+        expect(next).not.toHaveProperty("failures");
         expect(next).not.toHaveProperty("desiredRevision");
         expect(state.diagnostic).toHaveBeenLastCalledWith("deferred", body, "manual", 2);
         await store.setRetryFailures(key, saved.desiredRevision, 2, 8);
         const calls = state.provider.transport.mock.calls.length;
-        await expect(state.invoke(name, { ...body, failures: 0 })).rejects.toThrow(
-          "allowance exhausted",
-        );
+        await expect(state.invoke(name, body)).rejects.toThrow("allowance exhausted");
         expect(state.provider.transport).toHaveBeenCalledTimes(calls);
         expect((await store.read(key))?.retryFailures).toBe(8);
       },
     );
 
-    it("ignores legacy mirrors in deletion cleanup and reports the refunded durable allowance", async () => {
+    it("preserves the deletion retry budget and reports its refunded allowance", async () => {
       const state = tasks();
       await ready(state);
       await fixture.database.delete(organization).where(eq(organization.id, "a"));
       const tombstone = await store.desire(await reader.organization("a"));
       await store.setRetryFailures(orgKey(), tombstone.desiredRevision, 0, 3);
       state.provider.hooks.generalAllowed = false;
-      const body = {
-        ...payload("organization"),
-        failures: 8,
-        desiredRevision: tombstone.desiredRevision,
-      };
+      const body = payload("organization");
       await state.invoke(ORGANIZATION_SYNC_TASK, body);
       expect((await store.read(orgKey()))?.retryFailures).toBe(3);
       expect(state.diagnostic).toHaveBeenLastCalledWith("deferred", body, "manual", 3);
       const next = [...state.queued]
         .reverse()
         .find((job) => job.name === ORGANIZATION_SYNC_TASK)!.body;
-      expect(next).toMatchObject({ version: 1, failures: 0 });
+      expect(next).toMatchObject({ version: 1 });
+      expect(next).not.toHaveProperty("failures");
       expect(next).not.toHaveProperty("desiredRevision");
       await store.setRetryFailures(orgKey(), tombstone.desiredRevision, 3, 8);
       const calls = state.provider.transport.mock.calls.length;
-      await expect(state.invoke(ORGANIZATION_SYNC_TASK, { ...body, failures: 0 })).rejects.toThrow(
+      await expect(state.invoke(ORGANIZATION_SYNC_TASK, body)).rejects.toThrow(
         "allowance exhausted",
       );
       expect(state.provider.transport).toHaveBeenCalledTimes(calls);
@@ -1246,7 +1230,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
           eventId: "event-user",
           eventType: "identity.user.updated",
           occurredAt: new Date().toISOString(),
-          failures: 0,
         },
         userSyncSpec("u"),
       );
@@ -1275,11 +1258,9 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         if (name === ORGANIZATION_SYNC_TASK) throw new Error("successor unavailable");
       });
       await expect(
-        state.invoke(
-          ORGANIZATION_SYNC_TASK,
-          { ...payload("organization"), failures: 7, desiredRevision: 1 },
-          { addJob: failed as unknown as JobHelpers["addJob"] },
-        ),
+        state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"), {
+          addJob: failed as unknown as JobHelpers["addJob"],
+        }),
       ).rejects.toThrow("persisted work");
       expect(await store.read(orgKey())).toMatchObject({
         retryFailures: 8,
@@ -1330,7 +1311,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventId: "event",
         eventType: "identity.user.updated",
         occurredAt: new Date().toISOString(),
-        failures: 0,
       });
       const stopped = execution.then(
         () => undefined,
@@ -1356,7 +1336,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventId: "next",
         eventType: "identity.user.updated",
         occurredAt: new Date().toISOString(),
-        failures: 0,
       });
       expect(await store.read(userKey)).toMatchObject({ outcome: "synced" });
     });
@@ -1406,7 +1385,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await start(state);
       const job = await utils.addJob(
         ORGANIZATION_SYNC_TASK,
-        { ...payload("organization"), failures: 7, desiredRevision: 1 },
+        payload("organization"),
         relatedSyncSpec("a"),
       );
       await until(async () => (await store.read(orgKey()))?.retryFailures === 8);
@@ -1849,7 +1828,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
             ? {
                 version: 1,
                 userId: "u",
-                failures: 0,
                 eventId: "check",
                 occurredAt: new Date().toISOString(),
                 eventType: "crm.reconciliation.requested",
@@ -1899,8 +1877,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         ...body,
         eventType: "crm.recovery.requested",
         recoverExhaustedRevision: 1,
-        failures: 8,
-        desiredRevision: 2,
       });
       const recovered = (await store.read(orgKey()))!;
       expect(recovered.desiredRevision).toBe(2);
@@ -1914,8 +1890,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         ...body,
         eventType: "crm.recovery.requested",
         recoverExhaustedRevision: 1,
-        failures: 8,
-        desiredRevision: 2,
       });
       expect((await store.read(orgKey()))!.desiredRevision).toBe(2);
     });
@@ -2099,7 +2073,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventId: "verify",
         eventType: "crm.reconciliation.requested",
         occurredAt: new Date().toISOString(),
-        failures: 0,
         verifyRemoteRevision: saved.desiredRevision,
       });
       expect(await store.read(userKey)).toMatchObject({
@@ -2142,8 +2115,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         eventType: "crm.recovery.requested",
         occurredAt: new Date().toISOString(),
         recoverExhaustedRevision: 1,
-        failures: 8,
-        desiredRevision: 2,
       });
       expect(await store.read(userKey)).toMatchObject({
         desiredRevision: newer.desiredRevision,

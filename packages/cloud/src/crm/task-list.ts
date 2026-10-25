@@ -13,7 +13,7 @@ import {
   relatedSyncSpec,
   userSyncSpec,
 } from "./jobs";
-import { createRelatedSyncTask, membershipFanout } from "./related-sync";
+import { createRelatedSyncTask } from "./related-sync";
 import type { createCrmSnapshotReader } from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
 import type { SyncDiagnostic } from "./telemetry";
@@ -28,17 +28,9 @@ export function createCrmTaskList(options: {
   adapter: ReturnType<typeof createBrevoAdapter>;
   diagnostic?: SyncDiagnostic;
 }): TaskList {
-  const fanout = membershipFanout(options.store);
-  const cleanup = createDeletionCleanup({
-    ...options,
-    reconcileMemberships: (saved, helpers, payload) => fanout(saved.desired, helpers, payload),
-  });
+  const cleanup = createDeletionCleanup(options);
   const related = createRelatedSyncTask({ ...options, cleanup });
-  const user = createUserSyncTask({
-    ...options,
-    reconcileMemberships: fanout,
-    cleanup,
-  });
+  const user = createUserSyncTask({ ...options, cleanup });
   return {
     [USER_SYNC_TASK]: coordinateCrmTask({
       ...options,

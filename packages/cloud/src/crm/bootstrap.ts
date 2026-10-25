@@ -112,7 +112,6 @@ async function admit(
     eventId: state.scan_id,
     eventType: periodic ? "crm.reconciliation.requested" : "crm.bootstrap.requested",
     occurredAt: new Date().toISOString(),
-    failures: 0,
     ...(periodic && row.verify ? { verifyRemoteRevision: row.verify } : {}),
     ...(row.recheck ? { recheckDeletionRevision: row.recheck } : {}),
     ...(row.kind === "user"

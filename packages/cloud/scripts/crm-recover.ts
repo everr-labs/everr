@@ -56,7 +56,6 @@ async function main() {
       eventId: randomUUID(),
       eventType: "crm.recovery.requested",
       occurredAt: new Date().toISOString(),
-      failures: 0,
       recoverExhaustedRevision: revision,
       ...(row.kind === "user"
         ? { userId: row.source_id }

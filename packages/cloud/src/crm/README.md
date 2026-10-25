@@ -102,10 +102,9 @@ The coordinated Graphile entry strictly validates each persisted version-1 comma
 once, before acquiring a pool connection. Its copied command supplies endpoint
 locks, contention scheduling, concrete execution, deletion cleanup and Membership
 fanout. Invalid jobs retain the existing bounded diagnostic and inspection policy
-before source reads or provider calls. Legacy v1 `failures` and `desiredRevision`
-retry mirrors remain accepted for queued work but are ignored by execution. New
-continuations write the inert `failures: 0` field for old-worker compatibility and
-omit `desiredRevision`. Explicit `recoverExhaustedRevision`, `verifyRemoteRevision`
+before source reads or provider calls. Commands contain no retry-count or desired-revision
+mirrors: the projection row is the sole retry authority. Explicit
+`recoverExhaustedRevision`, `verifyRemoteRevision`
 and `recheckDeletionRevision` remain guarded instructions.
 
 Configured mode registers `everrIntegrationWorker` with one execution slot and a

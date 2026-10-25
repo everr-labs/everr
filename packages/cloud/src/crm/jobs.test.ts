@@ -1,13 +1,11 @@
 // @vitest-environment node
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import type { EventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
 import { userSyncSubscribers, userSyncSpec } from "./jobs";
-import { contactPermitGap } from "./worker";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
-afterEach(() => vi.useRealTimers());
 
 function publisher(registrations: readonly EventRegistration[]) {
   const diagnostics = { log: vi.fn(), count: vi.fn() };
@@ -44,32 +42,9 @@ it("contains malformed subjects and enqueue failures at the real publication sea
   ]);
   expect(enqueue).toHaveBeenCalledWith(
     "crm/sync-user",
-    expect.objectContaining({ userId: "u", failures: 0 }),
+    expect.objectContaining({ userId: "u" }),
     expect.objectContaining({ maxAttempts: 8 }),
   );
-});
-
-it("waits only for the normal contact permit gap and honors cancellation", async () => {
-  vi.useFakeTimers();
-  const budget = {
-    acquire: vi
-      .fn()
-      .mockResolvedValueOnce({ allowed: false, retryAt: new Date(Date.now() + 100) })
-      .mockResolvedValue({ allowed: true }),
-    cooldown: vi.fn(),
-  };
-  const controller = new AbortController();
-  const pending = contactPermitGap(budget, controller.signal).acquire("contacts");
-  await vi.advanceTimersByTimeAsync(101);
-  expect(await pending).toEqual({ allowed: true });
-  expect(budget.acquire).toHaveBeenCalledTimes(2);
-  const long = { allowed: false, retryAt: new Date(Date.now() + 60_000) };
-  budget.acquire.mockResolvedValue(long);
-  expect(await contactPermitGap(budget, controller.signal).acquire("contacts")).toBe(long);
-  budget.acquire.mockResolvedValue({ allowed: false, retryAt: new Date(Date.now() + 100) });
-  const cancelled = contactPermitGap(budget, controller.signal).acquire("contacts");
-  controller.abort();
-  await expect(cancelled).rejects.toThrow();
 });
 
 it("registers Organization, explicit Membership, readiness and billing consumers only in cloud enabled modes", async () => {
@@ -135,7 +110,6 @@ it("admits deletion facts using only retained source identities in paused mode",
     expect.objectContaining({
       userId: "gone-user",
       eventType: "identity.user.deleted",
-      failures: 0,
     }),
     userSyncSpec("gone-user"),
   );

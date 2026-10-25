@@ -1,8 +1,9 @@
+import { enqueueMembershipSyncs } from "./membership-jobs";
 import type { JobHelpers } from "graphile-worker";
 import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncSpec, type UserSyncPayload } from "./jobs";
-import type { createCrmSnapshotReader, DesiredProjection } from "./snapshots";
+import type { createCrmSnapshotReader } from "./snapshots";
 import { snapshotFingerprint, type createCrmProjectionStore } from "./store";
 import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 import { RetainedCrmWork, type CrmTask } from "./coordination";
@@ -15,11 +16,6 @@ export function createUserSyncTask(options: {
     ReturnType<typeof createBrevoAdapter>,
     "getContact" | "createContact" | "updateContact"
   >;
-  reconcileMemberships: (
-    snapshot: DesiredProjection,
-    helpers: JobHelpers,
-    payload: UserSyncPayload,
-  ) => Promise<void>;
   diagnostic?: SyncDiagnostic;
   cleanup: DeletionCleanup;
 }): CrmTask<UserSyncPayload> {
@@ -52,12 +48,9 @@ export function createUserSyncTask(options: {
     const attemptRevision = saved.desiredRevision;
     const failures = saved.retryFailures;
     const defer = async (at: Date, outcome: "deferred" | "retry" = "deferred") => {
-      // Keep v1 readable by old workers without mirroring the database allowance.
-      const continuation = { ...payload, failures: 0 };
-      delete continuation.desiredRevision;
       // Persist the successor before acknowledging this job. A crash may duplicate work,
       // but cannot erase its durable retry budget. Coalesced jobs reread current state.
-      await helpers.addJob(USER_SYNC_TASK, continuation, {
+      await helpers.addJob(USER_SYNC_TASK, payload, {
         ...userSyncSpec(payload.userId),
         runAt: at,
       });
@@ -67,7 +60,7 @@ export function createUserSyncTask(options: {
       return options.cleanup(saved, payload, helpers, diagnosticState);
     }
     if (saved.syncedRevision === saved.desiredRevision) {
-      await options.reconcileMemberships(saved.desired, helpers, payload);
+      await enqueueMembershipSyncs(store, saved.desired, helpers, payload);
       report("synced");
       return;
     }
@@ -193,7 +186,7 @@ export function createUserSyncTask(options: {
       payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
     );
     if (synced) saved = observe({ ...saved, retryFailures: 0 });
-    await options.reconcileMemberships(saved.desired, helpers, payload);
+    await enqueueMembershipSyncs(store, saved.desired, helpers, payload);
     report("synced");
   };
   return async (payload, helpers) => {

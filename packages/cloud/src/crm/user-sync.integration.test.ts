@@ -41,7 +41,6 @@ import {
   type UserSyncPayload,
 } from "./jobs";
 import { createUserSyncTask } from "./user-sync";
-import { membershipFanout } from "./related-sync";
 import { createDeletionCleanup } from "./deletion";
 import { coordinateCrmTask } from "./coordination";
 import type { createBrevoAdapter } from "./brevo/adapter";
@@ -58,14 +57,12 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     let utils: WorkerUtils;
     let store: ReturnType<typeof createCrmProjectionStore>;
     const runners: Runner[] = [];
-    const payload = (failures = 0): UserSyncPayload => ({
+    const payload = (): UserSyncPayload => ({
       version: 1,
       userId: "u",
       eventId: "event-u",
       eventType: "identity.user.updated",
       occurredAt: new Date().toISOString(),
-      failures,
-      desiredRevision: 1,
     });
     async function seedFailures(count: number) {
       const saved = await store.desire(
@@ -111,7 +108,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           store,
           adapter: remote,
           diagnostic,
-          reconcileMemberships: membershipFanout(store),
           cleanup: createDeletionCleanup({
             store,
             adapter: {
@@ -127,7 +123,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
                 throw new Error("Unexpected Company deletion");
               },
             },
-            reconcileMemberships: async () => {},
             diagnostic,
           }),
         }),
@@ -356,7 +351,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       const helper = helpers();
       await task(remote)(payload(), helper);
       expect((await store.read(key))?.remoteId).toBe("42");
-      await task(remote)(payload(1), helpers());
+      await task(remote)(payload(), helpers());
       expect(remote.createContact).toHaveBeenCalledOnce();
       expect((await store.read(key))?.outcome).toBe("synced");
     });
@@ -374,10 +369,10 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         } as never);
         const helper = helpers();
         await seedFailures(7);
-        await task(remote)(payload(7), helper);
+        await task(remote)(payload(), helper);
         expect(helper.addJob).toHaveBeenCalledWith(
           USER_SYNC_TASK,
-          expect.objectContaining({ failures: 0 }),
+          expect.objectContaining({ userId: "u" }),
           expect.objectContaining({ runAt: retryAt }),
         );
         expect((await store.read(key))?.outcome).toBe("pending");
@@ -394,12 +389,12 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       } as never);
       const helper = helpers();
       await seedFailures(2);
-      await task(remote)(payload(2), helper);
+      await task(remote)(payload(), helper);
       const spec = helper.addJob.mock.calls[0][2]!;
-      expect(helper.addJob.mock.calls[0][1]).toMatchObject({ failures: 0 });
+      expect(helper.addJob.mock.calls[0][1]).not.toHaveProperty("failures");
       expect(spec.runAt!.getTime()).toBeGreaterThan(Date.now() + 7000);
       await seedFailures(8);
-      await utils.addJob(USER_SYNC_TASK, payload(8), userSyncSpec("u"));
+      await utils.addJob(USER_SYNC_TASK, payload(), userSyncSpec("u"));
       await start(task(remote));
       await until(
         async () =>
@@ -413,19 +408,15 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       expect(remote.getContact).toHaveBeenCalledOnce();
       // A process can die after Graphile unlocks and before the terminal listener caps retries.
       // Reexecution still inspects the persisted budget before any provider request.
-      await expect(task(remote)(payload(8), helpers())).rejects.toThrow("requires inspection");
+      await expect(task(remote)(payload(), helpers())).rejects.toThrow("requires inspection");
       // A newly admitted event for the same desired revision cannot reset exhaustion.
       await expect(task(remote)(payload(), helpers())).rejects.toThrow("requires inspection");
       expect(remote.getContact).toHaveBeenCalledOnce();
     });
 
-    it.each([
-      { durable: 2, legacy: 8, revision: 1 },
-      { durable: 7, legacy: 0, revision: 1 },
-      { durable: 3, legacy: 8, revision: 99 },
-    ])(
-      "uses durable $durable despite legacy $legacy at revision $revision",
-      async ({ durable, legacy, revision }) => {
+    it.each([2, 7, 3])(
+      "uses the durable retry count %s for transient failures",
+      async (durable) => {
         await seedFailures(durable);
         const remote = adapter();
         remote.getContact.mockResolvedValue({
@@ -434,24 +425,25 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           code: "transport_failure",
         });
         const helper = helpers();
-        await task(remote)({ ...payload(legacy), desiredRevision: revision }, helper);
+        await task(remote)(payload(), helper);
         expect(remote.getContact).toHaveBeenCalledOnce();
         expect((await store.read(key))?.retryFailures).toBe(durable + 1);
         const next = helper.addJob.mock.calls[0][1];
-        expect(next).toMatchObject({ version: 1, failures: 0 });
+        expect(next).toMatchObject({ version: 1 });
+        expect(next).not.toHaveProperty("failures");
         expect(next).not.toHaveProperty("desiredRevision");
       },
     );
 
-    it("ignores low legacy mirrors on exhausted durable work", async () => {
+    it("rejects new commands when durable work is exhausted", async () => {
       await seedFailures(8);
       const remote = adapter();
-      await expect(task(remote)(payload(0), helpers())).rejects.toThrow("requires inspection");
+      await expect(task(remote)(payload(), helpers())).rejects.toThrow("requires inspection");
       expect(remote.getContact).not.toHaveBeenCalled();
       expect((await store.read(key))?.retryFailures).toBe(8);
     });
 
-    it("does not import a high legacy mirror after guarded recovery or stale recovery replay", async () => {
+    it("recovers the guarded revision once and preserves retries on recovery replay", async () => {
       await seedFailures(8);
       const remote = adapter();
       remote.getContact.mockResolvedValue({
@@ -460,9 +452,8 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         code: "transport_failure",
       });
       const body = {
-        ...payload(8),
+        ...payload(),
         eventType: "crm.recovery.requested" as const,
-        desiredRevision: 2,
         recoverExhaustedRevision: 1,
       };
       await task(remote)(body, helpers());
@@ -477,7 +468,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       const remote = adapter();
       remote.getContact.mockRejectedValue(new Error("private unknown transport outcome"));
       const diagnostic = vi.fn();
-      const body = payload(0);
+      const body = payload();
       await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
         "CRM coordination failed",
       );
@@ -520,7 +511,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           throw new Error("private lost revision readback");
         });
       const diagnostic = vi.fn();
-      const body = payload(8);
+      const body = payload();
       await expect(task(remote, diagnostic)(body, helpers())).rejects.toThrow(
         "CRM coordination failed",
       );
@@ -544,7 +535,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         const remote = adapter();
         const diagnostic = vi.fn();
         const body: UserSyncPayload = {
-          ...payload(8),
+          ...payload(),
           eventType:
             operation === "recoverExhausted"
               ? "crm.recovery.requested"
@@ -600,7 +591,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         }),
       );
       await seedFailures(7);
-      await utils.addJob(USER_SYNC_TASK, payload(7), userSyncSpec("u"));
+      await utils.addJob(USER_SYNC_TASK, payload(), userSyncSpec("u"));
       await until(
         async () =>
           (
@@ -640,7 +631,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         .set({ email: "changed@example.test" })
         .where(eq(user.id, "u"));
       const remote = adapter();
-      await task(remote)(payload(8), helpers());
+      await task(remote)(payload(), helpers());
       expect(remote.updateContact).toHaveBeenCalledOnce();
       expect(await store.read(key)).toMatchObject({
         desiredRevision: 2,
@@ -671,7 +662,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         } else await handler(body, helper);
       });
       await seedFailures(7);
-      await utils.addJob(USER_SYNC_TASK, payload(7), userSyncSpec("u"));
+      await utils.addJob(USER_SYNC_TASK, payload(), userSyncSpec("u"));
       await until(
         async () =>
           (

@@ -25,8 +25,6 @@ const common = {
   eventId: "event",
   eventType: "identity.user.updated",
   occurredAt: "2026-10-25T12:00:00Z",
-  failures: 0,
-  desiredRevision: 1,
 };
 const entries = [
   { name: USER_SYNC_TASK, schema: userSyncPayload, body: { ...common, userId: "u" }, kind: "user" },
@@ -111,12 +109,13 @@ it.each(entries)(
     for (const raw of [
       null,
       { ...body, email: "private@example.test" },
-      { ...body, failures: 9 },
+      { ...body, failures: 0 },
+      { ...body, desiredRevision: 1 },
     ]) {
       await expect(state.invoke(name, raw)).rejects.toBeInstanceOf(RetainedCrmWork);
     }
     expect(state.diagnostic.mock.calls).toEqual(
-      Array.from({ length: 3 }, () => ["invalid", undefined, "job"]),
+      Array.from({ length: 4 }, () => ["invalid", undefined, "job"]),
     );
     expect(state.pool.connect).not.toHaveBeenCalled();
     for (const read of Object.values(state.reader)) expect(read).not.toHaveBeenCalled();
@@ -158,7 +157,6 @@ it("keeps execution and lock IDs stable when the original raw object mutates dur
   const execution = state.invoke(USER_SYNC_TASK, raw);
   raw.userId = "changed";
   raw.eventId = "changed";
-  raw.failures = 8;
   acquire();
   await execution;
   const hash = createHash("sha256")
@@ -194,7 +192,6 @@ it.each(entries)(
       userId: "changed",
       organizationId: "changed",
       eventId: "changed",
-      failures: 8,
     });
     acquire();
     await execution;
@@ -262,7 +259,7 @@ it.each(["user", "organization"])(
     expect(state.adapter.getContact).not.toHaveBeenCalled();
     expect(state.adapter.getCompany).not.toHaveBeenCalled();
     const next = state.addJob.mock.calls[0][1];
-    expect(next).toMatchObject({ failures: 0 });
+    expect(next).not.toHaveProperty("failures");
     expect(next).not.toHaveProperty("desiredRevision");
   },
 );
