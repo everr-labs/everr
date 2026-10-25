@@ -263,6 +263,72 @@ describe("ChannelDialog validation", () => {
     expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("names each missing field once Create is clicked, with the buttons enabled", async () => {
+    const onSave = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <ChannelDialog
+          target={{ mode: "new", name: "" }}
+          channels={[]}
+          pending={false}
+          onClose={() => {}}
+          onSave={onSave}
+          onDelete={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+
+    const create = screen.getByRole("button", { name: "Create channel" });
+    expect(create).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send test" })).toBeEnabled();
+    await user.click(create);
+
+    expect(onSave).not.toHaveBeenCalled();
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      "Name is required.",
+      "URL is required",
+    ]);
+    expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("textbox", { name: "Incoming webhook URL" })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    await user.type(screen.getByLabelText("Name"), "oncall");
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
+      "URL is required",
+    ]);
+  });
+
+  it("asks for a bot token and a chat on a new Telegram channel", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <ChannelDialog
+          target={{ mode: "new", name: "tg" }}
+          channels={[]}
+          pending={false}
+          onClose={() => {}}
+          onSave={vi.fn()}
+          onDelete={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Type" }));
+    await user.click(await screen.findByRole("option", { name: "Telegram" }));
+    await user.click(screen.getByRole("button", { name: "Send test" }));
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      "Bot token is required",
+      "Add at least one chat ID",
+    ]);
+    expect(testAlertingChannel).not.toHaveBeenCalled();
+  });
+
   it("sends a test of a valid draft, keeping the stored secrets", async () => {
     vi.mocked(testAlertingChannel).mockResolvedValue({ ok: true, latency_ms: 12 });
     renderDialog();

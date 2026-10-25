@@ -4,7 +4,6 @@
  * field says "keep it": the dialog omits that field and the server resolves
  * it, so the read-side redaction marker never enters a write.
  */
-import { firstZodIssue } from "#app/lib/zod-issue.ts";
 import { AlertingChannelConfigInputSchema } from "../schema";
 import type { AlertingChannelConfig, AlertingChannelConfigInput } from "../types";
 
@@ -144,29 +143,49 @@ function markHeaderIssues(
   }
 }
 
-/** What one read of a draft can be. `incomplete` is a secret not typed yet:
- *  nothing to say, and nothing to save. `error` is something the reader
- *  typed. `config` is a write. */
+/** What the reader has to change, keyed by the draft field that says so. */
+export type ChannelDraftErrors = {
+  url?: string;
+  botToken?: string;
+  chatIds?: string;
+  headers?: ChannelDraftProblem;
+};
+
+/** What one read of a draft can be: a write, or what stops it. */
 export type ChannelDraftRead =
   | { config: AlertingChannelConfigInput }
-  | { error: ChannelDraftProblem }
-  | { incomplete: true };
+  | { errors: ChannelDraftErrors };
+
+/** Where a schema issue on a write belongs on the draft. */
+function draftErrorsFromIssues(
+  issues: readonly { path: PropertyKey[]; message: string }[],
+): ChannelDraftErrors {
+  const errors: ChannelDraftErrors = {};
+  for (const { path, message } of issues) {
+    if (path[0] === "bot_token") errors.botToken ??= message;
+    else if (path[0] === "chat_ids") errors.chatIds ??= message;
+    else errors.url ??= message;
+  }
+  return errors;
+}
 
 /**
  * The one read of a channel draft. On an edit that keeps the stored kind, a
  * blank secret is omitted. A Slack channel turned into a webhook has no
- * webhook URL to retain, so a blank secret there is incomplete.
+ * webhook URL to retain, so a blank secret there is required.
  */
 export function readChannelDraft(
   draft: ChannelConfigDraft,
   storedType: ChannelType | null,
 ): ChannelDraftRead {
   const keepsSecret = storedType === draft.type;
+  const errors: ChannelDraftErrors = {};
   switch (draft.type) {
     case "webhook": {
       const headers = webhookHeadersFromDraft(draft.headers, keepsSecret && draft.url === "");
-      if (headers.message) return { error: { message: headers.message, rows: headers.rows } };
-      if (!draft.url && !keepsSecret) return { incomplete: true };
+      if (headers.message) errors.headers = { message: headers.message, rows: headers.rows };
+      if (!draft.url && !keepsSecret) errors.url = "URL is required";
+      if (errors.headers || errors.url) return { errors };
       const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.url ? { url: draft.url } : {}),
@@ -174,36 +193,35 @@ export function readChannelDraft(
         // list, so a row the reader removed has to clear the saved header.
         headers: headers.headers,
       });
-      if (!parsed.success) {
-        markHeaderIssues(headers.rows, headers.filledIndexes, parsed.error.issues);
-        return {
-          error: {
-            message: parsed.error.issues[0]?.message ?? firstZodIssue(parsed.error),
-            rows: headers.rows,
-          },
-        };
-      }
-      return { config: parsed.data };
+      if (parsed.success) return { config: parsed.data };
+      const headerIssues = parsed.error.issues.filter((issue) => issue.path[0] === "headers");
+      if (headerIssues.length === 0) return { errors: draftErrorsFromIssues(parsed.error.issues) };
+      markHeaderIssues(headers.rows, headers.filledIndexes, headerIssues);
+      return { errors: { headers: { message: headerIssues[0].message, rows: headers.rows } } };
     }
     case "slack":
     case "discord": {
-      if (!draft.url && !keepsSecret) return { incomplete: true };
+      if (!draft.url && !keepsSecret) return { errors: { url: "URL is required" } };
       const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.url ? { url: draft.url } : {}),
       });
-      return parsed.success ? { config: parsed.data } : { incomplete: true };
+      return parsed.success
+        ? { config: parsed.data }
+        : { errors: draftErrorsFromIssues(parsed.error.issues) };
     }
     case "telegram": {
-      if ((!draft.botToken && !keepsSecret) || draft.chatIds.length === 0) {
-        return { incomplete: true };
-      }
+      if (!draft.botToken && !keepsSecret) errors.botToken = "Bot token is required";
+      if (draft.chatIds.length === 0) errors.chatIds = "Add at least one chat ID";
+      if (errors.botToken || errors.chatIds) return { errors };
       const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.botToken ? { bot_token: draft.botToken } : {}),
         chat_ids: draft.chatIds,
       });
-      return parsed.success ? { config: parsed.data } : { incomplete: true };
+      return parsed.success
+        ? { config: parsed.data }
+        : { errors: draftErrorsFromIssues(parsed.error.issues) };
     }
   }
 }
