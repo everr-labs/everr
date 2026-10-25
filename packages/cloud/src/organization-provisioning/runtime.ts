@@ -1,9 +1,9 @@
-import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
-import type { BusinessEvents } from "@everr/app/composition";
+import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
+import type { EventPublisher } from "@everr/app/composition";
 import {
   organizationProvisioned,
   organizationReadinessEventDefinitions,
-  type OrganizationReadinessFact,
+  type OrganizationReadinessEvent,
 } from "@everr/app/organizations/events";
 import type { Database } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
@@ -85,9 +85,9 @@ function organizationLifecycleJob(
 export function createOrganizationTaskList(
   database: Database,
   recoverRetries: () => Promise<void>,
-  publisher: BusinessEvents<OrganizationReadinessFact>,
+  publisher: EventPublisher<OrganizationReadinessEvent>,
 ): TaskList {
-  const events = safeBusinessEvents(publisher, organizationReadinessEventDefinitions);
+  const events = safeEventPublisher(publisher, organizationReadinessEventDefinitions);
   const cleanup = async (organizationId: string, abortSignal?: AbortSignal) => {
     await deletePostgresOrganizationData(organizationId, database);
     await deprovisionSqlApiOrgUser(organizationId, abortSignal);

@@ -22,7 +22,7 @@ Index: [commit sequence](../README.md).
 
 These are starting points, not permission to rewrite unrelated modules.
 
-- `packages/app/src/server/business-events/`
+- `packages/app/src/server/events/`
 - `packages/app/src/composition/`
 - `packages/app/src/app/composition/`
 - `packages/cloud/src/app/composition/`
@@ -84,9 +84,9 @@ Verification on October 23, 2026:
 
 Scoped files:
 
-- `packages/app/src/composition/business-events.ts`, `index.ts`, `runtime.ts`
-- `packages/app/src/server/business-events/{publisher,subscriber,telemetry,runtime}.ts`
-- `packages/app/src/server/business-events/{publisher,telemetry}.test.ts`
+- `packages/app/src/composition/events.ts`, `index.ts`, `runtime.ts`
+- `packages/app/src/server/events/{publisher,registration,telemetry,runtime}.ts`
+- `packages/app/src/server/events/{publisher,telemetry}.test.ts`
 - `packages/app/src/server/shutdown.ts` and `shutdown.test.ts`
 - Both `packages/{app,cloud}/src/app/composition/runtime.ts` adapters
 - `packages/app/package.json` public server exports and `packages/app/README.md`
@@ -106,7 +106,7 @@ repository's documented standards on October 23, 2026.
   fields after successful publication validation. The adapter now removes those
   metadata fields before parsing, then restores the original envelope metadata.
   A strict-schema regression confirms delivery succeeds without a diagnostic.
-- Clarified the existing feature seam, `BusinessEvents<FeatureFact>`, and payload
+- Clarified the existing feature seam, `EventPublisher<FeatureFact>`, and payload
   ownership. Feature parsers must leave input unchanged and return independent
   payload values, as Zod object schemas do. The envelope is shallow-frozen;
   general deep cloning or arbitrary subscriber mutation isolation is not claimed.

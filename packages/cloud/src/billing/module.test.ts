@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
-import type { BusinessEventFact } from "@everr/app/composition";
+import type { EventInput } from "@everr/app/composition";
 import type { Database } from "@everr/app/db/client";
 import * as coreSchema from "@everr/app/db/schema";
 import { serverLogger } from "@everr/app/telemetry/logger";
@@ -135,8 +135,8 @@ const gateway = {
   ),
   revokeSubscription: vi.fn(async () => {}),
 } satisfies PolarGateway;
-const published: BusinessEventFact[] = [];
-const publish = vi.fn((fact: BusinessEventFact) => {
+const published: EventInput[] = [];
+const publish = vi.fn((fact: EventInput) => {
   published.push(fact);
 });
 const billing = createBillingModule({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
+import type { EventDefinition } from "#app/composition/events.ts";
 
 /** Readiness means provisioning completed, independently of Plan, access, or activation. */
 const provisioned = z
@@ -10,16 +10,16 @@ const provisioned = z
     data: z.object({ organizationId: z.string().min(1) }).strict(),
   })
   .strict();
-export type OrganizationReadinessFact = z.infer<typeof provisioned>;
+export type OrganizationReadinessEvent = z.infer<typeof provisioned>;
 export const organizationReadinessEventDefinitions = [
   {
     type: "organization.provisioned",
     version: 1,
     parse: (input: unknown) => provisioned.parse(input),
   },
-] satisfies readonly BusinessEventDefinition<OrganizationReadinessFact>[];
+] satisfies readonly EventDefinition<OrganizationReadinessEvent>[];
 
-export function organizationProvisioned(organizationId: string): OrganizationReadinessFact {
+export function organizationProvisioned(organizationId: string): OrganizationReadinessEvent {
   return {
     type: "organization.provisioned",
     version: 1,

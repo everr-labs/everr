@@ -2,7 +2,7 @@
 
 import { createApplicationAuth } from "@everr/app/identity/module";
 import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";
-import type { IdentityFact } from "@everr/app/identity/events";
+import type { IdentityEvent } from "@everr/app/identity/events";
 import type { Database, DbExecutor, Transaction } from "@everr/app/db/client";
 import { dashboards, invitation, member, organization, user } from "@everr/app/db/schema";
 import {
@@ -437,7 +437,7 @@ it("returns a ready organization from the actual endpoint when its durable job f
 
 it("preserves atomic provisioning and cleanup under the shared post-commit identity adapter", async () => {
   const database = withTransactionReads(fixture.db as unknown as Database);
-  const facts: IdentityFact[] = [];
+  const facts: IdentityEvent[] = [];
   const shared = createApplicationAuth(
     {
       policy: {

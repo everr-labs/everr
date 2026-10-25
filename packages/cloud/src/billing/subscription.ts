@@ -1,4 +1,4 @@
-import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
+import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { randomUUID } from "node:crypto";
 import { member, organization } from "@everr/app/db/schema";
 import { membershipChanged, membershipEventDefinitions } from "@everr/app/identity/events";
@@ -24,7 +24,7 @@ export function createBillingSubscriptions(
   identity: ReturnType<typeof createBillingIdentity>,
 ) {
   const { db, polar, lock } = deps;
-  const events = safeBusinessEvents(deps.events, membershipEventDefinitions);
+  const events = safeEventPublisher(deps.events, membershipEventDefinitions);
   async function ensureOrganization(
     intent: Awaited<ReturnType<typeof readIntent>>,
     createOrganization: CreateOrganization,

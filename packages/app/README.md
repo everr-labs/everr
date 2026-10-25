@@ -217,7 +217,7 @@ Production self-hosted uses the separate
 with the installation's public ingestion URL and an ingest key.
 
 Shared identity publishes User, Organization, and Membership lifecycle facts
-through `BusinessEvents<IdentityFact>`. `identity/identity-adapter.ts` captures
+through `EventPublisher<IdentityEvent>`. `identity/identity-adapter.ts` captures
 persisted before/after identity under locks and publishes after its outermost
 source transaction commits. Better Auth 1.6.33 also runs queued database
 after-hooks following rollback, so those hooks are not the publication boundary.

@@ -1,4 +1,4 @@
-import { events } from "#app/server/business-events/runtime.ts";
+import { events } from "#app/server/events/runtime.ts";
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "#app/db/client.ts";
 import {

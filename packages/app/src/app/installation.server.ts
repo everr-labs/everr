@@ -1,16 +1,16 @@
-import { safeBusinessEvents } from "#app/server/business-events/safe-publication.ts";
+import { safeEventPublisher } from "#app/server/events/safe-publication.ts";
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#app/db/database.ts";
 import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
-import type { BusinessEvents } from "#app/composition/business-events.ts";
+import type { EventPublisher } from "#app/composition/events.ts";
 import {
   identityEventDefinitions,
   membershipChanged,
   organizationChanged,
   userCreated,
-  type IdentityFact,
+  type IdentityEvent,
 } from "#app/identity/events.ts";
 import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
@@ -64,9 +64,9 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database,
-  publisher: BusinessEvents<IdentityFact> = { publish() {} },
+  publisher: EventPublisher<IdentityEvent> = { publish() {} },
 ) {
-  const events = safeBusinessEvents(publisher, identityEventDefinitions);
+  const events = safeEventPublisher(publisher, identityEventDefinitions);
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
   const result = await database.transaction(async (tx) => {

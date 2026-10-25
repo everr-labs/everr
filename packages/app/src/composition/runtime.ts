@@ -1,4 +1,4 @@
-import type { ApplicationBusinessEvents, BusinessEvents } from "./business-events";
+import type { ApplicationEvents, EventPublisher } from "./events";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
 import type { UsefulConsultations } from "#app/organizations/consultations.ts";
 
@@ -17,9 +17,9 @@ export interface ApplicationWorker {
 
 /** Application-owned database upgrades and background work. */
 export interface ApplicationRuntime {
-  readonly businessEvents: ApplicationBusinessEvents;
+  readonly events: ApplicationEvents;
   /** Cloud product capability, independent of outbound CRM provider availability. */
-  createUsefulConsultations?(this: void, events: BusinessEvents): UsefulConsultations;
+  createUsefulConsultations?(this: void, events: EventPublisher): UsefulConsultations;
   migrateDatabase(this: void, database: MigrationDatabase): Promise<void>;
   /** Only additional workers owned by this composition, never product workers. */
   registerWorkers(this: void): Promise<readonly ApplicationWorker[]>;

@@ -1,7 +1,7 @@
-import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
+import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { db } from "@everr/app/db/client";
 import { membershipChanged, membershipEventDefinitions } from "@everr/app/identity/events";
-import { events as publisher } from "@everr/app/server/business-events/runtime";
+import { events as publisher } from "@everr/app/server/events/runtime";
 import { organizationPlanChanged, billingEventDefinitions } from "../billing/events";
 import { restrictOrganizationToOwner } from "@everr/app/identity/memberships";
 import { auth } from "@everr/app/identity/server";
@@ -13,7 +13,7 @@ import { type CreateOrganizationInputSchema, generateOrgSlug } from "../common/o
 import { organizationBilling } from "../db/schema";
 import { lockOrganizationOwnership } from "../organization-lock.server";
 
-const events = safeBusinessEvents(publisher, [
+const events = safeEventPublisher(publisher, [
   ...membershipEventDefinitions,
   ...billingEventDefinitions,
 ]);

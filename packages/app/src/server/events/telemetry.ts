@@ -2,6 +2,7 @@ import { metrics } from "@opentelemetry/api";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import type { PublicationDiagnostics } from "./diagnostics";
 
+// Keep these diagnostic identities stable across implementation renames.
 const failures = metrics
   .getMeter("everr-app.business-events")
   .createCounter("everr.business_events.publication.failures", {

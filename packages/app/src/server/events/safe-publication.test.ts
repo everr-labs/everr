@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { expect, it, vi } from "vite-plus/test";
-import type { BusinessEventFact } from "#app/composition/business-events.ts";
-import { safeBusinessEvents } from "./safe-publication";
+import type { EventInput } from "#app/composition/events.ts";
+import { safeEventPublisher } from "./safe-publication";
 
 const fact = { type: "verification.created", version: 1, subjectId: "id", data: {} };
 const definitions = [{ type: fact.type, version: 1, parse: () => fact }];
@@ -15,7 +15,7 @@ it.each(["throw", "reject"])(
       }),
       count: vi.fn(() => Promise.reject(new Error("counter broken"))),
     };
-    const { publish } = safeBusinessEvents(
+    const { publish } = safeEventPublisher(
       {
         publish() {
           if (failure === "reject")
@@ -56,12 +56,12 @@ it.each([
   "contains malformed runtime facts with bounded diagnostics (%s)",
   async (_label, input) => {
     const diagnostics = { log: vi.fn(), count: vi.fn() };
-    const events = safeBusinessEvents(
+    const events = safeEventPublisher(
       { publish: () => Promise.reject(new Error("private body")) as unknown as void },
       definitions,
       diagnostics,
     );
-    expect(() => events.publish(input() as BusinessEventFact)).not.toThrow();
+    expect(() => events.publish(input() as EventInput)).not.toThrow();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(diagnostics.count).toHaveBeenCalledWith(
       expect.objectContaining({ eventType: "unknown" }),
@@ -71,7 +71,7 @@ it.each([
 
 it("calls the injected publisher once and returns without waiting for completion", () => {
   const publish = vi.fn(() => new Promise<void>(() => {}) as unknown as void);
-  const events = safeBusinessEvents({ publish }, definitions);
+  const events = safeEventPublisher({ publish }, definitions);
   expect(events.publish(fact)).toBeUndefined();
   expect(publish).toHaveBeenCalledExactlyOnceWith(fact);
 });

@@ -2,10 +2,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
-import type { BusinessEvents } from "#app/composition/business-events.ts";
-import { createBusinessEventPublisher } from "#app/server/business-events/publisher.ts";
-import { businessEventRegistration } from "#app/server/business-events/subscriber.ts";
-import { userEventDefinitions, type UserFact } from "./events";
+import type { EventPublisher } from "#app/composition/events.ts";
+import { createEventPublisher } from "#app/server/events/publisher.ts";
+import { eventRegistration } from "#app/server/events/registration.ts";
+import { userEventDefinitions, type UserEvent } from "./events";
 import { createAuthTestDatabase } from "./testing/database";
 import { identityLifecycleAdapter } from "./identity-adapter";
 
@@ -18,7 +18,7 @@ beforeEach(async () => {
 });
 const input = { name: "Person", email: "person@example.test", password: "long-test-password" };
 function createAuth(
-  events: BusinessEvents<UserFact>,
+  events: EventPublisher<UserEvent>,
   extra: Parameters<typeof betterAuth>[0] = {},
 ) {
   return betterAuth({
@@ -35,11 +35,11 @@ function createAuth(
   });
 }
 function capture() {
-  const facts: UserFact[] = [];
+  const facts: UserEvent[] = [];
   return {
     facts,
     events: {
-      publish: (fact: UserFact) => {
+      publish: (fact: UserEvent) => {
         facts.push(fact);
       },
     },
@@ -184,9 +184,9 @@ it.each(["password", "OAuth"])(
 it("keeps a real committed signup successful when a subscriber fails", async () => {
   const failure = vi.fn();
   const definition = userEventDefinitions[0];
-  const publisher = createBusinessEventPublisher({
+  const publisher = createEventPublisher({
     registrations: [
-      businessEventRegistration(definition, {
+      eventRegistration(definition, {
         id: "user-test",
         enqueue: async () => {
           throw new Error("enqueue unavailable");

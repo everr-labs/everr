@@ -42,8 +42,8 @@ import type {
 import { createIdentityAuthHooks, type ResolvedSession } from "#app/telemetry/auth-identity.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
-import type { BusinessEvents } from "#app/composition/business-events.ts";
-import type { IdentityFact } from "./events";
+import type { EventPublisher } from "#app/composition/events.ts";
+import type { IdentityEvent } from "./events";
 import { identityLifecycleAdapter } from "./identity-adapter";
 import { invitationVisibilityPlugin } from "./invitations";
 
@@ -127,7 +127,7 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 export interface IdentityDependencies {
-  events: BusinessEvents<IdentityFact>;
+  events: EventPublisher<IdentityEvent>;
   database: Database;
   baseURL: string;
   secret: string;

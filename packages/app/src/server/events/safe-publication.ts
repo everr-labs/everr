@@ -1,17 +1,13 @@
-import type {
-  BusinessEventDefinition,
-  BusinessEventFact,
-  BusinessEvents,
-} from "#app/composition/business-events.ts";
+import type { EventDefinition, EventInput, EventPublisher } from "#app/composition/events.ts";
 import { reportPublicationFailure, type PublicationDiagnostics } from "./diagnostics";
 import { publicationDiagnostics } from "./telemetry";
 
 /** Normalize an injected port once, without wrapping or awaiting its source operation. */
-export function safeBusinessEvents<F extends BusinessEventFact>(
-  publisher: BusinessEvents<F>,
-  definitions: readonly BusinessEventDefinition[],
+export function safeEventPublisher<F extends EventInput>(
+  publisher: EventPublisher<F>,
+  definitions: readonly EventDefinition[],
   diagnostics: PublicationDiagnostics = publicationDiagnostics,
-): BusinessEvents<F> {
+): EventPublisher<F> {
   const types = new Set(definitions.map((definition) => definition.type));
   return {
     publish(fact) {

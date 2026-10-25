@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
+import type { EventDefinition } from "#app/composition/events.ts";
 
 const userData = z.object({ userId: z.string().min(1) }).strict();
 const base = z.object({
@@ -18,14 +18,14 @@ const verified = base
   .extend({ type: z.literal("identity.email.verified"), data: userData })
   .strict();
 const deleted = base.extend({ type: z.literal("identity.user.deleted"), data: userData }).strict();
-export type UserFact = z.infer<typeof created | typeof updated | typeof verified | typeof deleted>;
+export type UserEvent = z.infer<typeof created | typeof updated | typeof verified | typeof deleted>;
 export const userEventDefinitions = [created, updated, verified, deleted].map((schema) => ({
   type: schema.shape.type.value,
   version: 1,
   parse: (input: unknown) => schema.parse(input),
-})) satisfies readonly BusinessEventDefinition<UserFact>[];
+})) satisfies readonly EventDefinition<UserEvent>[];
 
-export function userCreated(userId: string, emailVerified: boolean): UserFact {
+export function userCreated(userId: string, emailVerified: boolean): UserEvent {
   return {
     type: "identity.user.created",
     version: 1,
@@ -34,9 +34,9 @@ export function userCreated(userId: string, emailVerified: boolean): UserFact {
   };
 }
 export function userChanged(
-  type: Exclude<UserFact["type"], "identity.user.created">,
+  type: Exclude<UserEvent["type"], "identity.user.created">,
   userId: string,
-): UserFact {
+): UserEvent {
   return { type, version: 1, subjectId: userId, data: { userId } };
 }
 
@@ -50,7 +50,7 @@ const organizationUpdated = base
 const organizationDeleted = base
   .extend({ type: z.literal("organization.deleted"), data: organizationData })
   .strict();
-export type OrganizationFact = z.infer<
+export type OrganizationEvent = z.infer<
   typeof organizationCreated | typeof organizationUpdated | typeof organizationDeleted
 >;
 export const organizationEventDefinitions = [
@@ -61,7 +61,7 @@ export const organizationEventDefinitions = [
   type: schema.shape.type.value,
   version: 1,
   parse: (input: unknown) => schema.parse(input),
-})) satisfies readonly BusinessEventDefinition<OrganizationFact>[];
+})) satisfies readonly EventDefinition<OrganizationEvent>[];
 
 const membershipData = z
   .object({
@@ -79,7 +79,7 @@ const membershipUpdated = base
 const membershipRemoved = base
   .extend({ type: z.literal("membership.removed"), data: membershipData })
   .strict();
-export type MembershipFact = z.infer<
+export type MembershipEvent = z.infer<
   typeof membershipAdded | typeof membershipUpdated | typeof membershipRemoved
 >;
 export const membershipEventDefinitions = [
@@ -90,9 +90,9 @@ export const membershipEventDefinitions = [
   type: schema.shape.type.value,
   version: 1,
   parse: (input: unknown) => schema.parse(input),
-})) satisfies readonly BusinessEventDefinition<MembershipFact>[];
+})) satisfies readonly EventDefinition<MembershipEvent>[];
 
-export type IdentityFact = UserFact | OrganizationFact | MembershipFact;
+export type IdentityEvent = UserEvent | OrganizationEvent | MembershipEvent;
 export const identityEventDefinitions = [
   ...userEventDefinitions,
   ...organizationEventDefinitions,
@@ -104,15 +104,15 @@ export const identityEventDefinitions = [
  * deletes retain their relationship IDs before the source rows disappear.
  */
 export function organizationChanged(
-  type: OrganizationFact["type"],
+  type: OrganizationEvent["type"],
   organizationId: string,
-): OrganizationFact {
+): OrganizationEvent {
   return { type, version: 1, subjectId: organizationId, data: { organizationId } };
 }
 export function membershipChanged(
-  type: MembershipFact["type"],
+  type: MembershipEvent["type"],
   member: { id: string; organizationId: string; userId: string },
-): MembershipFact {
+): MembershipEvent {
   return {
     type,
     version: 1,

@@ -1,4 +1,4 @@
-import type { BusinessEventDefinition } from "@everr/app/composition";
+import type { EventDefinition } from "@everr/app/composition";
 import { z } from "zod";
 
 const base = z.object({
@@ -21,18 +21,18 @@ const planChanged = base
     data: z.object({ organizationId: z.string().min(1), previousPlan: plan, plan }).strict(),
   })
   .strict();
-export type BillingFact = z.infer<typeof subscriptionChanged | typeof planChanged>;
+export type BillingEvent = z.infer<typeof subscriptionChanged | typeof planChanged>;
 export const billingEventDefinitions = [subscriptionChanged, planChanged].map((schema) => ({
   type: schema.shape.type.value,
   version: 1,
   parse: (input: unknown) => schema.parse(input),
-})) satisfies readonly BusinessEventDefinition<BillingFact>[];
+})) satisfies readonly EventDefinition<BillingEvent>[];
 
 export function organizationPlanChanged(
   organizationId: string,
   previousPlan: "hobby" | "pro",
   plan: "hobby" | "pro",
-): BillingFact {
+): BillingEvent {
   return {
     type: "organization.plan.changed",
     version: 1,

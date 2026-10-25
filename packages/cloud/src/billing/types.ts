@@ -1,6 +1,6 @@
-import type { BusinessEvents } from "@everr/app/composition";
-import type { MembershipFact } from "@everr/app/identity/events";
-import type { BillingFact } from "./events";
+import type { EventPublisher } from "@everr/app/composition";
+import type { MembershipEvent } from "@everr/app/identity/events";
+import type { BillingEvent } from "./events";
 import type { Database } from "@everr/app/db/client";
 
 export type Person = { id: string; name: string; email: string };
@@ -83,7 +83,7 @@ export interface PolarGateway {
   revokeSubscription(this: void, id: string): Promise<void>;
 }
 export type BillingDependencies = {
-  events: BusinessEvents<BillingFact | MembershipFact>;
+  events: EventPublisher<BillingEvent | MembershipEvent>;
   db: Database;
   polar: PolarGateway;
   lock: <T>(key: string, run: () => Promise<T>) => Promise<T>;

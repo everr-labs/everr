@@ -10,10 +10,7 @@ import {
 const crmConfig = readBrevoConfig(process.env);
 
 export const runtime: ApplicationRuntime = {
-  businessEvents: [
-    ...userSyncSubscribers(crmConfig.mode),
-    ...organizationSyncSubscribers(crmConfig.mode),
-  ],
+  events: [...userSyncSubscribers(crmConfig.mode), ...organizationSyncSubscribers(crmConfig.mode)],
   createUsefulConsultations(events) {
     return createUsefulConsultations({ store: createOrganizationMilestoneStore(db), events });
   },

@@ -47,10 +47,10 @@ and use a runner according to capacity and latency needs; one event category
 does not imply another runner, pool, schema, or process. Do not add unrelated CRM
 work to the reserved provisioning runner without revisiting its capacity.
 
-## Best-effort business event publication
+## Best-effort event publication
 
-`server/business-events/runtime.ts` composes `events.publish(fact): void` from
-`ApplicationRuntime.businessEvents`. Features own typed definitions and payload
+`server/events/runtime.ts` composes `events.publish(fact): void` from
+`ApplicationRuntime.events`. Features own typed definitions and payload
 validation; each static registration pairs one feature definition with its typed
 subscribers. Routing is derived from these registrations by event type and version.
 Self-hosted registers shared User, Organization, Membership, and readiness facts
@@ -65,20 +65,25 @@ A producer calls publication after its source commit succeeds, using values
 already available from that operation. Publication validates the fact, constructs
 an ID and occurrence time, and schedules independent subscriber enqueue attempts in
 microtasks. A subscriber can throw or reject without preventing siblings from
-running or changing the source result. `businessEventRegistration` infers each
+running or changing the source result. `eventRegistration` infers each
 consumer payload from its feature definition. Publication validates once through
 that definition, then copies the validated snapshot for each consumer. Persisted
 command payload validation remains separate at admission and worker execution. The producer
 interface has no transaction argument, and this module persists no outbox.
 
-Source injection seams normalize publishers once with `safeBusinessEvents`.
+Source injection seams normalize publishers once with `safeEventPublisher`.
 Producers call `events.publish(fact)` directly after commit. Synchronous throws and
 unexpected promise rejections from an injected port are contained and measured,
 without awaiting publication or catching source operation failures. Injected failure
 diagnostics use a fixed error message, excluding thrown payloads and response bodies.
 Each diagnostic emitter is guarded independently.
 
-Features depend on `BusinessEvents<FeatureFact>` to restrict their producer input;
+Diagnostic identities remain stable for existing queries and alerts: the meter
+`everr-app.business-events`, counter `everr.business_events.publication.failures`,
+log body `business_events.publication.failed`, `everr.business_event.*` attributes,
+and shutdown hook ID `business-events` retain their established names.
+
+Features depend on `EventPublisher<FeatureEvent>` to restrict their producer input;
 the application runtime routes the broad fact interface. A feature parser receives
 fact-shaped input without publisher metadata. It must leave its input unchanged
 and return independent payload values, as Zod object schemas do. Treat facts as

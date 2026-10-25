@@ -5,12 +5,12 @@ import { withTransactionReads } from "./transaction-reads";
 import * as schema from "#app/db/schema/index.ts";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import type { BusinessEvents } from "#app/composition/business-events.ts";
+import type { EventPublisher } from "#app/composition/events.ts";
 import { identityLifecycleAdapter } from "../identity-adapter";
-import type { UserFact } from "../events";
+import type { UserEvent } from "../events";
 
 /** Exercise the real committed auth adapter from a consumer's isolated database tests. */
-export function createIdentityTestAuth(database: Database, events: BusinessEvents<UserFact>) {
+export function createIdentityTestAuth(database: Database, events: EventPublisher<UserEvent>) {
   return betterAuth({
     baseURL: "http://localhost:3000",
     secret: "identity-consumer-integration-secret-long-enough",

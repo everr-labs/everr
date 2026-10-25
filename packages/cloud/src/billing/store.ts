@@ -1,4 +1,4 @@
-import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
+import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { member, organization, user } from "@everr/app/db/schema";
 import { isOrganizationAdmin, isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
@@ -8,7 +8,7 @@ import { assertPolarProductGrantsPlan } from "./catalog.server";
 import { type BillingDependencies, BillingError, type Subscription } from "./types";
 
 export function createBillingStore({ db, events: publisher }: BillingDependencies) {
-  const events = safeBusinessEvents(publisher, billingEventDefinitions);
+  const events = safeEventPublisher(publisher, billingEventDefinitions);
   const store = {
     async person(id: string) {
       const [person] = await db

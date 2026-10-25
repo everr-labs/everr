@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type {
-  ApplicationBusinessEvents,
-  BusinessEvent,
-  BusinessEventFact,
-  BusinessEvents,
-} from "#app/composition/business-events.ts";
+  ApplicationEvents,
+  PublishedEvent,
+  EventInput,
+  EventPublisher,
+} from "#app/composition/events.ts";
 
 import {
   reportPublicationFailure,
@@ -12,19 +12,14 @@ import {
   type PublicationFailure,
   type PublicationFailureStage,
 } from "./diagnostics";
-export interface BusinessEventPublisher extends BusinessEvents {
-  /** Closes admission immediately. Waits at most drainTimeoutMs; does not cancel persisted work. */
-  stop(this: void): Promise<void>;
-}
-
 /** No queue or persistence of its own. Accepted work is bounded, excess facts are lost. */
-export function createBusinessEventPublisher(options: {
-  registrations: ApplicationBusinessEvents;
+export function createEventPublisher(options: {
+  registrations: ApplicationEvents;
   diagnostics: PublicationDiagnostics;
   maxInFlight?: number;
   drainTimeoutMs?: number;
   metadata?: () => { id: string; occurredAt: string };
-}): BusinessEventPublisher {
+}): EventPublisher & { stop(this: void): Promise<void> } {
   const { diagnostics, maxInFlight = 128, drainTimeoutMs = 5_000 } = options;
   if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1)
     throw new Error("Invalid publication capacity");
@@ -60,10 +55,10 @@ export function createBusinessEventPublisher(options: {
 
   const report = (failure: PublicationFailure) => reportPublicationFailure(diagnostics, failure);
 
-  function publish(fact: BusinessEventFact): void {
+  function publish(fact: EventInput): void {
     if (!hasSubscribers) return;
     let eventType = "unknown";
-    let event: BusinessEvent | undefined;
+    let event: PublishedEvent | undefined;
     let stage: PublicationFailureStage = "validation";
     try {
       const registration = registrations.get(JSON.stringify([fact.type, fact.version]));
@@ -83,7 +78,7 @@ export function createBusinessEventPublisher(options: {
         });
         return;
       }
-      let parsed: BusinessEventFact;
+      let parsed: EventInput;
       try {
         parsed = definition.parse(fact);
         if (
@@ -159,6 +154,7 @@ export function createBusinessEventPublisher(options: {
     }
   }
 
+  /** Closes admission immediately. Waits at most drainTimeoutMs; does not cancel persisted work. */
   function stop(): Promise<void> {
     closed = true;
     stopping ??= new Promise<void>((resolve) => {

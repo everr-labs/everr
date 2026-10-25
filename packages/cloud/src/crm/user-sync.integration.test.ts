@@ -7,7 +7,7 @@ import {
   createIdentityTestAuth,
 } from "@everr/app/identity/testing/database";
 import { userCreated } from "@everr/app/identity/events";
-import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
+import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { addWorkerJobUsing } from "@everr/app/server/worker/jobs";
 import { eq, SQL } from "drizzle-orm";
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
@@ -161,7 +161,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     it("persists cloud consumer work before the runner starts, then loads latest state", async () => {
       const enqueue = async (name: string, body: unknown, spec = {}) =>
         addWorkerJobUsing(fixture.database, name, body, spec);
-      const publisher = createBusinessEventPublisher({
+      const publisher = createEventPublisher({
         registrations: userSyncSubscribers("configured", enqueue),
         diagnostics: { log() {}, count() {} },
       });
@@ -183,7 +183,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
 
     it("keeps actual committed auth signup successful when the cloud consumer rejects enqueue", async () => {
       const log = vi.fn();
-      const publisher = createBusinessEventPublisher({
+      const publisher = createEventPublisher({
         registrations: userSyncSubscribers("configured", async () => {
           throw new Error("enqueue unavailable");
         }),

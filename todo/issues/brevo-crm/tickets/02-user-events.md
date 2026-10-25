@@ -48,7 +48,7 @@ Independent review is complete. The coordinating agent committed this ticket as
 `9696b6ce5`.
 
 - Shared identity owns strict versioned User facts and the typed
-  `BusinessEvents<UserFact>` producer seam. Payloads contain the stable User ID;
+  `EventPublisher<UserEvent>` producer seam. Payloads contain the stable User ID;
   creation also records initial verified status. Zod readers return independently
   owned values. Both compositions register the definitions with no subscribers.
 - `userLifecycleAdapter` owns the existing Better Auth persistence boundary.

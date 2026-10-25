@@ -1,4 +1,4 @@
-import { events } from "@everr/app/server/business-events/runtime";
+import { events } from "@everr/app/server/events/runtime";
 import { db } from "@everr/app/db/client";
 import { env } from "@everr/app/env";
 import { withBillingRequest, withCheckoutLock } from "./lock.server";

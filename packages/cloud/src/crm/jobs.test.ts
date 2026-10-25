@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
-import type { BusinessEventRegistration } from "@everr/app/composition";
+import { createEventPublisher } from "@everr/app/server/events/publisher";
+import type { EventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
 import { userSyncSubscribers, userSyncSpec } from "./jobs";
 import { contactPermitGap } from "./worker";
@@ -9,9 +9,9 @@ import { contactPermitGap } from "./worker";
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 afterEach(() => vi.useRealTimers());
 
-function publisher(registrations: readonly BusinessEventRegistration[]) {
+function publisher(registrations: readonly EventRegistration[]) {
   const diagnostics = { log: vi.fn(), count: vi.fn() };
-  return { ...createBusinessEventPublisher({ registrations, diagnostics }), diagnostics };
+  return { ...createEventPublisher({ registrations, diagnostics }), diagnostics };
 }
 
 it("registers cloud lifecycle consumers while disabled mode remains inert", () => {

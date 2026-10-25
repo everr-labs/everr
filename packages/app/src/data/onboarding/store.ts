@@ -1,15 +1,15 @@
-import { safeBusinessEvents } from "#app/server/business-events/safe-publication.ts";
+import { safeEventPublisher } from "#app/server/events/safe-publication.ts";
 import { and, eq, exists, sql } from "drizzle-orm";
 import type { HomeStatus } from "#app/common/onboarding.ts";
 import type { Database } from "#app/db/client.ts";
 import { member, organization } from "#app/db/schema/index.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 
-import type { BusinessEvents } from "#app/composition/business-events.ts";
+import type { EventPublisher } from "#app/composition/events.ts";
 import {
   organizationEventDefinitions,
   organizationChanged,
-  type OrganizationFact,
+  type OrganizationEvent,
 } from "#app/identity/events.ts";
 
 interface OnboardingScope {
@@ -19,9 +19,9 @@ interface OnboardingScope {
 
 export function createOnboardingStore(
   database: Pick<Database, "select" | "update">,
-  publisher: BusinessEvents<OrganizationFact> = { publish() {} },
+  publisher: EventPublisher<OrganizationEvent> = { publish() {} },
 ) {
-  const events = safeBusinessEvents(publisher, organizationEventDefinitions);
+  const events = safeEventPublisher(publisher, organizationEventDefinitions);
   // Metadata is stored as JSON text. Both SQL NULL and JSON null represent an
   // organization without metadata; malformed JSON must surface as an error.
   const metadata = sql`coalesce(nullif(nullif(${organization.metadata}, '')::jsonb, 'null'::jsonb), '{}'::jsonb)`;

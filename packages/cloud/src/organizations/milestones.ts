@@ -1,4 +1,4 @@
-import type { BusinessEvents } from "@everr/app/composition";
+import type { EventPublisher } from "@everr/app/composition";
 import type { Database } from "@everr/app/db/database";
 import { organization } from "@everr/app/db/schema";
 import {
@@ -6,9 +6,9 @@ import {
   organizationMilestoneDefinitions,
   type UsefulConsultation,
   type UsefulConsultations,
-  type OrganizationMilestoneFact,
+  type OrganizationMilestoneEvent,
 } from "@everr/app/organizations/consultations";
-import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
+import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { eq, sql } from "drizzle-orm";
 import { organizationMilestones } from "../db/schema/organization-milestones";
 import { milestoneDiagnostic, type MilestoneDiagnostics } from "./telemetry";
@@ -55,7 +55,7 @@ export function createOrganizationMilestoneStore(database: Database) {
 /** Bounded, fire-and-forget observation owned by Cloud, without an intermediate event. */
 export function createUsefulConsultations(options: {
   store: ReturnType<typeof createOrganizationMilestoneStore>;
-  events: BusinessEvents<OrganizationMilestoneFact>;
+  events: EventPublisher<OrganizationMilestoneEvent>;
   diagnostics?: MilestoneDiagnostics;
   now?: () => Date;
   maxInFlight?: number;
@@ -79,7 +79,7 @@ export function createUsefulConsultations(options: {
       }
     }
   };
-  const events = safeBusinessEvents(options.events, organizationMilestoneDefinitions, {
+  const events = safeEventPublisher(options.events, organizationMilestoneDefinitions, {
     log: () => diagnostics.log("publication"),
     count: () => diagnostics.count("publication"),
   });

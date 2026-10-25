@@ -1,8 +1,8 @@
-import { safeBusinessEvents } from "#app/server/business-events/safe-publication.ts";
+import { safeEventPublisher } from "#app/server/events/safe-publication.ts";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq, inArray } from "drizzle-orm";
 import type { IdentityProvider } from "#app/composition/identity-provider.ts";
-import type { BusinessEvents } from "#app/composition/business-events.ts";
+import type { EventPublisher } from "#app/composition/events.ts";
 import { type Database, type DbExecutor, runInTransaction } from "#app/db/database.ts";
 import { member, organization, user } from "#app/db/schema/index.ts";
 import {
@@ -11,7 +11,7 @@ import {
   organizationChanged,
   userChanged,
   userCreated,
-  type IdentityFact,
+  type IdentityEvent,
 } from "./events";
 
 type Factory = ReturnType<typeof drizzleAdapter>;
@@ -25,21 +25,21 @@ type Adapter = ReturnType<Factory>;
 export function identityLifecycleAdapter(
   database: Database,
   factory: (executor: DbExecutor) => Factory,
-  publisher: BusinessEvents<IdentityFact>,
+  publisher: EventPublisher<IdentityEvent>,
   requests: Pick<IdentityProvider, "withIdentityRequest" | "lockUserLifecycle"> = {
     withIdentityRequest: (run) => run(),
     lockUserLifecycle: async () => {},
   },
 ): Factory {
-  const events = safeBusinessEvents(publisher, identityEventDefinitions);
+  const events = safeEventPublisher(publisher, identityEventDefinitions);
 
   return (options) => {
-    const wrap = (executor: DbExecutor, facts?: IdentityFact[]): Adapter => {
+    const wrap = (executor: DbExecutor, facts?: IdentityEvent[]): Adapter => {
       const adapter = factory(executor)(options);
       const transaction: Adapter["transaction"] = async (run) => {
         if (facts) return runInTransaction(executor, (tx) => run(wrap(tx, facts)));
         return requests.withIdentityRequest(async () => {
-          const committed: IdentityFact[] = [];
+          const committed: IdentityEvent[] = [];
           const result = await runInTransaction(executor, (tx) => run(wrap(tx, committed)));
           for (const fact of committed) events.publish(fact);
           return result;

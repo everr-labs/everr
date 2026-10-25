@@ -7,7 +7,7 @@ import { env } from "#app/env/index.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { createOnboardingStore } from "./store";
 
-import { events } from "#app/server/business-events/runtime.ts";
+import { events } from "#app/server/events/runtime.ts";
 
 const store = createOnboardingStore(db, events);
 const identityInput = z.object({ organizationId: z.string().min(1) }).strict();

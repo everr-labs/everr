@@ -1,5 +1,5 @@
-import type { ApplicationBusinessEvents } from "@everr/app/composition";
-import { businessEventRegistration } from "@everr/app/server/business-events/subscriber";
+import type { ApplicationEvents } from "@everr/app/composition";
+import { eventRegistration } from "@everr/app/server/events/registration";
 import {
   membershipEventDefinitions,
   organizationEventDefinitions,
@@ -25,10 +25,10 @@ import {
 export function userSyncSubscribers(
   mode: "disabled" | "configured" | "paused",
   enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationBusinessEvents {
+): ApplicationEvents {
   if (mode === "disabled") return [];
   return userEventDefinitions.map((definition) =>
-    businessEventRegistration(definition, {
+    eventRegistration(definition, {
       id: `crm.brevo.${definition.type}`,
       async enqueue(event) {
         if (event.subjectId !== event.data.userId) throw new Error("Invalid CRM user subject.");
@@ -51,7 +51,7 @@ export function userSyncSubscribers(
 export function organizationSyncSubscribers(
   mode: "disabled" | "configured" | "paused",
   enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationBusinessEvents {
+): ApplicationEvents {
   if (mode === "disabled") return [];
   const definitions = [
     ...organizationEventDefinitions,
@@ -61,7 +61,7 @@ export function organizationSyncSubscribers(
     ...organizationMilestoneDefinitions,
   ];
   return definitions.map((definition) =>
-    businessEventRegistration(definition, {
+    eventRegistration(definition, {
       id: `crm.brevo.${definition.type}`,
       async enqueue(event) {
         const membership = "membershipId" in event.data;

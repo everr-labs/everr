@@ -1,16 +1,16 @@
 // @vitest-environment node
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
-import type { BusinessEventDefinition, BusinessEvents } from "#app/composition/business-events.ts";
-import { createBusinessEventPublisher } from "#app/server/business-events/publisher.ts";
-import { businessEventRegistration } from "#app/server/business-events/subscriber.ts";
+import type { EventDefinition, EventPublisher } from "#app/composition/events.ts";
+import { createEventPublisher } from "#app/server/events/publisher.ts";
+import { eventRegistration } from "#app/server/events/registration.ts";
 import {
   userEventDefinitions,
   membershipChanged,
   membershipEventDefinitions,
   organizationChanged,
   organizationEventDefinitions,
-  type IdentityFact,
+  type IdentityEvent,
 } from "./events";
 import { createApplicationAuth } from "./module";
 import { createAuthTestDatabase } from "./testing/database";
@@ -24,9 +24,9 @@ beforeEach(async () => {
     'TRUNCATE "user", account, organization, member, invitation, session, verification CASCADE',
   );
 });
-const facts: IdentityFact[] = [];
+const facts: IdentityEvent[] = [];
 function createAuth(
-  events: BusinessEvents<IdentityFact> = {
+  events: EventPublisher<IdentityEvent> = {
     publish: (fact) => {
       facts.push(fact);
     },
@@ -239,7 +239,7 @@ it("preserves all matching rows for single adapter update and delete operations"
   const ids = [first.id, second.id];
   const before = (await memberships()).filter((row) => ids.includes(row.organizationId));
   const { adapter } = await auth.$context;
-  const expectFacts = (expected: IdentityFact[]) => {
+  const expectFacts = (expected: IdentityEvent[]) => {
     expect(facts).toHaveLength(expected.length);
     expect(facts).toEqual(expect.arrayContaining(expected));
   };
@@ -329,15 +329,15 @@ it("uses parent cleanup facts for database cascades without fabricating membersh
 
 it("keeps actual organization and membership mutations committed when subscriber persistence fails", async () => {
   const log = vi.fn();
-  const definitions: BusinessEventDefinition<IdentityFact>[] = [
+  const definitions: EventDefinition<IdentityEvent>[] = [
     ...organizationEventDefinitions,
     ...membershipEventDefinitions,
   ];
-  const publisher = createBusinessEventPublisher({
+  const publisher = createEventPublisher({
     registrations: [
-      ...userEventDefinitions.map((definition) => businessEventRegistration(definition)),
+      ...userEventDefinitions.map((definition) => eventRegistration(definition)),
       ...definitions.map((definition) =>
-        businessEventRegistration(definition, {
+        eventRegistration(definition, {
           id: `test-${definition.type}`,
           enqueue: async () => {
             throw new Error("queue unavailable");

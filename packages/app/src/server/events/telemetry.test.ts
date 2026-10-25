@@ -17,9 +17,9 @@ import {
   AggregationTemporality,
 } from "@opentelemetry/sdk-metrics";
 import { expect, it } from "vite-plus/test";
-import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
-import { createBusinessEventPublisher } from "./publisher";
-import { businessEventRegistration } from "./subscriber";
+import type { EventDefinition } from "#app/composition/events.ts";
+import { createEventPublisher } from "./publisher";
+import { eventRegistration } from "./registration";
 
 it("exports bounded failure diagnostics for rejected subscribers and injected publishers", async () => {
   const marker = `task02-${randomUUID()}`;
@@ -53,7 +53,7 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
   metrics.setGlobalMeterProvider(meterProvider);
   try {
     const { publicationDiagnostics } = await import("./telemetry");
-    const definition: BusinessEventDefinition = {
+    const definition: EventDefinition = {
       type: "verification.created",
       version: 1,
       parse() {
@@ -65,9 +65,9 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
         };
       },
     };
-    const publisher = createBusinessEventPublisher({
+    const publisher = createEventPublisher({
       registrations: [
-        businessEventRegistration(definition, {
+        eventRegistration(definition, {
           id: "verification-consumer",
           enqueue() {
             return Promise.reject(new Error("Task 01 forced enqueue rejection"));
@@ -127,14 +127,14 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
         "exception.type",
       ].sort(),
     );
-    const { safeBusinessEvents } = await import("./safe-publication");
+    const { safeEventPublisher } = await import("./safe-publication");
     for (const publish of [
       () => {
         throw new Error("private profile and provider body");
       },
       () => Promise.reject(new Error("private profile and provider body")) as unknown as void,
     ]) {
-      safeBusinessEvents({ publish }, [definition]).publish(definition.parse({}));
+      safeEventPublisher({ publish }, [definition]).publish(definition.parse({}));
     }
     await Promise.resolve();
     await loggerProvider.forceFlush();

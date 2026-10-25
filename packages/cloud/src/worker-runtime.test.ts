@@ -159,7 +159,7 @@ describe("worker runtime", () => {
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const { runtime: composition } = await import("./app/composition/runtime");
     expect(
-      composition.businessEvents
+      composition.events
         .flatMap((registration) => registration.subscribers)
         .some((subscriber) => subscriber.id.startsWith("crm.brevo.")),
     ).toBe(true);

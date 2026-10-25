@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   beforeBillingLock: vi.fn(),
   afterOwnershipLock: vi.fn(),
 }));
-vi.mock("@everr/app/server/business-events/runtime", () => ({
+vi.mock("@everr/app/server/events/runtime", () => ({
   events: { publish: mocks.publish },
 }));
 vi.mock("@everr/app/identity/server", () => ({ auth: { api: {} } }));

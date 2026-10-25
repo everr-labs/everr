@@ -19,11 +19,11 @@ export type { ApplicationStorage } from "./storage";
 export type { ProductUI, SignInFooterProps } from "./ui";
 
 export type {
-  ApplicationBusinessEvents,
-  BusinessEvent,
-  BusinessEventFact,
-  BusinessEventDefinition,
-  BusinessEventRegistration,
-  BusinessEvents,
-  BusinessEventSubscriber,
-} from "./business-events";
+  ApplicationEvents,
+  PublishedEvent,
+  EventInput,
+  EventDefinition,
+  EventRegistration,
+  EventPublisher,
+  EventSubscriber,
+} from "./events";

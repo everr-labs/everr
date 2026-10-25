@@ -1,12 +1,12 @@
 // @vitest-environment node
 import type {
-  OrganizationMilestoneFact,
+  OrganizationMilestoneEvent,
   UsefulConsultation,
 } from "@everr/app/organizations/consultations";
 import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
 import { createAuthTestDatabase } from "@everr/app/identity/testing/database";
 import { organization } from "@everr/app/db/schema";
-import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
+import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createCrmSnapshotReader } from "../crm/snapshots";
 import { organizationSyncSubscribers } from "../crm/jobs";
@@ -42,7 +42,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     const read = () =>
       fixture.client.query("SELECT * FROM organization_milestones ORDER BY organization_id");
     function observer(
-      publish: (fact: OrganizationMilestoneFact) => void = vi.fn(),
+      publish: (fact: OrganizationMilestoneEvent) => void = vi.fn(),
       now = () => instant,
     ) {
       const diagnostics = { log: vi.fn(), count: vi.fn() };
@@ -80,9 +80,9 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
     });
 
     it("concurrent replicas commit one marker and publish each fact once after source commit", async () => {
-      const facts: OrganizationMilestoneFact[] = [];
+      const facts: OrganizationMilestoneEvent[] = [];
       const committed: ReturnType<typeof read>[] = [];
-      const publish = vi.fn((fact: OrganizationMilestoneFact) => {
+      const publish = vi.fn((fact: OrganizationMilestoneEvent) => {
         facts.push(fact);
         committed.push(read());
       });
@@ -163,7 +163,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
 
     it("repairs latest Company state from stored markers after lost publication without replaying history", async () => {
       const publisherDiagnostics = { log: vi.fn(), count: vi.fn() };
-      const events = createBusinessEventPublisher({
+      const events = createEventPublisher({
         registrations: organizationSyncSubscribers("paused", async () => {
           throw new Error("enqueue unavailable");
         }).filter((subscriber) =>

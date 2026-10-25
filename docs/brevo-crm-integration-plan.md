@@ -402,7 +402,7 @@ confirms the User is still created, and verifies the diagnostic arrives in Everr
 ## Module locations
 
 - `packages/app/src/identity/events.ts` and feature equivalents: event schemas.
-- `packages/app/src/server/business-events/`: typed best-effort publisher,
+- `packages/app/src/server/events/`: typed best-effort publisher,
   background fan-out, failure diagnostics, and bounded lifecycle handling.
 - `packages/app/src/composition/`: type-only publication/subscriber contracts where needed.
 - Both `src/app/composition/` implementations: explicit subscriber composition.
