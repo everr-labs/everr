@@ -47,7 +47,7 @@ const RESOURCE_ATTRIBUTE_KEYS = {
 export const getCostOverview = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(TimeRangeInputSchema)
+  .validator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -123,7 +123,7 @@ export const getCostOverview = createAuthenticatedServerFn({
 export const getCostByWorkflow = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(TimeRangeInputSchema)
+  .validator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -205,7 +205,7 @@ const BreakdownInputSchema = TimeRangeInputSchema.extend({
 export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(BreakdownInputSchema)
+  .validator(BreakdownInputSchema)
   .handler(
     async ({
       data: { timeRange, dimension },

@@ -19,7 +19,7 @@
   "dependencies": {
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
-    "@tanstack/react-router": "1.170.41",
+    "@tanstack/react-router": "1.170.45",
     "ansi-to-react": "^6.2.6",
     "lucide-react": "catalog:",
     "react": "catalog:",

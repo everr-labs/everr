@@ -33,7 +33,7 @@ import type { RouterContext } from "../router";
 
 // Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" })
-  .inputValidator((pathname: string) => pathname)
+  .validator((pathname: string) => pathname)
   .handler(async ({ data: pathname }) => {
     const session = await getSession({
       headers: getRequestHeaders(),

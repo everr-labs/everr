@@ -46,7 +46,7 @@ function dashboardQueryParams(range: { from?: string; to?: string }) {
 }
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(
+  .validator(
     z.object({
       project: z.string(),
       slug: z.string(),
@@ -119,7 +119,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
   });
 
 export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .validator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context }) => {
     const orgId = context.session.session.activeOrganizationId;
     const preview = data?.preview ?? null;
@@ -193,7 +193,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
 export const getTelemetryCapabilities = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data: { from, to }, context }) => {
     const { fromISO, toISO } = resolveTimeRange({ from, to });
     const rows = await context.sql.query<CapabilityRow>(buildCapabilitiesQuery(), {
@@ -216,7 +216,7 @@ const querySource = z.discriminatedUnion("kind", [
 export const runPanelQuery = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
+  .validator(
     z.object({
       source: querySource,
       from: z.string().optional(),
@@ -279,7 +279,7 @@ function withRowLimit(query: string, limit: number): string {
 export const runVariableOptionsQuery = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
+  .validator(
     z.object({
       query: z.string().min(1),
       from: z.string().optional(),

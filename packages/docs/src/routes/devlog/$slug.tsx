@@ -46,7 +46,7 @@ export const Route = createFileRoute("/devlog/$slug")({
 });
 
 const serverLoader = createServerFn({ method: "GET" })
-  .inputValidator((slug: string) => slug)
+  .validator((slug: string) => slug)
   .handler(async ({ data: slug }) => {
     const page = devlogposts.getPage([slug]);
 

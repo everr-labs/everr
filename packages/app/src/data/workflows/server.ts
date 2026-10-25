@@ -40,7 +40,7 @@ const JOB_COST_FILTER = [
 export const getWorkflowCostSummary = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(WorkflowDetailInputSchema)
+  .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(data.timeRange);
     const periodMs = toDate.getTime() - fromDate.getTime();
@@ -175,7 +175,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 export const getWorkflowCostByJob = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(WorkflowDetailInputSchema)
+  .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
@@ -237,7 +237,7 @@ const GANTT_RUN_LIMIT = 12;
 export const getWorkflowRunTimelines = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(WorkflowDetailInputSchema)
+  .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
 
@@ -354,7 +354,7 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
 export const getWorkflowRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(WorkflowDetailInputSchema)
+  .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(data.timeRange);
     const queryParams = {

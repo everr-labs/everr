@@ -22,7 +22,7 @@ import type { AlertNotificationsData } from "./view";
 export const getAlertNotifications = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<AlertNotificationsData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const window = resolveTimeRange(data);
@@ -40,7 +40,7 @@ export const getAlertNotifications = createAuthenticatedServerFn({
 export const setAlertingDefaultDestination = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(AlertingDefaultDestinationInputSchema)
+  .validator(AlertingDefaultDestinationInputSchema)
   .handler(({ data, context: { session } }) =>
     delivery.setDefaultDestination(alertingMutationScope(session), data),
   );
@@ -48,7 +48,7 @@ export const setAlertingDefaultDestination = createAuthenticatedServerFn({
 export const createAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(AlertingChannelInputSchema)
+  .validator(AlertingChannelInputSchema)
   .handler(({ data, context: { session } }) =>
     delivery.createChannel(alertingMutationScope(session), data),
   );
@@ -56,7 +56,7 @@ export const createAlertingChannel = createAuthenticatedServerFn({
 export const updateAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
+  .validator(
     z.object({
       name: AlertingChannelNameSchema,
       newName: AlertingChannelNameSchema.optional(),
@@ -74,7 +74,7 @@ export const updateAlertingChannel = createAuthenticatedServerFn({
 export const deleteAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ name: AlertingChannelNameSchema }))
+  .validator(z.object({ name: AlertingChannelNameSchema }))
   .handler(({ data: { name }, context: { session } }) =>
     delivery.deleteChannel(alertingMutationScope(session), name),
   );
@@ -82,7 +82,7 @@ export const deleteAlertingChannel = createAuthenticatedServerFn({
 export const testAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(AlertingChannelTestInputSchema)
+  .validator(AlertingChannelTestInputSchema)
   .handler(({ data, context: { session } }) =>
     delivery.testChannel(session.session.activeOrganizationId, data),
   );

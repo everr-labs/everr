@@ -7,7 +7,7 @@ import {
 } from "./installation.server";
 
 export const completeSetup = createServerFn({ method: "POST" })
-  .inputValidator(SetupWorkspaceSchema)
+  .validator(SetupWorkspaceSchema)
   .handler(async ({ data }) => {
     try {
       return await setupWorkspace(data, db);

@@ -7,7 +7,7 @@ const CheckoutResultSchema = z.object({ checkoutId: z.string().min(1) });
 export const completeProOrganizationCheckout = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(CheckoutResultSchema)
+  .validator(CheckoutResultSchema)
   .handler(async ({ data, context: { session } }) => {
     return organizationCommands.completeCheckout({
       checkoutId: data.checkoutId,

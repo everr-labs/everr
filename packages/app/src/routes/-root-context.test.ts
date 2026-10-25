@@ -30,7 +30,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 vi.mock("@tanstack/react-start", () => ({
   createServerFn: () => ({
-    inputValidator: () => ({ handler: (fn: () => unknown) => fn }),
+    validator: () => ({ handler: (fn: () => unknown) => fn }),
   }),
   createIsomorphicFn: () => ({
     server: (fn: () => unknown) => ({ client: () => fn }),

@@ -12,7 +12,7 @@ const ConsentInput = z.object({
 export const submitMcpConsent = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(ConsentInput)
+  .validator(ConsentInput)
   .handler(async ({ data }) => submitConsent(getRequestHeaders(), data));
 
 // Switch the active org from the consent screen. The newly active org is what
@@ -20,7 +20,7 @@ export const submitMcpConsent = createPartiallyAuthenticatedServerFn({
 export const setActiveMcpOrganization = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ organizationId: z.string() }))
+  .validator(z.object({ organizationId: z.string() }))
   .handler(async ({ data }) => {
     await setActiveOrg(getRequestHeaders(), data.organizationId);
     return { organizationId: data.organizationId };

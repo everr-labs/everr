@@ -33,7 +33,7 @@ export const getSuspendedOrgRecovery = createServerFn()
 export const startOrgCheckout = createOrganizationAdminServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ slug: z.literal("pro") }))
+  .validator(z.object({ slug: z.literal("pro") }))
   .handler(async ({ context: { session, orgId } }) => {
     return billing.startUpgradeCheckout(orgId, session.user.id);
   });
@@ -47,7 +47,7 @@ export const getOrgBillingSettings = createOrganizationAdminServerFn({
 export const changeOrgBillingOwner = createOrganizationAdminServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ userId: z.string().min(1) }))
+  .validator(z.object({ userId: z.string().min(1) }))
   .handler(async ({ data, context: { orgId, session } }) => {
     await billing.changeOwner(orgId, session.user.id, data.userId);
     return { status: "completed" as const };
@@ -55,7 +55,7 @@ export const changeOrgBillingOwner = createOrganizationAdminServerFn({
 export const confirmOrgCheckout = createOrganizationAdminServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ checkoutId: z.string().min(1) }))
+  .validator(z.object({ checkoutId: z.string().min(1) }))
   .handler(({ data, context: { orgId, session } }) =>
     billing.confirmUpgradeCheckout(orgId, session.user.id, data.checkoutId),
   );

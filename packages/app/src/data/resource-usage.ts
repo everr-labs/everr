@@ -212,7 +212,7 @@ function deriveSampleInterval(points: ResourceUsagePoint[]): number {
 const getJobResourceUsage = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ traceId: z.string(), jobId: z.string() }))
+  .validator(z.object({ traceId: z.string(), jobId: z.string() }))
   .handler(
     async ({
       data: { traceId, jobId },

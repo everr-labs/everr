@@ -9,7 +9,7 @@ export const getOrganizationCreationOptions = createPartiallyAuthenticatedServer
 export const createOrganization = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(CreateOrganizationInputSchema)
+  .validator(CreateOrganizationInputSchema)
   .handler(({ data, context: { session } }) =>
     organizationCommands.create({ actorId: session.user.id, input: data }),
   );

@@ -79,7 +79,7 @@ type WorkflowRunRow = {
 export const getRunsList = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RunsListInputSchema)
+  .validator(RunsListInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const { whereClause, params } = buildRunsFilterClause(
       data,
@@ -145,7 +145,7 @@ type RunHistogramRowRaw = {
 export const getRunsHistogram = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RunsHistogramInputSchema)
+  .validator(RunsHistogramInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const { whereClause, params, fromDate, toDate } = buildRunsFilterClause(
       data,
@@ -224,7 +224,7 @@ const RunFilterOptionsInputSchema = z.object({
 export const getRunFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RunFilterOptionsInputSchema)
+  .validator(RunFilterOptionsInputSchema)
   .handler(async ({ data, context: { session } }) => {
     const { fromDate, toDate } = resolveTimeRange(data.timeRange);
     const result = await pool.query<{
@@ -270,7 +270,7 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
 export const searchRuns = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(SearchRunsInputSchema)
+  .validator(SearchRunsInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
     const results = await clickhouse.query<{
       trace_id: string;
