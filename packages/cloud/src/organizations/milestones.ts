@@ -3,12 +3,12 @@ import type { Database } from "@everr/app/db/database";
 import { organization } from "@everr/app/db/schema";
 import {
   usefulConsultation,
+  organizationMilestoneDefinitions,
   type UsefulConsultation,
   type UsefulConsultations,
   type OrganizationMilestoneFact,
 } from "@everr/app/organizations/consultations";
-import { businessEventRegistration } from "@everr/app/server/business-events/subscriber";
-import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
+import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
 import { eq, sql } from "drizzle-orm";
 import { organizationMilestones } from "../db/schema/organization-milestones";
 import { milestoneDiagnostic, type MilestoneDiagnostics } from "./telemetry";
@@ -52,7 +52,7 @@ export function createOrganizationMilestoneStore(database: Database) {
   };
 }
 
-/** Reuses bounded publication admission, ownership of this observation stays in Cloud. */
+/** Bounded, fire-and-forget observation owned by Cloud, without an intermediate event. */
 export function createUsefulConsultations(options: {
   store: ReturnType<typeof createOrganizationMilestoneStore>;
   events: BusinessEvents<OrganizationMilestoneFact>;
@@ -62,8 +62,14 @@ export function createUsefulConsultations(options: {
   drainTimeoutMs?: number;
 }): UsefulConsultations {
   const now = options.now ?? (() => new Date());
-  const observerStartedAt = now();
+  const observerStartedAt = new Date(now().getTime());
   const diagnostics = options.diagnostics ?? milestoneDiagnostic;
+  const maxInFlight = options.maxInFlight ?? 32;
+  const drainTimeoutMs = options.drainTimeoutMs ?? 3000;
+  if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1)
+    throw new Error("Invalid publication capacity");
+  if (!Number.isFinite(drainTimeoutMs) || drainTimeoutMs < 0)
+    throw new Error("Invalid publication drain timeout");
   const report = (stage: Parameters<MilestoneDiagnostics["log"]>[0]) => {
     for (const emit of [() => diagnostics.log(stage), () => diagnostics.count(stage)]) {
       try {
@@ -73,68 +79,76 @@ export function createUsefulConsultations(options: {
       }
     }
   };
-  const definition = {
-    type: "telemetry.useful_consultation.observed",
-    version: 1,
-    parse(input: unknown) {
-      if (typeof input !== "object" || input === null || !("data" in input))
-        throw new Error("Invalid consultation observation");
-      const evidence = usefulConsultation.parse(input.data);
-      return {
-        type: "telemetry.useful_consultation.observed",
-        version: 1,
-        subjectId: evidence.organizationId,
-        data: evidence,
-      };
-    },
-  };
-  const publisher = createBusinessEventPublisher({
-    registrations: [
-      businessEventRegistration(definition, {
-        id: "cloud.organization-milestones",
-        async enqueue(event) {
-          const evidence = event.data;
-          const observedAt = new Date(event.occurredAt);
-          if (observedAt < observerStartedAt) throw new Error("Invalid observation clock");
-          if (!(await options.store.establish({ evidence, observedAt, observerStartedAt }))) return;
-          // Source marker transaction has committed. Each fact remains independent best effort.
-          for (const type of ["telemetry.first_queryable", "organization.activated"] as const) {
-            try {
-              options.events.publish({
-                type,
-                version: 1,
-                subjectId: evidence.organizationId,
-                data: {
-                  organizationId: evidence.organizationId,
-                  ruleVersion: 1,
-                  observedAt: event.occurredAt,
-                },
-              });
-            } catch {
-              report("publication");
-            }
-          }
-        },
-      }),
-    ],
-    metadata: () => ({ id: crypto.randomUUID(), occurredAt: now().toISOString() }),
-    maxInFlight: options.maxInFlight ?? 32,
-    drainTimeoutMs: options.drainTimeoutMs ?? 3000,
-    diagnostics: {
-      log: (failure) => report(failure.stage === "subscriber" ? "storage" : failure.stage),
-      count: () => {},
-    },
+  const events = safeBusinessEvents(options.events, organizationMilestoneDefinitions, {
+    log: () => diagnostics.log("publication"),
+    count: () => diagnostics.count("publication"),
   });
-  return {
-    observe(observation) {
-      // The publisher validates and copies the entire typed payload before async work.
-      publisher.publish({
-        type: definition.type,
-        version: 1,
-        subjectId: "observation",
-        data: observation,
+  const inFlight = new Set<Promise<void>>();
+  let closed = false;
+  let stopping: Promise<void> | undefined;
+
+  function observe(observation: UsefulConsultation): void {
+    if (closed || inFlight.size >= maxInFlight) {
+      report(closed ? "closed" : "overload");
+      return;
+    }
+    let evidence: UsefulConsultation;
+    try {
+      // Zod owns a synchronous copy, before callers can mutate their evidence.
+      evidence = usefulConsultation.parse(observation);
+    } catch {
+      report("validation");
+      return;
+    }
+    let occurredAt: string;
+    try {
+      occurredAt = now().toISOString();
+      if (!Number.isFinite(Date.parse(occurredAt))) throw new Error("Invalid observation clock");
+    } catch {
+      report("envelope");
+      return;
+    }
+    const observedAt = new Date(occurredAt);
+    const work = Promise.resolve()
+      .then(async () => {
+        if (observedAt < observerStartedAt) throw new Error("Invalid observation clock");
+        if (!(await options.store.establish({ evidence, observedAt, observerStartedAt }))) return;
+        // Source marker transaction has committed. Each fact remains independent best effort.
+        for (const type of ["telemetry.first_queryable", "organization.activated"] as const) {
+          events.publish({
+            type,
+            version: 1,
+            subjectId: evidence.organizationId,
+            data: {
+              organizationId: evidence.organizationId,
+              ruleVersion: 1,
+              observedAt: occurredAt,
+            },
+          });
+        }
+      })
+      .catch(() => report("storage"));
+    inFlight.add(work);
+    void work.then(() => inFlight.delete(work));
+  }
+
+  function stop(): Promise<void> {
+    closed = true;
+    stopping ??= new Promise<void>((resolve) => {
+      if (inFlight.size === 0) {
+        resolve();
+        return;
+      }
+      const timer = setTimeout(() => {
+        report("drain");
+        resolve();
+      }, drainTimeoutMs);
+      void Promise.allSettled(inFlight).then(() => {
+        clearTimeout(timer);
+        resolve();
       });
-    },
-    stop: publisher.stop,
-  };
+    });
+    return stopping;
+  }
+  return { observe, stop };
 }

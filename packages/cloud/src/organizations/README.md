@@ -65,9 +65,9 @@ source notifications or the planned reconciliation. They do not replay historica
 facts. Missing markers produce null snapshot fields and empty provider text, not
 false activation or dates derived from Organization creation, usage or billing.
 
-Admission reuses the existing bounded publisher, with at most 32 observations in
-flight and no unbounded queue. `observe(...)` returns void and is never awaited
-by the completed action. Validation, overload, clock, database and publication
+The observer directly admits at most 32 observations in flight, with no
+intermediate event or unbounded queue. `observe(...)` returns void and is never
+awaited by the completed action. Validation, overload, clock, database and publication
 failures are measured and contained. Each marker transaction has a 2-second SQL
 statement timeout and 500-millisecond lock timeout; the existing database pool
 has a bounded connection wait. Shutdown closes admission, drains for at most

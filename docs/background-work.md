@@ -248,8 +248,10 @@ Self-hosted registers no CRM subscribers, configuration, schema or jobs.
 Activation rule 1 observes only the supported standalone trace-detail UI read and
 exact raw trace-detail SQL on CLI/MCP, with server-verified scope and conservative
 own Production/receiver-shaped CI evidence. It persists first-queryable and
-activation markers together, then publishes their facts best effort. Provisioning,
-usage bytes, keys and billing do not activate an Organization. Dashboards, other
+activation markers together through a directly bounded observer, then publishes
+their facts best effort. Observation does not construct an intermediate event or
+private publisher. Provisioning, usage bytes, keys and billing do not activate an
+Organization. Dashboards, other
 details, aggregates, preloads/refetches and cached actions without a read remain
 unobserved. Historical actions lost before marker persistence remain unknown.
 See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths-task-11)
