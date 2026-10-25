@@ -1,7 +1,7 @@
 # Recording Ingestion: Collector and Storage
 
 **Date:** 2026-10-23
-**Status:** implemented in PR #527, not released
+**Status:** implemented in PR #527 with a landing table and view; this revision moves storage to a single table, not released
 **PR:** [#527](https://github.com/everr-labs/everr/pull/527)
 **Scope:** the Cloud collector and ClickHouse storage
 **Companions:** [WebSDK Recording](./2026-10-22-otel-web-recording.md) (capture, API, transport), [Session Replay](./2026-10-17-session-replay.md) (overall design)
@@ -19,7 +19,7 @@ The collector is the boundary for all four. If routing depended on a URL, a clie
 
 ## Solution
 
-`everr.browser.recording.segment` is the whole routing contract. A Segment is one OTLP Log. Its body is the rrweb events as a JSON array, and its log attributes carry the Session, Stream, Clip, and Segment index. The Cloud collector splits Logs after usage metering with a routing connector. Segments go to a dedicated ClickHouse exporter and its own landing table, `otel.otel_recordings`. A materialized view stamps tenant and retention and writes `app.recordings`. Every other Log, including the recording mark, stays in `app.logs`.
+`everr.browser.recording.segment` is the whole routing contract. A Segment is one OTLP Log. Its body is the rrweb events as a JSON array, and its log attributes carry the Session, Stream, Clip, and Segment index. The Cloud collector splits Logs after usage metering with a routing connector. Segments go to a dedicated ClickHouse exporter that writes straight into one table, `app.recordings`. Tenant, retention, and the three ids are `MATERIALIZED` columns of that table, computed at insert. Every other Log, including the recording mark, stays in `app.logs`.
 
 The `recording` Span is not part of this split. It is a normal Span in `traces`, and it is the small, queryable index that the app and Agents use to find a Clip. The collector never parses rrweb.
 
@@ -116,12 +116,11 @@ clickhouse/recordings:
   endpoint: http://clickhouse:8123
   username: collector_rw
   password: collector-dev
-  database: otel
-  logs_table_name: otel_recordings
+  database: app
+  logs_table_name: recordings
   create_schema: false
   connection_params:
     wait_for_async_insert: "1"
-    materialized_views_ignore_errors: "0"
   json: true
   sending_queue:
     enabled: true
@@ -140,11 +139,11 @@ clickhouse/recordings:
     max_elapsed_time: 0s
 ```
 
-- The landing table is `otel.otel_recordings`, not `otel.otel_logs`. The collector does not create it (`create_schema: false`). The ClickHouse init scripts or the manual DDL own the schema.
+- The exporter writes `app.recordings` directly. There is no landing table and no materialized view. The collector does not create the table (`create_schema: false`). The ClickHouse init scripts or the manual DDL own the schema, and they grant `INSERT` on `app.recordings` to `collector_rw`.
 - The batch is 16 Log records, not the 8192 rows the ordinary Logs exporter uses. A Segment body is about 950 KB, so 16 records put at most about 15 MB in one insert. This avoids a huge 8192-row batch of nearly-megabyte bodies and avoids writing many tiny parts.
 - The queue is persistent and admission is acknowledged before the OTLP request succeeds. Delivery, batching, and retries stay inside the exporter.
-- `wait_for_async_insert: "1"` makes the insert wait for the materialized view to run, so a view error is returned to the exporter instead of being hidden by an asynchronous insert.
-- `materialized_views_ignore_errors: "0"` makes a missing tenant or retention attribute fail the insert. That is deliberate: a row with no retention must never be stored silently.
+- `wait_for_async_insert: "1"` makes the insert wait until the rows are written, so an error from a `MATERIALIZED` column is returned to the exporter instead of being hidden by an asynchronous insert.
+- A missing tenant or retention attribute fails the insert, because the `retention_days` expression throws. That is deliberate: a row with no retention must never be stored silently.
 - The recordings queue is separate from the `clickhouse` queue. A poison Segment or a backlog affects recordings only, not ordinary Logs or Traces.
 
 ### Browser ingest and gzip
@@ -167,55 +166,39 @@ This CORS block is the collector half of the gzip rollout. Without it, the prefl
 
 - The routing connector moves each record to exactly one receiving pipeline. A Segment never enters the telemetry exporter, and an ordinary Log never enters the recordings exporter. One cannot fail the other.
 - The two exporters have separate persistent queues and retry loops. A recordings insert failure or a recordings backlog does not block ordinary Logs or Traces.
-- A recordings insert that fails the materialized view is retried indefinitely, because the exporter has unlimited retries. It holds one consumer; a persistent failure can back up the recordings queue.
+- A recordings insert that fails a `MATERIALIZED` expression is retried indefinitely, because the exporter has unlimited retries. It holds one consumer; a persistent failure can back up the recordings queue.
 - The recordings queue does not block on overflow. When it is full, admission fails, the OTLP request fails, and the client does not retry, so that Segment is lost. The gap shows in the Clip's Segment index.
 - The client does not retry any failed Segment. The collector's exporter retries the Segments it accepted.
 - A Segment that the public receiver rejects is lost at ingest and the gap shows in the Clip's Segment index. The WebSDK drops any event over 10 MB before the buffer, so a WebSDK Segment stays under the 20 MiB body limit.
 
 ## Cloud ClickHouse
 
-### Landing table
-
-`clickhouse/init/03-create-otel-tables.sql` creates `otel.otel_recordings` with `ENGINE = Null` and the same columns as `otel.otel_logs`:
-
-- `Timestamp DateTime64(9)`
-- `TraceId`, `SpanId`, `TraceFlags`
-- `SeverityText`, `SeverityNumber`
-- `ServiceName`, `Body`
-- `ResourceSchemaUrl`, `ResourceAttributes` JSON, `ResourceAttributesKeys`
-- `ScopeSchemaUrl`, `ScopeName`, `ScopeVersion`, `ScopeAttributes` JSON, `ScopeAttributesKeys`
-- `LogAttributes` JSON, `LogAttributesKeys`
-- `EventName`
-
-The column list follows the upstream ClickHouse exporter schema for the version pinned in `collector/config/manifest.yaml` (`v0.160.0`). The exporter's DDL is the reference, so the landing table moves with that pin. The table stores nothing. An insert only triggers the materialized view. It has no TTL because it holds no data.
-
-### Materialized view
-
-`app.recordings_mv` reads `otel.otel_recordings` and writes `app.recordings`. It mirrors the shape of `app.logs_mv` and adds the three recording columns:
-
-- `tenant_id` is `toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id')))`.
-- `retention_days` is `everrRetentionDaysJson(ResourceAttributes)`. It throws when `everr.retention.days` is missing, zero, or not a positive number of days.
-- `ResourceAttributesKeys` is passed through `everrStripRetentionKeys`, so the retention key is not stored in the keys array. The `ResourceAttributes` column type has `SKIP everr.retention.days`, so the path is not stored in the JSON either.
-- `session_id` is `toString(getSubcolumn(LogAttributes, 'session.id'))`.
-- `stream_id` is `toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id'))`.
-- `clip_id` is `toString(getSubcolumn(LogAttributes, 'everr.recording.clip.id'))`.
-
-The ids come from the Log record attributes, not the resource attributes, because the WebSDK envelope is merged into each Log record. Tenant and retention are resource attributes, stamped by the collector from the authenticated key and the Plan.
-
-The view is attached to `otel.otel_recordings` only. It is not attached to `otel.otel_logs`, so a Segment cannot reach `app.logs` through a view.
-
 ### `app.recordings`
 
-The table is created and altered in `clickhouse/init/10-create-mvs.sql`. It is built with `CREATE TABLE ... AS SELECT ... WHERE 1 = 0`, so its payload types follow `otel_recordings`; the codecs are applied afterwards with `ALTER TABLE`.
+One table. The `clickhouse/recordings` exporter inserts into it directly, and the player reads from it. There is no `otel.otel_recordings` landing table and no `app.recordings_mv`.
 
-- Columns: every `app.logs` column, plus `session_id String`, `stream_id String`, and `clip_id String`. `tenant_id` and `retention_days` keep the same types and meaning as in `app.logs`.
+`clickhouse/init/13-create-recordings.sql` creates it with an explicit column list and grants `INSERT ON app.recordings` to `collector_rw`, whose other grants cover only `otel.*`:
+
+- The OTLP columns the exporter writes, following the upstream ClickHouse exporter schema for the version pinned in `collector/config/manifest.yaml` (`v0.160.0`): `Timestamp DateTime64(9)`, `TraceId`, `SpanId`, `TraceFlags`, `SeverityText`, `SeverityNumber`, `ServiceName`, `Body`, `ResourceSchemaUrl`, `ResourceAttributes` JSON, `ResourceAttributesKeys`, `ScopeSchemaUrl`, `ScopeName`, `ScopeVersion`, `ScopeAttributes` JSON, `ScopeAttributesKeys`, `LogAttributes` JSON, `LogAttributesKeys`, and `EventName`. The exporter's DDL is the reference, so the table moves with that pin.
+- Five `MATERIALIZED` columns, computed at insert from the inserted row. The exporter never writes them.
+  - `tenant_id LowCardinality(String) MATERIALIZED toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))`
+  - `retention_days UInt16 MATERIALIZED everrRetentionDaysJson(ResourceAttributes)`. It throws when `everr.retention.days` is missing, zero, or not a positive number of days, and the throw fails the insert.
+  - `session_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'session.id'))`
+  - `stream_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id'))`
+  - `clip_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'everr.recording.clip.id'))`
 - Engine: `MergeTree`.
 - Partition: `(toDate(Timestamp), retention_days)`.
 - Order: `(tenant_id, ServiceName, Timestamp)`.
 - TTL: `toDate(Timestamp) + toIntervalDay(retention_days)`.
 - Settings: `index_granularity = 8192`, `ttl_only_drop_parts = 1`.
-- Codecs: `Delta(8), ZSTD(1)` for `Timestamp`, and `ZSTD(1)` for the string, JSON, and keys columns that the `ALTER` lists. `TraceFlags` and `SeverityNumber` keep the default. `ResourceAttributes` is JSON with `max_dynamic_paths = 256` and `SKIP everr.retention.days`.
+- Codecs: `Delta(8), ZSTD(1)` for `Timestamp`, and `ZSTD(1)` for the string, JSON, and keys columns, declared inline. `TraceFlags` and `SeverityNumber` keep the default. `ResourceAttributes` is JSON with `max_dynamic_paths = 256` and no `SKIP`.
 - Skip indexes: `idx_session_id`, `idx_stream_id`, and `idx_clip_id`, each `bloom_filter(0.001)` with granularity 1.
+
+The ids come from the Log record attributes, not the resource attributes, because the WebSDK envelope is merged into each Log record. Tenant and retention are resource attributes, stamped by the collector from the authenticated key and the Plan.
+
+`ResourceAttributes` keeps `everr.retention.days`, unlike `app.logs`. A `MATERIALIZED` expression reads the column after the value is converted to the column type, so a `SKIP everr.retention.days` would remove the path before `retention_days` reads it, and every insert would fail. For the same reason `ResourceAttributesKeys` is stored as the exporter sends it, with the retention key in it; there is no `everrStripRetentionKeys` step. The cost is one small path per row.
+
+Only the `clickhouse/recordings` exporter writes to the table. No view reads from `otel.otel_logs` into it, so an ordinary Log cannot reach `app.recordings`, and a Segment cannot reach `app.logs`.
 
 The `Body` is opaque rrweb JSON and uses ZSTD. There is no lower-body index and no snapshot, URL, or error-count column. The rrweb payload is the source of truth, and the player reads by ids and time, not by body text.
 
@@ -294,8 +277,7 @@ A missing Segment index is a lost or dropped request. The player turns index hol
 
 Fresh servers get the objects from `clickhouse/init/`:
 
-- `03-create-otel-tables.sql` creates `otel.otel_recordings`.
-- `10-create-mvs.sql` creates `app.recordings`, its indexes and codecs, and `app.recordings_mv`.
+- `13-create-recordings.sql` creates `app.recordings` with its `MATERIALIZED` columns, indexes, and codecs, and grants `INSERT` to `collector_rw`. It runs after `05-create-retention-functions.sql`, which defines `everrRetentionDaysJson`.
 - `15-create-sql-api-role.sql` creates the SQL API default-deny policy.
 - `20-apply-rls.sql` creates the `app_ro` tenant filter.
 
@@ -306,9 +288,9 @@ clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
   < clickhouse/manual/recordings.sql
 ```
 
-The manual file contains the landing table, `app.recordings`, its indexes and codecs, the materialized view, and both row policies. It assumes that `everrRetentionDaysJson` and `everrStripRetentionKeys` exist from `clickhouse/init/05-create-retention-functions.sql`, and that `sql_api_role` and `app_ro` exist. It does not create roles or users, and it does not grant `app.recordings` to the SQL API role.
+The manual file contains `app.recordings`, its indexes and codecs, the `INSERT` grant to `collector_rw`, and both row policies. It assumes that `everrRetentionDaysJson` exists from `clickhouse/init/05-create-retention-functions.sql`, and that `sql_api_role` and `app_ro` exist. It does not create roles or users, and it does not grant `app.recordings` to the SQL API role.
 
-Apply the DDL before deploying the collector config that routes. `otel.otel_recordings` is a `Null` table: if it exists but `app.recordings_mv` does not, inserts succeed and the Segments are discarded. Verify the landing table, the app table, the view, and both policies before enabling the routing connector.
+Apply the DDL before deploying the collector config that routes. If `app.recordings` or the grant is missing, the insert fails and the exporter retries until the DDL is applied; nothing is discarded silently. Verify the table, the grant, and both policies before enabling the routing connector.
 
 ## Storage Map
 
@@ -334,10 +316,10 @@ The recordings table holds raw rrweb. It is not in `SQL_API_TENANT_TABLES`, not 
 - **Route after metering, not before.** The usage processor stays on the ingress pipeline, where it sees every Log exactly once before the split. If metering ran downstream, each receiving pipeline would need it, and the same Segment could be counted twice.
 - **Move, not copy.** A Segment is stored once. Copying it to both `logs` and `recordings` would duplicate volume, break the negative assertion that `logs` has no Segments, and give the player two sources.
 - **The event name is the key.** No custom header, marker attribute, or second endpoint. The WebSDK already sends one OTLP Log per Segment, and the collector can route on `log.event_name` without parsing the body. A mark is a different event name and stays in `logs`.
-- **A separate landing table and exporter.** The existing `clickhouse` exporter keeps its 8192-row Log batch and its queue. Segments get their own table, queue, batch, and retry loop, so replay volume cannot fail an ordinary Log insert and a poison Segment cannot block Logs.
+- **A separate table and exporter.** The existing `clickhouse` exporter keeps its 8192-row Log batch and its queue. Segments get their own table, queue, batch, and retry loop, so replay volume cannot fail an ordinary Log insert and a poison Segment cannot block Logs.
 - **A small item-count batch.** The ClickHouse exporter has no byte-size batch. Sixteen records is the practical limit for 950 KB bodies. A 8192-row batch of Segments would be an avoidable failure mode.
-- **Wait for the view.** `wait_for_async_insert: "1"` and `materialized_views_ignore_errors: "0"` make a view error visible to the exporter. A silent drop is worse than a retry.
-- **A `Null` landing table plus a view.** This matches `otel_logs` and `logs`. The view is the only place that knows how tenant, retention, and the three ids are derived, and the landing table stays a pure OTLP shape.
+- **One table with `MATERIALIZED` columns, no landing table or view.** `app.logs` uses a `Null` landing table and a view because several views fan out from `otel_logs`. Recordings have one reader and one writer, so the extra table and view only add objects to migrate and a failure mode: a landing table without its view accepts inserts and stores nothing. `MATERIALIZED` columns derive tenant, retention, and the three ids in the same place the view did. The cost is that `ResourceAttributes` and `ResourceAttributesKeys` keep the retention key, because a `SKIP` would hide it from the `retention_days` expression.
+- **Fail the insert, not the row.** `wait_for_async_insert: "1"` returns a `MATERIALIZED` error to the exporter. A silent drop is worse than a retry.
 - **MergeTree, not ReplacingMergeTree.** The exporter delivers at least once, so a retry can store a Segment twice. The duplication is accepted: a deduplication key would add a background merge cost and a second definition of identity for a best-effort signal. The Segment index remains the loss signal.
 - **Partition by day and retention.** A Plan change drops whole parts, the same as Logs. The row carries the retention that was in force at write time.
 - **Order by tenant, service, time.** The player always filters on service and a time window, and the row policy always constrains tenant. The three bloom filters cover Session, Stream, and Clip. A body index would not help the player and would cost space on data nobody searches.
@@ -349,7 +331,7 @@ The recordings table holds raw rrweb. It is not in `SQL_API_TENANT_TABLES`, not 
 The tests drive public boundaries: OTLP in, rows out, SQL results out. They do not assert on YAML text.
 
 - `TestRoutedAdmission` checks the usage topology rules: a valid routed admission passes; metering again, a queue without the required settings, no downstream pipeline, a non-routing connector, and two downstream exporters each fail with the expected message.
-- The Cloud integration test in `collector/internal/cloudrecordings` starts ClickHouse on testcontainers, applies the schema init scripts (`03`, `05`, and `10`), starts a collector with the OTLP receiver, the routing connector, and two ClickHouse exporters, and posts a protobuf OTLP batch. It asserts the Segment lands in `app.recordings` with stamped `tenant_id` and `retention_days` and the three ids, while the mark and ordinary Log stay in `app.logs`. The test is behind the `integration` build tag in its own Go module, so `make test-all` does not start containers.
+- The Cloud integration test in `collector/internal/cloudrecordings` starts ClickHouse on testcontainers, applies the schema init scripts (`03`, `05`, `10`, and `13`), starts a collector with the OTLP receiver, the routing connector, and two ClickHouse exporters, and posts a protobuf OTLP batch. It asserts the Segment lands in `app.recordings` with stamped `tenant_id` and `retention_days` and the three ids, while the mark and ordinary Log stay in `app.logs`. A Segment without `everr.retention.days` fails the insert and is not stored. The test is behind the `integration` build tag in its own Go module, so `make test-all` does not start containers.
 - The SQL API and MCP tests assert that `recordings` is not in `SQL_API_TENANT_TABLES` and not in the MCP query tool description.
 - The trace list test asserts that a root Span named `recording` is excluded from the page query.
 - Collector gates: `(cd collector && make test-all)`, plus `go test -tags=integration ./...` in `collector/internal/cloudrecordings` for the Cloud test.
@@ -357,7 +339,7 @@ The tests drive public boundaries: OTLP in, rows out, SQL results out. They do n
 
 ## Rollout
 
-1. Apply `clickhouse/manual/recordings.sql` to every existing Cloud cluster. Verify `otel.otel_recordings`, `app.recordings`, `app.recordings_mv`, `sql_api_default_deny_recordings`, and `tenant_filter_recordings`.
+1. Apply `clickhouse/manual/recordings.sql` to every existing Cloud cluster. Verify `app.recordings`, the `INSERT` grant to `collector_rw`, `sql_api_default_deny_recordings`, and `tenant_filter_recordings`.
 2. Deploy the collector build and config with the routing connector, the `clickhouse/recordings` exporter, and the two receiving pipelines. Include `Content-Encoding` in the public CORS allow-list.
 3. Confirm ordinary Logs and Traces still arrive and the collector reports no exporter errors.
 4. Release the WebSDK with recording. Segments are now routed to `app.recordings`; marks and all other Logs still go to `app.logs`.
@@ -369,8 +351,8 @@ The collector must be ahead of the WebSDK release. If the SDK ships first, Segme
 
 - Delivery is at least once. A retried insert can store a Segment twice, and the player may replay the duplicate events. There is no deduplication key and no ReplacingMergeTree merge.
 - A full recordings queue rejects admission. The WebSDK does not retry, so that Segment is lost and the gap shows in the Segment index. The queue does not wait for capacity.
-- A batch that fails the materialized view, for example because `everr.retention.days` is missing, is retried indefinitely and holds a consumer. A persistent failure can back up the recordings queue. Ordinary Logs and Traces are unaffected because they use a different exporter and queue.
-- A partially applied manual DDL can silently drop Segments. The landing table is `Null`; without the materialized view, an insert succeeds and stores nothing.
+- A batch that fails a `MATERIALIZED` expression, for example because `everr.retention.days` is missing, is retried indefinitely and holds a consumer. A persistent failure can back up the recordings queue. Ordinary Logs and Traces are unaffected because they use a different exporter and queue.
+- `app.recordings` stores `everr.retention.days` in `ResourceAttributes` and `ResourceAttributesKeys`, unlike `app.logs`.
 - A Segment larger than the public receiver's 20 MiB body limit is rejected at ingest. The WebSDK does not send one, because it drops events over 10 MB. Another OTLP sender can. The client does not retry it. The gap shows in the Segment index.
 - There is no body search index on `app.recordings`, and the SQL API cannot read it. Raw rrweb is for the player, not for exploration.
 - `app.recordings` has no lower-body, snapshot, URL, or error-count columns. The rrweb payload is the source of truth.
