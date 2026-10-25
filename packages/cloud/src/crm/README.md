@@ -167,6 +167,12 @@ inspection and a supported recovery procedure.
 
 ## Organization and explicit Membership synchronization
 
+`organization-sync.ts` and `membership-sync.ts` own separate typed handlers,
+registered directly in `task-list.ts`. Each handler keeps its source rereads,
+revision checks and retry reservation visible in its concrete execution path.
+Both use the same projection store and endpoint coordination. Organization and
+User completion enqueue related pairs through `enqueueMembershipSyncs`.
+
 Cloud also subscribes to Organization creation/updates, explicit Membership additions,
 updates/removals, deletion, readiness, subscription and Plan facts. Commands contain source IDs only.
 Two Organizations sharing a domain keep distinct Company IDs. A Contact can link to
