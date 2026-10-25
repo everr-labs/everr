@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BusinessEventDefinition, BusinessEvents } from "#app/composition/business-events.ts";
+import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
 
 const userData = z.object({ userId: z.string().min(1) }).strict();
 const base = z.object({
@@ -38,11 +38,6 @@ export function userChanged(
   userId: string,
 ): UserFact {
   return { type, version: 1, subjectId: userId, data: { userId } };
-}
-
-/** An injected publisher must obey the same nonthrowing boundary as the runtime publisher. */
-export function publishUserFact(events: BusinessEvents<UserFact>, fact: UserFact): void {
-  publishIdentityFact(events, fact);
 }
 
 const organizationData = z.object({ organizationId: z.string().min(1) }).strict();
@@ -104,6 +99,10 @@ export const identityEventDefinitions = [
   ...membershipEventDefinitions,
 ];
 
+/** Parent deletion facts require consumers to clean up all associations for that parent.
+ * Cascaded rows do not produce invented membership.removed facts. Explicit member
+ * deletes retain their relationship IDs before the source rows disappear.
+ */
 export function organizationChanged(
   type: OrganizationFact["type"],
   organizationId: string,
@@ -120,19 +119,4 @@ export function membershipChanged(
     subjectId: member.id,
     data: { membershipId: member.id, organizationId: member.organizationId, userId: member.userId },
   };
-}
-
-/** Parent deletion facts require consumers to clean up all associations for that parent.
- * Cascaded rows do not produce invented membership.removed facts. Explicit member
- * deletes retain their relationship IDs before the source rows disappear.
- */
-export function publishIdentityFact<F extends IdentityFact>(
-  events: BusinessEvents<F>,
-  fact: F,
-): void {
-  try {
-    events.publish(fact);
-  } catch {
-    /* Publication cannot change an already committed identity result. */
-  }
 }

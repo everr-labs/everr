@@ -207,12 +207,17 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
   );
 });
 
-it("protects committed signup from a misbehaving injected publisher", async () => {
-  const auth = createAuth({
-    publish() {
-      throw new Error("publisher broken");
-    },
-  });
-  const signup = await auth.api.signUpEmail({ body: input });
-  expect((await client.query('SELECT id FROM "user"')).rows).toEqual([{ id: signup.user.id }]);
-});
+it.each(["throw", "reject"])(
+  "protects committed signup from a misbehaving injected publisher (%s)",
+  async (failure) => {
+    const auth = createAuth({
+      publish() {
+        if (failure === "reject")
+          return Promise.reject(new Error("publisher broken")) as unknown as void;
+        throw new Error("publisher broken");
+      },
+    });
+    const signup = await auth.api.signUpEmail({ body: input });
+    expect((await client.query('SELECT id FROM "user"')).rows).toEqual([{ id: signup.user.id }]);
+  },
+);

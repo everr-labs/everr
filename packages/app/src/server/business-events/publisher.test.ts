@@ -6,7 +6,8 @@ import type {
   BusinessEventDefinition,
   BusinessEvents,
 } from "#app/composition/business-events.ts";
-import { createBusinessEventPublisher, type PublicationDiagnostics } from "./publisher";
+import { createBusinessEventPublisher } from "./publisher";
+import type { PublicationDiagnostics } from "./diagnostics";
 import { businessEventRegistration } from "./subscriber";
 
 // This definition belongs to this test feature. Production facts arrive in later tickets.

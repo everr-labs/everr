@@ -71,6 +71,13 @@ that definition, then copies the validated snapshot for each consumer. Persisted
 command payload validation remains separate at admission and worker execution. The producer
 interface has no transaction argument, and this module persists no outbox.
 
+Source injection seams normalize publishers once with `safeBusinessEvents`.
+Producers call `events.publish(fact)` directly after commit. Synchronous throws and
+unexpected promise rejections from an injected port are contained and measured,
+without awaiting publication or catching source operation failures. Injected failure
+diagnostics use a fixed error message, excluding thrown payloads and response bodies.
+Each diagnostic emitter is guarded independently.
+
 Features depend on `BusinessEvents<FeatureFact>` to restrict their producer input;
 the application runtime routes the broad fact interface. A feature parser receives
 fact-shaped input without publisher metadata. It must leave its input unchanged
@@ -91,7 +98,8 @@ and diagnostics. Constructor configuration errors remain startup errors.
 
 Failures emit `business_events.publication.failed` and increment
 `everr.business_events.publication.failures` (unit `1`). Failure stages are
-`validation`, `envelope`, `subscriber`, `overload`, `closed`, and `drain`. Counter
+`publication` (an injected port failure), `validation`, `envelope`, `subscriber`,
+`overload`, `closed`, and `drain`. Counter
 attributes are only the registered event type (or `unknown`), static subscriber ID
 (or `publisher`), and stage, under `everr.business_event.*`. IDs and exception
 attributes belong on logs. Payload validation errors are redacted before logging;

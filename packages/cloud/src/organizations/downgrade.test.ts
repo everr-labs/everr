@@ -222,11 +222,16 @@ it("publishes committed Membership IDs and Plan even if later billing reconcilia
   ]);
 });
 
-it("preserves the downgrade and attempts each fact when publication throws", async () => {
-  mocks.publish.mockImplementation(() => {
-    throw new Error("publication unavailable");
-  });
-  await expect(downgrade()).resolves.toEqual({ removedMembers: 1, canceledInvitations: 1 });
-  expect((await savedState()).plan).toBe("hobby");
-  expect(mocks.publish).toHaveBeenCalledTimes(2);
-});
+it.each(["throw", "reject"])(
+  "preserves the downgrade and attempts each fact when publication fails (%s)",
+  async (failure) => {
+    mocks.publish.mockImplementation(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publication unavailable")) as unknown as void;
+      throw new Error("publication unavailable");
+    });
+    await expect(downgrade()).resolves.toEqual({ removedMembers: 1, canceledInvitations: 1 });
+    expect((await savedState()).plan).toBe("hobby");
+    expect(mocks.publish).toHaveBeenCalledTimes(2);
+  },
+);

@@ -294,15 +294,20 @@ it("does not announce readiness when another attempt already committed the guard
   expect(mocks.publish).not.toHaveBeenCalled();
 });
 
-it("preserves readiness when publication throws", async () => {
-  mocks.publish.mockImplementation(() => {
-    throw new Error("publication unavailable");
-  });
-  await expect(provision()).resolves.toBeUndefined();
-  expect(await ready()).toBe(true);
-  await provision();
-  expect(mocks.publish).toHaveBeenCalledOnce();
-});
+it.each(["throw", "reject"])(
+  "preserves readiness when publication throws (%s)",
+  async (failure) => {
+    mocks.publish.mockImplementation(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publication unavailable")) as unknown as void;
+      throw new Error("publication unavailable");
+    });
+    await expect(provision()).resolves.toBeUndefined();
+    expect(await ready()).toBe(true);
+    await provision();
+    expect(mocks.publish).toHaveBeenCalledOnce();
+  },
+);
 
 it("does not publish readiness when its guarded database write fails, and retries normally", async () => {
   await fixture.client.exec(

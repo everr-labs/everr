@@ -1,6 +1,6 @@
 import { metrics } from "@opentelemetry/api";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
-import type { PublicationDiagnostics } from "./publisher";
+import type { PublicationDiagnostics } from "./diagnostics";
 
 const failures = metrics
   .getMeter("everr-app.business-events")

@@ -37,6 +37,7 @@
     "./migrate": "./scripts/migrate.ts",
     "./product/module": "./src/product/module.ts",
     "./server/alerting/testing/pglite-database": "./src/server/alerting/testing/pglite-database.ts",
+    "./server/business-events/safe-publication": "./src/server/business-events/safe-publication.ts",
     "./server/business-events/publisher": "./src/server/business-events/publisher.ts",
     "./server/business-events/subscriber": "./src/server/business-events/subscriber.ts",
     "./server/business-events/runtime": "./src/server/business-events/runtime.ts",

@@ -373,16 +373,21 @@ it("keeps actual organization and membership mutations committed when subscriber
   ]);
 });
 
-it("protects organization creation from a broken injected publisher", async () => {
-  const auth = createAuth({
-    publish() {
-      throw new Error("publisher broken");
-    },
-  });
-  const owner = await signup(auth, "owner");
-  const organization = await createOrganization(auth, owner.id);
-  expect((await memberships()).map((row) => row.organizationId)).toEqual([organization.id]);
-});
+it.each(["throw", "reject"])(
+  "protects organization creation from a broken injected publisher (%s)",
+  async (failure) => {
+    const auth = createAuth({
+      publish() {
+        if (failure === "reject")
+          return Promise.reject(new Error("publisher broken")) as unknown as void;
+        throw new Error("publisher broken");
+      },
+    });
+    const owner = await signup(auth, "owner");
+    const organization = await createOrganization(auth, owner.id);
+    expect((await memberships()).map((row) => row.organizationId)).toEqual([organization.id]);
+  },
+);
 
 it
   .skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)

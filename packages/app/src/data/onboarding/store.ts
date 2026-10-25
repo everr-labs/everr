@@ -1,3 +1,4 @@
+import { safeBusinessEvents } from "#app/server/business-events/safe-publication.ts";
 import { and, eq, exists, sql } from "drizzle-orm";
 import type { HomeStatus } from "#app/common/onboarding.ts";
 import type { Database } from "#app/db/client.ts";
@@ -6,8 +7,8 @@ import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 
 import type { BusinessEvents } from "#app/composition/business-events.ts";
 import {
+  organizationEventDefinitions,
   organizationChanged,
-  publishIdentityFact,
   type OrganizationFact,
 } from "#app/identity/events.ts";
 
@@ -18,8 +19,9 @@ interface OnboardingScope {
 
 export function createOnboardingStore(
   database: Pick<Database, "select" | "update">,
-  events: BusinessEvents<OrganizationFact> = { publish() {} },
+  publisher: BusinessEvents<OrganizationFact> = { publish() {} },
 ) {
+  const events = safeBusinessEvents(publisher, organizationEventDefinitions);
   // Metadata is stored as JSON text. Both SQL NULL and JSON null represent an
   // organization without metadata; malformed JSON must surface as an error.
   const metadata = sql`coalesce(nullif(nullif(${organization.metadata}, '')::jsonb, 'null'::jsonb), '{}'::jsonb)`;
@@ -65,10 +67,7 @@ export function createOnboardingStore(
         .where(and(eq(organization.id, scope.organizationId), exists(membership)))
         .returning({ onboardingCompleted });
       if (!row) throw new Error("You are no longer a member of this organization.");
-      publishIdentityFact(
-        events,
-        organizationChanged("organization.updated", scope.organizationId),
-      );
+      events.publish(organizationChanged("organization.updated", scope.organizationId));
       return row;
     },
   };

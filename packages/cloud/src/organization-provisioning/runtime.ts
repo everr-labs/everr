@@ -1,6 +1,8 @@
+import { safeBusinessEvents } from "@everr/app/server/business-events/safe-publication";
 import type { BusinessEvents } from "@everr/app/composition";
 import {
-  publishOrganizationProvisioned,
+  organizationProvisioned,
+  organizationReadinessEventDefinitions,
   type OrganizationReadinessFact,
 } from "@everr/app/organizations/events";
 import type { Database } from "@everr/app/db/client";
@@ -83,8 +85,9 @@ function organizationLifecycleJob(
 export function createOrganizationTaskList(
   database: Database,
   recoverRetries: () => Promise<void>,
-  events: BusinessEvents<OrganizationReadinessFact>,
+  publisher: BusinessEvents<OrganizationReadinessFact>,
 ): TaskList {
+  const events = safeBusinessEvents(publisher, organizationReadinessEventDefinitions);
   const cleanup = async (organizationId: string, abortSignal?: AbortSignal) => {
     await deletePostgresOrganizationData(organizationId, database);
     await deprovisionSqlApiOrgUser(organizationId, abortSignal);
@@ -115,7 +118,7 @@ export function createOrganizationTaskList(
             .where(eq(organization.id, organizationId));
           if (!remaining) await cleanup(organizationId, helpers.abortSignal);
         } else {
-          publishOrganizationProvisioned(events, organizationId);
+          events.publish(organizationProvisioned(organizationId));
           serverLogger.info("clickhouse.organization.provision.completed", {
             "everr.organization.id": organizationId,
           });

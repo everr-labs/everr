@@ -21,13 +21,14 @@ import type { BusinessEventDefinition } from "#app/composition/business-events.t
 import { createBusinessEventPublisher } from "./publisher";
 import { businessEventRegistration } from "./subscriber";
 
-it("exports one exception and a bounded failure counter from a rejected subscriber", async () => {
-  const marker = `task01-${randomUUID()}`;
+it("exports bounded failure diagnostics for rejected subscribers and injected publishers", async () => {
+  const marker = `task02-${randomUUID()}`;
   // Optional isolated ingestion proof. Never use a developer's default collector.
   const endpoint = process.env.EVERR_BUSINESS_EVENTS_VERIFY_ENDPOINT;
   const resource = resourceFromAttributes({
     "service.name": "everr-business-events-verification",
     "deployment.environment.name": "test",
+    "everr.verification.id": marker,
   });
   const logExporter = new InMemoryLogRecordExporter();
   const processors = [new SimpleLogRecordProcessor(logExporter)];
@@ -126,6 +127,54 @@ it("exports one exception and a bounded failure counter from a rejected subscrib
         "exception.type",
       ].sort(),
     );
+    const { safeBusinessEvents } = await import("./safe-publication");
+    for (const publish of [
+      () => {
+        throw new Error("private profile and provider body");
+      },
+      () => Promise.reject(new Error("private profile and provider body")) as unknown as void,
+    ]) {
+      safeBusinessEvents({ publish }, [definition]).publish(definition.parse({}));
+    }
+    await Promise.resolve();
+    await loggerProvider.forceFlush();
+    await meterProvider.forceFlush();
+    const injected = logExporter.getFinishedLogRecords().slice(1);
+    expect(injected).toHaveLength(2);
+    for (const record of injected) {
+      expect(record).toMatchObject({
+        body: "business_events.publication.failed",
+        attributes: {
+          "everr.business_event.type": "verification.created",
+          "everr.business_event.subscriber": "publisher",
+          "everr.business_event.failure_stage": "publication",
+          "exception.message": "Business event publication failed",
+        },
+      });
+      expect(JSON.stringify(record.attributes)).not.toContain("private profile");
+    }
+    const publicationPoints = metricExporter
+      .getMetrics()
+      .flatMap((resourceMetrics) =>
+        resourceMetrics.scopeMetrics.flatMap((scope) =>
+          scope.metrics.flatMap((metric) =>
+            metric.dataPoints.map((point) => ({
+              attributes: point.attributes,
+              value: point.value,
+            })),
+          ),
+        ),
+      )
+      .filter((point) => point.attributes["everr.business_event.failure_stage"] === "publication");
+    expect(publicationPoints).toHaveLength(1);
+    expect(publicationPoints[0]).toMatchObject({
+      value: 2,
+      attributes: {
+        "everr.business_event.type": "verification.created",
+        "everr.business_event.subscriber": "publisher",
+        "everr.business_event.failure_stage": "publication",
+      },
+    });
     if (endpoint) console.info(`BUSINESS_EVENTS_VERIFICATION_MARKER=${marker}`);
   } finally {
     await Promise.all([loggerProvider.shutdown(), meterProvider.shutdown()]);

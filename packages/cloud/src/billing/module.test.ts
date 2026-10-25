@@ -917,15 +917,20 @@ it("rolls back accepted subscription persistence when its Plan write fails, with
   }
 });
 
-it("preserves committed billing and attempts both facts when publication throws", async () => {
-  publish.mockImplementation(() => {
-    throw new Error("publication unavailable");
-  });
-  await expect(store.saveSubscription("org", revision())).resolves.toBeUndefined();
-  expect((await database.select().from(schema.orgSubscription))[0].status).toBe("active");
-  expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("pro");
-  expect(publish).toHaveBeenCalledTimes(2);
-});
+it.each(["throw", "reject"])(
+  "preserves committed billing and attempts both facts when publication throws (%s)",
+  async (failure) => {
+    publish.mockImplementation(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publication unavailable")) as unknown as void;
+      throw new Error("publication unavailable");
+    });
+    await expect(store.saveSubscription("org", revision())).resolves.toBeUndefined();
+    expect((await database.select().from(schema.orgSubscription))[0].status).toBe("active");
+    expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("pro");
+    expect(publish).toHaveBeenCalledTimes(2);
+  },
+);
 
 it("publishes the committed owner repair even if later checkout billing fails", async () => {
   const { c } = await paidNew();
@@ -957,30 +962,35 @@ it("publishes the committed owner repair even if later checkout billing fails", 
   expect(published.filter((fact) => fact.type === "membership.added")).toHaveLength(1);
 });
 
-it("preserves the owner repair and completed checkout when publication throws", async () => {
-  const { c } = await paidNew();
-  const orgId = required(c.externalCustomerId);
-  await database.insert(schema.organization).values({
-    id: orgId,
-    name: "New",
-    slug: String(c.metadata.everrOrganizationSlug),
-    createdAt: new Date(),
-  });
-  publish.mockImplementation(() => {
-    throw new Error("publication unavailable");
-  });
-  await expect(
-    billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
-  ).resolves.toMatchObject({ status: "completed" });
-  expect(
-    await database.select().from(schema.member).where(eq(schema.member.organizationId, orgId)),
-  ).toHaveLength(1);
-  expect(publish.mock.calls.map(([fact]) => fact.type)).toEqual([
-    "membership.added",
-    "billing.subscription.changed",
-    "organization.plan.changed",
-  ]);
-});
+it.each(["throw", "reject"])(
+  "preserves the owner repair and completed checkout when publication throws (%s)",
+  async (failure) => {
+    const { c } = await paidNew();
+    const orgId = required(c.externalCustomerId);
+    await database.insert(schema.organization).values({
+      id: orgId,
+      name: "New",
+      slug: String(c.metadata.everrOrganizationSlug),
+      createdAt: new Date(),
+    });
+    publish.mockImplementation(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publication unavailable")) as unknown as void;
+      throw new Error("publication unavailable");
+    });
+    await expect(
+      billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
+    ).resolves.toMatchObject({ status: "completed" });
+    expect(
+      await database.select().from(schema.member).where(eq(schema.member.organizationId, orgId)),
+    ).toHaveLength(1);
+    expect(publish.mock.calls.map(([fact]) => fact.type)).toEqual([
+      "membership.added",
+      "billing.subscription.changed",
+      "organization.plan.changed",
+    ]);
+  },
+);
 
 it("does not publish an owner repair when the membership insert fails", async () => {
   const { c } = await paidNew();

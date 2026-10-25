@@ -143,28 +143,33 @@ it("does not hide or overwrite malformed metadata", async () => {
   expect(row.metadata).toBe("invalid JSON");
 });
 
-it("publishes the selected organization only after completion persists and isolates publication failures", async () => {
-  const publish = vi.fn(() => {
-    throw new Error("publisher unavailable");
-  });
-  const observed = createOnboardingStore(database as unknown as Database, { publish });
-  await expect(observed.complete(scope)).resolves.toEqual({ onboardingCompleted: true });
-  expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
-  expect(publish).toHaveBeenCalledWith({
-    type: "organization.updated",
-    version: 1,
-    subjectId: "one",
-    data: { organizationId: "one" },
-  });
-  publish.mockClear();
-  await expect(observed.complete({ ...scope, userId: "outsider" })).rejects.toThrow(
-    "no longer a member",
-  );
-  expect(publish).not.toHaveBeenCalled();
-  await database
-    .update(schema.organization)
-    .set({ metadata: "invalid JSON" })
-    .where(eq(schema.organization.id, scope.organizationId));
-  await expect(observed.complete(scope)).rejects.toThrow();
-  expect(publish).not.toHaveBeenCalled();
-});
+it.each(["throw", "reject"])(
+  "publishes the selected organization only after completion persists and isolates publication failures (%s)",
+  async (failure) => {
+    const publish = vi.fn(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publisher unavailable")) as unknown as void;
+      throw new Error("publisher unavailable");
+    });
+    const observed = createOnboardingStore(database as unknown as Database, { publish });
+    await expect(observed.complete(scope)).resolves.toEqual({ onboardingCompleted: true });
+    expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
+    expect(publish).toHaveBeenCalledWith({
+      type: "organization.updated",
+      version: 1,
+      subjectId: "one",
+      data: { organizationId: "one" },
+    });
+    publish.mockClear();
+    await expect(observed.complete({ ...scope, userId: "outsider" })).rejects.toThrow(
+      "no longer a member",
+    );
+    expect(publish).not.toHaveBeenCalled();
+    await database
+      .update(schema.organization)
+      .set({ metadata: "invalid JSON" })
+      .where(eq(schema.organization.id, scope.organizationId));
+    await expect(observed.complete(scope)).rejects.toThrow();
+    expect(publish).not.toHaveBeenCalled();
+  },
+);

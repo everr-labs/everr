@@ -1,3 +1,4 @@
+import { safeBusinessEvents } from "#app/server/business-events/safe-publication.ts";
 import { hashPassword } from "better-auth/crypto";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -5,9 +6,9 @@ import type { Database } from "#app/db/database.ts";
 import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
 import type { BusinessEvents } from "#app/composition/business-events.ts";
 import {
+  identityEventDefinitions,
   membershipChanged,
   organizationChanged,
-  publishIdentityFact,
   userCreated,
   type IdentityFact,
 } from "#app/identity/events.ts";
@@ -63,8 +64,9 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database,
-  events: BusinessEvents<IdentityFact> = { publish() {} },
+  publisher: BusinessEvents<IdentityFact> = { publish() {} },
 ) {
+  const events = safeBusinessEvents(publisher, identityEventDefinitions);
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
   const result = await database.transaction(async (tx) => {
@@ -104,11 +106,8 @@ export async function setupWorkspace(
     });
     return { organizationId, userId, membershipId };
   });
-  publishIdentityFact(events, userCreated(result.userId, false));
-  publishIdentityFact(events, organizationChanged("organization.created", result.organizationId));
-  publishIdentityFact(
-    events,
-    membershipChanged("membership.added", { id: result.membershipId, ...result }),
-  );
+  events.publish(userCreated(result.userId, false));
+  events.publish(organizationChanged("organization.created", result.organizationId));
+  events.publish(membershipChanged("membership.added", { id: result.membershipId, ...result }));
   return { organizationId: result.organizationId };
 }

@@ -6,27 +6,12 @@ import type {
   BusinessEvents,
 } from "#app/composition/business-events.ts";
 
-export type PublicationFailureStage =
-  | "validation"
-  | "envelope"
-  | "subscriber"
-  | "overload"
-  | "closed"
-  | "drain";
-export interface PublicationFailure {
-  /** Always a registered type, or the bounded sentinel "unknown". */
-  eventType: string;
-  eventId?: string;
-  subjectId?: string;
-  subscriberId: string;
-  stage: PublicationFailureStage;
-  error: unknown;
-}
-export interface PublicationDiagnostics {
-  log(failure: PublicationFailure): void | Promise<void>;
-  count(failure: PublicationFailure): void | Promise<void>;
-}
-
+import {
+  reportPublicationFailure,
+  type PublicationDiagnostics,
+  type PublicationFailure,
+  type PublicationFailureStage,
+} from "./diagnostics";
 export interface BusinessEventPublisher extends BusinessEvents {
   /** Closes admission immediately. Waits at most drainTimeoutMs; does not cancel persisted work. */
   stop(this: void): Promise<void>;
@@ -73,17 +58,7 @@ export function createBusinessEventPublisher(options: {
   let closed = false;
   let stopping: Promise<void> | undefined;
 
-  // Guard each diagnostic independently, including async diagnostic implementations.
-  // A broken logger must not suppress the counter, recurse, or create an unhandled rejection.
-  function report(failure: PublicationFailure): void {
-    for (const emit of [() => diagnostics.log(failure), () => diagnostics.count(failure)]) {
-      try {
-        void Promise.resolve(emit()).catch(() => {});
-      } catch {
-        // Diagnostics are best effort too.
-      }
-    }
-  }
+  const report = (failure: PublicationFailure) => reportPublicationFailure(diagnostics, failure);
 
   function publish(fact: BusinessEventFact): void {
     if (!hasSubscribers) return;

@@ -1,4 +1,4 @@
-import type { BusinessEventDefinition, BusinessEvents } from "@everr/app/composition";
+import type { BusinessEventDefinition } from "@everr/app/composition";
 import { z } from "zod";
 
 const base = z.object({
@@ -39,13 +39,4 @@ export function organizationPlanChanged(
     subjectId: organizationId,
     data: { organizationId, previousPlan, plan },
   };
-}
-
-/** Protect committed source results even when an injected publisher violates its contract. */
-export function publishBillingFact(events: BusinessEvents<BillingFact>, fact: BillingFact): void {
-  try {
-    events.publish(fact);
-  } catch {
-    /* The runtime publisher owns fallible validation, delivery, and diagnostics. */
-  }
 }

@@ -235,3 +235,17 @@ it("preserves database failures in installation identity policy", async () => {
     select.mockRestore();
   }
 });
+
+it.each(["throw", "reject"])(
+  "preserves committed setup when publication fails (%s)",
+  async (failure) => {
+    const publish = vi.fn(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publisher unavailable")) as unknown as void;
+      throw new Error("publisher unavailable");
+    });
+    const result = await setupWorkspace(input, database, { publish });
+    expect((await database.select().from(schema.organization))[0].id).toBe(result.organizationId);
+    expect(publish).toHaveBeenCalledTimes(3);
+  },
+);

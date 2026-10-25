@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BusinessEventDefinition, BusinessEvents } from "#app/composition/business-events.ts";
+import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
 
 /** Readiness means provisioning completed, independently of Plan, access, or activation. */
 const provisioned = z
@@ -19,18 +19,11 @@ export const organizationReadinessEventDefinitions = [
   },
 ] satisfies readonly BusinessEventDefinition<OrganizationReadinessFact>[];
 
-export function publishOrganizationProvisioned(
-  events: BusinessEvents<OrganizationReadinessFact>,
-  organizationId: string,
-): void {
-  try {
-    events.publish({
-      type: "organization.provisioned",
-      version: 1,
-      subjectId: organizationId,
-      data: { organizationId },
-    });
-  } catch {
-    /* Publication cannot change committed readiness. The runtime owns diagnostics. */
-  }
+export function organizationProvisioned(organizationId: string): OrganizationReadinessFact {
+  return {
+    type: "organization.provisioned",
+    version: 1,
+    subjectId: organizationId,
+    data: { organizationId },
+  };
 }
