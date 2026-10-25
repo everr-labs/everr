@@ -1,6 +1,6 @@
 import type { ApplicationEvents, EventPublisher } from "./events";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
-import type { UsefulConsultations } from "#app/organizations/consultations.ts";
+import type { TraceConsultations } from "#app/organizations/consultations.ts";
 
 /**
  * A supervised background worker. Initial registration must not acquire running
@@ -18,8 +18,8 @@ export interface ApplicationWorker {
 /** Application-owned database upgrades and background work. */
 export interface ApplicationRuntime {
   readonly events: ApplicationEvents;
-  /** Cloud product capability, independent of outbound CRM provider availability. */
-  createUsefulConsultations?(this: void, events: EventPublisher): UsefulConsultations;
+  /** Optional observer for completed product trace reads. */
+  createTraceConsultations?(this: void, events: EventPublisher): TraceConsultations;
   migrateDatabase(this: void, database: MigrationDatabase): Promise<void>;
   /** Only additional workers owned by this composition, never product workers. */
   registerWorkers(this: void): Promise<readonly ApplicationWorker[]>;

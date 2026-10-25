@@ -36,14 +36,13 @@ import {
   relatedSyncSpec,
   userSyncSpec,
 } from "./jobs";
-import { enqueueCrmOrphans } from "./orphans";
 import { createCrmTaskList } from "./task-list";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { attachCrmRetryPolicy } from "./retries";
 import { createMilestoneTestTable } from "../organizations/testing/database";
 import {
-  createUsefulConsultations,
+  createTraceConsultations,
   createOrganizationMilestoneStore,
 } from "../organizations/milestones";
 
@@ -384,28 +383,22 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       expect(unknown.everr_activated_at).toBe("");
       expect(unknown.everr_first_queryable_at).toBe("");
       const instant = new Date("2026-10-23T12:00:00.123Z");
-      const observer = createUsefulConsultations({
+      const observer = createTraceConsultations({
         store: createOrganizationMilestoneStore(fixture.database),
         events: { publish() {} },
         now: () => instant,
       });
       observer.observe({
-        organizationId: "a",
-        principal: {
-          kind: "client",
-          organizationId: "a",
-          clientId: "client",
-          authorization: "organization-query",
-        },
-        data: { organizationId: "a", origin: "production", provenance: "own-customer-telemetry" },
-        trigger: "agent-request",
-        completion: "succeeded",
-        evidence: {
-          kind: "query",
-          surface: "cli",
-          purpose: "telemetry-analysis",
-          matchedOwnRecords: 1,
-        },
+        principal: { kind: "client", organizationId: "a", clientId: "client" },
+        surface: "cli",
+        traces: [
+          {
+            traceId: "trace",
+            serviceName: "checkout",
+            resourceAttributes: { "deployment.environment.name": "production" },
+            spanAttributes: {},
+          },
+        ],
       });
       await observer.stop();
       // An unrelated old notification rereads current markers rather than event payload values.
@@ -683,25 +676,22 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership"));
       await state.invoke(MEMBERSHIP_SYNC_TASK, payload("membership", "b"));
       await fixture.database.delete(organization).where(eq(organization.id, "a"));
-      let after: { kind: "user" | "organization" | "membership"; sourceId: string } | undefined;
-      let checked = 0;
-      let enqueued = 0;
-      do {
-        const page = await enqueueCrmOrphans({
-          store,
-          reader,
-          enqueue: utils.addJob,
-          after,
-          limit: 1,
-          checkId: "orphan-check",
-          detectedAt: new Date().toISOString(),
-        });
-        checked += page.checked;
-        enqueued += page.enqueued;
-        after = page.after;
-      } while (after);
-      expect(checked).toBe(5);
-      expect(enqueued).toBe(2);
+      const progress = await periodic({ maxPages: 100 });
+      expect(progress.admissionCompleted).toBe(true);
+      expect(progress.pages).toBeGreaterThan(1);
+      const admitted = await bootstrapJobs();
+      expect(admitted).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            task_identifier: ORGANIZATION_SYNC_TASK,
+            payload: expect.objectContaining({ organizationId: "a" }),
+          }),
+          expect.objectContaining({
+            task_identifier: MEMBERSHIP_SYNC_TASK,
+            payload: expect.objectContaining({ organizationId: "a", userId: "u" }),
+          }),
+        ]),
+      );
       await start(state);
       await until(
         async () =>
@@ -711,7 +701,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       );
       expect(state.provider.companies.has("company-1")).toBe(false);
       expect(state.provider.companies.get("company-2")!.linkedContactsIds).toEqual([1]);
-      expect(state.provider.contacts.size).toBe(1);
+      expect(state.provider.contacts.has("everr:v1:test:user:u")).toBe(true);
       expect(await store.read(orgKey())).toMatchObject({
         remoteId: "company-1",
         deletedAt: expect.any(Date),
@@ -1006,24 +996,15 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         remoteId: null,
       });
       state.provider.contacts.set(externalId, lateContact);
-      const detectedAt = new Date().toISOString();
-      const enqueue = vi.fn(async () => undefined);
-      await enqueueCrmOrphans({ store, reader, enqueue, checkId: "late-check", detectedAt });
-      expect(enqueue).toHaveBeenCalledWith(
-        USER_SYNC_TASK,
-        expect.objectContaining({
-          eventType: "crm.reconciliation.requested",
-          occurredAt: detectedAt,
-          recheckDeletionRevision: firstCleanup.desiredRevision,
-        }),
-        userSyncSpec("u"),
-      );
-      const repair = {
-        ...userPayload(),
+      const progress = await periodic({ maxPages: 100 });
+      const repair = (await bootstrapJobs()).find(
+        (job) => job.task_identifier === USER_SYNC_TASK && job.payload.userId === "u",
+      )!.payload;
+      expect(repair).toMatchObject({
         eventType: "crm.reconciliation.requested",
-        occurredAt: detectedAt,
+        eventId: progress.scan_id,
         recheckDeletionRevision: firstCleanup.desiredRevision,
-      };
+      });
       await state.invoke(USER_SYNC_TASK, repair);
       expect(state.provider.contacts.size).toBe(0);
       expect(await store.read(userKey)).toMatchObject({
@@ -1808,25 +1789,8 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await milestones.establish({
         observedAt: new Date(),
         observerStartedAt: new Date(),
-        evidence: {
-          organizationId: "a",
-          principal: {
-            kind: "member",
-            organizationId: "a",
-            userId: "u",
-            membershipId: "ma",
-            authorization: "current-membership",
-          },
-          data: { organizationId: "a", origin: "production", provenance: "own-customer-telemetry" },
-          completion: "succeeded",
-          trigger: "user",
-          evidence: {
-            kind: "query",
-            surface: "cli",
-            purpose: "telemetry-analysis",
-            matchedOwnRecords: 1,
-          },
-        },
+        organizationId: "a",
+        surface: "cli",
       });
       // No domain publication or handler ran. Only current authoritative rows exist.
       await periodic({ maxPages: 100 });

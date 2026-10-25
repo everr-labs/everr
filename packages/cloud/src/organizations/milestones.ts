@@ -1,20 +1,116 @@
 import type { EventPublisher } from "@everr/app/composition";
 import type { Database } from "@everr/app/db/database";
 import { organization } from "@everr/app/db/schema";
-import {
-  usefulConsultation,
-  organizationMilestoneDefinitions,
-  type UsefulConsultation,
-  type UsefulConsultations,
-  type OrganizationMilestoneEvent,
+import type {
+  ConsultedTrace,
+  TraceConsultation,
+  TraceConsultations,
 } from "@everr/app/organizations/consultations";
+import { organizationMilestoneDefinitions, type OrganizationMilestoneEvent } from "./events";
+import { z } from "zod";
 import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { eq, sql } from "drizzle-orm";
 import { organizationMilestones } from "../db/schema/organization-milestones";
 import { milestoneDiagnostic, type MilestoneDiagnostics } from "./telemetry";
 
+const id = z.string().trim().min(1).max(512);
+const traceConsultation = z
+  .object({
+    principal: z.discriminatedUnion("kind", [
+      z
+        .object({ kind: z.literal("member"), organizationId: id, userId: id, membershipId: id })
+        .strict(),
+      z.object({ kind: z.literal("client"), organizationId: id, clientId: id }).strict(),
+    ]),
+    surface: z.enum(["ui", "cli", "mcp"]),
+    traces: z
+      .array(
+        z
+          .object({
+            traceId: id,
+            serviceName: z.string(),
+            resourceAttributes: z.unknown(),
+            spanAttributes: z.unknown(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(1000),
+  })
+  .strict()
+  .refine((value) => value.surface !== "ui" || value.principal.kind === "member");
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : undefined;
+}
+
+function rawAttribute(value: unknown, key: string): unknown {
+  const attributes = record(value);
+  if (!attributes) return undefined;
+  let current: unknown = attributes[key];
+  if (current === undefined) {
+    current = attributes;
+    for (const part of key.split(".")) current = record(current)?.[part];
+  }
+  return current;
+}
+
+function attribute(value: unknown, key: string): string {
+  const current = rawAttribute(value, key);
+  return typeof current === "string" || typeof current === "number" ? String(current) : "";
+}
+
+function excludedAttributes(value: unknown): boolean {
+  const attributes = record(value);
+  if (!attributes) return false;
+  return Object.entries(attributes).some(([key, item]) => {
+    if (/(?:^|\.)(?:test|testdata|test_data|demo|synthetic|internal)(?:\.|$)/i.test(key)) {
+      return item !== false && item !== "false" && item !== 0 && item !== "0" && item !== "";
+    }
+    return typeof item === "object" && item !== null && excludedAttributes(item);
+  });
+}
+
+function isCustomerTrace(row: ConsultedTrace): boolean {
+  const resource = row.resourceAttributes;
+  const namespace = attribute(resource, "service.namespace").toLowerCase();
+  // Names are exclusions only. A plausible service name never proves origin.
+  if (
+    /(?:^|[-_.])(?:everr|demo|test|synthetic|telemetrygen|verify)(?:$|[-_.])/i.test(
+      row.serviceName,
+    ) ||
+    namespace === "everr" ||
+    /^everr-labs\//i.test(attribute(resource, "vcs.repository.name")) ||
+    excludedAttributes(resource) ||
+    excludedAttributes(row.spanAttributes) ||
+    ["everr.telemetry.provenance", "everr.data.provenance"].some((key) =>
+      /test|demo|synthetic|internal|everr/i.test(attribute(resource, key)),
+    )
+  )
+    return false;
+
+  if (
+    namespace === "cicd" &&
+    attribute(resource, "vcs.provider.name") === "github" &&
+    /^[1-9]\d*$/.test(attribute(resource, "cicd.pipeline.run.id")) &&
+    /^[^/\s]+\/[^/\s]+$/.test(attribute(resource, "vcs.repository.name")) &&
+    attribute(resource, "cicd.pipeline.name").trim()
+  )
+    return true;
+
+  const currentEnvironment = rawAttribute(resource, "deployment.environment.name");
+  const environment =
+    currentEnvironment === undefined
+      ? attribute(resource, "deployment.environment")
+      : currentEnvironment;
+  return environment === "production";
+}
+
 type Observation = {
-  evidence: UsefulConsultation;
+  organizationId: string;
+  surface: TraceConsultation["surface"];
   observedAt: Date;
   observerStartedAt: Date;
 };
@@ -25,24 +121,24 @@ export function createOrganizationMilestoneStore(database: Database) {
       return database.transaction(async (tx) => {
         await tx.execute(sql`SET LOCAL statement_timeout = '2000ms'`);
         await tx.execute(sql`SET LOCAL lock_timeout = '500ms'`);
-        const { evidence, observedAt, observerStartedAt } = observation;
+        const { organizationId, surface, observedAt, observerStartedAt } = observation;
         // Authorization belongs to the completed action. A later Membership departure
         // does not falsify it. Only protect the source Organization from concurrent deletion.
         const [source] = await tx
           .select({ id: organization.id })
           .from(organization)
-          .where(eq(organization.id, evidence.organizationId))
+          .where(eq(organization.id, organizationId))
           .for("share");
         if (!source) throw new Error("Consultation Organization no longer exists");
         const rows = await tx
           .insert(organizationMilestones)
           .values({
-            organizationId: evidence.organizationId,
+            organizationId,
             ruleVersion: 1,
             observerStartedAt,
             firstQueryableAt: observedAt,
             activatedAt: observedAt,
-            surface: evidence.evidence.surface,
+            surface,
           })
           .onConflictDoNothing()
           .returning({ organizationId: organizationMilestones.organizationId });
@@ -53,14 +149,14 @@ export function createOrganizationMilestoneStore(database: Database) {
 }
 
 /** Bounded, fire-and-forget observation owned by Cloud, without an intermediate event. */
-export function createUsefulConsultations(options: {
+export function createTraceConsultations(options: {
   store: ReturnType<typeof createOrganizationMilestoneStore>;
   events: EventPublisher<OrganizationMilestoneEvent>;
   diagnostics?: MilestoneDiagnostics;
   now?: () => Date;
   maxInFlight?: number;
   drainTimeoutMs?: number;
-}): UsefulConsultations {
+}): TraceConsultations {
   const now = options.now ?? (() => new Date());
   const observerStartedAt = new Date(now().getTime());
   const diagnostics = options.diagnostics ?? milestoneDiagnostic;
@@ -87,19 +183,22 @@ export function createUsefulConsultations(options: {
   let closed = false;
   let stopping: Promise<void> | undefined;
 
-  function observe(observation: UsefulConsultation): void {
+  function observe(observation: TraceConsultation): void {
     if (closed || inFlight.size >= maxInFlight) {
       report(closed ? "closed" : "overload");
       return;
     }
-    let evidence: UsefulConsultation;
+    let consultation: TraceConsultation;
     try {
-      // Zod owns a synchronous copy, before callers can mutate their evidence.
-      evidence = usefulConsultation.parse(observation);
+      // Classify completed data synchronously; persistence receives only owned scalar values.
+      consultation = traceConsultation.parse(observation);
+      if (!consultation.traces.some(isCustomerTrace)) return;
     } catch {
       report("validation");
       return;
     }
+    const organizationId = consultation.principal.organizationId;
+    const surface = consultation.surface;
     let occurredAt: string;
     try {
       occurredAt = now().toISOString();
@@ -112,15 +211,23 @@ export function createUsefulConsultations(options: {
     const work = Promise.resolve()
       .then(async () => {
         if (observedAt < observerStartedAt) throw new Error("Invalid observation clock");
-        if (!(await options.store.establish({ evidence, observedAt, observerStartedAt }))) return;
+        if (
+          !(await options.store.establish({
+            organizationId,
+            surface,
+            observedAt,
+            observerStartedAt,
+          }))
+        )
+          return;
         // Source marker transaction has committed. Each fact remains independent best effort.
         for (const type of ["telemetry.first_queryable", "organization.activated"] as const) {
           events.publish({
             type,
             version: 1,
-            subjectId: evidence.organizationId,
+            subjectId: organizationId,
             data: {
-              organizationId: evidence.organizationId,
+              organizationId,
               ruleVersion: 1,
               observedAt: occurredAt,
             },

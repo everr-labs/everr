@@ -41,6 +41,8 @@ import {
   type UserSyncPayload,
 } from "./jobs";
 import { createUserSyncTask } from "./user-sync";
+import { membershipFanout } from "./related-sync";
+import { createDeletionCleanup } from "./deletion";
 import { coordinateCrmTask } from "./coordination";
 import type { createBrevoAdapter } from "./brevo/adapter";
 import { attachCrmRetryPolicy } from "./retries";
@@ -109,6 +111,25 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           store,
           adapter: remote,
           diagnostic,
+          reconcileMemberships: membershipFanout(store),
+          cleanup: createDeletionCleanup({
+            store,
+            adapter: {
+              ...remote,
+              deleteContact: vi.fn(async () => ({ ok: true as const, value: undefined })),
+              getCompany: async () => {
+                throw new Error("Unexpected Company lookup");
+              },
+              recoverCompany: async () => {
+                throw new Error("Unexpected Company recovery");
+              },
+              deleteCompany: async () => {
+                throw new Error("Unexpected Company deletion");
+              },
+            },
+            reconcileMemberships: async () => {},
+            diagnostic,
+          }),
         }),
       });
     }
@@ -286,9 +307,11 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         await fixture.database.delete(user).where(eq(user.id, "u"));
         return { ok: true, value: undefined };
       });
-      await expect(task(remote)(payload(), helpers())).rejects.toThrow("deletion cleanup");
+      const helper = helpers();
+      await task(remote)(payload(), helper);
+      expect(helper.addJob).toHaveBeenCalledOnce();
       const saved = await store.read(key);
-      expect(saved).toMatchObject({ outcome: "blocked", syncedRevision: null, remoteId: "42" });
+      expect(saved).toMatchObject({ outcome: "pending", syncedRevision: null, remoteId: "42" });
       await fixture.database.insert(user).values({
         id: "u",
         name: "Reused",
@@ -297,8 +320,9 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         updatedAt: new Date(),
       });
       remote.getContact.mockClear();
-      await expect(task(remote)(payload(), helpers())).rejects.toThrow("deletion cleanup");
-      expect(remote.getContact).not.toHaveBeenCalled();
+      await task(remote)(payload(), helpers());
+      expect((await store.read(key))?.outcome).toBe("synced");
+      expect(remote.getContact).toHaveBeenCalledOnce();
       expect(remote.createContact).not.toHaveBeenCalled();
     });
 
@@ -312,7 +336,8 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       await task(remote)(payload(), helper);
       expect(remote.createContact).not.toHaveBeenCalled();
       expect(helper.addJob).toHaveBeenCalledOnce();
-      await expect(task(remote)(payload(), helpers())).rejects.toThrow("deletion cleanup");
+      await task(remote)(payload(), helpers());
+      expect((await store.read(key))?.outcome).toBe("synced");
     });
 
     it("retains an accepted remote ID on an ambiguous create and recovers by ext_id", async () => {

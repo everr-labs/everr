@@ -46,7 +46,6 @@ function createTransport() {
               organizationId: ctx.orgId,
               userId: ctx.userId,
               membershipId: ctx.membershipId,
-              authorization: "current-membership",
             },
           });
           return {

@@ -241,19 +241,14 @@ cannot be fenced atomically. The cached read can survive deferred attempts; clea
 assumes these external identity attributes remain stable during that phase. An
 externally renamed/missing mapping is never reset or recreated automatically.
 
-`enqueueCrmOrphans` checks at most 100 retained projections per keyset page against
-current source IDs, including cascaded pairs. It returns the checked/admitted counts
-and cursor for bounded repair callers, and queues normal coordinated jobs without changing source
-rows or racing a worker's desired-state save. Callers persist a cursor only after
-successful admission and repeat full scans to cover concurrent inserts. Completed
-tombstones stay retained and are rechecked by the same bounded primitive, including
-remote creates accepted after an earlier cleanup observed 404. Repair jobs use
-`crm.reconciliation.requested`, a check ID and detection time, without fabricating a
-historical deletion fact. The job carries the completed revision it observed; under
-the endpoint lock, only that exact completed revision can open one new cleanup
-revision. Duplicate or older repair commands cannot repeatedly reset the allowance.
-Pending, blocked or exhausted cleanup never receives a fresh allowance from a check.
-Bootstrap and periodic scheduling are described below.
+Bootstrap and periodic reconciliation scan retained projections in their
+`projection` phase, including cascaded pairs and completed tombstones. The same
+checkpointed admission path queues normal coordinated jobs; handlers reread current
+source state before saving desired state. There is no separate orphan scanner.
+A completed tombstone carries its observed revision so only that exact revision
+can open one new cleanup revision. Duplicate or older repair commands cannot reset
+pending, blocked or exhausted allowances. These checks also repair remote creates
+accepted after an earlier cleanup observed 404.
 
 Task 09 verification passed 33 related PostgreSQL/Graphile cases, 13 existing User
 cases and 60 focused CRM cases. The isolated provider proof under

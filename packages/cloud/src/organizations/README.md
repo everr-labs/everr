@@ -1,7 +1,7 @@
 # Verified Organization milestones
 
 The shared product contract lives in `@everr/app/organizations/consultations`.
-Cloud owns detection and `organization_milestones`; query modules depend only on
+Cloud owns activation qualification, milestone event definitions and `organization_milestones`; query modules depend only on
 the server completion capability in `server/organizations/consultations.ts`.
 Self-hosted has a no-op capability and no milestone table, CRM dependency or new
 configuration. Task 10 supplies this capability. Task 11 observes the narrow
@@ -9,7 +9,7 @@ trace-detail actions listed below; other reads remain unobserved.
 
 ## Evidence and authorization
 
-Only trusted server completion code may construct `UsefulConsultation`. Never
+Only trusted server completion code may construct `TraceConsultation`. Never
 deserialize a request/browser claim into this authority or expose a marker-write
 endpoint. Task 11 must derive Organization scope from the authenticated action
 and provenance/usefulness from the completed read, not from a browser assertion
@@ -25,16 +25,19 @@ does not invalidate that historical observation. The asynchronous store checks
 that the source Organization still exists, under a share lock, without imposing
 a second, later Membership decision.
 
-Rule 1 requires successful own Production or CI telemetry consultation in that
-same Organization. Detail evidence identifies trace, log, error or CI run content;
-dashboard evidence requires an initial consultation with rendered own-data panels;
-interactive CLI/MCP query evidence requires telemetry-analysis purpose and matched
-own records. The strict schema checks scope, principal, surface, trigger and
-evidence shape before admission to storage. Task 11 must distinguish real own
-telemetry from TestData, demo, synthetic and internal Everr data, exclude probes
-and `SELECT 1`, polling, backfill and redundant refreshes, and assemble one
-dashboard observation rather than one per Panel. Provisioning, keys, usage bytes,
-subscription and Plan have no observation shape that can activate an Organization.
+The shared contract contains only the authenticated principal, the surface
+(`ui`, `cli`, or `mcp`), and the consulted traces' identity, service and stored
+resource/span attributes. Organization scope occurs once, on the principal.
+It has no activation rule, milestone definition, provider dependency, dashboard
+variant or repeated declarations of success, authorization or provenance.
+
+Cloud validates this input and applies Rule 1: at least one consulted trace must
+be the Organization's own Production or CI telemetry. Origin classification and
+exclusions for TestData, demo, synthetic and internal Everr data live exclusively
+in Cloud. Shared server code recognizes supported completed trace reads, leaving
+probes, arbitrary SQL and background refreshes unobserved. Cloud then persists only
+Organization ID, surface and server observation times. Future log, error, CI-run
+and dashboard consultation coverage requires an explicit contract extension.
 
 ## Persistence, time and coverage
 
@@ -143,8 +146,9 @@ WHERE TraceId = '0123456789abcdef0123456789abcdef'
 ORDER BY Timestamp ASC LIMIT 100
 ```
 
-The server observes returned trace identity and stored resource/span attributes,
-not a browser claim or merely a nonempty result. Production evidence requires
+The shared server reports returned trace identity and stored resource/span attributes.
+Cloud qualifies these completed reads, rather than accepting a browser claim or
+merely a nonempty result. Production evidence requires
 `deployment.environment.name = production`, or the legacy
 `deployment.environment = production` when the current key is absent. CI evidence
 requires the existing receiver conventions together: namespace `cicd`, provider

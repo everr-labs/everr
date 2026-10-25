@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Database } from "@everr/app/db/database";
-import { and, asc, eq, gt, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { CompanyRecord } from "./brevo/adapter";
 import { crmProjection } from "../db/schema/crm";
 import {
@@ -55,30 +55,6 @@ export function createCrmProjectionStore(database: Database, deployment: string)
               : eq(crmProjection.organizationId, parent.organizationId),
           ),
         );
-    },
-    /** Keyset page for bounded orphan checks. Never deletes or mutates source rows. */
-    async page(after?: ProjectionKey, limit = 100) {
-      if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-        throw new Error("Invalid CRM reconciliation page size.");
-      return database
-        .select()
-        .from(crmProjection)
-        .where(
-          and(
-            eq(crmProjection.deployment, deployment),
-            after
-              ? or(
-                  gt(crmProjection.kind, after.kind),
-                  and(
-                    eq(crmProjection.kind, after.kind),
-                    gt(crmProjection.sourceId, after.sourceId),
-                  ),
-                )
-              : undefined,
-          ),
-        )
-        .orderBy(asc(crmProjection.kind), asc(crmProjection.sourceId))
-        .limit(limit);
     },
     /** A repair command opens one cleanup revision only from the completed revision
      * it observed. Replayed/duplicated commands cannot repeatedly reset its allowance.

@@ -6,7 +6,7 @@ import {
   userEventDefinitions,
 } from "@everr/app/identity/events";
 import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
-import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
+import { organizationMilestoneDefinitions } from "../organizations/events";
 import { billingEventDefinitions } from "../billing/events";
 import { addWorkerJob } from "@everr/app/server/worker/jobs";
 

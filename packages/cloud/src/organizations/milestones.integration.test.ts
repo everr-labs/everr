@@ -1,16 +1,13 @@
 // @vitest-environment node
-import type {
-  OrganizationMilestoneEvent,
-  UsefulConsultation,
-} from "@everr/app/organizations/consultations";
-import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
+import type { TraceConsultation } from "@everr/app/organizations/consultations";
+import { organizationMilestoneDefinitions, type OrganizationMilestoneEvent } from "./events";
 import { createAuthTestDatabase } from "@everr/app/identity/testing/database";
 import { organization } from "@everr/app/db/schema";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createCrmSnapshotReader } from "../crm/snapshots";
 import { organizationSyncSubscribers } from "../crm/jobs";
-import { createOrganizationMilestoneStore, createUsefulConsultations } from "./milestones";
+import { createOrganizationMilestoneStore, createTraceConsultations } from "./milestones";
 import { createMilestoneTestTable } from "./testing/database";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
@@ -21,23 +18,17 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
   () => {
     let fixture: Awaited<ReturnType<typeof createAuthTestDatabase>>;
     const instant = new Date("2026-10-23T12:00:00.123Z");
-    const evidence = (organizationId = "a"): UsefulConsultation => ({
-      organizationId,
-      principal: {
-        kind: "client",
-        clientId: "org-client",
-        organizationId,
-        authorization: "organization-query",
-      },
-      data: { organizationId, origin: "ci", provenance: "own-customer-telemetry" },
-      trigger: "agent-request",
-      completion: "succeeded",
-      evidence: {
-        kind: "query",
-        surface: "mcp",
-        purpose: "telemetry-analysis",
-        matchedOwnRecords: 1,
-      },
+    const evidence = (organizationId = "a"): TraceConsultation => ({
+      principal: { kind: "client", clientId: "org-client", organizationId },
+      surface: "mcp",
+      traces: [
+        {
+          traceId: "trace",
+          serviceName: "checkout",
+          resourceAttributes: { "deployment.environment.name": "production" },
+          spanAttributes: {},
+        },
+      ],
     });
     const read = () =>
       fixture.client.query("SELECT * FROM organization_milestones ORDER BY organization_id");
@@ -47,7 +38,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     ) {
       const diagnostics = { log: vi.fn(), count: vi.fn() };
       return {
-        ...createUsefulConsultations({
+        ...createTraceConsultations({
           store: createOrganizationMilestoneStore(fixture.database),
           events: { publish },
           now,
@@ -198,7 +189,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         userId: "departed",
         membershipId: "former",
         organizationId: "a",
-        authorization: "current-membership",
       };
       // These are trusted completion facts, not browser claims. No later Membership is required.
       state.observe(historical);

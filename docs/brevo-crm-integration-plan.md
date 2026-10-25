@@ -294,6 +294,11 @@ lost, later use may establish the milestone but cannot prove the earlier first
 value time. Record observation coverage and never invent historical first-value
 times for existing Organizations.
 
+The shared trace consultation contract carries only authenticated context, surface
+and trace metadata. Cloud alone owns Production/CI qualification, data exclusions,
+activation rules, milestone event definitions and marker persistence. Self-hosted
+composition supplies a no-op observer.
+
 Task 10 implements the [server observation contract and cloud marker capability](../packages/cloud/src/organizations/README.md).
 Rule 1 atomically establishes both markers once from a valid useful consultation.
 Observation time is stamped by the server at admission after action completion;

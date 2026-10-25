@@ -13,7 +13,7 @@ import {
   relatedSyncSpec,
   userSyncSpec,
 } from "./jobs";
-import { createRelatedSyncTasks, membershipFanout } from "./related-sync";
+import { createRelatedSyncTask, membershipFanout } from "./related-sync";
 import type { createCrmSnapshotReader } from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
 import type { SyncDiagnostic } from "./telemetry";
@@ -33,7 +33,7 @@ export function createCrmTaskList(options: {
     ...options,
     reconcileMemberships: (saved, helpers, payload) => fanout(saved.desired, helpers, payload),
   });
-  const related = createRelatedSyncTasks({ ...options, cleanup });
+  const related = createRelatedSyncTask({ ...options, cleanup });
   const user = createUserSyncTask({
     ...options,
     reconcileMemberships: fanout,
@@ -52,7 +52,7 @@ export function createCrmTaskList(options: {
       ...options,
       schema: organizationSyncPayload,
       endpoints: (payload) => [JSON.stringify(["organization", payload.organizationId])],
-      task: related.organization,
+      task: related,
       spec: (payload) => relatedSyncSpec(payload.organizationId),
       invalidMessage: "Invalid CRM related task payload.",
     }),
@@ -63,7 +63,7 @@ export function createCrmTaskList(options: {
         JSON.stringify(["organization", payload.organizationId]),
         JSON.stringify(["user", payload.userId]),
       ],
-      task: related.membership,
+      task: related,
       spec: (payload) => relatedSyncSpec(payload.organizationId, payload.userId),
       invalidMessage: "Invalid CRM related task payload.",
     }),

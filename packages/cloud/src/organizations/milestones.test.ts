@@ -1,30 +1,33 @@
 // @vitest-environment node
-import type { UsefulConsultation } from "@everr/app/organizations/consultations";
+import type { TraceConsultation } from "@everr/app/organizations/consultations";
 import { afterEach, expect, it, vi } from "vite-plus/test";
-import { createUsefulConsultations } from "./milestones";
+import { createTraceConsultations } from "./milestones";
 
-function observation(): UsefulConsultation {
+function observation(): TraceConsultation {
   return {
-    organizationId: "org",
     principal: {
       kind: "member",
       organizationId: "org",
       userId: "user",
       membershipId: "membership",
-      authorization: "current-membership",
     },
-    data: { organizationId: "org", origin: "production", provenance: "own-customer-telemetry" },
-    trigger: "user",
-    completion: "succeeded",
-    evidence: { kind: "detail", surface: "ui", entity: "trace", matchedOwnRecords: 1 },
+    surface: "ui",
+    traces: [
+      {
+        traceId: "trace",
+        serviceName: "checkout",
+        resourceAttributes: { "deployment.environment.name": "production" },
+        spanAttributes: {},
+      },
+    ],
   };
 }
-function harness(overrides: Partial<Parameters<typeof createUsefulConsultations>[0]> = {}) {
+function harness(overrides: Partial<Parameters<typeof createTraceConsultations>[0]> = {}) {
   const establish = vi.fn(async () => true);
   const publish = vi.fn();
   const log = vi.fn();
   const count = vi.fn();
-  const observer = createUsefulConsultations({
+  const observer = createTraceConsultations({
     store: { establish },
     events: { publish },
     diagnostics: { log, count },
@@ -34,40 +37,30 @@ function harness(overrides: Partial<Parameters<typeof createUsefulConsultations>
 }
 afterEach(() => vi.useRealTimers());
 
-it.each(["trace", "log", "error", "ci-run"] as const)(
-  "accepts completed own-data %s detail consultation",
-  async (entity) => {
-    const state = harness();
-    const value = observation();
-    value.evidence = { kind: "detail", surface: "ui", entity, matchedOwnRecords: 1 };
-    expect(state.observer.observe(value)).toBeUndefined();
-    await state.observer.stop();
-    expect(state.establish).toHaveBeenCalledOnce();
-    expect(state.publish.mock.calls.map(([fact]) => fact.type)).toEqual([
-      "telemetry.first_queryable",
-      "organization.activated",
-    ]);
-  },
-);
+it("accepts a completed customer Production trace consultation", async () => {
+  const state = harness();
+  expect(state.observer.observe(observation())).toBeUndefined();
+  await state.observer.stop();
+  expect(state.establish).toHaveBeenCalledOnce();
+  expect(state.publish.mock.calls.map(([fact]) => fact.type)).toEqual([
+    "telemetry.first_queryable",
+    "organization.activated",
+  ]);
+});
 
 it.each(["cli", "mcp"] as const)(
-  "accepts an explicitly authorized Organization client on %s without inventing a User",
+  "accepts authorized clients on %s without inventing a User",
   async (surface) => {
     const state = harness();
     const value = observation();
-    value.principal = {
-      kind: "client",
-      organizationId: "org",
-      clientId: "authorized-client",
-      authorization: "organization-query",
-    };
-    value.data.origin = "ci";
-    value.trigger = "agent-request";
-    value.evidence = {
-      kind: "query",
-      surface,
-      purpose: "telemetry-analysis",
-      matchedOwnRecords: 4,
+    value.surface = surface;
+    value.principal = { kind: "client", organizationId: "org", clientId: "client" };
+    value.traces[0].resourceAttributes = {
+      "service.namespace": "cicd",
+      "vcs.provider.name": "github",
+      "cicd.pipeline.run.id": 123,
+      "vcs.repository.name": "customer/checkout",
+      "cicd.pipeline.name": "build",
     };
     state.observer.observe(value);
     await state.observer.stop();
@@ -76,106 +69,96 @@ it.each(["cli", "mcp"] as const)(
   },
 );
 
-it("accepts one initial populated dashboard consultation", async () => {
-  const state = harness();
-  state.observer.observe({
-    ...observation(),
-    evidence: { kind: "dashboard", surface: "ui", initialConsultation: true, renderedOwnPanels: 2 },
-  });
-  await state.observer.stop();
-  expect(state.establish).toHaveBeenCalledOnce();
-});
-
 it.each([
-  ["mismatched data Organization", { data: { ...observation().data, organizationId: "other" } }],
+  ["missing membership", { principal: { kind: "member", organizationId: "org", userId: "u" } }],
   [
-    "mismatched principal Organization",
-    { principal: { ...observation().principal, organizationId: "other" } },
-  ],
-  [
-    "missing authorization",
+    "client claiming UI",
     { principal: { kind: "client", organizationId: "org", clientId: "client" } },
   ],
-  [
-    "client claiming a UI consultation",
-    {
-      principal: {
-        kind: "client",
-        organizationId: "org",
-        clientId: "client",
-        authorization: "organization-query",
-      },
-    },
-  ],
-  ["empty result", { evidence: { ...observation().evidence, matchedOwnRecords: 0 } }],
-  [
-    "probe",
-    { evidence: { kind: "query", surface: "cli", purpose: "probe", matchedOwnRecords: 1 } },
-  ],
-  [
-    "SELECT 1",
-    { evidence: { kind: "query", surface: "mcp", purpose: "select-1", matchedOwnRecords: 1 } },
-  ],
-  ["unattended polling", { trigger: "poll" }],
-  ["backfill", { trigger: "backfill" }],
-  [
-    "redundant refresh",
-    {
-      evidence: {
-        kind: "dashboard",
-        surface: "ui",
-        initialConsultation: false,
-        renderedOwnPanels: 1,
-      },
-    },
-  ],
-  [
-    "empty dashboard",
-    {
-      evidence: {
-        kind: "dashboard",
-        surface: "ui",
-        initialConsultation: true,
-        renderedOwnPanels: 0,
-      },
-    },
-  ],
-  ["failed completion", { completion: "failed" }],
-  ["Local data", { data: { ...observation().data, origin: "local" } }],
-  ...["test-data", "demo", "synthetic", "internal-everr"].map((provenance): [string, object] => [
-    provenance,
-    { data: { ...observation().data, provenance } },
-  ]),
-  ["untrusted telemetry timestamp", { observedAt: "2000-01-01T00:00:00Z" }],
-  ["only nonempty result", { evidence: { matchedOwnRecords: 1 } }],
-  ["subscription", { evidence: { kind: "subscription", status: "active" } }],
-  ["provisioning", { evidence: { kind: "provisioning", ready: true } }],
-  ["usage", { evidence: { kind: "usage", bytes: 512 } }],
-  ["key creation", { evidence: { kind: "api-key-created" } }],
-])("rejects %s without attempting persistence or affecting completion", async (_label, changes) => {
+  ["empty result", { traces: [] }],
+  ["unsupported dashboard", { surface: "dashboard" }],
+  ["untrusted telemetry time", { observedAt: "2000-01-01T00:00:00Z" }],
+  ["arbitrary result", { traces: [{ result: 1 }] }],
+  ["too many traces", { traces: Array.from({ length: 1001 }, () => observation().traces[0]) }],
+])("rejects %s without affecting completion", async (_label, changes) => {
   const state = harness();
-  const invalid = { ...observation(), ...(changes as object) } as UsefulConsultation;
-  expect(() => state.observer.observe(invalid)).not.toThrow();
+  expect(() =>
+    state.observer.observe({ ...observation(), ...changes } as TraceConsultation),
+  ).not.toThrow();
   await state.observer.stop();
   expect(state.establish).not.toHaveBeenCalled();
   expect(state.publish).not.toHaveBeenCalled();
   expect(state.count).toHaveBeenCalledWith("validation");
 });
 
-it("copies evidence before asynchronous work and uses admission time, not persistence time", async () => {
+it.each([
+  {},
+  { "deployment.environment.name": "test" },
+  { "deployment.environment.name": "local" },
+  { "deployment.environment.name": "", "deployment.environment": "production" },
+  { "deployment.environment.name": false, "deployment.environment": "production" },
+  { deployment: { environment: { name: null } }, "deployment.environment": "production" },
+  { "service.namespace": "cicd" },
+  { "service.name": "customer-service" },
+  { "deployment.environment.name": "production", "service.namespace": "everr" },
+  { "deployment.environment.name": "production", "everr.synthetic": true },
+  { "deployment.environment.name": "production", everr: { demo: true } },
+  { "deployment.environment.name": "production", "everr.telemetry.provenance": "test-data" },
+  {
+    "service.namespace": "cicd",
+    "vcs.provider.name": "github",
+    "cicd.pipeline.run.id": 123,
+    "vcs.repository.name": "everr-labs/everr",
+    "cicd.pipeline.name": "build",
+  },
+])("Cloud excludes unproven or non-customer data: %j", async (resourceAttributes) => {
+  const state = harness();
+  const value = observation();
+  value.traces[0].resourceAttributes = resourceAttributes;
+  state.observer.observe(value);
+  await state.observer.stop();
+  expect(state.establish).not.toHaveBeenCalled();
+  expect(state.publish).not.toHaveBeenCalled();
+  expect(state.count).not.toHaveBeenCalled();
+});
+
+it.each(["everr-app", "test-service", "verify-seed-api", "demo", "synthetic-api", "telemetrygen"])(
+  "Cloud excludes service %s",
+  async (serviceName) => {
+    const state = harness();
+    const value = observation();
+    value.traces[0].serviceName = serviceName;
+    state.observer.observe(value);
+    await state.observer.stop();
+    expect(state.establish).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { "deployment.environment": "production" },
+  { deployment: { environment: { name: "production" } } },
+])("accepts customer Production attribute formats %j", async (resourceAttributes) => {
+  const state = harness();
+  const value = observation();
+  value.traces[0].resourceAttributes = resourceAttributes;
+  state.observer.observe(value);
+  await state.observer.stop();
+  expect(state.establish).toHaveBeenCalledOnce();
+});
+
+it("captures the authorized Organization and admission time before asynchronous work", async () => {
   let instant = new Date("2026-10-23T12:00:00.123Z");
   const state = harness({ now: () => instant });
   instant = new Date("2026-10-23T12:00:01.456Z");
   const value = observation();
   state.observer.observe(value);
-  value.data.organizationId = "mutated";
+  value.principal.organizationId = "mutated";
   instant = new Date("2026-10-23T12:10:00Z");
   await state.observer.stop();
   expect(state.establish).toHaveBeenCalledWith(
     expect.objectContaining({
-      evidence: expect.objectContaining({
-        data: expect.objectContaining({ organizationId: "org" }),
-      }),
+      organizationId: "org",
+      surface: "ui",
       observedAt: new Date("2026-10-23T12:00:01.456Z"),
       observerStartedAt: new Date("2026-10-23T12:00:00.123Z"),
     }),
@@ -286,7 +269,7 @@ it("contains synchronous diagnostic failures without losing the independent coun
     },
   });
   expect(() =>
-    state.observer.observe({ ...observation(), trigger: "poll" } as unknown as UsefulConsultation),
+    state.observer.observe({ ...observation(), trigger: "poll" } as unknown as TraceConsultation),
   ).not.toThrow();
   await state.observer.stop();
   expect(count).toHaveBeenCalledWith("validation");
@@ -303,27 +286,21 @@ it.each([-1, NaN, Infinity])("rejects invalid observation drain timeout %s", (dr
   expect(() => harness({ drainTimeoutMs })).toThrow("Invalid publication drain timeout");
 });
 
-it("owns every nested input and clock Date before storage begins", async () => {
+it("persists only captured scalar context and clock times after input mutation", async () => {
   const instant = new Date("2026-10-23T12:00:00Z");
   const state = harness({ now: () => instant });
   instant.setUTCSeconds(1);
   const value = observation();
   state.observer.observe(value);
-  value.organizationId = "changed";
   value.principal.organizationId = "changed";
-  value.data.provenance = "synthetic" as "own-customer-telemetry";
-  if (value.evidence.kind === "detail") value.evidence.matchedOwnRecords = 99;
-  value.evidence = {
-    kind: "dashboard",
-    surface: "ui",
-    initialConsultation: true,
-    renderedOwnPanels: 9,
-  };
+  value.traces[0].resourceAttributes = { "everr.synthetic": true };
+  value.surface = "mcp";
   instant.setUTCFullYear(2000);
   expect(state.establish).not.toHaveBeenCalled();
   await state.observer.stop();
   expect(state.establish).toHaveBeenCalledWith({
-    evidence: observation(),
+    organizationId: "org",
+    surface: "ui",
     observedAt: new Date("2026-10-23T12:00:01Z"),
     observerStartedAt: new Date("2026-10-23T12:00:00Z"),
   });

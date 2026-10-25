@@ -33,9 +33,13 @@ it("observes explicit UI detail only after its successful Organization-scoped re
   expect(rows[0].traceId).toBe(raw.traceId);
   expect(observe).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({
-      organizationId: "test_org",
-      principal: expect.objectContaining({ userId: "test_user", membershipId: "test_membership" }),
-      evidence: { kind: "detail", surface: "ui", entity: "trace", matchedOwnRecords: 1 },
+      principal: expect.objectContaining({
+        organizationId: "test_org",
+        userId: "test_user",
+        membershipId: "test_membership",
+      }),
+      surface: "ui",
+      traces: [expect.objectContaining({ traceId: raw.traceId })],
     }),
   );
 });

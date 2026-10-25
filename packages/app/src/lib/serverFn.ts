@@ -43,7 +43,6 @@ export const requireOrgMiddleware = createMiddleware()
           organizationId: activeOrgId,
           userId: session.user.id,
           membershipId,
-          authorization: "current-membership" as const,
         },
         session: {
           session: {

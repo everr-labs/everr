@@ -4,15 +4,15 @@ import { userSyncSubscribers, organizationSyncSubscribers } from "../../crm/jobs
 import { db } from "@everr/app/db/client";
 import {
   createOrganizationMilestoneStore,
-  createUsefulConsultations,
+  createTraceConsultations,
 } from "../../organizations/milestones";
 
 const crmConfig = readBrevoConfig(process.env);
 
 export const runtime: ApplicationRuntime = {
   events: [...userSyncSubscribers(crmConfig.mode), ...organizationSyncSubscribers(crmConfig.mode)],
-  createUsefulConsultations(events) {
-    return createUsefulConsultations({ store: createOrganizationMilestoneStore(db), events });
+  createTraceConsultations(events) {
+    return createTraceConsultations({ store: createOrganizationMilestoneStore(db), events });
   },
   async migrateDatabase(database) {
     const { migrateDatabase } = await import("../migrations");

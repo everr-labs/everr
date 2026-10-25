@@ -206,7 +206,6 @@ describe("authMiddleware", () => {
           organizationId: "org_123",
           userId: "user_123",
           membershipId: "membership_123",
-          authorization: "current-membership",
         },
         session: {
           user: { id: "user_123" },

@@ -15,13 +15,13 @@ export function createUserSyncTask(options: {
     ReturnType<typeof createBrevoAdapter>,
     "getContact" | "createContact" | "updateContact"
   >;
-  reconcileMemberships?: (
+  reconcileMemberships: (
     snapshot: DesiredProjection,
     helpers: JobHelpers,
     payload: UserSyncPayload,
   ) => Promise<void>;
   diagnostic?: SyncDiagnostic;
-  cleanup?: DeletionCleanup;
+  cleanup: DeletionCleanup;
 }): CrmTask<UserSyncPayload> {
   const { reader, store, adapter, diagnostic = syncDiagnostic } = options;
   const execute = async (
@@ -64,13 +64,10 @@ export function createUserSyncTask(options: {
       report(outcome);
     };
     if (saved.desired.deleted || saved.deletedAt) {
-      if (options.cleanup) return options.cleanup(saved, payload, helpers, diagnosticState);
-      await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
-      report("blocked");
-      throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
+      return options.cleanup(saved, payload, helpers, diagnosticState);
     }
     if (saved.syncedRevision === saved.desiredRevision) {
-      await options.reconcileMemberships?.(saved.desired, helpers, payload);
+      await options.reconcileMemberships(saved.desired, helpers, payload);
       report("synced");
       return;
     }
@@ -100,10 +97,7 @@ export function createUserSyncTask(options: {
       diagnosticState.retryFailures = undefined;
       saved = observe(await store.desire(await reader.user(payload.userId)));
       if (saved.desired.deleted || saved.deletedAt) {
-        if (options.cleanup) return defer(new Date(Date.now() + 1000));
-        await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
-        report("blocked");
-        throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
+        return defer(new Date(Date.now() + 1000));
       }
       if (saved.desiredRevision !== attemptRevision) {
         await defer(new Date(Date.now() + 1000));
@@ -186,10 +180,7 @@ export function createUserSyncTask(options: {
     diagnosticState.retryFailures = undefined;
     saved = observe(await store.desire(latest));
     if (saved.desired.deleted || saved.deletedAt) {
-      if (options.cleanup) return defer(new Date(Date.now() + 1000));
-      await store.markFailed(key, saved.desiredRevision, "deletion_cleanup_required", true);
-      report("blocked");
-      throw new RetainedCrmWork("CRM deletion cleanup is not configured.");
+      return defer(new Date(Date.now() + 1000));
     }
     if (!unchanged) {
       await defer(new Date(Date.now() + 1000));
@@ -202,7 +193,7 @@ export function createUserSyncTask(options: {
       payload.eventType === "crm.reconciliation.requested" ? payload.eventId : undefined,
     );
     if (synced) saved = observe({ ...saved, retryFailures: 0 });
-    await options.reconcileMemberships?.(saved.desired, helpers, payload);
+    await options.reconcileMemberships(saved.desired, helpers, payload);
     report("synced");
   };
   return async (payload, helpers) => {

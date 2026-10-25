@@ -101,7 +101,6 @@ vi.mock("#app/lib/serverFn.ts", async () => {
             organizationId: "test_org",
             userId: "test_user",
             membershipId: "test_membership",
-            authorization: "current-membership",
           },
           session: {
             session: {

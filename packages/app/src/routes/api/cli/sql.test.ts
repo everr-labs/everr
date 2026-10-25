@@ -43,7 +43,6 @@ const principal = {
   organizationId: "org-42",
   userId: "u",
   membershipId: "m",
-  authorization: "current-membership",
 } as const;
 const context = {
   consultationPrincipal: principal,
@@ -247,9 +246,8 @@ describe("CLI consultation completion", () => {
     expect(await response.text()).toContain(traceId);
     expect(observe).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        organizationId: "org-42",
         principal,
-        evidence: expect.objectContaining({ surface: "cli" }),
+        surface: "cli",
       }),
     );
   });

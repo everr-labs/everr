@@ -13,7 +13,6 @@ const principal = {
   organizationId: "org-1",
   userId: "u",
   membershipId: "m",
-  authorization: "current-membership",
 } as const;
 const { assertStorageReady } = storage;
 vi.mock("@composition/storage", () => ({
@@ -192,10 +191,8 @@ describe("MCP consultation completion", () => {
     expect((await run(sql)).isError).toBe(false);
     expect(observe).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
-        organizationId: "org-1",
         principal,
-        trigger: "agent-request",
-        evidence: expect.objectContaining({ surface: "mcp" }),
+        surface: "mcp",
       }),
     );
   });
