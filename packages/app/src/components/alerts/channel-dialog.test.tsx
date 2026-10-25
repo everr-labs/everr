@@ -150,9 +150,11 @@ describe("ChannelDialog webhook headers", () => {
     await user.click(screen.getByRole("button", { name: "Save channel" }));
 
     expect(onSave).not.toHaveBeenCalled();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/value is required for X-Env/i);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Header value is required for X-Env");
     const values = screen.getAllByLabelText("Value");
     expect(values[1]).toHaveAttribute("aria-invalid", "true");
+    expect(values[1].closest("li")).toContainElement(alert);
 
     await user.type(values[1], "staging");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -209,6 +211,11 @@ describe("ChannelDialog webhook headers", () => {
       expect(input).toHaveAttribute("aria-invalid", "true");
     }
     expect(screen.getAllByLabelText("Value")[0]).not.toHaveAttribute("aria-invalid");
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
+      "Header Authorization is already set",
+      "Header Authorization is already set",
+      "Header value is required for Authorization",
+    ]);
   });
 
   it("asks for header values again when the URL is replaced", async () => {
@@ -258,7 +265,7 @@ describe("ChannelDialog validation", () => {
 
     expect(onSave).not.toHaveBeenCalled();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "A channel with this name already exists.",
+      "A channel with this name already exists",
     );
     expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
   });
@@ -287,7 +294,7 @@ describe("ChannelDialog validation", () => {
     expect(onSave).not.toHaveBeenCalled();
     const alerts = await screen.findAllByRole("alert");
     expect(alerts.map((alert) => alert.textContent)).toEqual([
-      "Name is required.",
+      "Name is required",
       "URL is required",
     ]);
     expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");

@@ -118,12 +118,7 @@ describe("webhook headers on a draft", () => {
   it("requires header values again when the URL is replaced", () => {
     const draft = { ...channelConfigDraft(WEBHOOK), url: "https://203.0.113.11/hook" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
-      errors: {
-        headers: {
-          message: "Header value is required for Authorization",
-          rows: [{ name: false, value: true }],
-        },
-      },
+      errors: { "headers[0].value": "Header value is required for Authorization" },
     });
     draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
@@ -139,12 +134,7 @@ describe("webhook headers on a draft", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], name: "X-Token" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
-      errors: {
-        headers: {
-          message: "Header value is required for X-Token",
-          rows: [{ name: false, value: true }],
-        },
-      },
+      errors: { "headers[0].value": "Header value is required for X-Token" },
     });
   });
 
@@ -170,13 +160,8 @@ describe("webhook headers on a draft", () => {
     };
     expect(readChannelDraft(draft, "webhook")).toEqual({
       errors: {
-        headers: {
-          message: "Header authorization is already set",
-          rows: [
-            { name: true, value: false },
-            { name: true, value: false },
-          ],
-        },
+        "headers[0].name": "Header Authorization is already set",
+        "headers[1].name": "Header authorization is already set",
       },
     });
   });
@@ -189,12 +174,7 @@ describe("webhook headers on a draft", () => {
       headers: [{ id: "latin1", name: "X-Token", value: "token-\u0100", retainedName: null }],
     };
     expect(readChannelDraft(draft, null)).toEqual({
-      errors: {
-        headers: {
-          message: "header value must contain only latin-1 characters",
-          rows: [{ name: false, value: true }],
-        },
-      },
+      errors: { "headers[0].value": "header value must contain only latin-1 characters" },
     });
   });
 
@@ -206,12 +186,7 @@ describe("webhook headers on a draft", () => {
       headers: [{ id: "blocked", name: "Content-Type", value: "text/plain", retainedName: null }],
     };
     expect(readChannelDraft(draft, null)).toEqual({
-      errors: {
-        headers: {
-          message: "header Content-Type cannot be set",
-          rows: [{ name: true, value: false }],
-        },
-      },
+      errors: { "headers[0].name": "header Content-Type cannot be set" },
     });
   });
 });

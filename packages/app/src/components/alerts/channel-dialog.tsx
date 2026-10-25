@@ -17,9 +17,8 @@ import { cn } from "@everr/ui/lib/utils";
 import { revalidateLogic, useForm, useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
-  type ChannelDraftProblem,
   type ChannelType,
   channelConfigDraft,
   EMPTY_CHANNEL_DRAFT,
@@ -134,14 +133,14 @@ function ChannelForm({
     validators: {
       onDynamic: ({ value }) => {
         const read = readChannelDraft(value.draft, storedType);
-        const fields: Record<string, string | ChannelDraftProblem> = {};
+        const fields: Record<string, string | undefined> = {};
         if ("errors" in read) {
           for (const [key, error] of Object.entries(read.errors)) fields[`draft.${key}`] = error;
         }
         const name = value.name.trim();
-        if (!name) fields.name = "Name is required.";
+        if (!name) fields.name = "Name is required";
         else if (name !== editing?.name && existingNames.includes(name)) {
-          fields.name = "A channel with this name already exists.";
+          fields.name = "A channel with this name already exists";
         }
         return Object.keys(fields).length > 0 ? { fields } : undefined;
       },
@@ -259,14 +258,76 @@ function ChannelForm({
           </form.Field>
         )}
         {type === "webhook" && (
-          <form.Field name="draft.headers">
-            {(field) => (
+          <form.Field name="draft.headers" mode="array">
+            {(headers) => (
               <WebhookHeaders
-                headers={field.state.value}
-                problem={field.state.meta.errors.find((error) => typeof error === "object")}
+                count={headers.state.value.length}
+                errors={headers.state.meta.errors}
                 disabled={busy}
-                onChange={(headers) => field.handleChange(headers)}
-              />
+                onAdd={() =>
+                  headers.pushValue({
+                    id: crypto.randomUUID(),
+                    name: "",
+                    value: "",
+                    retainedName: null,
+                  })
+                }
+              >
+                {headers.state.value.map((header, index) => (
+                  <li key={header.id} className="space-y-1.5 rounded-md border p-2">
+                    <form.Field name={`draft.headers[${index}].name`}>
+                      {(field) => (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={busy}
+                              aria-label={`Remove header ${header.name || index + 1}`}
+                              onClick={() => headers.removeValue(index)}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`channel-header-name-${index}`}
+                            aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                            className="font-mono"
+                            value={field.state.value}
+                            disabled={busy}
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder="Authorization"
+                            onChange={(event) => field.handleChange(event.target.value)}
+                          />
+                          <FieldError errors={field.state.meta.errors} />
+                        </>
+                      )}
+                    </form.Field>
+                    <form.Field name={`draft.headers[${index}].value`}>
+                      {(field) => (
+                        <>
+                          <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
+                          <SecretInput
+                            id={`channel-header-value-${index}`}
+                            aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                            className="font-mono"
+                            value={field.state.value}
+                            disabled={busy}
+                            hasStoredSecret={keepsStoredHeader(header)}
+                            autoComplete="off"
+                            placeholder="Bearer token"
+                            onValueChange={(value) => field.handleChange(value)}
+                          />
+                          <FieldError errors={field.state.meta.errors} />
+                        </>
+                      )}
+                    </form.Field>
+                  </li>
+                ))}
+              </WebhookHeaders>
             )}
           </form.Field>
         )}
@@ -352,18 +413,20 @@ function keepsStoredHeader(header: WebhookHeaderDraft): boolean {
   );
 }
 
+/** The header list's frame: its label, the Add button, and the rows. */
 function WebhookHeaders({
-  headers,
-  problem,
+  count,
+  errors,
   disabled,
-  onChange,
+  onAdd,
+  children,
 }: {
-  headers: WebhookHeaderDraft[];
-  problem: ChannelDraftProblem | undefined;
+  count: number;
+  errors: unknown[];
   disabled: boolean;
-  onChange: (headers: WebhookHeaderDraft[]) => void;
+  onAdd: () => void;
+  children: ReactNode;
 }) {
-  const atMax = headers.length >= ALERTING_WEBHOOK_HEADERS_MAX;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -372,75 +435,15 @@ function WebhookHeaders({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || atMax}
-          onClick={() =>
-            onChange([
-              ...headers,
-              { id: crypto.randomUUID(), name: "", value: "", retainedName: null },
-            ])
-          }
+          disabled={disabled || count >= ALERTING_WEBHOOK_HEADERS_MAX}
+          onClick={onAdd}
         >
           <Plus className="size-3.5" />
           Add header
         </Button>
       </div>
-      {headers.length > 0 && (
-        <ul className="space-y-2">
-          {headers.map((header, index) => (
-            <li key={header.id} className="space-y-1.5 rounded-md border p-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={disabled}
-                  aria-label={`Remove header ${header.name || index + 1}`}
-                  onClick={() => onChange(headers.filter((_, item) => item !== index))}
-                >
-                  <X />
-                </Button>
-              </div>
-              <Input
-                id={`channel-header-name-${index}`}
-                aria-invalid={problem?.rows[index]?.name || undefined}
-                className="font-mono"
-                value={header.name}
-                disabled={disabled}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="Authorization"
-                onChange={(event) => {
-                  const next = headers.slice();
-                  next[index] = { ...header, name: event.target.value };
-                  onChange(next);
-                }}
-              />
-              <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
-              <SecretInput
-                id={`channel-header-value-${index}`}
-                aria-invalid={problem?.rows[index]?.value || undefined}
-                className="font-mono"
-                value={header.value}
-                disabled={disabled}
-                hasStoredSecret={keepsStoredHeader(header)}
-                autoComplete="off"
-                placeholder="Bearer token"
-                onValueChange={(value) => {
-                  const next = headers.slice();
-                  next[index] = { ...header, value };
-                  onChange(next);
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      {problem && (
-        <p className="text-destructive text-xs" role="alert">
-          {problem.message}
-        </p>
-      )}
+      {count > 0 && <ul className="space-y-2">{children}</ul>}
+      <FieldError errors={errors} />
     </div>
   );
 }

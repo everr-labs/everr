@@ -61,95 +61,68 @@ function sameHeaderName(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
-/** Which controls on one draft row the reader has to change. Parallel to
- *  `ChannelConfigDraft["headers"]`, including a blank row the write drops. */
-export type WebhookHeaderRowInvalid = {
-  name: boolean;
-  value: boolean;
-};
-
-/** Why a webhook draft cannot be saved, and which row fields say so. */
-export type ChannelDraftProblem = {
-  message: string;
-  rows: WebhookHeaderRowInvalid[];
-};
+/** What the reader has to change, keyed by the draft field that says so.
+ *  A header row's own fields are addressed by their index in the draft list. */
+export type ChannelDraftErrors = Partial<
+  Record<
+    "url" | "botToken" | "chatIds" | "headers" | `headers[${number}].${"name" | "value"}`,
+    string
+  >
+>;
 
 /** The header list a webhook write should carry, plus the row fields that
  *  block it. Fully blank rows are the unused "add header" slot and are dropped.
  *  A blank value keeps a stored header only while the URL stays the one it
  *  was saved for. A typed URL is a new endpoint, so that value has to be entered. */
 function webhookHeadersFromDraft(headers: WebhookHeaderDraft[], retainStored: boolean) {
-  const rows: WebhookHeaderRowInvalid[] = headers.map(() => ({ name: false, value: false }));
+  const errors: ChannelDraftErrors = {};
   const filledIndexes: number[] = [];
-  const seen = new Map<string, number[]>();
+  const firstWithName = new Map<string, number>();
   const write: { name: string; value?: string }[] = [];
-  let message: string | null = null;
-  const fail = (text: string) => {
-    message ??= text;
-  };
 
   for (const [index, header] of headers.entries()) {
     const name = header.name.trim();
     if (name === "" && header.value === "") continue;
     filledIndexes.push(index);
     if (name === "") {
-      rows[index].name = true;
-      fail("Header name is required");
+      errors[`headers[${index}].name`] = "Header name is required";
       continue;
     }
-    const key = name.toLowerCase();
-    const prior = seen.get(key);
-    if (prior) {
-      rows[index].name = true;
-      for (const other of prior) rows[other].name = true;
-      prior.push(index);
-      fail(`Header ${name} is already set`);
+    const first = firstWithName.get(name.toLowerCase());
+    if (first === undefined) {
+      firstWithName.set(name.toLowerCase(), index);
     } else {
-      seen.set(key, [index]);
+      errors[`headers[${first}].name`] ??= `Header ${headers[first].name.trim()} is already set`;
+      errors[`headers[${index}].name`] = `Header ${name} is already set`;
     }
     const retains =
       retainStored && header.retainedName !== null && sameHeaderName(name, header.retainedName);
-    if (!header.value) {
-      if (!retains) {
-        rows[index].value = true;
-        fail(`Header value is required for ${name}`);
-      } else if (message === null) {
-        write.push({ name });
-      }
-      continue;
-    }
-    if (message === null) write.push({ name, value: header.value });
+    if (header.value) write.push({ name, value: header.value });
+    else if (retains) write.push({ name });
+    else errors[`headers[${index}].value`] = `Header value is required for ${name}`;
   }
 
-  return { message, rows, headers: write, filledIndexes };
+  return { errors, headers: write, filledIndexes };
 }
 
-/** A schema issue's path addresses the filtered write list. Mark the draft
- *  row that produced that entry. */
-function markHeaderIssues(
-  rows: WebhookHeaderRowInvalid[],
+/** A schema issue's path addresses the filtered write list. Put it on the
+ *  draft row field that produced that entry, or on the list as a whole. */
+function headerErrorsFromIssues(
   filledIndexes: number[],
-  issues: readonly { path: PropertyKey[] }[],
-) {
-  for (const issue of issues) {
-    const fieldAt = issue.path.findIndex((part) => part === "name" || part === "value");
-    if (fieldAt < 1) continue;
-    const index = issue.path[fieldAt - 1];
-    if (typeof index !== "number") continue;
-    const row = filledIndexes[index];
-    if (row === undefined || !rows[row]) continue;
-    if (issue.path[fieldAt] === "name") rows[row].name = true;
-    else rows[row].value = true;
+  issues: readonly { path: PropertyKey[]; message: string }[],
+): ChannelDraftErrors {
+  const errors: ChannelDraftErrors = {};
+  for (const { path, message } of issues) {
+    const [, index, field] = path;
+    const row = typeof index === "number" ? filledIndexes[index] : undefined;
+    if (row !== undefined && (field === "name" || field === "value")) {
+      errors[`headers[${row}].${field}`] ??= message;
+    } else {
+      errors.headers ??= message;
+    }
   }
+  return errors;
 }
-
-/** What the reader has to change, keyed by the draft field that says so. */
-export type ChannelDraftErrors = {
-  url?: string;
-  botToken?: string;
-  chatIds?: string;
-  headers?: ChannelDraftProblem;
-};
 
 /** What one read of a draft can be: a write, or what stops it. */
 export type ChannelDraftRead =
@@ -179,13 +152,12 @@ export function readChannelDraft(
   storedType: ChannelType | null,
 ): ChannelDraftRead {
   const keepsSecret = storedType === draft.type;
-  const errors: ChannelDraftErrors = {};
   switch (draft.type) {
     case "webhook": {
       const headers = webhookHeadersFromDraft(draft.headers, keepsSecret && draft.url === "");
-      if (headers.message) errors.headers = { message: headers.message, rows: headers.rows };
+      const errors: ChannelDraftErrors = headers.errors;
       if (!draft.url && !keepsSecret) errors.url = "URL is required";
-      if (errors.headers || errors.url) return { errors };
+      if (Object.keys(errors).length > 0) return { errors };
       const parsed = AlertingChannelConfigInputSchema.safeParse({
         type: draft.type,
         ...(draft.url ? { url: draft.url } : {}),
@@ -196,8 +168,7 @@ export function readChannelDraft(
       if (parsed.success) return { config: parsed.data };
       const headerIssues = parsed.error.issues.filter((issue) => issue.path[0] === "headers");
       if (headerIssues.length === 0) return { errors: draftErrorsFromIssues(parsed.error.issues) };
-      markHeaderIssues(headers.rows, headers.filledIndexes, headerIssues);
-      return { errors: { headers: { message: headerIssues[0].message, rows: headers.rows } } };
+      return { errors: headerErrorsFromIssues(headers.filledIndexes, headerIssues) };
     }
     case "slack":
     case "discord": {
@@ -211,6 +182,7 @@ export function readChannelDraft(
         : { errors: draftErrorsFromIssues(parsed.error.issues) };
     }
     case "telegram": {
+      const errors: ChannelDraftErrors = {};
       if (!draft.botToken && !keepsSecret) errors.botToken = "Bot token is required";
       if (draft.chatIds.length === 0) errors.chatIds = "Add at least one chat ID";
       if (errors.botToken || errors.chatIds) return { errors };
