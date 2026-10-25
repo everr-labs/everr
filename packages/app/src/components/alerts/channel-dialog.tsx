@@ -119,11 +119,14 @@ function ChannelForm({
       }),
   });
 
+  // Built once per opening: the draft mints row ids, and useForm resets an
+  // untouched form whenever its default values change.
+  const [defaultValues] = useState(() => ({
+    name: target.mode === "new" ? target.name : target.channel.name,
+    draft: editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
+  }));
   const form = useForm({
-    defaultValues: {
-      name: target.mode === "new" ? target.name : target.channel.name,
-      draft: editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
-    },
+    defaultValues,
     onSubmitMeta: SAVE,
     // Checked on Save or Send test, then again on each edit until it passes.
     validationLogic: revalidateLogic(),

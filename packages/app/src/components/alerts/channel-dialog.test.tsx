@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
@@ -68,17 +69,21 @@ const PAGER: NotificationChannelView = {
 };
 
 function renderDialog(onSave = vi.fn()) {
+  // Strict mode re-runs effects, which is what made the form reset a stored
+  // draft in a loop when its default values were rebuilt on each render.
   render(
-    <QueryClientProvider client={client}>
-      <ChannelDialog
-        target={{ mode: "edit", channel: PAGER }}
-        channels={[PAGER]}
-        pending={false}
-        onClose={() => {}}
-        onSave={onSave}
-        onDelete={() => {}}
-      />
-    </QueryClientProvider>,
+    <StrictMode>
+      <QueryClientProvider client={client}>
+        <ChannelDialog
+          target={{ mode: "edit", channel: PAGER }}
+          channels={[PAGER]}
+          pending={false}
+          onClose={() => {}}
+          onSave={onSave}
+          onDelete={() => {}}
+        />
+      </QueryClientProvider>
+    </StrictMode>,
   );
   return onSave;
 }
