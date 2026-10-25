@@ -111,11 +111,14 @@ it.each(entries)(
       { ...body, email: "private@example.test" },
       { ...body, failures: 0 },
       { ...body, desiredRevision: 1 },
+      { ...body, eventType: "" },
+      { ...body, eventType: "x".repeat(129) },
+      { ...body, eventType: 123 },
     ]) {
       await expect(state.invoke(name, raw)).rejects.toBeInstanceOf(RetainedCrmWork);
     }
     expect(state.diagnostic.mock.calls).toEqual(
-      Array.from({ length: 4 }, () => ["invalid", undefined, "job"]),
+      Array.from({ length: 7 }, () => ["invalid", undefined, "job"]),
     );
     expect(state.pool.connect).not.toHaveBeenCalled();
     for (const read of Object.values(state.reader)) expect(read).not.toHaveBeenCalled();

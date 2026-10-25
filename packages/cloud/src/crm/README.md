@@ -106,7 +106,10 @@ fanout. Invalid jobs retain the existing bounded diagnostic and inspection polic
 before source reads or provider calls. Commands contain no retry-count or desired-revision
 mirrors: the projection row is the sole retry authority. Explicit
 `recoverExhaustedRevision`, `verifyRemoteRevision`
-and `recheckDeletionRevision` remain guarded instructions.
+and `recheckDeletionRevision` remain guarded instructions. `eventType` records a bounded
+origin label rather than selecting historical state to replay. Membership prerequisites
+preserve that origin and event ID for both parents, without copying the pair's expected
+revision instructions onto a different projection.
 
 Configured mode registers `everrIntegrationWorker` with one execution slot and a
 reserved pool of at most four connections. The existing managed supervisor owns

@@ -1178,27 +1178,74 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       vi.restoreAllMocks();
     });
 
-    it("uses the single worker slot to create prerequisites instead of waiting for itself", async () => {
+    it.each(["membership.updated", "crm.reconciliation.requested"])(
+      "uses the single worker slot for prerequisites while preserving %s origin",
+      async (eventType) => {
+        const state = tasks();
+        await start(state);
+        const origin = { ...payload("membership"), eventType };
+        await utils.addJob(MEMBERSHIP_SYNC_TASK, origin, relatedSyncSpec("a", "u"));
+        await until(
+          async () =>
+            (await store.read(orgKey()))?.outcome === "synced" &&
+            (await store.read(userKey))?.outcome === "synced",
+        );
+        // Prerequisites run in this one slot. Advance the durable dependent timer for the test.
+        const waiting = await fixture.client.query<{ id: string }>(
+          "SELECT id FROM graphile_worker.jobs WHERE task_identifier = 'crm/sync-membership'",
+        );
+        await utils.rescheduleJobs(
+          waiting.rows.map((row) => row.id),
+          { runAt: new Date() },
+        );
+        await until(async () => (await store.read(pairKey()))?.outcome === "synced");
+        expect(await store.read(userKey)).toMatchObject({ remoteId: "1" });
+        expect(await store.read(orgKey())).toMatchObject({ remoteId: "company-1" });
+        expect(state.provider.companies.get("company-1")!.linkedContactsIds).toContain(1);
+        const user = (await store.read(userKey))!;
+        const company = (await store.read(orgKey()))!;
+        const checkId = eventType === "crm.reconciliation.requested" ? origin.eventId : null;
+        expect(user.remoteCheckId).toBe(checkId);
+        expect(company.remoteCheckId).toBe(checkId);
+        const repeatedUserCheck = checkId
+          ? await store.verifyRemote(userKey, user.desiredRevision, checkId)
+          : undefined;
+        const repeatedCompanyCheck = checkId
+          ? await store.verifyRemote(orgKey(), company.desiredRevision, checkId)
+          : undefined;
+        expect(repeatedUserCheck).toBeUndefined();
+        expect(repeatedCompanyCheck).toBeUndefined();
+      },
+    );
+
+    it("keeps parent prerequisite lineage without forwarding pair recovery instructions", async () => {
       const state = tasks();
-      await start(state);
-      await utils.addJob(MEMBERSHIP_SYNC_TASK, payload("membership"), relatedSyncSpec("a", "u"));
-      await until(
-        async () =>
-          (await store.read(orgKey()))?.outcome === "synced" &&
-          (await store.read(userKey))?.outcome === "synced",
-      );
-      // Prerequisites run in this one slot. Advance the durable dependent timer for the test.
-      const waiting = await fixture.client.query<{ id: string }>(
-        "SELECT id FROM graphile_worker.jobs WHERE task_identifier = 'crm/sync-membership'",
-      );
-      await utils.rescheduleJobs(
-        waiting.rows.map((row) => row.id),
-        { runAt: new Date() },
-      );
-      await until(async () => (await store.read(pairKey()))?.outcome === "synced");
-      expect(await store.read(userKey)).toMatchObject({ remoteId: "1" });
-      expect(await store.read(orgKey())).toMatchObject({ remoteId: "company-1" });
-      expect(state.provider.companies.get("company-1")!.linkedContactsIds).toContain(1);
+      const origin = {
+        ...payload("membership"),
+        eventType: "crm.recovery.requested",
+        recoverExhaustedRevision: 99,
+        verifyRemoteRevision: 99,
+        recheckDeletionRevision: 99,
+      };
+      await state.invoke(MEMBERSHIP_SYNC_TASK, origin);
+      const user = state.queued.find((job) => job.name === USER_SYNC_TASK)!;
+      const company = state.queued.find((job) => job.name === ORGANIZATION_SYNC_TASK)!;
+      const metadata = {
+        version: 1,
+        eventId: origin.eventId,
+        eventType: origin.eventType,
+        occurredAt: origin.occurredAt,
+      };
+      expect(user.body).toEqual({ ...metadata, userId: "u" });
+      expect(company.body).toEqual({ ...metadata, kind: "organization", organizationId: "a" });
+      const saved = (await store.read(userKey))!;
+      await store.setRetryFailures(userKey, saved.desiredRevision, 0, 8);
+      await expect(state.invoke(user.name, user.body)).rejects.toThrow("requires inspection");
+      expect(await store.read(userKey)).toMatchObject({
+        desiredRevision: saved.desiredRevision,
+        retryFailures: 8,
+      });
+      expect(state.provider.transport).not.toHaveBeenCalled();
     });
 
     it("coordinates association and parent User HTTP across independent runners, without occupying a slot on lock contention", async () => {

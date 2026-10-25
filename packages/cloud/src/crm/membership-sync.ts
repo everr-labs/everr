@@ -169,12 +169,13 @@ export function createMembershipSyncTask(options: {
           const origin = {
             version: 1,
             eventId: payload.eventId,
+            eventType: payload.eventType,
             occurredAt: payload.occurredAt,
           };
           if (!contact.remoteId)
             await helpers.addJob(
               USER_SYNC_TASK,
-              { ...origin, userId: payload.userId, eventType: "identity.user.updated" },
+              { ...origin, userId: payload.userId },
               {
                 ...userSyncSpec(payload.userId),
               },
@@ -186,7 +187,6 @@ export function createMembershipSyncTask(options: {
                 ...origin,
                 kind: "organization",
                 organizationId: payload.organizationId,
-                eventType: payload.eventType,
               },
               {
                 ...relatedSyncSpec(payload.organizationId),
