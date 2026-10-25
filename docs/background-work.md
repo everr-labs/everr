@@ -53,8 +53,8 @@ work to the reserved provisioning runner without revisiting its capacity.
 `ApplicationRuntime.events`. Features own typed definitions and payload
 validation; each static registration pairs one feature definition with its typed
 subscribers. Routing is derived from these registrations by event type and version.
-Self-hosted registers shared User, Organization, Membership, and readiness facts
-without consumers. Cloud registers User, Organization, Membership, billing, readiness,
+Self-hosted supplies no event registrations, so publication is inert. Cloud
+registers User, Organization, Membership, billing, readiness,
 and milestone CRM consumers, including parent deletion, only in configured or paused
 modes. CRM remains disabled by default.
 Paused mode persists pending work without starting its integration consumer. See
