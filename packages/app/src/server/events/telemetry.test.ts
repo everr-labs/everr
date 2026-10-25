@@ -16,7 +16,7 @@ import {
   PeriodicExportingMetricReader,
   AggregationTemporality,
 } from "@opentelemetry/sdk-metrics";
-import { expect, it } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 import type { EventDefinition } from "#app/composition/events.ts";
 import { createEventPublisher } from "./publisher";
 import { eventRegistration } from "./registration";
@@ -51,6 +51,10 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
   const meterProvider = new MeterProvider({ resource, readers });
   logs.setGlobalLoggerProvider(loggerProvider);
   metrics.setGlobalMeterProvider(meterProvider);
+  const createCounter = vi.spyOn(
+    meterProvider.getMeter("everr-app.business-events"),
+    "createCounter",
+  );
   try {
     const { publicationDiagnostics } = await import("./telemetry");
     const definition: EventDefinition = {
@@ -175,9 +179,41 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
         "everr.business_event.failure_stage": "publication",
       },
     });
+    const { serverLogger } = await import("#app/telemetry/logger.ts");
+    const counter = createCounter.mock.results[0].value;
+    const error = vi.spyOn(serverLogger, "error").mockImplementationOnce(() => {
+      throw new Error("logger unavailable");
+    });
+    const diagnostic = {
+      eventType: definition.type,
+      subscriberId: "publisher",
+      stage: "closed" as const,
+      error: new Error("bounded failure"),
+    };
+    expect(() => publicationDiagnostics(diagnostic)).not.toThrow();
+    expect(error).toHaveBeenCalledOnce();
+    await meterProvider.forceFlush();
+    expect(metricExporter.getMetrics().at(-1)?.scopeMetrics[0].metrics[0]).toMatchObject({
+      descriptor: { name: "everr.business_events.publication.failures" },
+      dataPoints: [{ value: 1, attributes: { "everr.business_event.failure_stage": "closed" } }],
+    });
+    const add = vi.spyOn(counter, "add").mockImplementationOnce(() => {
+      throw new Error("counter unavailable");
+    });
+    expect(() => publicationDiagnostics({ ...diagnostic, stage: "drain" })).not.toThrow();
+    expect(add).toHaveBeenCalledOnce();
+    await loggerProvider.forceFlush();
+    expect(logExporter.getFinishedLogRecords().at(-1)).toMatchObject({
+      body: "business_events.publication.failed",
+      attributes: { "everr.business_event.failure_stage": "drain" },
+    });
+    add.mockRestore();
+    error.mockRestore();
     if (endpoint) console.info(`BUSINESS_EVENTS_VERIFICATION_MARKER=${marker}`);
   } finally {
     await Promise.all([loggerProvider.shutdown(), meterProvider.shutdown()]);
+    createCounter.mockRestore();
+    vi.restoreAllMocks();
     logs.disable();
     metrics.disable();
   }

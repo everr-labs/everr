@@ -202,7 +202,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         addWorkerJobUsing(fixture.database, name, body, spec);
       const publisher = createEventPublisher({
         registrations: userSyncSubscribers("configured", enqueue),
-        diagnostics: { log() {}, count() {} },
+        diagnostics() {},
       });
       publisher.publish(userCreated("u", false));
       await publisher.stop();
@@ -226,7 +226,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         registrations: userSyncSubscribers("configured", async () => {
           throw new Error("enqueue unavailable");
         }),
-        diagnostics: { log, count() {} },
+        diagnostics: log,
       });
       const auth = createIdentityTestAuth(fixture.database, publisher);
       const signup = await auth.api.signUpEmail({

@@ -166,19 +166,16 @@ export function createTraceConsultations(options: {
     throw new Error("Invalid publication capacity");
   if (!Number.isFinite(drainTimeoutMs) || drainTimeoutMs < 0)
     throw new Error("Invalid publication drain timeout");
-  const report = (stage: Parameters<MilestoneDiagnostics["log"]>[0]) => {
-    for (const emit of [() => diagnostics.log(stage), () => diagnostics.count(stage)]) {
-      try {
-        void Promise.resolve(emit()).catch(() => {});
-      } catch {
-        // Diagnostics cannot affect a completed action or suppress the other signal.
-      }
+  const report = (stage: Parameters<MilestoneDiagnostics>[0]) => {
+    try {
+      void Promise.resolve(diagnostics(stage)).catch(() => {});
+    } catch {
+      // An injected reporter cannot affect a completed action.
     }
   };
-  const events = safeEventPublisher(options.events, organizationMilestoneDefinitions, {
-    log: () => diagnostics.log("publication"),
-    count: () => diagnostics.count("publication"),
-  });
+  const events = safeEventPublisher(options.events, organizationMilestoneDefinitions, () =>
+    report("publication"),
+  );
   const inFlight = new Set<Promise<void>>();
   let closed = false;
   let stopping: Promise<void> | undefined;

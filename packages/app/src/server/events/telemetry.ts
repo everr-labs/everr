@@ -10,9 +10,9 @@ const failures = metrics
     unit: "1",
   });
 
-/** Called behind the publisher's nonthrowing diagnostic guard. No fact payloads. */
-export const publicationDiagnostics: PublicationDiagnostics = {
-  log(failure) {
+/** Emit both signals independently. No fact payloads enter diagnostics. */
+export const publicationDiagnostics: PublicationDiagnostics = (failure) => {
+  try {
     serverLogger.error("business_events.publication.failed", {
       ...exceptionAttributes(failure.error),
       "everr.business_event.type": failure.eventType,
@@ -21,12 +21,16 @@ export const publicationDiagnostics: PublicationDiagnostics = {
       ...(failure.eventId ? { "everr.business_event.id": failure.eventId } : {}),
       ...(failure.subjectId ? { "everr.business_event.subject_id": failure.subjectId } : {}),
     });
-  },
-  count(failure) {
+  } catch {
+    // A broken logger cannot suppress the counter.
+  }
+  try {
     failures.add(1, {
       "everr.business_event.type": failure.eventType,
       "everr.business_event.subscriber": failure.subscriberId,
       "everr.business_event.failure_stage": failure.stage,
     });
-  },
+  } catch {
+    // Metric failures cannot affect publication.
+  }
 };

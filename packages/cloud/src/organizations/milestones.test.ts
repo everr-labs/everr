@@ -25,15 +25,14 @@ function observation(): TraceConsultation {
 function harness(overrides: Partial<Parameters<typeof createTraceConsultations>[0]> = {}) {
   const establish = vi.fn(async () => true);
   const publish = vi.fn();
-  const log = vi.fn();
-  const count = vi.fn();
+  const diagnostics = vi.fn();
   const observer = createTraceConsultations({
     store: { establish },
     events: { publish },
-    diagnostics: { log, count },
+    diagnostics,
     ...overrides,
   });
-  return { observer, establish, publish, log, count };
+  return { observer, establish, publish, diagnostics };
 }
 afterEach(() => vi.useRealTimers());
 
@@ -88,7 +87,7 @@ it.each([
   await state.observer.stop();
   expect(state.establish).not.toHaveBeenCalled();
   expect(state.publish).not.toHaveBeenCalled();
-  expect(state.count).toHaveBeenCalledWith("validation");
+  expect(state.diagnostics).toHaveBeenCalledWith("validation");
 });
 
 it.each([
@@ -119,7 +118,7 @@ it.each([
   await state.observer.stop();
   expect(state.establish).not.toHaveBeenCalled();
   expect(state.publish).not.toHaveBeenCalled();
-  expect(state.count).not.toHaveBeenCalled();
+  expect(state.diagnostics).not.toHaveBeenCalled();
 });
 
 it.each(["everr-app", "test-service", "verify-seed-api", "demo", "synthetic-api", "telemetrygen"])(
@@ -165,24 +164,22 @@ it("captures the authorized Organization and admission time before asynchronous 
   );
 });
 
-it("reports marker failure independently of failing diagnostic implementations", async () => {
-  const count = vi.fn();
+it("contains a rejecting injected reporter after marker persistence fails", async () => {
+  const diagnostics = vi.fn(async () => {
+    throw new Error("reporter down");
+  });
   const state = harness({
     store: {
       establish: async () => {
         throw new Error("private database detail");
       },
     },
-    diagnostics: {
-      log: async () => {
-        throw new Error("logger down");
-      },
-      count,
-    },
+    diagnostics,
   });
   expect(state.observer.observe(observation())).toBeUndefined();
   await state.observer.stop();
-  expect(count).toHaveBeenCalledWith("storage");
+  await new Promise((resolve) => setImmediate(resolve));
+  expect(diagnostics).toHaveBeenCalledExactlyOnceWith("storage");
   expect(state.publish).not.toHaveBeenCalled();
 });
 
@@ -206,7 +203,7 @@ it("does not publish before marker commit and isolates each publication failure"
   commit(true);
   await state.observer.stop();
   expect(publish).toHaveBeenCalledTimes(2);
-  expect(state.count.mock.calls).toEqual([["publication"], ["publication"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["publication"], ["publication"]]);
 });
 
 it("bounds admission, measures overload/closed/drain and returns completed actions immediately", async () => {
@@ -228,7 +225,7 @@ it("bounds admission, measures overload/closed/drain and returns completed actio
   state.observer.observe(observation());
   await vi.advanceTimersByTimeAsync(10);
   await stopped;
-  expect(state.count.mock.calls).toEqual([["overload"], ["closed"], ["drain"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["overload"], ["closed"], ["drain"]]);
   release(true);
   await Promise.resolve();
 });
@@ -240,7 +237,7 @@ it("rejects impossible backwards server-clock observations", async () => {
   state.observer.observe(observation());
   await state.observer.stop();
   expect(state.establish).not.toHaveBeenCalled();
-  expect(state.count).toHaveBeenCalledWith("storage");
+  expect(state.diagnostics).toHaveBeenCalledWith("storage");
 });
 
 it("contains a synchronous clock failure at observation admission", async () => {
@@ -254,25 +251,20 @@ it("contains a synchronous clock failure at observation admission", async () => 
   broken = true;
   expect(() => state.observer.observe(observation())).not.toThrow();
   await state.observer.stop();
-  expect(state.count).toHaveBeenCalledWith("envelope");
+  expect(state.diagnostics).toHaveBeenCalledWith("envelope");
   expect(state.establish).not.toHaveBeenCalled();
 });
 
-it("contains synchronous diagnostic failures without losing the independent counter", async () => {
-  const count = vi.fn();
-  const state = harness({
-    diagnostics: {
-      log: () => {
-        throw new Error("logger failure");
-      },
-      count,
-    },
+it("contains a synchronous injected reporter failure during validation", async () => {
+  const diagnostics = vi.fn(() => {
+    throw new Error("reporter failure");
   });
+  const state = harness({ diagnostics });
   expect(() =>
     state.observer.observe({ ...observation(), trigger: "poll" } as unknown as TraceConsultation),
   ).not.toThrow();
   await state.observer.stop();
-  expect(count).toHaveBeenCalledWith("validation");
+  expect(diagnostics).toHaveBeenCalledExactlyOnceWith("validation");
 });
 
 it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
@@ -320,7 +312,7 @@ it("classifies an invalid admission Date as envelope failure before storage", as
   invalid = true;
   expect(() => state.observer.observe(observation())).not.toThrow();
   await state.observer.stop();
-  expect(state.count.mock.calls).toEqual([["envelope"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["envelope"]]);
   expect(state.establish).not.toHaveBeenCalled();
 });
 
@@ -329,7 +321,7 @@ it("does not publish facts when persistence reports an existing marker", async (
   state.observer.observe(observation());
   await state.observer.stop();
   expect(state.publish).not.toHaveBeenCalled();
-  expect(state.count).not.toHaveBeenCalled();
+  expect(state.diagnostics).not.toHaveBeenCalled();
 });
 
 it("contains rejecting runtime publishers independently after marker commit", async () => {
@@ -340,30 +332,30 @@ it("contains rejecting runtime publishers independently after marker commit", as
   state.observer.observe(observation());
   await state.observer.stop();
   expect(publish).toHaveBeenCalledTimes(2);
-  expect(state.log.mock.calls).toEqual([["publication"], ["publication"]]);
-  expect(state.count.mock.calls).toEqual([["publication"], ["publication"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["publication"], ["publication"]]);
 });
 
-it("guards the publication logger and counter independently, including rejected diagnostics", async () => {
-  const log = vi.fn(() => {
-    throw new Error("logger down");
-  });
-  const count = vi.fn(async () => {
-    throw new Error("counter down");
-  });
-  const state = harness({
-    events: {
-      publish: () => {
-        throw new Error("publisher down");
+it.each(["throw", "reject"])(
+  "contains an injected reporter failure after publication (%s)",
+  async (kind) => {
+    const diagnostics = vi.fn(() => {
+      if (kind === "throw") throw new Error("reporter down");
+      return Promise.reject(new Error("reporter down"));
+    });
+    const state = harness({
+      events: {
+        publish: () => {
+          throw new Error("publisher down");
+        },
       },
-    },
-    diagnostics: { log, count },
-  });
-  state.observer.observe(observation());
-  await state.observer.stop();
-  expect(log.mock.calls).toEqual([["publication"], ["publication"]]);
-  expect(count.mock.calls).toEqual([["publication"], ["publication"]]);
-});
+      diagnostics,
+    });
+    state.observer.observe(observation());
+    await state.observer.stop();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(diagnostics.mock.calls).toEqual([["publication"], ["publication"]]);
+  },
+);
 
 it("uses the default 32-operation capacity and 3-second idempotent shutdown budget", async () => {
   vi.useFakeTimers();
@@ -384,11 +376,11 @@ it("uses the default 32-operation capacity and 3-second idempotent shutdown budg
   expect(stopped).toBe(false);
   await vi.advanceTimersByTimeAsync(1);
   await stopping;
-  expect(state.count.mock.calls).toEqual([["overload"], ["drain"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["overload"], ["drain"]]);
   for (const release of releases) release(false);
   await vi.runAllTimersAsync();
   expect(state.observer.stop()).toBe(stopping);
-  expect(state.count.mock.calls).toEqual([["overload"], ["drain"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["overload"], ["drain"]]);
 });
 
 it("contains a late storage rejection after bounded shutdown and closes admission immediately", async () => {
@@ -411,7 +403,7 @@ it("contains a late storage rejection after bounded shutdown and closes admissio
   await stopping;
   rejectStorage(new Error("late private database detail"));
   await vi.runAllTimersAsync();
-  expect(state.count.mock.calls).toEqual([["closed"], ["drain"], ["storage"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["closed"], ["drain"], ["storage"]]);
   expect(state.publish).not.toHaveBeenCalled();
   expect(stop()).toBe(stopping);
 });
@@ -422,11 +414,11 @@ it("releases capacity after failed storage without closing the observer", async 
   });
   const state = harness({ store: { establish }, maxInFlight: 1 });
   state.observer.observe(observation());
-  await vi.waitFor(() => expect(state.count).toHaveBeenCalledWith("storage"));
+  await vi.waitFor(() => expect(state.diagnostics).toHaveBeenCalledWith("storage"));
   state.observer.observe(observation());
   await state.observer.stop();
   expect(establish).toHaveBeenCalledTimes(2);
-  expect(state.count.mock.calls).toEqual([["storage"], ["storage"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["storage"], ["storage"]]);
 });
 
 it("rejects an injected clock's invalid ISO string as envelope failure", async () => {
@@ -438,6 +430,6 @@ it("rejects an injected clock's invalid ISO string as envelope failure", async (
   const state = harness({ now: () => new InvalidClock() });
   expect(() => state.observer.observe(observation())).not.toThrow();
   await state.observer.stop();
-  expect(state.count.mock.calls).toEqual([["envelope"]]);
+  expect(state.diagnostics.mock.calls).toEqual([["envelope"]]);
   expect(state.establish).not.toHaveBeenCalled();
 });

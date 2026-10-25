@@ -9,7 +9,7 @@ import { userSyncSpec, relatedSyncSpec } from "./commands";
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 
 function publisher(registrations: readonly EventRegistration[]) {
-  const diagnostics = { log: vi.fn(), count: vi.fn() };
+  const diagnostics = vi.fn();
   return { ...createEventPublisher({ registrations, diagnostics }), diagnostics };
 }
 
@@ -37,7 +37,7 @@ it("contains malformed subjects and enqueue failures at the real publication sea
   events.publish(userCreated("u", false));
   await events.stop();
   expect(enqueue).toHaveBeenCalledOnce();
-  expect(events.diagnostics.log.mock.calls.map(([failure]) => failure.error.message)).toEqual([
+  expect(events.diagnostics.mock.calls.map(([failure]) => failure.error.message)).toEqual([
     "Invalid CRM user subject.",
     "enqueue unavailable",
   ]);

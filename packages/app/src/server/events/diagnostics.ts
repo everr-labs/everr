@@ -15,21 +15,16 @@ export interface PublicationFailure {
   stage: PublicationFailureStage;
   error: unknown;
 }
-export interface PublicationDiagnostics {
-  log(failure: PublicationFailure): void | Promise<void>;
-  count(failure: PublicationFailure): void | Promise<void>;
-}
+export type PublicationDiagnostics = (failure: PublicationFailure) => void | Promise<void>;
 
-/** A broken logger cannot suppress the counter or create an unhandled rejection. */
+/** An injected reporter cannot change the source result or create an unhandled rejection. */
 export function reportPublicationFailure(
   diagnostics: PublicationDiagnostics,
   failure: PublicationFailure,
 ): void {
-  for (const emit of [() => diagnostics.log(failure), () => diagnostics.count(failure)]) {
-    try {
-      void Promise.resolve(emit()).catch(() => {});
-    } catch {
-      // Diagnostics are best effort too.
-    }
+  try {
+    void Promise.resolve(diagnostics(failure)).catch(() => {});
+  } catch {
+    // Diagnostics are best effort too.
   }
 }

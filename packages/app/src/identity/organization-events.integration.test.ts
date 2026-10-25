@@ -345,7 +345,7 @@ it("keeps actual organization and membership mutations committed when subscriber
         }),
       ),
     ],
-    diagnostics: { log, count() {} },
+    diagnostics: log,
   });
   const auth = createAuth(publisher);
   const owner = await signup(auth, "owner");

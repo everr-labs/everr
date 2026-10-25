@@ -193,7 +193,7 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
         },
       }),
     ],
-    diagnostics: { log: failure, count() {} },
+    diagnostics: failure,
   });
   const auth = createAuth(publisher);
   const signup = await auth.api.signUpEmail({ body: input });

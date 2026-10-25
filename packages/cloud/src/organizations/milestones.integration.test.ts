@@ -36,7 +36,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       publish: (fact: OrganizationMilestoneEvent) => void = vi.fn(),
       now = () => instant,
     ) {
-      const diagnostics = { log: vi.fn(), count: vi.fn() };
+      const diagnostics = vi.fn();
       return {
         ...createTraceConsultations({
           store: createOrganizationMilestoneStore(fixture.database),
@@ -94,7 +94,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         "telemetry.first_queryable",
         "organization.activated",
       ]);
-      expect(replicas.flatMap((replica) => replica.diagnostics.count.mock.calls)).toEqual([]);
+      expect(replicas.flatMap((replica) => replica.diagnostics.mock.calls)).toEqual([]);
     });
 
     it("retains the achieved milestone across quiet periods and later valid consultations", async () => {
@@ -139,7 +139,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         };
         expect(completedAction()).toEqual({ rows: ["completed"] });
         await state.stop();
-        expect(state.diagnostics.count).toHaveBeenCalledWith("storage");
+        expect(state.diagnostics).toHaveBeenCalledWith("storage");
         expect(state.publish).not.toHaveBeenCalled();
         expect((await read()).rows).toHaveLength(0);
       } finally {
@@ -153,7 +153,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
     });
 
     it("repairs latest Company state from stored markers after lost publication without replaying history", async () => {
-      const publisherDiagnostics = { log: vi.fn(), count: vi.fn() };
+      const publisherDiagnostics = vi.fn();
       const events = createEventPublisher({
         registrations: organizationSyncSubscribers("paused", async () => {
           throw new Error("enqueue unavailable");
@@ -168,7 +168,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       state.observe(evidence());
       await state.stop();
       await events.stop();
-      expect(publisherDiagnostics.count).toHaveBeenCalledTimes(2);
+      expect(publisherDiagnostics).toHaveBeenCalledTimes(2);
       expect((await read()).rows).toHaveLength(1);
       const reader = createCrmSnapshotReader(fixture.database, "test");
       const snapshot = await reader.organization("a");
@@ -195,7 +195,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       state.observe(evidence("deleted"));
       await state.stop();
       expect((await read()).rows).toHaveLength(1);
-      expect(state.diagnostics.count).toHaveBeenCalledWith("storage");
+      expect(state.diagnostics).toHaveBeenCalledWith("storage");
       await fixture.client.exec("DELETE FROM organization WHERE id = 'a'");
       expect((await read()).rows).toHaveLength(0);
     });
