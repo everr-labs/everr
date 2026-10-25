@@ -26,16 +26,10 @@ export const ROW_HOVER = "transition-colors hover:bg-muted/25";
 /**
  * Inset for the triage rows and the rule inventory under them.
  *
- * The left edge lines up with the topnav breadcrumb. That title starts after
- * the header's `px-3`, the sidebar trigger (`-ml-1`, `size-11` below `md` and
- * `size-8` from there), a `gap-2`, and the 1px separator (`mr-2` plus another
- * `gap-2`): `4.75rem + 1px`, and `4rem + 1px` once the trigger shrinks. The
- * right edge stays `pr-3`, the header's own right padding.
- *
  * The inset stays on the rows. A wrapper that held it would leave a selected
  * row's wash short of the column edges.
  */
-export const TRIAGE_ROW_INSET = "pr-3 pl-[calc(4.75rem+1px)] md:pl-[calc(4rem+1px)]";
+export const TRIAGE_ROW_INSET = "px-3";
 
 export function SelectableRow({
   selected,

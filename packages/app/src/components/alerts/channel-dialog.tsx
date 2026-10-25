@@ -337,7 +337,7 @@ function WebhookHeadersEditor({
           onClick={() =>
             onChange([
               ...headers,
-              { id: crypto.randomUUID(), name: "", value: "", retainedName: null },
+              { id: crypto.randomUUID(), name: "Authorization", value: "", retainedName: null },
             ])
           }
         >
@@ -345,9 +345,6 @@ function WebhookHeadersEditor({
           Add header
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">
-        Optional. Sent with every notification. Values are write-only.
-      </p>
       {headers.length > 0 && (
         <ul className="space-y-2">
           {headers.map((header, index) => (

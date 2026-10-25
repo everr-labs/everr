@@ -90,6 +90,7 @@ describe("ChannelDialog webhook headers", () => {
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
+    await user.clear(names[1]);
     await user.type(names[1], "X-Env");
     const values = screen.getAllByLabelText("Value");
     expect(values[values.length - 1]).toHaveAttribute("aria-invalid", "true");
@@ -125,6 +126,7 @@ describe("ChannelDialog webhook headers", () => {
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
+    await user.clear(names[1]);
     await user.type(names[1], "Content-Type");
     const values = screen.getAllByLabelText("Value");
     await user.type(values[values.length - 1], "text/plain");
@@ -140,9 +142,6 @@ describe("ChannelDialog webhook headers", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
-    const names = screen.getAllByPlaceholderText("Authorization");
-    await user.type(names[1], "Authorization");
-
     const repeated = screen.getAllByDisplayValue("Authorization");
     expect(repeated).toHaveLength(2);
     for (const input of repeated) {
