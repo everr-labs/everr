@@ -11,7 +11,7 @@ const DeleteCurrentUserAccountInputSchema = z.object({
 export const deleteCurrentUserAccount = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(DeleteCurrentUserAccountInputSchema)
+  .validator(DeleteCurrentUserAccountInputSchema)
   .handler(({ data }) =>
     auth.deleteAccount({
       headers: getRequestHeaders(),

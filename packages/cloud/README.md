@@ -162,16 +162,15 @@ contains signup/deletion switches or CLI-specific JSX.
 
 The build outputs `.output`; use `packages/cloud/Dockerfile` for the container.
 This package's environment files use Vite's `cloud` mode. Email delivery
-requires both `EMAIL_DSN` and `EMAIL_FROM`.
+requires both `EMAIL_DSN` and `EMAIL_FROM`; the local `pnpm dev` stack supplies
+them through Mailpit.
 
 Database startup applies the shared app migrations and `src/drizzle`.
-Existing databases first complete `src/drizzle-legacy` before adopting the
-separate migration histories. Plans and customer references belong to
-`organization_billing`; subscription and checkout tables are also owned here.
-The legacy history is frozen and used only for execution, which reads SQL and
-`meta/_journal.json`. Generate future migrations from the current app or cloud
-schema, never from the legacy directory. Do not generate new migrations while
-iterating on schema changes.
+Plans and customer references belong to `organization_billing`; subscription and
+checkout tables are also owned here. Generate migrations from the current App or
+Cloud schema after iteration, not while changing schema. See the
+[migration guide](../../DATABASE-MIGRATIONS.md) for ownership and database
+compatibility.
 
 The test command runs this package's scenarios and the shared alerting
 integration suites. Ordinary app unit tests run only in app. Vitest's `provide`

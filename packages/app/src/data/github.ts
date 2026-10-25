@@ -53,7 +53,7 @@ export const getInstallationRepos = createOrganizationAdminServerFn({
 });
 
 export const importRepos = createOrganizationAdminServerFn({ method: "POST" })
-  .inputValidator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
+  .validator(z.object({ repos: z.array(z.string().min(1)).min(1) }))
   .handler(async function* ({ data, context: { session } }) {
     const installations = await getInstallationsForOrganization(
       session.session.activeOrganizationId,

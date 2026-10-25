@@ -7,8 +7,8 @@ cloud capabilities. The app must remain usable without importing or depending
 on cloud.
 
 For installation, configuration, deployment, and account recovery, see the
-[deployment guide](../../deploy/README.md). For migration ownership, upgrade
-steps, and database compatibility, see [DATABASE-MIGRATIONS.md](../../DATABASE-MIGRATIONS.md).
+[deployment guide](../../deploy/README.md). For migration ownership and database
+compatibility, see [DATABASE-MIGRATIONS.md](../../DATABASE-MIGRATIONS.md).
 
 ## Ownership
 
@@ -191,9 +191,10 @@ pnpm dev --tui
 ```
 
 App and Cloud run together with separate databases, users, and host collectors.
-The launcher supplies local connection settings and credentials. Application
-`.env` files are for optional integration settings; the launcher does not copy
-or read them. See `.env.example` for those settings.
+The launcher supplies local connection settings and credentials. On first startup
+in an unconfigured worktree, it copies each application's `.env` from the main
+worktree. The applications load those files for integration settings. See
+`.env.example` for available settings.
 
 Shared ClickHouse table definitions and SQL query limits live in
 `clickhouse/init/shared/`. App's access rules live in `clickhouse/init/self-hosted/`;

@@ -18,7 +18,7 @@ function makeServerFnChain(wrapHandler: (fn: AnyFn) => AnyFn) {
   let validate: ((input: unknown) => unknown) | undefined;
   const chain: Record<string, unknown> = {
     middleware: () => makeServerFnChain(wrapHandler),
-    inputValidator: (schema: unknown) => {
+    validator: (schema: unknown) => {
       validate =
         typeof schema === "function"
           ? (input) => schema(input)

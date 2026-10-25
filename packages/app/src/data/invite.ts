@@ -10,7 +10,7 @@ export type { InviteLoaderResult } from "./invite-resolver";
 export { resolveInvitationLoader } from "./invite-resolver";
 
 export const lookupInvitation = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ invitationId: z.string() }))
+  .validator(z.object({ invitationId: z.string() }))
   .handler(async ({ data: { invitationId } }): Promise<InvitationLookup> => {
     const [row] = await db
       .select({
@@ -34,7 +34,7 @@ export const lookupInvitation = createServerFn({ method: "GET" })
 export const isMemberOfOrg = createPartiallyAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ organizationId: z.string() }))
+  .validator(z.object({ organizationId: z.string() }))
   .handler(async ({ data: { organizationId }, context: { session } }) => {
     const [row] = await db
       .select({ id: member.id })

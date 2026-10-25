@@ -1,1 +1,0 @@
-ALTER TABLE "alert_definitions" ADD COLUMN "deleted_at" timestamp with time zone;

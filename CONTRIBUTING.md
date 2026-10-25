@@ -17,16 +17,13 @@ on macOS, the chDB prerequisites on Linux).
 
 ### Local email with Mailpit
 
-```sh
-pnpm dev -f process-compose.mail.yaml
-```
-
-The override starts a checkout-scoped Mailpit with Docker-assigned loopback ports
-and points both apps at its SMTP listener. Open its UI using the address returned
+`pnpm dev` starts a checkout-scoped Mailpit with Docker-assigned loopback ports.
+Cloud sends email to Mailpit. The self-hosted App sends email only when
+`EMAIL_DSN` and `EMAIL_FROM` are configured in `packages/app/.env`.
+Open Mailpit's UI using the address returned
 by `docker compose -p <project> -f scripts/dev/compose.yaml port mailpit 8025`.
 The project name is printed by Docker during startup. Mailpit's messages are
-throwaway development data. The default `pnpm dev` uses the SMTP settings in each
-application's optional dotenv file.
+throwaway development data.
 
 ### GitHub webhooks and Smee
 

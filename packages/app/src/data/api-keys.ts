@@ -56,7 +56,7 @@ export function permissionsForScopes(scopes: readonly ApiKeyScope[]): {
 }
 
 export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
-  .inputValidator(CreateApiKeyInput)
+  .validator(CreateApiKeyInput)
   .handler(async ({ data, context: { session } }) => {
     const permissions = permissionsForScopes(data.scopes);
 

@@ -40,12 +40,11 @@ RUN SKIP_ENV_VALIDATION=true \
     pnpm --filter @everr/app-cloud build && \
     test -s packages/cloud/.output/public/_shell.html
 
-# Require all three migration histories in the output so Cloud can upgrade existing databases.
+# Require both migration histories in the output.
 RUN set -eu; \
     for history in \
       packages/app/drizzle:packages/cloud/.output/drizzle \
-      packages/cloud/src/drizzle:packages/cloud/.output/drizzle/cloud \
-      packages/cloud/src/drizzle-legacy:packages/cloud/.output/drizzle/legacy; do \
+      packages/cloud/src/drizzle:packages/cloud/.output/drizzle/cloud; do \
       migration_source=${history%:*}; migration_output=${history#*:}; \
       for file in "$migration_source"/*.sql "$migration_source"/meta/_journal.json; do \
         test -s "$migration_output/${file#"$migration_source"/}"; \

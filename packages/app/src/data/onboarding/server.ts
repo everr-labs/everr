@@ -21,7 +21,7 @@ function onboardingScope(
 }
 
 export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(identityInput)
+  .validator(identityInput)
   .handler(async ({ data, context: { session } }): Promise<HomeStatus> => ({
     ...(await store.getStatus(
       onboardingScope(data.organizationId, session.session.activeOrganizationId, session.user.id),
@@ -33,7 +33,7 @@ export const getHomeStatus = createAuthenticatedServerFn({ method: "GET" })
 export const completeOnboarding = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(identityInput)
+  .validator(identityInput)
   .handler(({ data, context: { session } }) =>
     store.complete(
       onboardingScope(data.organizationId, session.session.activeOrganizationId, session.user.id),

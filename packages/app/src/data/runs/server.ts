@@ -120,7 +120,7 @@ async function getRawStepLogs(
 export const getRunDetails = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.string())
+  .validator(z.string())
   .handler(async ({ data: traceId, context: { session } }) => {
     const pgResult = await pool.query<{
       runId: string;
@@ -179,7 +179,7 @@ export const getRunDetails = createAuthenticatedServerFn({
 export const getRunJobs = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.string())
+  .validator(z.string())
   .handler(async ({ data: traceId, context: { clickhouse, session } }) => {
     const [chResult, pgResult] = await Promise.all([
       clickhouse.query<{
@@ -246,7 +246,7 @@ export const getRunJobs = createAuthenticatedServerFn({
 export const getAllJobsSteps = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ traceId: z.string(), jobIds: z.array(z.string()) }))
+  .validator(z.object({ traceId: z.string(), jobIds: z.array(z.string()) }))
   .handler(async ({ data: { traceId, jobIds }, context: { clickhouse } }) => {
     if (jobIds.length === 0) {
       return {};
@@ -298,7 +298,7 @@ export const getAllJobsSteps = createAuthenticatedServerFn({
 export const getStepLogs = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(
+  .validator(
     z.object({
       traceId: z.string(),
       jobName: z.string().min(1).optional(),
@@ -357,7 +357,7 @@ export const getStepLogs = createAuthenticatedServerFn({
 export const getRunSpans = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.string())
+  .validator(z.string())
   .handler(async ({ data: traceId, context: { clickhouse } }) => {
     const sql = `
 			SELECT

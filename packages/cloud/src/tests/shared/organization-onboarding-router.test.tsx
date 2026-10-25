@@ -49,7 +49,7 @@ vi.mock("@tanstack/react-start", () => ({
   createServerFn: () => {
     let validate = (value: unknown) => value;
     const chain = {
-      inputValidator: (validator: (value: unknown) => unknown) => {
+      validator: (validator: (value: unknown) => unknown) => {
         validate = validator;
         return chain;
       },

@@ -51,7 +51,7 @@ export const getAlertTriage = createAuthenticatedServerFn({
   // The row sparkline reads the same window as the two charts beside it. A
   // fixed hour here meant the row and the lane under it disagreed about what
   // the rule measured the moment the reader moved the picker.
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<AlertTriageData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
@@ -94,7 +94,7 @@ export const getAlertTriage = createAuthenticatedServerFn({
 export const getRuleStateHistory = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<RuleStateHistoryData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(data);
@@ -127,7 +127,7 @@ export const getRuleStateHistory = createAuthenticatedServerFn({
   });
 
 export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ path: z.string(), from: z.string(), to: z.string() }))
+  .validator(z.object({ path: z.string(), from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<AlertDetail> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
@@ -210,7 +210,7 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
   });
 
 export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .validator(z.object({ from: z.string(), to: z.string() }))
   .handler(async ({ data, context }): Promise<AlertSilencePage> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();

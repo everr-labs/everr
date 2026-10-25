@@ -13,7 +13,7 @@ import {
 export const getRepoStats = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -61,7 +61,7 @@ export const getRepoStats = createAuthenticatedServerFn({
 export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -108,7 +108,7 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
 export const getRepoDurationTrend = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -142,7 +142,7 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 export const getRepoRecentRuns = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -190,7 +190,7 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
 export const getTopFailingJobs = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 
@@ -236,7 +236,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 export const getActiveBranches = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(RepoDetailInputSchema)
+  .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
     const { fromISO, toISO } = resolveTimeRange(timeRange);
 

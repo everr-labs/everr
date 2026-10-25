@@ -14,7 +14,7 @@ import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 export const setAlertRulePaused = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ path: z.string(), paused: z.boolean() }))
+  .validator(z.object({ path: z.string(), paused: z.boolean() }))
   .handler(async ({ data, context }) => {
     const scope = alertingMutationScope(context.session);
     const { id } = await loadRule(scope.organizationId, data.path);

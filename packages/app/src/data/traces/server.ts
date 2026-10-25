@@ -19,17 +19,17 @@ function repoFromContext(clickhouse: {
 }
 
 export const searchTraces = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(SearchTracesInputSchema)
+  .validator(SearchTracesInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).search(data));
 
 export const getTrace = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(GetTraceInputSchema)
+  .validator(GetTraceInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).getTrace(data));
 
 export const listServiceIdentities = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(ListServiceIdentitiesInputSchema)
+  .validator(ListServiceIdentitiesInputSchema)
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).listServiceIdentities(data),
   );
@@ -37,13 +37,13 @@ export const listServiceIdentities = createAuthenticatedServerFn({
 export const getTraceAttributeKeys = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(TraceAttributeKeysInputSchema)
+  .validator(TraceAttributeKeysInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).attributeKeys(data));
 
 export const getTraceAttributeValues = createAuthenticatedServerFn({
   method: "GET",
 })
-  .inputValidator(TraceAttributeValuesInputSchema)
+  .validator(TraceAttributeValuesInputSchema)
   .handler(({ data, context: { clickhouse } }) =>
     repoFromContext(clickhouse).attributeValues(data),
   );

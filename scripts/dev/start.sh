@@ -5,7 +5,7 @@ DEV_ROOT=$(pwd -P)
 export DEV_ROOT
 export PATH="$DEV_ROOT/.dev/bin:$DEV_ROOT/node_modules/.bin:$PATH"
 command -v process-compose >/dev/null || {
-  echo 'Install Process Compose first: brew install process-compose' >&2
+  echo 'Install Process Compose first: brew install f1bonacc1/tap/process-compose' >&2
   exit 1
 }
 for arg do

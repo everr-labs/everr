@@ -23,7 +23,7 @@ export const getOrganizationProvisioningStatus = createPartiallyAuthenticatedSer
 export const completeOrganizationSetup = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ organizationId: z.string().min(1) }))
+  .validator(z.object({ organizationId: z.string().min(1) }))
   .handler(async ({ data, context: { session } }) => {
     const createdOrganizationId = await readCreatedOrganizationId(
       getCookie(ORGANIZATION_CREATION_COOKIE),
@@ -36,7 +36,7 @@ export const completeOrganizationSetup = createPartiallyAuthenticatedServerFn({
 export const retryOrganizationProvisioning = createPartiallyAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ organizationId: z.string().min(1) }))
+  .validator(z.object({ organizationId: z.string().min(1) }))
   .handler(async ({ data: { organizationId } }) => {
     // Explicitly verify membership in the requested organization, including
     // when the session's active organization changed after rendering the page.

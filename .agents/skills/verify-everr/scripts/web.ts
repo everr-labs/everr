@@ -350,7 +350,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   const env = { ...process.env, ...vars, DEV_STATE_DIR: path.join(dir, "state"), COMPOSE_PROJECT_NAME: vars.WEB_PROJECT,
     OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "" };
   const log = path.join(dir, "web.log"), logFd = openSync(log, "w");
-  const args = ["dev", "-f", path.join(REPO, "process-compose.mail.yaml")];
+  const args = ["dev"];
   const server = spawn("pnpm", args, { cwd: REPO, env, detached: true, stdio: ["ignore", logFd, logFd] });
   closeSync(logFd);
   const pid = server.pid ?? die("could not start pnpm dev");

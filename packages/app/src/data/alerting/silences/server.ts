@@ -12,7 +12,7 @@ import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 export const createAlertSilence = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
+  .validator(
     z.object({
       path: z.string(),
       durationMinutes: z
@@ -44,5 +44,5 @@ export const createAlertSilence = createAuthenticatedServerFn({
 export const cancelAlertSilence = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ id: z.string() }))
+  .validator(z.object({ id: z.string() }))
   .handler(({ data, context }) => expireSilence(alertingMutationScope(context.session), data.id));

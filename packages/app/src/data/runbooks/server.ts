@@ -12,7 +12,7 @@ import type { Runbook } from "./schema";
 import { runbookSpecSchema } from "./schema";
 
 export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(
+  .validator(
     z.object({
       project: z.string(),
       slug: z.string(),
@@ -82,7 +82,7 @@ export const getRunbook = createAuthenticatedServerFn({ method: "GET" })
   });
 
 export const listRunbooks = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .validator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context }) => {
     const orgId = context.session.session.activeOrganizationId;
     const preview = data?.preview ?? null;
