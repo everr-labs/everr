@@ -53,7 +53,6 @@ export function organizationSyncSubscribers(
   if (mode === "disabled") return [];
   const definitions = [
     ...organizationEventDefinitions,
-    ...membershipEventDefinitions,
     ...organizationReadinessEventDefinitions,
     ...billingEventDefinitions,
     ...organizationMilestoneDefinitions,
@@ -62,37 +61,47 @@ export function organizationSyncSubscribers(
     eventRegistration(definition, {
       id: `crm.brevo.${definition.type}`,
       async enqueue(event) {
-        const membership = "membershipId" in event.data;
-        if (
-          event.subjectId !==
-          ("membershipId" in event.data ? event.data.membershipId : event.data.organizationId)
-        )
+        if (event.subjectId !== event.data.organizationId)
           throw new Error("Invalid CRM organization subject.");
-        const common = {
+        const payload = organizationSyncPayload.parse({
           version: 1,
+          kind: "organization",
           organizationId: event.data.organizationId,
           eventId: event.id,
           eventType: event.type,
           occurredAt: event.occurredAt,
-        };
+        });
+        await enqueue(ORGANIZATION_SYNC_TASK, payload, relatedSyncSpec(payload.organizationId));
+      },
+    }),
+  );
+}
+
+export function membershipSyncSubscribers(
+  mode: "disabled" | "configured" | "paused",
+  enqueue: typeof addWorkerJob = addWorkerJob,
+): ApplicationEvents {
+  if (mode === "disabled") return [];
+  return membershipEventDefinitions.map((definition) =>
+    eventRegistration(definition, {
+      id: `crm.brevo.${definition.type}`,
+      async enqueue(event) {
+        if (event.subjectId !== event.data.membershipId)
+          throw new Error("Invalid CRM organization subject.");
         // The pair, not membership row identity or domain, is authoritative.
-        const payload =
-          membership && "userId" in event.data
-            ? membershipSyncPayload.parse({
-                ...common,
-                kind: "membership",
-                userId: event.data.userId,
-              })
-            : organizationSyncPayload.parse({ ...common, kind: "organization" });
+        const payload = membershipSyncPayload.parse({
+          version: 1,
+          kind: "membership",
+          organizationId: event.data.organizationId,
+          userId: event.data.userId,
+          eventId: event.id,
+          eventType: event.type,
+          occurredAt: event.occurredAt,
+        });
         await enqueue(
-          payload.kind === "membership" ? MEMBERSHIP_SYNC_TASK : ORGANIZATION_SYNC_TASK,
+          MEMBERSHIP_SYNC_TASK,
           payload,
-          {
-            ...relatedSyncSpec(
-              payload.organizationId,
-              payload.kind === "membership" ? payload.userId : undefined,
-            ),
-          },
+          relatedSyncSpec(payload.organizationId, payload.userId),
         );
       },
     }),

@@ -1,6 +1,10 @@
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
-import { userSyncSubscribers, organizationSyncSubscribers } from "../../crm/jobs";
+import {
+  userSyncSubscribers,
+  organizationSyncSubscribers,
+  membershipSyncSubscribers,
+} from "../../crm/jobs";
 import { db } from "@everr/app/db/client";
 import {
   createOrganizationMilestoneStore,
@@ -10,7 +14,11 @@ import {
 const crmConfig = readBrevoConfig(process.env);
 
 export const runtime: ApplicationRuntime = {
-  events: [...userSyncSubscribers(crmConfig.mode), ...organizationSyncSubscribers(crmConfig.mode)],
+  events: [
+    ...userSyncSubscribers(crmConfig.mode),
+    ...organizationSyncSubscribers(crmConfig.mode),
+    ...membershipSyncSubscribers(crmConfig.mode),
+  ],
   createTraceConsultations(events) {
     return createTraceConsultations({ store: createOrganizationMilestoneStore(db), events });
   },

@@ -3,7 +3,11 @@ import { expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import type { EventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
-import { userSyncSubscribers } from "./jobs";
+import {
+  userSyncSubscribers,
+  organizationSyncSubscribers,
+  membershipSyncSubscribers,
+} from "./jobs";
 import { userSyncSpec, relatedSyncSpec } from "./commands";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
@@ -48,44 +52,95 @@ it("contains malformed subjects and enqueue failures at the real publication sea
   );
 });
 
-it("registers Organization, explicit Membership, readiness and billing consumers only in cloud enabled modes", async () => {
-  const { organizationSyncSubscribers } = await import("./jobs");
-  expect(organizationSyncSubscribers("disabled")).toEqual([]);
+it.each(["configured", "paused"] as const)(
+  "routes Organization and Membership facts through their own consumers in %s mode",
+  async (mode) => {
+    expect(organizationSyncSubscribers("disabled")).toEqual([]);
+    expect(membershipSyncSubscribers("disabled")).toEqual([]);
+    const enqueue = vi.fn(async () => undefined);
+    const organizations = organizationSyncSubscribers(mode, enqueue);
+    const memberships = membershipSyncSubscribers(mode, enqueue);
+    expect(organizations.map((consumer) => consumer.definition.type).sort()).toEqual(
+      [
+        "organization.created",
+        "organization.updated",
+        "organization.deleted",
+        "organization.provisioned",
+        "billing.subscription.changed",
+        "organization.plan.changed",
+        "telemetry.first_queryable",
+        "organization.activated",
+      ].sort(),
+    );
+    expect(memberships.map((consumer) => consumer.definition.type).sort()).toEqual(
+      ["membership.added", "membership.updated", "membership.removed"].sort(),
+    );
+    for (const consumer of [...organizations, ...memberships])
+      expect(consumer.subscribers[0].id).toBe(`crm.brevo.${consumer.definition.type}`);
+    const events = publisher([...organizations, ...memberships]);
+    events.publish({
+      type: "organization.updated",
+      version: 1,
+      subjectId: "org",
+      data: { organizationId: "org" },
+    });
+    events.publish({
+      type: "membership.removed",
+      version: 1,
+      subjectId: "row-old",
+      data: { membershipId: "row-old", organizationId: "org", userId: "user" },
+    });
+    await events.stop();
+    expect(enqueue).toHaveBeenCalledTimes(2);
+    expect(enqueue).toHaveBeenCalledWith(
+      "crm/sync-organization",
+      expect.objectContaining({
+        kind: "organization",
+        organizationId: "org",
+        eventType: "organization.updated",
+      }),
+      relatedSyncSpec("org"),
+    );
+    expect(enqueue).toHaveBeenCalledWith(
+      "crm/sync-membership",
+      expect.objectContaining({
+        kind: "membership",
+        userId: "user",
+        organizationId: "org",
+        eventType: "membership.removed",
+      }),
+      relatedSyncSpec("org", "user"),
+    );
+    expect(
+      new Set(Array.from({ length: 1000 }, (_, id) => relatedSyncSpec(String(id)).queueName)).size,
+    ).toBeLessThanOrEqual(64);
+  },
+);
+
+it("rejects mismatched Organization and Membership subjects before enqueue", async () => {
   const enqueue = vi.fn(async () => undefined);
-  const consumers = organizationSyncSubscribers("paused", enqueue);
-  expect(consumers.map((consumer) => consumer.definition.type)).toEqual([
-    "organization.created",
-    "organization.updated",
-    "organization.deleted",
-    "membership.added",
-    "membership.updated",
-    "membership.removed",
-    "organization.provisioned",
-    "billing.subscription.changed",
-    "organization.plan.changed",
-    "telemetry.first_queryable",
-    "organization.activated",
+  const events = publisher([
+    ...organizationSyncSubscribers("configured", enqueue),
+    ...membershipSyncSubscribers("configured", enqueue),
   ]);
-  const events = publisher(consumers);
   events.publish({
-    type: "membership.removed",
+    type: "organization.updated",
     version: 1,
-    subjectId: "row-old",
-    data: { membershipId: "row-old", organizationId: "org", userId: "user" },
+    subjectId: "other",
+    data: { organizationId: "org" },
+  });
+  events.publish({
+    type: "membership.updated",
+    version: 1,
+    subjectId: "other",
+    data: { membershipId: "row", organizationId: "org", userId: "user" },
   });
   await events.stop();
-  expect(enqueue).toHaveBeenCalledWith(
-    "crm/sync-membership",
-    expect.objectContaining({ userId: "user", organizationId: "org" }),
-    expect.anything(),
-  );
-  expect(
-    new Set(Array.from({ length: 1000 }, (_, id) => relatedSyncSpec(String(id)).queueName)).size,
-  ).toBeLessThanOrEqual(64);
+  expect(enqueue).not.toHaveBeenCalled();
+  expect(events.diagnostics).toHaveBeenCalledTimes(2);
 });
 
 it("admits deletion facts using only retained source identities in paused mode", async () => {
-  const { organizationSyncSubscribers } = await import("./jobs");
   const enqueue = vi.fn(async () => undefined);
   const events = publisher([
     ...userSyncSubscribers("paused", enqueue),
