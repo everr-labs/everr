@@ -8,7 +8,6 @@ export const cloudComposition: AppComposition = {
   cssSources: [resolve(import.meta.dirname, "./src")],
   migrationHistories: {
     cloud: resolve(import.meta.dirname, "src/drizzle"),
-    legacy: resolve(import.meta.dirname, "src/drizzle-legacy"),
   },
   routes: {
     signedIn: [

@@ -40,6 +40,23 @@ processes:
       command: docker compose stop --timeout 60 postgres clickhouse-app clickhouse-cloud
       timeout_seconds: 90
 
+  mailpit:
+    command: |
+      trap 'docker compose rm --force --stop mailpit' EXIT
+      docker compose up --abort-on-container-exit mailpit
+    depends_on:
+      databases: { condition: process_healthy }
+    success_exit_codes: [143]
+    availability: { restart: exit_on_failure }
+    readiness_probe:
+      exec:
+        command: curl --fail --silent "http://$(docker compose port mailpit 8025)/livez"
+      period_seconds: 2
+      failure_threshold: 60
+    shutdown:
+      command: docker compose stop --timeout 10 mailpit
+      timeout_seconds: 15
+
   collector-build:
     command: make -C collector build && make -C collector build EVERR_BUILD_TARGET=self-hosted
     success_exit_codes: [143]
@@ -56,6 +73,7 @@ processes:
     depends_on:
       databases: { condition: process_healthy }
       collector-app: { condition: process_healthy }
+      mailpit: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
@@ -73,9 +91,11 @@ processes:
       - DATABASE_USER=everr_cloud
       - VITE_EVERR_PUBLIC_INGEST_URL=${DEV_CLOUD_INGEST_URL}
       - INGRESS_COLLECTOR_URL=${DEV_CLOUD_GITHUB_URL}/webhook/github
+      - EMAIL_FROM=Everr <dev@example.test>
     depends_on:
       databases: { condition: process_healthy }
       collector-cloud: { condition: process_healthy }
+      mailpit: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
