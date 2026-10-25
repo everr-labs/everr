@@ -32,13 +32,15 @@ export interface BusinessEventDefinition<F extends BusinessEventFact = BusinessE
 }
 
 /** Static, application-owned consumer. Registration does not start a worker. */
-export interface BusinessEventSubscriber {
+export interface BusinessEventSubscriber<F extends BusinessEventFact = BusinessEventFact> {
   readonly id: string;
-  readonly definition: BusinessEventDefinition;
-  enqueue(this: void, event: BusinessEvent): void | Promise<void>;
+  enqueue(this: void, event: BusinessEvent<F>): void | Promise<void>;
 }
 
-export interface ApplicationBusinessEvents {
-  readonly definitions: readonly BusinessEventDefinition[];
-  readonly subscribers: readonly BusinessEventSubscriber[];
+/** One feature definition and its typed consumers, including known facts with no consumers. */
+export interface BusinessEventRegistration<F extends BusinessEventFact = BusinessEventFact> {
+  readonly definition: BusinessEventDefinition<F>;
+  readonly subscribers: readonly BusinessEventSubscriber<F>[];
 }
+
+export type ApplicationBusinessEvents = readonly BusinessEventRegistration[];

@@ -1,4 +1,5 @@
 import type { ApplicationBusinessEvents } from "@everr/app/composition";
+import { businessEventRegistration } from "@everr/app/server/business-events/subscriber";
 import {
   membershipEventDefinitions,
   organizationEventDefinitions,
@@ -24,39 +25,33 @@ import {
 export function userSyncSubscribers(
   mode: "disabled" | "configured" | "paused",
   enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationBusinessEvents["subscribers"] {
+): ApplicationBusinessEvents {
   if (mode === "disabled") return [];
-  return userEventDefinitions.map((definition) => ({
-    id: `crm.brevo.${definition.type}`,
-    definition,
-    async enqueue(event) {
-      const fact = definition.parse({
-        type: event.type,
-        version: event.version,
-        subjectId: event.subjectId,
-        ...(event.actorId ? { actorId: event.actorId } : {}),
-        data: event.data,
-      });
-      if (fact.subjectId !== fact.data.userId) throw new Error("Invalid CRM user subject.");
-      const payload = userSyncPayload.parse({
-        version: 1,
-        userId: fact.data.userId,
-        eventId: event.id,
-        eventType: event.type,
-        occurredAt: event.occurredAt,
-        failures: 0,
-      });
-      await enqueue(USER_SYNC_TASK, payload, {
-        ...userSyncSpec(payload.userId),
-      });
-    },
-  }));
+  return userEventDefinitions.map((definition) =>
+    businessEventRegistration(definition, {
+      id: `crm.brevo.${definition.type}`,
+      async enqueue(event) {
+        if (event.subjectId !== event.data.userId) throw new Error("Invalid CRM user subject.");
+        const payload = userSyncPayload.parse({
+          version: 1,
+          userId: event.data.userId,
+          eventId: event.id,
+          eventType: event.type,
+          occurredAt: event.occurredAt,
+          failures: 0,
+        });
+        await enqueue(USER_SYNC_TASK, payload, {
+          ...userSyncSpec(payload.userId),
+        });
+      },
+    }),
+  );
 }
 
 export function organizationSyncSubscribers(
   mode: "disabled" | "configured" | "paused",
   enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationBusinessEvents["subscribers"] {
+): ApplicationBusinessEvents {
   if (mode === "disabled") return [];
   const definitions = [
     ...organizationEventDefinitions,
@@ -65,46 +60,44 @@ export function organizationSyncSubscribers(
     ...billingEventDefinitions,
     ...organizationMilestoneDefinitions,
   ];
-  return definitions.map((definition) => ({
-    id: `crm.brevo.${definition.type}`,
-    definition,
-    async enqueue(event) {
-      const fact = definition.parse({
-        type: event.type,
-        version: event.version,
-        subjectId: event.subjectId,
-        ...(event.actorId ? { actorId: event.actorId } : {}),
-        data: event.data,
-      });
-      const membership = "membershipId" in fact.data;
-      if (
-        fact.subjectId !==
-        ("membershipId" in fact.data ? fact.data.membershipId : fact.data.organizationId)
-      )
-        throw new Error("Invalid CRM organization subject.");
-      const common = {
-        version: 1,
-        organizationId: fact.data.organizationId,
-        eventId: event.id,
-        eventType: event.type,
-        occurredAt: event.occurredAt,
-        failures: 0,
-      };
-      // The pair, not membership row identity or domain, is authoritative.
-      const payload =
-        membership && "userId" in fact.data
-          ? membershipSyncPayload.parse({ ...common, kind: "membership", userId: fact.data.userId })
-          : organizationSyncPayload.parse({ ...common, kind: "organization" });
-      await enqueue(
-        payload.kind === "membership" ? MEMBERSHIP_SYNC_TASK : ORGANIZATION_SYNC_TASK,
-        payload,
-        {
-          ...relatedSyncSpec(
-            payload.organizationId,
-            payload.kind === "membership" ? payload.userId : undefined,
-          ),
-        },
-      );
-    },
-  }));
+  return definitions.map((definition) =>
+    businessEventRegistration(definition, {
+      id: `crm.brevo.${definition.type}`,
+      async enqueue(event) {
+        const membership = "membershipId" in event.data;
+        if (
+          event.subjectId !==
+          ("membershipId" in event.data ? event.data.membershipId : event.data.organizationId)
+        )
+          throw new Error("Invalid CRM organization subject.");
+        const common = {
+          version: 1,
+          organizationId: event.data.organizationId,
+          eventId: event.id,
+          eventType: event.type,
+          occurredAt: event.occurredAt,
+          failures: 0,
+        };
+        // The pair, not membership row identity or domain, is authoritative.
+        const payload =
+          membership && "userId" in event.data
+            ? membershipSyncPayload.parse({
+                ...common,
+                kind: "membership",
+                userId: event.data.userId,
+              })
+            : organizationSyncPayload.parse({ ...common, kind: "organization" });
+        await enqueue(
+          payload.kind === "membership" ? MEMBERSHIP_SYNC_TASK : ORGANIZATION_SYNC_TASK,
+          payload,
+          {
+            ...relatedSyncSpec(
+              payload.organizationId,
+              payload.kind === "membership" ? payload.userId : undefined,
+            ),
+          },
+        );
+      },
+    }),
+  );
 }

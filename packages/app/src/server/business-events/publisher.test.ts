@@ -7,7 +7,7 @@ import type {
   BusinessEvents,
 } from "#app/composition/business-events.ts";
 import { createBusinessEventPublisher, type PublicationDiagnostics } from "./publisher";
-import { businessEventSubscriber } from "./subscriber";
+import { businessEventRegistration } from "./subscriber";
 
 // This definition belongs to this test feature. Production facts arrive in later tickets.
 const schema = z.object({
@@ -50,10 +50,12 @@ function setup(
 ) {
   const diagnostics = { log: vi.fn(), count: vi.fn() };
   const publisher = createBusinessEventPublisher({
-    definitions: [definition],
-    subscribers: handlers.map((enqueue, i) =>
-      businessEventSubscriber(definition, { id: `consumer-${i}`, enqueue }),
-    ),
+    registrations: [
+      businessEventRegistration(
+        definition,
+        ...handlers.map((enqueue, i) => ({ id: `consumer-${i}`, enqueue })),
+      ),
+    ],
     diagnostics,
     metadata: () => envelope,
     ...extras,
@@ -239,8 +241,7 @@ it("makes an empty registry a no-op without metadata or diagnostics", async () =
   });
   const diagnostics = { log: vi.fn(), count: vi.fn() };
   const publisher = createBusinessEventPublisher({
-    definitions: [],
-    subscribers: [],
+    registrations: [],
     diagnostics,
     metadata,
   });
@@ -260,10 +261,9 @@ it("routes only compatible event versions and normalizes metadata inside publica
   const wrong = vi.fn();
   const right = vi.fn();
   const publisher = createBusinessEventPublisher({
-    definitions: [definition, other],
-    subscribers: [
-      businessEventSubscriber(definition, { id: "right", enqueue: right }),
-      businessEventSubscriber(other, { id: "wrong", enqueue: wrong }),
+    registrations: [
+      businessEventRegistration(definition, { id: "right", enqueue: right }),
+      businessEventRegistration(other, { id: "wrong", enqueue: wrong }),
     ],
     diagnostics: { log() {}, count() {} },
   });
@@ -284,8 +284,7 @@ it("delivers valid facts whose feature schema rejects unknown envelope fields", 
   const enqueue = vi.fn();
   const diagnostics = { log: vi.fn(), count: vi.fn() };
   const publisher = createBusinessEventPublisher({
-    definitions: [strictDefinition],
-    subscribers: [businessEventSubscriber(strictDefinition, { id: "strict", enqueue })],
+    registrations: [businessEventRegistration(strictDefinition, { id: "strict", enqueue })],
     diagnostics,
     metadata: () => envelope,
   });
@@ -295,26 +294,27 @@ it("delivers valid facts whose feature schema rejects unknown envelope fields", 
   expect(diagnostics.count).not.toHaveBeenCalled();
 });
 
-it("rejects ambiguous static registrations before serving producers", () => {
+it("rejects conflicting definitions and duplicate consumer IDs before serving producers", () => {
   const diagnostics = { log() {}, count() {} };
   expect(() =>
     createBusinessEventPublisher({
-      definitions: [definition, definition],
-      subscribers: [],
+      registrations: [
+        businessEventRegistration(definition),
+        businessEventRegistration({ ...definition }),
+      ],
       diagnostics,
     }),
-  ).toThrow("Duplicate business event definition");
-  const subscriber = businessEventSubscriber(definition, { id: "same", enqueue() {} });
+  ).toThrow("Conflicting business event definition");
+  const registration = businessEventRegistration(definition, { id: "same", enqueue() {} });
+  expect(() =>
+    createBusinessEventPublisher({ registrations: [registration, registration], diagnostics }),
+  ).toThrow("unique and nonempty");
   expect(() =>
     createBusinessEventPublisher({
-      definitions: [definition],
-      subscribers: [subscriber, subscriber],
+      registrations: [businessEventRegistration(definition, { id: "", enqueue() {} })],
       diagnostics,
     }),
   ).toThrow("unique and nonempty");
-  expect(() =>
-    createBusinessEventPublisher({ definitions: [], subscribers: [subscriber], diagnostics }),
-  ).toThrow("Unregistered");
 });
 
 it("keeps producer and subscriber payloads typed by their owning feature", async () => {
@@ -327,12 +327,168 @@ it("keeps producer and subscriber payloads typed by their owning feature", async
     data: { otherId: "wrong-feature" },
   };
   expect(incompatible).toBeDefined();
-  const subscriber = businessEventSubscriber(definition, {
+  const subscriber = businessEventRegistration(definition, {
     id: "typed-consumer",
     enqueue(event) {
       expectTypeOf(event.data).toEqualTypeOf<{ userId: string }>();
     },
   });
-  await subscriber.enqueue({ ...fact, ...envelope });
+  const registeredPublisher = createBusinessEventPublisher({
+    registrations: [subscriber],
+    diagnostics: { log() {}, count() {} },
+  });
+  registeredPublisher.publish(fact);
+  await registeredPublisher.stop();
   await publisher.stop();
+});
+
+it("validates once and isolates nested producer and sibling payloads with one envelope", async () => {
+  const nestedSchema = schema
+    .extend({ data: z.object({ nested: z.object({ value: z.string() }) }) })
+    .strict();
+  const parse = vi.fn((input: unknown) => nestedSchema.parse(input));
+  const nestedDefinition = { type: "test.created", version: 1, parse };
+  const source = { ...fact, data: { nested: { value: "published" } } };
+  const waiting = deferred();
+  const seen: unknown[] = [];
+  const metadata = vi.fn(() => ({ ...envelope }));
+  const events = createBusinessEventPublisher({
+    registrations: [
+      businessEventRegistration(
+        nestedDefinition,
+        {
+          id: "mutating",
+          enqueue(event) {
+            expect(Object.isFrozen(event)).toBe(true);
+            event.data.nested.value = "first consumer";
+            seen.push({ id: event.id, occurredAt: event.occurredAt });
+            return waiting.promise;
+          },
+        },
+        {
+          id: "sibling",
+          enqueue(event) {
+            seen.push(event);
+          },
+        },
+      ),
+    ],
+    diagnostics: { log() {}, count() {} },
+    metadata,
+  });
+  events.publish(source);
+  expect(parse).toHaveBeenCalledOnce();
+  expect(source.data.nested.value).toBe("published");
+  source.data.nested.value = "producer after publication";
+  await Promise.resolve();
+  expect(source.data.nested.value).toBe("producer after publication");
+  expect(seen).toEqual([
+    envelope,
+    { ...source, data: { nested: { value: "published" } }, ...envelope },
+  ]);
+  expect(metadata).toHaveBeenCalledOnce();
+  waiting.resolve();
+  await events.stop();
+});
+
+it("routes multiple registrations for the same definition by type and version", async () => {
+  const first = vi.fn();
+  const second = vi.fn();
+  const events = createBusinessEventPublisher({
+    registrations: [
+      businessEventRegistration(definition, { id: "first", enqueue: first }),
+      businessEventRegistration(definition, { id: "second", enqueue: second }),
+    ],
+    diagnostics: { log() {}, count() {} },
+    metadata: () => envelope,
+  });
+  events.publish({ ...fact });
+  await events.stop();
+  expect(first).toHaveBeenCalledWith({ ...fact, ...envelope });
+  expect(second).toHaveBeenCalledWith({ ...fact, ...envelope });
+});
+
+it("preserves known unhandled facts and bounds unknown type and version diagnostics", async () => {
+  const diagnostics = { log: vi.fn(), count: vi.fn() };
+  const handler = vi.fn();
+  const metadata = vi.fn(() => envelope);
+  const events = createBusinessEventPublisher({
+    registrations: [
+      businessEventRegistration(definition),
+      businessEventRegistration(
+        { ...definition, type: "other.created", parse: () => ({ ...fact, type: "other.created" }) },
+        { id: "other", enqueue: handler },
+      ),
+    ],
+    diagnostics,
+    metadata,
+  });
+  events.publish(fact);
+  expect(diagnostics.log).not.toHaveBeenCalled();
+  expect(metadata).not.toHaveBeenCalled();
+  events.publish({ ...fact, version: 2 });
+  events.publish({ ...fact, type: "unregistered" });
+  await events.stop();
+  expect(handler).not.toHaveBeenCalled();
+  expect(diagnostics.log.mock.calls.map(([failure]) => [failure.eventType, failure.stage])).toEqual(
+    [
+      ["unknown", "validation"],
+      ["unknown", "validation"],
+    ],
+  );
+});
+
+it.each([
+  { ...fact, type: "wrong" },
+  { ...fact, version: 2 },
+  { ...fact, subjectId: "" },
+  { ...fact, actorId: 123 },
+])("contains invalid outputs from feature parsers", async (parsed) => {
+  const enqueue = vi.fn();
+  const diagnostics = { log: vi.fn(), count: vi.fn() };
+  const events = createBusinessEventPublisher({
+    registrations: [
+      businessEventRegistration({ ...definition, parse: () => parsed } as BusinessEventDefinition, {
+        id: "consumer",
+        enqueue,
+      }),
+    ],
+    diagnostics,
+  });
+  events.publish(fact);
+  await events.stop();
+  expect(enqueue).not.toHaveBeenCalled();
+  expect(diagnostics.log).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stage: "validation",
+      error: new Error("Business event validation failed"),
+    }),
+  );
+});
+
+it("contains noncloneable payload failures without exposing values or starting consumers", async () => {
+  const enqueue = vi.fn();
+  const diagnostics = { log: vi.fn(), count: vi.fn() };
+  const events = createBusinessEventPublisher({
+    registrations: [
+      businessEventRegistration(
+        {
+          ...definition,
+          parse: () => ({ ...fact, data: { secret: "private-profile", callback() {} } }),
+        },
+        { id: "consumer", enqueue },
+      ),
+    ],
+    diagnostics,
+  });
+  expect(() => events.publish(fact)).not.toThrow();
+  await events.stop();
+  expect(enqueue).not.toHaveBeenCalled();
+  expect(diagnostics.log).toHaveBeenCalledWith(
+    expect.objectContaining({
+      stage: "envelope",
+      error: new Error("Business event payload copy failed"),
+    }),
+  );
+  expect(JSON.stringify(diagnostics.log.mock.calls)).not.toContain("private-profile");
 });

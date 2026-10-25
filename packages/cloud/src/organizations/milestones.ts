@@ -7,6 +7,7 @@ import {
   type UsefulConsultations,
   type OrganizationMilestoneFact,
 } from "@everr/app/organizations/consultations";
+import { businessEventRegistration } from "@everr/app/server/business-events/subscriber";
 import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
 import { eq, sql } from "drizzle-orm";
 import { organizationMilestones } from "../db/schema/organization-milestones";
@@ -88,13 +89,11 @@ export function createUsefulConsultations(options: {
     },
   };
   const publisher = createBusinessEventPublisher({
-    definitions: [definition],
-    subscribers: [
-      {
+    registrations: [
+      businessEventRegistration(definition, {
         id: "cloud.organization-milestones",
-        definition,
         async enqueue(event) {
-          const evidence = usefulConsultation.parse(event.data);
+          const evidence = event.data;
           const observedAt = new Date(event.occurredAt);
           if (observedAt < observerStartedAt) throw new Error("Invalid observation clock");
           if (!(await options.store.establish({ evidence, observedAt, observerStartedAt }))) return;
@@ -116,7 +115,7 @@ export function createUsefulConsultations(options: {
             }
           }
         },
-      },
+      }),
     ],
     metadata: () => ({ id: crypto.randomUUID(), occurredAt: now().toISOString() }),
     maxInFlight: options.maxInFlight ?? 32,

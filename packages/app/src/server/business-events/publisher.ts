@@ -33,34 +33,39 @@ export interface BusinessEventPublisher extends BusinessEvents {
 }
 
 /** No queue or persistence of its own. Accepted work is bounded, excess facts are lost. */
-export function createBusinessEventPublisher(
-  options: ApplicationBusinessEvents & {
-    diagnostics: PublicationDiagnostics;
-    maxInFlight?: number;
-    drainTimeoutMs?: number;
-    metadata?: () => { id: string; occurredAt: string };
-  },
-): BusinessEventPublisher {
+export function createBusinessEventPublisher(options: {
+  registrations: ApplicationBusinessEvents;
+  diagnostics: PublicationDiagnostics;
+  maxInFlight?: number;
+  drainTimeoutMs?: number;
+  metadata?: () => { id: string; occurredAt: string };
+}): BusinessEventPublisher {
   const { diagnostics, maxInFlight = 128, drainTimeoutMs = 5_000 } = options;
   if (!Number.isSafeInteger(maxInFlight) || maxInFlight < 1)
     throw new Error("Invalid publication capacity");
   if (!Number.isFinite(drainTimeoutMs) || drainTimeoutMs < 0)
     throw new Error("Invalid publication drain timeout");
-  const definitions = [...options.definitions];
-  const subscribers = [...options.subscribers];
-  const keys = new Set<string>();
-  for (const definition of definitions) {
-    const key = `${definition.type}:${definition.version}`;
-    if (keys.has(key)) throw new Error(`Duplicate business event definition: ${key}`);
-    keys.add(key);
-  }
+  const registrations = new Map<string, (typeof options.registrations)[number]>();
   const ids = new Set<string>();
-  for (const subscriber of subscribers) {
-    if (!subscriber.id || ids.has(subscriber.id))
-      throw new Error("Business event subscriber IDs must be unique and nonempty");
-    if (!definitions.includes(subscriber.definition))
-      throw new Error(`Unregistered business event definition: ${subscriber.id}`);
-    ids.add(subscriber.id);
+  let hasSubscribers = false;
+  for (const registration of options.registrations) {
+    const { definition } = registration;
+    const key = JSON.stringify([definition.type, definition.version]);
+    const existing = registrations.get(key);
+    if (existing && existing.definition !== definition)
+      throw new Error(
+        `Conflicting business event definition: ${definition.type}:${definition.version}`,
+      );
+    for (const subscriber of registration.subscribers) {
+      if (!subscriber.id || ids.has(subscriber.id))
+        throw new Error("Business event subscriber IDs must be unique and nonempty");
+      ids.add(subscriber.id);
+      hasSubscribers = true;
+    }
+    registrations.set(key, {
+      definition,
+      subscribers: [...(existing?.subscribers ?? []), ...registration.subscribers],
+    });
   }
   const metadata =
     options.metadata ?? (() => ({ id: randomUUID(), occurredAt: new Date().toISOString() }));
@@ -81,15 +86,14 @@ export function createBusinessEventPublisher(
   }
 
   function publish(fact: BusinessEventFact): void {
-    if (subscribers.length === 0) return;
+    if (!hasSubscribers) return;
     let eventType = "unknown";
     let event: BusinessEvent | undefined;
     let stage: PublicationFailureStage = "validation";
     try {
-      const definition = definitions.find(
-        (candidate) => candidate.type === fact.type && candidate.version === fact.version,
-      );
-      if (!definition) throw new Error("Unknown business event type or version");
+      const registration = registrations.get(JSON.stringify([fact.type, fact.version]));
+      if (!registration) throw new Error("Unknown business event type or version");
+      const { definition, subscribers } = registration;
       eventType = definition.type;
       if (closed || inFlight.size >= maxInFlight) {
         report({
@@ -119,6 +123,7 @@ export function createBusinessEventPublisher(
         // Schema errors can include raw payloads. Do not export those values.
         throw new Error("Business event validation failed");
       }
+      if (subscribers.length === 0) return;
       stage = "envelope";
       const envelope = metadata();
       if (
@@ -127,25 +132,39 @@ export function createBusinessEventPublisher(
         !Number.isFinite(Date.parse(envelope.occurredAt))
       )
         throw new Error("Invalid business event metadata");
+      // All consumers receive independent payloads from the validated producer snapshot.
+      // Clone before scheduling any consumer; clone failures must not leak payload values.
+      const deliveries = subscribers.map((subscriber) => {
+        try {
+          return {
+            subscriber,
+            event: Object.freeze({
+              ...structuredClone(parsed),
+              id: envelope.id,
+              occurredAt: envelope.occurredAt,
+            }),
+          };
+        } catch {
+          throw new Error("Business event payload copy failed");
+        }
+      });
       event = Object.freeze({ ...parsed, id: envelope.id, occurredAt: envelope.occurredAt });
       const accepted = event;
       const work = Promise.all(
-        subscribers
-          .filter((subscriber) => subscriber.definition === definition)
-          .map((subscriber) =>
-            Promise.resolve()
-              .then(() => subscriber.enqueue(accepted))
-              .catch((error: unknown) => {
-                report({
-                  eventType,
-                  eventId: accepted.id,
-                  subjectId: accepted.subjectId,
-                  subscriberId: subscriber.id,
-                  stage: "subscriber",
-                  error,
-                });
-              }),
-          ),
+        deliveries.map(({ subscriber, event }) =>
+          Promise.resolve()
+            .then(() => subscriber.enqueue(event))
+            .catch((error: unknown) => {
+              report({
+                eventType,
+                eventId: accepted.id,
+                subjectId: accepted.subjectId,
+                subscriberId: subscriber.id,
+                stage: "subscriber",
+                error,
+              });
+            }),
+        ),
       ).then(() => {});
       inFlight.add(work);
       // work resolves even when a subscriber rejects; still guard the tracking cleanup.

@@ -3,9 +3,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { BusinessEventDefinition, BusinessEvents } from "#app/composition/business-events.ts";
 import { createBusinessEventPublisher } from "#app/server/business-events/publisher.ts";
-import { businessEventSubscriber } from "#app/server/business-events/subscriber.ts";
+import { businessEventRegistration } from "#app/server/business-events/subscriber.ts";
 import {
-  identityEventDefinitions,
+  userEventDefinitions,
   membershipChanged,
   membershipEventDefinitions,
   organizationChanged,
@@ -334,15 +334,17 @@ it("keeps actual organization and membership mutations committed when subscriber
     ...membershipEventDefinitions,
   ];
   const publisher = createBusinessEventPublisher({
-    definitions: identityEventDefinitions,
-    subscribers: definitions.map((definition) =>
-      businessEventSubscriber(definition, {
-        id: `test-${definition.type}`,
-        enqueue: async () => {
-          throw new Error("queue unavailable");
-        },
-      }),
-    ),
+    registrations: [
+      ...userEventDefinitions.map((definition) => businessEventRegistration(definition)),
+      ...definitions.map((definition) =>
+        businessEventRegistration(definition, {
+          id: `test-${definition.type}`,
+          enqueue: async () => {
+            throw new Error("queue unavailable");
+          },
+        }),
+      ),
+    ],
     diagnostics: { log, count() {} },
   });
   const auth = createAuth(publisher);

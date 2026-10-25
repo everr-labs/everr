@@ -23,6 +23,7 @@ export type {
   BusinessEvent,
   BusinessEventFact,
   BusinessEventDefinition,
+  BusinessEventRegistration,
   BusinessEvents,
   BusinessEventSubscriber,
 } from "./business-events";

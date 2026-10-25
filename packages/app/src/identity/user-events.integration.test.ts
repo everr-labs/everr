@@ -4,7 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { BusinessEvents } from "#app/composition/business-events.ts";
 import { createBusinessEventPublisher } from "#app/server/business-events/publisher.ts";
-import { businessEventSubscriber } from "#app/server/business-events/subscriber.ts";
+import { businessEventRegistration } from "#app/server/business-events/subscriber.ts";
 import { userEventDefinitions, type UserFact } from "./events";
 import { createAuthTestDatabase } from "./testing/database";
 import { identityLifecycleAdapter } from "./identity-adapter";
@@ -185,9 +185,8 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
   const failure = vi.fn();
   const definition = userEventDefinitions[0];
   const publisher = createBusinessEventPublisher({
-    definitions: userEventDefinitions,
-    subscribers: [
-      businessEventSubscriber(definition, {
+    registrations: [
+      businessEventRegistration(definition, {
         id: "user-test",
         enqueue: async () => {
           throw new Error("enqueue unavailable");

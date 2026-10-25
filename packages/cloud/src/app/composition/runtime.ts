@@ -1,10 +1,6 @@
-import { identityEventDefinitions } from "@everr/app/identity/events";
-import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
-import { billingEventDefinitions } from "../../billing/events";
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
 import { userSyncSubscribers, organizationSyncSubscribers } from "../../crm/jobs";
-import { organizationMilestoneDefinitions } from "@everr/app/organizations/consultations";
 import { db } from "@everr/app/db/client";
 import {
   createOrganizationMilestoneStore,
@@ -14,18 +10,10 @@ import {
 const crmConfig = readBrevoConfig(process.env);
 
 export const runtime: ApplicationRuntime = {
-  businessEvents: {
-    definitions: [
-      ...identityEventDefinitions,
-      ...organizationReadinessEventDefinitions,
-      ...billingEventDefinitions,
-      ...organizationMilestoneDefinitions,
-    ],
-    subscribers: [
-      ...userSyncSubscribers(crmConfig.mode),
-      ...organizationSyncSubscribers(crmConfig.mode),
-    ],
-  },
+  businessEvents: [
+    ...userSyncSubscribers(crmConfig.mode),
+    ...organizationSyncSubscribers(crmConfig.mode),
+  ],
   createUsefulConsultations(events) {
     return createUsefulConsultations({ store: createOrganizationMilestoneStore(db), events });
   },

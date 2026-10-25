@@ -6,7 +6,7 @@ import {
   createAuthTestDatabase,
   createIdentityTestAuth,
 } from "@everr/app/identity/testing/database";
-import { userCreated, userEventDefinitions } from "@everr/app/identity/events";
+import { userCreated } from "@everr/app/identity/events";
 import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
 import { addWorkerJobUsing } from "@everr/app/server/worker/jobs";
 import { eq, SQL } from "drizzle-orm";
@@ -162,8 +162,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       const enqueue = async (name: string, body: unknown, spec = {}) =>
         addWorkerJobUsing(fixture.database, name, body, spec);
       const publisher = createBusinessEventPublisher({
-        definitions: userEventDefinitions,
-        subscribers: userSyncSubscribers("configured", enqueue),
+        registrations: userSyncSubscribers("configured", enqueue),
         diagnostics: { log() {}, count() {} },
       });
       publisher.publish(userCreated("u", false));
@@ -185,8 +184,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     it("keeps actual committed auth signup successful when the cloud consumer rejects enqueue", async () => {
       const log = vi.fn();
       const publisher = createBusinessEventPublisher({
-        definitions: userEventDefinitions,
-        subscribers: userSyncSubscribers("configured", async () => {
+        registrations: userSyncSubscribers("configured", async () => {
           throw new Error("enqueue unavailable");
         }),
         diagnostics: { log, count() {} },

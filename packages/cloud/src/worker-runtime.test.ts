@@ -159,9 +159,9 @@ describe("worker runtime", () => {
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const { runtime: composition } = await import("./app/composition/runtime");
     expect(
-      composition.businessEvents.subscribers.some((subscriber) =>
-        subscriber.id.startsWith("crm.brevo."),
-      ),
+      composition.businessEvents
+        .flatMap((registration) => registration.subscribers)
+        .some((subscriber) => subscriber.id.startsWith("crm.brevo.")),
     ).toBe(true);
     expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
       true,

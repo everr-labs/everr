@@ -164,8 +164,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
     it("repairs latest Company state from stored markers after lost publication without replaying history", async () => {
       const publisherDiagnostics = { log: vi.fn(), count: vi.fn() };
       const events = createBusinessEventPublisher({
-        definitions: organizationMilestoneDefinitions,
-        subscribers: organizationSyncSubscribers("paused", async () => {
+        registrations: organizationSyncSubscribers("paused", async () => {
           throw new Error("enqueue unavailable");
         }).filter((subscriber) =>
           organizationMilestoneDefinitions.some(

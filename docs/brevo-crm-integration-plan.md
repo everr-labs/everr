@@ -93,9 +93,11 @@ no invented User. Payloads contain stable IDs and only facts needed by consumers
 not credentials or copies of complete database rows. Workers validate persisted
 payloads, and schema upgrades must keep old readers or explicit upcasters.
 
-Definitions live with their feature. The publisher accepts static subscriber
-registrations, with stable subscriber IDs and compatible event types. Cloud
-composes shared and cloud-specific definitions locally. Shared modules must never
+Definitions live with their feature. Each static registration combines a feature
+definition and typed consumers with stable subscriber IDs. The publisher derives
+routing by type and version, validates each publication once, and copies the
+validated payload for each consumer. Cloud composes shared and cloud-specific
+registrations locally. Shared modules must never
 import cloud types, a Brevo client, or deployment conditionals. Routing, validation,
 or enqueue failure is reported in telemetry and cannot change the already committed
 source result. Isolate subscribers so one failure does not prevent attempts to

@@ -3,9 +3,9 @@ import { registerShutdownHook } from "#app/server/shutdown.ts";
 import { createBusinessEventPublisher } from "./publisher";
 import { publicationDiagnostics } from "./telemetry";
 
-/** Process-local publication; definitions and subscribers are selected by the app. */
+/** Process-local publication; registrations are selected by the app. */
 export const events = createBusinessEventPublisher({
-  ...runtime.businessEvents,
+  registrations: runtime.businessEvents,
   diagnostics: publicationDiagnostics,
 });
 registerShutdownHook("business-events", "publications", events.stop);

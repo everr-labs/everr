@@ -1,11 +1,18 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
+import { createBusinessEventPublisher } from "@everr/app/server/business-events/publisher";
+import type { BusinessEventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
 import { userSyncSubscribers, userSyncSpec } from "./jobs";
 import { contactPermitGap } from "./worker";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 afterEach(() => vi.useRealTimers());
+
+function publisher(registrations: readonly BusinessEventRegistration[]) {
+  const diagnostics = { log: vi.fn(), count: vi.fn() };
+  return { ...createBusinessEventPublisher({ registrations, diagnostics }), diagnostics };
+}
 
 it("registers cloud lifecycle consumers while disabled mode remains inert", () => {
   expect(userSyncSubscribers("disabled")).toEqual([]);
@@ -22,17 +29,19 @@ it("registers cloud lifecycle consumers while disabled mode remains inert", () =
   expect(userSyncSpec("same")).toEqual(userSyncSpec("same"));
 });
 
-it("rejects malformed subject IDs and allows enqueue rejection to reach the publisher's failure boundary", async () => {
+it("contains malformed subjects and enqueue failures at the real publication seam", async () => {
   const enqueue = vi.fn(async () => {
     throw new Error("enqueue unavailable");
   });
-  const [consumer] = userSyncSubscribers("configured", enqueue);
-  const event = { ...userCreated("u", false), id: "e", occurredAt: new Date().toISOString() };
-  await expect(consumer.enqueue({ ...event, subjectId: "other" })).rejects.toThrow(
-    "Invalid CRM user subject",
-  );
-  expect(enqueue).not.toHaveBeenCalled();
-  await expect(consumer.enqueue(event)).rejects.toThrow("enqueue unavailable");
+  const events = publisher(userSyncSubscribers("configured", enqueue));
+  events.publish({ ...userCreated("u", false), subjectId: "other" });
+  events.publish(userCreated("u", false));
+  await events.stop();
+  expect(enqueue).toHaveBeenCalledOnce();
+  expect(events.diagnostics.log.mock.calls.map(([failure]) => failure.error.message)).toEqual([
+    "Invalid CRM user subject.",
+    "enqueue unavailable",
+  ]);
   expect(enqueue).toHaveBeenCalledWith(
     "crm/sync-user",
     expect.objectContaining({ userId: "u", failures: 0 }),
@@ -81,15 +90,14 @@ it("registers Organization, explicit Membership, readiness and billing consumers
     "telemetry.first_queryable",
     "organization.activated",
   ]);
-  const removed = consumers.find((consumer) => consumer.definition.type === "membership.removed")!;
-  await removed.enqueue({
-    id: "event",
+  const events = publisher(consumers);
+  events.publish({
     type: "membership.removed",
     version: 1,
     subjectId: "row-old",
     data: { membershipId: "row-old", organizationId: "org", userId: "user" },
-    occurredAt: new Date().toISOString(),
   });
+  await events.stop();
   expect(enqueue).toHaveBeenCalledWith(
     "crm/sync-membership",
     expect.objectContaining({ userId: "user", organizationId: "org" }),
@@ -103,26 +111,23 @@ it("registers Organization, explicit Membership, readiness and billing consumers
 it("admits deletion facts using only retained source identities in paused mode", async () => {
   const { organizationSyncSubscribers } = await import("./jobs");
   const enqueue = vi.fn(async () => undefined);
-  const userDeleted = userSyncSubscribers("paused", enqueue).find(
-    (consumer) => consumer.definition.type === "identity.user.deleted",
-  );
-  const organizationDeleted = organizationSyncSubscribers("paused", enqueue).find(
-    (consumer) => consumer.definition.type === "organization.deleted",
-  );
-  if (!userDeleted || !organizationDeleted) throw new Error("Missing deletion subscribers");
-  const common = { id: "delete-event", version: 1, occurredAt: new Date().toISOString() };
-  await userDeleted.enqueue({
-    ...common,
+  const events = publisher([
+    ...userSyncSubscribers("paused", enqueue),
+    ...organizationSyncSubscribers("paused", enqueue),
+  ]);
+  events.publish({
     type: "identity.user.deleted",
+    version: 1,
     subjectId: "gone-user",
     data: { userId: "gone-user" },
   });
-  await organizationDeleted.enqueue({
-    ...common,
+  events.publish({
     type: "organization.deleted",
+    version: 1,
     subjectId: "gone-org",
     data: { organizationId: "gone-org" },
   });
+  await events.stop();
   expect(enqueue).toHaveBeenCalledTimes(2);
   expect(enqueue).toHaveBeenNthCalledWith(
     1,

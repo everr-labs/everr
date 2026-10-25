@@ -19,7 +19,7 @@ import {
 import { expect, it } from "vite-plus/test";
 import type { BusinessEventDefinition } from "#app/composition/business-events.ts";
 import { createBusinessEventPublisher } from "./publisher";
-import { businessEventSubscriber } from "./subscriber";
+import { businessEventRegistration } from "./subscriber";
 
 it("exports one exception and a bounded failure counter from a rejected subscriber", async () => {
   const marker = `task01-${randomUUID()}`;
@@ -65,9 +65,8 @@ it("exports one exception and a bounded failure counter from a rejected subscrib
       },
     };
     const publisher = createBusinessEventPublisher({
-      definitions: [definition],
-      subscribers: [
-        businessEventSubscriber(definition, {
+      registrations: [
+        businessEventRegistration(definition, {
           id: "verification-consumer",
           enqueue() {
             return Promise.reject(new Error("Task 01 forced enqueue rejection"));

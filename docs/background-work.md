@@ -51,29 +51,36 @@ work to the reserved provisioning runner without revisiting its capacity.
 
 `server/business-events/runtime.ts` composes `events.publish(fact): void` from
 `ApplicationRuntime.businessEvents`. Features own typed definitions and payload
-validation; the application supplies static definitions and subscribers. Both
-applications register the shared User, Organization, Membership, and readiness
-definitions; cloud also registers subscription and Plan definitions. Subscriber
-arrays remain empty in self-hosted. Cloud registers User, Organization, Membership,
-billing and readiness CRM subscribers, including parent deletion, only in configured
-or paused modes. CRM remains disabled by default.
+validation; each static registration pairs one feature definition with its typed
+subscribers. Routing is derived from these registrations by event type and version.
+Self-hosted registers shared User, Organization, Membership, and readiness facts
+without consumers. Cloud registers User, Organization, Membership, billing, readiness,
+and milestone CRM consumers, including parent deletion, only in configured or paused
+modes. CRM remains disabled by default.
 Paused mode persists pending work without starting its integration consumer. See
 [cloud CRM execution](../packages/cloud/src/crm/README.md#user-synchronization-and-execution)
 for fixed queue serialization, persisted retry budgets and deletion boundaries.
 
 A producer calls publication after its source commit succeeds, using values
-already available from that operation. Publication constructs an ID and occurrence
-time, validates the fact, and schedules independent subscriber enqueue attempts in
+already available from that operation. Publication validates the fact, constructs
+an ID and occurrence time, and schedules independent subscriber enqueue attempts in
 microtasks. A subscriber can throw or reject without preventing siblings from
-running or changing the source result. `businessEventSubscriber` preserves the
-feature's payload type when adapting its consumer for static routing. The producer
+running or changing the source result. `businessEventRegistration` infers each
+consumer payload from its feature definition. Publication validates once through
+that definition, then copies the validated snapshot for each consumer. Persisted
+command payload validation remains separate at admission and worker execution. The producer
 interface has no transaction argument, and this module persists no outbox.
 
 Features depend on `BusinessEvents<FeatureFact>` to restrict their producer input;
 the application runtime routes the broad fact interface. A feature parser receives
 fact-shaped input without publisher metadata. It must leave its input unchanged
 and return independent payload values, as Zod object schemas do. Treat facts as
-immutable: the publisher freezes only the envelope and does not deep-clone data.
+immutable: the publisher freezes each envelope and clones the validated payload
+with `structuredClone` before scheduling consumers. This preserves a producer
+snapshot and prevents one consumer from mutating another consumer's payload.
+Registration rejects duplicate consumer IDs and conflicting definitions for the
+same type and version before publication starts. A definition can have several
+consumers, or none, without requiring a second definitions catalog.
 
 At most 128 publications are in flight per publisher. Excess publications are
 dropped immediately with diagnostics rather than queued or awaited by the
