@@ -12,7 +12,7 @@ import {
   membershipSyncPayload,
   userSyncSpec,
   relatedSyncSpec,
-} from "./jobs";
+} from "./commands";
 import { RetainedCrmWork } from "./coordination";
 import { createCrmTaskList } from "./task-list";
 

@@ -10,7 +10,6 @@ import { organizationMilestoneDefinitions } from "../organizations/events";
 import { billingEventDefinitions } from "../billing/events";
 import { addWorkerJob } from "@everr/app/server/worker/jobs";
 
-export * from "./commands";
 import {
   USER_SYNC_TASK,
   ORGANIZATION_SYNC_TASK,

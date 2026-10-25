@@ -33,13 +33,8 @@ import {
 import { crmProjection } from "../db/schema/crm";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
-import {
-  USER_SYNC_TASK,
-  userSyncSubscribers,
-  userSyncSpec,
-  userSyncPayload,
-  type UserSyncPayload,
-} from "./jobs";
+import { USER_SYNC_TASK, userSyncSpec, userSyncPayload, type UserSyncPayload } from "./commands";
+import { userSyncSubscribers } from "./jobs";
 import { createUserSyncTask } from "./user-sync";
 import { createDeletionCleanup } from "./deletion";
 import { coordinateCrmTask } from "./coordination";

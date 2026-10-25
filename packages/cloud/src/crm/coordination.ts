@@ -3,7 +3,7 @@ import type { JobHelpers, Task, TaskSpec } from "graphile-worker";
 import type { Pool } from "pg";
 import type { z } from "zod";
 import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
-import type { UserSyncPayload, OrganizationSyncPayload, MembershipSyncPayload } from "./jobs";
+import type { UserSyncPayload, OrganizationSyncPayload, MembershipSyncPayload } from "./commands";
 
 export class RetainedCrmWork extends Error {}
 

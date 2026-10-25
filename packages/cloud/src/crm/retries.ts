@@ -1,7 +1,7 @@
 import { serverLogger } from "@everr/app/telemetry/logger";
 import type { WorkerEvents } from "graphile-worker";
 import type { Pool } from "pg";
-import { USER_SYNC_TASK, ORGANIZATION_SYNC_TASK, MEMBERSHIP_SYNC_TASK } from "./jobs";
+import { USER_SYNC_TASK, ORGANIZATION_SYNC_TASK, MEMBERSHIP_SYNC_TASK } from "./commands";
 import { RetainedCrmWork } from "./coordination";
 
 /** Native retries protect DB/continuation failures; known terminal work stays inspectable.

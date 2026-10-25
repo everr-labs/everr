@@ -12,7 +12,7 @@ import {
   userSyncPayload,
   relatedSyncSpec,
   userSyncSpec,
-} from "./jobs";
+} from "./commands";
 import { createOrganizationSyncTask } from "./organization-sync";
 import { createMembershipSyncTask } from "./membership-sync";
 import type { createCrmSnapshotReader } from "./snapshots";

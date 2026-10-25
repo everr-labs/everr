@@ -1,6 +1,6 @@
 import { metrics } from "@opentelemetry/api";
 import { serverLogger } from "@everr/app/telemetry/logger";
-import type { MembershipSyncPayload, OrganizationSyncPayload, UserSyncPayload } from "./jobs";
+import type { MembershipSyncPayload, OrganizationSyncPayload, UserSyncPayload } from "./commands";
 
 const meter = metrics.getMeter("everr-cloud.crm");
 const outcomes = meter.createCounter("everr.crm.sync.outcomes", { unit: "1" });

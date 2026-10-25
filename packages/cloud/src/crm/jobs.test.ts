@@ -3,7 +3,8 @@ import { expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import type { EventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
-import { userSyncSubscribers, userSyncSpec } from "./jobs";
+import { userSyncSubscribers } from "./jobs";
+import { userSyncSpec, relatedSyncSpec } from "./commands";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 
@@ -48,7 +49,7 @@ it("contains malformed subjects and enqueue failures at the real publication sea
 });
 
 it("registers Organization, explicit Membership, readiness and billing consumers only in cloud enabled modes", async () => {
-  const { organizationSyncSubscribers, relatedSyncSpec } = await import("./jobs");
+  const { organizationSyncSubscribers } = await import("./jobs");
   expect(organizationSyncSubscribers("disabled")).toEqual([]);
   const enqueue = vi.fn(async () => undefined);
   const consumers = organizationSyncSubscribers("paused", enqueue);

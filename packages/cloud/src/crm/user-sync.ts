@@ -1,7 +1,7 @@
 import { enqueueMembershipSyncs } from "./membership-jobs";
 import type { DeletionCleanup } from "./deletion";
 import type { createBrevoAdapter } from "./brevo/adapter";
-import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncSpec, type UserSyncPayload } from "./jobs";
+import { USER_SYNC_RETRIES, USER_SYNC_TASK, userSyncSpec, type UserSyncPayload } from "./commands";
 import type { createCrmSnapshotReader } from "./snapshots";
 import type { createCrmProjectionStore } from "./store";
 import { reconciliationDiagnostic, syncDiagnostic, type SyncDiagnostic } from "./telemetry";

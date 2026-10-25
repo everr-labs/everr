@@ -35,7 +35,7 @@ import {
   USER_SYNC_TASK,
   relatedSyncSpec,
   userSyncSpec,
-} from "./jobs";
+} from "./commands";
 import { createCrmTaskList } from "./task-list";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";

@@ -9,7 +9,7 @@ import {
   type UserSyncPayload,
   relatedSyncSpec,
   userSyncSpec,
-} from "./jobs";
+} from "./commands";
 import type { createCrmProjectionStore } from "./store";
 import { syncDiagnostic, type SyncDiagnostic } from "./telemetry";
 import { RetainedCrmWork } from "./coordination";
