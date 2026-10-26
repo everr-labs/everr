@@ -51,7 +51,7 @@ export const getTraceAttributeValues = createAuthenticatedServerFn({
 
 /** Explicit trace navigation. Shared getTrace remains an unobserved refresh read. */
 export const consultTrace = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(GetTraceInputSchema)
+  .validator(GetTraceInputSchema)
   .handler(async ({ data, context: { clickhouse, consultationPrincipal } }) => {
     const rows = await repoFromContext(clickhouse).getTrace(data);
     observeTraceDetail({ principal: consultationPrincipal, rows });
