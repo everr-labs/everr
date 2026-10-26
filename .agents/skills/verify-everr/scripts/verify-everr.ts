@@ -40,7 +40,7 @@ import {
   which,
   writeEnvFile,
 } from "./common.ts";
-import { WEB_COMMANDS, WEB_USAGE } from "./web.ts";
+import { WEB_COMMANDS, WEB_USAGE, timeWebCommand } from "./web.ts";
 
 const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr
 # local instance (collector + chDB + local UI) for verification runs.
@@ -428,7 +428,10 @@ async function main(argv: string[]): Promise<number> {
       return cmdCleanup();
     default: {
       const web = cmd ? WEB_COMMANDS[cmd] : undefined;
-      if (web) return web(args);
+      if (web) {
+        timeWebCommand(cmd);
+        return web(args);
+      }
       console.log(`${USAGE}\n${WEB_USAGE}`);
       return 2;
     }

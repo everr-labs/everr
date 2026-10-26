@@ -38,7 +38,7 @@ export function required(value: string | undefined, what: string): string {
 // Run ids name scratch dirs that cleanup deletes: allow only a safe charset, no "/" or "..".
 export type RunId = string & { readonly __brand: "RunId" };
 
-function isRunId(id: string): id is RunId {
+export function isRunId(id: string): id is RunId {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && !id.includes("..");
 }
 
