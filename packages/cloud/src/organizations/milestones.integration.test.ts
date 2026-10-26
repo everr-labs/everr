@@ -1,3 +1,4 @@
+import { serverLogger } from "@everr/app/telemetry/logger";
 // @vitest-environment node
 import type { TraceConsultation } from "@everr/app/organizations/consultations";
 import { organizationMilestoneDefinitions, type OrganizationMilestoneEvent } from "./events";
@@ -144,7 +145,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     });
 
     it("retains stored markers after lost publication without replaying history", async () => {
-      const publisherDiagnostics = vi.fn();
+      const publisherDiagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
       const events = createEventPublisher({
         routes: organizationMilestoneDefinitions.map((definition) => ({
           definition,
@@ -153,12 +154,12 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         enqueue: async () => {
           throw new Error("enqueue unavailable");
         },
-        diagnostics: publisherDiagnostics,
       });
       const state = observer(events.publish);
       state.observe(evidence());
       await state.stop();
       expect(publisherDiagnostics).toHaveBeenCalledTimes(2);
+      publisherDiagnostics.mockRestore();
       expect((await read()).rows).toHaveLength(1);
       expect((await read()).rows[0]).toMatchObject({
         activated_at: instant,
