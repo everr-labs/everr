@@ -648,11 +648,10 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await until(async () => {
         const company = await store.read(orgKey());
         const membership = await store.read(pairKey());
+        if (!company?.desired.deleted || !membership?.desired.deleted) return false;
         return (
-          company?.desired.deleted &&
           company.outcome === "synced" &&
           company.syncedRevision === company.desiredRevision &&
-          membership?.desired.deleted &&
           membership.outcome === "synced" &&
           membership.syncedRevision === membership.desiredRevision
         );
