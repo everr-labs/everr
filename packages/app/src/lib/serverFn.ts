@@ -32,12 +32,18 @@ export const requireOrgMiddleware = createMiddleware()
 
     const membership = await findOrganizationForMember(db, session.user.id, activeOrgId);
     if (!membership) throw new Error("Not a member of the active organization");
-    const { memberRole, ...organization } = membership;
+    const { memberRole, membershipId, ...organization } = membership;
 
     return next({
       context: {
         organization,
         memberRole,
+        consultationPrincipal: {
+          kind: "member" as const,
+          organizationId: activeOrgId,
+          userId: session.user.id,
+          membershipId,
+        },
         session: {
           session: {
             ...session.session,

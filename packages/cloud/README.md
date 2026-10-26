@@ -203,3 +203,6 @@ locks, provider checks, critical provisioning jobs, and cleanup guarantees.
 
 See the internal [event bus guide](../../docs/event-bus.md) for emitted facts and
 Graphile handler wiring.
+
+Cloud also records [verified activation milestones](src/organizations/README.md)
+from supported completed trace consultations, independently of outbound consumers.

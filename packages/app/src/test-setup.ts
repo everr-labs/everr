@@ -96,6 +96,12 @@ vi.mock("#app/lib/serverFn.ts", async () => {
       return fn({
         data: opts?.data,
         context: {
+          consultationPrincipal: {
+            kind: "member",
+            organizationId: "test_org",
+            userId: "test_user",
+            membershipId: "test_membership",
+          },
           session: {
             session: {
               userId: "test_user",

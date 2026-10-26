@@ -57,12 +57,15 @@ as `crm.reconciliation.requested` are separate contracts.
 | `billing.subscription.changed` | Organization ID   | `organizationId`, `subscriptionId`                                       | Cloud accepts and commits a newer provider subscription revision                                          |
 | `organization.plan.changed`    | Organization ID   | `organizationId`, `previousPlan`, `plan` (each Plan is `hobby` or `pro`) | Actual stored Hobby-to-Pro or Pro-to-Hobby transition after commit                                        |
 | `organization.provisioned`     | Organization ID   | `organizationId`                                                         | Guarded Cloud provisioning update transitions a row from pending to ready                                 |
+| `telemetry.first_queryable`    | Organization ID   | `organizationId`, `ruleVersion` (`1`), `observedAt` (ISO time)           | First qualifying completed consultation wins the durable milestone insert                                 |
+| `organization.activated`       | Organization ID   | `organizationId`, `ruleVersion` (`1`), `observedAt` (ISO time)           | Same committed milestone insert, published independently of the first-queryable fact                      |
 
 The authoritative definitions are:
 
 - [Identity, Organization and Membership](../packages/app/src/identity/events.ts).
 - [Billing and Plan](../packages/cloud/src/billing/events.ts).
 - [Provisioning readiness](../packages/app/src/organizations/events.ts).
+- [Activation milestones](../packages/cloud/src/organizations/events.ts).
 
 Creating an already verified User emits `identity.user.created` with
 `emailVerified: true`, without inventing a later verification transition. The
@@ -100,6 +103,9 @@ to each consumer. Awaiting publication adds the enqueue latency to the caller.
 Critical commands that must commit with source state use
 `addWorkerJobInTransaction` or `addWorkerJobUsing(tx, ...)` inside that transaction.
 See [background work](background-work.md#durability-transactions-and-replay).
+
+Cloud milestone observations have their own bounded shutdown drain. It completes
+before workers stop and telemetry flushes. It is independent of event publication.
 
 ## Adding an event handler
 

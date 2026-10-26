@@ -1,5 +1,6 @@
-import type { ApplicationEvents } from "./events";
+import type { ApplicationEvents, EventPublisher } from "./events";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
+import type { TraceConsultations } from "#app/organizations/consultations.ts";
 
 /**
  * A supervised background worker. Initial registration must not acquire running
@@ -17,6 +18,8 @@ export interface ApplicationWorker {
 /** Application-owned database upgrades and background work. */
 export interface ApplicationRuntime {
   readonly events: ApplicationEvents;
+  /** Optional observer for completed product trace reads. */
+  createTraceConsultations?(this: void, events: EventPublisher): TraceConsultations;
   migrateDatabase(this: void, database: MigrationDatabase): Promise<void>;
   /** Only additional workers owned by this composition, never product workers. */
   registerWorkers(this: void): Promise<readonly ApplicationWorker[]>;

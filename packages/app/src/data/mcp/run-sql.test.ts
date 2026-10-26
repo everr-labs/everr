@@ -8,20 +8,28 @@ import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { MCP_MAX_CELL_CHARS, MCP_MAX_OUTPUT_CHARS, MCP_MAX_ROWS } from "./query-tool-description";
 import { runSqlForConnection } from "./run-sql";
 
+const principal = {
+  kind: "member",
+  organizationId: "org-1",
+  userId: "u",
+  membershipId: "m",
+} as const;
 const { assertStorageReady } = storage;
 vi.mock("@composition/storage", () => ({
   storage: { assertStorageReady: vi.fn() },
 }));
-const { previewSqlApi } = vi.hoisted(() => ({ previewSqlApi: vi.fn() }));
+const { previewSqlApi, observe } = vi.hoisted(() => ({ previewSqlApi: vi.fn(), observe: vi.fn() }));
+vi.mock("#app/server/organizations/consultations.ts", () => ({ consultations: { observe } }));
 vi.mock("#app/lib/clickhouse.ts", () => ({ previewSqlApi }));
 
 beforeEach(() => {
+  observe.mockReset();
   vi.mocked(assertStorageReady).mockReset();
   previewSqlApi.mockReset();
 });
 
 function run(sql: string) {
-  return runSqlForConnection({ orgId: "org-1", metadata: null, sql });
+  return runSqlForConnection({ principal, orgId: "org-1", metadata: null, sql });
 }
 
 function chError(type: string, message: string, code = "0") {
@@ -43,6 +51,7 @@ describe("runSqlForConnection", () => {
       throw new StorageNotReadyError();
     });
     const result = await runSqlForConnection({
+      principal,
       orgId: "org-1",
       metadata: { clickhouseReady: false },
       sql: "SELECT 1",
@@ -165,5 +174,66 @@ describe("runSqlForConnection", () => {
   it("adds a hint to a timeout, classified by code", async () => {
     previewSqlApi.mockRejectedValueOnce(chError("", "Timeout exceeded", "159"));
     expect((await run("SELECT 1")).content[1]).toMatch(/^Narrow the time window/);
+  });
+});
+
+describe("MCP consultation completion", () => {
+  const traceId = "0123456789abcdef0123456789abcdef";
+  const sql = `SELECT * FROM traces WHERE TraceId = '${traceId}' ORDER BY Timestamp LIMIT 10`;
+  const preview = {
+    columns: ["TraceId", "ServiceName", "ResourceAttributes", "SpanAttributes"],
+    columnTypes: ["String", "String", "JSON", "JSON"],
+    rows: [[traceId, "checkout", { "deployment.environment.name": "production" }, {}]],
+    truncated: false,
+  };
+  it("observes successful shown trace rows with the actual Member principal", async () => {
+    previewSqlApi.mockResolvedValue(preview);
+    expect((await run(sql)).isError).toBe(false);
+    expect(observe).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        principal,
+        surface: "mcp",
+      }),
+    );
+  });
+  it("preserves a successful tool response if observation throws", async () => {
+    previewSqlApi.mockResolvedValue(preview);
+    observe.mockImplementation(() => {
+      throw new Error("private error");
+    });
+    const result = await run(sql);
+    expect(result.isError).toBe(false);
+    expect(result.content[0]).toContain(traceId);
+  });
+  it("cannot observe a supplied principal for a different Organization", async () => {
+    previewSqlApi.mockResolvedValue(preview);
+    const result = await runSqlForConnection({ orgId: "other", principal, metadata: null, sql });
+    expect(result.isError).toBe(false);
+    expect(observe).not.toHaveBeenCalled();
+  });
+  it.each([
+    "SELECT 1",
+    "DESCRIBE traces",
+    "SELECT * FROM traces LIMIT 1",
+    "SELECT count() FROM workflow_runs",
+  ])("does not observe metadata, probes or polling/list query %s", async (body) => {
+    previewSqlApi.mockResolvedValue(preview);
+    expect((await run(body)).isError).toBe(false);
+    expect(observe).not.toHaveBeenCalled();
+  });
+  it("does not observe rows excluded by the MCP response budget", async () => {
+    const columns = [...preview.columns, ...Array.from({ length: 30 }, (_, i) => `wide${i}`)];
+    previewSqlApi.mockResolvedValue({
+      ...preview,
+      columns,
+      columnTypes: columns.map(() => "String"),
+      rows: [
+        [...preview.rows[0], ...Array.from({ length: 30 }, () => "x".repeat(MCP_MAX_CELL_CHARS))],
+      ],
+    });
+    const result = await run(sql);
+    expect(result.isError).toBe(false);
+    expect(result.content[0]).not.toContain(traceId);
+    expect(observe).not.toHaveBeenCalled();
   });
 });

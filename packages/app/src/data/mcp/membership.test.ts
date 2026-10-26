@@ -20,9 +20,10 @@ beforeEach(() => selectMock.mockReset());
 
 describe("assertCurrentMember", () => {
   it("resolves when a membership row exists", async () => {
-    selectMock.mockReturnValueOnce(returning([{ metadata: null }]));
+    selectMock.mockReturnValueOnce(returning([{ metadata: null, membershipId: "membership-1" }]));
     await expect(assertCurrentMember("u", "org-1")).resolves.toEqual({
       metadata: null,
+      membershipId: "membership-1",
     });
   });
   it("throws when no membership", async () => {
