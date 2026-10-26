@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import { expect, it } from "vite-plus/test";
 
 const appMigrations = {
@@ -60,7 +61,7 @@ it("keeps migration histories and data in separate App and Cloud databases", asy
           "SELECT count(*)::int AS count FROM drizzle.__everr_cloud_migrations",
         )
       ).rows,
-    ).toEqual([{ count: 1 }]);
+    ).toEqual([{ count: readMigrationFiles(cloudMigrations).length }]);
   } finally {
     await appClient.close();
     await cloudClient.close();
