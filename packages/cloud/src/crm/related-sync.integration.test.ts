@@ -645,12 +645,18 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
         ]),
       );
       await start(state);
-      await until(
-        async () =>
-          (await store.read(orgKey()))?.outcome === "synced" &&
-          (await store.read(pairKey()))?.desired.deleted &&
-          (await store.read(pairKey()))?.outcome === "synced",
-      );
+      await until(async () => {
+        const company = await store.read(orgKey());
+        const membership = await store.read(pairKey());
+        return (
+          company?.desired.deleted &&
+          company.outcome === "synced" &&
+          company.syncedRevision === company.desiredRevision &&
+          membership?.desired.deleted &&
+          membership.outcome === "synced" &&
+          membership.syncedRevision === membership.desiredRevision
+        );
+      });
       expect(state.provider.companies.has("company-1")).toBe(false);
       expect(state.provider.companies.get("company-2")!.linkedContactsIds).toEqual([1]);
       expect(state.provider.contacts.has("everr:v1:test:user:u")).toBe(true);
