@@ -7,7 +7,7 @@ Environment validation alone does not prove schema, fields or the deployed build
 
 This module stores desired CRM state and includes cloud-only User, Organization and
 Membership consumers, an independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
-The [event bus guide](../../../../docs/event-bus.md) catalogs emitted facts and explains subscriber registration.
+The [event bus guide](../../../../docs/event-bus.md) catalogs emitted facts and explains Graphile handler wiring.
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
 Cloud migration `0002_crm_projection` creates the projection, account budget and

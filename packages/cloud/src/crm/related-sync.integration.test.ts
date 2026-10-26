@@ -382,7 +382,7 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       const instant = new Date("2026-10-23T12:00:00.123Z");
       const observer = createTraceConsultations({
         store: createOrganizationMilestoneStore(fixture.database),
-        events: { publish() {} },
+        events: { async publish() {} },
         now: () => instant,
       });
       observer.observe({

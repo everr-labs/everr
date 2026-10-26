@@ -250,7 +250,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       expect(log).toHaveBeenCalledWith(
         expect.objectContaining({
           stage: "subscriber",
-          subscriberId: "crm.brevo.identity.user.created",
+          subscriberId: "identity.user.created",
         }),
       );
     });
