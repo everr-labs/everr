@@ -14,17 +14,16 @@ import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { SecretInput } from "@everr/ui/components/secret-input";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { cn } from "@everr/ui/lib/utils";
+import { revalidateLogic, useForm, useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
-  type ChannelConfigDraft,
   type ChannelType,
   channelConfigDraft,
   EMPTY_CHANNEL_DRAFT,
   readChannelDraft,
   type WebhookHeaderDraft,
-  type WebhookHeaderRowInvalid,
 } from "#app/data/alerting/delivery/channel-input.ts";
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
@@ -86,6 +85,11 @@ export function ChannelDialog({
   );
 }
 
+/** Which footer button submitted: both run the same validation. */
+type ChannelSubmit = { action: "save" | "test" };
+const SAVE: ChannelSubmit = { action: "save" };
+const TEST: ChannelSubmit = { action: "test" };
+
 function ChannelForm({
   target,
   existingNames,
@@ -100,26 +104,10 @@ function ChannelForm({
   onDelete: (name: string) => void;
 }) {
   const editing = target.mode === "edit" ? target.channel : null;
-  const [name, setName] = useState(target.mode === "new" ? target.name : target.channel.name);
-  const [draft, setDraft] = useState<ChannelConfigDraft>(() =>
-    editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
-  );
+  const storedType = editing?.config.type ?? null;
   // Deleting asks first, in place: a second dialog stacked on this one is
   // dismissed by the first as an outside press.
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  const trimmed = name.trim();
-  const duplicate = existingNames.includes(trimmed) && trimmed !== editing?.name;
-  const read = readChannelDraft(draft, editing?.config.type ?? null);
-  const config = "config" in read ? read.config : null;
-  const draftError = "error" in read ? read.error : null;
-  // On an edit of the stored kind, the secret starts behind an explicit Edit
-  // action. A blank draft still means keep the stored secret.
-  const keepsSecret = editing !== null && editing.config.type === draft.type;
-  const urlField = CHANNEL_URL_FIELD[draft.type];
-  const testable = config !== null;
-
-  const patch = (p: Partial<ChannelConfigDraft>) => setDraft((d) => ({ ...d, ...p }));
 
   const test = useMutation({
     mutationFn: (config: AlertingChannelConfigInput) =>
@@ -130,13 +118,52 @@ function ChannelForm({
         },
       }),
   });
-  // The result is shown only while the config it tested is still the one on
-  // screen: a verdict on an endpoint the reader has since retyped is worse
-  // than none.
-  const tested =
-    !test.isPending &&
-    test.variables !== undefined &&
-    JSON.stringify(test.variables) === JSON.stringify(config);
+
+  // Built once per opening: the draft mints row ids, and useForm resets an
+  // untouched form whenever its default values change.
+  const [defaultValues] = useState(() => ({
+    name: target.mode === "new" ? target.name : target.channel.name,
+    draft: editing ? channelConfigDraft(editing.config) : EMPTY_CHANNEL_DRAFT,
+  }));
+  const form = useForm({
+    defaultValues,
+    onSubmitMeta: SAVE,
+    // Checked on Save or Send test, then again on each edit until it passes.
+    validationLogic: revalidateLogic(),
+    validators: {
+      onDynamic: ({ value }) => {
+        const read = readChannelDraft(value.draft, storedType);
+        const fields: Record<string, string | undefined> = {};
+        if ("errors" in read) {
+          for (const [key, error] of Object.entries(read.errors)) fields[`draft.${key}`] = error;
+        }
+        const name = value.name.trim();
+        if (!name) fields.name = "Name is required";
+        else if (name !== editing?.name && existingNames.includes(name)) {
+          fields.name = "A channel with this name already exists";
+        }
+        return Object.keys(fields).length > 0 ? { fields } : undefined;
+      },
+    },
+    onSubmit: ({ value, meta }) => {
+      const read = readChannelDraft(value.draft, storedType);
+      if (!("config" in read)) return;
+      if (meta.action === "test") test.mutate(read.config);
+      else onSave({ name: value.name.trim(), config: read.config });
+    },
+    // A verdict on an endpoint the reader has since retyped is worse than none.
+    listeners: {
+      onChange: ({ fieldApi }) => {
+        if (fieldApi.name !== "name") test.reset();
+      },
+    },
+  });
+
+  const type = useStore(form.store, (state) => state.values.draft.type);
+  // On an edit of the stored kind, the secret starts behind an explicit Edit
+  // action. A blank draft still means keep the stored secret.
+  const keepsSecret = storedType === type;
+  const urlField = CHANNEL_URL_FIELD[type];
   const busy = pending || test.isPending;
 
   if (editing && confirmingDelete) {
@@ -178,90 +205,172 @@ function ChannelForm({
       </DialogHeader>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="channel-name">Name</Label>
-          <Input
-            id="channel-name"
-            value={name}
-            disabled={busy}
-            aria-invalid={duplicate ? true : undefined}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="#oncall"
-          />
-          {duplicate && (
-            <p className="text-destructive text-xs" role="alert">
-              A channel with this name already exists.
-            </p>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="channel-type">Type</Label>
-          <OptionCombobox
-            id="channel-type"
-            value={draft.type}
-            disabled={busy}
-            onChange={(v) => patch({ type: v as ChannelType })}
-            options={CHANNEL_OPTIONS}
-          />
-        </div>
-        {urlField && (
-          <div className="space-y-1.5">
-            <Label htmlFor="channel-url">{urlField.label}</Label>
-            <SecretInput
-              key={draft.type}
-              id="channel-url"
-              type="url"
-              className="font-mono"
-              value={draft.url}
-              disabled={busy}
-              hasStoredSecret={keepsSecret}
-              onValueChange={(url) => patch({ url })}
-              placeholder={urlField.placeholder}
-            />
-          </div>
-        )}
-        {draft.type === "webhook" && (
-          <WebhookHeadersEditor
-            headers={draft.headers}
-            invalid={draftError?.rows ?? []}
-            disabled={busy}
-            onChange={(headers) => patch({ headers })}
-          />
-        )}
-        {draftError && (
-          <p className="text-destructive text-xs" role="alert">
-            {draftError.message}
-          </p>
-        )}
-        {draft.type === "telegram" && (
-          <>
+        <form.Field name="name">
+          {(field) => (
             <div className="space-y-1.5">
-              <Label htmlFor="channel-bot-token">Bot token</Label>
-              <SecretInput
-                key={draft.type}
-                id="channel-bot-token"
-                className="font-mono"
-                value={draft.botToken}
+              <Label htmlFor="channel-name">Name</Label>
+              <Input
+                id="channel-name"
+                value={field.state.value}
                 disabled={busy}
-                hasStoredSecret={keepsSecret}
-                onValueChange={(botToken) => patch({ botToken })}
-                placeholder="123456789:ABC..."
+                aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="#oncall"
               />
+              <FieldError errors={field.state.meta.errors} />
             </div>
+          )}
+        </form.Field>
+        <form.Field name="draft.type">
+          {(field) => (
             <div className="space-y-1.5">
-              {/* Not a <label>: the tags input has no one control to point
-                  at, and carries its own accessible name. */}
-              <span className="text-xs/relaxed leading-none font-medium">Chat IDs</span>
-              <TagsInput
-                aria-label="Chat IDs"
-                placeholder="-1001234567890"
-                value={draft.chatIds}
-                onValueChange={(chatIds) => patch({ chatIds })}
+              <Label htmlFor="channel-type">Type</Label>
+              <OptionCombobox
+                id="channel-type"
+                value={field.state.value}
+                disabled={busy}
+                onChange={(v) => field.handleChange(v as ChannelType)}
+                options={CHANNEL_OPTIONS}
               />
             </div>
+          )}
+        </form.Field>
+        {urlField && (
+          <form.Field name="draft.url">
+            {(field) => (
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-url">{urlField.label}</Label>
+                <SecretInput
+                  key={type}
+                  id="channel-url"
+                  type="url"
+                  className="font-mono"
+                  value={field.state.value}
+                  disabled={busy}
+                  hasStoredSecret={keepsSecret}
+                  aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                  onValueChange={(url) => field.handleChange(url)}
+                  placeholder={urlField.placeholder}
+                />
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
+        {type === "webhook" && (
+          <form.Field name="draft.headers" mode="array">
+            {(headers) => (
+              <WebhookHeaders
+                count={headers.state.value.length}
+                errors={headers.state.meta.errors}
+                disabled={busy}
+                onAdd={() =>
+                  headers.pushValue({
+                    id: crypto.randomUUID(),
+                    name: "",
+                    value: "",
+                    retainedName: null,
+                  })
+                }
+              >
+                {headers.state.value.map((header, index) => (
+                  <li key={header.id} className="space-y-1.5 rounded-md border p-2">
+                    <form.Field name={`draft.headers[${index}].name`}>
+                      {(field) => (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              disabled={busy}
+                              aria-label={`Remove header ${header.name || index + 1}`}
+                              onClick={() => headers.removeValue(index)}
+                            >
+                              <X />
+                            </Button>
+                          </div>
+                          <Input
+                            id={`channel-header-name-${index}`}
+                            aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                            className="font-mono"
+                            value={field.state.value}
+                            disabled={busy}
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder="Authorization"
+                            onChange={(event) => field.handleChange(event.target.value)}
+                          />
+                          <FieldError errors={field.state.meta.errors} />
+                        </>
+                      )}
+                    </form.Field>
+                    <form.Field name={`draft.headers[${index}].value`}>
+                      {(field) => (
+                        <>
+                          <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
+                          <SecretInput
+                            id={`channel-header-value-${index}`}
+                            aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                            className="font-mono"
+                            value={field.state.value}
+                            disabled={busy}
+                            hasStoredSecret={keepsStoredHeader(header)}
+                            autoComplete="off"
+                            placeholder="Bearer token"
+                            onValueChange={(value) => field.handleChange(value)}
+                          />
+                          <FieldError errors={field.state.meta.errors} />
+                        </>
+                      )}
+                    </form.Field>
+                  </li>
+                ))}
+              </WebhookHeaders>
+            )}
+          </form.Field>
+        )}
+        {type === "telegram" && (
+          <>
+            <form.Field name="draft.botToken">
+              {(field) => (
+                <div className="space-y-1.5">
+                  <Label htmlFor="channel-bot-token">Bot token</Label>
+                  <SecretInput
+                    key={type}
+                    id="channel-bot-token"
+                    className="font-mono"
+                    value={field.state.value}
+                    disabled={busy}
+                    hasStoredSecret={keepsSecret}
+                    aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                    onValueChange={(botToken) => field.handleChange(botToken)}
+                    placeholder="123456789:ABC..."
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="draft.chatIds">
+              {(field) => (
+                <div className="space-y-1.5">
+                  {/* Not a <label>: the tags input has no one control to point
+                      at, and carries its own accessible name. */}
+                  <span className="text-xs/relaxed leading-none font-medium">Chat IDs</span>
+                  <TagsInput
+                    aria-label="Chat IDs"
+                    placeholder="-1001234567890"
+                    value={field.state.value}
+                    onValueChange={(chatIds) => field.handleChange(chatIds)}
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
           </>
         )}
-        {tested && (
+        {(test.isSuccess || test.isError) && (
           <p
             role={test.data?.ok ? "status" : "alert"}
             className={cn("font-mono text-xs", test.data?.ok ? "text-chart-2" : "text-destructive")}
@@ -285,18 +394,10 @@ function ChannelForm({
           </Button>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!testable || busy}
-            onClick={() => config && test.mutate(config)}
-          >
+          <Button variant="outline" disabled={busy} onClick={() => void form.handleSubmit(TEST)}>
             {test.isPending ? "Sending…" : "Send test"}
           </Button>
-          <Button
-            disabled={!trimmed || duplicate || !config || busy}
-            aria-busy={pending}
-            onClick={() => config && onSave({ name: trimmed, config })}
-          >
+          <Button disabled={busy} aria-busy={pending} onClick={() => void form.handleSubmit(SAVE)}>
             {editing ? "Save channel" : "Create channel"}
           </Button>
         </div>
@@ -312,19 +413,20 @@ function keepsStoredHeader(header: WebhookHeaderDraft): boolean {
   );
 }
 
-function WebhookHeadersEditor({
-  headers,
-  invalid,
+/** The header list's frame: its label, the Add button, and the rows. */
+function WebhookHeaders({
+  count,
+  errors,
   disabled,
-  onChange,
+  onAdd,
+  children,
 }: {
-  headers: WebhookHeaderDraft[];
-  /** Parallel to `headers`. Empty while the draft can be saved. */
-  invalid: WebhookHeaderRowInvalid[];
+  count: number;
+  errors: unknown[];
   disabled: boolean;
-  onChange: (headers: WebhookHeaderDraft[]) => void;
+  onAdd: () => void;
+  children: ReactNode;
 }) {
-  const atMax = headers.length >= ALERTING_WEBHOOK_HEADERS_MAX;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -333,73 +435,24 @@ function WebhookHeadersEditor({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || atMax}
-          onClick={() =>
-            onChange([
-              ...headers,
-              { id: crypto.randomUUID(), name: "", value: "", retainedName: null },
-            ])
-          }
+          disabled={disabled || count >= ALERTING_WEBHOOK_HEADERS_MAX}
+          onClick={onAdd}
         >
           <Plus className="size-3.5" />
           Add header
         </Button>
       </div>
-      <p className="text-muted-foreground text-xs">
-        Optional. Sent with every notification. Values are write-only.
-      </p>
-      {headers.length > 0 && (
-        <ul className="space-y-2">
-          {headers.map((header, index) => (
-            <li key={header.id} className="space-y-1.5 rounded-md border p-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor={`channel-header-name-${index}`}>Name</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={disabled}
-                  aria-label={`Remove header ${header.name || index + 1}`}
-                  onClick={() => onChange(headers.filter((_, item) => item !== index))}
-                >
-                  <X />
-                </Button>
-              </div>
-              <Input
-                id={`channel-header-name-${index}`}
-                aria-invalid={invalid[index]?.name ? true : undefined}
-                className="font-mono"
-                value={header.name}
-                disabled={disabled}
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="Authorization"
-                onChange={(event) => {
-                  const next = headers.slice();
-                  next[index] = { ...header, name: event.target.value };
-                  onChange(next);
-                }}
-              />
-              <Label htmlFor={`channel-header-value-${index}`}>Value</Label>
-              <SecretInput
-                id={`channel-header-value-${index}`}
-                aria-invalid={invalid[index]?.value ? true : undefined}
-                className="font-mono"
-                value={header.value}
-                disabled={disabled}
-                hasStoredSecret={keepsStoredHeader(header)}
-                autoComplete="off"
-                placeholder="Bearer token"
-                onValueChange={(value) => {
-                  const next = headers.slice();
-                  next[index] = { ...header, value };
-                  onChange(next);
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+      {count > 0 && <ul className="space-y-2">{children}</ul>}
+      <FieldError errors={errors} />
     </div>
+  );
+}
+
+function FieldError({ errors }: { errors: unknown[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <p className="text-destructive text-xs" role="alert">
+      {String(errors[0])}
+    </p>
   );
 }

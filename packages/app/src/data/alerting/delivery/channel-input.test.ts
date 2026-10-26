@@ -25,8 +25,10 @@ describe("channelConfigDraft", () => {
 });
 
 describe("readChannelDraft", () => {
-  it("is incomplete until the secret is typed on a new channel", () => {
-    expect(readChannelDraft(EMPTY_CHANNEL_DRAFT, null)).toEqual({ incomplete: true });
+  it("requires the secret on a new channel", () => {
+    expect(readChannelDraft(EMPTY_CHANNEL_DRAFT, null)).toEqual({
+      errors: { url: "URL is required" },
+    });
     expect(readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, url: "https://x" }, null)).toEqual({
       config: { type: "slack", url: "https://x" },
     });
@@ -49,19 +51,22 @@ describe("readChannelDraft", () => {
 
   it("has nothing to keep once the kind changes", () => {
     expect(readChannelDraft({ ...channelConfigDraft(SLACK), type: "webhook" }, "slack")).toEqual({
-      incomplete: true,
+      errors: { url: "URL is required" },
     });
   });
 
-  it("needs at least one chat for Telegram", () => {
+  it("needs a bot token and at least one chat for Telegram", () => {
     expect(
       readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "telegram", botToken: "t" }, null),
-    ).toEqual({ incomplete: true });
+    ).toEqual({ errors: { chatIds: "Add at least one chat ID" } });
+    expect(
+      readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "telegram", chatIds: ["-100"] }, null),
+    ).toEqual({ errors: { botToken: "Bot token is required" } });
   });
 
   it("does not turn the read-side marker into a write", () => {
     expect(readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, url: "***" }, null)).toEqual({
-      incomplete: true,
+      errors: { url: "the redacted channel secret cannot be written" },
     });
   });
 });
@@ -113,10 +118,7 @@ describe("webhook headers on a draft", () => {
   it("requires header values again when the URL is replaced", () => {
     const draft = { ...channelConfigDraft(WEBHOOK), url: "https://203.0.113.11/hook" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
-      error: {
-        message: "Header value is required for Authorization",
-        rows: [{ name: false, value: true }],
-      },
+      errors: { "headers[0].value": "Header value is required for Authorization" },
     });
     draft.headers[0] = { ...draft.headers[0], value: "Bearer next" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
@@ -132,10 +134,7 @@ describe("webhook headers on a draft", () => {
     const draft = channelConfigDraft(WEBHOOK);
     draft.headers[0] = { ...draft.headers[0], name: "X-Token" };
     expect(readChannelDraft(draft, "webhook")).toEqual({
-      error: {
-        message: "Header value is required for X-Token",
-        rows: [{ name: false, value: true }],
-      },
+      errors: { "headers[0].value": "Header value is required for X-Token" },
     });
   });
 
@@ -160,12 +159,9 @@ describe("webhook headers on a draft", () => {
       retainedName: null,
     };
     expect(readChannelDraft(draft, "webhook")).toEqual({
-      error: {
-        message: "Header authorization is already set",
-        rows: [
-          { name: true, value: false },
-          { name: true, value: false },
-        ],
+      errors: {
+        "headers[0].name": "Header Authorization is already set",
+        "headers[1].name": "Header authorization is already set",
       },
     });
   });
@@ -178,10 +174,7 @@ describe("webhook headers on a draft", () => {
       headers: [{ id: "latin1", name: "X-Token", value: "token-\u0100", retainedName: null }],
     };
     expect(readChannelDraft(draft, null)).toEqual({
-      error: {
-        message: "header value must contain only latin-1 characters",
-        rows: [{ name: false, value: true }],
-      },
+      errors: { "headers[0].value": "header value must contain only latin-1 characters" },
     });
   });
 
@@ -193,10 +186,7 @@ describe("webhook headers on a draft", () => {
       headers: [{ id: "blocked", name: "Content-Type", value: "text/plain", retainedName: null }],
     };
     expect(readChannelDraft(draft, null)).toEqual({
-      error: {
-        message: "header Content-Type cannot be set",
-        rows: [{ name: true, value: false }],
-      },
+      errors: { "headers[0].name": "header Content-Type cannot be set" },
     });
   });
 });
