@@ -189,6 +189,12 @@ vi.mock("#app/identity/server.ts", () => ({
   },
 }));
 
+// Completed-read tests observe the capability without starting the server runtime.
+// Focused consultation tests supply their own observer to verify classification.
+vi.mock("#app/server/organizations/consultations.ts", () => ({
+  consultations: { observe: vi.fn(), stop: vi.fn(async () => {}) },
+}));
+
 // ---------------------------------------------------------------------------
 if (!globalThis.ResizeObserver) {
   Object.defineProperty(globalThis, "ResizeObserver", {
