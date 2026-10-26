@@ -11,7 +11,7 @@ metadata:
 This skill covers two surfaces. Each has its own Launch, Doctor, Drive and Cleanup, and both write evidence under `.verify-everr/artifacts/`. They are independent: run either alone, or both at once.
 
 - **A. CLI + local stack** (`launch`, `doctor`, `cli`, `ui-*`, `browser-env`, `cleanup`).
-- **B. App and Cloud** (`web-launch`, `web-doctor`, `web-browser-env`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-key-save`, `web-key`, `web-onboard`, `web-seed`, `web-apply`, `web-net`, `web-collector-restart`, `web-sdk-page`, `web-record`, `web-report`, `web-cleanup`). Implemented in `scripts/web.ts`.
+- **B. App and Cloud** (`web-preflight`, `web-launch`, `web-doctor`, `web-browser-env`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-key-save`, `web-key`, `web-onboard`, `web-seed`, `web-apply`, `web-net`, `web-collector-restart`, `web-sdk-page`, `web-record`, `web-report`, `web-cleanup`). Implemented in `scripts/web.ts`.
 
 Surface A: the `everr` CLI, in particular the local telemetry loop (`everr local start` boots a supervisor that serves the local UI and runs the embedded Go collector with in-process chDB; `everr wrap` and any OTLP exporter write into it; `everr local query` and the local UI read from it). Everything here runs offline with no auth.
 
@@ -62,7 +62,18 @@ Teardown is `$V cleanup` (see Cleanup).
 
 Prerequisites are the standard [worktree development](../../../docs/development.md) toolchain, a reachable Docker daemon, and `agent-browser`. Both packages use their existing GitHub settings in dotenv files, just as normal development does. The standard startup copies each unconfigured package's `.env` from the primary worktree; existing package configuration stays untouched. Cloud also reads its required optional-service settings from `packages/cloud/.env`. The helper reserves 6 GiB of available memory for the complete graph; `--ignore-memory` explicitly overrides that guard.
 
+Setup, checked by `$V web-preflight` (and again at the start of `web-launch`, which stops before starting anything if a piece is missing). Each missing piece prints one `missing: ...; fix: ...` line with the command that fixes it:
+
+- the Portless proxy running (`pnpm exec portless proxy start`) and its CA at `~/.portless/ca.pem`
+- `process-compose` on PATH
+- `docker compose` working (a root-owned `~/.docker` hides the Compose plugin)
+- `packages/app/.env` and `packages/cloud/.env`, here or in the main worktree
+- `certutil` on Linux (`libnss3-tools`), so agent-browser can trust the Portless CA
+
+`web-browser-env` and the helper's own browser commands set `AGENT_BROWSER_CA_CERT` to the Portless CA unless it is already set.
+
 ```bash
+$V web-preflight                     # "preflight ok", or one line per missing piece
 $V web-launch <RUN_ID>               # both products, Cloud selected
 $V web-launch <RUN_ID> --app app     # self-hosted App selected
 ```
@@ -280,7 +291,7 @@ $V web-cleanup    # surface B
 
 ## Helpers
 
-- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `browser-env`, `cleanup`, and `web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]`, `web-doctor`, `web-env`, `web-browser-env`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-key-save <name>`, `web-seed [--key-name N | --key-file F]`, `web-collector-restart`, `web-sdk-page [--local]`, `web-record --steps F [...]`, `web-key <name>`, `web-onboard`, `web-apply <body> [...]`, `web-net <label> <s> [--reload]`, `web-report [RUN_ID]`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `RUN_ID` to target a run other than the current one, and `WEB_RUN_ID` to target a web run when none is selected (the selected web run wins, so a sourced `run.env` from an earlier run cannot redirect commands).
+- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `browser-env`, `cleanup`, and `web-preflight`, `web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]`, `web-doctor`, `web-env`, `web-browser-env`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-key-save <name>`, `web-seed [--key-name N | --key-file F]`, `web-collector-restart`, `web-sdk-page [--local]`, `web-record --steps F [...]`, `web-key <name>`, `web-onboard`, `web-apply <body> [...]`, `web-net <label> <s> [--reload]`, `web-report [RUN_ID]`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `RUN_ID` to target a run other than the current one, and `WEB_RUN_ID` to target a web run when none is selected (the selected web run wins, so a sourced `run.env` from an earlier run cannot redirect commands).
 - `scripts/common.ts`: paths, run-id validation, scratch-root containment, ports, process helpers.
 - `scripts/web.ts`: the `web-*` subcommands.
 - `scripts/package.json`: only `"type": "module"`, so Node loads the `.ts` files as ES modules without a warning.
