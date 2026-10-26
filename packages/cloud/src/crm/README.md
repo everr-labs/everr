@@ -10,7 +10,9 @@ Membership consumers, an independent integration runner and the [Brevo adapter a
 The [event bus guide](../../../../docs/event-bus.md) catalogs emitted facts and explains subscriber registration.
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
-Only schema source changes are included, with no generated migration artifacts.
+Cloud migration `0002_crm_projection` creates the projection, account budget and
+bootstrap/reconciliation checkpoint tables after `0001_organization_milestones`.
+Generation is separate from applying those migrations to a target database.
 
 ## Identity and ownership
 

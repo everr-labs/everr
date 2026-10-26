@@ -16,8 +16,9 @@ permissions, account identity or the deployed build.
 1. Confirm the target application build and its targeted checks pass. Deployment
    configuration belongs to `everr-deploy` and must match that build.
 2. Have the schema changes reviewed and delivered through the normal migration
-   process before starting this build against the target database. No application
-   migration was generated or applied by the CRM implementation. Cloud needs the
+   process before starting this build against the target database. Cloud ships
+   `0001_organization_milestones` and `0002_crm_projection`, with their snapshots
+   and journal entries. Generating these files does not apply them. Cloud needs the
    complete current definitions in `packages/cloud/src/db/schema/crm.ts`
    (`crm_projection`, `crm_brevo_budget`, `crm_bootstrap`, `crm_reconciliation`)
    and `organization-milestones.ts` (`organization_milestones`), including current

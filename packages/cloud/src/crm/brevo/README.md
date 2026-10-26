@@ -54,8 +54,9 @@ remaining seconds, not a Unix timestamp. The adapter honors the longer of its
 reset and `Retry-After` (seconds or HTTP date), with a conservative fallback
 when reset information is missing. Budget
 failures are sanitized and fail closed. No application/source transaction is held
-while waiting for, or making, provider requests. The schema source is supplied
-without generating or applying application migrations.
+while waiting for, or making, provider requests. Cloud migration
+`0002_crm_projection` includes the shared account-budget table. Deploy its schema
+before enabling outbound work; generating artifacts does not apply them.
 
 ## Identity, field ownership and communication preferences
 
