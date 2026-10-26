@@ -17,7 +17,7 @@ refactoring.
 `ApplicationRuntime.registerWorkers()` returns supervised workers without
 starting them. The self-hosted composition returns none. The cloud composition
 returns the organization lifecycle worker (provisioning, deprovisioning and its
-pending scanner). The common
+pending scanner), plus the independent CRM runner in configured mode. The common
 runtime manages the product worker and registered workers as one list, releases
 partial startups, and drains all of them before telemetry shutdown. Registration
 acquires no running resources. `start()` returns no handle and resolves when
@@ -31,10 +31,11 @@ composition contracts, with no cloud package dependency.
 Registration is separate from execution capacity. The runners remain embedded
 in the web process and share the durable Graphile schema:
 
-| Runner                       | Tasks                                                                                                              | Execution slots | Postgres access                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------- | ------------------------------------ |
-| Product                      | Alert evaluation, notification delivery, history projection and retention; GitHub replay/status; preview retention | 2               | Shared app pool                      |
-| Cloud organization lifecycle | ClickHouse provisioning, cleanup and recovery scan                                                                 | 2               | Reserved pool, maximum 4 connections |
+| Runner                                  | Tasks                                                                                                              | Execution slots | Postgres access                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------- | --------------------------------------------- |
+| Product                                 | Alert evaluation, notification delivery, history projection and retention; GitHub replay/status; preview retention | 2               | Shared app pool                               |
+| Cloud organization lifecycle            | ClickHouse provisioning, cleanup and recovery scan                                                                 | 2               | Reserved pool, maximum 4 connections          |
+| Cloud CRM integration (configured mode) | User, Company and explicit pair sync/cleanup                                                                       | 1               | Separate reserved pool, maximum 4 connections |
 
 The reserved organization runner already protects signup from long alert or
 GitHub jobs. Removing that isolation would change user-visible readiness
@@ -133,15 +134,45 @@ independently every five seconds. Graphile's
 `replace` is not an exactly-once guarantee and why `unsafe_dedupe` must not be
 used for arbitrary changing events.
 
-## Lifecycle facts
+## Current cloud CRM facts and effects
 
-Shared identity owns committed User, Organization and Membership facts. Cloud owns
-accepted subscription and Plan transitions and publishes shared storage readiness
-after the guarded pending-to-ready update commits. Source failures remain real
-errors; ancillary publication failures do not change a completed source operation.
-See the [event catalog](event-bus.md#emitted-event-catalog) for exact payloads and
-commit boundaries. Critical provisioning and billing behavior stays synchronous
-or transactionally admitted as described above.
+Shared identity owns committed User, Organization and Membership facts. Cloud
+owns accepted subscription and Plan transitions. Shared readiness means storage
+readiness; cloud publishes it only after the guarded pending-to-ready update
+commits. These producers publish after their source commits. Enqueue failure
+cannot change a completed signup, billing operation, consultation or provisioning.
+A source persistence or critical command failure remains a real error.
+
+Cloud consumers synchronize Contacts for Users, Companies for Organizations and
+explicit pairs for current Memberships. One User can belong to several
+Organizations. Plan, subscription, access, readiness and activation remain distinct.
+The independent one-slot CRM runner owns outbound requests, deletion cleanup and
+periodic current-state repair. It never borrows the reserved provisioning runner.
+Self-hosted selects no CRM routes, configuration, schema or jobs.
+
+Activation rule 1 observes only the supported standalone trace-detail UI read and
+exact raw trace-detail SQL on CLI/MCP, with server-verified scope and conservative
+own Production/receiver-shaped CI evidence. It persists first-queryable and
+activation markers together through a directly bounded observer, then publishes
+their facts best effort. Observation does not construct an intermediate event or
+private publisher. Provisioning, usage bytes, keys and billing do not activate an
+Organization. Dashboards, other
+details, aggregates, preloads/refetches and cached actions without a read remain
+unobserved. Historical actions lost before marker persistence remain unknown.
+See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths)
+for the grammar, provenance and scripted-request limits.
+
+Bootstrap and periodic repair admit current-state commands through short
+checkpoint/job transactions, independently of domain publication. These are
+administrative admissions, not an outbox or historical event replay. Graphile
+execution is at least once after admission; immutable mappings, endpoint locks,
+revision guards and retained Company-create intent constrain provider writes.
+A missing mapped remote record stays blocked, with no automatic replacement.
+
+The [CRM operations runbook](crm-operations.md) is the current configuration,
+field/readback gate, admission, repair, diagnosis and recovery contract. The
+[CRM module README](../packages/cloud/src/crm/README.md) records implementation
+limits. Campaign/event delivery is outside this rollout.
 
 ## Operations
 

@@ -105,11 +105,15 @@ Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 The common runtime always owns the product worker (alerting, optional GitHub
 handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
-registers its organization lifecycle worker without starting it. The lifecycle
-runner remains in the web process with a separate reserved pool (maximum four
-connections). Billing callbacks remain synchronous. See
+registers its organization lifecycle worker and, in configured mode, the independent
+one-slot CRM worker, without starting either. They remain in the web process with
+separate reserved pools (maximum four connections each). Paused mode admits CRM
+commands without running outbound work; disabled mode selects no CRM routes
+or runner. Billing callbacks remain synchronous. See
 [background work and domain events](../../docs/background-work.md) for task
-ownership, transaction boundaries and worker lifecycle guarantees.
+ownership and the [CRM operations runbook](../../docs/crm-operations.md) for the
+required schema/field readback gates, bounded bootstrap, repair and recovery.
+Configuration validation does not establish operational readiness.
 
 # Package composition
 
