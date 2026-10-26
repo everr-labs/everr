@@ -206,6 +206,7 @@ Surface B location: `$REPO/.verify-everr/artifacts/web-<RUN_ID>/`:
 
 - `net/<label>.{requests,serverfn,errors}.txt` from `web-net`; `http/apply-*/` from `web-apply`; `report.md` from `web-report`
 - `video/` from `web-record`: `<name>.mp4`, `<name>-<frame>.png`, `<name>.timeline.txt`, `<name>.probe.txt`
+- `timings.tsv`: one row per `web-*` command and launch/seed sub-step (`phase`, start, end, seconds, `ok` or `fail (exit N)`), written even when the step fails
 
 Visual proof (required for any change that touches UI):
 
@@ -213,7 +214,7 @@ Visual proof (required for any change that touches UI):
 - Take screenshots after the data renders: `wait --text` for the asserted text first, then `ab_save`. Dismiss the consent banner first (`$V web-onboard` does it) and use the 1280x800 viewport (`web-onboard` sets it; otherwise `agent-browser set viewport 1280 800`; `web-record` defaults to it).
 - `ab_save` sleeps 0.7s before the screenshot: after a client-side navigation the DOM (what `wait` and the `.txt` see) updates before the compositor paints, and an immediate screenshot showed the previous page (observed 2026-10-20 on the dashboards panel link). Also wait for something that only the new page lacks or has, not text both pages share.
 - Before reporting, open each image (Read the PNG) and confirm it shows what its caption claims: the asserted data is visible, nothing covers it, it is the right page. Fix or drop captions that do not match. When a shot is re-taken, copy it to a new file name before opening it again: an image viewer can serve the earlier version of a path it already showed.
-- `$V web-report [RUN_ID]` collects the run's videos (with timeline and key frames) and screenshots with their captions and URLs into `<evidence>/report.md`, with image links relative to the evidence dir, plus a checklist for the two rules above. Prints `REPORT ... screenshots=<n> uncaptioned=<n> duplicates=<n>`; give every screenshot that backs a claim a caption. Byte-identical screenshots saved under different labels are listed as `DUPLICATE a = b` and in a `Duplicate screenshots` section: retake them so each claim has its own frame. Attach or link `report.md` in the verification report.
+- `$V web-report [RUN_ID]` collects the run's videos (with timeline and key frames) and screenshots with their captions and URLs into `<evidence>/report.md`, with image links relative to the evidence dir, a Timings table from `timings.tsv` (each command and sub-step, a `gap` row for the time between commands, and the total), plus a checklist for the two rules above. Prints `REPORT ... screenshots=<n> uncaptioned=<n> duplicates=<n>`; give every screenshot that backs a claim a caption. Byte-identical screenshots saved under different labels are listed as `DUPLICATE a = b` and in a `Duplicate screenshots` section: retake them so each claim has its own frame. Attach or link `report.md` in the verification report.
 
 Video (`web-record`): a Playwright recording of a scripted journey, for a reviewer who wants to watch the change rather than read `.txt` files. It is a companion to the `agent-browser` evidence, not a replacement: assert with recipes, record afterwards.
 

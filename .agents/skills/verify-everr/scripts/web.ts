@@ -36,6 +36,7 @@ import {
   http,
   isAlive,
   isRecord,
+  isRunId,
   listDir,
   parseRunId,
   portOf,
@@ -90,6 +91,38 @@ const WEB_STATE = path.join(STATE_DIR, "current-web");
 
 const webDir = (id: string) => path.join(SCRATCH_ROOT, `web-${id}`);
 const webArt = (id: string) => path.join(STATE_DIR, "artifacts", `web-${id}`);
+
+type Timing = { phase: string; start: Date; end?: Date };
+const timings: Timing[] = [];
+/** The run the timings belong to, when the command names it before selecting it (launch, report). */
+let timedRun = "";
+
+/** Start a sub-step of the current command; call the result when it succeeds. */
+function phase(name: string): () => void {
+  const t: Timing = { phase: name, start: new Date() };
+  timings.push(t);
+  return () => { t.end = new Date(); };
+}
+
+/** Time this web-* command and its sub-steps into <evidence>/timings.tsv
+ * (phase, start, end, seconds, status). Rows are written on exit, so a step that dies still gets its end. */
+export function timeWebCommand(cmd: string): void {
+  const selected = readPointer(WEB_STATE) || process.env.WEB_RUN_ID || "";
+  phase(cmd);
+  process.once("exit", (code: number) => {
+    // cleanup clears the selection before exit, so fall back to the run selected at start.
+    const id = timedRun || readPointer(WEB_STATE) || selected;
+    if (!isRunId(id) || !existsSync(webArt(id))) return;
+    const now = new Date();
+    const rows = timings.map((t) => {
+      const end = t.end ?? now;
+      const secs = ((end.getTime() - t.start.getTime()) / 1000).toFixed(1);
+      const status = t.end || code === 0 ? "ok" : `fail (exit ${code})`;
+      return `${[t.phase, t.start.toISOString(), end.toISOString(), secs, status].join("\t")}\n`;
+    });
+    writeFileSync(path.join(webArt(id), "timings.tsv"), rows.join(""), { flag: "a" });
+  });
+}
 
 type WebRun = {
   id: RunId;
@@ -308,9 +341,12 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   const dockerBin = requireDocker();
   if (Number(process.versions.node.split(".")[0]) < 24) die("pnpm dev requires Node >= 24");
   if (!existsSync(path.join(REPO, "node_modules"))) {
+    const installed = phase("web-launch/install");
     if (runInherit("pnpm", ["install", "--frozen-lockfile"], { cwd: REPO }) !== 0) die("dependency installation failed");
+    installed();
   }
   const id = parseRunId(idArg ?? defaultRunId());
+  timedRun = id;
   const dir = webDir(id), art = webArt(id);
   if (existsSync(dir)) die(`scratch directory already exists: ${dir}`);
   mkdirSync(art, { recursive: true });
@@ -351,6 +387,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
     OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "" };
   const log = path.join(dir, "web.log"), logFd = openSync(log, "w");
   const args = ["dev"];
+  const ready = phase("web-launch/ready");
   const server = spawn("pnpm", args, { cwd: REPO, env, detached: true, stdio: ["ignore", logFd, logFd] });
   closeSync(logFd);
   const pid = server.pid ?? die("could not start pnpm dev");
@@ -369,6 +406,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
     if (Date.now() > nextUpdate) { console.log("waiting for Process Compose readiness; startup log: " + log); nextUpdate = Date.now() + 30000; }
     await sleep(1000);
   }
+  ready();
   vars.WEB_PORT = routePort(vars.WEB_ORIGIN);
   vars.CLICKHOUSE_URL = `http://127.0.0.1:${dockerPort(w, `clickhouse-${product}`)}`;
   const more = { MAILPIT_ORIGIN: `http://127.0.0.1:${dockerPort(w, "mailpit", "8025")}`, APP_CLICKHOUSE_URL: `http://127.0.0.1:${dockerPort(w, "clickhouse-app")}`, CLOUD_CLICKHOUSE_URL: `http://127.0.0.1:${dockerPort(w, "clickhouse-cloud")}` };
@@ -654,6 +692,7 @@ async function cmdWebSeed(args: string[]): Promise<number> {
   let rows: Row[] = [];
   const deadline = Date.now() + 60000;
   const t0 = Date.now();
+  const landed = phase("web-seed/ingest-wait");
   for (;;) {
     const r = await chSql(w.clickhouse, sql);
     rows = r.ok ? r.text.split("\n").filter(Boolean).map((l) => JSON.parse(l) as Row) : [];
@@ -665,6 +704,7 @@ async function cmdWebSeed(args: string[]): Promise<number> {
     }
     await sleep(1000);
   }
+  landed();
   writeFileSync(path.join(out, "rows.json"), `${JSON.stringify(rows, null, 2)}\n`);
   // The key's organization (better-auth apikey.reference_id) is the tenant every row must carry.
   const [cmd, psqlArgs] = composeArgs(w, [
@@ -1031,15 +1071,43 @@ async function cmdWebNet(args: string[]): Promise<number> {
   return 0;
 }
 
+/** timings.tsv as a table. A `gap` row is the time between two commands (the agent's own work). */
+function timingsTable(tsv: string): string[] {
+  const rows = tsv.split("\n").filter(Boolean).map((l) => {
+    const [phase = "", start = "", end = "", secs = "", status = ""] = l.split("\t");
+    return { phase, start: Date.parse(start), end: Date.parse(end), secs: Number(secs), status };
+  }).sort((a, b) => a.start - b.start);
+  if (!rows.length) return [];
+  const lines = ["## Timings", "", "| phase | seconds | status |", "| --- | ---: | --- |"];
+  let lastEnd: number | undefined;
+  let commands = 0, gaps = 0;
+  for (const r of rows) {
+    const sub = r.phase.includes("/");
+    if (!sub) {
+      const gap = lastEnd === undefined ? 0 : (r.start - lastEnd) / 1000;
+      if (gap >= 1) lines.push(`| gap | ${gap.toFixed(1)} | |`);
+      gaps += Math.max(gap, 0);
+      commands += r.secs;
+      lastEnd = Math.max(lastEnd ?? r.end, r.end);
+    }
+    lines.push(`| ${sub ? `&nbsp;&nbsp;${r.phase}` : r.phase} | ${r.secs.toFixed(1)} | ${r.status} |`);
+  }
+  const total = ((lastEnd ?? rows[0].start) - rows[0].start) / 1000;
+  lines.push(`| **total** | **${total.toFixed(1)}** | commands ${commands.toFixed(1)}, gaps ${gaps.toFixed(1)} |`, "");
+  return lines;
+}
+
 /** One markdown file with every image and video of the run, captioned, linked relatively:
  * <evidence>/report.md. Captions come from <label>.caption (ab_save's 2nd argument), else the URL. */
 function cmdWebReport(args: string[]): number {
   const id = args[0] ? parseRunId(args[0]) : readPointer(WEB_STATE) || die("no web run (pass a run id to report on a cleaned-up run)");
+  timedRun = id;
   const art = webArt(id);
   if (!existsSync(art)) die(`no evidence dir ${art}`);
   const lines: string[] = [`# verify-everr web run ${id}`, ""];
   const runTxt = readText(path.join(art, "run.txt"));
   if (runTxt) lines.push("```", runTxt.trim(), "```", "");
+  lines.push(...timingsTable(readText(path.join(art, "timings.tsv")) ?? ""));
   const rel = (f: string) => path.relative(art, f).split(path.sep).map(encodeURIComponent).join("/");
   const videoDir = path.join(art, "video");
   const videos = existsSync(videoDir) ? readdirSync(videoDir).filter((f) => f.endsWith(".mp4")).sort() : [];
