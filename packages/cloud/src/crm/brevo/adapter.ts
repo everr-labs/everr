@@ -52,9 +52,6 @@ const company = z
       everr_current_period_end: z.string().optional(),
       everr_cancel_at_period_end: z.string().optional(),
       everr_provisioning: z.string().optional(),
-      everr_first_queryable_at: z.string().optional(),
-      everr_activated_at: z.string().optional(),
-      everr_activation_rule_version: z.string().optional(),
     }),
     linkedContactsIds: z.array(z.number().int()).optional(),
   })
@@ -92,9 +89,6 @@ function companyBody(snapshot: Company) {
       everr_current_period_end: snapshot.fields.currentPeriodEnd ?? "",
       everr_cancel_at_period_end: String(snapshot.fields.cancelAtPeriodEnd),
       everr_provisioning: snapshot.fields.provisioning,
-      everr_first_queryable_at: snapshot.fields.firstQueryableAt ?? "",
-      everr_activated_at: snapshot.fields.activatedAt ?? "",
-      everr_activation_rule_version: snapshot.fields.activationRuleVersion?.toString() ?? "",
     },
   };
 }

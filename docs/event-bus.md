@@ -29,9 +29,9 @@ Events without a matching route are ignored without empty registrations.
 
 CRM routes exactly 12 event types: the four User facts to `crm/sync-user`, the
 three Membership facts to `crm/sync-membership`, and Organization create/update/delete
-plus the two billing/Plan facts to `crm/sync-organization`. `organization.provisioned`,
-`telemetry.first_queryable` and `organization.activated` have no CRM routes.
-Their fields can still refresh through other triggers, bootstrap and reconciliation.
+plus the two billing/Plan facts to `crm/sync-organization`. `organization.provisioned`
+has no CRM route. Storage readiness can still refresh through other triggers,
+bootstrap and reconciliation.
 Handlers read current source state rather than replaying historical payloads.
 
 ## Fact and envelope contracts
@@ -76,8 +76,7 @@ The authoritative definitions are:
 Creating an already verified User emits `identity.user.created` with
 `emailVerified: true`, without inventing a later verification transition. The
 update facts signal persisted updates; they do not carry field diffs. An inactive
-Pro subscription can suspend access without changing Plan. Provisioning readiness
-does not imply activation.
+Pro subscription can suspend access without changing Plan. Storage readiness remains independent of Plan and app access.
 
 Membership subjects identify persisted relationship rows. A consumer projecting
 relationships can use the stable User/Organization pair. One User can belong to several

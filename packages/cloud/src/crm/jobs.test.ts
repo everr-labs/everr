@@ -78,19 +78,16 @@ it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
   },
 );
 
-it.each(["organization.provisioned", "telemetry.first_queryable", "organization.activated"])(
-  "does not create a CRM job for %s",
-  async (type) => {
-    const enqueue = vi.fn(async () => {});
-    await createEventPublisher({ routes: crmEventRoutes("configured"), enqueue }).publish({
-      type,
-      version: 1,
-      subjectId: "o",
-      data: { organizationId: "o" },
-    });
-    expect(enqueue).not.toHaveBeenCalled();
-  },
-);
+it("does not create a CRM job for provisioning readiness", async () => {
+  const enqueue = vi.fn(async () => {});
+  await createEventPublisher({ routes: crmEventRoutes("configured"), enqueue }).publish({
+    type: "organization.provisioned",
+    version: 1,
+    subjectId: "o",
+    data: { organizationId: "o" },
+  });
+  expect(enqueue).not.toHaveBeenCalled();
+});
 
 it("contains mismatched subjects and Graphile failures without changing committed source results", async () => {
   const diagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});

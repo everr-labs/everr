@@ -120,37 +120,24 @@ async function loadRuntime(mode = "disabled") {
 
 describe("worker runtime", () => {
   it.each(["configured", "paused", "disabled"])(
-    "publishes readiness and milestone facts without CRM admission or diagnostics in %s mode",
+    "publishes readiness without CRM admission or diagnostics in %s mode",
     async (mode) => {
       await loadRuntime(mode);
       const { runtime: composition } = await import("./app/composition/runtime");
       const { createEventPublisher } = await import("@everr/app/server/events/publisher");
-      const excluded = [
-        "organization.provisioned",
-        "telemetry.first_queryable",
-        "organization.activated",
-      ];
       expect(composition.events).toHaveLength(mode === "disabled" ? 0 : 12);
-      for (const type of excluded) {
-        const registration = composition.events.find(({ definition }) => definition.type === type);
-        expect(registration).toBeUndefined();
-      }
+      expect(
+        composition.events.find(({ definition }) => definition.type === "organization.provisioned"),
+      ).toBeUndefined();
       const diagnostics = runtimeMocks.serverLoggerError;
       diagnostics.mockClear();
       const events = createEventPublisher({ routes: composition.events });
-      for (const type of excluded) {
-        await events.publish({
-          type,
-          version: 1,
-          subjectId: "org",
-          data: {
-            organizationId: "org",
-            ...(type === "organization.provisioned"
-              ? {}
-              : { ruleVersion: 1, observedAt: "2026-10-26T12:00:00.000Z" }),
-          },
-        });
-      }
+      await events.publish({
+        type: "organization.provisioned",
+        version: 1,
+        subjectId: "org",
+        data: { organizationId: "org" },
+      });
       expect(diagnostics).not.toHaveBeenCalled();
     },
   );

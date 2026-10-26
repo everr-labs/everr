@@ -10,8 +10,8 @@ Membership consumers, an independent integration runner and the [Brevo adapter a
 The [event bus guide](../../../../docs/event-bus.md) catalogs emitted facts and explains Graphile handler wiring.
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
-Cloud migration `0002_crm_projection` creates the projection, account budget and
-bootstrap/reconciliation checkpoint tables after `0001_organization_milestones`.
+Cloud migration `0001_crm_projection` creates the projection, account budget and
+bootstrap/reconciliation checkpoint tables after `0000_billing_baseline`.
 Generation is separate from applying those migrations to a target database.
 
 ## Identity and ownership
@@ -30,11 +30,11 @@ The adapter owns provider request formatting and bounded recovery. Custom
 product attributes use the `EVERR_` namespace; the desired snapshot uses the local
 field names below. Source IDs are deployment scoped before leaving Everr.
 
-| Projection   | Source-owned fields                                                                                                                                                                          |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| User         | Name, email, original registration date, verified status                                                                                                                                     |
-| Organization | Name, creation date, Plan, app access state, subscription status, current period end, scheduled cancellation, provisioning state, observed first-queryable/activation dates and rule version |
-| Membership   | Current explicit User/Organization association; snapshot membership IDs and roles describe authoritative membership state                                                                    |
+| Projection   | Source-owned fields                                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| User         | Name, email, original registration date, verified status                                                                         |
+| Organization | Name, creation date, Plan, app access state, subscription status, current period end, scheduled cancellation, provisioning state |
+| Membership   | Current explicit User/Organization association; snapshot membership IDs and roles describe authoritative membership state        |
 
 Everr owns exactly those profile fields and associations. Brevo owns notes,
 communication preferences, consent and opt-outs. None of those CRM-owned values
@@ -47,13 +47,10 @@ reader calls the same `readOrgEntitlement` policy as the app, with the snapshot'
 transaction executor, including catalog validation. An active Pro subscription
 scheduled to cancel still grants Pro access. Past-due Pro remains Plan Pro with
 suspended access. Provisioning uses the existing readiness policy, including its
-legacy-ready behavior. Activation and first-queryable dates come only from the
-cloud [verified milestone store](../organizations/README.md), in the same snapshot
-transaction. Missing markers remain null (unknown history), never false or an
-invented historical date. Readiness never implies activation. Milestone and
-`organization.provisioned` facts do not enqueue CRM work. These fields refresh
-when another subscribed fact, bootstrap or reconciliation admits Organization
-synchronization. Plan, access, subscription and readiness ownership remain independent.
+legacy-ready behavior. `organization.provisioned` does not enqueue CRM work.
+Readiness refreshes when another subscribed fact, bootstrap or reconciliation
+admits Organization synchronization. Plan, access, subscription and readiness
+ownership remain independent.
 
 ## Reading and persisting
 
@@ -183,8 +180,7 @@ Both use the same projection store and endpoint coordination. Organization and
 User completion enqueue related pairs through `enqueueMembershipSyncs`.
 
 Cloud also subscribes to Organization creation/updates, explicit Membership additions,
-updates/removals, deletion, subscription and Plan facts. Readiness and milestone
-facts have no CRM routes. Commands contain source IDs only.
+updates/removals, deletion, subscription and Plan facts. Readiness has no CRM route. Commands contain source IDs only.
 Two Organizations sharing a domain keep distinct Company IDs. A Contact can link to
 several Companies, and unlink removes only the requested pair. Membership row replacement
 and stale event order are resolved by rereading the latest User/Organization pair.
@@ -328,9 +324,8 @@ pair), then retained projection identities. Each uses primary-key keyset order.
 The last pass admits both live and missing mappings, retaining deletion safeguards,
 including exact completed-tombstone revision rechecks. No desired state or remote
 mapping is overwritten during pagination. The usual coordinated handlers reread
-current profiles, Memberships, billing and already stored milestones. Missing
-activation history remains null. No User-created/deleted business fact, welcome
-event, list/campaign enrollment or historical activation is invented.
+current profiles, Memberships and billing. No User-created/deleted business fact,
+welcome event or list/campaign enrollment is invented.
 
 `crm_bootstrap` holds one current scan per deployment/account, with a scan ID,
 phase, cursor and cumulative admission/page counts. The short transaction uses a
@@ -415,10 +410,9 @@ nor runner, and refuses administrative admission. Self-hosted imports none of th
 CRM configuration, runners or schema. No production setting was enabled here.
 
 Source passes queue latest-state reads for missed User, Organization, Membership,
-Plan and stored milestone changes. The retained pass also covers deleted sources,
+and Plan changes. The retained pass also covers deleted sources,
 cascaded pairs and completed tombstones, including late accepted creates. These
-are detection/check commands, never invented User lifecycle or activation facts.
-Unknown activation history remains null.
+are detection/check commands, never invented User lifecycle facts.
 
 Completed live mappings receive `verifyRemoteRevision`, the completed revision
 observed by the scanner. Under normal endpoint locks, only that exact completed

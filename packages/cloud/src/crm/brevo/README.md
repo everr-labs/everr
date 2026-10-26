@@ -55,7 +55,7 @@ reset and `Retry-After` (seconds or HTTP date), with a conservative fallback
 when reset information is missing. Budget
 failures are sanitized and fail closed. No application/source transaction is held
 while waiting for, or making, provider requests. Cloud migration
-`0002_crm_projection` includes the shared account-budget table. Deploy its schema
+`0001_crm_projection` includes the shared account-budget table. Deploy its schema
 before enabling outbound work; generating artifacts does not apply them.
 
 ## Identity, field ownership and communication preferences
@@ -96,18 +96,6 @@ Brevo returns its standard Company name as `attributes.name`, as described by th
 The adapter normalizes it to `CompanyRecord.name`, separately from custom
 attributes, and also accepts the older top-level representation in persisted reads.
 The diff uses the normalized name to avoid redundant PATCH requests.
-
-The three additional milestone Company attributes are also text:
-
-| Label                           | Verified internal name          | Source value                                                  |
-| ------------------------------- | ------------------------------- | ------------------------------------------------------------- |
-| `EVERR_FIRST_QUERYABLE_AT`      | `everr_first_queryable_at`      | Stored ISO observation time or empty text for unknown history |
-| `EVERR_ACTIVATED_AT`            | `everr_activated_at`            | Stored ISO observation time or empty text for unknown history |
-| `EVERR_ACTIVATION_RULE_VERSION` | `everr_activation_rule_version` | Decimal rule version, currently `1`, or empty text            |
-
-These fields join the existing owned-field comparison and PATCH behavior. No
-Boolean activation attribute, provider creation date or subscription state stands
-in for a missing marker.
 
 Associations use explicit numeric Contact IDs and Company IDs through the
 link/unlink endpoint. They add or remove only the requested pair, without replacing

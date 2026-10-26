@@ -97,7 +97,7 @@ it("loads current user fields and all memberships while preserving stable deploy
   );
 });
 
-it("uses authoritative entitlements and keeps provisioning independent from activation", async () => {
+it("uses authoritative entitlements and keeps provisioning independent from billing access", async () => {
   const pending = await reader.organization("pro");
   expect(pending).toMatchObject({
     fields: {
@@ -109,8 +109,6 @@ it("uses authoritative entitlements and keeps provisioning independent from acti
     },
     memberships: [{ userId: "user", role: "member" }],
   });
-  expect(pending).toHaveProperty("fields.activatedAt", null);
-  expect(pending).toHaveProperty("fields.firstQueryableAt", null);
   await expect(reader.organization("hobby")).resolves.toMatchObject({
     fields: { plan: "hobby", appState: "hobby", subscriptionStatus: null, provisioning: "ready" },
   });
@@ -134,7 +132,6 @@ it("uses authoritative entitlements and keeps provisioning independent from acti
       cancelAtPeriodEnd: true,
     },
   });
-  expect(ready).toHaveProperty("fields.activatedAt", null);
 });
 
 it("keeps billing product validation authoritative", async () => {

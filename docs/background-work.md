@@ -140,27 +140,15 @@ Shared identity owns committed User, Organization and Membership facts. Cloud
 owns accepted subscription and Plan transitions. Shared readiness means storage
 readiness; cloud publishes it only after the guarded pending-to-ready update
 commits. These producers publish after their source commits. Enqueue failure
-cannot change a completed signup, billing operation, consultation or provisioning.
+cannot change a completed signup, billing operation or provisioning.
 A source persistence or critical command failure remains a real error.
 
 Cloud consumers synchronize Contacts for Users, Companies for Organizations and
 explicit pairs for current Memberships. One User can belong to several
-Organizations. Plan, subscription, access, readiness and activation remain distinct.
+Organizations. Plan, subscription, access and readiness remain distinct.
 The independent one-slot CRM runner owns outbound requests, deletion cleanup and
 periodic current-state repair. It never borrows the reserved provisioning runner.
 Self-hosted selects no CRM routes, configuration, schema or jobs.
-
-Activation rule 1 observes only the supported standalone trace-detail UI read and
-exact raw trace-detail SQL on CLI/MCP, with server-verified scope and conservative
-own Production/receiver-shaped CI evidence. It persists first-queryable and
-activation markers together through a directly bounded observer, then publishes
-their facts best effort. Observation does not construct an intermediate event or
-private publisher. Provisioning, usage bytes, keys and billing do not activate an
-Organization. Dashboards, other
-details, aggregates, preloads/refetches and cached actions without a read remain
-unobserved. Historical actions lost before marker persistence remain unknown.
-See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths)
-for the grammar, provenance and scripted-request limits.
 
 Bootstrap and periodic repair admit current-state commands through short
 checkpoint/job transactions, independently of domain publication. These are

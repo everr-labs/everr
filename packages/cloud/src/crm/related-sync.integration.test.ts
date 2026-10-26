@@ -40,11 +40,6 @@ import { createCrmTaskList } from "./task-list";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { attachCrmRetryPolicy } from "./retries";
-import { createMilestoneTestTable } from "../organizations/testing/database";
-import {
-  createTraceConsultations,
-  createOrganizationMilestoneStore,
-} from "../organizations/milestones";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 vi.mock("../app/env", () => ({ appEnv: { POLAR_PRO_PRODUCT_ID: "product_pro" } }));
@@ -253,7 +248,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     }
     beforeAll(async () => {
       fixture = await createAuthTestDatabase(process.env.EVERR_IDENTITY_TEST_DATABASE_URL);
-      await createMilestoneTestTable(fixture.client);
       for (const table of [crmBootstrap, crmBrevoBudget, crmReconciliation]) {
         const config = getTableConfig(table);
         const columns = config.columns.map((column) => {
@@ -371,44 +365,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       });
       expect(state.provider.companies.get("company-1")!.linkedContactsIds).toEqual([2, 1]);
       expect(state.provider.companies.size).toBe(2);
-    });
-
-    it("synchronizes latest stored milestones after a lost notification without changing Plan or access", async () => {
-      const state = tasks();
-      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
-      const unknown = state.provider.companies.get("company-1")!.attributes;
-      expect(unknown.everr_activated_at).toBe("");
-      expect(unknown.everr_first_queryable_at).toBe("");
-      const instant = new Date("2026-10-23T12:00:00.123Z");
-      const observer = createTraceConsultations({
-        store: createOrganizationMilestoneStore(fixture.database),
-        events: { async publish() {} },
-        now: () => instant,
-      });
-      observer.observe({
-        principal: { kind: "client", organizationId: "a", clientId: "client" },
-        surface: "cli",
-        traces: [
-          {
-            traceId: "trace",
-            serviceName: "checkout",
-            resourceAttributes: { "deployment.environment.name": "production" },
-            spanAttributes: {},
-          },
-        ],
-      });
-      await observer.stop();
-      // An unrelated old notification rereads current markers rather than event payload values.
-      await state.invoke(ORGANIZATION_SYNC_TASK, payload("organization"));
-      expect(state.provider.companies.get("company-1")!.attributes).toMatchObject({
-        everr_activated_at: instant.toISOString(),
-        everr_first_queryable_at: instant.toISOString(),
-        everr_activation_rule_version: "1",
-        everr_plan: "hobby",
-        everr_app_state: "hobby",
-        everr_subscription_status: "",
-        everr_provisioning: "ready",
-      });
     });
 
     it("persists suspended Pro, subscription and provisioning independently and omits unchanged fields", async () => {
@@ -1733,9 +1689,6 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       });
       expect(state.provider.contacts.size).toBe(1);
       expect(state.provider.companies.size).toBe(2);
-      expect(await reader.organization("b")).toMatchObject({
-        fields: { firstQueryableAt: null, activatedAt: null },
-      });
       const before = state.provider.transport.mock.calls.length;
       await bootstrap({ maxPages: 100, newScan: true });
       for (const job of await bootstrapJobs()) await state.invoke(job.task_identifier, job.payload);
@@ -1806,31 +1759,23 @@ CREATE TABLE org_subscription (org_id text PRIMARY KEY REFERENCES organization(i
       await utils.completeJobs(jobs.rows.map((row) => row.id));
       for (const job of state.queued.splice(0)) await state.invoke(job.name, job.body);
     }
-    it("repairs dropped initial User, Organization, Membership and current Plan/milestone publication", async () => {
+    it("repairs dropped initial User, Organization, Membership and current Plan publication", async () => {
       const state = tasks();
       await fixture.client.exec(
         "INSERT INTO organization_billing(org_id, plan) VALUES ('a', 'pro'); INSERT INTO org_subscription(org_id, polar_subscription_id, polar_product_id, status, polar_modified_at) VALUES ('a', 'sub', 'product_pro', 'active', now())",
       );
-      const milestones = createOrganizationMilestoneStore(fixture.database);
-      await milestones.establish({
-        observedAt: new Date(),
-        observerStartedAt: new Date(),
-        organizationId: "a",
-        surface: "cli",
-      });
       // No domain publication or handler ran. Only current authoritative rows exist.
       await periodic({ maxPages: 100 });
       await runAdmissions(state);
       expect(await store.read(userKey)).toMatchObject({ outcome: "synced" });
       expect(await store.read(orgKey())).toMatchObject({
         outcome: "synced",
-        desired: { fields: { plan: "pro", activatedAt: expect.any(String) } },
+        desired: { fields: { plan: "pro" } },
       });
       expect(await store.read(pairKey())).toMatchObject({
         outcome: "synced",
         desired: { deleted: false },
       });
-      expect(await reader.organization("b")).toMatchObject({ fields: { activatedAt: null } });
     });
     it("freshly verifies owned remote fields and explicit pair drift, with no writes for unchanged state", async () => {
       const state = tasks();

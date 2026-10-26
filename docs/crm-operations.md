@@ -17,12 +17,10 @@ permissions, account identity or the deployed build.
    configuration belongs to `everr-deploy` and must match that build.
 2. Have the schema changes reviewed and delivered through the normal migration
    process before starting this build against the target database. Cloud ships
-   `0001_organization_milestones` and `0002_crm_projection`, with their snapshots
-   and journal entries. Generating these files does not apply them. Cloud needs the
+   `0001_crm_projection`, with its snapshot and journal entry. Generating these files does not apply them. Cloud needs the
    complete current definitions in `packages/cloud/src/db/schema/crm.ts`
    (`crm_projection`, `crm_brevo_budget`, `crm_bootstrap`, `crm_reconciliation`)
-   and `organization-milestones.ts` (`organization_milestones`), including current
-   columns, primary/unique keys and checks. Merely finding the tables is inadequate.
+   including current columns, primary/unique keys and checks. Merely finding the tables is inadequate.
    Shared auth, Membership and cloud billing/subscription schema must also exist.
    Graphile's public `add_job` function and `jobs` view must be available to the
    application/administrative database role. Do not run `db:generate` to improvise
@@ -58,18 +56,17 @@ BEGIN READ ONLY;
 SELECT table_name, column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name IN
-  ('crm_projection', 'crm_brevo_budget', 'crm_bootstrap', 'crm_reconciliation', 'organization_milestones')
+  ('crm_projection', 'crm_brevo_budget', 'crm_bootstrap', 'crm_reconciliation')
 ORDER BY table_name, ordinal_position;
 SELECT tablename, indexname, indexdef
 FROM pg_indexes
 WHERE schemaname = 'public' AND tablename IN
-  ('crm_projection', 'crm_brevo_budget', 'crm_bootstrap', 'crm_reconciliation', 'organization_milestones')
+  ('crm_projection', 'crm_brevo_budget', 'crm_bootstrap', 'crm_reconciliation')
 ORDER BY tablename, indexname;
 SELECT conrelid::regclass AS table_name, conname, pg_get_constraintdef(oid) AS definition
 FROM pg_constraint
 WHERE conrelid IN (to_regclass('public.crm_projection'), to_regclass('public.crm_brevo_budget'),
-  to_regclass('public.crm_bootstrap'), to_regclass('public.crm_reconciliation'),
-  to_regclass('public.organization_milestones'))
+  to_regclass('public.crm_bootstrap'), to_regclass('public.crm_reconciliation'))
 ORDER BY table_name, conname;
 ROLLBACK;
 SQL
@@ -96,34 +93,22 @@ Contact `EXT_ID` is Brevo's standard external identity, sent as `ext_id` on crea
 and read with `identifierType=ext_id`; `EMAIL` is the standard email attribute.
 Neither is an additional Everr custom field. Do not substitute email for identity.
 
-All eleven Company fields below have provider type `text`. The uppercase label
+All eight Company fields below have provider type `text`. The uppercase label
 and lower-case internal name are distinct. The adapter writes the internal name.
 Company `name` is standard and source-owned (returned as `attributes.name` on
 GET and normalized by the adapter); provider `created_at` is read-only
 and is never Everr's creation date.
 
-| Company label                   | Required internal name          | Written value                                  |
-| ------------------------------- | ------------------------------- | ---------------------------------------------- |
-| `EVERR_ORG_ID`                  | `everr_org_id`                  | Deployment-scoped external identity            |
-| `EVERR_CREATED_AT`              | `everr_created_at`              | Original Organization ISO timestamp            |
-| `EVERR_PLAN`                    | `everr_plan`                    | `hobby` or `pro`                               |
-| `EVERR_APP_STATE`               | `everr_app_state`               | `hobby`, `pro` or `suspended`                  |
-| `EVERR_SUBSCRIPTION_STATUS`     | `everr_subscription_status`     | Current status or empty text                   |
-| `EVERR_CURRENT_PERIOD_END`      | `everr_current_period_end`      | ISO timestamp or empty text                    |
-| `EVERR_CANCEL_AT_PERIOD_END`    | `everr_cancel_at_period_end`    | Text `true` or `false`                         |
-| `EVERR_PROVISIONING`            | `everr_provisioning`            | Current storage readiness                      |
-| `EVERR_FIRST_QUERYABLE_AT`      | `everr_first_queryable_at`      | Stored observation ISO timestamp or empty text |
-| `EVERR_ACTIVATED_AT`            | `everr_activated_at`            | Stored observation ISO timestamp or empty text |
-| `EVERR_ACTIVATION_RULE_VERSION` | `everr_activation_rule_version` | Decimal `1` or empty text                      |
-
-Do not derive missing milestones from creation, subscription, usage or readiness.
-Unknown history remains unknown. Current coverage is only standalone trace detail
-on UI and the exact raw trace-detail SQL grammar on CLI/MCP, with own Production
-or receiver-shaped CI evidence. Dashboards, other detail surfaces, aggregates,
-generic SQL, preloads/refetches and cached no-read actions are unobserved. Identical
-external detail scripts and unmarked falsely labeled synthetic telemetry cannot
-be distinguished by this contract. See the [milestone module](../packages/cloud/src/organizations/README.md)
-for the precise provenance and completion rules.
+| Company label                | Required internal name       | Written value                       |
+| ---------------------------- | ---------------------------- | ----------------------------------- |
+| `EVERR_ORG_ID`               | `everr_org_id`               | Deployment-scoped external identity |
+| `EVERR_CREATED_AT`           | `everr_created_at`           | Original Organization ISO timestamp |
+| `EVERR_PLAN`                 | `everr_plan`                 | `hobby` or `pro`                    |
+| `EVERR_APP_STATE`            | `everr_app_state`            | `hobby`, `pro` or `suspended`       |
+| `EVERR_SUBSCRIPTION_STATUS`  | `everr_subscription_status`  | Current status or empty text        |
+| `EVERR_CURRENT_PERIOD_END`   | `everr_current_period_end`   | ISO timestamp or empty text         |
+| `EVERR_CANCEL_AT_PERIOD_END` | `everr_cancel_at_period_end` | Text `true` or `false`              |
+| `EVERR_PROVISIONING`         | `everr_provisioning`         | Current storage readiness           |
 
 ## Configuration and namespace
 
@@ -154,8 +139,7 @@ Mode changes require configuration reconstruction/restart. Restart every replica
 when pausing and allow old requests to drain. Pausing does not undo a request that
 Brevo already accepted. Invalid enabled configuration fails startup validation;
 missing credentials never silently consume jobs. Self-hosted has no CRM imports,
-configuration, schema or jobs. Product activation markers remain independent of
-CRM mode. Source operations await the Graphile enqueue attempt after commit, containing
+configuration, schema or jobs. Source operations await the Graphile enqueue attempt after commit, containing
 its errors. They never wait for Brevo.
 
 ## Bounded bootstrap and normal repair
@@ -195,12 +179,12 @@ undisturbed, while retained terminal jobs can be readmitted to detect newer sour
 changes lost before job persistence. An unchanged block/exhausted revision stays
 blocked/exhausted without provider requests.
 
-Current User/Organization/pair state, stored milestones, deleted sources and
+Current User/Organization/pair state, deleted sources and
 remote owned-field/association drift are repaired through normal coordinated
 handlers. Completed desired revision plus per-cycle `remote_check_id` prevents
 same-cycle duplicate checks or allowance resets. An unchanged local snapshot is not
 a remote drift check. Mapped remote 404s are detected and blocked, never recreated
-automatically. Unknown historical facts and observations are not reconstructed.
+automatically. Historical facts are not reconstructed.
 
 All live, bootstrap, periodic, recovery and cleanup requests share durable account
 permits: Contacts are spaced by 100 milliseconds, general operations (Companies
