@@ -11,7 +11,7 @@ metadata:
 This skill covers two surfaces. Each has its own Launch, Doctor, Drive and Cleanup, and both write evidence under `.verify-everr/artifacts/`. They are independent: run either alone, or both at once.
 
 - **A. CLI + local stack** (`launch`, `doctor`, `cli`, `ui-*`, `browser-env`, `cleanup`).
-- **B. App and Cloud** (`web-launch`, `web-doctor`, `web-browser-env`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-key-save`, `web-key`, `web-onboard`, `web-seed`, `web-apply`, `web-net`, `web-collector-restart`, `web-sdk-page`, `web-record`, `web-report`, `web-cleanup`). Implemented in `scripts/web.ts`.
+- **B. App and Cloud** (`web-preflight`, `web-launch`, `web-doctor`, `web-browser-env`, `web-http`, `web-webhook`, `web-psql`, `web-ch`, `web-key-save`, `web-key`, `web-onboard`, `web-seed`, `web-apply`, `web-net`, `web-collector-restart`, `web-sdk-page`, `web-record`, `web-report`, `web-cleanup`). Implemented in `scripts/web.ts`.
 
 Surface A: the `everr` CLI, in particular the local telemetry loop (`everr local start` boots a supervisor that serves the local UI and runs the embedded Go collector with in-process chDB; `everr wrap` and any OTLP exporter write into it; `everr local query` and the local UI read from it). Everything here runs offline with no auth.
 
@@ -62,7 +62,18 @@ Teardown is `$V cleanup` (see Cleanup).
 
 Prerequisites are the standard [worktree development](../../../docs/development.md) toolchain, a reachable Docker daemon, and `agent-browser`. Both packages use their existing GitHub settings in dotenv files, just as normal development does. The standard startup copies each unconfigured package's `.env` from the primary worktree; existing package configuration stays untouched. Cloud also reads its required optional-service settings from `packages/cloud/.env`. The helper reserves 6 GiB of available memory for the complete graph; `--ignore-memory` explicitly overrides that guard.
 
+Setup, checked by `$V web-preflight` (and again at the start of `web-launch`, which stops before starting anything if a piece is missing). Each missing piece prints one `missing: ...; fix: ...` line with the command that fixes it:
+
+- the Portless proxy running (`pnpm exec portless proxy start`) and its CA at `~/.portless/ca.pem`
+- `process-compose` on PATH
+- `docker compose` working (a root-owned `~/.docker` hides the Compose plugin)
+- `packages/app/.env` and `packages/cloud/.env`, here or in the main worktree
+- `certutil` on Linux (`libnss3-tools`), so agent-browser can trust the Portless CA
+
+`web-browser-env` and the helper's own browser commands set `AGENT_BROWSER_CA_CERT` to the Portless CA unless it is already set.
+
 ```bash
+$V web-preflight                     # "preflight ok", or one line per missing piece
 $V web-launch <RUN_ID>               # both products, Cloud selected
 $V web-launch <RUN_ID> --app app     # self-hosted App selected
 ```
@@ -211,10 +222,24 @@ Surface B location: `$REPO/.verify-everr/artifacts/web-<RUN_ID>/`:
 Visual proof (required for any change that touches UI):
 
 - A verification report backs every UI claim with an image: a screenshot per claim (`ab_save <label> "<claim>"`) or a `web-record` video with key frames. A UI claim with no image or video behind it is unverified, and the report says so in those words.
+- One claim, one piece of media with a one-line caption. Do not narrate in prose what the media shows, and do not write up bugs found and fixed during the work: the report shows only the final behavior. Text is for the not-verified list and the checks table.
+- For a layout claim, put the measured value in the caption, for example `content at x=268, 12px padding, at 1280x800 and 2000x635`. Read it with `agent-browser eval` (`getBoundingClientRect()`, `getComputedStyle()`).
+- A claim about timing or interaction (validation on submit rather than on change, a transition, a loading state) needs a `web-record` video, because a still shows only the end state. Keep it 10 to 25 s at 1280x800, with `r.hold` pauses so a reviewer can follow each step. When the PR changes behavior, record a before and an after clip of the same journey.
+- To record the before clip, keep the PR's stack running and swap every file the PR changed in the affected package to main's copy in the same worktree (Vite reloads them). Swap all of them, not only the UI files, so main's component never runs against the branch's helpers. Files the PR added do not exist on main, so delete them. `git checkout HEAD -- <path>` drops uncommitted edits, so `git status --porcelain` must print nothing before the swap and again after the restore. If `git diff --name-status origin/main...HEAD -- "$pkg"` shows deleted (`D`) or renamed (`R`) files, handle them by hand. The caption names the source of the before clip (`before: origin/main channel-dialog.tsx`).
+
+  ```bash
+  pkg=packages/app
+  git status --porcelain    # must print nothing; commit or stash first
+  git diff --name-only --diff-filter=M origin/main...HEAD -- "$pkg" | xargs -r git checkout origin/main --
+  git diff --name-only --diff-filter=A origin/main...HEAD -- "$pkg" | xargs -r rm --
+  # record the before clip
+  git checkout HEAD -- "$pkg"
+  git status --porcelain    # must print nothing
+  ```
 - Take screenshots after the data renders: `wait --text` for the asserted text first, then `ab_save`. Dismiss the consent banner first (`$V web-onboard` does it) and use the 1280x800 viewport (`web-onboard` sets it; otherwise `agent-browser set viewport 1280 800`; `web-record` defaults to it).
 - `ab_save` sleeps 0.7s before the screenshot: after a client-side navigation the DOM (what `wait` and the `.txt` see) updates before the compositor paints, and an immediate screenshot showed the previous page (observed 2026-10-20 on the dashboards panel link). Also wait for something that only the new page lacks or has, not text both pages share.
-- Before reporting, open each image (Read the PNG) and confirm it shows what its caption claims: the asserted data is visible, nothing covers it, it is the right page. Fix or drop captions that do not match. When a shot is re-taken, copy it to a new file name before opening it again: an image viewer can serve the earlier version of a path it already showed.
-- `$V web-report [RUN_ID]` collects the run's videos (with timeline and key frames) and screenshots with their captions and URLs into `<evidence>/report.md`, with image links relative to the evidence dir, a Timings table from `timings.tsv` (each command and sub-step, a `gap` row for the time between commands, and the total), plus a checklist for the two rules above. Prints `REPORT ... screenshots=<n> uncaptioned=<n> duplicates=<n>`; give every screenshot that backs a claim a caption. Byte-identical screenshots saved under different labels are listed as `DUPLICATE a = b` and in a `Duplicate screenshots` section: retake them so each claim has its own frame. Attach or link `report.md` in the verification report.
+- Before reporting, open each image (Read the PNG) and confirm it shows what its caption claims: the asserted data is visible, nothing covers it, it is the right page. Fix or drop captions that do not match. For a video, extract frames (`ffmpeg -i <name>.mp4 -vf fps=2 <dir>/f-%03d.png`) and open the frames at each step the caption names. When a shot is re-taken, copy it to a new file name before opening it again: an image viewer can serve the earlier version of a path it already showed.
+- `$V web-report [RUN_ID]` collects the run's videos (with timeline and key frames) and screenshots with their captions and URLs into `<evidence>/report.md`, with image links relative to the evidence dir, a Timings table from `timings.tsv` (each command and sub-step, a `gap` row for the time between commands, and the total), plus a checklist for the image-per-claim and open-each-image rules above. Prints `REPORT ... screenshots=<n> uncaptioned=<n> duplicates=<n>`; give every screenshot that backs a claim a caption. Byte-identical screenshots saved under different labels are listed as `DUPLICATE a = b` and in a `Duplicate screenshots` section: retake them so each claim has its own frame. Attach or link `report.md` in the verification report.
 
 Video (`web-record`): a Playwright recording of a scripted journey, for a reviewer who wants to watch the change rather than read `.txt` files. It is a companion to the `agent-browser` evidence, not a replacement: assert with recipes, record afterwards.
 
@@ -224,9 +249,21 @@ $V web-record --steps .agents/skills/verify-everr/scripts/record-examples/explor
 
 - Defaults from the current web run: `--base-url` is the run's app, `--storage-state` is this run's `agent-browser` session (saved with `agent-browser state save` into the scratch dir, so the signed-in user carries over; sign up first), `--out` is `<evidence>/video`. Any of them passed explicitly wins; `--cookie name=value` replaces the storage state.
 - The steps file default-exports `async (r) => { ... }`, with `r.page` (the recorded Playwright page), `r.base`, `r.caption(text, {sub, tone})`, `r.frame(name)`, `r.step(label)`, `r.hold(ms)`, `r.now()` (see `scripts/record.ts`). `scripts/record-examples/explore-seeded.ts` is a generic example (the seeded Explore pages after `web-seed`); write PR-specific journeys the same way, taking ports and keys from `r.base` or the environment, never hardcoded. Steps files need a `"type": "module"` `package.json` above them (`scripts/package.json` covers files under `scripts/`).
+- Captions: `r.caption(text, { tone })` draws a banner at the bottom of the page, so it shows in every frame, still and GIF. Set one caption per step, with the same one-line claim the PR uses for it. Use `tone: "bad"` (red) for an error state, `tone: "good"` (green) for success, and the default for neutral steps. Clear it with `r.caption("")` at the end; `--no-captions` turns banners off.
 - Output: H.264 High, yuv420p, 25 fps, faststart, no audio (plays on GitHub and in chat). Last line `RECORDED <mp4> codec=h264 duration=<s> size=<MB> frames=<n>`. If a step throws, the video so far is still encoded, `<name>-failure.png` is saved, and the exit code is 1. Check with `ffprobe` (the helper writes `<name>.probe.txt`).
 - Prerequisites: `playwright-core` (not a repo dependency) plus Playwright's own ffmpeg for its raw video: `npm i --prefix ~/.cache/verify-everr/playwright playwright-core && ~/.cache/verify-everr/playwright/node_modules/.bin/playwright-core install ffmpeg` (or point `VERIFY_PLAYWRIGHT_DIR` at a dir whose `node_modules` has it). System `ffmpeg` and `ffprobe` with libx264 (`apt-get install ffmpeg`). Chrome: `VERIFY_CHROME`, else agent-browser's downloaded Chrome, else `google-chrome`/`chromium` on PATH. Headless; Linux tested.
 - The video runs in real time: on a loaded host, page loads show up as long stalls. Record on an idle box, after the recipes passed.
+
+Publishing media on the PR: GitHub plays inline video only from attachments uploaded through its web UI, which has no API. Convert each MP4 to a GIF, embed the GIF inline, and link the MP4 next to it:
+
+```bash
+ffmpeg -i after.mp4 -vf "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" after.gif   # keep under ~8 MB
+```
+
+- Commit stills, GIFs and MP4s to the `pr-media` branch under `<pr>/v<N>/`, and use a new `v<N>` folder for each re-record instead of overwriting.
+- Embed them with commit-pinned URLs, `https://raw.githubusercontent.com/everr-labs/everr/<pr-media sha>/<pr>/v<N>/<file>`, and check that each URL returns 200 (`curl -s -o /dev/null -w '%{http_code}' <url>`) before posting.
+- After a follow-up commit that touches the verified UI, re-record, publish to a new `v<N>`, and edit the existing verification comment and PR body in place. Do not post a new comment.
+- `report.md` links media relative to the evidence dir, so those links break on GitHub. Use it to review the run locally, and write the comment as a separate file (`comment.md`) whose embeds are the commit-pinned `pr-media` URLs: `gh api -X PATCH repos/everr-labs/everr/issues/comments/<id> -F body=@comment.md`.
 
 Note: `web/api-keys-03-issued.*` and `web/api-keys-07-public-issued.*` contain the freshly issued `ek_` keys (the helper reads keys from the scratch dir, never from evidence). It is only valid against the run's database, which cleanup destroys.
 
@@ -255,7 +292,7 @@ $V web-cleanup    # surface B
 
 ## Helpers
 
-- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `browser-env`, `cleanup`, and `web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]`, `web-doctor`, `web-env`, `web-browser-env`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-key-save <name>`, `web-seed [--key-name N | --key-file F]`, `web-collector-restart`, `web-sdk-page [--local]`, `web-record --steps F [...]`, `web-key <name>`, `web-onboard`, `web-apply <body> [...]`, `web-net <label> <s> [--reload]`, `web-report [RUN_ID]`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `RUN_ID` to target a run other than the current one, and `WEB_RUN_ID` to target a web run when none is selected (the selected web run wins, so a sourced `run.env` from an earlier run cannot redirect commands).
+- `scripts/verify-everr.ts` (executable TypeScript entry, run by Node). Subcommands: `build`, `launch [RUN_ID]`, `doctor`, `env`, `cli <label> -- ARGS`, `cli-until <label> <text> -- ARGS`, `ui-get <path>`, `ui-cmd <command> [json]`, `browser-env`, `cleanup`, and `web-preflight`, `web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]`, `web-doctor`, `web-env`, `web-browser-env`, `web-http <label> <METHOD> <path> [curl args]`, `web-webhook <label> <event> <payload>`, `web-psql <label> <SQL>`, `web-ch <label> <SQL>`, `web-key-save <name>`, `web-seed [--key-name N | --key-file F]`, `web-collector-restart`, `web-sdk-page [--local]`, `web-record --steps F [...]`, `web-key <name>`, `web-onboard`, `web-apply <body> [...]`, `web-net <label> <s> [--reload]`, `web-report [RUN_ID]`, `web-cleanup`. Run it with no args for usage. Env knobs: `EVERR_VERIFY_SCRATCH` (scratch root, default `/tmp/verify-everr`), `VERIFY_BUILD_OTLP_ENDPOINT` (where `build` sends its own spans, default the dead port `http://127.0.0.1:9`), `VERIFY_CWD` (cwd for `cli`), `UNTIL_S`, `RUN_ID` to target a run other than the current one, and `WEB_RUN_ID` to target a web run when none is selected (the selected web run wins, so a sourced `run.env` from an earlier run cannot redirect commands).
 - `scripts/common.ts`: paths, run-id validation, scratch-root containment, ports, process helpers.
 - `scripts/web.ts`: the `web-*` subcommands.
 - `scripts/package.json`: only `"type": "module"`, so Node loads the `.ts` files as ES modules without a warning.

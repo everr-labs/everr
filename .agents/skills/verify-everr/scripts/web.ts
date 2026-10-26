@@ -18,6 +18,7 @@ import os from "node:os";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { createRequire } from "node:module";
 import { connect } from "node:http2";
+import { createConnection } from "node:net";
 import {
   REPO,
   SCRATCH_ROOT,
@@ -32,6 +33,7 @@ import {
   defaultRunId,
   die,
   freePort,
+  isExecutable,
   hhmmss,
   http,
   isAlive,
@@ -61,8 +63,10 @@ import {
 
 export const WEB_USAGE = `# Web verification through pnpm dev (both products, Cloud selected by default):
 #
+#   verify-everr web-preflight           check the toolchain web-launch needs; one line with the fix per missing piece
 #   verify-everr web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]
 #                                        isolated pnpm dev graph, data, service names, and supervisor socket
+#                                        (runs web-preflight first)
 #   verify-everr web-doctor              read-only health of this web run
 #   verify-everr web-env                 print this run's non-secret connection metadata
 #   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
@@ -334,6 +338,13 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
       idArg = argv[i];
     }
   }
+  const checked = phase("web-launch/preflight");
+  const missing = await preflight();
+  if (missing.length) {
+    for (const line of missing) console.error(line);
+    die("preflight failed; fix the lines above, then run web-launch again");
+  }
+  checked();
   const mem = meminfo();
   console.log(`memory: ${mem.availMiB} MiB free/available of ${mem.totalMiB} MiB; reserving ${WEB_RUN_MIB} MiB for the complete development graph`);
   if (mem.availMiB < WEB_RUN_MIB && !argv.includes("--ignore-memory")) die("not enough free memory; close other stacks or pass --ignore-memory");
@@ -469,6 +480,68 @@ async function cmdWebDoctor(): Promise<number> {
   return ok ? 0 : 1;
 }
 
+const portlessDir = () => process.env.PORTLESS_STATE_DIR || path.join(os.homedir(), ".portless");
+const portlessCa = () => path.join(portlessDir(), "ca.pem");
+
+function tcpOpen(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: "127.0.0.1", port, timeout: 1000 });
+    const done = (open: boolean) => { socket.destroy(); resolve(open); };
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+    socket.once("timeout", () => done(false));
+  });
+}
+
+/** What pnpm dev needs from the machine, as "missing: <what>; fix: <command>" lines (none = ready). */
+async function preflight(): Promise<string[]> {
+  const missing: string[] = [];
+  const miss = (what: string, fix: string) => missing.push(`missing: ${what}; fix: ${fix}`);
+  const startPortless = `cd ${REPO} && pnpm exec portless proxy start`;
+  const port = Number(process.env.PORTLESS_PORT || 443);
+  if (!(await tcpOpen(port))) miss(`Portless proxy (nothing listening on 127.0.0.1:${port})`, startPortless);
+  if (!existsSync(portlessCa())) miss(`Portless CA ${portlessCa()} (created by the proxy's first start)`, startPortless);
+  if (!which("process-compose") && !isExecutable(path.join(REPO, ".dev/bin/process-compose"))) {
+    miss("process-compose on PATH", 'sh -c "$(curl -fsSL https://raw.githubusercontent.com/F1bonacc1/process-compose/main/scripts/get-pc.sh)" -- -d -b ~/.local/bin');
+  }
+  const compose = run("docker", ["compose", "version"]);
+  if (compose.status === 127) miss("docker", "install Docker Engine with the Compose plugin");
+  else if (compose.status !== 0) {
+    const config = process.env.DOCKER_CONFIG || path.join(os.homedir(), ".docker");
+    let readable = true;
+    try { readdirSync(config); } catch (e) { readable = (e as NodeJS.ErrnoException).code === "ENOENT"; }
+    if (!readable) miss(`docker compose (${config} is not readable by you, which hides the Compose plugin)`, `sudo chown -R "$(id -un)" ${config}  # or, for this shell only: export DOCKER_CONFIG="$(mktemp -d)"`);
+    else miss("docker compose plugin", "sudo apt-get install -y docker-compose-plugin");
+  }
+  // scripts/dev/bootstrap-env.mjs copies packages/<product>/.env from the main worktree when the checkout has none.
+  const mainRoot = run("git", ["-C", REPO, "worktree", "list", "--porcelain"]).stdout.split("\n")[0]?.replace(/^worktree /, "") || REPO;
+  for (const product of ["app", "cloud"]) {
+    const dir = path.join(REPO, "packages", product);
+    const own = [".env", ".env.local", ".env.development", ".env.development.local"].some((f) => existsSync(path.join(dir, f)));
+    if (!own && !existsSync(path.join(mainRoot, "packages", product, ".env"))) {
+      miss(`packages/${product}/.env (none here or in the main worktree)`, `cp ${dir}/.env.example ${dir}/.env`);
+    }
+  }
+  // agent-browser imports the Portless CA into Chromium's NSS store with certutil on Linux.
+  if (process.platform === "linux" && !which("certutil")) miss("certutil (agent-browser needs it to trust the Portless CA)", "sudo apt-get install -y libnss3-tools");
+  return missing;
+}
+
+async function cmdWebPreflight(): Promise<number> {
+  const missing = await preflight();
+  for (const line of missing) console.log(line);
+  if (missing.length) return 1;
+  console.log("preflight ok");
+  return 0;
+}
+
+/** The CA agent-browser must trust for the run's https://*.localhost origins, unless one is set. */
+function browserCa(w: WebRun): Record<string, string> {
+  if (process.env.AGENT_BROWSER_CA_CERT) return {};
+  const ca = [w.vars.PORTLESS_CA, portlessCa()].find((f) => f && existsSync(f));
+  return ca ? { AGENT_BROWSER_CA_CERT: ca } : {};
+}
+
 function cmdWebEnv(): number {
   const w = webLoad();
   process.stdout.write(readText(path.join(w.dir, "run.env")) ?? "");
@@ -488,6 +561,7 @@ function cmdWebBrowserEnv(): number {
     AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`),
     // The dev server compiles a route on its first visit, which can outlast agent-browser's 25s default.
     AGENT_BROWSER_DEFAULT_TIMEOUT: "90000",
+    ...browserCa(w),
     WEB: w.origin,
     APP_WEB: w.vars.APP_ORIGIN,
     CLOUD_WEB: w.vars.CLOUD_ORIGIN,
@@ -856,7 +930,7 @@ function cmdWebKey([name]: string[]): number {
 /** agent-browser in this run's session, captured. */
 function ab(w: WebRun, args: string[]): Proc {
   return run("agent-browser", args, {
-    env: { ...process.env, AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`), AGENT_BROWSER_DEFAULT_TIMEOUT: "90000" },
+    env: { ...process.env, AGENT_BROWSER_SESSION: browserSession(`web-${w.id}`), AGENT_BROWSER_DEFAULT_TIMEOUT: "90000", ...browserCa(w) },
   });
 }
 
@@ -1229,6 +1303,7 @@ async function cmdWebCleanup(): Promise<number> {
 }
 
 export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
+  "web-preflight": cmdWebPreflight,
   "web-launch": cmdWebLaunch,
   "web-doctor": cmdWebDoctor,
   "web-env": cmdWebEnv,
