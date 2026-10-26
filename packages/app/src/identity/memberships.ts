@@ -20,13 +20,14 @@ export async function restrictOrganizationToOwner(
   const removed = await transaction
     .delete(member)
     .where(and(eq(member.organizationId, organizationId), ne(member.userId, ownerId)))
-    .returning({ id: member.id });
+    .returning({ id: member.id, organizationId: member.organizationId, userId: member.userId });
   const canceled = await transaction
     .update(invitation)
     .set({ status: "canceled" })
     .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, "pending")))
     .returning({ id: invitation.id });
   return {
+    removedMemberships: removed,
     removedMembers: removed.length,
     canceledInvitations: canceled.length,
   };

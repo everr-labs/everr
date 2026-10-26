@@ -1,6 +1,7 @@
 import type { BetterAuthPlugin } from "better-auth";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { OrganizationOptions } from "better-auth/plugins/organization";
+import type { DbExecutor } from "#app/db/database.ts";
 import type { SessionOnboardingHookFactory } from "./onboarding";
 
 /** Organization creation extensions. Membership and deletion hooks are shared-owned. */
@@ -20,7 +21,7 @@ export interface IdentityProvider {
   lockUserLifecycle(this: void, userId: string): Promise<void>;
   /** Hold locks for the discovered organizations until the identity request finishes. */
   lockAccountDeletion(this: void, organizationIds: readonly string[]): Promise<void>;
-  identityAdapter(this: void): ReturnType<typeof drizzleAdapter>;
+  identityAdapter(this: void, executor: DbExecutor): ReturnType<typeof drizzleAdapter>;
   organizationHooks(this: void): ApplicationOrganizationHooks;
   authPlugins?(
     this: void,

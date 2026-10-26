@@ -12,12 +12,17 @@ import { organizationCommands } from "./commands.server";
 
 let fixture: TestDatabase;
 const mocks = vi.hoisted(() => ({
+  publish: vi.fn(),
+  afterCommit: vi.fn(),
   lockOwnership: vi.fn(),
   entitlement: vi.fn(),
   ownsHobby: vi.fn(),
   revoke: vi.fn(),
   beforeBillingLock: vi.fn(),
   afterOwnershipLock: vi.fn(),
+}));
+vi.mock("@everr/app/server/events/runtime", () => ({
+  events: { publish: mocks.publish },
 }));
 vi.mock("@everr/app/identity/server", () => ({ auth: { api: {} } }));
 vi.mock("@everr/app/db/client", () => ({
@@ -40,7 +45,9 @@ vi.mock("../billing/server", () => ({
       commit: (revoke: () => Promise<void>) => Promise<unknown>,
     ) => {
       await mocks.beforeBillingLock();
-      return commit(mocks.revoke);
+      const result = await commit(mocks.revoke);
+      await mocks.afterCommit();
+      return result;
     },
   },
 }));
@@ -173,6 +180,7 @@ it.each(["provider", "database"] as const)(
     try {
       await expect(downgrade()).rejects.toThrow();
       expect(await savedState()).toEqual(before);
+      expect(mocks.publish).not.toHaveBeenCalled();
     } finally {
       if (failure === "database")
         await fixture.client.exec(
@@ -191,5 +199,39 @@ it.each(["missing", "admin"] as const)(
     const before = await savedState();
     await expect(downgrade()).rejects.toThrow("must be an organization owner");
     expect(await savedState()).toEqual(before);
+  },
+);
+
+it("publishes committed Membership IDs and Plan even if later billing reconciliation fails", async () => {
+  mocks.afterCommit.mockRejectedValueOnce(new Error("reconciliation unavailable"));
+  await expect(downgrade()).rejects.toThrow("reconciliation unavailable");
+  expect((await savedState()).plan).toBe("hobby");
+  expect(mocks.publish.mock.calls.map(([fact]) => fact)).toEqual([
+    {
+      type: "membership.removed",
+      version: 1,
+      subjectId: "owner-b",
+      data: { membershipId: "owner-b", organizationId: "org", userId: "owner-b" },
+    },
+    {
+      type: "organization.plan.changed",
+      version: 1,
+      subjectId: "org",
+      data: { organizationId: "org", previousPlan: "pro", plan: "hobby" },
+    },
+  ]);
+});
+
+it.each(["throw", "reject"])(
+  "preserves the downgrade and attempts each fact when publication fails (%s)",
+  async (failure) => {
+    mocks.publish.mockImplementation(() => {
+      if (failure === "reject")
+        return Promise.reject(new Error("publication unavailable")) as unknown as void;
+      throw new Error("publication unavailable");
+    });
+    await expect(downgrade()).resolves.toEqual({ removedMembers: 1, canceledInvitations: 1 });
+    expect((await savedState()).plan).toBe("hobby");
+    expect(mocks.publish).toHaveBeenCalledTimes(2);
   },
 );
