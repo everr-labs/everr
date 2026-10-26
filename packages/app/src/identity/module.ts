@@ -395,6 +395,8 @@ export function createApplicationAuth(
         consentPage: "/mcp/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
+        // MCP native clients omit application_type when registering loopback callbacks.
+        clientRegistrationDefaultApplicationType: "infer",
         clientPrivileges: async ({ action, session }) => {
           if (!session) return false;
           if (action === "create") return true;
