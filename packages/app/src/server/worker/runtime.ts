@@ -1,70 +1,35 @@
-import { EventEmitter } from "node:events";
 import { runtime } from "@composition/runtime";
-import { run, type WorkerEvents } from "graphile-worker";
-import { pool } from "#app/db/client.ts";
-import { githubTasks } from "#app/integrations/github/registration.ts";
-import { alertCronItems, alertTaskList } from "#app/server/alerting/runtime.ts";
-import { previewsCronItems, previewsTaskList } from "#app/server/previews/00-runtime.ts";
+import type { ApplicationWorker } from "#app/composition/runtime.ts";
 import { registerShutdownHook } from "#app/server/shutdown.ts";
-import { attachGraphileWorkerEventLogging } from "./events";
-import { managedWorker } from "./managed-worker";
+import { productWorker } from "./product-worker";
 
-const { startAppWorkers } = runtime;
-
-const general = managedWorker({
-  name: "everrGeneralWorker",
-  hot: import.meta.hot,
-  start: async () => {
-    const events: WorkerEvents = new EventEmitter();
-    attachGraphileWorkerEventLogging(events);
-    const runner = await run({
-      concurrency: 2,
-      events,
-      noHandleSignals: true,
-      parsedCronItems: [...alertCronItems, ...previewsCronItems],
-      pgPool: pool,
-      taskList: {
-        ...alertTaskList,
-        ...(await githubTasks()),
-        ...previewsTaskList,
-      },
-    });
-    let stopped = false;
-    runner.events.on("stop", () => {
-      stopped = true;
-    });
-    return {
-      promise: runner.promise,
-      stop: async () => {
-        if (!stopped) await runner.stop();
-      },
-    };
-  },
-});
+function throwFailures(results: PromiseSettledResult<unknown>[], message: string) {
+  const errors = results.flatMap((result) => (result.status === "rejected" ? [result.reason] : []));
+  if (errors.length) throw new AggregateError(errors, message);
+}
 
 export async function startWorkerRuntime() {
-  const application = Promise.resolve().then(() => startAppWorkers());
+  const workers: ApplicationWorker[] = [productWorker];
+  const starting = (async () => {
+    workers.push(...(await runtime.registerWorkers()));
+    const results = await Promise.allSettled(workers.map(async (worker) => worker.start()));
+    throwFailures(results, "Worker startup failed");
+  })();
   let stopping: Promise<void> | undefined;
   const stop = () => {
     stopping ??= (async () => {
-      const results = await Promise.allSettled([
-        general.stop(),
-        application.then(
-          (workers) => workers.stop(),
-          () => {}, // Failed startup has no application handle to release.
-        ),
-      ]);
-      const errors = results.flatMap((result) =>
-        result.status === "rejected" ? [result.reason] : [],
-      );
-      if (errors.length) throw new AggregateError(errors, "Worker shutdown failed");
+      // Drain registration and startup before releasing all workers, including
+      // those whose start failed. The caller retains any startup error.
+      await starting.catch(() => {});
+      const results = await Promise.allSettled(workers.map(async (worker) => worker.stop()));
+      throwFailures(results, "Worker shutdown failed");
     })();
     return stopping;
   };
   registerShutdownHook("worker.runtime", "workers", stop);
 
   try {
-    await Promise.all([general.start(), application]);
+    await starting;
     return { stop };
   } catch (error) {
     try {

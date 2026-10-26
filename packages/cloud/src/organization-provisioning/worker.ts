@@ -10,7 +10,7 @@ import { Pool } from "pg";
 import { attachOrganizationRetryPolicy } from "./retries";
 import { createOrganizationTaskList, organizationProvisioningCronItems } from "./runtime";
 
-const runtime = managedWorker({
+export const organizationWorker = managedWorker({
   name: "everrOrganizationWorker",
   hot: import.meta.hot,
   start: async () => {
@@ -61,8 +61,3 @@ const runtime = managedWorker({
     }
   },
 });
-
-export async function startOrganizationWorker() {
-  await runtime.start();
-  return { stop: runtime.stop };
-}

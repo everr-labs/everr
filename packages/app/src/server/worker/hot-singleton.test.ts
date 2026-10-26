@@ -124,6 +124,36 @@ describe("hotSingleton", () => {
     expect(start).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a new drain visible when shutdown overlaps a pending restart", async () => {
+    const firstGate = deferred<void>();
+    const secondGate = deferred<void>();
+    const stop = vi
+      .fn()
+      .mockReturnValueOnce(firstGate.promise)
+      .mockReturnValueOnce(secondGate.promise);
+    const singleton = hotSingleton({
+      key: uniqueKey(),
+      hot: undefined,
+      start: async () => ({}),
+      stop,
+    });
+    await singleton.start();
+    const first = singleton.stop();
+    const restart = singleton.start();
+    const second = singleton.stop();
+    firstGate.resolve();
+    await first;
+    await restart;
+    await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(2));
+    const settled = vi.fn();
+    const third = singleton.stop().then(settled);
+    await flush();
+    const resolvedBeforeDrain = settled.mock.calls.length;
+    secondGate.resolve();
+    await Promise.all([second, third]);
+    expect(resolvedBeforeDrain).toBe(0);
+  });
+
   it("unblocks the next start after stopTimeoutMs when stop hangs", async () => {
     vi.useFakeTimers();
     try {
@@ -185,24 +215,30 @@ describe("hotSingleton", () => {
     expect(start).toHaveBeenCalledTimes(2);
   });
 
-  it("routes stop failures to onError", async () => {
+  it("propagates explicit cleanup failures and observes hot-dispose failures", async () => {
     const error = new Error("stop boom");
     const start = vi.fn(async () => ({ id: 1 }));
     const stop = vi.fn(async () => {
       throw error;
     });
     const onError = vi.fn();
+    const hot = createMockHot();
     const singleton = hotSingleton({
       key: uniqueKey(),
       start,
       stop,
-      hot: undefined,
+      hot: hot.hot,
       onError,
     });
 
     await singleton.start();
-    await singleton.stop();
-
-    expect(onError).toHaveBeenCalledWith(error);
+    await expect(singleton.stop()).rejects.toBe(error);
+    expect(onError).not.toHaveBeenCalled();
+    await singleton.start();
+    expect(start).toHaveBeenCalledTimes(2);
+    hot.triggerDispose();
+    await flush();
+    expect(onError).toHaveBeenCalledExactlyOnceWith(error);
+    await expect(singleton.stop()).rejects.toBe(error);
   });
 });

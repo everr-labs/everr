@@ -10,14 +10,14 @@ import { type DbExecutor, db, type Transaction } from "#app/db/client.ts";
 // `add_job` writes `coalesce(run_at, now())`: a job that means "as soon as
 // possible" is dated by the database, and a skewed app node cannot schedule
 // it early or late.
-export function addWorkerJobUsing(
+export async function addWorkerJobUsing(
   executor: DbExecutor,
   identifier: string,
   payload: unknown,
   spec: TaskSpec,
-): Promise<unknown> {
-  return executor.execute(sql`
-    SELECT graphile_worker.add_job(
+): Promise<void> {
+  const result = await executor.execute<{ id: string | null }>(sql`
+    SELECT (graphile_worker.add_job(
       ${identifier},
       ${JSON.stringify(payload)}::json,
       queue_name := ${spec.queueName ?? null},
@@ -27,8 +27,11 @@ export function addWorkerJobUsing(
       priority := ${spec.priority ?? 0},
       flags := ${spec.flags ?? null},
       job_key_mode := ${spec.jobKeyMode ?? "replace"}
-    )
+    )).id AS id
   `);
+  // Graphile can return NULL under contention for a job key. Treat it as an
+  // enqueue failure so transactional callers roll back instead of losing work.
+  if (result.rows[0]?.id == null) throw new Error(`Worker job was not persisted: ${identifier}`);
 }
 
 export async function addWorkerJob(

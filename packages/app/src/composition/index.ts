@@ -14,6 +14,6 @@ export type { SessionOnboardingHookFactory } from "./onboarding";
 export type { ApplicationPages, OrganizationPage, OrganizationPageProps } from "./pages";
 export type { OrganizationPolicy, ProductPolicy } from "./policy";
 export type { TenantRetention } from "./retention";
-export type { ApplicationRuntime } from "./runtime";
+export type { ApplicationRuntime, ApplicationWorker } from "./runtime";
 export type { ApplicationStorage } from "./storage";
 export type { ProductUI, SignInFooterProps } from "./ui";

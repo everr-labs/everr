@@ -174,7 +174,7 @@ describe("organization provisioning", () => {
     const jobs = await fixture.db.execute<{ payload: unknown }>(
       sql`SELECT payload FROM graphile_worker._private_jobs`,
     );
-    expect(jobs.rows).toEqual([{ payload }]);
+    expect(jobs.rows).toEqual([{ payload: { ...payload, version: 1 } }]);
   });
 });
 
@@ -241,5 +241,27 @@ it.each(["retrying", "running", "exhausted"])(
     expect(
       (await fixture.db.execute(sql`SELECT * FROM graphile_worker._private_jobs`)).rows,
     ).toEqual(before.rows);
+  },
+);
+
+it("executes a persisted v1 payload and still accepts legacy jobs", async () => {
+  await enqueueOrganizationProvisioning(orgId);
+  const queued = await fixture.db.execute<{ payload: unknown }>(
+    sql`SELECT payload FROM graphile_worker._private_jobs`,
+  );
+  expect(queued.rows[0].payload).toEqual({ version: 1, organizationId: orgId });
+  await tasks[PROVISION_ORGANIZATION_TASK]?.(queued.rows[0].payload, {} as never);
+  expect(await ready()).toBe(true);
+  await tasks[PROVISION_ORGANIZATION_TASK]?.(payload, {} as never);
+  expect(mocks.provision).toHaveBeenCalledOnce();
+});
+
+it.each([PROVISION_ORGANIZATION_TASK, DEPROVISION_ORGANIZATION_TASK])(
+  "rejects unsupported payload versions before %s effects",
+  async (identifier) => {
+    await expect(tasks[identifier]?.({ ...payload, version: 2 }, {} as never)).rejects.toThrow();
+    expect(mocks.provision).not.toHaveBeenCalled();
+    expect(mocks.deprovision).not.toHaveBeenCalled();
+    expect(await ready()).toBe(false);
   },
 );

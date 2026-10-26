@@ -12,13 +12,13 @@ vi.mock("#app/db/client.ts", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.execute.mockResolvedValue({ rows: [] });
+  mocks.execute.mockResolvedValue({ rows: [{ id: "1" }] });
 });
 
 describe("addWorkerJob", () => {
   it("enqueues through the same statement the transactional path uses", async () => {
     const { addWorkerJob, addWorkerJobInTransaction } = await import("./jobs");
-    const tx = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+    const tx = { execute: vi.fn().mockResolvedValue({ rows: [{ id: "1" }] }) };
 
     await addWorkerJob("task", { a: 1 }, { jobKey: "k" });
     await addWorkerJobInTransaction(
@@ -57,4 +57,10 @@ describe("addWorkerJob", () => {
       "replace", // job_key_mode
     ]);
   });
+});
+
+it("rejects a null job returned under key contention", async () => {
+  const { addWorkerJob } = await import("./jobs");
+  mocks.execute.mockResolvedValueOnce({ rows: [{ id: null }] });
+  await expect(addWorkerJob("task", {})).rejects.toThrow("Worker job was not persisted: task");
 });

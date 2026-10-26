@@ -52,10 +52,11 @@ const registry = globalWithRegistry.__everrHotSingletons;
 function settleWithin(promise: Promise<unknown>, ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
-    void promise.finally(() => {
+    const settled = () => {
       clearTimeout(timer);
       resolve();
-    });
+    };
+    void promise.then(settled, settled);
   });
 }
 
@@ -77,9 +78,10 @@ export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T
     state.starting ??= (async () => {
       // A replacement must wait for the previous instance to stop; two live
       // instances would both act on the same shared resource.
-      if (state.stopping) {
-        await settleWithin(state.stopping, stopTimeoutMs);
-        state.stopping = undefined;
+      const stopping = state.stopping;
+      if (stopping) {
+        await settleWithin(stopping, stopTimeoutMs);
+        if (state.stopping === stopping) state.stopping = undefined;
       }
       return startResource();
     })();
@@ -91,18 +93,14 @@ export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T
     // oxlint-disable-next-line typescript/consistent-type-assertions -- the shared registry stores SingletonState.starting as Promise<unknown> across singletons of differing T; startResource() resolves to T by construction.
     const starting = state.starting as Promise<T> | undefined;
     state.starting = undefined;
-    if (!starting) return;
+    if (!starting) return state.stopping;
 
-    state.stopping = starting
-      .then(
-        (value) => stopResource(value),
-        () => {
-          // start() failed; there is nothing to tear down.
-        },
-      )
-      .catch((error) => {
-        onError?.(error);
-      });
+    state.stopping = starting.then(
+      (value) => stopResource(value),
+      () => {
+        // start() failed; there is nothing to tear down.
+      },
+    );
     await state.stopping;
   }
 
@@ -110,7 +108,7 @@ export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T
     hot.dispose(() => {
       // Vite does not await dispose; the next start() drains state.stopping
       // before creating the replacement, so the un-awaited stop is safe.
-      void stop();
+      void stop().catch((error) => onError?.(error));
     });
     // Self-accept so edits anywhere under this module's graph tear down the old
     // resource immediately instead of leaving it live until the next import.
@@ -118,7 +116,7 @@ export function hotSingleton<T>(options: HotSingletonOptions<T>): HotSingleton<T
     if (state.started) {
       // The module was re-evaluated after a prior run: restart. start() drains
       // any in-flight stop first, so order vs. the old module's dispose is moot.
-      void start();
+      void start().catch((error) => onError?.(error));
     }
   }
 
