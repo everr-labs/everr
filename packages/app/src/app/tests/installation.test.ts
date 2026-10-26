@@ -1,4 +1,13 @@
 // @vitest-environment node
+import { createEventPublisher } from "#app/server/events/publisher.ts";
+import {
+  userEventDefinitions,
+  organizationEventDefinitions,
+  membershipEventDefinitions,
+  membershipChanged,
+  organizationChanged,
+  type UserEvent,
+} from "#app/identity/events.ts";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { verifyPassword } from "better-auth/crypto";
@@ -11,7 +20,6 @@ import {
 } from "#app/app/installation.server.ts";
 import { createRecoveryLink } from "#app/app/recovery.server.ts";
 import * as schema from "#app/db/schema/index.ts";
-import { membershipChanged, organizationChanged, type UserEvent } from "#app/identity/events.ts";
 import { createAuthTestDatabase } from "#app/identity/testing/database.ts";
 
 const { client, database } = await createAuthTestDatabase();
@@ -237,15 +245,27 @@ it("preserves database failures in installation identity policy", async () => {
 });
 
 it.each(["throw", "reject"])(
-  "preserves committed setup when publication fails (%s)",
+  "preserves committed setup when Graphile admission fails (%s)",
   async (failure) => {
-    const publish = vi.fn(() => {
-      if (failure === "reject")
-        return Promise.reject(new Error("publisher unavailable")) as unknown as void;
-      throw new Error("publisher unavailable");
+    const enqueue = vi.fn(() => {
+      if (failure === "throw") throw new Error("Graphile unavailable");
+      return Promise.reject(new Error("Graphile unavailable"));
     });
+    const publisher = createEventPublisher({
+      routes: [
+        ...userEventDefinitions,
+        ...organizationEventDefinitions,
+        ...membershipEventDefinitions,
+      ].map((definition) => ({
+        definition,
+        job: (event) => ({ task: "test/installation", payload: event }),
+      })),
+      enqueue,
+    });
+    const publish = vi.fn(publisher.publish);
     const result = await setupWorkspace(input, database, { publish });
     expect((await database.select().from(schema.organization))[0].id).toBe(result.organizationId);
     expect(publish).toHaveBeenCalledTimes(3);
+    expect(enqueue).toHaveBeenCalledTimes(3);
   },
 );

@@ -184,7 +184,7 @@ const createOrganization = vi.fn(
 beforeEach(async () => {
   vi.clearAllMocks();
   published.length = 0;
-  publish.mockImplementation((fact) => {
+  publish.mockImplementation(async (fact) => {
     published.push(fact);
   });
   customers.clear();
