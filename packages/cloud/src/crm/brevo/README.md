@@ -1,8 +1,8 @@
 # Brevo HTTP adapter
 
-Task 06 supplies the cloud-only provider adapter, configuration validation and
-shared request permits. Tasks 07 and 08 add separately gated User/Organization/Membership consumers and runner;
-constructing the adapter makes no startup HTTP calls.
+The cloud-only provider adapter owns configuration validation, request formatting
+and shared request permits. User, Organization and Membership handlers execute
+through the separately gated CRM runner. Constructing the adapter makes no startup HTTP calls.
 The adapter emits no telemetry and never logs requests, provider bodies or errors.
 Its failure values contain only bounded local codes, HTTP status, scheduling time
 and, when available, an accepted remote ID. The transport seam permits deterministic
@@ -90,18 +90,13 @@ Only these fields and the source-owned company name are written. A company PATCH
 accepts documented 200 with a validated company body or verified 204 with no body.
 Read back with `getCompany` when current provider values are needed.
 
-The task 14 exact-record gate corrected a read-contract mismatch: Brevo returns
-its standard Company name as `attributes.name`, as in the
+Brevo returns its standard Company name as `attributes.name`, as described by the
 [Company read contract](https://developers.brevo.com/reference/get-a-company).
-The adapter normalizes it to `CompanyRecord.name`, separately from owned custom
-attributes, retaining the older top-level representation for persisted-read
-compatibility. This prevents unchanged Companies from receiving a redundant name
-PATCH during repair. Earlier custom-field/association proofs did not establish
-this standard-name readback or GET-only convergence. The task 14 canary explicitly
-checks create/name readback, rename PATCH/readback and no write after convergence.
+The adapter normalizes it to `CompanyRecord.name`, separately from custom
+attributes, and also accepts the older top-level representation in persisted reads.
+The diff uses the normalized name to avoid redundant PATCH requests.
 
-Task 10 adds only these Company attributes, all text, confirmed with isolated
-field creation (201) and inventory readback (200) on October 23, 2026:
+The three additional milestone Company attributes are also text:
 
 | Label                           | Verified internal name          | Source value                                                  |
 | ------------------------------- | ------------------------------- | ------------------------------------------------------------- |
@@ -111,14 +106,13 @@ field creation (201) and inventory readback (200) on October 23, 2026:
 
 These fields join the existing owned-field comparison and PATCH behavior. No
 Boolean activation attribute, provider creation date or subscription state stands
-in for a missing marker. No fixture records, messages, campaigns, lists,
-invitations or production configuration were changed by the task 10 field proof.
-The existing adapter CRUD/association contracts were not rerun broadly.
+in for a missing marker.
 
 Associations use explicit numeric Contact IDs and Company IDs through the
 link/unlink endpoint. They add or remove only the requested pair, without replacing
-all associations or matching email domains. The task 08 synchronizer owns mapping validation and endpoint serialization across
-replicas, with retained pair endpoints for removal and task 09 entity cleanup.
+all associations or matching email domains. The CRM handlers own mapping validation
+and endpoint serialization across replicas, retaining pair endpoints for removal
+and parent deletion cleanup.
 
 ## Errors and uncertain creates
 
@@ -129,8 +123,9 @@ successful create with a lost/malformed response is also ambiguous. If an accept
 ID was parsed before a later cooldown persistence failure, the failure carries
 `remoteId` so the handler can bind it before recovery. A Company caller must persist a
 create-attempt guard before issuing POST, retain uncertain outcomes, and never
-translate an ambiguous result into another blind POST. Task 08 persists that guard and the resumable lookup/write phase in the projection. Task 07 contacts recover through their unique external ID and
-persist any returned remote ID before retrying.
+translate an ambiguous result into another blind POST. The Organization handler
+persists that guard and its resumable lookup/write phase in the projection. Contacts
+recover through their unique external ID and retain any returned remote ID before retrying.
 
 429 returns a rate-limited outcome. Credential/schema errors remain inspectable
 permanent failures. 404 is explicit `not_found`, allowing deletion handlers to
@@ -156,22 +151,12 @@ exactly-once create guarantee, and cannot exclude later external concurrent edit
 
 ## Verification
 
-Behavioral tests cover transport/body deadlines, cancellation, classification,
+`adapter.test.ts` covers transport/body deadlines, cancellation, classification,
 credential/payload redaction, conflict handling, suppression, owned-field mapping,
-validated success variants, bounded recovery, and shared DB quota/cooldowns across
-separate store instances. Provider verification uses only isolated, clearly owned
-fixtures and records sanitized evidence. Contact IDs/external IDs and email
-suppression survived rename/email changes. Company recovery succeeded after a
-simulated lost successful POST without another create. Company PATCH/readback
-verified owned attributes, and link/unlink GETs verified explicit association
-changes. All fixture records were deleted successfully; required Everr-only custom
-fields remain in the authorized isolated account. Final aggregate reads returned
-zero companies and one preexisting contact, matching the preflight baseline.
-Email-only fixtures had SMS
-suppression false before and after, so real phone-based SMS behavior is not claimed.
-No new telemetry is introduced, so the
-publisher's earlier ingestion proof is unchanged. No UI is changed and `.auth` is
-absent, so authenticated manual app checks are skipped.
+validated success variants and bounded recovery. `budget.test.ts` checks shared
+DB quotas and cooldowns across separate store instances. `config.test.ts` checks
+mode and environment validation. These tests use controlled transport and storage;
+validate real account fields and exact records through the operations runbook.
 
 Primary contracts checked October 23, 2026: [contact creation](https://developers.brevo.com/reference/create-contact),
 [contact update](https://developers.brevo.com/reference/update-contact),
@@ -182,10 +167,3 @@ Primary contracts checked October 23, 2026: [contact creation](https://developer
 [explicit associations](https://developers.brevo.com/reference/link-and-unlink-company-with-contact-and-deal),
 [rate limits](https://developers.brevo.com/docs/api-limits), and
 [reset headers](https://developers.brevo.com/docs/limit-headers).
-
-Task 08 verified the actual source/Graphile worker slice against the isolated account:
-one Contact linked to two distinct Companies, then one pair removed while the other
-remained linked in GET readbacks. All two Company fixtures and the one Contact fixture
-were deleted using the shared request budget. No preexisting Contact was changed. Evidence:
-`.verify-everr/artifacts/task08-organization-sync/`. Company/association synchronization
-still defaults to disabled and no production configuration was changed.

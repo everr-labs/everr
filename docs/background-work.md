@@ -49,118 +49,16 @@ work to the reserved provisioning runner without revisiting its capacity.
 
 ## Best-effort event publication
 
-`server/events/runtime.ts` composes `events.publish(fact): void` from
-`ApplicationRuntime.events`. Features own typed definitions and payload
-validation; each static registration pairs one feature definition with its typed
-subscribers. Routing is derived from these registrations by event type and version.
-Self-hosted supplies no event registrations, so publication is inert. Cloud
-registers User, Organization, Membership, billing, readiness,
-and milestone CRM consumers, including parent deletion, only in configured or paused
-modes. CRM remains disabled by default.
-Paused mode persists pending work without starting its integration consumer. See
-[cloud CRM execution](../packages/cloud/src/crm/README.md#user-synchronization-and-execution)
-for fixed queue serialization, persisted retry budgets and deletion boundaries.
+The process-local event bus publishes committed facts to application-selected
+subscribers. Publication is best effort, with no outbox; consumers own durable
+admission and execution. Self-hosted registers no subscribers. Cloud selects CRM
+subscribers in configured and paused modes, and starts their worker only in
+configured mode.
 
-A producer calls publication after its source commit succeeds, using values
-already available from that operation. Publication validates the fact, constructs
-an ID and occurrence time, and schedules independent subscriber enqueue attempts in
-microtasks. A subscriber can throw or reject without preventing siblings from
-running or changing the source result. `eventRegistration` infers each
-consumer payload from its feature definition. Publication validates once through
-that definition, then copies the validated snapshot for each consumer. Persisted
-command payload validation remains separate at admission and worker execution.
-The CRM worker validates once at its coordinated raw entry, then uses that copied
-command for endpoint locks, continuations, execution and deletion cleanup. The producer
-interface has no transaction argument, and this module persists no outbox.
-
-Source injection seams normalize publishers once with `safeEventPublisher`.
-Producers call `events.publish(fact)` directly after commit. Synchronous throws and
-unexpected promise rejections from an injected port are contained and measured,
-without awaiting publication or catching source operation failures. Injected failure
-diagnostics use a fixed error message, excluding thrown payloads and response bodies.
-Each diagnostic emitter is guarded independently.
-
-Diagnostic identities remain stable for existing queries and alerts: the meter
-`everr-app.business-events`, counter `everr.business_events.publication.failures`,
-log body `business_events.publication.failed`, `everr.business_event.*` attributes,
-and shutdown hook ID `business-events` retain their established names.
-
-Features depend on `EventPublisher<FeatureEvent>` to restrict their producer input;
-the application runtime routes the broad fact interface. A feature parser receives
-fact-shaped input without publisher metadata. It must leave its input unchanged
-and return independent payload values, as Zod object schemas do. Treat facts as
-immutable: the publisher freezes each envelope and clones the validated payload
-with `structuredClone` before scheduling consumers. This preserves a producer
-snapshot and prevents one consumer from mutating another consumer's payload.
-Registration rejects duplicate consumer IDs and conflicting definitions for the
-same type and version before publication starts. A definition can have several
-consumers, or none, without requiring a second definitions catalog.
-
-At most 128 publications are in flight per publisher. Excess publications are
-dropped immediately with diagnostics rather than queued or awaited by the
-request. Normal shutdown closes publication admission and waits up to five seconds
-before stopping workers, then flushing telemetry. A timed-out enqueue may settle
-later and still has rejection handling; hard termination can lose accepted facts
-and diagnostics. Constructor configuration errors remain startup errors.
-
-Failures emit `business_events.publication.failed` and increment
-`everr.business_events.publication.failures` (unit `1`). Failure stages are
-`publication` (an injected port failure), `validation`, `envelope`, `subscriber`,
-`overload`, `closed`, and `drain`. Counter
-attributes are only the registered event type (or `unknown`), static subscriber ID
-(or `publisher`), and stage, under `everr.business_event.*`. IDs and exception
-attributes belong on logs. Payload validation errors are redacted before logging;
-subscribers must keep secrets and contact payloads out of exception messages.
-Logger and counter failures are guarded independently and never recurse.
-
-This best-effort path is for ancillary consumers. Existing transactional worker
-commands below retain their current failure and durability guarantees. Retries
-begin only once a subscriber successfully persists its own Graphile job. Feature
-cloud consumers persist their own latest-state CRM commands independently.
-
-Shared identity uses `identityLifecycleAdapter` around the provider persistence
-adapter. It reuses the real root transaction, retains cloud billing and
-provisioning wrappers inside nested Better Auth transactions, and publishes facts
-only after that root transaction resolves. Better Auth 1.6.33 database after-hooks
-also run after rollback, so they do not establish commit success. Workspace setup
-publishes its three inserted identities after its setup transaction commits.
-Onboarding publishes its Organization update after the standalone statement
-returns successfully.
-
-Organization subjects and payloads contain the stable Organization ID. Membership
-subjects are the persisted `member.id`; their payloads retain that Membership ID,
-Organization ID, and User ID before removal. Row locks serialize captures, and
-Organization and Membership predicates are revalidated after acquiring those
-locks. Invitation acceptance, role updates, direct member removal, and leave
-therefore describe actual persisted relationships, including a User belonging to
-several Organizations.
-
-Parent deletion is a cleanup contract: `identity.user.deleted` requires cleanup
-of that User's remote associations and contact; `organization.deleted` requires
-cleanup of that Organization's remote associations and company. Future consumers
-must use parent IDs and durable remote mappings even when source rows have gone.
-Database cascades do not invent individual `membership.removed` facts. Better
-Auth explicitly deletes Membership rows before deleting an Organization, so those
-real deletes publish captured relationship facts in the same commit.
-
-Better Auth currently commits an Organization insert separately from its creator
-Membership insert. If the latter fails, the Organization and its creation fact
-remain committed. Cloud provisioning intent stays atomic with the Organization
-row. An explicit source transaction rollback discards all its captured facts;
-a publication failure never changes the committed source result.
-
-Cloud billing publishes `billing.subscription.changed` after an accepted provider
-revision commits in `saveSubscription`. Its conditional Plan upsert publishes
-`organization.plan.changed` only for an actual Hobby-to-Pro transition. Inactive
-Pro subscriptions retain their Pro Plan and can independently suspend app access.
-A Hobby downgrade publishes captured Membership removals and its Pro-to-Hobby
-Plan transition after the local transaction, even if subsequent external billing
-reconciliation fails. The retained Owner has no fabricated update. Direct owner
-Membership repair publishes after its standalone insert succeeds, before later
-checkout steps. The provisioning runner publishes shared `organization.provisioned`
-only when its guarded pending-to-ready update returns a row; retries and concurrent
-attempts that transition no row publish nothing. These ancillary facts preserve
-critical provisioning enqueue, cleanup, billing verification, and lock behavior.
+See the [event bus guide](event-bus.md) for the complete emitted-event catalog,
+producer boundaries, delivery guarantees, diagnostics, and examples of adding
+subscribers and worker handlers. Critical commands that must commit with source
+state continue to use the transactional enqueue path described below.
 
 ## Facts and effects already present
 
@@ -261,7 +159,7 @@ private publisher. Provisioning, usage bytes, keys and billing do not activate a
 Organization. Dashboards, other
 details, aggregates, preloads/refetches and cached actions without a read remain
 unobserved. Historical actions lost before marker persistence remain unknown.
-See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths-task-11)
+See [supported completion paths](../packages/cloud/src/organizations/README.md#supported-completion-paths)
 for the grammar, provenance and scripted-request limits.
 
 Bootstrap and periodic repair admit current-state commands through short

@@ -7,6 +7,7 @@ Environment validation alone does not prove schema, fields or the deployed build
 
 This module stores desired CRM state and includes cloud-only User, Organization and
 Membership consumers, an independent integration runner and the [Brevo adapter and request budgets](brevo/README.md).
+The [event bus guide](../../../../docs/event-bus.md) catalogs emitted facts and explains subscriber registration.
 The integration is disabled by default and makes no startup provider calls. Cloud's schema entry point exports
 `crmProjection`; the shared and self-hosted schema/composition do not import it.
 Only schema source changes are included, with no generated migration artifacts.
@@ -259,22 +260,6 @@ can open one new cleanup revision. Duplicate or older repair commands cannot res
 pending, blocked or exhausted allowances. These checks also repair remote creates
 accepted after an earlier cleanup observed 404.
 
-Task 09 verification passed 33 related PostgreSQL/Graphile cases, 13 existing User
-cases and 60 focused CRM cases. The isolated provider proof under
-`.verify-everr/artifacts/task09-deletion-cleanup/` used the coordinated handlers to
-create and delete one Contact and one Company, then verified remote 404 responses
-and retained tombstones. Four general and five contact requests used the existing
-shared budgets. All provider fixtures were removed. Existing diagnostics are reused
-without new telemetry fields or metrics; production ingestion remains unverified.
-`.auth` is absent, so authenticated manual app checks were skipped.
-
-Independent task 09 standards/spec review found no material issues requiring code
-changes. All 60 focused CRM tests, cloud TypeScript and scoped lint/format checks
-passed independently. Review checked source changes after orphan paging, exact
-completed-revision rechecks, retained blocked/exhausted allowances and destructive
-ownership checks. Existing PostgreSQL/Graphile and provider evidence remains
-applicable; review made no provider calls or telemetry changes.
-
 ## Telemetry
 
 The existing application OTel provider exports `crm.user.sync`, `crm.organization.sync`
@@ -292,50 +277,26 @@ URL returned by `everr local status`. For a selected remote installation, set
 key, leave the unauthenticated `OTEL_EXPORTER_OTLP_ENDPOINT` override unset, restart
 the app, then query its logs/metrics with `everr cloud query`. CRM activation separately requires validated `CRM_BREVO_MODE`,
 `CRM_BREVO_API_KEY`, `CRM_BREVO_DEPLOYMENT` and `CRM_BREVO_ACCOUNT_SCOPE`, plus prepared
-schema/provider fields. Production activation remains gated by tasks 01 through 15;
-this task changed no production configuration and generated/applied no migrations.
+schema/provider fields. Follow the operations runbook before enabling a target deployment;
+local verification does not prove production ingestion.
 
-## Checks
+## Verification
 
-`projection.test.ts` runs snapshot and storage behavior against disposable PGlite,
-including the new schema source's columns, constraints and unique indexes. It
-covers latest identity fields, deployment separation, several Organizations,
-Plan/access/readiness distinctions, unknown billing products, deleted sources,
-Membership re-addition, unchanged snapshots, reordered object keys, stale revisions, retained remote
-IDs and outcome transitions. `user-sync.integration.test.ts` uses an explicitly
-supplied disposable `EVERR_IDENTITY_TEST_DATABASE_URL` for real PostgreSQL/Graphile
-job persistence, two-runner HTTP ordering, stale/deleted sources, auth success on
-enqueue rejection, payload validation, quota/pause budgets, exhaustion and native
-retry after failed successor insertion. Provider transport is controlled in these
-worker tests; task 06's isolated-provider proof covers the actual contact contract.
-Worker lifecycle tests cover separate capacity, pause, startup rollback and shutdown.
+`projection.test.ts` exercises readers and store behavior with disposable PGlite:
+identity separation, Plan/access/readiness, stable snapshots, source deletion,
+Membership re-addition, retained mappings and revision guards.
+`user-sync.integration.test.ts` and `related-sync.integration.test.ts` exercise
+PostgreSQL/Graphile admission, source races, endpoint coordination, durable retry
+budgets, deletion, resumable bootstrap and reconciliation. Real PostgreSQL cases
+require `EVERR_IDENTITY_TEST_DATABASE_URL` pointing to a disposable database.
+Run database suites sequentially against separate empty databases because their
+fixtures create and remove the same table names. Provider transport in these
+suites is controlled; passing them does not validate a real Brevo account.
 
-Task 07's isolated Everr proof created a real Better Auth User/account despite a
-rejected cloud enqueue, then observed a persisted adapter 500 retry followed by
-success after its full 60-second delay. Local evidence is under
-`.verify-everr/artifacts/task07-user-sync/`; marker
-`task07-b8bbf282-4344-4655-acd6-efe0028ff9c9` correlates the one enqueue exception
-with the separate `-retry` job's retry/success logs. Counters and lag histogram
-were queried from the same isolated collector. No real Brevo fixtures were needed
-for this increment. `.auth` is absent, so authenticated manual app checks were
-skipped; there is no UI change. Production ingestion remains unverified.
-
-Task 08 adds 18 real PostgreSQL/Graphile checks for multi-company relationships, multiple
-Owners, source changes, pair re-addition/removal, partial link failures, durable Company
-intent/read phases, pause/quota refunds, bounded admission, two-runner parent coordination,
-lock-session loss, native successor-insertion failure and accepted-create binding failure.
-The actual isolated provider proof and new log/metric ingestion evidence are under
-`.verify-everr/artifacts/task08-organization-sync/`. It linked one Contact to two Companies,
-removed one pair, read both back, and deleted its two Companies plus one Contact. The proof
-exposed eager fanout amplification; the final code coalesces admissions and delays fanout,
-verified by the PostgreSQL bounded-job regression. Provider/telemetry evidence was preserved
-without another provider run. Production activation/ingestion remain unverified; `.auth` is absent, so authenticated manual app checks were skipped.
-
-Independent task 08 review fixed a derived dependency block that otherwise prevented an
-unchanged pair from resuming after parent recovery. All 19 related PostgreSQL/Graphile
-cases, 13 existing User integration cases and 59 focused CRM cases passed independently,
-along with the cloud TypeScript check and scoped formatting/lint checks. The existing
-provider and ingestion evidence remains applicable; review made no provider calls.
+Task-list and worker lifecycle tests cover registration, capacity, pause, startup
+rollback and shutdown. For real provider validation, use only owned disposable
+fixtures and the field/readback gates in the operations runbook. Verify diagnostic
+ingestion in the intended Everr installation after exercising the matching build.
 
 ## Resumable bootstrap
 
@@ -395,15 +356,14 @@ Disabled mode exits unsuccessfully before creating a checkpoint or jobs.
 A scan is not a globally consistent source snapshot. Live updates/deletions before
 execution are resolved by authoritative worker reads. Concurrent inserts behind a
 completed cursor, or updates after successful worker execution whose notification
-was lost, require an explicit subsequent scan or task 13 reconciliation. No
-periodic scheduler is introduced here. Counts describe admissions, including
+was lost, require an explicit subsequent scan or periodic reconciliation. Bootstrap
+does not schedule later scans itself. Counts describe admissions, including
 coalesced duplicates and retained mappings, rather than unique provider writes.
 
 The PostgreSQL/Graphile suite covers bounded pages, resume/repeat, atomic rollback,
 NULL receipts, cancellation, concurrent commands, inserts behind cursors, live
 source changes, durable quota deferral and unchanged blocked/exhausted allowances.
-No new telemetry fields or metrics are introduced; existing sync diagnostics apply.
-`.auth` is absent and authenticated app checks are skipped.
+Existing sync diagnostics apply to admitted work.
 
 The CLI deliberately emits one fixed failure message without raw database errors
 or configuration values. On failure, check the required bounds and `--new-scan`
@@ -416,12 +376,6 @@ Do not reset blocked projections, Company-create intent or retry counters to mak
 a bootstrap appear complete. Operational errors require inspection and a rerun
 from committed progress. The runtime is the package's `tsx` script, not direct
 Node execution of extensionless TypeScript imports.
-
-Independent task 12 review added a final cancellation check before page commit,
-covering signals received during the last admission or checkpoint query. All 46
-related PostgreSQL/Graphile cases and 61 focused CRM cases passed independently,
-alongside cloud TypeScript and scoped lint/format checks. Existing isolated-provider
-proof remains applicable; review made no provider calls or telemetry changes.
 
 ## Periodic current-state reconciliation
 
@@ -534,14 +488,3 @@ This gauge is not the total historical age of every lost event or backlog item.
 It is sampled by configured periodic executions, including backlog deferral.
 Paused runners emit no periodic samples. Existing local/remote exporter activation
 instructions above apply unchanged; production ingestion remains unverified.
-
-Task 13 evidence is retained under
-`.verify-everr/artifacts/task13-periodic-reconciliation/`. The implementation adds
-current-state/remote-drift, missing mapping, cycle deduplication, resumability,
-concurrency, quota, mode and guarded operator recovery checks. Isolated Everr
-queries prove fresh progress, drift, missing-record/failure logs and the new
-counter/gauge. The actual recovery CLI was exercised in paused and disabled modes.
-Task 12's isolated Contact/two-Company proof continues to establish the unchanged
-provider CRUD/link contract; no real provider records were created for task 13.
-`.auth` is absent, so authenticated manual app checks are skipped. No UI changed,
-no application migration was generated/applied, and production remains disabled.

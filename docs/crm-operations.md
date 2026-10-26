@@ -13,8 +13,8 @@ change. Configuration validation checks environment values only. It performs no
 startup HTTP and does not verify database schema, provider fields, credentials,
 permissions, account identity or the deployed build.
 
-1. Confirm the target build includes tickets 01 through 14 and its targeted checks
-   pass. Task 15 belongs to `everr-deploy`; application commits do not deploy it.
+1. Confirm the target application build and its targeted checks pass. Deployment
+   configuration belongs to `everr-deploy` and must match that build.
 2. Have the schema changes reviewed and delivered through the normal migration
    process before starting this build against the target database. No application
    migration was generated or applied by the CRM implementation. Cloud needs the
@@ -196,7 +196,7 @@ blocked/exhausted without provider requests.
 Current User/Organization/pair state, stored milestones, deleted sources and
 remote owned-field/association drift are repaired through normal coordinated
 handlers. Completed desired revision plus per-cycle `remote_check_id` prevents
-same-cycle duplicate checks or allowance resets. Fingerprint equality alone is not
+same-cycle duplicate checks or allowance resets. An unchanged local snapshot is not
 a remote drift check. Mapped remote 404s are detected and blocked, never recreated
 automatically. Unknown historical facts and observations are not reconstructed.
 
@@ -280,7 +280,7 @@ existing backlog and account quota. Watch publication failures, blocked/exhauste
 work, lag, missing mappings and progress while comparing exact owned records.
 Repeat field-clearing and suppression checks in the target. Expand admission only
 after the actual evidence is satisfactory. Record approved target values and
-application evidence in task 15; do not include campaign delivery.
+application evidence in the deployment change; campaign delivery requires its own design.
 
 For a pause/rollback, set paused and restart all replicas, drain existing HTTP and
 preserve database mappings, tombstones, checkpoint and budget state. Source
@@ -290,6 +290,3 @@ or restore an older writer that cannot safely read current persisted task/state
 formats. Prefer rolling forward with the integration paused. Resuming does not
 repair an unsupported mapping replacement or unblock ordinary permanent failures.
 No rollback can retract a provider request already accepted.
-
-Verification and remaining gates are recorded in
-[ticket 14](../todo/issues/brevo-crm/tickets/14-operational-readiness.md).

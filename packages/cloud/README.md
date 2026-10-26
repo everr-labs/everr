@@ -205,3 +205,7 @@ transaction, and owner Membership repair facts follow their standalone insert.
 Provisioning publishes readiness only for a guarded pending-to-ready update that
 returns a row. Publication is fire and forget and preserves the existing billing
 locks, provider checks, critical provisioning jobs, and cleanup guarantees.
+
+See the internal [event bus guide](../../docs/event-bus.md) for emitted facts and
+subscriber registration, and the [CRM operations runbook](../../docs/crm-operations.md)
+for configuration, admission and recovery.

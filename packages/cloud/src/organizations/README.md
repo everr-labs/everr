@@ -4,14 +4,13 @@ The shared product contract lives in `@everr/app/organizations/consultations`.
 Cloud owns activation qualification, milestone event definitions and `organization_milestones`; query modules depend only on
 the server completion capability in `server/organizations/consultations.ts`.
 Self-hosted has a no-op capability and no milestone table, CRM dependency or new
-configuration. Task 10 supplies this capability. Task 11 observes the narrow
-trace-detail actions listed below; other reads remain unobserved.
+configuration. Only the trace-detail actions listed below are observed.
 
 ## Evidence and authorization
 
 Only trusted server completion code may construct `TraceConsultation`. Never
 deserialize a request/browser claim into this authority or expose a marker-write
-endpoint. Task 11 must derive Organization scope from the authenticated action
+endpoint. Completion code derives Organization scope from the authenticated action
 and provenance/usefulness from the completed read, not from a browser assertion
 or the fact that an arbitrary SQL result is nonempty.
 
@@ -53,18 +52,18 @@ Both milestone times are the server time captured at observation admission after
 successful completion, before asynchronous persistence. A customer telemetry
 Timestamp is not accepted. `observer_started_at` records capability construction
 in the process that won the first insertion. It is a process coverage bound,
-not a claim that all earlier actions or all surfaces were observed. Task 10 alone had
-no live action coverage. The supported task 11 completion paths begin observing
+not a claim that all earlier actions or all surfaces were observed. Supported
+completion paths begin observing
 only when deployed; observations lost before admission/commit and historical
 actions remain unknown. A later valid consultation can establish a later observed
 date, but cannot reconstruct a lost earlier first-value date.
 
-Cloud constructs the capability independently of Brevo mode. After task 11 wiring,
-markers continue while CRM is disabled or paused. Disabled CRM has no outbound
+Cloud constructs the capability independently of Brevo mode. Markers continue
+while CRM is disabled or paused. Disabled CRM has no outbound
 subscribers; paused CRM retains admitted consumer work. Neither condition changes
 the product rule or marker. Latest Company snapshots read stored dates/version in
 their committed view, repairing current fields after a lost fact through later
-source notifications or the planned reconciliation. They do not replay historical
+source notifications or periodic reconciliation. They do not replay historical
 facts. Missing markers produce null snapshot fields and empty provider text, not
 false activation or dates derived from Organization creation, usage or billing.
 
@@ -89,19 +88,14 @@ credentials, profiles or exception messages are logged. Logger and counter error
 are guarded independently, including rejected promises.
 
 For local development set `OTEL_EXPORTER_OTLP_ENDPOINT` to the local collector's
-reported OTLP origin. The isolated proof sets its own service identity and exports
-logs/metrics to an owned collector. Remote activation uses the app's existing
+reported OTLP origin. Verify logs and metrics in that installation after exercising
+the matching build. Remote export uses the app's existing
 `EVERR_INGEST_ENDPOINT` and `EVERR_INGEST_KEY`, with
 `DEPLOYMENT_ENVIRONMENT` describing the application environment. Explicit
 `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence and does not use the Everr key.
-No exporter, production configuration or production activation was added.
+These diagnostics reuse the existing exporter configuration.
 
-The task 10 isolated proof queried eight fresh failure logs across all seven
-stages and the matching counter with only the bounded attribute and unit `1`.
-Evidence is retained under `.verify-everr/artifacts/task10-activation-milestones/`.
-Production ingestion remains unverified.
-
-## Supported completion paths (task 11)
+## Supported completion paths
 
 The module at `packages/app/src/server/organizations/consultation-completion.ts`
 inspects successful results synchronously, without additional SQL, Membership
@@ -189,11 +183,5 @@ Unexpected evidence-inspection/observer failures emit
 `everr.consultation.failure_stage = completion` through the existing server logger.
 Logger failure is also contained. There is no SQL, result, trace ID, customer
 attribute or exception text in this signal. Marker-stage logs/counters above
-remain unchanged. The task 11 isolated proof retained three durable markers from
-actually OTLP-ingested trace rows, six once-only milestone facts, one unchanged
-unknown Organization and one fresh sanitized failure log queried through Everr.
-It exercised the completion seam with fixture authorization and a disposable
-embedded PostgreSQL database, not an authenticated HTTP/browser journey. `.auth`
-was absent, so the authenticated manual app check was skipped. Evidence lives in
-`.verify-everr/artifacts/task11-query-value-observations/`; production remains
-unverified and no application migration was generated or applied.
+remain unchanged. See the [event bus guide](../../../../docs/event-bus.md) for the
+milestone fact payloads, publication guarantees and subscriber registration.
