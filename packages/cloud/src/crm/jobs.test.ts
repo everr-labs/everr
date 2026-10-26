@@ -1,172 +1,133 @@
 // @vitest-environment node
 import { expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
-import type { EventRegistration } from "@everr/app/composition";
 import { userCreated } from "@everr/app/identity/events";
-import {
-  userSyncSubscribers,
-  organizationSyncSubscribers,
-  membershipSyncSubscribers,
-} from "./jobs";
+import { crmEventRoutes } from "./jobs";
 import { userSyncSpec, relatedSyncSpec } from "./commands";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
 
-function publisher(registrations: readonly EventRegistration[]) {
-  const diagnostics = vi.fn();
-  return { ...createEventPublisher({ registrations, diagnostics }), diagnostics };
-}
+const userTypes = [
+  "identity.user.created",
+  "identity.user.updated",
+  "identity.email.verified",
+  "identity.user.deleted",
+];
+const organizationTypes = [
+  "organization.created",
+  "organization.updated",
+  "organization.deleted",
+  "billing.subscription.changed",
+  "organization.plan.changed",
+];
+const membershipTypes = ["membership.added", "membership.updated", "membership.removed"];
 
-it("registers cloud lifecycle consumers while disabled mode remains inert", () => {
-  expect(userSyncSubscribers("disabled")).toEqual([]);
-  const consumers = userSyncSubscribers("paused");
-  expect(consumers.map((consumer) => consumer.definition.type)).toEqual([
-    "identity.user.created",
-    "identity.user.updated",
-    "identity.email.verified",
-    "identity.user.deleted",
-  ]);
-  expect(
-    new Set(Array.from({ length: 1000 }, (_, id) => userSyncSpec(String(id)).queueName)).size,
-  ).toBeLessThanOrEqual(64);
-  expect(userSyncSpec("same")).toEqual(userSyncSpec("same"));
-});
-
-it("contains malformed subjects and enqueue failures at the real publication seam", async () => {
-  const enqueue = vi.fn(async () => {
-    throw new Error("enqueue unavailable");
-  });
-  const events = publisher(userSyncSubscribers("configured", enqueue));
-  events.publish({ ...userCreated("u", false), subjectId: "other" });
-  events.publish(userCreated("u", false));
-  await events.stop();
-  expect(enqueue).toHaveBeenCalledOnce();
-  expect(events.diagnostics.mock.calls.map(([failure]) => failure.error.message)).toEqual([
-    "Invalid CRM user subject.",
-    "enqueue unavailable",
-  ]);
-  expect(enqueue).toHaveBeenCalledWith(
-    "crm/sync-user",
-    expect.objectContaining({ userId: "u" }),
-    expect.objectContaining({ maxAttempts: 8 }),
-  );
-});
-
-it.each(["configured", "paused"] as const)(
-  "routes Organization and Membership facts through their own consumers in %s mode",
-  async (mode) => {
-    expect(organizationSyncSubscribers("disabled")).toEqual([]);
-    expect(membershipSyncSubscribers("disabled")).toEqual([]);
-    const enqueue = vi.fn(async () => undefined);
-    const organizations = organizationSyncSubscribers(mode, enqueue);
-    const memberships = membershipSyncSubscribers(mode, enqueue);
-    expect(organizations.map((consumer) => consumer.definition.type).sort()).toEqual(
-      [
-        "organization.created",
-        "organization.updated",
-        "organization.deleted",
-        "organization.provisioned",
-        "billing.subscription.changed",
-        "organization.plan.changed",
-        "telemetry.first_queryable",
-        "organization.activated",
-      ].sort(),
-    );
-    expect(memberships.map((consumer) => consumer.definition.type).sort()).toEqual(
-      ["membership.added", "membership.updated", "membership.removed"].sort(),
-    );
-    for (const consumer of [...organizations, ...memberships])
-      expect(consumer.subscribers[0].id).toBe(`crm.brevo.${consumer.definition.type}`);
-    const events = publisher([...organizations, ...memberships]);
-    events.publish({
-      type: "organization.updated",
-      version: 1,
-      subjectId: "org",
-      data: { organizationId: "org" },
-    });
-    events.publish({
-      type: "membership.removed",
-      version: 1,
-      subjectId: "row-old",
-      data: { membershipId: "row-old", organizationId: "org", userId: "user" },
-    });
-    await events.stop();
-    expect(enqueue).toHaveBeenCalledTimes(2);
-    expect(enqueue).toHaveBeenCalledWith(
-      "crm/sync-organization",
-      expect.objectContaining({
-        kind: "organization",
-        organizationId: "org",
-        eventType: "organization.updated",
-      }),
-      relatedSyncSpec("org"),
-    );
-    expect(enqueue).toHaveBeenCalledWith(
-      "crm/sync-membership",
-      expect.objectContaining({
-        kind: "membership",
-        userId: "user",
-        organizationId: "org",
-        eventType: "membership.removed",
-      }),
-      relatedSyncSpec("org", "user"),
-    );
+it("selects exactly the 12 CRM triggers and leaves disabled mode inert", () => {
+  expect(crmEventRoutes("disabled")).toEqual([]);
+  for (const mode of ["configured", "paused"] as const) {
     expect(
-      new Set(Array.from({ length: 1000 }, (_, id) => relatedSyncSpec(String(id)).queueName)).size,
-    ).toBeLessThanOrEqual(64);
+      crmEventRoutes(mode)
+        .map(({ definition }) => definition.type)
+        .sort(),
+    ).toEqual([...userTypes, ...organizationTypes, ...membershipTypes].sort());
+  }
+});
+
+it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
+  "directly admits the correct Graphile job for %s",
+  async (type) => {
+    const enqueue = vi.fn(async () => {});
+    const diagnostics = vi.fn();
+    const events = createEventPublisher({ routes: crmEventRoutes("paused"), enqueue, diagnostics });
+    const isUser = userTypes.includes(type);
+    const isMember = membershipTypes.includes(type);
+    const data = isUser
+      ? { userId: "u", ...(type === "identity.user.created" ? { emailVerified: false } : {}) }
+      : isMember
+        ? { membershipId: "m", organizationId: "o", userId: "u" }
+        : {
+            organizationId: "o",
+            ...(type === "billing.subscription.changed" ? { subscriptionId: "s" } : {}),
+            ...(type === "organization.plan.changed" ? { previousPlan: "hobby", plan: "pro" } : {}),
+          };
+    await events.publish({
+      type,
+      version: 1,
+      subjectId: isUser ? "u" : isMember ? "m" : "o",
+      data,
+    });
+    expect(diagnostics).not.toHaveBeenCalled();
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith(
+      isUser ? "crm/sync-user" : isMember ? "crm/sync-membership" : "crm/sync-organization",
+      {
+        version: 1,
+        eventId: expect.any(String),
+        eventType: type,
+        occurredAt: expect.any(String),
+        ...(isUser
+          ? { userId: "u" }
+          : isMember
+            ? { kind: "membership", organizationId: "o", userId: "u" }
+            : { kind: "organization", organizationId: "o" }),
+      },
+      isUser ? userSyncSpec("u") : relatedSyncSpec("o", isMember ? "u" : undefined),
+    );
   },
 );
 
-it("rejects mismatched Organization and Membership subjects before enqueue", async () => {
-  const enqueue = vi.fn(async () => undefined);
-  const events = publisher([
-    ...organizationSyncSubscribers("configured", enqueue),
-    ...membershipSyncSubscribers("configured", enqueue),
-  ]);
-  events.publish({
+it.each(["organization.provisioned", "telemetry.first_queryable", "organization.activated"])(
+  "does not create a CRM job for %s",
+  async (type) => {
+    const enqueue = vi.fn(async () => {});
+    await createEventPublisher({ routes: crmEventRoutes("configured"), enqueue }).publish({
+      type,
+      version: 1,
+      subjectId: "o",
+      data: { organizationId: "o" },
+    });
+    expect(enqueue).not.toHaveBeenCalled();
+  },
+);
+
+it("contains mismatched subjects and Graphile failures without changing committed source results", async () => {
+  const diagnostics = vi.fn();
+  const enqueue = vi.fn(async () => {
+    throw new Error("enqueue unavailable");
+  });
+  const events = createEventPublisher({
+    routes: crmEventRoutes("configured"),
+    enqueue,
+    diagnostics,
+  });
+  await events.publish({ ...userCreated("u", false), subjectId: "other" });
+  await events.publish({
     type: "organization.updated",
     version: 1,
     subjectId: "other",
-    data: { organizationId: "org" },
+    data: { organizationId: "o" },
   });
-  events.publish({
-    type: "membership.updated",
+  await events.publish({
+    type: "membership.removed",
     version: 1,
     subjectId: "other",
-    data: { membershipId: "row", organizationId: "org", userId: "user" },
+    data: { membershipId: "m", organizationId: "o", userId: "u" },
   });
-  await events.stop();
-  expect(enqueue).not.toHaveBeenCalled();
-  expect(events.diagnostics).toHaveBeenCalledTimes(2);
+  await expect(events.publish(userCreated("u", false))).resolves.toBeUndefined();
+  expect(enqueue).toHaveBeenCalledOnce();
+  expect(diagnostics.mock.calls.map(([failure]) => failure.error.message)).toEqual([
+    "Invalid CRM user subject.",
+    "Invalid CRM organization subject.",
+    "Invalid CRM membership subject.",
+    "enqueue unavailable",
+  ]);
 });
 
-it("admits deletion facts using only retained source identities in paused mode", async () => {
-  const enqueue = vi.fn(async () => undefined);
-  const events = publisher([
-    ...userSyncSubscribers("paused", enqueue),
-    ...organizationSyncSubscribers("paused", enqueue),
-  ]);
-  events.publish({
-    type: "identity.user.deleted",
-    version: 1,
-    subjectId: "gone-user",
-    data: { userId: "gone-user" },
-  });
-  events.publish({
-    type: "organization.deleted",
-    version: 1,
-    subjectId: "gone-org",
-    data: { organizationId: "gone-org" },
-  });
-  await events.stop();
-  expect(enqueue).toHaveBeenCalledTimes(2);
-  expect(enqueue).toHaveBeenNthCalledWith(
-    1,
-    "crm/sync-user",
-    expect.objectContaining({
-      userId: "gone-user",
-      eventType: "identity.user.deleted",
-    }),
-    userSyncSpec("gone-user"),
-  );
+it("preserves stable job keys and the bounded Graphile queue partitions", () => {
+  for (const spec of [userSyncSpec, relatedSyncSpec]) {
+    expect(spec("same")).toEqual(spec("same"));
+    expect(
+      new Set(Array.from({ length: 1000 }, (_, id) => spec(String(id)).queueName)).size,
+    ).toBeLessThanOrEqual(64);
+  }
+  expect(relatedSyncSpec("o", "u").jobKey).not.toBe(relatedSyncSpec("o", "other").jobKey);
 });

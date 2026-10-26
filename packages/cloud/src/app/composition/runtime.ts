@@ -1,19 +1,11 @@
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
-import {
-  userSyncSubscribers,
-  organizationSyncSubscribers,
-  membershipSyncSubscribers,
-} from "../../crm/jobs";
+import { crmEventRoutes } from "../../crm/jobs";
 
 const crmConfig = readBrevoConfig(process.env);
 
 export const runtime: ApplicationRuntime = {
-  events: [
-    ...userSyncSubscribers(crmConfig.mode),
-    ...organizationSyncSubscribers(crmConfig.mode),
-    ...membershipSyncSubscribers(crmConfig.mode),
-  ],
+  events: crmEventRoutes(crmConfig.mode),
   async migrateDatabase(database) {
     const { migrateDatabase } = await import("../migrations");
     return migrateDatabase(database);

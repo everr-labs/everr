@@ -119,6 +119,41 @@ async function loadRuntime(mode = "disabled") {
 }
 
 describe("worker runtime", () => {
+  it.each(["configured", "paused", "disabled"])(
+    "publishes readiness and milestone facts without CRM admission or diagnostics in %s mode",
+    async (mode) => {
+      await loadRuntime(mode);
+      const { runtime: composition } = await import("./app/composition/runtime");
+      const { createEventPublisher } = await import("@everr/app/server/events/publisher");
+      const excluded = [
+        "organization.provisioned",
+        "telemetry.first_queryable",
+        "organization.activated",
+      ];
+      expect(composition.events).toHaveLength(mode === "disabled" ? 0 : 12);
+      for (const type of excluded) {
+        const registration = composition.events.find(({ definition }) => definition.type === type);
+        expect(registration).toBeUndefined();
+      }
+      const diagnostics = vi.fn();
+      const events = createEventPublisher({ routes: composition.events, diagnostics });
+      for (const type of excluded) {
+        await events.publish({
+          type,
+          version: 1,
+          subjectId: "org",
+          data: {
+            organizationId: "org",
+            ...(type === "organization.provisioned"
+              ? {}
+              : { ruleVersion: 1, observedAt: "2026-10-26T12:00:00.000Z" }),
+          },
+        });
+      }
+      expect(diagnostics).not.toHaveBeenCalled();
+    },
+  );
+
   it("reserves a third runner with one independent CRM execution slot", async () => {
     const runtime = await loadRuntime("configured");
     await runtime.startWorkerRuntime();
@@ -153,16 +188,12 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
   });
 
-  it("pauses consumption while retaining cloud subscribers to preserve pending facts", async () => {
+  it("pauses consumption while retaining CRM routes to preserve pending facts", async () => {
     const runtime = await loadRuntime("paused");
     await runtime.startWorkerRuntime();
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const { runtime: composition } = await import("./app/composition/runtime");
-    expect(
-      composition.events
-        .flatMap((registration) => registration.subscribers)
-        .some((subscriber) => subscriber.id.startsWith("crm.brevo.")),
-    ).toBe(true);
+    expect(composition.events).toHaveLength(12);
     expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
       true,
     );

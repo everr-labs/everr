@@ -50,7 +50,8 @@ work to the reserved provisioning runner without revisiting its capacity.
 
 The event publisher maps committed facts to application-selected
 Graphile jobs directly. Publication awaits admission and contains enqueue failures,
-with no outbox; Graphile owns durable execution. Self-hosted and Cloud currently configure no ancillary routes.
+with no outbox; Graphile owns durable execution. Self-hosted configures no ancillary routes. Cloud selects CRM routes in configured
+and paused modes; only configured mode starts their worker.
 Publication becomes active when a composition selects a concrete consumer.
 
 See the [event bus guide](event-bus.md) for the complete emitted-event catalog,

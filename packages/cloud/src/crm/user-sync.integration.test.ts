@@ -34,7 +34,7 @@ import { crmProjection } from "../db/schema/crm";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
 import { USER_SYNC_TASK, userSyncSpec, userSyncPayload, type UserSyncPayload } from "./commands";
-import { userSyncSubscribers } from "./jobs";
+import { crmEventRoutes } from "./jobs";
 import { createUserSyncTask } from "./user-sync";
 import { createDeletionCleanup } from "./deletion";
 import { coordinateCrmTask } from "./coordination";
@@ -201,11 +201,11 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       const enqueue = async (name: string, body: unknown, spec = {}) =>
         addWorkerJobUsing(fixture.database, name, body, spec);
       const publisher = createEventPublisher({
-        registrations: userSyncSubscribers("configured", enqueue),
+        routes: crmEventRoutes("configured"),
+        enqueue,
         diagnostics() {},
       });
-      publisher.publish(userCreated("u", false));
-      await publisher.stop();
+      await publisher.publish(userCreated("u", false));
       expect((await fixture.client.query("SELECT id FROM graphile_worker.jobs")).rows).toHaveLength(
         1,
       );
@@ -217,15 +217,16 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       await start(task(remote));
       await until(async () => (await store.read(key))?.outcome === "synced");
       expect(remote.updateContact.mock.calls[0][0].fields.email).toBe("latest@example.test");
-      expect(userSyncSubscribers("disabled", enqueue)).toEqual([]);
+      expect(crmEventRoutes("disabled")).toEqual([]);
     });
 
     it("keeps actual committed auth signup successful when the cloud consumer rejects enqueue", async () => {
       const log = vi.fn();
       const publisher = createEventPublisher({
-        registrations: userSyncSubscribers("configured", async () => {
+        routes: crmEventRoutes("configured"),
+        enqueue: async () => {
           throw new Error("enqueue unavailable");
-        }),
+        },
         diagnostics: log,
       });
       const auth = createIdentityTestAuth(fixture.database, publisher);
@@ -236,7 +237,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
           password: "task07-password-long-enough",
         },
       });
-      await publisher.stop();
       expect(
         (await fixture.client.query('SELECT id FROM "user" WHERE id = $1', [signup.user.id])).rows,
       ).toEqual([{ id: signup.user.id }]);

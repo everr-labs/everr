@@ -144,7 +144,7 @@ account-wide coordination is provided. Equal account-scope strings across separa
 databases do not coordinate quota. Every other client against that Brevo account
 also consumes provider quota. Never change the namespace to solve a mapping error.
 
-| Mode       | Live CRM subscribers                 | Outbound worker and periodic scan | Administration                            |
+| Mode       | Live CRM event-to-job routes         | Outbound worker and periodic scan | Administration                            |
 | ---------- | ------------------------------------ | --------------------------------- | ----------------------------------------- |
 | disabled   | None                                 | None                              | Bootstrap/recovery refuse                 |
 | paused     | Persist pending commands best effort | None                              | Bootstrap/recovery may admit bounded work |
@@ -155,7 +155,8 @@ when pausing and allow old requests to drain. Pausing does not undo a request th
 Brevo already accepted. Invalid enabled configuration fails startup validation;
 missing credentials never silently consume jobs. Self-hosted has no CRM imports,
 configuration, schema or jobs. Product activation markers remain independent of
-CRM mode. No request waits for ancillary publication or Brevo.
+CRM mode. Source operations await the Graphile enqueue attempt after commit, containing
+its errors. They never wait for Brevo.
 
 ## Bounded bootstrap and normal repair
 

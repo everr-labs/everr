@@ -1,15 +1,13 @@
-import type { ApplicationEvents } from "@everr/app/composition";
-import { eventRegistration } from "@everr/app/server/events/registration";
+import type { ApplicationEvents, EventRoute } from "@everr/app/composition";
 import {
   membershipEventDefinitions,
   organizationEventDefinitions,
   userEventDefinitions,
+  type UserEvent,
+  type OrganizationEvent,
+  type MembershipEvent,
 } from "@everr/app/identity/events";
-import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
-import { organizationMilestoneDefinitions } from "../organizations/events";
-import { billingEventDefinitions } from "../billing/events";
-import { addWorkerJob } from "@everr/app/server/worker/jobs";
-
+import { billingEventDefinitions, type BillingEvent } from "../billing/events";
 import {
   USER_SYNC_TASK,
   ORGANIZATION_SYNC_TASK,
@@ -21,15 +19,13 @@ import {
   relatedSyncSpec,
 } from "./commands";
 
-export function userSyncSubscribers(
-  mode: "disabled" | "configured" | "paused",
-  enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationEvents {
+/** Disabled mode admits no work; paused mode persists the same jobs without consuming them. */
+export function crmEventRoutes(mode: "disabled" | "configured" | "paused"): ApplicationEvents {
   if (mode === "disabled") return [];
-  return userEventDefinitions.map((definition) =>
-    eventRegistration(definition, {
-      id: `crm.brevo.${definition.type}`,
-      async enqueue(event) {
+  return [
+    ...userEventDefinitions.map((definition): EventRoute<UserEvent> => ({
+      definition,
+      job(event) {
         if (event.subjectId !== event.data.userId) throw new Error("Invalid CRM user subject.");
         const payload = userSyncPayload.parse({
           version: 1,
@@ -38,56 +34,36 @@ export function userSyncSubscribers(
           eventType: event.type,
           occurredAt: event.occurredAt,
         });
-        await enqueue(USER_SYNC_TASK, payload, {
-          ...userSyncSpec(payload.userId),
-        });
+        return { task: USER_SYNC_TASK, payload, spec: userSyncSpec(payload.userId) };
       },
-    }),
-  );
-}
-
-export function organizationSyncSubscribers(
-  mode: "disabled" | "configured" | "paused",
-  enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationEvents {
-  if (mode === "disabled") return [];
-  const definitions = [
-    ...organizationEventDefinitions,
-    ...organizationReadinessEventDefinitions,
-    ...billingEventDefinitions,
-    ...organizationMilestoneDefinitions,
-  ];
-  return definitions.map((definition) =>
-    eventRegistration(definition, {
-      id: `crm.brevo.${definition.type}`,
-      async enqueue(event) {
-        if (event.subjectId !== event.data.organizationId)
-          throw new Error("Invalid CRM organization subject.");
-        const payload = organizationSyncPayload.parse({
-          version: 1,
-          kind: "organization",
-          organizationId: event.data.organizationId,
-          eventId: event.id,
-          eventType: event.type,
-          occurredAt: event.occurredAt,
-        });
-        await enqueue(ORGANIZATION_SYNC_TASK, payload, relatedSyncSpec(payload.organizationId));
-      },
-    }),
-  );
-}
-
-export function membershipSyncSubscribers(
-  mode: "disabled" | "configured" | "paused",
-  enqueue: typeof addWorkerJob = addWorkerJob,
-): ApplicationEvents {
-  if (mode === "disabled") return [];
-  return membershipEventDefinitions.map((definition) =>
-    eventRegistration(definition, {
-      id: `crm.brevo.${definition.type}`,
-      async enqueue(event) {
+    })),
+    ...[...organizationEventDefinitions, ...billingEventDefinitions].map(
+      (definition): EventRoute<OrganizationEvent | BillingEvent> => ({
+        definition,
+        job(event) {
+          if (event.subjectId !== event.data.organizationId)
+            throw new Error("Invalid CRM organization subject.");
+          const payload = organizationSyncPayload.parse({
+            version: 1,
+            kind: "organization",
+            organizationId: event.data.organizationId,
+            eventId: event.id,
+            eventType: event.type,
+            occurredAt: event.occurredAt,
+          });
+          return {
+            task: ORGANIZATION_SYNC_TASK,
+            payload,
+            spec: relatedSyncSpec(payload.organizationId),
+          };
+        },
+      }),
+    ),
+    ...membershipEventDefinitions.map((definition): EventRoute<MembershipEvent> => ({
+      definition,
+      job(event) {
         if (event.subjectId !== event.data.membershipId)
-          throw new Error("Invalid CRM organization subject.");
+          throw new Error("Invalid CRM membership subject.");
         // The pair, not membership row identity or domain, is authoritative.
         const payload = membershipSyncPayload.parse({
           version: 1,
@@ -98,12 +74,12 @@ export function membershipSyncSubscribers(
           eventType: event.type,
           occurredAt: event.occurredAt,
         });
-        await enqueue(
-          MEMBERSHIP_SYNC_TASK,
+        return {
+          task: MEMBERSHIP_SYNC_TASK,
           payload,
-          relatedSyncSpec(payload.organizationId, payload.userId),
-        );
+          spec: relatedSyncSpec(payload.organizationId, payload.userId),
+        };
       },
-    }),
-  );
+    })),
+  ];
 }

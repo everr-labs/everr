@@ -50,9 +50,10 @@ suspended access. Provisioning uses the existing readiness policy, including its
 legacy-ready behavior. Activation and first-queryable dates come only from the
 cloud [verified milestone store](../organizations/README.md), in the same snapshot
 transaction. Missing markers remain null (unknown history), never false or an
-invented historical date. Readiness never implies activation. Both milestone
-facts enqueue the existing latest-state Organization synchronization; Plan,
-access, subscription and readiness field ownership remain independent.
+invented historical date. Readiness never implies activation. Milestone and
+`organization.provisioned` facts do not enqueue CRM work. These fields refresh
+when another subscribed fact, bootstrap or reconciliation admits Organization
+synchronization. Plan, access, subscription and readiness ownership remain independent.
 
 ## Reading and persisting
 
@@ -96,8 +97,9 @@ deletion. No source transaction is held open during provider calls.
 ## User synchronization and execution
 
 Cloud registers consumers for User creation, updates, deletion and email verification in
-`configured` and `paused` modes. Each consumer independently persists an ID-only
-`crm/sync-user` command after best-effort publication. Disabled mode registers no
+`configured` and `paused` modes. Each route builds an ID-only
+`crm/sync-user` command. The shared publisher directly awaits Graphile admission,
+containing enqueue failures in one place. Disabled mode registers no
 consumers or integration runner; self-hosted imports none of this module. Paused
 mode keeps admitting commands but starts no CRM consumer, preserving pending jobs.
 Missing enabled configuration fails validation rather than consuming work.
@@ -181,7 +183,8 @@ Both use the same projection store and endpoint coordination. Organization and
 User completion enqueue related pairs through `enqueueMembershipSyncs`.
 
 Cloud also subscribes to Organization creation/updates, explicit Membership additions,
-updates/removals, deletion, readiness, subscription and Plan facts. Commands contain source IDs only.
+updates/removals, deletion, subscription and Plan facts. Readiness and milestone
+facts have no CRM routes. Commands contain source IDs only.
 Two Organizations sharing a domain keep distinct Company IDs. A Contact can link to
 several Companies, and unlink removes only the requested pair. Membership row replacement
 and stale event order are resolved by rereading the latest User/Organization pair.
@@ -335,8 +338,8 @@ PostgreSQL advisory transaction lock and commits its page's public Graphile
 `add_job` admissions and checkpoint together. A NULL receipt or error rolls both
 back. No source transaction survives an HTTP operation. Concurrent invocations can
 advance separate pages safely; overlap returns an error and preserves progress.
-This is an administrative job-admission transaction, separate from the unchanged
-fire-and-forget domain publisher. It is not a business-event outbox.
+This is an administrative job-admission transaction, separate from the
+direct Graphile domain publisher. It is not a business-event outbox.
 
 The command uses PoolClient's public Graphile SQL directly, rather than the app's
 Drizzle wrapper, to avoid importing an application database singleton and unrelated
@@ -405,9 +408,9 @@ allowance and makes no provider request. The scanner itself
 runs below live jobs, and bounded admission plus the cap limits repair pressure.
 Live work and repair share endpoint locks and the persisted account request budgets.
 
-Paused mode registers live subscribers and retains queued work, but starts no
+Paused mode selects live event-to-job routes and retains queued work, but starts no
 outbound runner or periodic scan. The periodic primitive also explicitly defers
-paused work before creating progress. Disabled mode registers neither subscribers
+paused work before creating progress. Disabled mode selects neither routes
 nor runner, and refuses administrative admission. Self-hosted imports none of the
 CRM configuration, runners or schema. No production setting was enabled here.
 
