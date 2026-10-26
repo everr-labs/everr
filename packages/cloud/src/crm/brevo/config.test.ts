@@ -11,8 +11,6 @@ function cloudEnv() {
   vi.stubEnv("POLAR_PRO_PRODUCT_ID", "fixture");
   vi.stubEnv("CRM_BREVO_MODE", "disabled");
   vi.stubEnv("CRM_BREVO_API_KEY", undefined);
-  vi.stubEnv("CRM_BREVO_DEPLOYMENT", undefined);
-  vi.stubEnv("CRM_BREVO_ACCOUNT_SCOPE", undefined);
   vi.stubEnv("CRM_BREVO_TIMEOUT_MS", undefined);
 }
 afterEach(() => {
@@ -29,11 +27,9 @@ it("loads cloud configuration and constructs the disabled adapter without provid
   const { appEnv } = await import("../../app/env");
   const { createBrevoAdapter } = await import("./adapter");
   const { readBrevoConfig } = await import("./config");
-  const quota = { acquire: vi.fn(), cooldown: vi.fn() };
-  const adapter = createBrevoAdapter(readBrevoConfig(appEnv), quota);
+  const adapter = createBrevoAdapter(readBrevoConfig(appEnv));
   expect(await adapter.deleteCompany("fixture")).toMatchObject({ ok: false, kind: "disabled" });
   expect(transport).not.toHaveBeenCalled();
-  expect(quota.acquire).not.toHaveBeenCalled();
 });
 
 it("rejects incomplete enabled cloud startup and validates complete paused startup without provider calls", async () => {
@@ -46,8 +42,6 @@ it("rejects incomplete enabled cloud startup and validates complete paused start
   vi.resetModules();
   vi.stubEnv("CRM_BREVO_MODE", "paused");
   vi.stubEnv("CRM_BREVO_API_KEY", "fixture-secret");
-  vi.stubEnv("CRM_BREVO_DEPLOYMENT", "test");
-  vi.stubEnv("CRM_BREVO_ACCOUNT_SCOPE", "test-account");
   const { appEnv } = await import("../../app/env");
   expect(appEnv.CRM_BREVO_MODE).toBe("paused");
   expect(transport).not.toHaveBeenCalled();

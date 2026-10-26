@@ -1,30 +1,23 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createBrevoAdapter } from "./adapter";
-import type { BrevoBudget } from "./budget";
 import { readBrevoConfig } from "./config";
 
-const configured = readBrevoConfig({
+const config = readBrevoConfig({
   CRM_BREVO_MODE: "configured",
-  CRM_BREVO_API_KEY: "secret-credential",
-  CRM_BREVO_DEPLOYMENT: "test",
-  CRM_BREVO_ACCOUNT_SCOPE: "account",
+  CRM_BREVO_API_KEY: "secret",
   CRM_BREVO_TIMEOUT_MS: "100",
-});
-const budget = (): BrevoBudget => ({
-  acquire: vi.fn(async () => ({ allowed: true as const })),
-  cooldown: vi.fn(async () => {}),
 });
 const user = {
   kind: "user",
   sourceId: "u",
   userId: "u",
   organizationId: null,
-  externalId: "everr:v1:test:user:u",
+  externalId: "everr:v1:user:u",
   deleted: false,
   fields: {
-    name: "Fixture",
-    email: "fixture@example.com",
+    name: "Person",
+    email: "person@example.test",
     registeredAt: "2026-01-01T00:00:00Z",
     emailVerified: true,
   },
@@ -33,12 +26,12 @@ const user = {
 const org = {
   kind: "organization",
   sourceId: "o",
-  organizationId: "o",
   userId: null,
-  externalId: "everr:v1:test:organization:o",
+  organizationId: "o",
+  externalId: "everr:v1:organization:o",
   deleted: false,
   fields: {
-    name: "Fixture",
+    name: "Team",
     createdAt: "2026-01-01T00:00:00Z",
     plan: "hobby",
     appState: "hobby",
@@ -51,573 +44,246 @@ const org = {
 } satisfies Parameters<ReturnType<typeof createBrevoAdapter>["createCompany"]>[0];
 const current = {
   id: 42,
-  email: "old@example.com",
-  attributes: { EXT_ID: user.externalId },
-  emailBlacklisted: true,
+  email: user.fields.email,
+  attributes: {
+    EXT_ID: user.externalId,
+    EVERR_NAME: user.fields.name,
+    EVERR_REGISTERED_AT: user.fields.registeredAt,
+    EVERR_EMAIL_VERIFIED: true,
+  },
+  emailBlacklisted: false,
   smsBlacklisted: true,
 };
-const reply = (data: unknown, status = 200, headers?: HeadersInit) =>
-  new Response(status === 204 ? undefined : JSON.stringify(data), { status, headers });
+const transport = (response: Response) =>
+  vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => response);
 afterEach(() => vi.useRealTimers());
 
-it("omits unchanged owned fields and makes no write for an unchanged contact", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply(undefined, 204),
+it("keeps disabled and paused adapters inert without requiring namespaces", async () => {
+  const fetch = vi.fn();
+  expect(await createBrevoAdapter(readBrevoConfig({}), fetch).createContact(user)).toMatchObject({
+    kind: "disabled",
+  });
+  expect(
+    await createBrevoAdapter(
+      readBrevoConfig({ CRM_BREVO_MODE: "paused", CRM_BREVO_API_KEY: "x" }),
+      fetch,
+    ).createContact(user),
+  ).toMatchObject({ kind: "paused" });
+  expect(fetch).not.toHaveBeenCalled();
+});
+it("omits unchanged fields and preserves opt-outs without touching unrelated fields", async () => {
+  const fetch = transport(new Response(undefined, { status: 204 }));
+  const adapter = createBrevoAdapter(config, fetch);
+  expect(await adapter.updateContact(user, current)).toMatchObject({ ok: true, changed: false });
+  expect(fetch).not.toHaveBeenCalled();
+  await adapter.updateContact(
+    { ...user, fields: { ...user.fields, email: "changed@example.test" } },
+    current,
   );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  const same = {
-    ...current,
+  expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toEqual({
+    attributes: { EMAIL: "changed@example.test" },
+    forceMerge: false,
+    emailBlacklisted: true,
+    smsBlacklisted: true,
+  });
+});
+it("creates suppressed contacts with stable external identity and no enrollment", async () => {
+  const fetch = transport(Response.json({ id: 1 }, { status: 201 }));
+  await createBrevoAdapter(config, fetch).createContact(user);
+  expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toEqual({
     email: user.fields.email,
+    ext_id: user.externalId,
     attributes: {
-      EXT_ID: user.externalId,
-      EVERR_NAME: user.fields.name,
+      EVERR_NAME: "Person",
       EVERR_REGISTERED_AT: user.fields.registeredAt,
-      EVERR_EMAIL_VERIFIED: user.fields.emailVerified,
+      EVERR_EMAIL_VERIFIED: true,
     },
-  };
-  expect(await adapter.updateContact(user, same)).toEqual({
-    ok: true,
-    value: undefined,
-    changed: false,
-  });
-  expect(transport).not.toHaveBeenCalled();
-  await adapter.updateContact({ ...user, fields: { ...user.fields, name: "Renamed" } }, same);
-  expect(JSON.parse(transport.mock.calls[0][1].body as string).attributes).toEqual({
-    EVERR_NAME: "Renamed",
-  });
-});
-
-it("validates configured/paused settings without leaking values and keeps disabled startup inert", async () => {
-  const transport = vi.fn();
-  const quota = budget();
-  const disabled = createBrevoAdapter(readBrevoConfig({}), quota, transport);
-  expect(await disabled.createContact(user)).toMatchObject({ ok: false, kind: "disabled" });
-  const paused = createBrevoAdapter(
-    readBrevoConfig({
-      CRM_BREVO_MODE: "paused",
-      CRM_BREVO_API_KEY: "secret",
-      CRM_BREVO_DEPLOYMENT: "test",
-      CRM_BREVO_ACCOUNT_SCOPE: "account",
-    }),
-    quota,
-    transport,
-  );
-  expect(await paused.deleteCompany("id")).toMatchObject({ ok: false, kind: "paused" });
-  expect(quota.acquire).not.toHaveBeenCalled();
-  expect(transport).not.toHaveBeenCalled();
-  expect(() =>
-    readBrevoConfig({ CRM_BREVO_MODE: "configured", CRM_BREVO_API_KEY: "secret" }),
-  ).toThrow("Invalid Brevo CRM configuration.");
-  expect(() => readBrevoConfig({ CRM_BREVO_MODE: "paused" })).toThrow();
-});
-
-it.each([
-  [500, "transient", "provider_unavailable"],
-  [425, "transient", "provider_unavailable"],
-  [401, "permanent", "credentials_rejected"],
-  [403, "permanent", "credentials_rejected"],
-  [400, "permanent", "provider_rejected"],
-  [404, "not_found", "remote_not_found"],
-  [409, "identity_conflict", "identity_conflict"],
-])("classifies status %s without exposing response payloads", async (status, kind, code) => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({ message: "secret-credential fixture@example.com" }, Number(status)),
-  );
-  const result = await createBrevoAdapter(configured, budget(), transport).getCompany("remote");
-  expect(result).toMatchObject({ ok: false, kind, code, status });
-  expect(JSON.stringify(result)).not.toContain("secret-credential");
-  expect(JSON.stringify(result)).not.toContain("fixture@example.com");
-  expect(transport).toHaveBeenCalledTimes(1);
-});
-
-it("treats duplicate identifiers as conflicts and never enables update-or-merge creates", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({ code: "duplicate_parameter", message: "payload" }, 400),
-  );
-  const result = await createBrevoAdapter(configured, budget(), transport).createContact(user);
-  expect(result).toMatchObject({ kind: "identity_conflict" });
-  const body = JSON.parse(transport.mock.calls[0][1].body as string);
-  expect(body).toMatchObject({
     updateEnabled: false,
     emailBlacklisted: true,
     smsBlacklisted: true,
-    ext_id: user.externalId,
   });
-  expect(body).not.toHaveProperty("listIds");
 });
-
-it("honors local quota without HTTP or waiting and honors provider cooldown seconds and Retry-After", async () => {
-  const quota = budget();
-  vi.mocked(quota.acquire).mockResolvedValueOnce({
-    allowed: false,
-    retryAt: new Date(Date.now() + 36_000),
-  });
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({}, 429, { "x-sib-ratelimit-reset": "120", "Retry-After": "180" }),
+it.each([
+  [400, "permanent"],
+  [401, "permanent"],
+  [403, "permanent"],
+  [404, "not_found"],
+  [409, "identity_conflict"],
+  [500, "transient"],
+  [425, "transient"],
+])("classifies %s with redacted failures", async (status, kind) => {
+  const fetch = transport(
+    Response.json({ code: "error", detail: "private-profile" }, { status: Number(status) }),
   );
-  const adapter = createBrevoAdapter(configured, quota, transport);
-  expect(await adapter.getCompany("remote")).toMatchObject({
-    kind: "rate_limited",
-    code: "local_budget",
+  const result = await createBrevoAdapter(config, fetch).getCompany("c");
+  expect(result).toMatchObject({ ok: false, kind, status });
+  expect(JSON.stringify(result)).not.toMatch(/private-profile|secret/);
+  expect(fetch).toHaveBeenCalledOnce();
+});
+it("does not repeat a Company POST after an accepted response is lost", async () => {
+  const fetch = vi.fn(async () => {
+    throw new Error("private transport detail");
   });
-  expect(transport).not.toHaveBeenCalled();
-  expect(await adapter.getCompany("remote")).toMatchObject({ kind: "rate_limited", status: 429 });
-  expect(quota.cooldown).toHaveBeenCalledWith("general", 180_000);
-  expect(transport).toHaveBeenCalledTimes(1);
-});
-
-it("shares provider exhausted-capacity cooldown even on success", async () => {
-  const quota = budget();
-  const adapter = createBrevoAdapter(configured, quota, async () =>
-    reply({ id: "remote", attributes: {} }, 200, {
-      "x-sib-ratelimit-remaining": "0",
-      "x-sib-ratelimit-reset": "72",
-    }),
-  );
-  expect((await adapter.getCompany("remote")).ok).toBe(true);
-  expect(quota.cooldown).toHaveBeenCalledWith("general", 72_000);
-});
-
-it.each([200, 401, 403, 404, 409])(
-  "shares exhausted quota for malformed and definitive responses (%s)",
-  async (status) => {
-    const quota = budget();
-    const result = await createBrevoAdapter(
-      configured,
-      quota,
-      async () =>
-        new Response("not JSON", {
-          status,
-          headers: { "x-sib-ratelimit-remaining": "0", "x-sib-ratelimit-reset": "72" },
-        }),
-    ).getCompany("remote");
-    expect(result).toMatchObject({ ok: false, status });
-    expect(quota.cooldown).toHaveBeenCalledWith("general", 72_000);
-  },
-);
-
-it.each([401, 403, 404, 409])(
-  "retains definitive create rejection when quota cooldown storage fails (%s)",
-  async (status) => {
-    const quota = budget();
-    vi.mocked(quota.cooldown).mockRejectedValue(new Error("secret-credential"));
-    const result = await createBrevoAdapter(configured, quota, async () =>
-      reply({}, status, { "x-sib-ratelimit-remaining": "0" }),
-    ).createCompany(org);
-    expect(result).toEqual({
-      ok: false,
-      kind: status === 404 ? "not_found" : status === 409 ? "identity_conflict" : "permanent",
-      code:
-        status === 404
-          ? "remote_not_found"
-          : status === 409
-            ? "identity_conflict"
-            : "credentials_rejected",
-      status,
-    });
-    expect(quota.cooldown).toHaveBeenCalledTimes(1);
-  },
-);
-
-it("retains a definitive create rejection when quota cooldown storage stalls", async () => {
-  vi.useFakeTimers();
-  const quota = budget();
-  vi.mocked(quota.cooldown).mockImplementation(() => new Promise(() => {}));
-  const pending = createBrevoAdapter(configured, quota, async () =>
-    reply({}, 401, { "x-sib-ratelimit-remaining": "0" }),
-  ).createCompany(org);
-  await vi.advanceTimersByTimeAsync(101);
-  expect(await pending).toEqual({
-    ok: false,
-    kind: "permanent",
-    code: "credentials_rejected",
-    status: 401,
-  });
-  expect(quota.cooldown).toHaveBeenCalledTimes(1);
-});
-
-it("bounds transport and body stalls and aborts them, without automatic retries", async () => {
-  vi.useFakeTimers();
-  const transport = vi.fn((_url: string, init: RequestInit) => {
-    expect(init.redirect).toBe("error");
-    return new Promise<Response>(() => {});
-  });
-  const pending = createBrevoAdapter(configured, budget(), transport).createCompany(org);
-  await vi.advanceTimersByTimeAsync(101);
-  expect(await pending).toMatchObject({ kind: "ambiguous_create", code: "request_timeout" });
-  expect(transport).toHaveBeenCalledTimes(1);
-  expect(transport.mock.calls[0][1].signal?.aborted).toBe(true);
-  const cancelBody = vi.fn();
-  const stalled = createBrevoAdapter(
-    configured,
-    budget(),
-    async () => new Response(new ReadableStream({ start() {}, cancel: cancelBody })),
-  );
-  const read = stalled.getCompany("remote");
-  await vi.advanceTimersByTimeAsync(101);
-  expect(await read).toMatchObject({ kind: "transient", code: "request_timeout" });
-  expect(cancelBody).toHaveBeenCalledTimes(1);
-});
-
-it("cancels a stalled response body when the caller aborts", async () => {
-  vi.useFakeTimers();
-  const cancelBody = vi.fn();
-  const controller = new AbortController();
-  const pending = createBrevoAdapter(
-    configured,
-    budget(),
-    async () => new Response(new ReadableStream({ start() {}, cancel: cancelBody })),
-  ).getCompany("remote", controller.signal);
-  await vi.advanceTimersByTimeAsync(0);
-  controller.abort();
-  expect(await pending).toMatchObject({ kind: "cancelled", code: "request_cancelled" });
-  expect(cancelBody).toHaveBeenCalledTimes(1);
-});
-
-it("handles preflight and in-flight cancellation without leaking exception causes", async () => {
-  const controller = new AbortController();
-  const transport = vi.fn(() => new Promise<Response>(() => {}));
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  controller.abort();
-  expect(await adapter.getContact(user.externalId, controller.signal)).toMatchObject({
-    kind: "cancelled",
-  });
-  expect(transport).not.toHaveBeenCalled();
-  const inFlight = new AbortController();
-  const pending = adapter.createContact(user, inFlight.signal);
-  await Promise.resolve();
-  inFlight.abort();
-  expect(await pending).toMatchObject({ kind: "ambiguous_create", code: "request_cancelled" });
-});
-
-it("returns sanitized transport and quota errors, and makes uncertain creates inspectable", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => {
-    throw new Error("secret-credential email@example.com");
-  });
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect(await adapter.createCompany(org)).toMatchObject({
+  expect(await createBrevoAdapter(config, fetch).createCompany(org)).toMatchObject({
     kind: "ambiguous_create",
-    code: "transport_failure",
   });
-  expect(await adapter.getCompany("remote")).toMatchObject({
-    kind: "transient",
-    code: "transport_failure",
-  });
-  const quota = budget();
-  vi.mocked(quota.acquire).mockRejectedValue(new Error("secret-credential"));
-  const result = await createBrevoAdapter(configured, quota, transport).getCompany("remote");
-  expect(result).toMatchObject({ code: "quota_unavailable" });
-  expect(JSON.stringify(result)).not.toContain("secret-credential");
+  expect(fetch).toHaveBeenCalledOnce();
 });
-
-it("preserves suppression and writes only owned profile fields across an email change", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply(undefined, 204),
+it.each([200, 204])("accepts Company PATCH acknowledgment %s", async (status) => {
+  const fetch = transport(
+    status === 204
+      ? new Response(undefined, { status })
+      : Response.json({ id: "c", attributes: { name: "Team", everr_org_id: org.externalId } }),
   );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect((await adapter.updateContact(user, current)).ok).toBe(true);
-  const body = JSON.parse(transport.mock.calls[0][1].body as string);
-  expect(body).toEqual({
-    attributes: {
-      EVERR_NAME: "Fixture",
-      EVERR_REGISTERED_AT: user.fields.registeredAt,
-      EVERR_EMAIL_VERIFIED: true,
-      EMAIL: user.fields.email,
-    },
-    forceMerge: false,
-    emailBlacklisted: true,
-    smsBlacklisted: true,
-  });
   expect(
-    await adapter.updateContact(user, { ...current, attributes: { EXT_ID: "someone-else" } }),
-  ).toMatchObject({ kind: "identity_conflict" });
-  expect(transport).toHaveBeenCalledTimes(1);
-});
-
-it("never writes false suppression, consent, notes, preferences or association replacements", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply(undefined, 204),
-  );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  await adapter.updateContact(user, {
-    ...current,
-    email: user.fields.email,
-    emailBlacklisted: false,
-    smsBlacklisted: false,
-  });
-  expect(JSON.parse(transport.mock.calls[0][1].body as string)).toEqual({
-    attributes: {
-      EVERR_NAME: "Fixture",
-      EVERR_REGISTERED_AT: user.fields.registeredAt,
-      EVERR_EMAIL_VERIFIED: true,
-    },
-    forceMerge: false,
-  });
-  await adapter.associate("company", 42, true);
-  await adapter.associate("company", 42, false);
-  expect(JSON.parse(transport.mock.calls[1][1].body as string)).toEqual({ linkContactIds: [42] });
-  expect(JSON.parse(transport.mock.calls[2][1].body as string)).toEqual({ unlinkContactIds: [42] });
-});
-
-it("recovers a lost company create response from bounded inventory despite misleading filters", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({
-      items: [
-        { id: "other", attributes: { everr_org_id: "other" } },
-        { id: "remote", attributes: { everr_org_id: org.externalId } },
-      ],
+    await createBrevoAdapter(config, fetch).updateCompany(org, {
+      id: "c",
+      name: "Old",
+      attributes: { everr_org_id: org.externalId },
     }),
-  );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({
-    ok: true,
-    value: { id: "remote" },
-  });
-  expect(transport.mock.calls[0][0]).toBe("https://api.brevo.com/v3/companies?limit=100");
-  expect(transport.mock.calls[0][1].method).toBe("GET");
+  ).toMatchObject({ ok: true });
 });
-
-it("blocks missing, duplicate and truncated recovery instead of permitting another create", async () => {
-  const transport = vi
-    .fn()
-    .mockResolvedValueOnce(reply({ items: [] }))
+it("waits through repeated 429 responses without exposing them as failed attempts", async () => {
+  vi.useFakeTimers();
+  const fetch = vi
+    .fn<(url: string, init: RequestInit) => Promise<Response>>()
     .mockResolvedValueOnce(
-      reply({
-        items: [
-          { id: "a", attributes: { everr_org_id: org.externalId } },
-          { id: "b", attributes: { everr_org_id: org.externalId } },
-        ],
+      new Response(undefined, {
+        status: 429,
+        headers: { "retry-after": "2", "x-sib-ratelimit-reset": "1" },
       }),
     )
     .mockResolvedValueOnce(
-      reply({ items: Array.from({ length: 100 }, (_, i) => ({ id: String(i), attributes: {} })) }),
-    );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({
-    kind: "ambiguous_create",
-    code: "recovery_not_visible",
-  });
-  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({ kind: "identity_conflict" });
-  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({
-    kind: "ambiguous_create",
-    code: "recovery_inventory_limit",
-  });
+      new Response(undefined, {
+        status: 429,
+        headers: { "retry-after": "1", "x-sib-ratelimit-reset": "1" },
+      }),
+    )
+    .mockResolvedValueOnce(Response.json({ id: "c", attributes: {} }));
+  const diagnostic = vi.fn();
+  const result = createBrevoAdapter(config, fetch, diagnostic).getCompany("c");
+  await vi.advanceTimersByTimeAsync(1999);
+  expect(fetch).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(1001);
+  expect(await result).toMatchObject({ ok: true });
+  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(diagnostic.mock.calls).toEqual([
+    ["companies.get", 2000],
+    ["companies.get", 1000],
+  ]);
 });
-
-it("rejects wrong deployment and bounds malformed or oversized responses", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({ payload: "x".repeat(262145) }),
-  );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect(await adapter.createCompany({ ...org, externalId: "wrong" })).toMatchObject({
-    code: "deployment_mismatch",
-  });
-  expect(transport).not.toHaveBeenCalled();
-  expect(await adapter.createCompany(org)).toMatchObject({
-    kind: "ambiguous_create",
+it("cancels backpressure promptly without another request", async () => {
+  const controller = new AbortController();
+  const fetch = transport(new Response(undefined, { status: 429 }));
+  const diagnostic = vi.fn(() => controller.abort());
+  expect(
+    await createBrevoAdapter(config, fetch, diagnostic).getCompany("c", controller.signal),
+  ).toMatchObject({ kind: "cancelled" });
+  expect(fetch).toHaveBeenCalledOnce();
+});
+it("bounds a stalled transport and classifies an uncertain create", async () => {
+  vi.useFakeTimers();
+  const fetch = vi.fn(() => new Promise<Response>(() => {}));
+  const adapter = createBrevoAdapter(config, fetch);
+  const read = adapter.getCompany("c");
+  const create = adapter.createCompany(org);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(await read).toMatchObject({ kind: "transient", code: "request_timeout" });
+  expect(await create).toMatchObject({ kind: "ambiguous_create", code: "request_timeout" });
+});
+it("bounds oversized response bodies", async () => {
+  const fetch = transport(new Response('"' + "x".repeat(262145) + '"'));
+  expect(await createBrevoAdapter(config, fetch).getCompany("c")).toMatchObject({
+    ok: false,
     code: "invalid_response",
   });
 });
-
-it.each([400, 401, 403, 404, 409])(
-  "retains definitive status %s for empty or non-JSON error bodies",
-  async (status) => {
-    const adapter = createBrevoAdapter(
-      configured,
-      budget(),
-      async () => new Response("", { status }),
-    );
-    const result = await adapter.createCompany(org);
-    expect(result).toMatchObject({
-      kind: status === 404 ? "not_found" : status === 409 ? "identity_conflict" : "permanent",
-      status,
-    });
-  },
-);
-
-it("does not retry accepted creates when cooldown persistence fails", async () => {
-  const quota = budget();
-  vi.mocked(quota.cooldown).mockRejectedValue(new Error("secret-credential"));
-  const transport = vi.fn(async () =>
-    reply({ id: "accepted" }, 200, {
-      "x-sib-ratelimit-remaining": "0",
-      "x-sib-ratelimit-reset": "45",
-    }),
-  );
-  const result = await createBrevoAdapter(configured, quota, transport).createCompany(org);
-  expect(result).toMatchObject({ kind: "ambiguous_create", remoteId: "accepted" });
-  expect(JSON.stringify(result)).not.toContain("secret-credential");
-  expect(transport).toHaveBeenCalledTimes(1);
-});
-
-it.each([200, 204])(
-  "supports documented 200 and verified 204 company update acknowledgements (%s)",
-  async (status) => {
-    const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-      reply({ id: "remote", attributes: { everr_org_id: org.externalId } }, status),
-    );
-    const result = await createBrevoAdapter(configured, budget(), transport).updateCompany(org, {
-      id: "remote",
-      attributes: { everr_org_id: org.externalId },
-    });
-    expect(result.ok).toBe(true);
-    const body = JSON.parse(transport.mock.calls[0][1].body as string);
-    expect(body).toEqual({
-      name: "Fixture",
-      attributes: {
-        everr_created_at: org.fields.createdAt,
-        everr_plan: "hobby",
-        everr_app_state: "hobby",
-        everr_subscription_status: "",
-        everr_current_period_end: "",
-        everr_cancel_at_period_end: "false",
-        everr_provisioning: "ready",
-      },
-    });
-  },
-);
-
-it("conservatively suppresses a new email and preserves an existing SMS opt-out", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply(undefined, 204),
-  );
-  const result = await createBrevoAdapter(configured, budget(), transport).updateContact(user, {
-    ...current,
-    emailBlacklisted: false,
-    smsBlacklisted: true,
-  });
-  expect(result.ok).toBe(true);
-  expect(JSON.parse(transport.mock.calls[0][1].body as string)).toMatchObject({
-    emailBlacklisted: true,
-    smsBlacklisted: true,
-  });
-});
-
-it("keeps ambiguous provider invalid_parameter failures blocked without guessing from prose", async () => {
-  const result = await createBrevoAdapter(configured, budget(), async () =>
-    reply(
-      { code: "invalid_parameter", message: "Contact already exists, contains private values" },
-      400,
-    ),
-  ).updateContact(user, current);
-  expect(result).toEqual({ ok: false, kind: "permanent", code: "provider_rejected", status: 400 });
-});
-
-it("reads the provider's nested Company name and skips a redundant owned-field update", async () => {
-  const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () =>
-    reply({
-      id: "remote",
-      attributes: {
-        name: org.fields.name,
-        everr_org_id: org.externalId,
-        everr_created_at: org.fields.createdAt,
-        everr_plan: "hobby",
-        everr_app_state: "hobby",
-        everr_subscription_status: "",
-        everr_current_period_end: "",
-        everr_cancel_at_period_end: "false",
-        everr_provisioning: "ready",
-      },
-    }),
-  );
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  const read = await adapter.getCompany("remote");
-  expect(read.ok).toBe(true);
-  if (!read.ok) throw new Error("Expected owned Company read");
-  expect(read.value.name).toBe(org.fields.name);
-  expect(read.value.attributes).not.toHaveProperty("name");
-  expect(await adapter.updateCompany(org, read.value)).toEqual({
-    ok: true,
-    value: undefined,
-    changed: false,
-  });
-  expect(transport).toHaveBeenCalledOnce();
-  const renamed = { ...org, fields: { ...org.fields, name: "Changed" } };
-  await adapter.updateCompany(renamed, read.value);
-  expect(JSON.parse(transport.mock.calls[1][1].body as string)).toEqual({ name: "Changed" });
-});
-
-it("normalizes provider Company names for inventory recovery and 200 update responses", async () => {
-  const body = {
-    id: "remote",
-    name: "legacy",
-    attributes: { name: "Provider", everr_org_id: org.externalId },
-  };
-  const transport = vi
+it("paginates Company lookup and rejects duplicate identities across pages", async () => {
+  const page = Array.from({ length: 100 }, (_, i) => ({ id: `foreign-${i}`, attributes: {} }));
+  const fetch = vi
     .fn<(url: string, init: RequestInit) => Promise<Response>>()
-    .mockResolvedValueOnce(reply({ items: [body] }))
-    .mockResolvedValueOnce(reply(body));
-  const adapter = createBrevoAdapter(configured, budget(), transport);
-  expect(await adapter.recoverCompany(org.externalId)).toMatchObject({
+    .mockResolvedValueOnce(Response.json({ items: page }))
+    .mockResolvedValueOnce(
+      Response.json({
+        items: [{ id: "c", attributes: { name: "Team", everr_org_id: org.externalId } }],
+      }),
+    );
+  expect(await createBrevoAdapter(config, fetch).findCompany(org.externalId)).toMatchObject({
     ok: true,
-    value: { name: "Provider" },
+    value: { id: "c", name: "Team" },
+  });
+  expect(fetch.mock.calls.map(([url]) => new URL(url).searchParams.get("page"))).toEqual([
+    "0",
+    "1",
+  ]);
+  const duplicates = transport(
+    Response.json({
+      items: [
+        { id: "a", attributes: { everr_org_id: org.externalId } },
+        { id: "b", attributes: { everr_org_id: org.externalId } },
+      ],
+    }),
+  );
+  expect(await createBrevoAdapter(config, duplicates).findCompany(org.externalId)).toMatchObject({
+    kind: "identity_conflict",
+  });
+});
+it("paginates Contact inventory with offsets and accepts foreign identities", async () => {
+  const fetch = vi
+    .fn<(url: string, init: RequestInit) => Promise<Response>>()
+    .mockResolvedValueOnce(
+      Response.json({
+        contacts: Array.from({ length: 100 }, (_, i) => ({ id: i + 1, attributes: {} })),
+      }),
+    )
+    .mockResolvedValueOnce(
+      Response.json({ contacts: [{ id: 101, attributes: { EXT_ID: user.externalId } }] }),
+    );
+  expect(await createBrevoAdapter(config, fetch).listContacts()).toMatchObject({
+    ok: true,
+    value: expect.any(Array),
+  });
+  expect(fetch.mock.calls.map(([url]) => new URL(url).searchParams.get("offset"))).toEqual([
+    "0",
+    "100",
+  ]);
+});
+it("rejects forged source and remote identities before writes", async () => {
+  const fetch = vi.fn();
+  const adapter = createBrevoAdapter(config, fetch);
+  expect(await adapter.createContact({ ...user, externalId: "foreign" })).toMatchObject({
+    ok: false,
   });
   expect(
-    await adapter.updateCompany(org, {
-      id: "remote",
-      attributes: { everr_org_id: org.externalId },
-    }),
-  ).toMatchObject({
-    ok: true,
-    value: { name: "Provider" },
-  });
+    await adapter.updateContact(user, { ...current, attributes: { EXT_ID: "foreign" } }),
+  ).toMatchObject({ kind: "identity_conflict" });
+  expect(
+    await adapter.updateCompany(org, { id: "c", attributes: { everr_org_id: "foreign" } }),
+  ).toMatchObject({ kind: "identity_conflict" });
+  expect(fetch).not.toHaveBeenCalled();
 });
 
-it("waits through a short contact permit gap before sending the request", async () => {
+it("honors Retry-After without adding a fallback minute when the reset header is absent", async () => {
   vi.useFakeTimers();
-  const quota = budget();
-  vi.mocked(quota.acquire).mockResolvedValueOnce({
-    allowed: false,
-    retryAt: new Date(Date.now() + 100),
-  });
-  const transport = vi.fn(async () => reply(current));
-  const pending = createBrevoAdapter(configured, quota, transport).getContact(user.externalId);
-  await vi.advanceTimersByTimeAsync(100);
-  expect(transport).not.toHaveBeenCalled();
-  await vi.advanceTimersByTimeAsync(1);
-  expect(await pending).toMatchObject({ ok: true, value: current });
-  expect(quota.acquire).toHaveBeenCalledTimes(2);
-  expect(transport).toHaveBeenCalledOnce();
+  const fetch = vi
+    .fn<(url: string, init: RequestInit) => Promise<Response>>()
+    .mockResolvedValueOnce(
+      new Response(undefined, { status: 429, headers: { "retry-after": "1" } }),
+    )
+    .mockResolvedValueOnce(Response.json({ id: "c", attributes: {} }));
+  const diagnostic = vi.fn();
+  const operation = createBrevoAdapter(config, fetch, diagnostic).getCompany("c");
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(await operation).toMatchObject({ ok: true });
+  expect(diagnostic).toHaveBeenCalledWith("companies.get", 1000);
 });
 
-it.each(["long contact cooldown", "general permit gap"])(
-  "defers %s without waiting or sending HTTP",
-  async (kind) => {
-    vi.useFakeTimers();
-    const quota = budget();
-    const retryAt = new Date(Date.now() + (kind === "long contact cooldown" ? 60_000 : 100));
-    vi.mocked(quota.acquire).mockResolvedValue({ allowed: false, retryAt });
-    const transport = vi.fn();
-    const adapter = createBrevoAdapter(configured, quota, transport);
-    const result =
-      kind === "long contact cooldown"
-        ? await adapter.getContact(user.externalId)
-        : await adapter.getCompany("remote");
-    expect(result).toMatchObject({ ok: false, kind: "rate_limited", retryAt });
-    expect(quota.acquire).toHaveBeenCalledOnce();
-    expect(transport).not.toHaveBeenCalled();
-  },
-);
-
-it("cancels a short contact permit wait before sending HTTP", async () => {
-  const quota = budget();
-  let entered!: () => void;
-  const acquired = new Promise<void>((resolve) => {
-    entered = resolve;
+it("reports a non-advancing Company inventory instead of holding the queue forever", async () => {
+  const items = Array.from({ length: 100 }, (_, id) => ({ id: `c-${id}`, attributes: {} }));
+  const fetch = vi.fn(async () => Response.json({ items }));
+  expect(await createBrevoAdapter(config, fetch).listCompanies()).toMatchObject({
+    kind: "transient",
+    code: "inventory_not_advancing",
   });
-  vi.mocked(quota.acquire).mockImplementation(async () => {
-    entered();
-    return { allowed: false, retryAt: new Date(Date.now() + 200) };
-  });
-  const transport = vi.fn();
-  const controller = new AbortController();
-  const pending = createBrevoAdapter(configured, quota, transport).getContact(
-    user.externalId,
-    controller.signal,
-  );
-  await acquired;
-  controller.abort();
-  expect(await pending).toMatchObject({ ok: false, kind: "cancelled" });
-  expect(quota.acquire).toHaveBeenCalledOnce();
-  expect(transport).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledTimes(2);
 });

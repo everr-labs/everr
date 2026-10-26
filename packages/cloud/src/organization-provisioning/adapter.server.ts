@@ -7,6 +7,7 @@ import { organizationBilling } from "../db/schema/billing";
 import { enqueueOrganizationDeprovisioning, enqueueOrganizationProvisioning } from "./jobs";
 import { parseOrganizationMetadata } from "./metadata";
 import { preserveOrganizationProvisioningStatus } from "./metadata.server";
+import { COMPANY_ID_METADATA } from "../crm/metadata";
 
 // Keep access-entity work in the same commit as the organization mutation.
 // Better Auth's after-hooks cannot provide that guarantee after process death.
@@ -25,13 +26,16 @@ export function organizationLifecycleAdapter(database: DbExecutor = db) {
         forceAllowId?: boolean;
       }): Promise<R> => {
         if (input.model !== "organization") return adapter.create<T, R>(input);
+        const { [COMPANY_ID_METADATA]: _companyId, ...metadata } = parseOrganizationMetadata(
+          input.data.metadata,
+        );
         return runInTransaction(executor, async (tx) => {
           const created = await factory(tx).create<T, R>({
             ...input,
             data: {
               ...input.data,
               metadata: JSON.stringify({
-                ...parseOrganizationMetadata(input.data.metadata),
+                ...metadata,
                 clickhouseReady: false,
               }),
             },

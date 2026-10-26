@@ -1,87 +1,100 @@
 import { metrics } from "@opentelemetry/api";
 import { serverLogger } from "@everr/app/telemetry/logger";
-import type { MembershipSyncPayload, OrganizationSyncPayload, UserSyncPayload } from "./commands";
+import type {
+  MembershipSyncPayload,
+  OrganizationSyncPayload,
+  UserSyncPayload,
+  FullSyncPayload,
+} from "./commands";
 
-const meter = metrics.getMeter("everr-cloud.crm");
-const outcomes = meter.createCounter("everr.crm.sync.outcomes", { unit: "1" });
-const lag = meter.createHistogram("everr.crm.sync.lag", { unit: "s" });
-export type SyncOutcome = "synced" | "deferred" | "retry" | "blocked" | "exhausted" | "invalid";
+export type CrmPayload =
+  | MembershipSyncPayload
+  | OrganizationSyncPayload
+  | UserSyncPayload
+  | FullSyncPayload;
+export type SyncOutcome =
+  | "synced"
+  | "retry"
+  | "failed"
+  | "exhausted"
+  | "invalid"
+  | "preview"
+  | "admitted";
 export type SyncDiagnostic = (
   outcome: SyncOutcome,
-  payload?: UserSyncPayload | OrganizationSyncPayload | MembershipSyncPayload,
-  jobId?: string,
-  retryFailures?: number,
+  payload: CrmPayload | undefined,
+  jobId: string,
+  details?: {
+    attempt?: number;
+    code?: string;
+    operation?: string;
+    nextAttemptAt?: string;
+    admitted?: number;
+    candidates?: number;
+  },
 ) => void;
 
-/** The optional count is observed durable state, never the legacy command mirror.
- * Unknown budgets (for example invalid commands) omit the attribute.
- * No provider bodies, exceptions, email or profile fields, and bounded metric dimensions.
- */
-export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, retryFailures) => {
+// Resolve instruments at emission time, including callers loaded before SDK startup.
+export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, details = {}) => {
   try {
-    const kind = payload && "kind" in payload ? payload.kind : "user";
+    const kind =
+      payload && "kind" in payload
+        ? payload.kind
+        : payload && "userId" in payload
+          ? "user"
+          : "full-sync";
     const dimensions = { "everr.crm.outcome": outcome, "everr.crm.entity_kind": kind };
-    outcomes.add(1, dimensions);
+    const meter = metrics.getMeter("everr-cloud.crm");
+    meter.createCounter("everr.crm.sync.outcomes", { unit: "1" }).add(1, dimensions);
     if (payload)
-      lag.record(Math.max(0, (Date.now() - Date.parse(payload.occurredAt)) / 1000), dimensions);
-    serverLogger[
-      outcome === "blocked" || outcome === "exhausted" || outcome === "invalid" ? "error" : "info"
-    ](`crm.${kind}.sync`, {
+      meter
+        .createHistogram("everr.crm.sync.lag", { unit: "s" })
+        .record(Math.max(0, (Date.now() - Date.parse(payload.occurredAt)) / 1000), dimensions);
+    const attributes = {
       ...dimensions,
-      ...(retryFailures === undefined ? {} : { "everr.crm.failures": retryFailures }),
-      ...(jobId ? { "everr.worker.job.id": jobId } : {}),
+      "everr.worker.job.id": jobId,
       ...(payload
         ? {
             "everr.business_event.id": payload.eventId,
             "everr.business_event.type": payload.eventType,
-            ...("userId" in payload ? { "everr.crm.user.id": payload.userId } : {}),
-            ...("organizationId" in payload
-              ? { "everr.crm.organization.id": payload.organizationId }
-              : {}),
           }
         : {}),
-    });
+      ...(payload && "userId" in payload ? { "everr.crm.user.id": payload.userId } : {}),
+      ...(payload && "organizationId" in payload
+        ? { "everr.crm.organization.id": payload.organizationId }
+        : {}),
+      ...(details.code ? { "everr.crm.error_code": details.code } : {}),
+      ...(details.operation ? { "everr.crm.operation": details.operation } : {}),
+      ...(details.attempt === undefined ? {} : { "everr.worker.job.attempt": details.attempt }),
+      ...(details.nextAttemptAt ? { "everr.crm.next_attempt_at": details.nextAttemptAt } : {}),
+      ...(details.admitted === undefined ? {} : { "everr.crm.scan.admitted": details.admitted }),
+      ...(details.candidates === undefined
+        ? {}
+        : { "everr.crm.scan.candidates": details.candidates }),
+    };
+    serverLogger[["failed", "exhausted", "invalid"].includes(outcome) ? "error" : "info"](
+      "crm.sync",
+      attributes,
+    );
   } catch {
-    /* Diagnostics cannot alter persisted work. */
+    /* Diagnostics cannot alter queue execution. */
   }
 };
 
-const reconciliation = meter.createCounter("everr.crm.reconciliation.outcomes", { unit: "1" });
-const pendingAge = meter.createGauge("everr.crm.sync.oldest_known_pending", { unit: "s" });
-/** Bounded operational metadata. Unknown pre-existing pending start times stay unknown. */
-export function reconciliationDiagnostic(
-  outcome: "progress" | "deferred" | "failure" | "drift" | "missing",
-  metadata: {
-    kind?: "user" | "organization" | "membership";
-    pages?: number;
-    admitted?: number;
-    oldestKnownPendingSeconds?: number;
-  } = {},
-) {
+export function rateLimitDiagnostic(operation: string, waitMs: number) {
   try {
-    const dimensions = {
-      "everr.crm.reconciliation.outcome": outcome,
-      ...(metadata.kind ? { "everr.crm.entity_kind": metadata.kind } : {}),
-    };
-    reconciliation.add(1, dimensions);
-    if (metadata.oldestKnownPendingSeconds !== undefined)
-      pendingAge.record(metadata.oldestKnownPendingSeconds);
-    serverLogger[outcome === "failure" || outcome === "missing" ? "error" : "info"](
-      "crm.reconciliation",
-      {
-        ...dimensions,
-        ...(metadata.pages === undefined
-          ? {}
-          : { "everr.crm.reconciliation.pages": metadata.pages }),
-        ...(metadata.admitted === undefined
-          ? {}
-          : { "everr.crm.reconciliation.admitted": metadata.admitted }),
-        ...(metadata.oldestKnownPendingSeconds === undefined
-          ? {}
-          : { "everr.crm.oldest_known_pending_seconds": metadata.oldestKnownPendingSeconds }),
-      },
-    );
+    const attributes = { "everr.crm.operation": operation, "http.response.status_code": 429 };
+    const meter = metrics.getMeter("everr-cloud.crm");
+    meter.createCounter("everr.crm.provider.rate_limits", { unit: "1" }).add(1, attributes);
+    meter
+      .createHistogram("everr.crm.provider.wait", { unit: "s" })
+      .record(waitMs / 1000, attributes);
+    serverLogger.info("crm.provider.backpressure", {
+      ...attributes,
+      "everr.crm.wait_ms": waitMs,
+      "everr.crm.next_attempt_at": new Date(Date.now() + waitMs).toISOString(),
+    });
   } catch {
-    /* Diagnostics cannot alter persisted work. */
+    /* Diagnostics cannot alter provider backpressure. */
   }
 }

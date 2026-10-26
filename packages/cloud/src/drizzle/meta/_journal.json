@@ -8,13 +8,6 @@
       "when": 1792019436245,
       "tag": "0000_billing_baseline",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793013454120,
-      "tag": "0001_crm_projection",
-      "breakpoints": true
     }
   ]
 }

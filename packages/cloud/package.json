@@ -8,12 +8,11 @@
     "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vp test run",
-    "crm:recover": "tsx --tsconfig tsconfig.json scripts/crm-recover.ts",
-    "crm:bootstrap": "tsx --tsconfig tsconfig.json scripts/crm-bootstrap.ts",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts cloud",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "test:billing:sandbox": "vp test run --config vitest.billing-sandbox.config.ts"
+    "test:billing:sandbox": "vp test run --config vitest.billing-sandbox.config.ts",
+    "crm:sync": "tsx --tsconfig tsconfig.json scripts/crm-sync.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.18.4",

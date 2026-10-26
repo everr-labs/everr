@@ -103,7 +103,7 @@ export function identityLifecycleAdapter(
           await requests.lockUserLifecycle(id);
         // Serialize before/after capture so concurrent verification requests see
         // the persisted false-to-true transition exactly once.
-        return executor
+        const locked = await executor
           .select()
           .from(user)
           .where(
@@ -113,6 +113,14 @@ export function identityLifecycleAdapter(
             ),
           )
           .for("update");
+        const matching = await adapter.findMany<{ id: string }>({
+          model: "user",
+          where,
+          select: ["id"],
+          limit: Number.MAX_SAFE_INTEGER,
+        });
+        const ids = new Set(matching.map(({ id }) => id));
+        return locked.filter(({ id }) => ids.has(id));
       };
       const organizationSnapshot = async (where: Parameters<Adapter["findMany"]>[0]["where"]) => {
         const rows = await adapter.findMany<{ id: string }>({
@@ -213,7 +221,11 @@ export function identityLifecycleAdapter(
           return result;
         }
         const [before] = await snapshot(input.where);
-        const result = await adapter.update<T>(input);
+        if (!before) return null;
+        const result = await adapter.update<T>({
+          ...input,
+          where: [{ field: "id", value: before.id }],
+        });
         if (before && result) {
           const [after] = await executor.select().from(user).where(eq(user.id, before.id));
           if (after) {
@@ -252,8 +264,9 @@ export function identityLifecycleAdapter(
           return;
         }
         const [before] = await snapshot(input.where);
-        await adapter.delete(input);
-        if (before) facts.push(userChanged("identity.user.deleted", before.id));
+        if (!before) return;
+        await adapter.delete({ ...input, where: [{ field: "id", value: before.id }] });
+        facts.push(userChanged("identity.user.deleted", before.id));
       };
       const deleteMany: Adapter["deleteMany"] = async (input) => {
         if (input.model !== "organization" && input.model !== "member")

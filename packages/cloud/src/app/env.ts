@@ -6,8 +6,6 @@ export const appEnv = createEnv({
   server: {
     CRM_BREVO_MODE: z.enum(["disabled", "configured", "paused"]).default("disabled"),
     CRM_BREVO_API_KEY: z.string().optional(),
-    CRM_BREVO_DEPLOYMENT: z.string().optional(),
-    CRM_BREVO_ACCOUNT_SCOPE: z.string().optional(),
     CRM_BREVO_TIMEOUT_MS: z.string().optional(),
     CLICKHOUSE_SQL_API_MASTER_KEY: z.string().min(32),
     // Shared environment validation checks the SMTP URL and sender format.
@@ -22,8 +20,6 @@ export const appEnv = createEnv({
   runtimeEnv: {
     CRM_BREVO_MODE: process.env.CRM_BREVO_MODE,
     CRM_BREVO_API_KEY: process.env.CRM_BREVO_API_KEY,
-    CRM_BREVO_DEPLOYMENT: process.env.CRM_BREVO_DEPLOYMENT,
-    CRM_BREVO_ACCOUNT_SCOPE: process.env.CRM_BREVO_ACCOUNT_SCOPE,
     CRM_BREVO_TIMEOUT_MS: process.env.CRM_BREVO_TIMEOUT_MS,
     CLICKHOUSE_SQL_API_MASTER_KEY: process.env.CLICKHOUSE_SQL_API_MASTER_KEY,
     EMAIL_DSN: process.env.EMAIL_DSN,

@@ -123,12 +123,12 @@ it("contains mismatched subjects and Graphile failures without changing committe
   );
 });
 
-it("preserves stable job keys and the bounded Graphile queue partitions", () => {
+it("preserves stable job keys and one serialized Graphile queue", () => {
   for (const spec of [userSyncSpec, relatedSyncSpec]) {
     expect(spec("same")).toEqual(spec("same"));
-    expect(
-      new Set(Array.from({ length: 1000 }, (_, id) => spec(String(id)).queueName)).size,
-    ).toBeLessThanOrEqual(64);
+    expect(new Set(Array.from({ length: 1000 }, (_, id) => spec(String(id)).queueName)).size).toBe(
+      1,
+    );
   }
   expect(relatedSyncSpec("o", "u").jobKey).not.toBe(relatedSyncSpec("o", "other").jobKey);
 });

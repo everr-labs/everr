@@ -147,15 +147,16 @@ Cloud consumers synchronize Contacts for Users, Companies for Organizations and
 explicit pairs for current Memberships. One User can belong to several
 Organizations. Plan, subscription, access and readiness remain distinct.
 The independent one-slot CRM runner owns outbound requests, deletion cleanup and
-periodic current-state repair. It never borrows the reserved provisioning runner.
+manual current-state repair. It never borrows the reserved provisioning runner.
 Self-hosted selects no CRM routes, configuration, schema or jobs.
 
-Bootstrap and periodic repair admit current-state commands through short
-checkpoint/job transactions, independently of domain publication. These are
-administrative admissions, not an outbox or historical event replay. Graphile
-execution is at least once after admission; immutable mappings, endpoint locks,
-revision guards and retained Company-create intent constrain provider writes.
-A missing mapped remote record stays blocked, with no automatic replacement.
+CRM uses one named Graphile queue across replicas. Rate-limit backpressure holds
+only this dedicated consumer, with cancellable waits. Graphile retries transient
+failures; terminal errors are visible through telemetry and manually rerunnable.
+Company IDs are server-owned Organization metadata. There are no CRM tables,
+projection revisions, durable request budgets or automatic reconciliation scans.
+The manual sync script admits current-state jobs and supports previewed orphan
+cleanup. Restarting a full scan begins again, using the same idempotent handlers.
 
 The [CRM operations runbook](crm-operations.md) is the current configuration,
 field/readback gate, admission, repair, diagnosis and recovery contract. The

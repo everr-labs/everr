@@ -1,62 +1,46 @@
+import { readCompanyId } from "./metadata";
 import type { Database } from "@everr/app/db/database";
 import { member, organization, user } from "@everr/app/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { readOrgEntitlement, type OrgEntitlement } from "../billing-data.server";
 import { isOrganizationProvisioned } from "../organization-provisioning/metadata";
 
-export type ProjectionKind = "user" | "organization" | "membership";
-export type ProjectionIdentity = { sourceId: string; externalId: string } & (
+export function externalIdentity(kind: "user" | "organization", id: string): string {
+  return `everr:v1:${kind}:${encodeURIComponent(id)}`;
+}
+
+export function sourceIdentity(
+  kind: "user" | "organization",
+  externalId: string | undefined,
+): string | undefined {
+  const prefix = `everr:v1:${kind}:`;
+  if (!externalId?.startsWith(prefix)) return;
+  try {
+    const id = decodeURIComponent(externalId.slice(prefix.length));
+    return id && externalIdentity(kind, id) === externalId ? id : undefined;
+  } catch {
+    return;
+  }
+}
+
+type SourceIdentity = { sourceId: string; externalId: string } & (
   | { kind: "user"; userId: string; organizationId: null }
   | { kind: "organization"; userId: null; organizationId: string }
-  | { kind: "membership"; userId: string; organizationId: string }
 );
-
-type ProjectionSource =
-  | { kind: "user" | "organization"; id: string }
-  | { kind: "membership"; userId: string; organizationId: string };
-
-/** Versioned, unambiguous IDs: no email, name, slug or deployment hostname. */
-export function projectionIdentity(
-  deployment: string,
-  source: { kind: "user"; id: string },
-): Extract<ProjectionIdentity, { kind: "user" }>;
-export function projectionIdentity(
-  deployment: string,
-  source: { kind: "organization"; id: string },
-): Extract<ProjectionIdentity, { kind: "organization" }>;
-export function projectionIdentity(
-  deployment: string,
-  source: { kind: "membership"; userId: string; organizationId: string },
-): Extract<ProjectionIdentity, { kind: "membership" }>;
-export function projectionIdentity(
-  deployment: string,
-  source: ProjectionSource,
-): ProjectionIdentity;
-export function projectionIdentity(
-  deployment: string,
-  source: ProjectionSource,
-): ProjectionIdentity {
-  if (!deployment.trim()) throw new Error("CRM deployment namespace is required.");
-  const sourceId =
-    source.kind === "membership"
-      ? JSON.stringify([source.userId, source.organizationId])
-      : source.id;
-  const externalId = `everr:v1:${encodeURIComponent(deployment)}:${source.kind}:${encodeURIComponent(sourceId)}`;
-  if (source.kind === "membership")
-    return {
-      kind: source.kind,
-      sourceId,
-      externalId,
-      userId: source.userId,
-      organizationId: source.organizationId,
-    };
-  if (source.kind === "user")
-    return { kind: source.kind, sourceId, externalId, userId: source.id, organizationId: null };
-  return { kind: source.kind, sourceId, externalId, userId: null, organizationId: source.id };
+function entityIdentity(kind: "user", id: string): Extract<SourceIdentity, { kind: "user" }>;
+function entityIdentity(
+  kind: "organization",
+  id: string,
+): Extract<SourceIdentity, { kind: "organization" }>;
+function entityIdentity(kind: "user" | "organization", id: string): SourceIdentity {
+  const common = { sourceId: id, externalId: externalIdentity(kind, id) };
+  return kind === "user"
+    ? { ...common, kind, userId: id, organizationId: null }
+    : { ...common, kind, userId: null, organizationId: id };
 }
 
 type MembershipSnapshot = { id: string; userId: string; organizationId: string; role: string };
-export type DesiredProjection = ProjectionIdentity &
+export type SourceSnapshot = SourceIdentity &
   (
     | { deleted: true }
     | {
@@ -68,6 +52,7 @@ export type DesiredProjection = ProjectionIdentity &
     | {
         deleted: false;
         kind: "organization";
+        companyId?: string;
         fields: {
           name: string;
           createdAt: string;
@@ -80,16 +65,15 @@ export type DesiredProjection = ProjectionIdentity &
         };
         memberships: MembershipSnapshot[];
       }
-    | { deleted: false; kind: "membership" }
   );
 
 /** No event payload values enter a snapshot. Each read has one committed DB view. */
-export function createCrmSnapshotReader(database: Database, deployment: string) {
+export function createCrmSnapshotReader(database: Database) {
   return {
-    user(id: string): Promise<DesiredProjection> {
+    user(id: string): Promise<SourceSnapshot> {
       return database.transaction(
         async (tx) => {
-          const identity = projectionIdentity(deployment, { kind: "user", id });
+          const identity = entityIdentity("user", id);
           const [row] = await tx.select().from(user).where(eq(user.id, id));
           if (!row) return { ...identity, deleted: true };
           const memberships = await tx
@@ -118,10 +102,10 @@ export function createCrmSnapshotReader(database: Database, deployment: string) 
         { isolationLevel: "repeatable read", accessMode: "read only" },
       );
     },
-    organization(id: string): Promise<DesiredProjection> {
+    organization(id: string): Promise<SourceSnapshot> {
       return database.transaction(
         async (tx) => {
-          const identity = projectionIdentity(deployment, { kind: "organization", id });
+          const identity = entityIdentity("organization", id);
           const [row] = await tx.select().from(organization).where(eq(organization.id, id));
           if (!row) return { ...identity, deleted: true };
           const entitlement = await readOrgEntitlement(id, tx);
@@ -139,6 +123,7 @@ export function createCrmSnapshotReader(database: Database, deployment: string) 
             ...identity,
             kind: "organization",
             deleted: false,
+            companyId: readCompanyId(row.metadata),
             fields: {
               name: row.name,
               createdAt: row.createdAt.toISOString(),
@@ -155,18 +140,30 @@ export function createCrmSnapshotReader(database: Database, deployment: string) 
         { isolationLevel: "repeatable read", accessMode: "read only" },
       );
     },
-    membership(userId: string, organizationId: string): Promise<DesiredProjection> {
-      const identity = projectionIdentity(deployment, {
-        kind: "membership",
-        userId,
-        organizationId,
-      });
-      return database
+    async membership(userId: string, organizationId: string): Promise<boolean> {
+      const rows = await database
         .select({ id: member.id })
         .from(member)
         .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-        .limit(1)
-        .then((rows) => ({ ...identity, kind: "membership", deleted: rows.length === 0 }));
+        .limit(1);
+      return rows.length > 0;
+    },
+    async *sources() {
+      for (const kind of ["user", "organization"] as const) {
+        const table = kind === "user" ? user : organization;
+        let cursor: string | undefined;
+        while (true) {
+          const rows = await database
+            .select({ id: table.id })
+            .from(table)
+            .where(cursor === undefined ? undefined : gt(table.id, cursor))
+            .orderBy(asc(table.id))
+            .limit(100);
+          for (const row of rows) yield { kind, id: row.id };
+          if (rows.length < 100) break;
+          cursor = rows.at(-1)?.id;
+        }
+      }
     },
   };
 }

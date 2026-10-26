@@ -1,6 +1,8 @@
 import { serverLogger } from "#app/telemetry/logger.ts";
 // @vitest-environment node
 import { betterAuth } from "better-auth";
+import { eq } from "drizzle-orm";
+import { user } from "#app/db/schema/index.ts";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { EventPublisher } from "#app/composition/events.ts";
@@ -205,3 +207,53 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
   );
   failure.mockRestore();
 });
+
+it.each(["update", "delete"] as const)(
+  "revalidates an email predicate before %s after the lifecycle lock",
+  async (operation) => {
+    await client.exec(
+      `INSERT INTO "user"(id,name,email,email_verified) VALUES ('original','Original','old@example.test',false)`,
+    );
+    const { facts, events } = capture();
+    let moved = false;
+    const auth = betterAuth({
+      baseURL: "http://localhost:3000",
+      secret: "email-race-regression-secret-long-enough",
+      database: identityLifecycleAdapter(
+        database,
+        (executor) => drizzleAdapter(executor, { provider: "pg" }),
+        events,
+        {
+          withIdentityRequest: (run) => run(),
+          async lockUserLifecycle() {
+            if (moved) return;
+            moved = true;
+            // Install the committed state that can appear while waiting for the lock.
+            await database
+              .update(user)
+              .set({ email: "new@example.test" })
+              .where(eq(user.id, "original"));
+            await database.insert(user).values({
+              id: "replacement",
+              name: "Replacement",
+              email: "old@example.test",
+              emailVerified: false,
+            });
+          },
+        },
+      ),
+    });
+    const { adapter } = await auth.$context;
+    const target = { model: "user", where: [{ field: "email", value: "old@example.test" }] };
+    const result =
+      operation === "update"
+        ? await adapter.update({ ...target, update: { emailVerified: true } })
+        : await adapter.delete(target);
+    expect(result ?? null).toBeNull();
+    expect((await client.query('SELECT id,email_verified FROM "user" ORDER BY id')).rows).toEqual([
+      { id: "original", email_verified: false },
+      { id: "replacement", email_verified: false },
+    ]);
+    expect(facts).toEqual([]);
+  },
+);

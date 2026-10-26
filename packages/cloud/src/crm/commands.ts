@@ -1,9 +1,8 @@
-import { createHash } from "node:crypto";
 import type { TaskSpec } from "graphile-worker";
 import { z } from "zod";
 
 export const USER_SYNC_TASK = "crm/sync-user";
-export const USER_SYNC_RETRIES = 8;
+export const CRM_QUEUE = "crm-brevo";
 export const userSyncPayload = z
   .object({
     version: z.literal(1),
@@ -11,18 +10,15 @@ export const userSyncPayload = z
     eventId: z.string().min(1).max(512),
     eventType: z.string().min(1).max(128),
     occurredAt: z.iso.datetime({ offset: true }),
-    recoverExhaustedRevision: z.number().int().positive().optional(),
-    verifyRemoteRevision: z.number().int().positive().optional(),
-    recheckDeletionRevision: z.number().int().positive().optional(),
+    prune: z.boolean().optional(),
   })
   .strict();
 export type UserSyncPayload = z.infer<typeof userSyncPayload>;
 
-/** Fixed queue cardinality. Graphile holds the queue lock for the WHOLE task across replicas. */
+/** One outbound queue serializes provider work across all replicas. */
 export function userSyncSpec(userId: string): TaskSpec {
-  const partition = createHash("sha256").update(userId).digest().readUInt32BE(0) % 64;
   return {
-    queueName: `crm-user-${partition}`,
+    queueName: CRM_QUEUE,
     maxAttempts: 8,
     jobKey: `crm-user-projection:${userId}`,
     jobKeyMode: "preserve_run_at",
@@ -36,9 +32,7 @@ const relatedPayload = z.object({
   eventId: z.string().min(1).max(512),
   eventType: z.string().min(1).max(128),
   occurredAt: z.iso.datetime({ offset: true }),
-  recoverExhaustedRevision: z.number().int().positive().optional(),
-  verifyRemoteRevision: z.number().int().positive().optional(),
-  recheckDeletionRevision: z.number().int().positive().optional(),
+  prune: z.boolean().optional(),
   organizationId: z.string().min(1).max(512),
 });
 export const organizationSyncPayload = relatedPayload
@@ -53,16 +47,37 @@ export const membershipSyncPayload = relatedPayload
 export type OrganizationSyncPayload = z.infer<typeof organizationSyncPayload>;
 export type MembershipSyncPayload = z.infer<typeof membershipSyncPayload>;
 
-/** Fixed queues only. Endpoint advisory locks additionally coordinate parent interactions. */
+/** Stable entity keys coalesce notifications; handlers always read current state. */
 export function relatedSyncSpec(id: string, userId?: string): TaskSpec {
-  const partition = createHash("sha256").update(id).digest().readUInt32BE(0) % 64;
   return {
-    queueName: `crm-related-${partition}`,
+    queueName: CRM_QUEUE,
     maxAttempts: 8,
     jobKey:
       userId === undefined
         ? `crm-organization-projection:${id}`
         : `crm-pair:${JSON.stringify([userId, id])}`,
+    jobKeyMode: "preserve_run_at",
+  };
+}
+
+export const FULL_SYNC_TASK = "crm/full-sync";
+export const fullSyncPayload = z
+  .object({
+    version: z.literal(1),
+    eventId: z.string().min(1).max(512),
+    eventType: z.literal("crm.full-sync.requested"),
+    occurredAt: z.iso.datetime({ offset: true }),
+    prune: z.boolean(),
+    apply: z.boolean(),
+  })
+  .strict()
+  .refine((value) => !value.apply || value.prune);
+export type FullSyncPayload = z.infer<typeof fullSyncPayload>;
+export function fullSyncSpec(): TaskSpec {
+  return {
+    queueName: CRM_QUEUE,
+    maxAttempts: 8,
+    jobKey: "crm-full-sync",
     jobKeyMode: "preserve_run_at",
   };
 }

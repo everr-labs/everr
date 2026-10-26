@@ -3,16 +3,12 @@ import { databasePoolConfig } from "@everr/app/db/client";
 import * as schema from "@everr/app/db/schema";
 import { managedWorker } from "@everr/app/server/worker/managed-worker";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { parseCronItems, run, type TaskList, type WorkerEvents } from "graphile-worker";
+import { run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { createBrevoAdapter } from "./brevo/adapter";
-import { createBrevoBudget } from "./brevo/budget";
 import { readBrevoConfig } from "./brevo/config";
 import { createCrmSnapshotReader } from "./snapshots";
-import { createCrmProjectionStore } from "./store";
 import { createCrmTaskList } from "./task-list";
-import { createReconciliationTask, RECONCILIATION_TASK } from "./reconciliation";
-import { attachCrmRetryPolicy } from "./retries";
 
 export const integrationWorker = managedWorker({
   name: "everrIntegrationWorker",
@@ -24,14 +20,11 @@ export const integrationWorker = managedWorker({
     const database = drizzle(pool, { schema });
     const controller = new AbortController();
     const events: WorkerEvents = new EventEmitter();
-    const retries = attachCrmRetryPolicy(events, pool);
     try {
       const tasks = createCrmTaskList({
-        pool,
-        deployment: config.deployment,
-        reader: createCrmSnapshotReader(database, config.deployment),
-        store: createCrmProjectionStore(database, config.deployment),
-        adapter: createBrevoAdapter(config, createBrevoBudget(database, config.accountScope)),
+        database,
+        reader: createCrmSnapshotReader(database),
+        adapter: createBrevoAdapter(config),
       });
       const taskList: TaskList = {};
       for (const [name, task] of Object.entries(tasks)) {
@@ -39,23 +32,7 @@ export const integrationWorker = managedWorker({
           taskList[name] = (payload, helpers) =>
             task(payload, { ...helpers, abortSignal: controller.signal });
       }
-      const reconcile = createReconciliationTask({ pool, ...config });
-      taskList[RECONCILIATION_TASK] = (payload, helpers) =>
-        reconcile(payload, { ...helpers, abortSignal: controller.signal });
       const runner = await run({
-        parsedCronItems: parseCronItems([
-          {
-            task: RECONCILIATION_TASK,
-            match: "* * * * *",
-            options: {
-              backfillPeriod: 0,
-              priority: 100,
-              maxAttempts: 3,
-              jobKey: "crm-reconcile",
-              jobKeyMode: "preserve_run_at",
-            },
-          },
-        ]),
         concurrency: 1,
         pgPool: pool,
         events,
@@ -75,7 +52,6 @@ export const integrationWorker = managedWorker({
           try {
             if (!stopped) await runner.stop();
           } finally {
-            await retries.drain();
             await pool.end();
           }
         },

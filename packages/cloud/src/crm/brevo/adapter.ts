@@ -1,7 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import * as z from "zod";
-import type { DesiredProjection } from "../snapshots";
-import type { BrevoBudget } from "./budget";
+import { externalIdentity, type SourceSnapshot } from "../snapshots";
+import { rateLimitDiagnostic } from "../telemetry";
 import type { readBrevoConfig } from "./config";
 
 type Failure = {
@@ -22,8 +22,8 @@ type Failure = {
   remoteId?: string;
 };
 type Result<T> = { ok: true; value: T } | Failure;
-type User = Extract<DesiredProjection, { kind: "user"; deleted: false }>;
-type Company = Extract<DesiredProjection, { kind: "organization"; deleted: false }>;
+type User = Extract<SourceSnapshot, { kind: "user"; deleted: false }>;
+type Company = Extract<SourceSnapshot, { kind: "organization"; deleted: false }>;
 type Config = ReturnType<typeof readBrevoConfig>;
 type Transport = (url: string, init: RequestInit) => Promise<Response>;
 const contact = z.object({
@@ -127,26 +127,26 @@ async function readJson(response: Response, signal: AbortSignal): Promise<unknow
 }
 
 function resetDelay(headers: Headers) {
-  // Brevo documents reset as remaining seconds, not an epoch timestamp.
-  const reset = Number(headers.get("x-sib-ratelimit-reset"));
+  const resetHeader = headers.get("x-sib-ratelimit-reset");
+  const reset = resetHeader === null ? NaN : Number(resetHeader);
   const retry = headers.get("retry-after");
   const seconds = retry === null ? NaN : Number(retry);
   const date = retry === null || Number.isFinite(seconds) ? NaN : Date.parse(retry);
-  return Math.max(
-    1000,
-    Number.isFinite(reset) && reset > 0 ? reset * 1000 : 60_000,
-    Number.isFinite(seconds) ? seconds * 1000 : 0,
-    Number.isFinite(date) ? date - Date.now() : 0,
-  );
+  const delays = [
+    Number.isFinite(reset) && reset >= 0 ? reset * 1000 : undefined,
+    Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined,
+    Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined,
+  ].filter((value): value is number => value !== undefined);
+  return Math.max(1000, ...(delays.length ? delays : [60_000]));
 }
 
-/** Construction/import performs no I/O. Each call makes at most one attempt per request. */
+/** Construction performs no I/O. Only explicit rate-limit rejections retry inside a call. */
 export function createBrevoAdapter(
   config: Config,
-  budget: BrevoBudget,
   transport: Transport = fetch,
+  rateLimited: (operation: string, waitMs: number) => void = rateLimitDiagnostic,
 ) {
-  async function request<T>(
+  async function requestOnce<T>(
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     path: string,
     schema: z.ZodType<T>,
@@ -154,29 +154,6 @@ export function createBrevoAdapter(
     signal?: AbortSignal,
   ): Promise<Result<T>> {
     if (config.mode !== "configured") return failure(config.mode, `crm_${config.mode}`);
-    if (signal?.aborted) return failure("cancelled", "request_cancelled");
-    const group = path.startsWith("/contacts/") || path === "/contacts" ? "contacts" : "general";
-    let permit: Awaited<ReturnType<BrevoBudget["acquire"]>>;
-    try {
-      permit = await budget.acquire(group);
-      // Wait through the ordinary contact permit gap so a GET cannot starve its write.
-      // Longer cooldowns return to durable scheduling without holding this task open.
-      if (!permit.allowed && group === "contacts") {
-        const waitMs = permit.retryAt.getTime() - Date.now();
-        if (waitMs >= 0 && waitMs <= 250) {
-          await delay(Math.min(250, waitMs + 1), undefined, { signal });
-          permit = await budget.acquire(group);
-        }
-      }
-    } catch {
-      if (signal?.aborted) return failure("cancelled", "request_cancelled");
-      return {
-        ...failure("transient", "quota_unavailable"),
-        retryAt: new Date(Date.now() + 60_000),
-      };
-    }
-    if (!permit.allowed)
-      return { ...failure("rate_limited", "local_budget"), retryAt: permit.retryAt };
     if (signal?.aborted) return failure("cancelled", "request_cancelled");
     const controller = new AbortController();
     let timedOut = false;
@@ -211,7 +188,6 @@ export function createBrevoAdapter(
           signal: controller.signal,
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-        const exhausted = response.headers.get("x-sib-ratelimit-remaining") === "0";
         const delay = resetDelay(response.headers);
         const readOutcome = async (): Promise<Result<T>> => {
           if (response.status === 429) {
@@ -287,13 +263,12 @@ export function createBrevoAdapter(
         };
         const result = await readOutcome();
         if (!result.ok) responseFailure = result;
-        if (response.status === 429 || exhausted) await budget.cooldown(group, delay);
         return result;
       };
       return await Promise.race([operation(), aborted]);
     } catch {
       // No raw transport exception/cause, URL, body, credential or provider message escapes.
-      // A known rejection remains definitive even if quota storage fails or stalls.
+      // Keep definitive provider rejections distinct from unknown transport outcomes.
       if (responseFailure) return responseFailure;
       return {
         ...failure(
@@ -313,12 +288,54 @@ export function createBrevoAdapter(
       controller.abort();
     }
   }
+  async function request<T>(
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+    path: string,
+    schema: z.ZodType<T>,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<Result<T>> {
+    while (true) {
+      const result = await requestOnce(method, path, schema, body, signal);
+      if (result.ok || result.kind !== "rate_limited") return result;
+      const waitMs = Math.max(
+        1000,
+        (result.retryAt?.getTime() ?? Date.now() + 60_000) - Date.now(),
+      );
+      rateLimited(
+        `${path.startsWith("/contacts") ? "contacts" : "companies"}.${method.toLowerCase()}`,
+        waitMs,
+      );
+      try {
+        await delay(waitMs, undefined, { signal });
+      } catch {
+        return failure("cancelled", "request_cancelled");
+      }
+    }
+  }
   function valid(snapshot: User | Company) {
-    return (
-      config.mode === "disabled" ||
-      snapshot.externalId ===
-        `everr:v1:${encodeURIComponent(config.deployment)}:${snapshot.kind}:${encodeURIComponent(snapshot.sourceId)}`
-    );
+    return snapshot.externalId === externalIdentity(snapshot.kind, snapshot.sourceId);
+  }
+  const inventoryContact = z.object({
+    id: z.number().int().positive(),
+    attributes: z.object({ EXT_ID: z.string().optional() }),
+  });
+  async function listCompanies(signal?: AbortSignal): Promise<Result<CompanyRecord[]>> {
+    const items = new Map<string, CompanyRecord>();
+    for (let page = 0; ; page++) {
+      const result = await request(
+        "GET",
+        `/companies?limit=100&page=${page}`,
+        z.object({ items: z.array(company) }),
+        undefined,
+        signal,
+      );
+      if (!result.ok) return result;
+      const size = items.size;
+      for (const item of result.value.items) items.set(item.id, item);
+      if (result.value.items.length < 100) return { ok: true, value: [...items.values()] };
+      if (items.size === size) return failure("transient", "inventory_not_advancing");
+    }
   }
   async function getContact(externalId: string, signal?: AbortSignal) {
     return request(
@@ -332,7 +349,7 @@ export function createBrevoAdapter(
   return {
     getContact,
     async createContact(snapshot: User, signal?: AbortSignal) {
-      if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
+      if (!valid(snapshot)) return failure("permanent", "source_identity_mismatch");
       return request(
         "POST",
         "/contacts",
@@ -355,7 +372,7 @@ export function createBrevoAdapter(
       current: z.infer<typeof contact>,
       signal?: AbortSignal,
     ): Promise<Result<undefined> & { changed?: boolean }> {
-      if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
+      if (!valid(snapshot)) return failure("permanent", "source_identity_mismatch");
       if (current.attributes.EXT_ID !== snapshot.externalId)
         return failure("identity_conflict", "external_id_mismatch");
       const emailChanged = current.email !== snapshot.fields.email;
@@ -405,7 +422,7 @@ export function createBrevoAdapter(
       );
     },
     async createCompany(snapshot: Company, signal?: AbortSignal) {
-      if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
+      if (!valid(snapshot)) return failure("permanent", "source_identity_mismatch");
       return request(
         "POST",
         "/companies",
@@ -419,7 +436,7 @@ export function createBrevoAdapter(
       current: CompanyRecord,
       signal?: AbortSignal,
     ): Promise<Result<CompanyRecord | undefined> & { changed?: boolean }> {
-      if (!valid(snapshot)) return failure("permanent", "deployment_mismatch");
+      if (!valid(snapshot)) return failure("permanent", "source_identity_mismatch");
       if (current.attributes.everr_org_id !== snapshot.externalId)
         return failure("identity_conflict", "external_id_mismatch");
       const desired = companyBody(snapshot);
@@ -464,28 +481,42 @@ export function createBrevoAdapter(
         signal,
       );
     },
-    /** Bounded inventory, never assumes undocumented custom-attribute filtering. */
-    async recoverCompany(
+    listCompanies,
+    async listContacts(signal?: AbortSignal): Promise<Result<z.infer<typeof inventoryContact>[]>> {
+      const items: z.infer<typeof inventoryContact>[] = [];
+      for (let offset = 0; ; offset += 100) {
+        const result = await request(
+          "GET",
+          `/contacts?limit=100&offset=${offset}`,
+          z.object({ contacts: z.array(inventoryContact) }),
+          undefined,
+          signal,
+        );
+        if (!result.ok) return result;
+        items.push(...result.value.contacts);
+        if (result.value.contacts.length < 100) return { ok: true, value: items };
+      }
+    },
+    async findCompany(
       externalId: string,
       signal?: AbortSignal,
-    ): Promise<Result<z.infer<typeof company>>> {
-      const result = await request(
-        "GET",
-        "/companies?limit=100",
-        z.object({ items: z.array(company) }),
-        undefined,
-        signal,
-      );
+    ): Promise<Result<CompanyRecord | undefined>> {
+      const result = await listCompanies(signal);
       if (!result.ok) return result;
-      if (result.value.items.length >= 100)
-        return failure("ambiguous_create", "recovery_inventory_limit");
-      const matches = result.value.items.filter(
-        (item) => item.attributes.everr_org_id === externalId,
-      );
+      const matches = result.value.filter((item) => item.attributes.everr_org_id === externalId);
       if (matches.length > 1) return failure("identity_conflict", "multiple_remote_identities");
-      if (matches.length === 1) return { ok: true, value: matches[0] };
-      // No match is not permission to repeat a POST: visibility may be delayed.
-      return failure("ambiguous_create", "recovery_not_visible");
+      return { ok: true, value: matches[0] };
     },
   };
+}
+
+/** Only bounded, redacted classifications cross the provider seam. */
+export class BrevoFailure extends Error {
+  constructor(readonly failure: Failure) {
+    super(`Brevo operation failed: ${failure.code}`);
+  }
+}
+export function requireBrevo<T>(result: Result<T>): T {
+  if (!result.ok) throw new BrevoFailure(result);
+  return result.value;
 }

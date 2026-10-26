@@ -49,7 +49,7 @@ may coalesce events and read current state rather than preserve event history.
 
 The following are domain facts emitted through this bus. Graphile execution
 events, diagnostic logs, alert journal records, and administrative commands such
-as `crm.reconciliation.requested` are separate contracts.
+as `crm.full-sync.requested` are separate contracts.
 
 | Event type                     | Subject           | `data` fields                                                            | Publication boundary                                                                                      |
 | ------------------------------ | ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |

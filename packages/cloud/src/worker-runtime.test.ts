@@ -94,8 +94,6 @@ async function loadRuntime(mode = "disabled") {
   vi.stubEnv("EVERR_GITHUB_ENABLED", "false");
   vi.stubEnv("CRM_BREVO_MODE", mode);
   vi.stubEnv("CRM_BREVO_API_KEY", "fixture");
-  vi.stubEnv("CRM_BREVO_DEPLOYMENT", "test");
-  vi.stubEnv("CRM_BREVO_ACCOUNT_SCOPE", "test");
   vi.resetModules();
   // The runner handle deliberately lives on the hot-singleton registry on
   // globalThis to survive HMR module replacement; tests need each import to
@@ -151,26 +149,12 @@ describe("worker runtime", () => {
     );
     expect(integration).toMatchObject({ concurrency: 1, noHandleSignals: true });
     expect(Object.keys(integration!.taskList).sort()).toEqual([
-      "crm/reconcile",
+      "crm/full-sync",
       "crm/sync-membership",
       "crm/sync-organization",
       "crm/sync-user",
     ]);
-    expect(integration).toMatchObject({
-      parsedCronItems: [
-        {
-          task: "crm/reconcile",
-          match: "* * * * *",
-          options: {
-            priority: 100,
-            backfillPeriod: 0,
-            maxAttempts: 3,
-            jobKey: "crm-reconcile",
-            jobKeyMode: "preserve_run_at",
-          },
-        },
-      ],
-    });
+    expect(integration).not.toHaveProperty("parsedCronItems");
     expect(runtimeMocks.poolOptions).toHaveLength(2);
     await activeRuntime!.stop();
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
