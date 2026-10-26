@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -256,6 +256,9 @@ describe("ChannelDialog validation", () => {
       </QueryClientProvider>,
     );
 
+    // The dialog moves focus to its first field a frame after it opens. Typing
+    // before then sends the rest of the URL into Name.
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
     await user.type(
       screen.getByRole("textbox", { name: "Incoming webhook URL" }),
       "https://hooks.slack.com/services/T000/B000/x",
