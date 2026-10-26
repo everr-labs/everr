@@ -135,8 +135,9 @@ describe("worker runtime", () => {
         const registration = composition.events.find(({ definition }) => definition.type === type);
         expect(registration).toBeUndefined();
       }
-      const diagnostics = vi.fn();
-      const events = createEventPublisher({ routes: composition.events, diagnostics });
+      const diagnostics = runtimeMocks.serverLoggerError;
+      diagnostics.mockClear();
+      const events = createEventPublisher({ routes: composition.events });
       for (const type of excluded) {
         await events.publish({
           type,

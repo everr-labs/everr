@@ -1,3 +1,4 @@
+import { serverLogger } from "@everr/app/telemetry/logger";
 // @vitest-environment node
 import { setTimeout as delay } from "node:timers/promises";
 import { EventEmitter } from "node:events";
@@ -203,7 +204,6 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
       const publisher = createEventPublisher({
         routes: crmEventRoutes("configured"),
         enqueue,
-        diagnostics() {},
       });
       await publisher.publish(userCreated("u", false));
       expect((await fixture.client.query("SELECT id FROM graphile_worker.jobs")).rows).toHaveLength(
@@ -221,13 +221,12 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     });
 
     it("keeps actual committed auth signup successful when the cloud consumer rejects enqueue", async () => {
-      const log = vi.fn();
+      const log = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
       const publisher = createEventPublisher({
         routes: crmEventRoutes("configured"),
         enqueue: async () => {
           throw new Error("enqueue unavailable");
         },
-        diagnostics: log,
       });
       const auth = createIdentityTestAuth(fixture.database, publisher);
       const signup = await auth.api.signUpEmail({
@@ -248,11 +247,13 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
         ).rows,
       ).toEqual([{ user_id: signup.user.id }]);
       expect(log).toHaveBeenCalledWith(
+        "business_events.publication.failed",
         expect.objectContaining({
-          stage: "subscriber",
-          subscriberId: "identity.user.created",
+          "everr.business_event.failure_stage": "subscriber",
+          "everr.business_event.type": "identity.user.created",
         }),
       );
+      log.mockRestore();
     });
 
     it("serializes source load, HTTP and outcome across two independent runners", async () => {

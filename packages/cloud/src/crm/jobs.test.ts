@@ -1,11 +1,14 @@
+import { serverLogger } from "@everr/app/telemetry/logger";
 // @vitest-environment node
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { userCreated } from "@everr/app/identity/events";
 import { crmEventRoutes } from "./jobs";
 import { userSyncSpec, relatedSyncSpec } from "./commands";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined, databasePoolConfig: {} }));
+
+afterEach(() => vi.restoreAllMocks());
 
 const userTypes = [
   "identity.user.created",
@@ -37,8 +40,8 @@ it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
   "directly admits the correct Graphile job for %s",
   async (type) => {
     const enqueue = vi.fn(async () => {});
-    const diagnostics = vi.fn();
-    const events = createEventPublisher({ routes: crmEventRoutes("paused"), enqueue, diagnostics });
+    const diagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
+    const events = createEventPublisher({ routes: crmEventRoutes("paused"), enqueue });
     const isUser = userTypes.includes(type);
     const isMember = membershipTypes.includes(type);
     const data = isUser
@@ -90,14 +93,13 @@ it.each(["organization.provisioned", "telemetry.first_queryable", "organization.
 );
 
 it("contains mismatched subjects and Graphile failures without changing committed source results", async () => {
-  const diagnostics = vi.fn();
+  const diagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
   const enqueue = vi.fn(async () => {
     throw new Error("enqueue unavailable");
   });
   const events = createEventPublisher({
     routes: crmEventRoutes("configured"),
     enqueue,
-    diagnostics,
   });
   await events.publish({ ...userCreated("u", false), subjectId: "other" });
   await events.publish({
@@ -114,12 +116,14 @@ it("contains mismatched subjects and Graphile failures without changing committe
   });
   await expect(events.publish(userCreated("u", false))).resolves.toBeUndefined();
   expect(enqueue).toHaveBeenCalledOnce();
-  expect(diagnostics.mock.calls.map(([failure]) => failure.error.message)).toEqual([
-    "Invalid CRM user subject.",
-    "Invalid CRM organization subject.",
-    "Invalid CRM membership subject.",
-    "enqueue unavailable",
-  ]);
+  expect(diagnostics.mock.calls.map(([, attributes]) => attributes?.["exception.message"])).toEqual(
+    [
+      "Invalid CRM user subject.",
+      "Invalid CRM organization subject.",
+      "Invalid CRM membership subject.",
+      "enqueue unavailable",
+    ],
+  );
 });
 
 it("preserves stable job keys and the bounded Graphile queue partitions", () => {
