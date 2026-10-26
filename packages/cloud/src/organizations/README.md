@@ -73,6 +73,14 @@ has a bounded connection wait. Shutdown closes admission, drains for at most
 out in-flight marker may finish later; its fact can be lost after publication
 closes, while its stored marker remains repairable.
 
+## Database migration
+
+Cloud migration `0001_organization_milestones` creates the marker table, its
+constraints and the cascading Organization reference. It belongs to the Cloud
+migration history, after the shared App schema. Include it in the target rollout
+before expecting marker persistence. Generating these artifacts does not apply
+them to a database.
+
 ## Telemetry
 
 The existing server logger and OTel providers export
