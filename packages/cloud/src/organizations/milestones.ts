@@ -6,7 +6,7 @@ import type {
   TraceConsultation,
   TraceConsultations,
 } from "@everr/app/organizations/consultations";
-import { type OrganizationMilestoneEvent } from "./events";
+import type { OrganizationMilestoneEvent } from "./events";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { organizationMilestones } from "../db/schema/organization-milestones";
