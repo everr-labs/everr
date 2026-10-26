@@ -6,13 +6,12 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from "@everr/app/server/alerting/testing/pglite-database";
-import { eq, SQL } from "drizzle-orm";
-import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
+import { eq } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { crmProjection, organizationBilling, orgSubscription } from "../db/schema";
 import { createCrmSnapshotReader, projectionIdentity } from "./snapshots";
 import { createCrmProjectionStore } from "./store";
-import { createMilestoneTestTable } from "../organizations/testing/database";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 vi.mock("../app/env", () => ({ appEnv: { POLAR_PRO_PRODUCT_ID: "product_pro" } }));
@@ -30,45 +29,13 @@ beforeAll(async () => {
       migrationsSchema: "drizzle",
     },
   ]);
-  // Exercise the new schema source in a disposable in-memory DB. No migration
-  // artifacts are generated or applied to any application database.
-  const config = getTableConfig(crmProjection);
-  const dialect = new PgDialect();
-  const quote = (value: string) => `"${value.replaceAll('"', '""')}"`;
-  const columns = config.columns.map((column) => {
-    const defaultSql =
-      column.default instanceof SQL
-        ? dialect.sqlToQuery(column.default).sql
-        : column.default === undefined
-          ? undefined
-          : typeof column.default === "string"
-            ? `'${column.default}'`
-            : JSON.stringify(column.default);
-    return `${quote(column.name)} ${column.getSQLType()}${column.notNull ? " NOT NULL" : ""}${defaultSql === undefined ? "" : ` DEFAULT ${defaultSql}`}`;
-  });
-  const primary = config.primaryKeys[0].columns.map((column) => quote(column.name)).join(",");
-  const checks = config.checks.map(
-    (check) => `CONSTRAINT ${quote(check.name)} CHECK (${dialect.sqlToQuery(check.value).sql})`,
-  );
-  await fixture.client.exec(
-    `CREATE TABLE crm_projection (${[...columns, `PRIMARY KEY (${primary})`, ...checks].join(",")})`,
-  );
-  for (const index of config.indexes) {
-    const names = index.config.columns.map((column) => quote((column as { name: string }).name));
-    await fixture.client.exec(
-      `CREATE UNIQUE INDEX ${quote(index.config.name!)} ON crm_projection (${names.join(",")})`,
-    );
-  }
   const database = fixture.db as unknown as Database;
-  await createMilestoneTestTable(fixture.client);
   reader = createCrmSnapshotReader(database, "test");
   store = createCrmProjectionStore(database, "test");
 });
 
 afterAll(async () => fixture?.close());
 beforeEach(async () => {
-  // CRM was added after createTestDatabase discovered its tables.
-  await fixture.client.exec("TRUNCATE crm_projection, organization_milestones");
   await fixture.truncate();
   await fixture.db
     .insert(user)
