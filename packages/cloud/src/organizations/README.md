@@ -59,7 +59,7 @@ actions remain unknown. A later valid consultation can establish a later observe
 date, but cannot reconstruct a lost earlier first-value date.
 
 Cloud constructs the capability independently of outbound consumers. Event
-registrations are currently empty, so product markers persist without external
+routes are currently empty, so product markers persist without external
 delivery. Future projections can read stored dates/version from a committed view;
 missing markers remain unknown rather than dates derived from creation or billing.
 
@@ -69,9 +69,10 @@ awaited by the completed action. Validation, overload, clock, database and publi
 failures are measured and contained. Each marker transaction has a 2-second SQL
 statement timeout and 500-millisecond lock timeout; the existing database pool
 has a bounded connection wait. Shutdown closes admission, drains for at most
-3 seconds, then drains domain publication before workers and telemetry. A timed
-out in-flight marker may finish later; its fact can be lost after publication
-closes, while its stored marker remains repairable.
+3 seconds before workers and telemetry stop. An in-flight marker can finish
+after that timeout. Publication directly awaits Graphile admission, without a
+separate drain or admission gate; enqueue failures use the shared publisher
+diagnostics. Hard termination can still lose events while preserving stored markers.
 
 ## Database migration
 
@@ -188,4 +189,4 @@ Unexpected evidence-inspection/observer failures emit
 Logger failure is also contained. There is no SQL, result, trace ID, customer
 attribute or exception text in this signal. Marker-stage logs/counters above
 remain unchanged. See the [event bus guide](../../../../docs/event-bus.md) for the
-milestone fact payloads, publication guarantees and subscriber registration.
+milestone fact payloads, publication guarantees and Graphile handler wiring.

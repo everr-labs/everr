@@ -5,7 +5,6 @@ import { createAuthTestDatabase } from "@everr/app/identity/testing/database";
 import { organization } from "@everr/app/db/schema";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { eventRegistration } from "@everr/app/server/events/registration";
 import { createOrganizationMilestoneStore, createTraceConsultations } from "./milestones";
 import { createMilestoneTestTable } from "./testing/database";
 
@@ -32,7 +31,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     const read = () =>
       fixture.client.query("SELECT * FROM organization_milestones ORDER BY organization_id");
     function observer(
-      publish: (fact: OrganizationMilestoneEvent) => void = vi.fn(),
+      publish: (fact: OrganizationMilestoneEvent) => Promise<void> = vi.fn(),
       now = () => instant,
     ) {
       const diagnostics = vi.fn();
@@ -69,7 +68,7 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     it("concurrent replicas commit one marker and publish each fact once after source commit", async () => {
       const facts: OrganizationMilestoneEvent[] = [];
       const committed: ReturnType<typeof read>[] = [];
-      const publish = vi.fn((fact: OrganizationMilestoneEvent) => {
+      const publish = vi.fn(async (fact: OrganizationMilestoneEvent) => {
         facts.push(fact);
         committed.push(read());
       });
@@ -147,20 +146,18 @@ describe.skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)(
     it("retains stored markers after lost publication without replaying history", async () => {
       const publisherDiagnostics = vi.fn();
       const events = createEventPublisher({
-        registrations: organizationMilestoneDefinitions.map((definition) =>
-          eventRegistration(definition, {
-            id: `test.milestones.${definition.type}`,
-            async enqueue() {
-              throw new Error("enqueue unavailable");
-            },
-          }),
-        ),
+        routes: organizationMilestoneDefinitions.map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/milestone", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error("enqueue unavailable");
+        },
         diagnostics: publisherDiagnostics,
       });
       const state = observer(events.publish);
       state.observe(evidence());
       await state.stop();
-      await events.stop();
       expect(publisherDiagnostics).toHaveBeenCalledTimes(2);
       expect((await read()).rows).toHaveLength(1);
       expect((await read()).rows[0]).toMatchObject({
