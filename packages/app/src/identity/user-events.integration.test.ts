@@ -1,3 +1,4 @@
+import { serverLogger } from "#app/telemetry/logger.ts";
 // @vitest-environment node
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -181,14 +182,13 @@ it.each(["password", "OAuth"])(
 );
 
 it("keeps a real committed signup successful when a subscriber fails", async () => {
-  const failure = vi.fn();
+  const failure = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
   const definition = userEventDefinitions[0];
   const publisher = createEventPublisher({
     routes: [{ definition, job: (event) => ({ task: "test/user", payload: event }) }],
     enqueue: async () => {
       throw new Error("enqueue unavailable");
     },
-    diagnostics: failure,
   });
   const auth = createAuth(publisher);
   const signup = await auth.api.signUpEmail({ body: input });
@@ -197,6 +197,11 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
     { user_id: signup.user.id },
   ]);
   expect(failure).toHaveBeenCalledWith(
-    expect.objectContaining({ eventType: "identity.user.created", stage: "subscriber" }),
+    "business_events.publication.failed",
+    expect.objectContaining({
+      "everr.business_event.type": "identity.user.created",
+      "everr.business_event.failure_stage": "subscriber",
+    }),
   );
+  failure.mockRestore();
 });

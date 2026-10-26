@@ -12,7 +12,6 @@ in-memory bus, asynchronous subscriber interface or publication queue.
 | Event and Graphile route contracts       | `packages/app/src/composition/events.ts`        |
 | Validation and direct Graphile admission | `packages/app/src/server/events/publisher.ts`   |
 | Application publisher                    | `packages/app/src/server/events/runtime.ts`     |
-| Enqueue diagnostics                      | `packages/app/src/server/events/telemetry.ts`   |
 | Self-hosted route selection              | `packages/app/src/app/composition/runtime.ts`   |
 | Cloud routes and worker selection        | `packages/cloud/src/app/composition/runtime.ts` |
 

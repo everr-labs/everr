@@ -1,3 +1,4 @@
+import { serverLogger } from "#app/telemetry/logger.ts";
 // @vitest-environment node
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
@@ -326,7 +327,7 @@ it("uses parent cleanup facts for database cascades without fabricating membersh
 });
 
 it("keeps actual organization and membership mutations committed when subscriber persistence fails", async () => {
-  const log = vi.fn();
+  const log = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
   const definitions: EventDefinition<IdentityEvent>[] = [
     ...organizationEventDefinitions,
     ...membershipEventDefinitions,
@@ -339,7 +340,6 @@ it("keeps actual organization and membership mutations committed when subscriber
     enqueue: async () => {
       throw new Error("queue unavailable");
     },
-    diagnostics: log,
   });
   const auth = createAuth(publisher);
   const owner = await signup(auth, "owner");
@@ -356,7 +356,9 @@ it("keeps actual organization and membership mutations committed when subscriber
   expect(await memberships()).toEqual([]);
   expect((await client.query("SELECT id FROM organization")).rows).toEqual([]);
   expect(
-    log.mock.calls.map(([failure]) => failure.eventType).sort((a, b) => a.localeCompare(b)),
+    log.mock.calls
+      .map(([, attributes]) => String(attributes?.["everr.business_event.type"]))
+      .sort((a, b) => a.localeCompare(b)),
   ).toEqual([
     "membership.added",
     "membership.removed",
@@ -364,6 +366,7 @@ it("keeps actual organization and membership mutations committed when subscriber
     "organization.deleted",
     "organization.updated",
   ]);
+  log.mockRestore();
 });
 
 it

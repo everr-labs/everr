@@ -157,7 +157,6 @@ it.each(["Graphile unavailable"])(
         enqueue: async () => {
           throw new Error(failure);
         },
-        diagnostics: () => {},
       }).publish,
     );
     const observed = createOnboardingStore(database as unknown as Database, { publish });

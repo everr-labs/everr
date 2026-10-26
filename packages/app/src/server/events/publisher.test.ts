@@ -1,7 +1,14 @@
 // @vitest-environment node
-import { expect, it, vi } from "vite-plus/test";
+import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
 import { createEventPublisher } from "./publisher";
+
+const diagnostics = vi.hoisted(() => vi.fn());
+vi.mock("#app/telemetry/logger.ts", () => ({
+  serverLogger: { error: diagnostics },
+  exceptionAttributes: (error: Error) => ({ "exception.message": error.message }),
+}));
+beforeEach(() => diagnostics.mockReset());
 
 const schema = z
   .object({
@@ -53,8 +60,7 @@ it("directly enqueues the validated event and waits for Graphile persistence", a
 
 it("ignores events with no configured job, including unhandled versions", async () => {
   const enqueue = vi.fn();
-  const diagnostics = vi.fn();
-  const events = createEventPublisher({ routes: [route], enqueue, diagnostics });
+  const events = createEventPublisher({ routes: [route], enqueue });
   await events.publish({ ...fact, type: "organization.provisioned" });
   await events.publish({ ...fact, version: 2 });
   expect(enqueue).not.toHaveBeenCalled();
@@ -63,15 +69,15 @@ it("ignores events with no configured job, including unhandled versions", async 
 
 it("rejects invalid data without leaking schema input to diagnostics", async () => {
   const enqueue = vi.fn();
-  const diagnostics = vi.fn();
-  const events = createEventPublisher({ routes: [route], enqueue, diagnostics });
+  const events = createEventPublisher({ routes: [route], enqueue });
   await events.publish({ ...fact, data: { privateProfile: "secret" } });
   expect(enqueue).not.toHaveBeenCalled();
   expect(diagnostics).toHaveBeenCalledWith(
+    "business_events.publication.failed",
     expect.objectContaining({
-      eventType: fact.type,
-      stage: "validation",
-      error: new Error("Business event validation failed"),
+      "everr.business_event.type": fact.type,
+      "everr.business_event.failure_stage": "validation",
+      "exception.message": "Business event validation failed",
     }),
   );
   expect(JSON.stringify(diagnostics.mock.calls)).not.toContain("secret");
@@ -86,29 +92,30 @@ it.each(["throw", "reject"])(
         if (kind === "throw") throw new Error("Graphile unavailable");
         return Promise.reject(new Error("Graphile unavailable"));
       });
-    const diagnostics = vi.fn();
     const events = createEventPublisher({
       routes: [route, { ...route, job: () => ({ task: "other", payload: {} }) }],
       enqueue,
-      diagnostics,
     });
     await expect(events.publish(fact)).resolves.toBeUndefined();
     expect(enqueue).toHaveBeenCalledTimes(2);
     expect(diagnostics).toHaveBeenCalledOnce();
-    expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({ stage: "subscriber" }));
+    expect(diagnostics).toHaveBeenCalledWith(
+      "business_events.publication.failed",
+      expect.objectContaining({ "everr.business_event.failure_stage": "subscriber" }),
+    );
   },
 );
 
-it.each(["throw", "reject"])("contains diagnostics failures (%s)", async (kind) => {
+it("contains logger failures without rejecting publication", async () => {
+  diagnostics.mockImplementationOnce(() => {
+    throw new Error("logger unavailable");
+  });
   const events = createEventPublisher({
     routes: [route],
     enqueue: async () => {
       throw new Error("Graphile unavailable");
     },
-    diagnostics: () => {
-      if (kind === "throw") throw new Error("reporting unavailable");
-      return Promise.reject(new Error("reporting unavailable"));
-    },
   });
   await expect(events.publish(fact)).resolves.toBeUndefined();
+  expect(diagnostics).toHaveBeenCalledOnce();
 });

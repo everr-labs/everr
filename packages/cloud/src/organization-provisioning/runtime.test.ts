@@ -308,7 +308,6 @@ it.each(["Graphile unavailable"])(
         enqueue: async () => {
           throw new Error(failure);
         },
-        diagnostics: () => {},
       }).publish,
     );
     await expect(provision()).resolves.toBeUndefined();

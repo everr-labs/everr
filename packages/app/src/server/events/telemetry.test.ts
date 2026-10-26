@@ -55,7 +55,6 @@ it("exports bounded diagnostics for Graphile admission failures", async () => {
   );
   try {
     const { createEventPublisher } = await import("./publisher");
-    const { publicationDiagnostics } = await import("./telemetry");
     const definition: EventDefinition = {
       type: "verification.created",
       version: 1,
@@ -73,7 +72,6 @@ it("exports bounded diagnostics for Graphile admission failures", async () => {
       enqueue: async () => {
         throw new Error("Task 01 forced enqueue rejection");
       },
-      diagnostics: publicationDiagnostics,
     });
     await publisher.publish(definition.parse({}));
     await loggerProvider.forceFlush();
@@ -129,25 +127,19 @@ it("exports bounded diagnostics for Graphile admission failures", async () => {
     const error = vi.spyOn(serverLogger, "error").mockImplementationOnce(() => {
       throw new Error("logger unavailable");
     });
-    const diagnostic = {
-      eventType: definition.type,
-      subscriberId: "publisher",
-      stage: "validation" as const,
-      error: new Error("bounded failure"),
-    };
-    expect(() => publicationDiagnostics(diagnostic)).not.toThrow();
+    await expect(publisher.publish(definition.parse({}))).resolves.toBeUndefined();
     expect(error).toHaveBeenCalledOnce();
     await meterProvider.forceFlush();
     expect(metricExporter.getMetrics().at(-1)?.scopeMetrics[0].metrics[0]).toMatchObject({
       descriptor: { name: "everr.business_events.publication.failures" },
       dataPoints: [
-        { value: 1, attributes: { "everr.business_event.failure_stage": "validation" } },
+        { value: 1, attributes: { "everr.business_event.failure_stage": "subscriber" } },
       ],
     });
     const add = vi.spyOn(counter, "add").mockImplementationOnce(() => {
       throw new Error("counter unavailable");
     });
-    expect(() => publicationDiagnostics({ ...diagnostic, stage: "subscriber" })).not.toThrow();
+    await expect(publisher.publish(definition.parse({}))).resolves.toBeUndefined();
     expect(add).toHaveBeenCalledOnce();
     await loggerProvider.forceFlush();
     expect(logExporter.getFinishedLogRecords().at(-1)).toMatchObject({

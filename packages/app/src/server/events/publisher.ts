@@ -1,19 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { ApplicationEvents, EventPublisher } from "#app/composition/events.ts";
 import { addWorkerJob } from "#app/server/worker/jobs.ts";
-import {
-  publicationDiagnostics,
-  reportPublicationFailure,
-  type PublicationDiagnostics,
-} from "./telemetry";
+import { metrics } from "@opentelemetry/api";
+import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
 /** The only dispatch mechanism is Graphile. Routes build jobs, never run handlers. */
 export function createEventPublisher(options: {
   routes: ApplicationEvents;
   enqueue?: typeof addWorkerJob;
-  diagnostics?: PublicationDiagnostics;
 }): EventPublisher {
-  const { routes, enqueue = addWorkerJob, diagnostics = publicationDiagnostics } = options;
+  const { routes, enqueue = addWorkerJob } = options;
   return {
     async publish(fact) {
       const id = randomUUID();
@@ -34,11 +30,10 @@ export function createEventPublisher(options: {
           stage = "subscriber";
           await enqueue(job.task, job.payload, job.spec);
         } catch (error) {
-          reportPublicationFailure(diagnostics, {
+          logPublicationFailure({
             eventType: route.definition.type,
             eventId: id,
             subjectId: fact.subjectId,
-            subscriberId: route.definition.type,
             stage,
             error,
           });
@@ -46,4 +41,43 @@ export function createEventPublisher(options: {
       }
     },
   };
+}
+
+// Keep these diagnostic identities stable across implementation renames.
+const failures = metrics
+  .getMeter("everr-app.business-events")
+  .createCounter("everr.business_events.publication.failures", {
+    description: "Best-effort business event publication failures and drops",
+    unit: "1",
+  });
+
+/** Emit both signals independently. No fact payloads enter diagnostics. */
+function logPublicationFailure(failure: {
+  eventType: string;
+  eventId: string;
+  subjectId: string;
+  stage: "validation" | "subscriber";
+  error: unknown;
+}): void {
+  try {
+    serverLogger.error("business_events.publication.failed", {
+      ...exceptionAttributes(failure.error),
+      "everr.business_event.type": failure.eventType,
+      "everr.business_event.subscriber": failure.eventType,
+      "everr.business_event.failure_stage": failure.stage,
+      ...(failure.eventId ? { "everr.business_event.id": failure.eventId } : {}),
+      ...(failure.subjectId ? { "everr.business_event.subject_id": failure.subjectId } : {}),
+    });
+  } catch {
+    // A broken logger cannot suppress the counter.
+  }
+  try {
+    failures.add(1, {
+      "everr.business_event.type": failure.eventType,
+      "everr.business_event.subscriber": failure.eventType,
+      "everr.business_event.failure_stage": failure.stage,
+    });
+  } catch {
+    // Metric failures cannot affect publication.
+  }
 }

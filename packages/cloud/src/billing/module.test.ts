@@ -932,7 +932,6 @@ it.each(["Graphile unavailable"])(
         enqueue: async () => {
           throw new Error(failure);
         },
-        diagnostics: () => {},
       }).publish,
     );
     await expect(store.saveSubscription("org", revision())).resolves.toBeUndefined();
@@ -992,7 +991,6 @@ it.each(["Graphile unavailable"])(
         enqueue: async () => {
           throw new Error(failure);
         },
-        diagnostics: () => {},
       }).publish,
     );
     await expect(
