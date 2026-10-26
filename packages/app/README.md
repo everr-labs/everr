@@ -228,7 +228,7 @@ transaction commits. Onboarding publishes its Organization update after its
 standalone statement succeeds. Membership facts retain the persisted relationship
 ID plus its User and Organization IDs. Parent deletion facts require cleanup of
 all remote associations for that parent; database cascades do not fabricate child
-facts. The self-hosted composition selects no CRM subscribers.
+facts. The self-hosted composition selects no CRM routes.
 
 Business event publication diagnostics reuse the server OTel providers. The error
 log `business_events.publication.failed` carries event and subject IDs when
@@ -236,7 +236,7 @@ available, static subscriber, failure stage, and semantic exception attributes.
 The counter `everr.business_events.publication.failures` has unit `1` and only
 bounded event type, subscriber, and stage dimensions. See
 [event bus guide](../../docs/event-bus.md)
-for the emitted-event catalog, subscriber registration, capacity, shutdown and accepted loss.
+for the emitted-event catalog, direct Graphile admission, handler wiring and accepted loss.
 
 For an isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the OTLP
 origin returned by that instance's status, then start the app. For deployed server

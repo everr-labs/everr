@@ -1,4 +1,3 @@
-import { safeEventPublisher } from "#app/server/events/safe-publication.ts";
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq, inArray } from "drizzle-orm";
 import type { IdentityProvider } from "#app/composition/identity-provider.ts";
@@ -6,7 +5,6 @@ import type { EventPublisher } from "#app/composition/events.ts";
 import { type Database, type DbExecutor, runInTransaction } from "#app/db/database.ts";
 import { member, organization, user } from "#app/db/schema/index.ts";
 import {
-  identityEventDefinitions,
   membershipChanged,
   organizationChanged,
   userChanged,
@@ -25,14 +23,12 @@ type Adapter = ReturnType<Factory>;
 export function identityLifecycleAdapter(
   database: Database,
   factory: (executor: DbExecutor) => Factory,
-  publisher: EventPublisher<IdentityEvent>,
+  events: EventPublisher<IdentityEvent>,
   requests: Pick<IdentityProvider, "withIdentityRequest" | "lockUserLifecycle"> = {
     withIdentityRequest: (run) => run(),
     lockUserLifecycle: async () => {},
   },
 ): Factory {
-  const events = safeEventPublisher(publisher, identityEventDefinitions);
-
   return (options) => {
     const wrap = (executor: DbExecutor, facts?: IdentityEvent[]): Adapter => {
       const adapter = factory(executor)(options);
@@ -41,7 +37,7 @@ export function identityLifecycleAdapter(
         return requests.withIdentityRequest(async () => {
           const committed: IdentityEvent[] = [];
           const result = await runInTransaction(executor, (tx) => run(wrap(tx, committed)));
-          for (const fact of committed) events.publish(fact);
+          for (const fact of committed) await events.publish(fact);
           return result;
         });
       };

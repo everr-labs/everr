@@ -3,9 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { EventDefinition, EventPublisher } from "#app/composition/events.ts";
 import { createEventPublisher } from "#app/server/events/publisher.ts";
-import { eventRegistration } from "#app/server/events/registration.ts";
 import {
-  userEventDefinitions,
   membershipChanged,
   membershipEventDefinitions,
   organizationChanged,
@@ -27,7 +25,7 @@ beforeEach(async () => {
 const facts: IdentityEvent[] = [];
 function createAuth(
   events: EventPublisher<IdentityEvent> = {
-    publish: (fact) => {
+    publish: async (fact) => {
       facts.push(fact);
     },
   },
@@ -150,7 +148,7 @@ it("publishes actual organization mutations and invitation, role, removal, and l
 it("keeps nested organization and membership facts private until root commit, and drops all facts on rollback", async () => {
   const publicationReads: Promise<{ rows: { id: string }[] }>[] = [];
   const auth = createAuth({
-    publish: (fact) => {
+    publish: async (fact) => {
       facts.push(fact);
       if (fact.type === "organization.created")
         publicationReads.push(
@@ -334,17 +332,13 @@ it("keeps actual organization and membership mutations committed when subscriber
     ...membershipEventDefinitions,
   ];
   const publisher = createEventPublisher({
-    registrations: [
-      ...userEventDefinitions.map((definition) => eventRegistration(definition)),
-      ...definitions.map((definition) =>
-        eventRegistration(definition, {
-          id: `test-${definition.type}`,
-          enqueue: async () => {
-            throw new Error("queue unavailable");
-          },
-        }),
-      ),
-    ],
+    routes: definitions.map((definition) => ({
+      definition,
+      job: (event) => ({ task: "test/identity", payload: event }),
+    })),
+    enqueue: async () => {
+      throw new Error("queue unavailable");
+    },
     diagnostics: log,
   });
   const auth = createAuth(publisher);
@@ -359,7 +353,6 @@ it("keeps actual organization and membership mutations committed when subscriber
   ]);
   expect(await memberships()).toHaveLength(1);
   await auth.api.deleteOrganization({ headers: owner.headers, body: { organizationId: first.id } });
-  await publisher.stop();
   expect(await memberships()).toEqual([]);
   expect((await client.query("SELECT id FROM organization")).rows).toEqual([]);
   expect(
@@ -372,22 +365,6 @@ it("keeps actual organization and membership mutations committed when subscriber
     "organization.updated",
   ]);
 });
-
-it.each(["throw", "reject"])(
-  "protects organization creation from a broken injected publisher (%s)",
-  async (failure) => {
-    const auth = createAuth({
-      publish() {
-        if (failure === "reject")
-          return Promise.reject(new Error("publisher broken")) as unknown as void;
-        throw new Error("publisher broken");
-      },
-    });
-    const owner = await signup(auth, "owner");
-    const organization = await createOrganization(auth, owner.id);
-    expect((await memberships()).map((row) => row.organizationId)).toEqual([organization.id]);
-  },
-);
 
 it
   .skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)

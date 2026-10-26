@@ -48,14 +48,14 @@ work to the reserved provisioning runner without revisiting its capacity.
 
 ## Best-effort event publication
 
-The process-local event bus publishes committed facts to application-selected
-subscribers. Publication is best effort, with no outbox; consumers own durable
-admission and execution. Self-hosted and Cloud currently register no ancillary subscribers.
+The event publisher maps committed facts to application-selected
+Graphile jobs directly. Publication awaits admission and contains enqueue failures,
+with no outbox; Graphile owns durable execution. Self-hosted and Cloud currently configure no ancillary routes.
 Publication becomes active when a composition selects a concrete consumer.
 
 See the [event bus guide](event-bus.md) for the complete emitted-event catalog,
 producer boundaries, delivery guarantees, diagnostics, and examples of adding
-subscribers and worker handlers. Critical commands that must commit with source
+Graphile routes and worker handlers. Critical commands that must commit with source
 state continue to use the transactional enqueue path described below.
 
 ## Facts and effects already present

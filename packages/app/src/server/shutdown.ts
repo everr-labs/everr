@@ -1,6 +1,6 @@
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 
-type Phase = "publications" | "workers" | "telemetry";
+type Phase = "workers" | "telemetry";
 type ShutdownState = {
   hooks: Map<string, { phase: Phase; run: () => Promise<void> }>;
   stopping?: Promise<void>;
@@ -20,7 +20,7 @@ export function registerShutdownHook(name: string, phase: Phase, run: () => Prom
 export function shutdownRuntime(): Promise<void> {
   state.stopping ??= (async () => {
     const errors: unknown[] = [];
-    for (const phase of ["publications", "workers", "telemetry"] as const) {
+    for (const phase of ["workers", "telemetry"] as const) {
       const hooks = [...state.hooks.entries()].filter(([, hook]) => hook.phase === phase);
       if (hooks.length === 0) continue;
       const results = await Promise.allSettled(

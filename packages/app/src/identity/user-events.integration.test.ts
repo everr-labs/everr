@@ -4,7 +4,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { EventPublisher } from "#app/composition/events.ts";
 import { createEventPublisher } from "#app/server/events/publisher.ts";
-import { eventRegistration } from "#app/server/events/registration.ts";
 import { userEventDefinitions, type UserEvent } from "./events";
 import { createAuthTestDatabase } from "./testing/database";
 import { identityLifecycleAdapter } from "./identity-adapter";
@@ -39,7 +38,7 @@ function capture() {
   return {
     facts,
     events: {
-      publish: (fact: UserEvent) => {
+      publish: async (fact: UserEvent) => {
         facts.push(fact);
       },
     },
@@ -185,19 +184,14 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
   const failure = vi.fn();
   const definition = userEventDefinitions[0];
   const publisher = createEventPublisher({
-    registrations: [
-      eventRegistration(definition, {
-        id: "user-test",
-        enqueue: async () => {
-          throw new Error("enqueue unavailable");
-        },
-      }),
-    ],
+    routes: [{ definition, job: (event) => ({ task: "test/user", payload: event }) }],
+    enqueue: async () => {
+      throw new Error("enqueue unavailable");
+    },
     diagnostics: failure,
   });
   const auth = createAuth(publisher);
   const signup = await auth.api.signUpEmail({ body: input });
-  await publisher.stop();
   expect((await client.query('SELECT id FROM "user"')).rows).toEqual([{ id: signup.user.id }]);
   expect((await client.query("SELECT user_id FROM account")).rows).toEqual([
     { user_id: signup.user.id },
@@ -206,18 +200,3 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
     expect.objectContaining({ eventType: "identity.user.created", stage: "subscriber" }),
   );
 });
-
-it.each(["throw", "reject"])(
-  "protects committed signup from a misbehaving injected publisher (%s)",
-  async (failure) => {
-    const auth = createAuth({
-      publish() {
-        if (failure === "reject")
-          return Promise.reject(new Error("publisher broken")) as unknown as void;
-        throw new Error("publisher broken");
-      },
-    });
-    const signup = await auth.api.signUpEmail({ body: input });
-    expect((await client.query('SELECT id FROM "user"')).rows).toEqual([{ id: signup.user.id }]);
-  },
-);

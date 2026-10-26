@@ -1,8 +1,7 @@
-import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { db } from "@everr/app/db/client";
-import { membershipChanged, membershipEventDefinitions } from "@everr/app/identity/events";
-import { events as publisher } from "@everr/app/server/events/runtime";
-import { organizationPlanChanged, billingEventDefinitions } from "../billing/events";
+import { membershipChanged } from "@everr/app/identity/events";
+import { events } from "@everr/app/server/events/runtime";
+import { organizationPlanChanged } from "../billing/events";
 import { restrictOrganizationToOwner } from "@everr/app/identity/memberships";
 import { auth } from "@everr/app/identity/server";
 import { and, eq } from "drizzle-orm";
@@ -12,11 +11,6 @@ import { readOrgEntitlement, userOwnsHobbyOrganization } from "../billing-data.s
 import { type CreateOrganizationInputSchema, generateOrgSlug } from "../common/organization-name";
 import { organizationBilling } from "../db/schema";
 import { lockOrganizationOwnership } from "../organization-lock.server";
-
-const events = safeEventPublisher(publisher, [
-  ...membershipEventDefinitions,
-  ...billingEventDefinitions,
-]);
 
 class OrganizationCreationError extends Error {
   name = "OrganizationCreationError";
@@ -129,9 +123,9 @@ export const organizationCommands = {
         return { ...membershipChanges, changedPlan: !!changedPlan };
       });
       for (const removed of committed.removedMemberships)
-        events.publish(membershipChanged("membership.removed", removed));
+        await events.publish(membershipChanged("membership.removed", removed));
       if (committed.changedPlan)
-        events.publish(organizationPlanChanged(organizationId, "pro", "hobby"));
+        await events.publish(organizationPlanChanged(organizationId, "pro", "hobby"));
       return {
         removedMembers: committed.removedMembers,
         canceledInvitations: committed.canceledInvitations,

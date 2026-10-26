@@ -93,12 +93,6 @@ export const membershipEventDefinitions = [
 })) satisfies readonly EventDefinition<MembershipEvent>[];
 
 export type IdentityEvent = UserEvent | OrganizationEvent | MembershipEvent;
-export const identityEventDefinitions = [
-  ...userEventDefinitions,
-  ...organizationEventDefinitions,
-  ...membershipEventDefinitions,
-];
-
 /** Parent deletion facts require consumers to clean up all associations for that parent.
  * Cascaded rows do not produce invented membership.removed facts. Explicit member
  * deletes retain their relationship IDs before the source rows disappear.

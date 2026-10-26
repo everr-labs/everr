@@ -1,7 +1,6 @@
-import { safeEventPublisher } from "@everr/app/server/events/safe-publication";
 import { randomUUID } from "node:crypto";
 import { member, organization } from "@everr/app/db/schema";
-import { membershipChanged, membershipEventDefinitions } from "@everr/app/identity/events";
+import { membershipChanged } from "@everr/app/identity/events";
 import { isOrganizationOwner } from "@everr/app/identity/roles";
 import { eq } from "drizzle-orm";
 import { proOrganizationCheckout } from "../db/schema";
@@ -24,7 +23,7 @@ export function createBillingSubscriptions(
   identity: ReturnType<typeof createBillingIdentity>,
 ) {
   const { db, polar, lock } = deps;
-  const events = safeEventPublisher(deps.events, membershipEventDefinitions);
+  const events = deps.events;
   async function ensureOrganization(
     intent: Awaited<ReturnType<typeof readIntent>>,
     createOrganization: CreateOrganization,
@@ -69,7 +68,7 @@ export function createBillingSubscriptions(
         createdAt: new Date(),
       };
       await db.insert(member).values(repaired);
-      events.publish(membershipChanged("membership.added", repaired));
+      await events.publish(membershipChanged("membership.added", repaired));
     } else if (
       !intent.completedAt &&
       !memberships.some((m) => m.userId === intent.ownerId && isOrganizationOwner(m.role))

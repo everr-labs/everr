@@ -112,7 +112,7 @@ it("preserves billing checks inside nested source transactions and holds request
       baseURL: "http://localhost:3000",
       secret: "nested-billing-identity-secret-long-enough",
       events: {
-        publish: (fact) => {
+        publish: async (fact) => {
           expect(active).toBe(true);
           facts.push(fact.type);
         },

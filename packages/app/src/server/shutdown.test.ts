@@ -37,26 +37,3 @@ it("still flushes telemetry when a worker cannot stop", async () => {
   await expect(shutdownRuntime()).rejects.toThrow("Runtime shutdown failed");
   expect(flush).toHaveBeenCalledOnce();
 });
-
-it("drains publications before stopping workers and flushing telemetry", async () => {
-  const { registerShutdownHook, shutdownRuntime } = await freshShutdown();
-  const order: string[] = [];
-  let release!: () => void;
-  registerShutdownHook("events", "publications", async () => {
-    await new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    order.push("publications");
-  });
-  registerShutdownHook("jobs", "workers", async () => {
-    order.push("workers");
-  });
-  registerShutdownHook("sdk", "telemetry", async () => {
-    order.push("telemetry");
-  });
-  const stopped = shutdownRuntime();
-  expect(order).toEqual([]);
-  release();
-  await stopped;
-  expect(order).toEqual(["publications", "workers", "telemetry"]);
-});

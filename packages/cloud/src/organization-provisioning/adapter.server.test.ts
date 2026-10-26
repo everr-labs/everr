@@ -222,7 +222,7 @@ it("protects provisioning metadata through actual create and update endpoints wh
 
   clickhouseMocks.provision.mockResolvedValue(undefined);
   const tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {}, {
-    publish() {},
+    async publish() {},
   });
   if (!created) throw new Error("Organization was not created");
   await tasks[PROVISION_ORGANIZATION_TASK]?.({ organizationId: created.id }, {} as never);
@@ -410,7 +410,7 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
 it("returns a ready organization from the actual endpoint when its durable job finishes during signup", async () => {
   clickhouseMocks.provision.mockResolvedValue(undefined);
   const database = fixture.db as unknown as Database;
-  const tasks = createOrganizationTaskList(database, async () => {}, { publish() {} });
+  const tasks = createOrganizationTaskList(database, async () => {}, { async publish() {} });
   auth = createAuth(async ({ organization: created }) => {
     expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
     const pending = waitForOrganizationProvisioning(created.id, database);
@@ -460,7 +460,7 @@ it("preserves atomic provisioning and cleanup under the shared post-commit ident
     {
       database,
       events: {
-        publish: (fact) => {
+        publish: async (fact) => {
           facts.push(fact);
         },
       },

@@ -1,4 +1,6 @@
-/** Feature-owned facts. Producers pass stable IDs and facts, never database rows. */
+import type { TaskSpec } from "graphile-worker";
+
+/** Feature-owned facts. Publish only after the source commit succeeds. */
 export interface EventInput {
   readonly type: string;
   readonly version: number;
@@ -12,35 +14,28 @@ export type PublishedEvent<F extends EventInput = EventInput> = F & {
   readonly occurredAt: string;
 };
 
-/**
- * Call only after the source commit succeeds. Publication never changes its result.
- * Features accept EventPublisher<FeatureEvent>; application routing handles the broad fact type.
- */
+/** Resolves after Graphile admission is attempted. Enqueue failures are logged, not thrown. */
 export interface EventPublisher<F extends EventInput = EventInput> {
-  publish(this: void, fact: F): void;
+  publish(this: void, fact: F): Promise<void>;
 }
 
-/**
- * Features own their schema, including literal type/version and payload validation.
- * Parse fact-shaped input without mutating it and return independently owned payloads,
- * as Zod object schemas do. The publisher freezes the envelope, not nested payloads.
- */
+/** Features own their literal event type, version and payload schema. */
 export interface EventDefinition<F extends EventInput = EventInput> {
   readonly type: F["type"];
   readonly version: F["version"];
   parse(this: void, input: unknown): F;
 }
 
-/** Static, application-owned consumer. Registration does not start a worker. */
-export interface EventSubscriber<F extends EventInput = EventInput> {
-  readonly id: string;
-  enqueue(this: void, event: PublishedEvent<F>): void | Promise<void>;
+export interface EventJob {
+  readonly task: string;
+  readonly payload: unknown;
+  readonly spec?: TaskSpec;
 }
 
-/** One feature definition and its typed consumers, including known facts with no consumers. */
-export interface EventRegistration<F extends EventInput = EventInput> {
+/** Application wiring maps a validated event directly to a Graphile job. */
+export interface EventRoute<F extends EventInput = EventInput> {
   readonly definition: EventDefinition<F>;
-  readonly subscribers: readonly EventSubscriber<F>[];
+  job(this: void, event: PublishedEvent<F>): EventJob;
 }
 
-export type ApplicationEvents = readonly EventRegistration[];
+export type ApplicationEvents = readonly EventRoute[];

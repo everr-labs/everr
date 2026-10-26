@@ -23,7 +23,7 @@ export type {
   PublishedEvent,
   EventInput,
   EventDefinition,
-  EventRegistration,
+  EventRoute,
+  EventJob,
   EventPublisher,
-  EventSubscriber,
 } from "./events";

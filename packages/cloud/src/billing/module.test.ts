@@ -1,3 +1,6 @@
+import { createEventPublisher } from "@everr/app/server/events/publisher";
+import { billingEventDefinitions } from "./events";
+import { membershipEventDefinitions } from "@everr/app/identity/events";
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
@@ -136,7 +139,7 @@ const gateway = {
   revokeSubscription: vi.fn(async () => {}),
 } satisfies PolarGateway;
 const published: EventInput[] = [];
-const publish = vi.fn((fact: EventInput) => {
+const publish = vi.fn(async (fact: EventInput) => {
   published.push(fact);
 });
 const billing = createBillingModule({
@@ -917,14 +920,21 @@ it("rolls back accepted subscription persistence when its Plan write fails, with
   }
 });
 
-it.each(["throw", "reject"])(
-  "preserves committed billing and attempts both facts when publication throws (%s)",
+it.each(["Graphile unavailable"])(
+  "preserves committed billing and attempts both facts when Graphile admission fails (%s)",
   async (failure) => {
-    publish.mockImplementation(() => {
-      if (failure === "reject")
-        return Promise.reject(new Error("publication unavailable")) as unknown as void;
-      throw new Error("publication unavailable");
-    });
+    publish.mockImplementation(
+      createEventPublisher({
+        routes: [...billingEventDefinitions, ...membershipEventDefinitions].map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/event", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+        diagnostics: () => {},
+      }).publish,
+    );
     await expect(store.saveSubscription("org", revision())).resolves.toBeUndefined();
     expect((await database.select().from(schema.orgSubscription))[0].status).toBe("active");
     expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("pro");
@@ -962,8 +972,8 @@ it("publishes the committed owner repair even if later checkout billing fails", 
   expect(published.filter((fact) => fact.type === "membership.added")).toHaveLength(1);
 });
 
-it.each(["throw", "reject"])(
-  "preserves the owner repair and completed checkout when publication throws (%s)",
+it.each(["Graphile unavailable"])(
+  "preserves the owner repair and completed checkout when Graphile admission fails (%s)",
   async (failure) => {
     const { c } = await paidNew();
     const orgId = required(c.externalCustomerId);
@@ -973,11 +983,18 @@ it.each(["throw", "reject"])(
       slug: String(c.metadata.everrOrganizationSlug),
       createdAt: new Date(),
     });
-    publish.mockImplementation(() => {
-      if (failure === "reject")
-        return Promise.reject(new Error("publication unavailable")) as unknown as void;
-      throw new Error("publication unavailable");
-    });
+    publish.mockImplementation(
+      createEventPublisher({
+        routes: [...billingEventDefinitions, ...membershipEventDefinitions].map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/event", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+        diagnostics: () => {},
+      }).publish,
+    );
     await expect(
       billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
     ).resolves.toMatchObject({ status: "completed" });

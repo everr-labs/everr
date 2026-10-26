@@ -18,10 +18,8 @@ import {
 } from "@opentelemetry/sdk-metrics";
 import { expect, it, vi } from "vite-plus/test";
 import type { EventDefinition } from "#app/composition/events.ts";
-import { createEventPublisher } from "./publisher";
-import { eventRegistration } from "./registration";
 
-it("exports bounded failure diagnostics for rejected subscribers and injected publishers", async () => {
+it("exports bounded diagnostics for Graphile admission failures", async () => {
   const marker = `task02-${randomUUID()}`;
   // Optional isolated ingestion proof. Never use a developer's default collector.
   const endpoint = process.env.EVERR_BUSINESS_EVENTS_VERIFY_ENDPOINT;
@@ -56,6 +54,7 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
     "createCounter",
   );
   try {
+    const { createEventPublisher } = await import("./publisher");
     const { publicationDiagnostics } = await import("./telemetry");
     const definition: EventDefinition = {
       type: "verification.created",
@@ -70,19 +69,13 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
       },
     };
     const publisher = createEventPublisher({
-      registrations: [
-        eventRegistration(definition, {
-          id: "verification-consumer",
-          enqueue() {
-            return Promise.reject(new Error("Task 01 forced enqueue rejection"));
-          },
-        }),
-      ],
+      routes: [{ definition, job: (event) => ({ task: "verification-consumer", payload: event }) }],
+      enqueue: async () => {
+        throw new Error("Task 01 forced enqueue rejection");
+      },
       diagnostics: publicationDiagnostics,
-      metadata: () => ({ id: marker, occurredAt: new Date().toISOString() }),
     });
-    publisher.publish(definition.parse({}));
-    await publisher.stop();
+    await publisher.publish(definition.parse({}));
     await loggerProvider.forceFlush();
     await meterProvider.forceFlush();
     const records = logExporter.getFinishedLogRecords();
@@ -91,7 +84,7 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
       severityNumber: 17,
       body: "business_events.publication.failed",
       attributes: {
-        "everr.business_event.id": marker,
+        "everr.business_event.id": expect.any(String),
         "everr.business_event.subject_id": "verification-user",
         "exception.type": "Error",
         "exception.message": "Task 01 forced enqueue rejection",
@@ -113,7 +106,7 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
           value: 1,
           attributes: {
             "everr.business_event.type": "verification.created",
-            "everr.business_event.subscriber": "verification-consumer",
+            "everr.business_event.subscriber": "verification.created",
             "everr.business_event.failure_stage": "subscriber",
           },
         },
@@ -131,54 +124,6 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
         "exception.type",
       ].sort(),
     );
-    const { safeEventPublisher } = await import("./safe-publication");
-    for (const publish of [
-      () => {
-        throw new Error("private profile and provider body");
-      },
-      () => Promise.reject(new Error("private profile and provider body")) as unknown as void,
-    ]) {
-      safeEventPublisher({ publish }, [definition]).publish(definition.parse({}));
-    }
-    await Promise.resolve();
-    await loggerProvider.forceFlush();
-    await meterProvider.forceFlush();
-    const injected = logExporter.getFinishedLogRecords().slice(1);
-    expect(injected).toHaveLength(2);
-    for (const record of injected) {
-      expect(record).toMatchObject({
-        body: "business_events.publication.failed",
-        attributes: {
-          "everr.business_event.type": "verification.created",
-          "everr.business_event.subscriber": "publisher",
-          "everr.business_event.failure_stage": "publication",
-          "exception.message": "Business event publication failed",
-        },
-      });
-      expect(JSON.stringify(record.attributes)).not.toContain("private profile");
-    }
-    const publicationPoints = metricExporter
-      .getMetrics()
-      .flatMap((resourceMetrics) =>
-        resourceMetrics.scopeMetrics.flatMap((scope) =>
-          scope.metrics.flatMap((metric) =>
-            metric.dataPoints.map((point) => ({
-              attributes: point.attributes,
-              value: point.value,
-            })),
-          ),
-        ),
-      )
-      .filter((point) => point.attributes["everr.business_event.failure_stage"] === "publication");
-    expect(publicationPoints).toHaveLength(1);
-    expect(publicationPoints[0]).toMatchObject({
-      value: 2,
-      attributes: {
-        "everr.business_event.type": "verification.created",
-        "everr.business_event.subscriber": "publisher",
-        "everr.business_event.failure_stage": "publication",
-      },
-    });
     const { serverLogger } = await import("#app/telemetry/logger.ts");
     const counter = createCounter.mock.results[0].value;
     const error = vi.spyOn(serverLogger, "error").mockImplementationOnce(() => {
@@ -187,7 +132,7 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
     const diagnostic = {
       eventType: definition.type,
       subscriberId: "publisher",
-      stage: "closed" as const,
+      stage: "validation" as const,
       error: new Error("bounded failure"),
     };
     expect(() => publicationDiagnostics(diagnostic)).not.toThrow();
@@ -195,17 +140,19 @@ it("exports bounded failure diagnostics for rejected subscribers and injected pu
     await meterProvider.forceFlush();
     expect(metricExporter.getMetrics().at(-1)?.scopeMetrics[0].metrics[0]).toMatchObject({
       descriptor: { name: "everr.business_events.publication.failures" },
-      dataPoints: [{ value: 1, attributes: { "everr.business_event.failure_stage": "closed" } }],
+      dataPoints: [
+        { value: 1, attributes: { "everr.business_event.failure_stage": "validation" } },
+      ],
     });
     const add = vi.spyOn(counter, "add").mockImplementationOnce(() => {
       throw new Error("counter unavailable");
     });
-    expect(() => publicationDiagnostics({ ...diagnostic, stage: "drain" })).not.toThrow();
+    expect(() => publicationDiagnostics({ ...diagnostic, stage: "subscriber" })).not.toThrow();
     expect(add).toHaveBeenCalledOnce();
     await loggerProvider.forceFlush();
     expect(logExporter.getFinishedLogRecords().at(-1)).toMatchObject({
       body: "business_events.publication.failed",
-      attributes: { "everr.business_event.failure_stage": "drain" },
+      attributes: { "everr.business_event.failure_stage": "subscriber" },
     });
     add.mockRestore();
     error.mockRestore();

@@ -1,3 +1,5 @@
+import { createEventPublisher } from "#app/server/events/publisher.ts";
+import { organizationEventDefinitions } from "#app/identity/events.ts";
 // @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
@@ -143,14 +145,21 @@ it("does not hide or overwrite malformed metadata", async () => {
   expect(row.metadata).toBe("invalid JSON");
 });
 
-it.each(["throw", "reject"])(
+it.each(["Graphile unavailable"])(
   "publishes the selected organization only after completion persists and isolates publication failures (%s)",
   async (failure) => {
-    const publish = vi.fn(() => {
-      if (failure === "reject")
-        return Promise.reject(new Error("publisher unavailable")) as unknown as void;
-      throw new Error("publisher unavailable");
-    });
+    const publish = vi.fn(
+      createEventPublisher({
+        routes: organizationEventDefinitions.map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/onboarding", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+        diagnostics: () => {},
+      }).publish,
+    );
     const observed = createOnboardingStore(database as unknown as Database, { publish });
     await expect(observed.complete(scope)).resolves.toEqual({ onboardingCompleted: true });
     expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);

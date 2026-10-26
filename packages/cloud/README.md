@@ -192,14 +192,14 @@ and the cloud-only tenant-column assertion stays in this package.
 ## Billing and readiness facts
 
 Cloud publishes subscription and Plan business facts, together with the shared
-identity and readiness contracts. Its event registrations are currently empty. Billing publishes
+identity and readiness contracts. Its event routes are currently empty. Billing publishes
 a subscription fact only after accepting and committing a newer provider revision.
 Plan changes describe actual stored transitions: an inactive Pro subscription can
 suspend access without changing Plan. Hobby downgrade facts follow its local
 transaction, and owner Membership repair facts follow their standalone insert.
 Provisioning publishes readiness only for a guarded pending-to-ready update that
-returns a row. Publication is fire and forget and preserves the existing billing
+returns a row. Publication awaits Graphile admission and preserves the existing billing
 locks, provider checks, critical provisioning jobs, and cleanup guarantees.
 
 See the internal [event bus guide](../../docs/event-bus.md) for emitted facts and
-subscriber registration.
+Graphile handler wiring.

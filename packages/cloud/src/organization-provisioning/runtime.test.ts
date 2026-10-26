@@ -1,3 +1,5 @@
+import { createEventPublisher } from "@everr/app/server/events/publisher";
+import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
 // @vitest-environment node
 
 import { organization } from "@everr/app/db/schema";
@@ -294,14 +296,21 @@ it("does not announce readiness when another attempt already committed the guard
   expect(mocks.publish).not.toHaveBeenCalled();
 });
 
-it.each(["throw", "reject"])(
-  "preserves readiness when publication throws (%s)",
+it.each(["Graphile unavailable"])(
+  "preserves readiness when Graphile admission fails (%s)",
   async (failure) => {
-    mocks.publish.mockImplementation(() => {
-      if (failure === "reject")
-        return Promise.reject(new Error("publication unavailable")) as unknown as void;
-      throw new Error("publication unavailable");
-    });
+    mocks.publish.mockImplementation(
+      createEventPublisher({
+        routes: organizationReadinessEventDefinitions.map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/event", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+        diagnostics: () => {},
+      }).publish,
+    );
     await expect(provision()).resolves.toBeUndefined();
     expect(await ready()).toBe(true);
     await provision();
