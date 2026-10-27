@@ -1,6 +1,8 @@
 import { serverLogger } from "#app/telemetry/logger.ts";
 // @vitest-environment node
 import { betterAuth } from "better-auth";
+import { eq } from "drizzle-orm";
+import { user } from "#app/db/schema/index.ts";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { EventPublisher } from "#app/composition/events.ts";
@@ -205,3 +207,216 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
   );
   failure.mockRestore();
 });
+
+it.each(["update", "delete", "updateMany", "deleteMany"] as const)(
+  "revalidates an email predicate before %s after the lifecycle lock",
+  async (operation) => {
+    await client.exec(
+      `INSERT INTO "user"(id,name,email,email_verified) VALUES ('original','Original','old@example.test',false)`,
+    );
+    const { facts, events } = capture();
+    let moved = false;
+    const auth = betterAuth({
+      baseURL: "http://localhost:3000",
+      secret: "email-race-regression-secret-long-enough",
+      database: identityLifecycleAdapter(
+        database,
+        (executor) => drizzleAdapter(executor, { provider: "pg" }),
+        events,
+        {
+          withIdentityRequest: (run) => run(),
+          async lockUserLifecycle() {
+            if (moved) return;
+            moved = true;
+            // Install the committed state that can appear while waiting for the lock.
+            await database
+              .update(user)
+              .set({ email: "new@example.test" })
+              .where(eq(user.id, "original"));
+            await database.insert(user).values({
+              id: "replacement",
+              name: "Replacement",
+              email: "old@example.test",
+              emailVerified: false,
+            });
+          },
+        },
+      ),
+    });
+    const { adapter } = await auth.$context;
+    const target = { model: "user", where: [{ field: "email", value: "old@example.test" }] };
+    const result =
+      operation === "update" || operation === "updateMany"
+        ? await adapter[operation]({ ...target, update: { emailVerified: true } })
+        : await adapter[operation](target);
+    expect(result ?? null).toBe(operation.endsWith("Many") ? 0 : null);
+    expect((await client.query('SELECT id,email_verified FROM "user" ORDER BY id')).rows).toEqual([
+      { id: "original", email_verified: false },
+      { id: "replacement", email_verified: false },
+    ]);
+    expect(facts).toEqual([]);
+  },
+);
+
+it.each(["update", "updateMany"] as const)(
+  "publishes every committed User affected by %s and only real verification transitions",
+  async (operation) => {
+    await client.exec(`INSERT INTO "user"(id,name,email,email_verified) VALUES
+    ('a','Batch','a@example.test',false), ('b','Batch','b@example.test',true), ('outside','Other','other@example.test',false)`);
+    const { facts, events } = capture();
+    const { adapter } = await createAuth(events).$context;
+    const result = await adapter[operation]({
+      model: "user",
+      where: [{ field: "name", value: "Batch" }],
+      update: { name: "Updated", emailVerified: true },
+    });
+    const updated = expect.objectContaining({ name: "Updated", emailVerified: true });
+    expect(result).toEqual(operation === "updateMany" ? 2 : updated);
+    expect(facts).toEqual([
+      { type: "identity.user.updated", version: 1, subjectId: "a", data: { userId: "a" } },
+      { type: "identity.email.verified", version: 1, subjectId: "a", data: { userId: "a" } },
+      { type: "identity.user.updated", version: 1, subjectId: "b", data: { userId: "b" } },
+    ]);
+    expect(
+      (await client.query('SELECT id,name,email_verified FROM "user" ORDER BY id')).rows,
+    ).toEqual([
+      { id: "a", name: "Updated", email_verified: true },
+      { id: "b", name: "Updated", email_verified: true },
+      { id: "outside", name: "Other", email_verified: false },
+    ]);
+  },
+);
+it.each(["delete", "deleteMany"] as const)(
+  "publishes every User deleted by %s",
+  async (operation) => {
+    await client.exec(
+      `INSERT INTO "user"(id,name,email) VALUES ('a','Batch','a@example.test'), ('b','Batch','b@example.test'), ('outside','Other','other@example.test')`,
+    );
+    const { facts, events } = capture();
+    const { adapter } = await createAuth(events).$context;
+    const result = await adapter[operation]({
+      model: "user",
+      where: [{ field: "name", value: "Batch" }],
+    });
+    expect(result ?? null).toBe(operation === "deleteMany" ? 2 : null);
+    expect(facts).toEqual(
+      ["a", "b"].map((id) => ({
+        type: "identity.user.deleted",
+        version: 1,
+        subjectId: id,
+        data: { userId: id },
+      })),
+    );
+    expect((await client.query('SELECT id FROM "user"')).rows).toEqual([{ id: "outside" }]);
+  },
+);
+it("discards nested bulk User facts on rollback and emits nothing for empty matches", async () => {
+  await client.exec(
+    `INSERT INTO "user"(id,name,email) VALUES ('a','Batch','a@example.test'), ('b','Batch','b@example.test')`,
+  );
+  const { facts, events } = capture();
+  const { adapter } = await createAuth(events).$context;
+  await expect(
+    adapter.transaction(async (outer) => {
+      await (outer as typeof adapter).transaction(async (inner) => {
+        expect(
+          await inner.updateMany({
+            model: "user",
+            where: [{ field: "name", value: "Batch" }],
+            update: { emailVerified: true },
+          }),
+        ).toBe(2);
+        expect(
+          await inner.deleteMany({
+            model: "user",
+            where: [{ field: "emailVerified", value: true }],
+          }),
+        ).toBe(2);
+        expect(facts).toEqual([]);
+      });
+      throw new Error("rollback bulk");
+    }),
+  ).rejects.toThrow("rollback bulk");
+  expect(facts).toEqual([]);
+  expect((await client.query('SELECT email_verified FROM "user"')).rows).toEqual([
+    { email_verified: false },
+    { email_verified: false },
+  ]);
+  expect(
+    await adapter.updateMany({
+      model: "user",
+      where: [{ field: "name", value: "missing" }],
+      update: { name: "unused" },
+    }),
+  ).toBe(0);
+  expect(
+    await adapter.deleteMany({ model: "user", where: [{ field: "name", value: "missing" }] }),
+  ).toBe(0);
+  expect(facts).toEqual([]);
+});
+
+it
+  .skipIf(!process.env.EVERR_IDENTITY_TEST_DATABASE_URL)
+  .each(["update", "updateMany", "delete", "deleteMany"] as const)(
+  "revalidates every User after real PostgreSQL lock waits for %s",
+  async (operation) => {
+    await client.exec(
+      `INSERT INTO "user"(id,name,email) VALUES ('a','Batch','a@example.test'),('b','Batch','b@example.test')`,
+    );
+    const { facts, events } = capture();
+    const { adapter } = await createAuth(events).$context;
+    const blocker = await database.$client.connect();
+    let pending: Promise<unknown> | undefined;
+    try {
+      await blocker.query("BEGIN");
+      const {
+        rows: [{ pid }],
+      } = await blocker.query<{ pid: number }>("SELECT pg_backend_pid() AS pid");
+      await blocker.query(`UPDATE "user" SET name='Other' WHERE id='a'`);
+      const input = { model: "user", where: [{ field: "name", value: "Batch" }] };
+      pending =
+        operation === "update" || operation === "updateMany"
+          ? adapter[operation]({ ...input, update: { name: "Updated", emailVerified: true } })
+          : adapter[operation](input);
+      await vi.waitFor(async () => {
+        const { rows } = await client.query(
+          "SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))",
+          [pid],
+        );
+        expect(rows.length).toBeGreaterThan(0);
+      });
+      expect(facts).toEqual([]);
+      await blocker.query(
+        `INSERT INTO "user"(id,name,email) VALUES ('c','Batch','c@example.test')`,
+      );
+      await blocker.query("COMMIT");
+      await pending;
+      expect(facts).toEqual(
+        operation.startsWith("update")
+          ? [
+              { type: "identity.user.updated", version: 1, subjectId: "b", data: { userId: "b" } },
+              {
+                type: "identity.email.verified",
+                version: 1,
+                subjectId: "b",
+                data: { userId: "b" },
+              },
+            ]
+          : [{ type: "identity.user.deleted", version: 1, subjectId: "b", data: { userId: "b" } }],
+      );
+      expect(
+        (await client.query('SELECT id,name,email_verified FROM "user" ORDER BY id')).rows,
+      ).toEqual([
+        { id: "a", name: "Other", email_verified: false },
+        ...(operation.startsWith("update")
+          ? [{ id: "b", name: "Updated", email_verified: true }]
+          : []),
+        { id: "c", name: "Batch", email_verified: false },
+      ]);
+    } finally {
+      await blocker.query("ROLLBACK");
+      blocker.release();
+      await pending?.catch(() => {});
+    }
+  },
+);

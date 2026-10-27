@@ -1,5 +1,5 @@
 import type { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import type { IdentityProvider } from "#app/composition/identity-provider.ts";
 import type { EventPublisher } from "#app/composition/events.ts";
 import { type Database, type DbExecutor, runInTransaction } from "#app/db/database.ts";
@@ -103,7 +103,7 @@ export function identityLifecycleAdapter(
           await requests.lockUserLifecycle(id);
         // Serialize before/after capture so concurrent verification requests see
         // the persisted false-to-true transition exactly once.
-        return executor
+        const locked = await executor
           .select()
           .from(user)
           .where(
@@ -112,7 +112,16 @@ export function identityLifecycleAdapter(
               rows.map(({ id }) => id),
             ),
           )
+          .orderBy(user.id)
           .for("update");
+        const matching = await adapter.findMany<{ id: string }>({
+          model: "user",
+          where,
+          select: ["id"],
+          limit: Number.MAX_SAFE_INTEGER,
+        });
+        const ids = new Set(matching.map(({ id }) => id));
+        return locked.filter(({ id }) => ids.has(id));
       };
       const organizationSnapshot = async (where: Parameters<Adapter["findMany"]>[0]["where"]) => {
         const rows = await adapter.findMany<{ id: string }>({
@@ -172,6 +181,44 @@ export function identityLifecycleAdapter(
         const ids = new Set(matching.map(({ id }) => id));
         return locked.filter(({ id }) => ids.has(id));
       };
+      const userUpdateFacts = async (before: Awaited<ReturnType<typeof snapshot>>) => {
+        const after = await executor
+          .select()
+          .from(user)
+          .where(
+            inArray(
+              user.id,
+              before.map((row) => row.id),
+            ),
+          )
+          .orderBy(user.id);
+        const previous = new Map(before.map((row) => [row.id, row]));
+        const updates: IdentityEvent[] = [];
+        for (const row of after) {
+          updates.push(userChanged("identity.user.updated", row.id));
+          if (previous.get(row.id)?.emailVerified === false && row.emailVerified)
+            updates.push(userChanged("identity.email.verified", row.id));
+        }
+        return updates;
+      };
+      const membershipUpdateFacts = async (
+        before: Awaited<ReturnType<typeof membershipSnapshot>>,
+      ) => {
+        const after = await executor
+          .select()
+          .from(member)
+          .where(
+            inArray(
+              member.id,
+              before.map((row) => row.id),
+            ),
+          )
+          .orderBy(member.id);
+        const previous = new Map(before.map((row) => [row.id, row]));
+        return after.map((row) =>
+          membershipChanged("membership.updated", row, previous.get(row.id)),
+        );
+      };
       const update: Adapter["update"] = async <T>(
         input: Parameters<Adapter["update"]>[0],
       ): Promise<T | null> => {
@@ -197,31 +244,16 @@ export function identityLifecycleAdapter(
             ...input,
             where: [{ field: "id", operator: "in", value: before.map(({ id }) => id) }],
           });
-          if (result) {
-            const after = await executor
-              .select()
-              .from(member)
-              .where(
-                inArray(
-                  member.id,
-                  before.map(({ id }) => id),
-                ),
-              )
-              .orderBy(member.id);
-            for (const row of after) facts.push(membershipChanged("membership.updated", row));
-          }
+          if (result) facts.push(...(await membershipUpdateFacts(before)));
           return result;
         }
-        const [before] = await snapshot(input.where);
-        const result = await adapter.update<T>(input);
-        if (before && result) {
-          const [after] = await executor.select().from(user).where(eq(user.id, before.id));
-          if (after) {
-            facts.push(userChanged("identity.user.updated", before.id));
-            if (!before.emailVerified && after.emailVerified)
-              facts.push(userChanged("identity.email.verified", before.id));
-          }
-        }
+        const before = await snapshot(input.where);
+        if (!before.length) return null;
+        const result = await adapter.update<T>({
+          ...input,
+          where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+        });
+        if (result) facts.push(...(await userUpdateFacts(before)));
         return result;
       };
       const remove: Adapter["delete"] = async (input) => {
@@ -251,14 +283,29 @@ export function identityLifecycleAdapter(
           for (const row of before) facts.push(membershipChanged("membership.removed", row));
           return;
         }
-        const [before] = await snapshot(input.where);
-        await adapter.delete(input);
-        if (before) facts.push(userChanged("identity.user.deleted", before.id));
+        const before = await snapshot(input.where);
+        if (!before.length) return;
+        await adapter.delete({
+          ...input,
+          where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+        });
+        for (const row of before) facts.push(userChanged("identity.user.deleted", row.id));
       };
       const deleteMany: Adapter["deleteMany"] = async (input) => {
-        if (input.model !== "organization" && input.model !== "member")
+        if (!["user", "organization", "member"].includes(input.model))
           return adapter.deleteMany(input);
         if (!facts) return transaction((tx) => tx.deleteMany(input));
+        if (input.model === "user") {
+          const before = await snapshot(input.where);
+          if (!before.length) return 0;
+          const count = await adapter.deleteMany({
+            ...input,
+            where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+          });
+          if (count)
+            for (const row of before) facts.push(userChanged("identity.user.deleted", row.id));
+          return count;
+        }
         if (input.model === "organization") {
           const before = await organizationSnapshot(input.where);
           if (!before.length) return 0;
@@ -279,9 +326,19 @@ export function identityLifecycleAdapter(
         return count;
       };
       const updateMany: Adapter["updateMany"] = async (input) => {
-        if (input.model !== "organization" && input.model !== "member")
+        if (!["user", "organization", "member"].includes(input.model))
           return adapter.updateMany(input);
         if (!facts) return transaction((tx) => tx.updateMany(input));
+        if (input.model === "user") {
+          const before = await snapshot(input.where);
+          if (!before.length) return 0;
+          const count = await adapter.updateMany({
+            ...input,
+            where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+          });
+          if (count) facts.push(...(await userUpdateFacts(before)));
+          return count;
+        }
         if (input.model === "organization") {
           const before = await organizationSnapshot(input.where);
           if (!before.length) return 0;
@@ -298,7 +355,7 @@ export function identityLifecycleAdapter(
           ...input,
           where: [{ field: "id", operator: "in", value: before.map(({ id }) => id) }],
         });
-        for (const row of before) facts.push(membershipChanged("membership.updated", row));
+        if (count) facts.push(...(await membershipUpdateFacts(before)));
         return count;
       };
       return { ...adapter, create, update, updateMany, delete: remove, deleteMany, transaction };
