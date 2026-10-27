@@ -26,3 +26,25 @@ export function bindEmit(next: Emit): () => void {
     if (emit === next) emit = undefined;
   };
 }
+
+// A recording Segment is one request. It does not use the shared logs queue,
+// so it has its own binding. No warning before the first connection: calling
+// recorder.emitClip() or recorder.startClip() with no WebSDK does nothing.
+let emitNow: Emit | undefined;
+
+export function bindEmitNow(next: Emit): () => void {
+  emitNow = next;
+  return () => {
+    if (emitNow === next) emitNow = undefined;
+  };
+}
+
+export function emitLogNow(
+  eventName: Parameters<Emit>[0],
+  attributes?: Parameters<Emit>[1],
+  timestamp?: Parameters<Emit>[2],
+  severityNumber?: Parameters<Emit>[3],
+  body?: Parameters<Emit>[4],
+): void {
+  emitNow?.(eventName, attributes, timestamp, severityNumber, body);
+}

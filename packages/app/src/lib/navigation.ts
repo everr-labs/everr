@@ -10,6 +10,7 @@ import {
   type LucideIcon,
   NotebookText,
   ScrollText,
+  Video,
   Waypoints,
 } from "lucide-react";
 import type { ApplicationPath } from "#app/composition/client.ts";
@@ -53,6 +54,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: "Logs", url: "/logs", icon: ScrollText },
       { title: "Errors", url: "/errors", icon: Bug },
+      { title: "Recordings", url: "/recordings", icon: Video },
       { title: "Traces", url: "/traces", icon: Waypoints },
     ],
   },

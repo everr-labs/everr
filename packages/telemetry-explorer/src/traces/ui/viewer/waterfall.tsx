@@ -20,6 +20,15 @@ import { TimeRuler, type ViewRange } from "./flamegraph";
 import type { TraceNode } from "./model";
 import { spanColorGroup } from "./rendering/types";
 
+/** A Log marker, positioned from the start of the Trace. */
+export type WaterfallLogMarker = {
+  offsetMs: number;
+  isError: boolean;
+  severityText: string;
+  body: string;
+  eventName: string;
+};
+
 export function TraceWaterfall({
   rows,
   selectedSpanId,
@@ -29,6 +38,7 @@ export function TraceWaterfall({
   colorBy,
   previewField,
   range,
+  logMarkers,
   onToggle,
   onSelect,
   virtuosoRef,
@@ -41,6 +51,7 @@ export function TraceWaterfall({
   colorBy: string;
   previewField: string;
   range: ViewRange;
+  logMarkers: ReadonlyMap<string, WaterfallLogMarker[]>;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
   virtuosoRef?: Ref<VirtuosoHandle>;
@@ -191,6 +202,23 @@ export function TraceWaterfall({
                       style={{
                         left: `${position}%`,
                         backgroundColor: event.isError ? "var(--destructive)" : "var(--foreground)",
+                      }}
+                    />
+                  ) : null;
+                })}
+                {(logMarkers.get(node.spanId) ?? []).map((marker, i) => {
+                  const position = ((marker.offsetMs - range.start) / fullWidth) * 100;
+                  return position >= 0 && position <= 100 ? (
+                    <span
+                      // oxlint-disable-next-line react/no-array-index-key -- Immutable log markers can share timestamps; the ordinal distinguishes those duplicates.
+                      key={`log-${marker.offsetMs}-${i}`}
+                      title={`${marker.severityText || marker.eventName || "log"}: ${marker.body}`}
+                      className="absolute top-3.5 size-1.5 rounded-full border border-background"
+                      style={{
+                        left: `${position}%`,
+                        backgroundColor: marker.isError
+                          ? "var(--destructive)"
+                          : "var(--muted-foreground)",
                       }}
                     />
                   ) : null;

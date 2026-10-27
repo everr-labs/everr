@@ -37,6 +37,8 @@ export type ErrorDetailProps = {
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
+  /** App supplies the Replay player. It renders above the error's content. */
+  renderPlayer?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
 };
 
 export function ErrorDetail({
@@ -50,6 +52,7 @@ export function ErrorDetail({
   onClose,
   renderOccurrenceLink,
   renderTracePanel,
+  renderPlayer,
 }: ErrorDetailProps) {
   const issueQuery = useQuery(
     errorIssueOptions(repo, {
@@ -115,6 +118,7 @@ export function ErrorDetail({
         onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
+      {renderPlayer?.({ occurrence: selected })}
       <ScrollArea render={<main />} className="min-h-0 flex-1">
         {/* The column is centred inside a full-width scroller, so its width
             bound belongs to a child: on the viewport it would narrow the

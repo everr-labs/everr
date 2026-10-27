@@ -35,9 +35,9 @@ export function pageAttrs(page: PageContext): Record<string, string | null | und
 // client.
 export function createEnvelope(
   current: CurrentPage,
-): () => Record<string, AttrValue | null | undefined> {
-  return () => ({
-    "session.id": sessionId(),
+): (session?: string) => Record<string, AttrValue | null | undefined> {
+  return (session = sessionId()) => ({
+    "session.id": session,
     "everr.visitor.id": visitorId(),
     ...pageAttrs(current()),
     ...getAttributes(),

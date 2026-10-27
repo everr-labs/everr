@@ -32,7 +32,7 @@ import { type ComponentProps, useCallback, useMemo, useRef, useState } from "rea
 import type { VirtuosoHandle } from "react-virtuoso";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
-import type { Span } from "../../data/types";
+import type { Span, TraceLogMarker } from "../../data/types";
 import { serviceColor } from "../shared/service-color";
 import { type FlamegraphHandle, TraceFlamegraph, type ViewRange } from "./flamegraph";
 import { matchesSpan, SPAN_CATEGORIES, type SpanCategory, type TraceModel } from "./model";
@@ -40,7 +40,7 @@ import { prepareTraceLayout, prepareTraceModel } from "./processor";
 import { spanColorGroup } from "./rendering/types";
 import { getAncestorSpanIds, getVisibleSpans } from "./rendering/waterfall-utils";
 import { SpanDetails } from "./span-details";
-import { TraceWaterfall } from "./waterfall";
+import { TraceWaterfall, type WaterfallLogMarker } from "./waterfall";
 
 export type TraceExplorerProps = {
   repo: TracesRepositoryLike;
@@ -51,6 +51,8 @@ export type TraceExplorerProps = {
   };
   onBack: () => void;
   onSpanChange: (spanId: string | undefined) => void;
+  /** Logs that share this trace. The waterfall draws them on the matching span. */
+  logMarkers?: TraceLogMarker[];
 };
 
 type Props = Omit<TraceExplorerProps, "repo">;
@@ -161,6 +163,7 @@ function TraceViewer({
   layoutKey,
   traceId,
   search,
+  logMarkers,
   onSpanChange,
   onBack,
 }: Props & { model: TraceModel; layoutKey: (string | number)[] }) {
@@ -211,6 +214,23 @@ function TraceViewer({
     ],
     [model, colorBy],
   );
+  const logMarkersBySpan = useMemo(() => {
+    const bySpan = new Map<string, WaterfallLogMarker[]>();
+    for (const marker of logMarkers ?? []) {
+      if (!marker.spanId) continue;
+      const offsetMs = Number(BigInt(marker.timestampNs) - BigInt(model.startNs)) / 1e6;
+      const list = bySpan.get(marker.spanId) ?? [];
+      list.push({
+        offsetMs,
+        isError: marker.isError,
+        severityText: marker.severityText,
+        body: marker.body,
+        eventName: marker.eventName,
+      });
+      bySpan.set(marker.spanId, list);
+    }
+    return bySpan;
+  }, [logMarkers, model.startNs]);
 
   const selectSpan = useCallback(
     (id: string, source: "flamegraph" | "waterfall" | "search" = "search") => {
@@ -470,6 +490,7 @@ function TraceViewer({
                     colorBy={colorBy ?? "service.name"}
                     previewField={previewField ?? ""}
                     range={range}
+                    logMarkers={logMarkersBySpan}
                     virtuosoRef={waterfallRef}
                     onSelect={(id) => selectSpan(id, "waterfall")}
                     onToggle={(id) =>

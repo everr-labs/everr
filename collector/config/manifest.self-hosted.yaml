@@ -40,3 +40,6 @@ replaces:
   - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../../internal/sharedcomponent
   - github.com/everr-labs/everr/collector/semconv => ../../semconv
   - github.com/everr-labs/everr/collector/extension/everrapikeyauth => ../../extension/everrapikeyauth
+
+connectors:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.160.0

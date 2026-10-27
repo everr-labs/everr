@@ -124,6 +124,15 @@ export class TracesRepository {
     Object.assign(params, attr.params);
 
     const pageWhereParts = [TIME_WINDOW_SQL];
+    // A Clip is its own trace: one root span named recording. The list is the
+    // work that Clip sits on, so those traces never take a page slot.
+    pageWhereParts.push(`TraceId NOT IN (
+        SELECT TraceId
+        FROM ${this.tableName}
+        WHERE ${TIME_WINDOW_SQL}
+          AND ParentSpanId = ''
+          AND SpanName = 'recording'
+      )`);
     // A matching child span qualifies its trace. Keep every in-window span of
     // that trace when evaluating duration, status, and the pagination cursor.
     if (spanPreds.length > 0) {

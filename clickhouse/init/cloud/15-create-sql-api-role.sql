@@ -31,6 +31,12 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
   ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces_trace_id_ts
   ON app.traces_trace_id_ts            FOR SELECT USING 0 TO sql_api_role;
+-- Recordings hold session replay bodies. The policy exists so a later SELECT
+-- grant cannot expose every tenant: ClickHouse returns every row when no row
+-- policy applies. Do not grant app.recordings to sql_api_role, and do not add
+-- it to SQL_API_TENANT_TABLES.
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_recordings
+  ON app.recordings FOR SELECT USING 0 TO sql_api_role;
 
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
@@ -47,6 +53,7 @@ GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 -- the three is missing, the table is either unreachable or readable across
 -- tenants. Organizations provisioned before the new entry also need a policy
 -- backfill during the deployment cut-over.
+-- app.recordings is the exception: default-deny above, and no SELECT grant.
 GRANT SELECT ON app.alert_events  TO sql_api_role;
 GRANT SELECT ON app.traces_trace_id_ts           TO sql_api_role;
 

@@ -18,7 +18,8 @@
       "node": "./src/server.ts",
       "default": "./src/index.ts"
     },
-    "./react": "./src/react.ts"
+    "./react": "./src/react.ts",
+    "./recording": "./src/recording.ts"
   },
   "publishConfig": {
     "exports": {
@@ -35,6 +36,10 @@
       "./react": {
         "types": "./dist/react.d.ts",
         "default": "./dist/react.js"
+      },
+      "./recording": {
+        "types": "./dist/recording.d.ts",
+        "default": "./dist/recording.js"
       }
     },
     "access": "public"
@@ -50,7 +55,8 @@
     "test:mutation": "stryker run"
   },
   "dependencies": {
-    "@everr/otel-errors": "workspace:*"
+    "@everr/otel-errors": "workspace:*",
+    "@rrweb/record": "2.1.7"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",

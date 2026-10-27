@@ -9,16 +9,25 @@ export default defineConfig({
       // Remove to preserve subpath imports as written (the new default).
       // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
       resolveDepSubpath: true,
+      // The react bundle and the recording stub must keep their import of the
+      // package name. If the build resolves it, the bundle contains the entry of
+      // one runtime, and the selection by the "." export conditions of the
+      // consumer is lost.
+      neverBundle: ["@everr/otel-web"],
+      // @rrweb/record is a dependency, which tsdown leaves external. The recorder
+      // chunk is the only place it loads, so the chunk carries the library.
+      alwaysBundle: ["@rrweb/record", "rrweb"],
+      onlyBundle: ["@rrweb/record"],
     },
     entry: {
       index: "src/index.ts",
       react: "src/react.ts",
       server: "src/server.ts",
+      recording: "src/recording.ts",
+      // The dynamic import in the recording entry. Its own entry keeps rrweb
+      // out of dist/recording.js.
+      "recording/recorder": "src/recording/recorder.ts",
     },
-    // The react bundle must keep its import of the package name. If the build
-    // resolves it, the react bundle contains the entry of one runtime, and the
-    // selection by the "." export conditions of the consumer is lost.
-    external: ["@everr/otel-web"],
     format: ["esm"],
     dts: true,
     platform: "browser",

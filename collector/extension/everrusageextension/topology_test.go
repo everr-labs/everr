@@ -182,6 +182,66 @@ func TestPublicationFanout(t *testing.T) {
 	}
 }
 
+func TestRoutedAdmission(t *testing.T) {
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(routedAdmissionConfig())))
+	for _, tc := range []struct {
+		name    string
+		change  func(map[string]any)
+		message string
+	}{
+		{"meter_again", func(p map[string]any) {
+			p["logs/recordings"].(map[string]any)["processors"] = []any{Type}
+		}, "must not meter again"},
+		{"bad_queue", func(p map[string]any) {
+			p["logs/recordings"].(map[string]any)["exporters"] = []any{"storage/unqueued"}
+		}, "requires a persistent queue"},
+		{"no_downstream", func(p map[string]any) {
+			delete(p, "logs/telemetry")
+			delete(p, "logs/recordings")
+		}, "no downstream pipeline"},
+		{"not_routing", func(p map[string]any) {
+			p["logs"].(map[string]any)["exporters"] = []any{"forward", Type + "_connector"}
+		}, "usage must feed an exporter directly"},
+		{"two_exporters", func(p map[string]any) {
+			p["logs/telemetry"].(map[string]any)["exporters"] = []any{"storage", "storage/recordings"}
+		}, "requires one exporter"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := routedAdmissionConfig()
+			tc.change(c["service"].(map[string]any)["pipelines"].(map[string]any))
+			require.ErrorContains(t, validateTopology(confmap.NewFromStringMap(c)), tc.message)
+		})
+	}
+}
+
+func routedAdmissionConfig() map[string]any {
+	c := admissionConfig()
+	c["connectors"].(map[string]any)["routing"] = map[string]any{}
+	c["connectors"].(map[string]any)["forward"] = map[string]any{}
+	queue := map[string]any{
+		"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false,
+		"queue_size": 10000, "num_consumers": 10,
+		"batch": map[string]any{"min_size": 16, "max_size": 16, "flush_timeout": "1s"},
+	}
+	exporters := c["exporters"].(map[string]any)
+	exporters["storage/recordings"] = map[string]any{
+		"sending_queue":    queue,
+		"retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"},
+	}
+	exporters["storage/unqueued"] = map[string]any{
+		"retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"},
+	}
+	pipes := c["service"].(map[string]any)["pipelines"].(map[string]any)
+	pipes["logs"].(map[string]any)["exporters"] = []any{"routing", Type + "_connector"}
+	pipes["traces"] = map[string]any{
+		"receivers": []any{"otlp"}, "processors": []any{Type},
+		"exporters": []any{"storage", Type + "_connector"},
+	}
+	pipes["logs/telemetry"] = map[string]any{"receivers": []any{"routing"}, "exporters": []any{"storage"}}
+	pipes["logs/recordings"] = map[string]any{"receivers": []any{"routing"}, "exporters": []any{"storage/recordings"}}
+	return c
+}
+
 func TestPublicationRootCannotAlsoBeDownstream(t *testing.T) {
 	for _, converted := range []bool{false, true} {
 		t.Run(fmt.Sprint("converted=", converted), func(t *testing.T) {

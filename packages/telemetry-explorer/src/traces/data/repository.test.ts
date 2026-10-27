@@ -40,6 +40,22 @@ function traceRows(count: number): TraceSummary[] {
 }
 
 describe("TracesRepository.search", () => {
+  it("leaves out traces whose root span is named recording", async () => {
+    query.mockResolvedValueOnce([]);
+    await makeRepo().search({
+      ...searchBase,
+      fromTs: "2026-05-20 12:00:00",
+      toTs: "2026-05-27 12:00:00",
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page).toBeDefined();
+    expect(page).toContain("TraceId NOT IN");
+    expect(page).toContain("ParentSpanId = ''");
+    expect(page).toContain("SpanName = 'recording'");
+  });
+
   it("selects the page before computing full trace summaries", async () => {
     query.mockResolvedValueOnce([]);
     await makeRepo().search({
@@ -542,7 +558,11 @@ describe("trace search attribute filtering", () => {
     });
 
     const [sql] = query.mock.calls[0] ?? [];
-    expect(sql).not.toContain("TraceId NOT IN (");
+    expect(sql).not.toContain("http.route");
+    expect(sql).not.toContain("SpanAttributesKeys");
+    const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page?.match(/TraceId NOT IN \(/g)).toHaveLength(1);
+    expect(page).toContain("SpanName = 'recording'");
   });
 
   it("adds no attribute predicates when none are given", async () => {

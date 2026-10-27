@@ -4,7 +4,7 @@ import { createTracer } from "./pipeline/tracer.js";
 
 let current: Tracer | undefined;
 
-/** Capture custom segments through the current WebSDK. In the browser, an
+/** Capture custom spans through the current WebSDK. In the browser, an
  * active span stays active until end(), including across awaited work. */
 export const tracer: Tracer = {
   startSpan: (name, options, context) =>

@@ -7,7 +7,7 @@ import { createEnvelope } from "./pipeline/envelope.js";
 import { createTracer } from "./pipeline/tracer.js";
 import { resolveTransport } from "./pipeline/transport.js";
 import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
-import { bindEmit } from "./state/emit.js";
+import { bindEmit, bindEmitNow } from "./state/emit.js";
 import { routePattern } from "./state/route.js";
 import {
   createSessionContext,
@@ -62,7 +62,7 @@ export class WebSDK {
     const [rotate, current] = createSessionContext(location.href, document.referrer);
 
     let activeSpan: (time?: number) => SpanContext | undefined = () => undefined;
-    const [emit, flush, exitFlush, emitSpan] = createEmitter(
+    const [emit, flush, exitFlush, emitSpan, emitNow] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
       // viewport changes when the user changes the window size. Thus each
@@ -99,6 +99,7 @@ export class WebSDK {
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
     const unbindEmit = bindEmit(emit);
+    const unbindEmitNow = bindEmitNow(emitNow);
     const sdkTracer = createTracer(emitSpan);
     activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
@@ -173,6 +174,7 @@ export class WebSDK {
       // The opposite sequence to the setup, before the pipeline disconnects.
       for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]?.();
       unbindEmit();
+      unbindEmitNow();
       unbindTracer();
       stopWatching();
       return flush();

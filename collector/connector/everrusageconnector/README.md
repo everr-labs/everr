@@ -6,8 +6,8 @@ accepts them into its persistent queue. Standard `delta_to_cumulative` conversio
 then produces monthly cumulative usage for a dedicated usage exporter.
 
 ```text
-source -> usage processor -> fan-out -> clickhouse telemetry queue
-                              |
+source -> usage processor -> fan-out -> telemetry exporter, or a routing connector
+                              |         whose pipelines each export once
                               +-> usage connector (no-op input)
                                        |
                                 delta_to_cumulative
@@ -48,7 +48,9 @@ remains necessary.
 
 [config.example.yml](../../config.example.yml) contains the complete configuration.
 Every pipeline using a usage extension must export to its matching connector
-alongside its telemetry exporter. Startup validation checks those connections,
+alongside its telemetry path. That path is one exporter, or a routing connector
+whose receiving pipelines each store through one exporter and do not meter again.
+Startup validation checks those connections,
 requires exactly one cumulative conversion before publication fanout, and checks
 all destination exporters for dedicated persistent queues, fsync, blocking,
 queue-admission acknowledgment, and unlimited retries. It allows downstream

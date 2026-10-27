@@ -20,6 +20,14 @@ const routeMasks = [
     search: true,
     unmaskOnReload: true,
   }),
+  createRouteMask({
+    routeTree,
+    from: "/recordings/$clipId/modal",
+    to: "/recordings/$clipId",
+    params: true,
+    search: true,
+    unmaskOnReload: true,
+  }),
 ];
 
 /**

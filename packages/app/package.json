@@ -97,6 +97,7 @@
     "@opentelemetry/sdk-metrics": "^2.7.1",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/sdk-trace-node": "^2.7.1",
+    "@rrweb/replay": "2.1.7",
     "@t3-oss/env-core": "catalog:",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "catalog:",

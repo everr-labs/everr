@@ -79,6 +79,20 @@ let session: SessionState | null = null;
 const STORAGE_WRITE_DELAY_MS = 30_000;
 let lastWrite = 0;
 
+const sessionListeners = new Set<(id: string) => void>();
+
+/**
+ * Listens for a new Session id. The recording instrumentation ends its Stream
+ * here, so a Clip cannot mix two Sessions. The listener runs inside
+ * `sessionId()`, before that call returns.
+ */
+export function onSessionChange(listener: (id: string) => void): () => void {
+  sessionListeners.add(listener);
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
 /**
  * Finds the session id for the record that the SDK sends, and records the
  * activity.
@@ -92,6 +106,7 @@ export function sessionId(): string {
   const store = currentStore();
   const base = store.readSession() ?? session;
   const now = Date.now();
+  const previous = session?.id;
   const next =
     base && now - base.t <= SESSION_TIMEOUT_MS
       ? { id: base.id, t: now }
@@ -100,6 +115,9 @@ export function sessionId(): string {
   if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
     lastWrite = now;
     store.writeSession(next);
+  }
+  if (next.id !== previous) {
+    for (const listener of sessionListeners) listener(next.id);
   }
   return next.id;
 }
@@ -184,6 +202,7 @@ export function clearIdentity(): void {
   currentStore().clear();
   visitor = undefined;
   session = null;
+  for (const listener of sessionListeners) listener("");
 }
 
 /** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */

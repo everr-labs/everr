@@ -62,4 +62,18 @@ describe("browser module graph", () => {
     const specs = [...walk("src/server.ts").values()].flat();
     expect(specs.some((s) => s.startsWith("@opentelemetry/"))).toBe(true);
   });
+
+  it("the main entry does not import recording or rrweb", () => {
+    const graph = walk("src/index.ts");
+    const files = [...graph.keys()];
+    const specs = [...graph.values()].flat();
+    expect(files.some((file) => file.includes("/recording"))).toBe(false);
+    expect(specs.some((spec) => spec.includes("rrweb"))).toBe(false);
+  });
+
+  it("the recording entry loads the recorder with import(), not a static import", () => {
+    const specs = [...walk("src/recording.ts").values()].flat();
+    expect(specs.some((spec) => spec.includes("@rrweb/record"))).toBe(false);
+    expect(specs).toContain("@everr/otel-web");
+  });
 });

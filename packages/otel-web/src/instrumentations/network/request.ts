@@ -1,4 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
+import { notifyRecordingTrigger } from "../../state/clip-trigger.js";
 import { requestTemplate } from "../../state/route.js";
 import type { PropagationTarget } from "./network.js";
 
@@ -34,6 +35,13 @@ export function startRequest(tracer: Tracer, method: string, url: URL) {
       });
       if (errorType !== undefined) span.setStatus({ code: 2 });
       span.end();
+      // A 5xx, or a failure that never got a response (fetch reject, XHR
+      // error or timeout). A 4xx is not a trigger. An abort is not either:
+      // XHR passes no error type, and a fetch abort rejects with AbortError.
+      // recording() does not patch fetch; this is the only network seam.
+      if (status != null ? status >= 500 : errorType != null && errorType !== "AbortError") {
+        notifyRecordingTrigger("network");
+      }
     },
   };
 }

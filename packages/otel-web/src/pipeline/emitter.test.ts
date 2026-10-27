@@ -32,7 +32,10 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(envelope: () => Record<string, string> = () => ({}), beforeSend?: BeforeSend) {
+function makeEmitter(
+  envelope: (session?: string) => Record<string, string> = () => ({}),
+  beforeSend?: BeforeSend,
+) {
   sent = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -81,6 +84,50 @@ describe("createEmitter", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(sent).toHaveLength(1);
     expect(sentRecords()).toHaveLength(2);
+  });
+
+  it("sends a Segment immediately on its own request with the Stream's session.id", () => {
+    let sessionReads = 0;
+    const [emitRegular, , , emitSpanNow, emitNow] = makeEmitter((session) => ({
+      "session.id": session ?? `read-${++sessionReads}`,
+      "url.path": "/checkout",
+    }));
+
+    emitRegular("everr.browser.page_view");
+    expect(sessionReads).toBe(1);
+    expect(sent).toHaveLength(0);
+
+    emitNow(
+      "everr.browser.recording.segment",
+      {
+        "session.id": "stream-session",
+        "everr.recording.clip.id": "clip-1",
+        "everr.recording.segment.index": 0,
+      },
+      1_700_000_000_000,
+      undefined,
+      '[{"type":2,"timestamp":1700000000000}]',
+    );
+    expect(sent).toHaveLength(1);
+    expect(sessionReads).toBe(1);
+    expect(sentRecords()).toEqual([
+      expect.objectContaining({
+        eventName: "everr.browser.recording.segment",
+        body: { stringValue: '[{"type":2,"timestamp":1700000000000}]' },
+        attributes: expect.arrayContaining([
+          { key: "session.id", value: { stringValue: "stream-session" } },
+          { key: "url.path", value: { stringValue: "/checkout" } },
+          { key: "everr.recording.clip.id", value: { stringValue: "clip-1" } },
+          { key: "everr.recording.segment.index", value: { intValue: "0" } },
+        ]),
+      }),
+    ]);
+
+    emitSpanNow("a".repeat(32), "b".repeat(16), "recording", 1_000, 2_000, {
+      "session.id": "stream-session",
+      "everr.recording.clip.id": "clip-1",
+    });
+    expect(sessionReads).toBe(1);
   });
 
   it("flushes immediately when the batch size is reached", () => {

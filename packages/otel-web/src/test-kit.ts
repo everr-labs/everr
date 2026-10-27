@@ -60,18 +60,34 @@ export type OtlpBatch = {
   spans: OtlpSpan[];
 };
 
+// A page request in a test, as opposed to an OTLP export. The network
+// instrumentation wraps the transport fetch, so the response has to be chosen
+// on the transport itself. Unset, every request is parsed as OTLP.
+let appFetch:
+  | ((input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>)
+  | undefined;
+
+/** The next non-OTLP fetch. Pass undefined to parse every request as OTLP. */
+export function setAppFetch(next: typeof appFetch): void {
+  appFetch = next;
+}
+
 /** Replaces the global fetch. It returns the list of the captured batches, and
  * the code adds each new batch to that list. */
 function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : url?.toString();
+      if (appFetch && !href.includes("/v1/logs") && !href.includes("/v1/traces")) {
+        return Promise.resolve(appFetch(url, init));
+      }
       if (typeof init?.body !== "string") throw new TypeError("Expected a text request body");
       const payload = JSON.parse(init?.body);
       const resourceLog = payload.resourceLogs?.[0];
       const resourceSpan = payload.resourceSpans?.[0];
       batches.push({
-        url: url instanceof Request ? url.url : url?.toString(),
+        url: href,
         keepalive: Boolean(init?.keepalive),
         resource: (resourceLog ?? resourceSpan).resource.attributes,
         records: resourceLog?.scopeLogs[0].logRecords ?? [],

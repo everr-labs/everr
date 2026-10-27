@@ -57,6 +57,7 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRout
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
@@ -69,6 +70,7 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsInde
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/route'
 import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './routes/api/cli/resources/$kind/$project/$slug/adopt'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_.$fingerprint'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings_.$clipId'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_.$traceId'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
@@ -83,6 +85,7 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewa
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdTraceRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/trace'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings/$clipId/modal'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project.$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in.$slug'
@@ -357,6 +360,15 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute =
         AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
     } as any,
   )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteImport.update(
+    {
+      id: '/recordings',
+      path: '/recordings',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport.update(
     {
@@ -457,6 +469,15 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_Dotfin
     {
       id: '/errors_/$fingerprint',
       path: '/errors/$fingerprint',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRouteImport.update(
+    {
+      id: '/recordings_/$clipId',
+      path: '/recordings/$clipId',
       getParentRoute: () =>
         AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
     } as any,
@@ -587,6 +608,15 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerp
         AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute,
     } as any,
   )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRouteImport.update(
+    {
+      id: '/$clipId/modal',
+      path: '/$clipId/modal',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute,
+    } as any,
+  )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport.update(
     {
@@ -691,6 +721,7 @@ export interface FileRoutesByFullPath {
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/recordings': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -698,6 +729,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
+  '/recordings/$clipId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute
   '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
   '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
@@ -712,6 +744,7 @@ export interface FileRoutesByFullPath {
   '/runbooks/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
   '/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/recordings/$clipId/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
   '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
@@ -756,12 +789,14 @@ export interface FileRoutesByTo {
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/recordings': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
   '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
+  '/recordings/$clipId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute
   '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
   '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
@@ -776,6 +811,7 @@ export interface FileRoutesByTo {
   '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/recordings/$clipId/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
   '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
   '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
@@ -837,6 +873,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
@@ -846,6 +883,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings_/$clipId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
@@ -860,6 +898,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings/$clipId/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
@@ -910,6 +949,7 @@ export interface FileRouteTypes {
     | '/runs/$traceId'
     | '/errors'
     | '/logs'
+    | '/recordings'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
@@ -917,6 +957,7 @@ export interface FileRouteTypes {
     | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runs/'
     | '/errors/$fingerprint'
+    | '/recordings/$clipId'
     | '/traces/$traceId'
     | '/api-keys'
     | '/github'
@@ -931,6 +972,7 @@ export interface FileRouteTypes {
     | '/runbooks/'
     | '/runs/$traceId/'
     | '/errors/$fingerprint/modal'
+    | '/recordings/$clipId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
@@ -975,12 +1017,14 @@ export interface FileRouteTypes {
     | '/api/cli/resources/$kind/$project/$slug'
     | '/errors'
     | '/logs'
+    | '/recordings'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
     | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/runs'
     | '/errors/$fingerprint'
+    | '/recordings/$clipId'
     | '/traces/$traceId'
     | '/api-keys'
     | '/github'
@@ -995,6 +1039,7 @@ export interface FileRouteTypes {
     | '/runbooks'
     | '/runs/$traceId'
     | '/errors/$fingerprint/modal'
+    | '/recordings/$clipId/modal'
     | '/workflows/$repo/$workflowName'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
@@ -1055,6 +1100,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
@@ -1064,6 +1110,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings_/$clipId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
@@ -1078,6 +1125,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings/$clipId/modal'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug'
@@ -1443,6 +1491,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings'
+      path: '/recordings'
+      fullPath: '/recordings'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
       path: '/traces'
@@ -1525,6 +1580,13 @@ declare module '@tanstack/react-router' {
       path: '/errors/$fingerprint'
       fullPath: '/errors/$fingerprint'
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings_/$clipId': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings_/$clipId'
+      path: '/recordings/$clipId'
+      fullPath: '/recordings/$clipId'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': {
@@ -1625,6 +1687,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
     }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings/$clipId/modal': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/recordings/$clipId/modal'
+      path: '/$clipId/modal'
+      fullPath: '/recordings/$clipId/modal'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute
+    }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
       path: '/workflows/$repo/$workflowName'
@@ -1722,11 +1791,28 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWi
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren,
   )
 
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsClipIdModalRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteChildren,
+  )
+
 interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren {
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
 }
 
@@ -1736,10 +1822,14 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordingsRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRecordings_DotclipIdRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute,
   }

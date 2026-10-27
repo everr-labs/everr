@@ -108,7 +108,10 @@ export function startNetwork(tracer: Tracer, targets: PropagationTarget[] | unde
         return res;
       },
       (e: unknown) => {
-        end(undefined, errorTypeOf(e));
+        // A DOMException from this realm is not an instance of Error. Its name
+        // is the error type, the same as the XHR path. An AbortError is a
+        // cancellation, and startRequest does not open a Clip for it.
+        end(undefined, e instanceof DOMException ? e.name : errorTypeOf(e));
         throw e;
       },
     );

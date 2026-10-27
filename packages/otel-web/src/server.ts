@@ -53,12 +53,14 @@ import {
   type Emit,
 } from "./pipeline/emitter.js";
 import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
+import type { AutomaticRecordingTrigger } from "./state/clip-trigger.js";
 import { bindEmit } from "./state/emit.js";
 import type { RouteResolvers } from "./state/route.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 
 export type { ErrorContext } from "./errors.js";
 export type { AttrValue } from "./pipeline/emitter.js";
+export type { AutomaticRecordingTrigger, RecordingTrigger } from "./state/clip-trigger.js";
 
 /**
  * Reports an error. The context attributes are optional. A caller that is not
@@ -78,7 +80,7 @@ export { epoch } from "./time.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
-/** Capture segments through the app's OpenTelemetry provider and context manager. */
+/** Capture spans through the app's OpenTelemetry provider and context manager. */
 export const tracer: Tracer = {
   startSpan: (...args) => trace.getTracer(SDK_NAME, SDK_VERSION).startSpan(...args),
   startActiveSpan: ((...args: Parameters<Tracer["startActiveSpan"]>) =>
@@ -130,12 +132,35 @@ export function identify(_userId: string, _traits?: UserTraits): void {}
 /** Does nothing on the server. The identity belongs to the browser. */
 export function clearIdentity(): void {}
 
+/** Does nothing on the server. A Session change is a browser event. */
+export function onSessionChange(_listener: (sessionId: string) => void): () => void {
+  return () => {};
+}
+
 /** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
 export function revoke(): void {}
 
 /** Does nothing on the server. The envelope of the browser carries the ambient
  * context. */
 export function setAttributes(_attributes: Record<string, AttrValue | null>): void {}
+
+/** Does nothing on the server. The browser recording entry sends one log as
+ * its own request through the browser binding of the same name. */
+export function emitLogNow(
+  _eventName: Parameters<Emit>[0],
+  _attributes?: Parameters<Emit>[1],
+  _timestamp?: Parameters<Emit>[2],
+  _severityNumber?: Parameters<Emit>[3],
+  _body?: Parameters<Emit>[4],
+): void {}
+
+/** Does nothing on the server. The recording entry registers this listener in
+ * the browser; the server has no Clip to open. */
+export function setRecordingTrigger(
+  _listener: (trigger: AutomaticRecordingTrigger) => void,
+): () => void {
+  return () => {};
+}
 
 /** Does nothing on the server. The persistence belongs to the browser. */
 export function setPersistence(_persistence: Persistence | undefined): void {}

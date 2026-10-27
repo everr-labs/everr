@@ -49,6 +49,16 @@ function activeLinkNames() {
 }
 
 describe("sidebar nav active state", () => {
+  it("lists Recordings under Explore", () => {
+    const explore = navGroups.find((group) => group.label === "Explore");
+    expect(explore?.items.map((item) => item.title)).toEqual([
+      "Logs",
+      "Errors",
+      "Recordings",
+      "Traces",
+    ]);
+  });
+
   it("marks exactly Silences active on the silences page", async () => {
     renderNav("/alerts/silences");
 

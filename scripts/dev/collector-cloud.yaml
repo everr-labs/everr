@@ -13,6 +13,13 @@ connectors:
   everr_usage_connector:
     interval: 60s
     timeout: 10s
+  routing:
+    default_pipelines:
+      - logs/telemetry
+    table:
+      - condition: log.event_name == "everr.browser.recording.segment"
+        pipelines:
+          - logs/recordings
 receivers:
   otlp/public:
     protocols:
@@ -30,6 +37,7 @@ receivers:
           allowed_headers:
             - Authorization
             - Content-Type
+            - Content-Encoding
         max_request_body_size: 20971520
   githubactions:
     path: /webhook/github
@@ -117,6 +125,31 @@ exporters:
     retry_on_failure:
       enabled: true
       max_elapsed_time: 0s
+  clickhouse/recordings:
+    endpoint: ${env:CLICKHOUSE_URL}
+    username: ${env:CLICKHOUSE_USERNAME}
+    password: ${env:CLICKHOUSE_PASSWORD}
+    database: app
+    logs_table_name: recordings
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+    json: true
+    sending_queue:
+      enabled: true
+      wait_for_result: false
+      queue_size: 10000
+      num_consumers: 10
+      sizer: requests
+      batch:
+        sizer: items
+        min_size: 16
+        max_size: 16
+        flush_timeout: 1s
+      storage: file_storage/ingestion
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
   clickhouse/usage:
     endpoint: ${env:CLICKHOUSE_URL}
     username: ${env:CLICKHOUSE_USERNAME}
@@ -185,7 +218,7 @@ service:
         - resource/public_retention_logs
         - everr_usage
       exporters:
-        - clickhouse
+        - routing
         - everr_usage_connector
     traces/github:
       receivers:
@@ -205,8 +238,18 @@ service:
         - resource/github_retention_logs
         - everr_usage
       exporters:
-        - clickhouse
+        - routing
         - everr_usage_connector
+    logs/telemetry:
+      receivers:
+        - routing
+      exporters:
+        - clickhouse
+    logs/recordings:
+      receivers:
+        - routing
+      exporters:
+        - clickhouse/recordings
     metrics/github:
       receivers:
         - githubactions
