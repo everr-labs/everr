@@ -88,16 +88,9 @@ export function identityLifecycleAdapter(
           return createWithFact<{ id: string; organizationId: string; userId: string }>((created) =>
             membershipChanged("membership.added", created),
           );
-        const result = await adapter.create<T, R>(input);
-        // Read the inserted identity independently of Better Auth's selected
-        // output. Email is the required unique user key in this feature.
-        const created = await adapter.findOne<{ id: string; emailVerified: boolean }>({
-          model: "user",
-          where: [{ field: "email", value: String(input.data.email) }],
-          select: ["id", "emailVerified"],
-        });
-        if (created) facts.push(userCreated(created.id, created.emailVerified));
-        return result;
+        return createWithFact<{ id: string; emailVerified: boolean }>((created) =>
+          userCreated(created.id, created.emailVerified),
+        );
       };
       const matchingIds = async (model: LifecycleModel, where: Where) =>
         (
