@@ -164,6 +164,7 @@ export function createApplicationAuth(
   };
   const { authPlugins, identityAdapter, organizationHooks, createSessionOnboardingHook } = provider;
   const creationHooks = organizationHooks();
+  const mcpResource = `${baseURL.replace(/\/$/, "")}/mcp`;
 
   const auth = betterAuth({
     baseURL,
@@ -404,8 +405,8 @@ export function createApplicationAuth(
           const roles = role?.split(",").map((value) => value.trim()) ?? [];
           return roles.includes("owner") || roles.includes("admin");
         },
-        resources: [`${baseURL.replace(/\/$/, "")}/mcp`],
-        clientRegistrationDefaultResources: [`${baseURL.replace(/\/$/, "")}/mcp`],
+        resources: [mcpResource],
+        clientRegistrationDefaultResources: [mcpResource],
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never

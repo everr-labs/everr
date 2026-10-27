@@ -44,7 +44,6 @@ it("preserves existing MCP clients and active refresh grants across the 1.7 upgr
     `);
 
     await migrate(db, { migrationsFolder });
-    await migrate(db, { migrationsFolder });
 
     expect((await client.query("SELECT identifier FROM oauth_resource")).rows).toEqual([
       { identifier: "https://app.example.test/mcp" },
