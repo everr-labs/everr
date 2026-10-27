@@ -117,3 +117,9 @@ Prune skips orphan records with associations to foreign records, reporting
 foreign link added after preview also blocks deletion. Inspect and resolve those
 links manually before rerunning cleanup. Ordinary lifecycle deletion remains
 source-authoritative; the additional association protection applies to prune.
+
+Membership move commands carry optional previous User/Organization endpoints and
+synchronize both pairs from current state. Distinct event job keys retain each
+move's cleanup target across consecutive moves. Role-only updates keep normal
+pair coalescing. An old association is retained if another current Membership
+still connects the old pair.

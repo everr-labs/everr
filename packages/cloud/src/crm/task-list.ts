@@ -135,18 +135,21 @@ export function createCrmTaskList(options: {
       await fanout(current, payload, helpers);
     }),
     [MEMBERSHIP_SYNC_TASK]: task(membershipSyncPayload, async (payload, helpers) => {
-      const linked = await sync.membership(
-        payload.userId,
-        payload.organizationId,
-        helpers.abortSignal,
-        payload.prune,
-      );
-      if (linked !== (await reader.membership(payload.userId, payload.organizationId)))
-        await helpers.addJob(
-          MEMBERSHIP_SYNC_TASK,
-          payload,
-          relatedSyncSpec(payload.organizationId, payload.userId),
+      const { previous, ...current } = payload;
+      for (const pair of previous ? [previous, current] : [current]) {
+        const linked = await sync.membership(
+          pair.userId,
+          pair.organizationId,
+          helpers.abortSignal,
+          payload.prune,
         );
+        if (linked !== (await reader.membership(pair.userId, pair.organizationId)))
+          await helpers.addJob(
+            MEMBERSHIP_SYNC_TASK,
+            { ...current, userId: pair.userId, organizationId: pair.organizationId },
+            relatedSyncSpec(pair.organizationId, pair.userId),
+          );
+      }
     }),
     [FULL_SYNC_TASK]: task(fullSyncPayload, createFullSync(options), false),
   };

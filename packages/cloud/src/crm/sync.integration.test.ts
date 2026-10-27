@@ -23,6 +23,8 @@ import {
 import { COMPANY_ID_METADATA, saveCompanyId } from "./metadata";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmTaskList } from "./task-list";
+import { membershipChanged } from "@everr/app/identity/events";
+import { crmEventRoutes } from "./jobs";
 
 vi.mock("@everr/app/db/client", () => ({ db: undefined }));
 vi.mock("../app/env", () => ({ appEnv: { POLAR_PRO_PRODUCT_ID: "product_pro" } }));
@@ -522,4 +524,101 @@ it("preserves foreign links added after prune admission and reports blocked orph
         outcome === "failed" && details?.code === "foreign_associations_present",
     ),
   ).toHaveLength(4);
+});
+
+it.each([false, true])(
+  "synchronizes both Membership endpoints and preserves a previous pair still present (%s)",
+  async (keepPrevious) => {
+    const s = state();
+    await s.invoke(MEMBERSHIP_SYNC_TASK);
+    await fixture.db.insert(user).values({ id: "v", name: "Other", email: "other@example.test" });
+    await fixture.db
+      .insert(organization)
+      .values({ id: "p", name: "New Team", slug: "new-team", createdAt: new Date() });
+    await fixture.db
+      .update(member)
+      .set({ userId: "v", organizationId: "p" })
+      .where(eq(member.id, "m"));
+    if (keepPrevious)
+      await fixture.db.insert(member).values({
+        id: "other-membership",
+        userId: "u",
+        organizationId: "o",
+        role: "member",
+        createdAt: new Date(),
+      });
+    const fact = membershipChanged(
+      "membership.updated",
+      { id: "m", userId: "v", organizationId: "p" },
+      { userId: "u", organizationId: "o" },
+    );
+    const route = crmEventRoutes("configured").find(
+      (route) => route.definition.type === "membership.updated",
+    )!;
+    const job = route.job({ ...fact, id: "move-1", occurredAt: new Date().toISOString() });
+    await s.invoke(job.task, job.payload);
+    await s.invoke(job.task, job.payload);
+    expect(s.companies.get("company-1")!.linkedContactsIds).toEqual(keepPrevious ? [1] : []);
+    expect(s.companies.get("company-2")!.linkedContactsIds).toEqual([2]);
+    expect(s.contacts.size).toBe(2);
+    expect(s.companies.size).toBe(2);
+    expect(s.diagnostic.mock.calls.every(([outcome]) => outcome === "synced")).toBe(true);
+  },
+);
+it("cleans every previous pair across moves queued before execution", async () => {
+  const s = state();
+  await s.invoke(MEMBERSHIP_SYNC_TASK);
+  for (const id of ["p", "q"])
+    await fixture.db.insert(organization).values({ id, name: id, slug: id, createdAt: new Date() });
+  await fixture.db.update(member).set({ organizationId: "p" }).where(eq(member.id, "m"));
+  await s.invoke(MEMBERSHIP_SYNC_TASK, {
+    ...s.origin,
+    kind: "membership",
+    userId: "u",
+    organizationId: "p",
+  });
+  await fixture.db.update(member).set({ organizationId: "q" }).where(eq(member.id, "m"));
+  for (const [previous, organizationId] of [
+    ["o", "p"],
+    ["p", "q"],
+  ])
+    await s.invoke(MEMBERSHIP_SYNC_TASK, {
+      ...s.origin,
+      kind: "membership",
+      userId: "u",
+      organizationId,
+      previous: { userId: "u", organizationId: previous },
+    });
+  expect(s.companies.get("company-1")!.linkedContactsIds).toEqual([]);
+  expect(s.companies.get("company-2")!.linkedContactsIds).toEqual([]);
+  expect(s.companies.get("company-3")!.linkedContactsIds).toEqual([1]);
+});
+it("retries a partial Membership move using current state for both pairs", async () => {
+  const s = state();
+  await s.invoke(MEMBERSHIP_SYNC_TASK);
+  await fixture.db
+    .insert(organization)
+    .values({ id: "p", name: "New", slug: "new", createdAt: new Date() });
+  await fixture.db.update(member).set({ organizationId: "p" }).where(eq(member.id, "m"));
+  let failed = false;
+  s.hooks.after = async (method, path) => {
+    if (!failed && method === "GET" && path === "/companies") {
+      failed = true;
+      throw new Error("transient lookup");
+    }
+  };
+  const payload = {
+    ...s.origin,
+    kind: "membership",
+    userId: "u",
+    organizationId: "p",
+    previous: { userId: "u", organizationId: "o" },
+  };
+  await expect(s.invoke(MEMBERSHIP_SYNC_TASK, payload)).rejects.toThrow(
+    "CRM synchronization failed",
+  );
+  expect(s.companies.get("company-1")!.linkedContactsIds).toEqual([]);
+  await s.invoke(MEMBERSHIP_SYNC_TASK, payload, 2);
+  expect(s.companies.get("company-1")!.linkedContactsIds).toEqual([]);
+  expect(s.companies.get("company-2")!.linkedContactsIds).toEqual([1]);
 });

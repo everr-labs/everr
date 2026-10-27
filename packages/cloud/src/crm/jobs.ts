@@ -73,11 +73,18 @@ export function crmEventRoutes(mode: "disabled" | "configured" | "paused"): Appl
           eventId: event.id,
           eventType: event.type,
           occurredAt: event.occurredAt,
+          ...(event.type === "membership.updated" && event.data.previous
+            ? { previous: event.data.previous }
+            : {}),
         });
         return {
           task: MEMBERSHIP_SYNC_TASK,
           payload,
-          spec: relatedSyncSpec(payload.organizationId, payload.userId),
+          spec: {
+            ...relatedSyncSpec(payload.organizationId, payload.userId),
+            // Each move retains its old pair, including consecutive moves before execution.
+            ...(payload.previous ? { jobKey: `crm-membership-change:${event.id}` } : {}),
+          },
         };
       },
     })),

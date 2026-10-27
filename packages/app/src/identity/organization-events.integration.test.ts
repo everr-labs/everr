@@ -416,3 +416,61 @@ it
     }
   },
 );
+
+it.each(["update", "updateMany"] as const)(
+  "publishes committed Membership endpoints and previous pairs for %s",
+  async (operation) => {
+    const auth = createAuth();
+    const owner = await signup(auth, "owner");
+    const other = await signup(auth, "other");
+    const first = await createOrganization(auth, owner.id);
+    const second = await createOrganization(auth, owner.id, "second");
+    const target = await createOrganization(auth, other.id, "target");
+    const before = (await memberships()).filter((row) => row.userId === owner.id);
+    const { adapter } = await auth.$context;
+    facts.length = 0;
+    const result = await adapter[operation]({
+      model: "member",
+      where: [{ field: "organizationId", operator: "in", value: [first.id, second.id] }],
+      update: { organizationId: target.id, userId: other.id },
+    });
+    const updated = expect.objectContaining({ organizationId: target.id, userId: other.id });
+    expect(result).toEqual(operation === "updateMany" ? 2 : updated);
+    expect(facts).toEqual(
+      before.map((row) => ({
+        type: "membership.updated",
+        version: 1,
+        subjectId: row.id,
+        data: {
+          membershipId: row.id,
+          organizationId: target.id,
+          userId: other.id,
+          previous: { organizationId: row.organizationId, userId: row.userId },
+        },
+      })),
+    );
+    expect((await memberships()).filter((row) => before.some((old) => old.id === row.id))).toEqual(
+      before.map((row) => ({ ...row, organizationId: target.id, userId: other.id })),
+    );
+    facts.length = 0;
+    await adapter[operation]({
+      model: "member",
+      where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+      update: { role: "admin" },
+    });
+    expect(facts.every((fact) => !("previous" in fact.data))).toBe(true);
+    facts.length = 0;
+    await expect(
+      adapter.transaction(async (tx) => {
+        await tx.updateMany({
+          model: "member",
+          where: [{ field: "id", operator: "in", value: before.map((row) => row.id) }],
+          update: { organizationId: first.id, userId: owner.id },
+        });
+        expect(facts).toEqual([]);
+        throw new Error("rollback membership");
+      }),
+    ).rejects.toThrow("rollback membership");
+    expect(facts).toEqual([]);
+  },
+);

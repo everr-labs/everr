@@ -42,6 +42,13 @@ export const membershipSyncPayload = relatedPayload
   .extend({
     kind: z.literal("membership"),
     userId: z.string().min(1).max(512),
+    previous: z
+      .object({
+        userId: z.string().min(1).max(512),
+        organizationId: z.string().min(1).max(512),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type OrganizationSyncPayload = z.infer<typeof organizationSyncPayload>;

@@ -132,3 +132,43 @@ it("preserves stable job keys and one serialized Graphile queue", () => {
   }
   expect(relatedSyncSpec("o", "u").jobKey).not.toBe(relatedSyncSpec("o", "other").jobKey);
 });
+
+it("retains previous Membership endpoints and does not coalesce distinct moves", async () => {
+  const enqueue = vi.fn(async () => {});
+  const publisher = createEventPublisher({ routes: crmEventRoutes("configured"), enqueue });
+  const fact = {
+    type: "membership.updated",
+    version: 1,
+    subjectId: "m",
+    data: {
+      membershipId: "m",
+      organizationId: "target",
+      userId: "u",
+      previous: { organizationId: "old", userId: "old-user" },
+    },
+  };
+  await publisher.publish(fact);
+  await publisher.publish({
+    ...fact,
+    data: { ...fact.data, previous: { organizationId: "other", userId: "u" } },
+  });
+  expect(enqueue).toHaveBeenCalledTimes(2);
+  for (const [index, call] of enqueue.mock.calls.entries()) {
+    expect(call).toEqual([
+      "crm/sync-membership",
+      expect.objectContaining({
+        organizationId: "target",
+        userId: "u",
+        previous: index === 0 ? fact.data.previous : { organizationId: "other", userId: "u" },
+      }),
+      expect.objectContaining({
+        queueName: "crm-brevo",
+        maxAttempts: 8,
+        jobKey: expect.stringMatching(/^crm-membership-change:/),
+      }),
+    ]);
+  }
+  expect((enqueue.mock.calls[0] as unknown[])[2]).not.toEqual(
+    (enqueue.mock.calls[1] as unknown[])[2],
+  );
+});

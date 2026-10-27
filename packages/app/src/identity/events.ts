@@ -63,6 +63,12 @@ export const organizationEventDefinitions = [
   parse: (input: unknown) => schema.parse(input),
 })) satisfies readonly EventDefinition<OrganizationEvent>[];
 
+const membershipEndpoints = z
+  .object({
+    organizationId: z.string().min(1),
+    userId: z.string().min(1),
+  })
+  .strict();
 const membershipData = z
   .object({
     membershipId: z.string().min(1),
@@ -74,7 +80,10 @@ const membershipAdded = base
   .extend({ type: z.literal("membership.added"), data: membershipData })
   .strict();
 const membershipUpdated = base
-  .extend({ type: z.literal("membership.updated"), data: membershipData })
+  .extend({
+    type: z.literal("membership.updated"),
+    data: membershipData.extend({ previous: membershipEndpoints.optional() }),
+  })
   .strict();
 const membershipRemoved = base
   .extend({ type: z.literal("membership.removed"), data: membershipData })
@@ -106,11 +115,21 @@ export function organizationChanged(
 export function membershipChanged(
   type: MembershipEvent["type"],
   member: { id: string; organizationId: string; userId: string },
+  previous?: { organizationId: string; userId: string },
 ): MembershipEvent {
   return {
     type,
     version: 1,
     subjectId: member.id,
-    data: { membershipId: member.id, organizationId: member.organizationId, userId: member.userId },
+    data: {
+      membershipId: member.id,
+      organizationId: member.organizationId,
+      userId: member.userId,
+      ...(type === "membership.updated" &&
+      previous &&
+      (previous.organizationId !== member.organizationId || previous.userId !== member.userId)
+        ? { previous: { organizationId: previous.organizationId, userId: previous.userId } }
+        : {}),
+    },
   };
 }

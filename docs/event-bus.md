@@ -61,7 +61,7 @@ as `crm.full-sync.requested` are separate contracts.
 | `organization.updated`         | Organization ID   | `organizationId`                                                         | Persisted Organization update or onboarding update after commit                                           |
 | `organization.deleted`         | Organization ID   | `organizationId`                                                         | Organization deletion after commit; requires consumer cleanup of the parent and its associations          |
 | `membership.added`             | Membership row ID | `membershipId`, `organizationId`, `userId`                               | Persisted Membership creation, including invitation acceptance, installation setup and Cloud owner repair |
-| `membership.updated`           | Membership row ID | `membershipId`, `organizationId`, `userId`                               | Persisted Membership update, including role updates, after commit                                         |
+| `membership.updated`           | Membership row ID | `membershipId`, `organizationId`, `userId`, optional `previous`          | Persisted Membership update, including role updates, after commit                                         |
 | `membership.removed`           | Membership row ID | `membershipId`, `organizationId`, `userId`                               | Explicit Membership deletion or Cloud downgrade removal, with IDs captured before deletion                |
 | `billing.subscription.changed` | Organization ID   | `organizationId`, `subscriptionId`                                       | Cloud accepts and commits a newer provider subscription revision                                          |
 | `organization.plan.changed`    | Organization ID   | `organizationId`, `previousPlan`, `plan` (each Plan is `hobby` or `pro`) | Actual stored Hobby-to-Pro or Pro-to-Hobby transition after commit                                        |
@@ -77,6 +77,16 @@ Creating an already verified User emits `identity.user.created` with
 `emailVerified: true`, without inventing a later verification transition. The
 update facts signal persisted updates; they do not carry field diffs. An inactive
 Pro subscription can suspend access without changing Plan. Storage readiness remains independent of Plan and app access.
+
+User update and delete operations publish one fact per affected row, including
+bulk mutations and multi-row predicates. Verification facts describe only actual
+false-to-true transitions. Targets are locked and the original predicate is
+revalidated before writes, with publication deferred until root commit.
+
+`membership.updated` carries the committed User/Organization endpoints. When either
+endpoint changes, its `data.previous` contains the prior `userId` and
+`organizationId`. Role-only updates omit `previous`. Consumers maintaining
+associations must recheck both pairs against current state.
 
 Membership subjects identify persisted relationship rows. A consumer projecting
 relationships can use the stable User/Organization pair. One User can belong to several
