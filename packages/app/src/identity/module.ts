@@ -405,6 +405,9 @@ export function createApplicationAuth(
           const roles = role?.split(",").map((value) => value.trim()) ?? [];
           return roles.includes("owner") || roles.includes("admin");
         },
+        // This resource is installation-wide. No user session may administer
+        // its policy or links; dynamic registration links clients internally.
+        resourcePrivileges: () => false,
         resources: [mcpResource],
         clientRegistrationDefaultResources: [mcpResource],
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
