@@ -234,7 +234,8 @@ Business event publication diagnostics reuse the server OTel providers. The erro
 log `business_events.publication.failed` carries event type, version, event and
 subject IDs, and the failure stage (`validation`, `job`, or `enqueue`). Enqueue
 failures also identify the Graphile task. Exception attributes describe the
-error. See the [event bus guide](../../docs/event-bus.md) for the emitted-event
+error; job construction messages and stacks are redacted. See the
+[event bus guide](../../docs/event-bus.md) for the emitted-event
 catalog, direct Graphile admission, handler wiring and accepted loss.
 
 For an isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the OTLP

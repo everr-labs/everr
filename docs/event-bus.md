@@ -131,5 +131,6 @@ The publisher records the error log `business_events.publication.failed` when
 validation, job construction, or Graphile admission fails. It includes event
 type, version, ID, subject ID, and failure stage (`validation`, `job`, or
 `enqueue`). Enqueue failures also include the Graphile task name. Exception
-attributes describe the error, while fact schema errors are redacted before
-reporting. The log is best effort and cannot change the source result.
+attributes describe the error. Fact schema and job construction messages are
+redacted before reporting; job construction logs retain the exception type but
+omit its stack. The log is best effort and cannot change the source result.

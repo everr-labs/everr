@@ -44,7 +44,15 @@ it("exports a structured log for Graphile admission failures", async () => {
       },
     };
     const publisher = createEventPublisher({
-      routes: [{ definition, job: (event) => ({ task: "verification-consumer", payload: event }) }],
+      routes: [
+        {
+          definition,
+          job: () => {
+            throw new TypeError("Private job payload: secret");
+          },
+        },
+        { definition, job: (event) => ({ task: "verification-consumer", payload: event }) },
+      ],
       enqueue: async () => {
         throw new Error("Task 01 forced enqueue rejection");
       },
@@ -52,8 +60,20 @@ it("exports a structured log for Graphile admission failures", async () => {
     await publisher.publish(definition.parse({}));
     await loggerProvider.forceFlush();
     const records = logExporter.getFinishedLogRecords();
-    expect(records).toHaveLength(1);
+    expect(records).toHaveLength(2);
     expect(records[0]).toMatchObject({
+      severityNumber: 17,
+      body: "business_events.publication.failed",
+      attributes: {
+        "everr.business_event.failure_stage": "job",
+        "everr.business_event.version": 1,
+        "exception.type": "TypeError",
+        "exception.message": "Business event job construction failed",
+      },
+    });
+    expect(records[0].attributes).not.toHaveProperty("exception.stacktrace");
+    expect(JSON.stringify(records[0].attributes)).not.toContain("secret");
+    expect(records[1]).toMatchObject({
       severityNumber: 17,
       body: "business_events.publication.failed",
       attributes: {
@@ -68,7 +88,7 @@ it("exports a structured log for Graphile admission failures", async () => {
         "exception.stacktrace": expect.any(String),
       },
     });
-    expect(Object.keys(records[0].attributes).sort()).toEqual(
+    expect(Object.keys(records[1].attributes).sort()).toEqual(
       [
         "everr.business_event.failure_stage",
         "everr.business_event.id",

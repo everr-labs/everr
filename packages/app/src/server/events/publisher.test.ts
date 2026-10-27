@@ -92,7 +92,7 @@ it("labels job construction failures before Graphile admission", async () => {
       {
         ...route,
         job: () => {
-          throw new Error("Cannot build job");
+          throw new TypeError("Private job payload: secret");
         },
       },
     ],
@@ -106,10 +106,13 @@ it("labels job construction failures before Graphile admission", async () => {
       "everr.business_event.type": fact.type,
       "everr.business_event.version": 1,
       "everr.business_event.failure_stage": "job",
-      "exception.message": "Cannot build job",
+      "exception.type": "TypeError",
+      "exception.message": "Business event job construction failed",
     }),
   );
   expect(diagnostics.mock.calls[0][1]).not.toHaveProperty("everr.business_event.task");
+  expect(diagnostics.mock.calls[0][1]).not.toHaveProperty("exception.stacktrace");
+  expect(JSON.stringify(diagnostics.mock.calls)).not.toContain("secret");
 });
 
 it.each(["throw", "reject"])(

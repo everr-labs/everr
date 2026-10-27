@@ -61,7 +61,13 @@ function logPublicationFailure(failure: {
 }): void {
   try {
     serverLogger.error("business_events.publication.failed", {
-      ...exceptionAttributes(failure.error),
+      ...(failure.stage === "job"
+        ? {
+            "exception.type":
+              failure.error instanceof Error ? failure.error.constructor.name : "Error",
+            "exception.message": "Business event job construction failed",
+          }
+        : exceptionAttributes(failure.error)),
       "everr.business_event.type": failure.eventType,
       "everr.business_event.version": failure.eventVersion,
       "everr.business_event.failure_stage": failure.stage,
