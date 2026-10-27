@@ -127,8 +127,9 @@ See [background work](background-work.md#durability-transactions-and-replay).
 
 ## Diagnostics
 
-The publisher records `business_events.publication.failed` and increments
-`everr.business_events.publication.failures`. Metric attributes use bounded event
-types, route identities and failure stages. IDs and exceptions appear only in
-logs. Fact schema errors are redacted before reporting. These diagnostics are
-best effort and cannot change the source result.
+The publisher records the error log `business_events.publication.failed` when
+validation, job construction, or Graphile admission fails. It includes event
+type, version, ID, subject ID, and failure stage (`validation`, `job`, or
+`enqueue`). Enqueue failures also include the Graphile task name. Exception
+attributes describe the error, while fact schema errors are redacted before
+reporting. The log is best effort and cannot change the source result.

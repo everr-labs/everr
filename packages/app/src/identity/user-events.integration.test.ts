@@ -202,7 +202,7 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
     "business_events.publication.failed",
     expect.objectContaining({
       "everr.business_event.type": "identity.user.created",
-      "everr.business_event.failure_stage": "subscriber",
+      "everr.business_event.failure_stage": "enqueue",
     }),
   );
   failure.mockRestore();

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { ApplicationEvents, EventPublisher } from "#app/composition/events.ts";
 import { addWorkerJob } from "#app/server/worker/jobs.ts";
-import { metrics } from "@opentelemetry/api";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
+
+type FailureStage = "validation" | "job" | "enqueue";
 
 /** The only dispatch mechanism is Graphile. Routes build jobs, never run handlers. */
 export function createEventPublisher(options: {
@@ -17,7 +18,8 @@ export function createEventPublisher(options: {
       for (const route of routes) {
         if (route.definition.type !== fact.type || route.definition.version !== fact.version)
           continue;
-        let stage: "validation" | "subscriber" = "validation";
+        let stage: FailureStage = "validation";
+        let task: string | undefined;
         try {
           // Parse errors may contain raw payloads. Keep them out of diagnostics.
           let parsed;
@@ -26,15 +28,19 @@ export function createEventPublisher(options: {
           } catch {
             throw new Error("Business event validation failed");
           }
+          stage = "job";
           const job = route.job({ ...parsed, id, occurredAt });
-          stage = "subscriber";
+          task = job.task;
+          stage = "enqueue";
           await enqueue(job.task, job.payload, job.spec);
         } catch (error) {
           logPublicationFailure({
             eventType: route.definition.type,
+            eventVersion: route.definition.version,
             eventId: id,
             subjectId: fact.subjectId,
             stage,
+            task,
             error,
           });
         }
@@ -43,41 +49,27 @@ export function createEventPublisher(options: {
   };
 }
 
-// Keep these diagnostic identities stable across implementation renames.
-const failures = metrics
-  .getMeter("everr-app.business-events")
-  .createCounter("everr.business_events.publication.failures", {
-    description: "Best-effort business event publication failures and drops",
-    unit: "1",
-  });
-
-/** Emit both signals independently. No fact payloads enter diagnostics. */
+/** No fact payloads enter diagnostics. */
 function logPublicationFailure(failure: {
   eventType: string;
+  eventVersion: number;
   eventId: string;
   subjectId: string;
-  stage: "validation" | "subscriber";
+  stage: FailureStage;
+  task?: string;
   error: unknown;
 }): void {
   try {
     serverLogger.error("business_events.publication.failed", {
       ...exceptionAttributes(failure.error),
       "everr.business_event.type": failure.eventType,
-      "everr.business_event.subscriber": failure.eventType,
+      "everr.business_event.version": failure.eventVersion,
       "everr.business_event.failure_stage": failure.stage,
       ...(failure.eventId ? { "everr.business_event.id": failure.eventId } : {}),
       ...(failure.subjectId ? { "everr.business_event.subject_id": failure.subjectId } : {}),
+      ...(failure.task ? { "everr.business_event.task": failure.task } : {}),
     });
   } catch {
-    // A broken logger cannot suppress the counter.
-  }
-  try {
-    failures.add(1, {
-      "everr.business_event.type": failure.eventType,
-      "everr.business_event.subscriber": failure.eventType,
-      "everr.business_event.failure_stage": failure.stage,
-    });
-  } catch {
-    // Metric failures cannot affect publication.
+    // Diagnostics cannot affect publication.
   }
 }
