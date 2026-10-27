@@ -213,8 +213,8 @@ it("paginates Company lookup and rejects duplicate identities across pages", asy
     value: { id: "c", name: "Team" },
   });
   expect(fetch.mock.calls.map(([url]) => new URL(url).searchParams.get("page"))).toEqual([
-    "0",
     "1",
+    "2",
   ]);
   const duplicates = transport(
     Response.json({

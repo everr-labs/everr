@@ -88,8 +88,8 @@ function state() {
     if (path === "/companies" && method === "GET")
       response = Response.json({
         items: [...companies.values()].slice(
+          (Number(parsed.searchParams.get("page")) - 1) * 100,
           Number(parsed.searchParams.get("page")) * 100,
-          (Number(parsed.searchParams.get("page")) + 1) * 100,
         ),
       });
     else if (path === "/contacts" && method === "GET")

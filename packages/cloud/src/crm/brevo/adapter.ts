@@ -322,7 +322,7 @@ export function createBrevoAdapter(
   });
   async function listCompanies(signal?: AbortSignal): Promise<Result<CompanyRecord[]>> {
     const items = new Map<string, CompanyRecord>();
-    for (let page = 0; ; page++) {
+    for (let page = 1; ; page++) {
       const result = await request(
         "GET",
         `/companies?limit=100&page=${page}`,
