@@ -401,7 +401,8 @@ export function createApplicationAuth(
           if (!session) return false;
           if (action === "create") return true;
           const role = await activeOrgRole(db, session);
-          return role === "owner" || role === "admin";
+          const roles = role?.split(",").map((value) => value.trim()) ?? [];
+          return roles.includes("owner") || roles.includes("admin");
         },
         resources: [`${baseURL.replace(/\/$/, "")}/mcp`],
         clientRegistrationDefaultResources: [`${baseURL.replace(/\/$/, "")}/mcp`],
