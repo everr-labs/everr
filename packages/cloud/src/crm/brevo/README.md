@@ -35,9 +35,10 @@ an already deleted record as success or look up a missing Company mapping.
 ## Identity and owned fields
 
 Contacts use `ext_id=everr:v1:user:<encoded-id>` and lookup with
-`identifierType=ext_id`. Creation sets `updateEnabled: false` and suppresses email
-and SMS. Updates set `forceMerge: false`, never clear suppression, and suppress a
-changed email conservatively. No lists, campaigns, automation enrollment, consent
+`identifierType=ext_id`. Creation sets `updateEnabled: false` and leaves email
+and SMS preferences to Brevo without overriding them. Updates set
+`forceMerge: false`, never clear suppression, and suppress a changed email
+conservatively. No lists, campaigns, automation enrollment, consent
 or unrelated profile fields are written.
 
 Owned Contact attributes are `EVERR_NAME`, `EVERR_REGISTERED_AT` (ISO text) and

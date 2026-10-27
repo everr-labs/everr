@@ -113,8 +113,8 @@ function state() {
         id,
         email: body.email,
         attributes: { EXT_ID: body.ext_id, ...body.attributes },
-        emailBlacklisted: true,
-        smsBlacklisted: true,
+        emailBlacklisted: body.emailBlacklisted ?? false,
+        smsBlacklisted: body.smsBlacklisted ?? false,
       });
       response = Response.json({ id }, { status: 201 });
     } else if (path.startsWith("/companies/link-unlink/")) {

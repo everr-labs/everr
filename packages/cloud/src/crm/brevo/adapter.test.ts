@@ -87,7 +87,7 @@ it("omits unchanged fields and preserves opt-outs without touching unrelated fie
     smsBlacklisted: true,
   });
 });
-it("creates suppressed contacts with stable external identity and no enrollment", async () => {
+it("creates contacts without overriding communication preferences or enrolling them", async () => {
   const fetch = transport(Response.json({ id: 1 }, { status: 201 }));
   await createBrevoAdapter(config, fetch).createContact(user);
   expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toEqual({
@@ -99,10 +99,23 @@ it("creates suppressed contacts with stable external identity and no enrollment"
       EVERR_EMAIL_VERIFIED: true,
     },
     updateEnabled: false,
-    emailBlacklisted: true,
-    smsBlacklisted: true,
   });
 });
+it.each([false, true])(
+  "preserves existing communication preferences (%s) on profile updates",
+  async (blocked) => {
+    const fetch = transport(new Response(undefined, { status: 204 }));
+    await createBrevoAdapter(config, fetch).updateContact(
+      { ...user, fields: { ...user.fields, name: "Updated" } },
+      { ...current, emailBlacklisted: blocked, smsBlacklisted: blocked },
+    );
+    expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toEqual({
+      attributes: { EVERR_NAME: "Updated" },
+      forceMerge: false,
+      ...(blocked ? { emailBlacklisted: true, smsBlacklisted: true } : {}),
+    });
+  },
+);
 it.each([
   [400, "permanent"],
   [401, "permanent"],

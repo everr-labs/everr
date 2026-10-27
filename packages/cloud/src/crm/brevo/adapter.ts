@@ -359,9 +359,6 @@ export function createBrevoAdapter(
           ext_id: snapshot.externalId,
           attributes: contactAttributes(snapshot),
           updateEnabled: false,
-          // Profile creation is never permission to market or start a welcome flow.
-          emailBlacklisted: true,
-          smsBlacklisted: true,
         },
         signal,
       );
