@@ -29,6 +29,7 @@ import { member, session as sessionTable, user as userTable } from "#app/db/sche
 import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 import { membershipMutationPlugin, membershipOrganizationHooks } from "#app/identity/membership.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
+import { mcpResourceForBaseURL } from "#app/lib/mcp-resource.ts";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -164,7 +165,7 @@ export function createApplicationAuth(
   };
   const { authPlugins, identityAdapter, organizationHooks, createSessionOnboardingHook } = provider;
   const creationHooks = organizationHooks();
-  const mcpResource = `${baseURL.replace(/\/$/, "")}/mcp`;
+  const mcpResource = mcpResourceForBaseURL(baseURL);
 
   const auth = betterAuth({
     baseURL,

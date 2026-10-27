@@ -13,4 +13,5 @@ export const AUTH_ISSUER = `${AUTH_BASE}/api/auth`;
 // The MCP OAuth resource URI. Used by the persisted resource policy for token
 // issuance, the protected-resource metadata, the WWW-Authenticate challenge,
 // and bearer-token verification.
-export const MCP_RESOURCE = `${AUTH_BASE}/mcp`;
+export const mcpResourceForBaseURL = (baseURL: string) => `${baseURL.replace(/\/$/, "")}/mcp`;
+export const MCP_RESOURCE = mcpResourceForBaseURL(AUTH_BASE);

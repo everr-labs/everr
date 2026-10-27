@@ -143,6 +143,7 @@ export const oauthRefreshToken = pgTable(
     index("oauthRefreshToken_clientId_idx").on(table.clientId),
     index("oauthRefreshToken_sessionId_idx").on(table.sessionId),
     index("oauthRefreshToken_userId_idx").on(table.userId),
+    index("oauthRefreshToken_authorizationCodeId_idx").on(table.authorizationCodeId),
   ],
 );
 
@@ -175,6 +176,7 @@ export const oauthAccessToken = pgTable(
     index("oauthAccessToken_clientId_idx").on(table.clientId),
     index("oauthAccessToken_sessionId_idx").on(table.sessionId),
     index("oauthAccessToken_userId_idx").on(table.userId),
+    index("oauthAccessToken_authorizationCodeId_idx").on(table.authorizationCodeId),
     index("oauthAccessToken_refreshId_idx").on(table.refreshId),
   ],
 );
