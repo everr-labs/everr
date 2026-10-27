@@ -15,6 +15,13 @@
       "when": 1792019447327,
       "tag": "0011_better_auth_1_7",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793114995979,
+      "tag": "0012_mcp_oauth_backfill",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,12 @@ it("keeps migration histories and data in separate App and Cloud databases", asy
   const appDb = drizzle(appClient);
   const cloudDb = drizzle(cloudClient);
   try {
+    await appClient.query("SELECT set_config('everr.mcp_resource', $1, false)", [
+      "https://app.example.test/mcp",
+    ]);
+    await cloudClient.query("SELECT set_config('everr.mcp_resource', $1, false)", [
+      "https://cloud.example.test/mcp",
+    ]);
     await migrate(appDb, appMigrations);
     await migrate(cloudDb, appMigrations);
     await migrate(cloudDb, cloudMigrations);
@@ -43,12 +49,18 @@ it("keeps migration histories and data in separate App and Cloud databases", asy
     await migrate(cloudDb, cloudMigrations);
 
     expect((await appClient.query("SELECT id FROM organization")).rows).toEqual([{ id: "app" }]);
+    expect((await appClient.query("SELECT identifier FROM oauth_resource")).rows).toEqual([
+      { identifier: "https://app.example.test/mcp" },
+    ]);
     expect(
       (await appClient.query("SELECT to_regclass('drizzle.__everr_cloud_migrations') AS name"))
         .rows,
     ).toEqual([{ name: null }]);
     expect((await cloudClient.query("SELECT id FROM organization")).rows).toEqual([
       { id: "cloud" },
+    ]);
+    expect((await cloudClient.query("SELECT identifier FROM oauth_resource")).rows).toEqual([
+      { identifier: "https://cloud.example.test/mcp" },
     ]);
     expect(
       (await cloudClient.query("SELECT org_id, plan, polar_customer_id FROM organization_billing"))
