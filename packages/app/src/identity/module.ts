@@ -30,6 +30,7 @@ import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 import { membershipMutationPlugin, membershipOrganizationHooks } from "#app/identity/membership.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import { mcpResourceForBaseURL } from "#app/lib/mcp-resource.ts";
+import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -403,8 +404,7 @@ export function createApplicationAuth(
           if (!session) return false;
           if (action === "create") return true;
           const role = await activeOrgRole(db, session);
-          const roles = role?.split(",").map((value) => value.trim()) ?? [];
-          return roles.includes("owner") || roles.includes("admin");
+          return isOrganizationAdmin(role);
         },
         // This resource is installation-wide. No user session may administer
         // its policy or links; dynamic registration links clients internally.
