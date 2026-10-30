@@ -61,7 +61,7 @@ describe("loading and sampling", () => {
   it("does not load the chunk in an unsampled Session", async () => {
     const startStream = vi.fn();
     vi.doMock("./recording/recorder.js", () => ({ startStream }));
-    const t = await start({ sampleRate: 0 });
+    const t = await start({}, { rate: 0 });
     expect(startStream).not.toHaveBeenCalled();
     const clip = t.rec.recorder.startClip();
     expect(clip.id).toBe("");
@@ -81,7 +81,7 @@ describe("loading and sampling", () => {
       [kept, true],
     ] as const) {
       seedSession(id);
-      const t = await start({ sampleRate: 0.5 }, { sdkOptions: { persistence: "localStorage" } });
+      const t = await start({}, { rate: 0.5, sdkOptions: { persistence: "localStorage" } });
       expect(t.rec.recorder.startClip().isRecording()).toBe(recorded);
       await t.client.shutdown();
     }
@@ -374,36 +374,23 @@ describe("the Stream and the Session", () => {
     expect(logs.at(-1)?.attrs["session.id"]).not.toBe(first.attrs["session.id"]);
   });
 
-  it("ends the Stream when the Session rotates, and starts a new one", async () => {
+  it("keeps one Stream for the page when the Session changes", async () => {
     const t = await start();
-    const clip = t.rec.recorder.startClip({ next: 60_000 });
+    const before = t.rec.recorder.startClip();
+    before.end();
+    const [first] = t.segments();
     vi.advanceTimersByTime(31 * 60_000);
     t.sdk.logger.info("new session");
-    expect(clip.isRecording()).toBe(false);
-    expect(t.rec.recorder.startClip().id).toBe("");
-    await vi.dynamicImportSettled();
-    const next = t.rec.recorder.startClip();
-    next.end();
-    const [log] = await t.logs();
-    const [oldSegment] = t.segments();
-    const newSegments = t.segments().filter((s) => s.attrs["everr.recording.clip.id"] === next.id);
-    expect(newSegments[0].attrs["session.id"]).toBe(log.attrs["session.id"]);
-    expect(newSegments[0].attrs["everr.recording.stream.id"]).not.toBe(
-      oldSegment.attrs["everr.recording.stream.id"],
-    );
-    expect(types(newSegments[0].events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
-  });
-
-  it("drops the buffer when the identity is cleared", async () => {
-    const t = await start();
     t.sdk.clearIdentity();
-    expect(t.rec.recorder.startClip().id).toBe("");
-    t.sdk.logger.info("next session");
-    await vi.dynamicImportSettled();
-    const clip = t.rec.recorder.startClip();
-    clip.end();
-    const [log] = await t.logs();
-    expect(t.segments()[0].attrs["session.id"]).toBe(log.attrs["session.id"]);
+    t.sdk.logger.info("cleared");
+    const after = t.rec.recorder.startClip();
+    expect(after.isRecording()).toBe(true);
+    after.end();
+    const last = t.segments().filter((s) => s.attrs["everr.recording.clip.id"] === after.id);
+    expect(last[0].attrs["everr.recording.stream.id"]).toBe(
+      first.attrs["everr.recording.stream.id"],
+    );
+    expect(last[0].attrs["session.id"]).toBe(first.attrs["session.id"]);
   });
 });
 
