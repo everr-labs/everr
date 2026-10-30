@@ -5,6 +5,7 @@ import { managedWorker } from "@everr/app/server/worker/managed-worker";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
+import { appEnv } from "../app/env";
 import { createBrevoAdapter } from "./brevo/adapter";
 import { readBrevoConfig } from "./brevo/config";
 import { createCrmSnapshotReader } from "./snapshots";
@@ -14,7 +15,7 @@ export const integrationWorker = managedWorker({
   name: "everrIntegrationWorker",
   hot: import.meta.hot,
   async start() {
-    const config = readBrevoConfig(process.env);
+    const config = readBrevoConfig(appEnv);
     if (config.mode !== "configured") throw new Error("CRM integration runner is not configured.");
     const pool = new Pool({ ...databasePoolConfig, max: 4 });
     const database = drizzle(pool, { schema });

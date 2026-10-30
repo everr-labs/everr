@@ -12,6 +12,22 @@ within an account and have no deployment namespace.
 | `CRM_BREVO_API_KEY`    | Required in configured and paused modes         |
 | `CRM_BREVO_TIMEOUT_MS` | Optional request deadline, default 10000 ms     |
 
+The Cloud server declares these server-only variables in
+`packages/cloud/src/app/env.ts`. Composition and the worker consume that normalized
+environment; the shared Brevo parser checks the API key and request deadline for
+enabled modes. The deadline accepts integer values from 100 to 30000 ms and covers
+one HTTP request, including its response body. It does not set Graphile backoff or
+the 429 cooldown. Empty mode and timeout values use their defaults.
+
+For local Cloud development, set them in `packages/cloud/.env`, using
+`packages/cloud/.env.example` as a template. Vite loads the package's `.env` files;
+values already injected into the process take precedence. Use the local Brevo
+account's key. For production Cloud, inject these variables through the runtime
+environment and deployment secret configuration, using the production account's
+key. Deployment operations are maintained in `everr-deploy`; this repository does
+not configure those Brevo secrets. The key is never a `VITE_` variable or a Docker
+build argument.
+
 Disabled mode admits no CRM work. Paused mode admits commands but runs no CRM
 consumer. Configured mode starts the dedicated one-slot runner. Changes require
 restarting the affected process. There are no CRM tables or migrations.
@@ -36,7 +52,10 @@ without an explicit migration of the remote identities.
 
 The script requires `DATABASE_URL`, enabled CRM configuration, and the same target
 database as the integration runner. Supply configuration through the process
-environment. It admits work through Graphile and makes no provider calls itself.
+environment. Unlike the Vite server, this script does not load `.env` files. Export
+the required variables before running it. It uses the same narrow Brevo parser
+without requiring unrelated Cloud credentials such as Polar or SMTP. It admits
+work through Graphile and makes no provider calls itself.
 
 ```sh
 # Full current-state sync, safe to repeat.

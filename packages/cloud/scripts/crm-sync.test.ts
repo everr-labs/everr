@@ -82,3 +82,21 @@ it.each([
   expect(mocks.query).not.toHaveBeenCalled();
   expect(process.exitCode).toBe(1);
 });
+
+it("admits with an empty timeout and without unrelated Cloud credentials", async () => {
+  vi.stubEnv("CRM_BREVO_TIMEOUT_MS", "");
+  for (const name of [
+    "POLAR_ACCESS_TOKEN",
+    "POLAR_WEBHOOK_SECRET",
+    "POLAR_PRO_PRODUCT_ID",
+    "EMAIL_DSN",
+    "EMAIL_FROM",
+    "CLICKHOUSE_SQL_API_MASTER_KEY",
+  ])
+    vi.stubEnv(name, undefined);
+  process.argv = ["node", "crm-sync.ts"];
+  await import("./crm-sync");
+  await vi.waitFor(() => expect(mocks.end).toHaveBeenCalledOnce());
+  expect(mocks.query).toHaveBeenCalledOnce();
+  expect(console.error).not.toHaveBeenCalled();
+});

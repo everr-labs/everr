@@ -14,12 +14,13 @@ export function readBrevoConfig(env: {
   CRM_BREVO_API_KEY?: string;
   CRM_BREVO_TIMEOUT_MS?: string;
 }): BrevoConfig {
-  const mode = env.CRM_BREVO_MODE ?? "disabled";
+  // Match appEnv's emptyStringAsUndefined behavior for the standalone script too.
+  const mode = env.CRM_BREVO_MODE || "disabled";
   if (mode === "disabled") return { mode };
   const parsed = enabled.safeParse({
     mode,
     apiKey: env.CRM_BREVO_API_KEY,
-    timeoutMs: env.CRM_BREVO_TIMEOUT_MS,
+    timeoutMs: env.CRM_BREVO_TIMEOUT_MS || undefined,
   });
   if (!parsed.success) throw new Error("Invalid Brevo CRM configuration.");
   return parsed.data;

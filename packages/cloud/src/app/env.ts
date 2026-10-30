@@ -1,9 +1,11 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 import { readBrevoConfig } from "../crm/brevo/config";
+
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
+    // Server-only CRM configuration. The shared parser below validates enabled modes.
     CRM_BREVO_MODE: z.enum(["disabled", "configured", "paused"]).default("disabled"),
     CRM_BREVO_API_KEY: z.string().optional(),
     CRM_BREVO_TIMEOUT_MS: z.string().optional(),
@@ -33,5 +35,6 @@ export const appEnv = createEnv({
   emptyStringAsUndefined: true,
 });
 
-// Validate enabled CRM at cloud startup without constructing a client or making HTTP calls.
+// Share conditional key/timeout validation with the standalone CRM admission script.
+// Cloud consumers read appEnv so empty-value normalization is consistent.
 if (process.env.SKIP_ENV_VALIDATION !== "true") readBrevoConfig(appEnv);

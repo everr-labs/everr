@@ -1,8 +1,9 @@
 import type { ApplicationRuntime } from "@everr/app/composition";
 import { readBrevoConfig } from "../../crm/brevo/config";
 import { crmEventRoutes } from "../../crm/jobs";
+import { appEnv } from "../env";
 
-const crmConfig = readBrevoConfig(process.env);
+const crmConfig = readBrevoConfig(appEnv);
 
 export const runtime: ApplicationRuntime = {
   events: crmEventRoutes(crmConfig.mode),
