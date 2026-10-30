@@ -170,19 +170,6 @@ export const performance = (_options?: PerformanceOptions): Instrumentation => i
 /** Does nothing on the server. Network instrumentation belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 
-// The seams of the recording subpath. The recording belongs to the browser.
-/** @internal */
-export const emitLogNow = (
-  _eventName: string,
-  _attributes: Record<string, AttrValue | null | undefined>,
-  _timestamp: number,
-  _body: string,
-): Promise<void> => Promise.resolve();
-/** @internal */
-export const setRecordingTrigger = (_trigger: (kind: "error" | "network") => void) => () => {};
-/** @internal */
-export const onSessionChange = (_listener: (id: string | null) => void) => () => {};
-
 // Connects the shared logger functions to the OTel Logs API. It uses the same
 // Emit structure as the pipeline of the browser. The severity text comes from
 // the numeric enum of the API: 5 is DEBUG, 9 is INFO, 13 is WARN, and 17 is
