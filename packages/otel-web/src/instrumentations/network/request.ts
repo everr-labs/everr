@@ -1,4 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
+import { triggerRecording } from "../../state/recording.js";
 import { requestTemplate } from "../../state/route.js";
 import type { PropagationTarget } from "./network.js";
 
@@ -34,6 +35,9 @@ export function startRequest(tracer: Tracer, method: string, url: URL) {
       });
       if (errorType !== undefined) span.setStatus({ code: 2 });
       span.end();
+      // A 5xx or a network failure starts a recording Clip. An abort does not.
+      if (status ? status >= 500 : errorType && errorType !== "AbortError")
+        triggerRecording("network");
     },
   };
 }
