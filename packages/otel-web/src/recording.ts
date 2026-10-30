@@ -74,6 +74,12 @@ export const recorder = {
   startClip(options: StartClipOptions = {}): RecordingClip {
     return page?.stream?.clip(options, "manual") ?? inertClip(options);
   },
+  pause(): void {
+    page?.stream?.pause();
+  },
+  resume(): void {
+    page?.stream?.resume();
+  },
 };
 
 export function recording(options: RecordingOptions = {}): Instrumentation {
