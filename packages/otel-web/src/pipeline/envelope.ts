@@ -35,9 +35,11 @@ export function pageAttrs(page: PageContext): Record<string, string | null | und
 // client.
 export function createEnvelope(
   current: CurrentPage,
-): () => Record<string, AttrValue | null | undefined> {
-  return () => ({
-    "session.id": sessionId(),
+): (session?: string) => Record<string, AttrValue | null | undefined> {
+  // A record that names its session, a recording Segment for example, skips
+  // sessionId(). Thus it neither counts as activity nor moves the session.
+  return (session) => ({
+    "session.id": session ?? sessionId(),
     "everr.visitor.id": visitorId(),
     ...pageAttrs(current()),
     ...getAttributes(),
