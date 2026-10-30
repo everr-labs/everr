@@ -140,8 +140,13 @@ export function niceLinearDomain(
   if (bounds.min !== undefined || bounds.max !== undefined) {
     ticks.push(lo);
     const first = Math.ceil(lo / step) * step;
-    for (let tick = first; tick < hi; tick += step) {
+    for (let tick = first; tick < hi;) {
       if (tick > lo) ticks.push(Number(tick.toPrecision(12)));
+      const next = tick + step;
+      // At large magnitudes the step can be smaller than floating-point
+      // precision, so adding it may leave the tick unchanged.
+      if (next <= tick) break;
+      tick = next;
     }
     ticks.push(hi);
   } else {

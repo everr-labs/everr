@@ -177,6 +177,15 @@ describe("niceLinearDomain", () => {
     expect(niceLinearDomain(0, 1, 5, { min: 0 }).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
   });
 
+  it("terminates when a tick step is smaller than floating-point precision", () => {
+    const min = 10_000_000_000_000_000;
+    const max = min + 2;
+    expect(niceLinearDomain(min, max, 5, { min, max })).toEqual({
+      domain: [min, max],
+      ticks: [min, max],
+    });
+  });
+
   it("survives data that carries no usable numbers", () => {
     const { domain } = niceLinearDomain(Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY);
     expect(domain.every(Number.isFinite)).toBe(true);
