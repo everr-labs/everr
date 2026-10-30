@@ -1,5 +1,6 @@
 import type * as ServerTypes from "./server.js";
 import type * as IndexTypes from "./index.js";
+import type * as RecordingTypes from "./recording.js";
 import { describe, expect, it } from "vite-plus/test";
 import { identify, revoke } from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
@@ -48,11 +49,31 @@ function entriesStayInLockstep(server: typeof ServerTypes, browser: typeof Index
   void serverCoversBrowser;
 }
 
+// The recording entry reaches the page state by path. No public entry exports
+// the functions it uses.
+function recordingStateStaysInternal(
+  browser: typeof IndexTypes,
+  server: typeof ServerTypes,
+  recording: typeof RecordingTypes,
+): void {
+  // @ts-expect-error - not exported
+  void browser.emitLogNow;
+  // @ts-expect-error - not exported
+  void browser.setRecordingTrigger;
+  // @ts-expect-error - not exported
+  void browser.onSessionChange;
+  // @ts-expect-error - not exported
+  void server.emitLogNow;
+  // @ts-expect-error - not exported
+  void recording.onSessionChange;
+}
+
 describe("type guarantees", () => {
   it("hold at compile time", () => {
     expect(rejectsUnknownPersistence.serviceName).toBe("x");
     expect(persistenceIsOptional.persistence).toBeUndefined();
     expect(identifyAndRevokeAreFreeFunctions).toBeTypeOf("function");
     expect(entriesStayInLockstep).toBeTypeOf("function");
+    expect(recordingStateStaysInternal).toBeTypeOf("function");
   });
 });
