@@ -1,4 +1,3 @@
-import { metrics } from "@opentelemetry/api";
 import { serverLogger } from "@everr/app/telemetry/logger";
 import type {
   MembershipSyncPayload,
@@ -34,7 +33,6 @@ export type SyncDiagnostic = (
   },
 ) => void;
 
-// Resolve instruments at emission time, including callers loaded before SDK startup.
 export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, details = {}) => {
   try {
     const kind =
@@ -43,15 +41,9 @@ export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, details 
         : payload && "userId" in payload
           ? "user"
           : "full-sync";
-    const dimensions = { "everr.crm.outcome": outcome, "everr.crm.entity_kind": kind };
-    const meter = metrics.getMeter("everr-cloud.crm");
-    meter.createCounter("everr.crm.sync.outcomes", { unit: "1" }).add(1, dimensions);
-    if (payload)
-      meter
-        .createHistogram("everr.crm.sync.lag", { unit: "s" })
-        .record(Math.max(0, (Date.now() - Date.parse(payload.occurredAt)) / 1000), dimensions);
     const attributes = {
-      ...dimensions,
+      "everr.crm.outcome": outcome,
+      "everr.crm.entity_kind": kind,
       "everr.worker.job.id": jobId,
       ...(payload
         ? {
@@ -84,11 +76,6 @@ export const syncDiagnostic: SyncDiagnostic = (outcome, payload, jobId, details 
 export function rateLimitDiagnostic(operation: string, waitMs: number) {
   try {
     const attributes = { "everr.crm.operation": operation, "http.response.status_code": 429 };
-    const meter = metrics.getMeter("everr-cloud.crm");
-    meter.createCounter("everr.crm.provider.rate_limits", { unit: "1" }).add(1, attributes);
-    meter
-      .createHistogram("everr.crm.provider.wait", { unit: "s" })
-      .record(waitMs / 1000, attributes);
     serverLogger.info("crm.provider.backpressure", {
       ...attributes,
       "everr.crm.wait_ms": waitMs,

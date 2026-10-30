@@ -96,12 +96,10 @@ that proves the remote record is synchronized.
 Task spans use scope `everr-cloud.crm`. Structured `crm.sync` logs include outcome,
 entity kind, source ID, business event ID, job ID, operation, attempt, bounded error
 code and the estimated next retry when applicable. `crm.provider.backpressure`
-logs include the bounded operation, 429 status, delay and next request time. IDs
-are omitted from metric dimensions. No provider bodies, profile values or keys are
-logged.
+logs include the bounded operation, 429 status, delay and next request time.
+No provider bodies, profile values or keys are logged.
 
-Metrics are `everr.crm.sync.outcomes`, `everr.crm.sync.lag` (seconds),
-`everr.crm.provider.rate_limits` and `everr.crm.provider.wait` (seconds).
+CRM emits logs and traces without custom metrics.
 The `synced` outcome means the observed operation completed, not durable proof of
 future consistency. Native Graphile retry timing is estimated from its exponential
 backoff and can be delayed by queue load.

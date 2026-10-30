@@ -87,9 +87,9 @@ coalesced commands, and releases the outbound queue before children run. Its
 completion means admission, not remote convergence. Rerunning starts at the first
 page. Preview performs only source reads and provider GET requests.
 
-OTel task spans join structured outcome logs with backpressure logs. Metrics cover
-outcomes, lag and provider rate-limit waits. IDs are log/span attributes, never
-metric dimensions. See the runbook for failure lookup and retry commands.
+OTel task spans join structured outcome logs with backpressure logs. IDs are
+log/span attributes. CRM emits no custom metrics. See the runbook for failure
+lookup and retry commands.
 
 Prune skips orphan records with associations to foreign records, reporting
 `foreign_associations_present`. It rechecks those associations at execution, so a
