@@ -1,0 +1,37 @@
+full snapshot of clip 8bd817a3a93f25255acfbb8395781be6 segment 0
+meta {"charset": "utf-8"}
+meta {"name": "csrf-token", "content": "****************"}
+input {"type": "hidden", "name": "csrf", "value": "******************"}
+input {"id": "name", "type": "text", "placeholder": "**** ****"}
+input {"id": "password", "type": "password"}
+input {"id": "terms", "type": "checkbox", "value": "********************"}
+a {"href": "http://127.0.0.1:8765/orders"}
+input events of clip 8bd817a3a93f25255acfbb8395781be6
+{"source": 5, "text": "*", "isChecked": false, "id": 34}
+{"source": 5, "text": "**", "isChecked": false, "id": 34}
+{"source": 5, "text": "***", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** ", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** *", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** **", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** ***", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** ****", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** *****", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** ******", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** *******", "isChecked": false, "id": 34}
+{"source": 5, "text": "*** ********", "isChecked": false, "id": 34}
+{"source": 5, "text": "*", "isChecked": false, "id": 39}
+{"source": 5, "text": "**", "isChecked": false, "id": 39}
+{"source": 5, "text": "***", "isChecked": false, "id": 39}
+{"source": 5, "text": "****", "isChecked": false, "id": 39}
+{"source": 5, "text": "*****", "isChecked": false, "id": 39}
+{"source": 5, "text": "******", "isChecked": false, "id": 39}
+{"source": 5, "text": "*******", "isChecked": false, "id": 39}
+{"source": 5, "text": "********", "isChecked": false, "id": 39}
+{"source": 5, "text": "*********", "isChecked": false, "id": 39}
+{"source": 5, "text": "**********", "isChecked": false, "id": 39}
+{"source": 5, "text": "***********", "isChecked": false, "id": 39}
+{"source": 5, "text": "************", "isChecked": false, "id": 39}
+{"source": 5, "text": "*************", "isChecked": false, "id": 39}
+{"source": 5, "text": "**************", "isChecked": false, "id": 39}
+{"source": 5, "text": "********************", "isChecked": true, "id": 42}
+{"source": 5, "text": "***********************", "isChecked": false, "id": 29}
