@@ -115,12 +115,25 @@ it("contains mismatched subjects and Graphile failures without changing committe
   expect(enqueue).toHaveBeenCalledOnce();
   expect(diagnostics.mock.calls.map(([, attributes]) => attributes?.["exception.message"])).toEqual(
     [
-      "Invalid CRM user subject.",
-      "Invalid CRM organization subject.",
-      "Invalid CRM membership subject.",
+      "Business event job construction failed",
+      "Business event job construction failed",
+      "Business event job construction failed",
       "enqueue unavailable",
     ],
   );
+  expect(
+    diagnostics.mock.calls.map(
+      ([, attributes]) => attributes?.["everr.business_event.failure_stage"],
+    ),
+  ).toEqual(["job", "job", "job", "enqueue"]);
+  expect(
+    diagnostics.mock.calls.map(([, attributes]) => attributes?.["everr.business_event.type"]),
+  ).toEqual([
+    "identity.user.created",
+    "organization.updated",
+    "membership.removed",
+    "identity.user.created",
+  ]);
 });
 
 it("preserves stable job keys and one serialized Graphile queue", () => {
