@@ -62,7 +62,7 @@ export class WebSDK {
     const [rotate, current] = createSessionContext(location.href, document.referrer);
 
     let activeSpan: (time?: number) => SpanContext | undefined = () => undefined;
-    const [emit, flush, exitFlush, emitSpan] = createEmitter(
+    const [emit, flush, exitFlush, emitSpan, emitNow] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
       // viewport changes when the user changes the window size. Thus each
@@ -98,7 +98,7 @@ export class WebSDK {
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
-    const unbindEmit = bindEmit(emit);
+    const unbindEmit = bindEmit(emit, emitNow);
     const sdkTracer = createTracer(emitSpan);
     activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
