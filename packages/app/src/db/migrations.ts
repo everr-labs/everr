@@ -1,10 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { sql } from "drizzle-orm";
 import type { MigrationConfig } from "drizzle-orm/migrator";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { pool } from "./client";
 import * as schema from "./schema";
 
@@ -17,14 +15,7 @@ export const migrationConfig: MigrationConfig = {
 };
 
 export async function migrateDatabase(database: MigrationDatabase) {
-  // Migrations run on the connection held by withMigrationLock. The 1.7 data
-  // backfill needs this installation's MCP resource URI, not a fixed domain.
-  await database.execute(sql`select set_config('everr.mcp_resource', ${MCP_RESOURCE}, false)`);
-  try {
-    await migrate(database, migrationConfig);
-  } finally {
-    await database.execute(sql`select set_config('everr.mcp_resource', '', false)`);
-  }
+  await migrate(database, migrationConfig);
 }
 
 // Keep one connection locked throughout migration startup. Each Drizzle batch

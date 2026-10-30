@@ -1,7 +1,6 @@
 // @vitest-environment node
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import type { PoolClient } from "pg";
 import { afterAll, beforeAll, expect, it, vi } from "vite-plus/test";
 import { createInstallationIdentity } from "#app/app/identity.ts";
@@ -149,43 +148,6 @@ it("authorizes an MCP client without a client-resource link", async () => {
   expect(claims).toMatchObject({ sub: "member", org_id: "org" });
   expect(claims.aud).toContain("http://localhost:3000/mcp");
   expect(claims.scope.split(" ")).toContain("observability:read");
-
-  // Simulate a 1.6 refresh grant, which had no persisted resource list.
-  await fixture.client.query(
-    "UPDATE oauth_refresh_token SET resources = NULL WHERE client_id = $1",
-    [clientId],
-  );
-  await fixture.client.query(
-    `INSERT INTO oauth_refresh_token
-       (id, token, client_id, user_id, scopes, expires_at, revoked, resources)
-     VALUES
-       ('plain', 'plain-token', $1, 'member', ARRAY['openid'], now() + interval '1 day', NULL, NULL),
-       ('expired', 'expired-token', $1, 'member', ARRAY['observability:read'], now() - interval '1 day', NULL, NULL),
-       ('revoked', 'revoked-token', $1, 'member', ARRAY['observability:read'], now() + interval '1 day', now(), NULL),
-       ('bound', 'bound-token', $1, 'member', ARRAY['observability:read'], now() + interval '1 day', NULL, ARRAY['https://other.example.test/resource'])`,
-    [clientId],
-  );
-  await fixture.client.query("SELECT set_config('everr.mcp_resource', $1, false)", [
-    "http://localhost:3000/mcp",
-  ]);
-  await fixture.client.exec(
-    await readFile(
-      new URL("../../../drizzle/0012_mcp_oauth_backfill.sql", import.meta.url),
-      "utf8",
-    ),
-  );
-  expect(
-    (
-      await fixture.client.query(
-        "SELECT id, resources FROM oauth_refresh_token WHERE id IN ('plain', 'expired', 'revoked', 'bound') ORDER BY id",
-      )
-    ).rows,
-  ).toEqual([
-    { id: "bound", resources: ["https://other.example.test/resource"] },
-    { id: "expired", resources: null },
-    { id: "plain", resources: null },
-    { id: "revoked", resources: null },
-  ]);
 
   const refreshed = await auth.handler(
     new Request("http://localhost:3000/api/auth/oauth2/token", {

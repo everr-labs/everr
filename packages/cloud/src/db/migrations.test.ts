@@ -23,12 +23,6 @@ it("keeps migration histories and data in separate App and Cloud databases", asy
   const appDb = drizzle(appClient);
   const cloudDb = drizzle(cloudClient);
   try {
-    await appClient.query("SELECT set_config('everr.mcp_resource', $1, false)", [
-      "https://app.example.test/mcp",
-    ]);
-    await cloudClient.query("SELECT set_config('everr.mcp_resource', $1, false)", [
-      "https://cloud.example.test/mcp",
-    ]);
     await migrate(appDb, appMigrations);
     await migrate(cloudDb, appMigrations);
     await migrate(cloudDb, cloudMigrations);

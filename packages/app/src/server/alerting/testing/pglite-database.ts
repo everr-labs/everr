@@ -106,19 +106,12 @@ export async function applyTestSchema(
   additionalMigrations: MigrationConfig[] = [],
 ): Promise<void> {
   const db = drizzle(client);
-  await client.query("SELECT set_config('everr.mcp_resource', $1, false)", [
-    "http://localhost:3000/mcp",
-  ]);
-  try {
-    await migrate(db, {
-      migrationsFolder: resolve(import.meta.dirname, "../../../../drizzle"),
-      migrationsSchema: "drizzle",
-      migrationsTable: "__drizzle_migrations",
-    });
-    for (const migrations of additionalMigrations) await migrate(db, migrations);
-  } finally {
-    await client.query("SELECT set_config('everr.mcp_resource', '', false)");
-  }
+  await migrate(db, {
+    migrationsFolder: resolve(import.meta.dirname, "../../../../drizzle"),
+    migrationsSchema: "drizzle",
+    migrationsTable: "__drizzle_migrations",
+  });
+  for (const migrations of additionalMigrations) await migrate(db, migrations);
 }
 
 /**

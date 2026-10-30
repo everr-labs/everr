@@ -3,7 +3,7 @@
 -- Three parts, in the order the 1.7 upgrade guide requires:
 --   1. account identity, which needs a credential backfill
 --   2. device code uniqueness, which needs duplicates gone first
---   3. the OAuth provider tables, where the audience allow-list became rows
+--   3. the OAuth provider tables, including the new resource models
 --
 -- https://better-auth.com/docs/guides/1-7-upgrade-guide
 
@@ -51,8 +51,8 @@ CREATE UNIQUE INDEX "device_code_userCode_uidx" ON "device_code" USING btree ("u
 
 -- 3. OAuth provider --------------------------------------------------------
 --
--- A resource used to be an entry in the `validAudiences` array. It is now a
--- row with its own token policy.
+-- Better Auth 1.7 supports configured resources and resource rows with their
+-- own token policies. Everr configures its MCP resource installation-wide.
 CREATE TABLE "oauth_resource" (
 	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,

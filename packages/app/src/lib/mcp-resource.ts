@@ -10,7 +10,7 @@ export const AUTH_BASE = env.BETTER_AUTH_URL.replace(/\/$/, "");
 // continue/consent endpoints all live under this path.
 export const AUTH_ISSUER = `${AUTH_BASE}/api/auth`;
 
-// The MCP OAuth resource URI. Used by the persisted resource policy for token
+// The MCP OAuth resource URI. Used by the configured resource policy for token
 // issuance, the protected-resource metadata, the WWW-Authenticate challenge,
 // and bearer-token verification.
 export const mcpResourceForBaseURL = (baseURL: string) => `${baseURL.replace(/\/$/, "")}/mcp`;
