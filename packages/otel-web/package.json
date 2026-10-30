@@ -18,7 +18,8 @@
       "node": "./src/server.ts",
       "default": "./src/index.ts"
     },
-    "./react": "./src/react.ts"
+    "./react": "./src/react.ts",
+    "./recording": "./src/recording.ts"
   },
   "publishConfig": {
     "exports": {
@@ -35,6 +36,10 @@
       "./react": {
         "types": "./dist/react.d.ts",
         "default": "./dist/react.js"
+      },
+      "./recording": {
+        "types": "./dist/recording.d.ts",
+        "default": "./dist/recording.js"
       }
     },
     "access": "public"
@@ -58,6 +63,7 @@
     "@opentelemetry/context-async-hooks": "^2.7.1",
     "@opentelemetry/sdk-logs": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@rrweb/record": "2.1.7",
     "@size-limit/preset-small-lib": "^13.0.3",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
