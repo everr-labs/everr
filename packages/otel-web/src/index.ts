@@ -43,10 +43,7 @@ export {
   type RouteTemplateResolver,
   setRouteResolver,
 } from "./state/route.js";
-// The seams of the recording subpath. They are not part of the public API.
-export { emitLogNow } from "./state/emit.js";
-export { setRecordingTrigger } from "./state/recording.js";
-export { clearIdentity, identify, onSessionChange, setAnonymized } from "./state/session.js";
+export { clearIdentity, identify, setAnonymized } from "./state/session.js";
 export { epoch } from "./time.js";
 export { tracer } from "./tracer.js";
 export type { UserTraits, WebSDKOptions } from "./types.js";
