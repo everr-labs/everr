@@ -1,5 +1,8 @@
 // @vitest-environment node
 
+import { createApplicationAuth } from "@everr/app/identity/module";
+import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";
+import type { IdentityEvent } from "@everr/app/identity/events";
 import type { Database, DbExecutor, Transaction } from "@everr/app/db/client";
 import { dashboards, invitation, member, organization, user } from "@everr/app/db/schema";
 import {
@@ -218,7 +221,9 @@ it("protects provisioning metadata through actual create and update endpoints wh
   });
 
   clickhouseMocks.provision.mockResolvedValue(undefined);
-  const tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {});
+  const tasks = createOrganizationTaskList(fixture.db as unknown as Database, async () => {}, {
+    async publish() {},
+  });
   if (!created) throw new Error("Organization was not created");
   await tasks[PROVISION_ORGANIZATION_TASK]?.({ organizationId: created.id }, {} as never);
   [stored] = await fixture.db.select().from(organization);
@@ -405,7 +410,7 @@ it("runs the actual Better Auth create and delete endpoints through the lifecycl
 it("returns a ready organization from the actual endpoint when its durable job finishes during signup", async () => {
   clickhouseMocks.provision.mockResolvedValue(undefined);
   const database = fixture.db as unknown as Database;
-  const tasks = createOrganizationTaskList(database, async () => {});
+  const tasks = createOrganizationTaskList(database, async () => {}, { async publish() {} });
   auth = createAuth(async ({ organization: created }) => {
     expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
     const pending = waitForOrganizationProvisioning(created.id, database);
@@ -428,4 +433,143 @@ it("returns a ready organization from the actual endpoint when its durable job f
     isOrganizationProvisioned((await fixture.db.select().from(organization))[0].metadata),
   ).toBe(true);
   expect(clickhouseMocks.provision).toHaveBeenCalledOnce();
+});
+
+it("preserves atomic provisioning and cleanup under the shared post-commit identity adapter", async () => {
+  const database = withTransactionReads(fixture.db as unknown as Database);
+  const facts: IdentityEvent[] = [];
+  const shared = createApplicationAuth(
+    {
+      policy: {
+        beforeUserCreate: async () => {},
+        beforeUserDelete: async () => {},
+        beforeMembershipChange: async () => {},
+        afterMembershipChange: async () => {},
+        assertAccountDeletionAllowed: async () => {},
+        assertDeletable: async () => {},
+      },
+      provider: {
+        withIdentityRequest: (run) => run(),
+        lockUserLifecycle: async () => {},
+        lockAccountDeletion: async () => {},
+        identityAdapter: (executor) => organizationLifecycleAdapter(executor),
+        organizationHooks: () => ({}),
+        createSessionOnboardingHook: () => async () => {},
+      },
+    },
+    {
+      database,
+      events: {
+        publish: async (fact) => {
+          facts.push(fact);
+        },
+      },
+      baseURL: "http://localhost:3000",
+      secret: "combined-organization-lifecycle-secret-long-enough",
+      email: { enabled: false, sendInvitation() {}, sendPasswordReset() {}, sendVerification() {} },
+      canInviteMembers: async () => true,
+    },
+  );
+  const response = await shared.api.signUpEmail({
+    body: { name: "Owner", email: "shared@example.test", password: "long-test-password" },
+    asResponse: true,
+  });
+  const headers = new Headers({ cookie: response.headers.get("set-cookie") ?? "" });
+  const owner = (await shared.api.getSession({ headers }))!.user;
+  facts.length = 0;
+  await rejectEnqueues();
+  try {
+    await expect(
+      shared.api.createOrganization({
+        body: { name: "Rejected", slug: "rejected", userId: owner.id },
+      }),
+    ).rejects.toThrow();
+    expect(await fixture.db.select().from(organization)).toEqual([]);
+    expect(await fixture.db.select().from(billingSchema.organizationBilling)).toEqual([]);
+    expect(facts).toEqual([]);
+  } finally {
+    await allowEnqueues();
+  }
+  const created = await shared.api.createOrganization({
+    body: { name: "Shared", slug: "shared", userId: owner.id },
+  });
+  if (!created) throw new Error("Missing organization");
+  expect(await jobs()).toEqual([PROVISION_ORGANIZATION_TASK]);
+  expect(facts.map((fact) => fact.type)).toEqual(["organization.created", "membership.added"]);
+  const membershipFact = facts[1];
+  facts.length = 0;
+  await rejectEnqueues();
+  try {
+    await expect(
+      shared.api.deleteOrganization({ headers, body: { organizationId: created.id } }),
+    ).rejects.toThrow();
+    expect(await fixture.db.select().from(organization)).toHaveLength(1);
+    expect(await fixture.db.select().from(member)).toHaveLength(1);
+    expect(facts).toEqual([]);
+  } finally {
+    await allowEnqueues();
+  }
+  await shared.api.deleteOrganization({ headers, body: { organizationId: created.id } });
+  expect(await fixture.db.select().from(organization)).toEqual([]);
+  expect(await jobs()).toEqual([
+    PROVISION_ORGANIZATION_TASK,
+    "clickhouse/deprovision-organization",
+  ]);
+  expect(facts).toEqual([
+    { ...membershipFact, type: "membership.removed" },
+    {
+      type: "organization.deleted",
+      version: 1,
+      subjectId: created.id,
+      data: { organizationId: created.id },
+    },
+  ]);
+
+  const bulk = [];
+  for (const slug of ["bulk-first", "bulk-second"]) {
+    const org = await shared.api.createOrganization({
+      body: { name: "Bulk", slug, userId: owner.id },
+    });
+    if (!org) throw new Error("Missing bulk organization");
+    bulk.push(org);
+  }
+  await fixture.db.insert(dashboards).values(
+    bulk.map((org) => ({
+      organizationId: org.id,
+      repoid: "bulk",
+      project: "default",
+      slug: "test",
+      document: sql`'{}'::jsonb`,
+    })),
+  );
+  const { adapter: sharedAdapter } = await shared.$context;
+  const bulkDelete = { model: "organization", where: [{ field: "name", value: "Bulk" }] };
+  facts.length = 0;
+  await rejectEnqueues();
+  try {
+    await expect(sharedAdapter.delete(bulkDelete)).rejects.toThrow();
+    expect(await fixture.db.select().from(organization)).toHaveLength(2);
+    expect(await fixture.db.select().from(dashboards)).toHaveLength(2);
+    expect(facts).toEqual([]);
+  } finally {
+    await allowEnqueues();
+  }
+  await sharedAdapter.delete(bulkDelete);
+  expect(await fixture.db.select().from(organization)).toEqual([]);
+  expect(await fixture.db.select().from(dashboards)).toEqual([]);
+  expect((await jobs()).slice(-2)).toEqual([
+    "clickhouse/deprovision-organization",
+    "clickhouse/deprovision-organization",
+  ]);
+  expect(facts).toHaveLength(2);
+  expect(facts).toEqual(
+    expect.arrayContaining(
+      bulk.map((org) => ({
+        type: "organization.deleted",
+        version: 1,
+        subjectId: org.id,
+        data: { organizationId: org.id },
+      })),
+    ),
+  );
 });

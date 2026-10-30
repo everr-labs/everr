@@ -42,6 +42,9 @@ import type {
 import { createIdentityAuthHooks, type ResolvedSession } from "#app/telemetry/auth-identity.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
+import type { EventPublisher } from "#app/composition/events.ts";
+import type { IdentityEvent } from "./events";
+import { identityLifecycleAdapter } from "./identity-adapter";
 import { invitationVisibilityPlugin } from "./invitations";
 
 async function getMarkedDeviceOrganizationId(db: Database, session: { userId: string }) {
@@ -124,6 +127,7 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     : undefined;
 
 export interface IdentityDependencies {
+  events: EventPublisher<IdentityEvent>;
   database: Database;
   baseURL: string;
   secret: string;
@@ -140,7 +144,15 @@ export interface IdentityDependencies {
 /** Shared identity behavior, constructed by the selected application's server entry. */
 export function createApplicationAuth(
   { policy, provider }: ApplicationIdentity,
-  { database: db, baseURL, secret, socialProviders, email, canInviteMembers }: IdentityDependencies,
+  {
+    database: db,
+    baseURL,
+    secret,
+    socialProviders,
+    email,
+    canInviteMembers,
+    events,
+  }: IdentityDependencies,
 ) {
   const assertCanInviteMembers = async (organizationId: string) => {
     if (!(await canInviteMembers(organizationId)))
@@ -166,7 +178,7 @@ export function createApplicationAuth(
         baseURL.replace("127.0.0.1", "localhost"),
       ]),
     ),
-    database: identityAdapter(),
+    database: identityLifecycleAdapter(db, identityAdapter, events, provider),
     ...(socialProviders ? { socialProviders: socialProviders } : {}),
     user: {
       deleteUser: {

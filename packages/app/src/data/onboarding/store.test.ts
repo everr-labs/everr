@@ -1,8 +1,10 @@
+import { createEventPublisher } from "#app/server/events/publisher.ts";
+import { organizationEventDefinitions } from "#app/identity/events.ts";
 // @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
-import { afterAll, beforeEach, expect, it } from "vite-plus/test";
+import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { Database } from "#app/db/client.ts";
 import * as schema from "#app/db/schema/index.ts";
 import { createOnboardingStore } from "./store";
@@ -142,3 +144,40 @@ it("does not hide or overwrite malformed metadata", async () => {
     .where(eq(schema.organization.id, scope.organizationId));
   expect(row.metadata).toBe("invalid JSON");
 });
+
+it.each(["Graphile unavailable"])(
+  "publishes the selected organization only after completion persists and isolates publication failures (%s)",
+  async (failure) => {
+    const publish = vi.fn(
+      createEventPublisher({
+        routes: organizationEventDefinitions.map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/onboarding", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+      }).publish,
+    );
+    const observed = createOnboardingStore(database as unknown as Database, { publish });
+    await expect(observed.complete(scope)).resolves.toEqual({ onboardingCompleted: true });
+    expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
+    expect(publish).toHaveBeenCalledWith({
+      type: "organization.updated",
+      version: 1,
+      subjectId: "one",
+      data: { organizationId: "one" },
+    });
+    publish.mockClear();
+    await expect(observed.complete({ ...scope, userId: "outsider" })).rejects.toThrow(
+      "no longer a member",
+    );
+    expect(publish).not.toHaveBeenCalled();
+    await database
+      .update(schema.organization)
+      .set({ metadata: "invalid JSON" })
+      .where(eq(schema.organization.id, scope.organizationId));
+    await expect(observed.complete(scope)).rejects.toThrow();
+    expect(publish).not.toHaveBeenCalled();
+  },
+);

@@ -20,7 +20,7 @@ export function createInstallationIdentity(
       lockUserLifecycle: lockWorkspaceMembership,
       lockAccountDeletion: lockWorkspaceMembership,
       createSessionOnboardingHook: () => async () => {},
-      identityAdapter: () => drizzleAdapter(database, { provider: "pg" }),
+      identityAdapter: (executor) => drizzleAdapter(executor, { provider: "pg" }),
       organizationHooks: () => ({
         async beforeCreateOrganization() {
           throw new APIError("FORBIDDEN", {

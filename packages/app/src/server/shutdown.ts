@@ -21,20 +21,20 @@ export function shutdownRuntime(): Promise<void> {
   state.stopping ??= (async () => {
     const errors: unknown[] = [];
     for (const phase of ["workers", "telemetry"] as const) {
+      const hooks = [...state.hooks.entries()].filter(([, hook]) => hook.phase === phase);
+      if (hooks.length === 0) continue;
       const results = await Promise.allSettled(
-        [...state.hooks.entries()]
-          .filter(([, hook]) => hook.phase === phase)
-          .map(async ([name, hook]) => {
-            try {
-              await hook.run();
-            } catch (error) {
-              serverLogger.error("runtime.shutdown.failed", {
-                ...exceptionAttributes(error),
-                "everr.shutdown.hook": name,
-              });
-              throw error;
-            }
-          }),
+        hooks.map(async ([name, hook]) => {
+          try {
+            await hook.run();
+          } catch (error) {
+            serverLogger.error("runtime.shutdown.failed", {
+              ...exceptionAttributes(error),
+              "everr.shutdown.hook": name,
+            });
+            throw error;
+          }
+        }),
       );
       for (const result of results) if (result.status === "rejected") errors.push(result.reason);
     }

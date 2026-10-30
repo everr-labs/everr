@@ -16,19 +16,19 @@ refactoring.
 
 `ApplicationRuntime.registerWorkers()` returns supervised workers without
 starting them. The self-hosted composition returns none. The cloud composition
-returns the organization lifecycle worker, whose task list contains provisioning,
-deprovisioning, and the pending-organization scanner. The common runtime manages
-the product worker and registered workers as one list, releases partial
-startups, and drains all of them before telemetry shutdown. Registration acquires
-no running resources. `start()` returns no handle and resolves when supervision is installed, before a database connection
-is necessarily ready. Every `stop()` caller waits for the same drain, including
-when shutdown overlaps hot reload. Explicit shutdown rejects on cleanup failure
-after every worker cleanup attempt has settled; detached hot-reload failures
-are logged. A composition never imports or re-registers the product task list.
-The shared app imports only composition contracts, with no cloud package
-dependency.
+returns the organization lifecycle worker (provisioning, deprovisioning and its
+pending scanner). The common
+runtime manages the product worker and registered workers as one list, releases
+partial startups, and drains all of them before telemetry shutdown. Registration
+acquires no running resources. `start()` returns no handle and resolves when
+supervision is installed, before a database connection is necessarily ready.
+Every `stop()` caller waits for the same drain, including when shutdown overlaps
+hot reload. Explicit shutdown rejects on cleanup failure after every worker
+cleanup attempt has settled; detached hot-reload failures are logged. A composition
+never imports or re-registers the product task list. The shared app imports only
+composition contracts, with no cloud package dependency.
 
-Registration is separate from execution capacity. Both runners remain embedded
+Registration is separate from execution capacity. The runners remain embedded
 in the web process and share the durable Graphile schema:
 
 | Runner                       | Tasks                                                                                                              | Execution slots | Postgres access                      |
@@ -45,6 +45,18 @@ identifiers. Additional cloud handlers can form a cloud-owned task registration
 and use a runner according to capacity and latency needs; one event category
 does not imply another runner, pool, schema, or process. Do not add unrelated CRM
 work to the reserved provisioning runner without revisiting its capacity.
+
+## Best-effort event publication
+
+The event publisher maps committed facts to application-selected
+Graphile jobs directly. Publication awaits admission and contains enqueue failures,
+with no outbox; Graphile owns durable execution. Self-hosted and Cloud currently configure no ancillary routes.
+Publication becomes active when a composition selects a concrete consumer.
+
+See the [event bus guide](event-bus.md) for the complete emitted-event catalog,
+producer boundaries, delivery guarantees, diagnostics, and examples of adding
+Graphile routes and worker handlers. Critical commands that must commit with source
+state continue to use the transactional enqueue path described below.
 
 ## Facts and effects already present
 
@@ -71,9 +83,11 @@ belong in cloud, after the authoritative local change.
 
 ## Durability, transactions and replay
 
-Enqueue through `addWorkerJobInTransaction` or `addWorkerJobUsing(tx, ...)`
-when a Postgres mutation creates work. These use Graphile's public SQL function,
-so domain state and execution intent commit or roll back together. Enqueue
+For critical commands, enqueue through `addWorkerJobInTransaction` or
+`addWorkerJobUsing(tx, ...)` when a Postgres mutation creates required work.
+These helpers use Graphile's public SQL function, so domain state and execution
+intent commit or roll back together. Ancillary business-event publication above
+deliberately has a different guarantee. Enqueue
 failure, including a NULL result under job-key contention, is an error. An
 after-commit hook or an in-memory emitter cannot provide this guarantee.
 
@@ -118,46 +132,15 @@ independently every five seconds. Graphile's
 `replace` is not an exactly-once guarantee and why `unsafe_dedupe` must not be
 used for arbitrary changing events.
 
-## Future CRM facts, without implementing an integration
+## Lifecycle facts
 
-| Candidate fact        | Owner and authoritative transition                                                                                                   | Future consumer responsibility                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| User created          | Shared identity, committed User insertion, regardless of email/password or OAuth entry                                               | Cloud may upsert a contact keyed by User ID                 |
-| Email verified        | Shared identity, actual false-to-true verification transition, not every User update or session                                      | Cloud may update that contact's verified identity           |
-| Organization ready    | Shared meaning of storage readiness; cloud owns the ClickHouse transition from pending to ready                                      | Cloud may upsert a company keyed by Organization ID         |
-| First valid ingestion | Shared ingestion meaning; durable accepted/stored telemetry for an Organization, not a key creation, UI visit, or provisioning probe | Cloud may record activation once per Organization           |
-| Subscription changed  | Cloud billing, accepted newer subscription state after provider identity and timestamp validation                                    | Cloud may update the company's plan and subscription fields |
-
-A User can belong to several Organizations. Contacts represent Users; companies
-represent Organizations. Plan and subscription belong to the Organization and
-must not be copied onto a User as a single personal plan. Readiness, first valid
-ingestion and a paid subscription are independent facts.
-
-No new fact stream, CRM handler, first-ingestion detector, external account or
-CRM network call is introduced here. When a concrete consumer is added, use a
-small typed contract owned by the feature, with a stable event ID, payload
-version, occurrence time and subject ID. Capture the fact and consumer job in
-the authoritative transaction; the cloud composition supplies only its
-handlers. An optional feature-specific transaction participant is enough if
-shared identity must enqueue cloud work. Do not make shared identity depend on
-a CRM SDK or cloud event types, or register shared domain handlers twice.
-
-For subscription facts, enqueue inside `saveSubscription` only when the
-conditional upsert actually accepts a newer provider revision, in the same
-transaction that writes the subscription and plan. For readiness, enqueue only
-when the guarded readiness update returns a transitioned row. For ingestion,
-Postgres and ClickHouse cannot share that transaction: a durable per-organization
-activation marker plus a repair/reconciliation strategy must be designed with
-the ingestion path before promising a reliable fact. The existing ClickHouse
-journal projection is a precedent for repair, not an activation detector.
-
-For independent consumers, persist separate commands with consumer-specific
-idempotency keys. For a CRM projection, upsert by stable Everr IDs and read the
-latest authoritative state so delayed jobs cannot regress a newer plan or
-email. External calls need bounded timeouts, Graphile's abort signal where
-supported, and idempotent provider requests where available. A generic event
-bus, catch-all event task, or long-lived event archive has no current consumer
-requirement and is deliberately absent.
+Shared identity owns committed User, Organization and Membership facts. Cloud owns
+accepted subscription and Plan transitions and publishes shared storage readiness
+after the guarded pending-to-ready update commits. Source failures remain real
+errors; ancillary publication failures do not change a completed source operation.
+See the [event catalog](event-bus.md#emitted-event-catalog) for exact payloads and
+commit boundaries. Critical provisioning and billing behavior stays synchronous
+or transactionally admitted as described above.
 
 ## Operations
 

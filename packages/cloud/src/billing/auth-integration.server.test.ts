@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { createApplicationAuth } from "@everr/app/identity/module";
+import { createAuthTestDatabase } from "@everr/app/identity/testing/database";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { expect, it, vi } from "vite-plus/test";
@@ -62,6 +65,98 @@ it("uses the actual update target for authenticated profile and anonymous verifi
     owner.id,
     expect.objectContaining({ email: "new@example.com", emailVerified: true }),
   );
-  expect(mocks.afterUserUpdate).toHaveBeenCalledWith(owner.id);
+  expect(mocks.afterUserUpdate).toHaveBeenCalledWith(
+    owner.id,
+    expect.objectContaining({ email: "new@example.com", emailVerified: true }),
+  );
   expect(db.user[0].email).toBe("new@example.com");
+});
+
+it("preserves billing checks inside nested source transactions and holds request scope through commit", async () => {
+  vi.clearAllMocks();
+  const { client, database } = await createAuthTestDatabase();
+  let active = false;
+  const facts: string[] = [];
+  const auth = createApplicationAuth(
+    {
+      policy: {
+        beforeUserCreate: async () => {},
+        beforeUserDelete: async () => {},
+        beforeMembershipChange: async () => {},
+        afterMembershipChange: async () => {},
+        assertAccountDeletionAllowed: async () => {},
+        assertDeletable: async () => {},
+      },
+      provider: {
+        withIdentityRequest: async (run) => {
+          if (active) return run();
+          active = true;
+          try {
+            return await run();
+          } finally {
+            active = false;
+          }
+        },
+        lockUserLifecycle: async () => {
+          expect(active).toBe(true);
+        },
+        lockAccountDeletion: async () => {},
+        identityAdapter: (executor) =>
+          billingIdentityAdapter(drizzleAdapter(executor, { provider: "pg" })),
+        organizationHooks: () => ({}),
+        createSessionOnboardingHook: () => async () => {},
+      },
+    },
+    {
+      database,
+      baseURL: "http://localhost:3000",
+      secret: "nested-billing-identity-secret-long-enough",
+      events: {
+        publish: async (fact) => {
+          expect(active).toBe(true);
+          facts.push(fact.type);
+        },
+      },
+      email: { enabled: false, sendInvitation() {}, sendPasswordReset() {}, sendVerification() {} },
+      canInviteMembers: async () => true,
+    },
+  );
+  try {
+    const signup = await auth.api.signUpEmail({
+      body: { name: "Before", email: "nested@example.test", password: "nested-test-password" },
+    });
+    facts.length = 0;
+    const { adapter } = await auth.$context;
+    await adapter.transaction(async (outer) => {
+      await (outer as typeof adapter).transaction(async (inner) => {
+        await inner.update({
+          model: "user",
+          where: [{ field: "id", value: signup.user.id }],
+          update: { name: "After" },
+        });
+        expect(facts).toEqual([]);
+        expect(mocks.beforeUserUpdate).toHaveBeenCalledWith(signup.user.id, { name: "After" });
+        expect(mocks.afterUserUpdate).toHaveBeenCalledWith(signup.user.id, { name: "After" });
+      });
+      expect(active).toBe(true);
+      expect(facts).toEqual([]);
+    });
+    expect(active).toBe(false);
+    expect(facts).toEqual(["identity.user.updated"]);
+    expect((await client.query('SELECT name FROM "user"')).rows).toEqual([{ name: "After" }]);
+    facts.length = 0;
+    mocks.beforeUserUpdate.mockRejectedValueOnce(new Error("billing validation rejected"));
+    await expect(
+      adapter.update({
+        model: "user",
+        where: [{ field: "id", value: signup.user.id }],
+        update: { name: "Rejected" },
+      }),
+    ).rejects.toThrow("billing validation rejected");
+    expect(facts).toEqual([]);
+    expect(active).toBe(false);
+    expect((await client.query('SELECT name FROM "user"')).rows).toEqual([{ name: "After" }]);
+  } finally {
+    await client.close();
+  }
 });
