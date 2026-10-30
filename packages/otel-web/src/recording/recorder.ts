@@ -50,6 +50,8 @@ export type ClipRange = StartClipOptions & { whole?: boolean };
 export type Stream = {
   clip(range: ClipRange, trigger: Trigger): RecordingClip | undefined;
   trigger(kind: "error" | "network"): void;
+  pause(): void;
+  resume(): void;
   /** Closes the open Clips at the hide time and drops their unsent tails. */
   hide(): void;
   /** Sends the open tails, ends the Clips, and drops the buffer. */
@@ -79,8 +81,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
   let checkout: ReturnType<typeof setInterval> | undefined;
-  // Set by an oversized event, a failed start, or end(), for the rest of the Stream.
-  let stopped = false;
+  let paused = false;
   let ended = false;
 
   // The 5-minute window and the 10 MB cap. The newest event always stays.
@@ -120,7 +121,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   };
 
   const add = (event: RrwebEvent) => {
-    if (stopped) return;
+    if (paused || ended) return;
     // oxlint-disable-next-line typescript/consistent-type-assertions -- rrweb types data per event type; the checks below narrow it to a mutation.
     const data = event.data as Partial<Mutation> & { source?: number };
     if (event.type === INCREMENTAL && data.source === MUTATION && data.attributes?.length) {
@@ -142,7 +143,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     const size = utf8.encode(json).length;
     if (size > MAX_BYTES) {
       // In practice a full snapshot. No later event plays without it, so the
-      // recorder stops for the rest of the Stream.
+      // recorder stops until resume() or a new Stream.
       marker("everr.recording.oversized");
       halt();
       return;
@@ -152,18 +153,32 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   };
 
   const halt = () => {
-    stopped = true;
+    paused = true;
     stop?.();
     stop = undefined;
     clearInterval(checkout);
   };
 
+  const run = () => {
+    paused = false;
+    try {
+      const stopRecord = record({ emit: add, ...rrweb, errorHandler: () => true });
+      // An oversized initial snapshot halts before record() returns.
+      if (paused) return stopRecord?.();
+      stop = stopRecord;
+      // Our own checkout, and not checkoutEveryNms: rrweb counts that interval
+      // from the last event, so an idle page would age its only snapshot out.
+      checkout = setInterval(() => record.takeFullSnapshot(true), CHECKOUT_MS);
+    } catch {
+      halt();
+    }
+  };
+
   const clip = (range: ClipRange, trigger: Trigger): RecordingClip | undefined => {
-    const fromBuffer = range.last !== undefined || range.whole === true;
-    // A Clip from the call needs a new snapshot, which a stopped recorder cannot take.
-    if (ended || (stopped && !fromBuffer)) return;
+    if (ended) return;
     const now = Date.now();
     trim(now);
+    const fromBuffer = range.last !== undefined || range.whole === true;
     const requested = range.last === undefined ? undefined : now - range.last;
     // A Clip from the buffer starts at a full snapshot, with the Meta event in
     // front of it.
@@ -239,13 +254,12 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     if (fromBuffer) send(entries.slice(first));
     clips.add(state);
     // A Clip from the call starts with the Meta and full snapshot that this
-    // takes, through its tail.
-    if (!fromBuffer) {
+    // takes, through its tail. A paused recorder takes them on resume.
+    if (!fromBuffer && !paused) {
       try {
         record.takeFullSnapshot(true);
       } catch {
-        // A failed snapshot only means no recording. It is never an app error.
-        halt();
+        // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
       }
     }
     const flush = setInterval(() => send(state.tail.splice(0)), TAIL_FLUSH_MS);
@@ -258,19 +272,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   };
 
   setAttributes({ "everr.recording.stream.id": streamId });
-  try {
-    const stopRecord = record({ emit: add, ...rrweb, errorHandler: () => true });
-    // An oversized initial snapshot halts before record() returns.
-    if (stopped) stopRecord?.();
-    else {
-      stop = stopRecord;
-      // Our own checkout, and not checkoutEveryNms: rrweb counts that interval
-      // from the last event, so an idle page would age its only snapshot out.
-      checkout = setInterval(() => record.takeFullSnapshot(true), CHECKOUT_MS);
-    }
-  } catch {
-    halt();
-  }
+  run();
 
   return {
     clip,
@@ -278,6 +280,17 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       if (auto?.isRecording() || autoClips >= AUTO_CLIPS_PER_PAGE) return;
       auto = clip(AUTO_CLIP, kind);
       if (auto) autoClips++;
+    },
+    pause() {
+      if (paused || ended) return;
+      marker("everr.recording.pause");
+      halt();
+    },
+    resume() {
+      if (!paused || ended) return;
+      paused = false;
+      marker("everr.recording.resume");
+      run();
     },
     hide() {
       for (const open of clips) open.close(true);
