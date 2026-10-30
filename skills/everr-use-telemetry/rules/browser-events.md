@@ -67,7 +67,13 @@ Only with `recording()` from `@everr/otel-web/recording`. Each Clip is sent as o
 | `everr.recording.segment.index` | Int from 0 per Clip                                                       |
 | `session.id`                    | The Session the Stream started in, not a fresh read                       |
 
-Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. An rrweb custom event with tag `everr.recording.oversized` inside the body marks where the recorder stopped for the rest of the page, because one event was over 10 MB.
+Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
+
+| Tag                         | Meaning                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `everr.recording.pause`     | The app called `recorder.pause()`; nothing is recorded until the resume marker  |
+| `everr.recording.resume`    | The app called `recorder.resume()`; a full snapshot follows                     |
+| `everr.recording.oversized` | One event was over 10 MB; the recorder stopped until `resume()` or a new Stream |
 
 ## Spans (in `traces`)
 
