@@ -22,8 +22,17 @@ contains the feature definition and a synchronous `job(event)` function returnin
 Handlers execute in ordinary Graphile task lists selected by `registerWorkers()`.
 Producers know only `EventPublisher<FeatureEvent>`, never the handlers.
 
-Self-hosted and Cloud currently configure no routes. Events without a matching
-route, including unhandled versions, are ignored without a registration ceremony.
+Self-hosted configures no routes. Cloud selects `crmEventRoutes(mode)` in
+`packages/cloud/src/crm/jobs.ts`: disabled admits no jobs and runs no CRM worker;
+configured admits jobs and runs the worker.
+Events without a matching route are ignored without empty registrations.
+
+CRM routes exactly 12 event types: the four User facts to `crm/sync-user`, the
+three Membership facts to `crm/sync-membership`, and Organization create/update/delete
+plus the two billing/Plan facts to `crm/sync-organization`. `organization.provisioned`
+has no CRM route. Storage readiness can still refresh through other triggers,
+bootstrap and reconciliation.
+Handlers read current source state rather than replaying historical payloads.
 
 ## Fact and envelope contracts
 
@@ -40,7 +49,7 @@ may coalesce events and read current state rather than preserve event history.
 
 The following are domain facts emitted through this bus. Graphile execution
 events, diagnostic logs, alert journal records, and administrative commands such
-as `crm.reconciliation.requested` are separate contracts.
+as `crm.full-sync.requested` are separate contracts.
 
 | Event type                     | Subject           | `data` fields                                                            | Publication boundary                                                                                      |
 | ------------------------------ | ----------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
@@ -67,8 +76,7 @@ The authoritative definitions are:
 Creating an already verified User emits `identity.user.created` with
 `emailVerified: true`, without inventing a later verification transition. The
 update facts signal persisted updates; they do not carry field diffs. An inactive
-Pro subscription can suspend access without changing Plan. Provisioning readiness
-does not imply activation.
+Pro subscription can suspend access without changing Plan. Storage readiness remains independent of Plan and app access.
 
 User update and delete operations publish one fact per affected row, including
 bulk mutations and multi-row predicates. Verification facts describe only actual
@@ -124,6 +132,12 @@ See [background work](background-work.md#durability-transactions-and-replay).
 5. Test routing to the correct Graphile task, payload validation, enqueue failure
    containment and the handler's retry/idempotency behavior. Do not add another
    dispatcher or a pluggable queue interface.
+
+For example, the CRM User route returns a `crm/sync-user` job with
+`userSyncSpec(userId)`. The publisher owns the call to `addWorkerJob`; the CRM
+route only builds the validated payload and Graphile spec. Adding an independent
+consumer means adding another route and a normal Graphile task, without changing
+producer code.
 
 ## Diagnostics
 

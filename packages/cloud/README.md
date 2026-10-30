@@ -105,11 +105,15 @@ Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 The common runtime always owns the product worker (alerting, optional GitHub
 handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
-registers its organization lifecycle worker without starting it. The lifecycle
-runner remains in the web process with a separate reserved pool (maximum four
-connections). Billing callbacks remain synchronous. See
+registers its organization lifecycle worker and, in configured mode, the independent
+one-slot CRM worker, without starting either. They remain in the web process with
+separate reserved pools (maximum four connections each). Paused mode admits CRM
+commands without running outbound work; disabled mode selects no CRM routes
+or runner. Billing callbacks remain synchronous. See
 [background work and domain events](../../docs/background-work.md) for task
-ownership, transaction boundaries and worker lifecycle guarantees.
+ownership and the [CRM operations runbook](../../docs/crm-operations.md) for the
+required schema/field readback gates, bounded bootstrap, repair and recovery.
+Configuration validation does not establish operational readiness.
 
 # Package composition
 
@@ -192,7 +196,7 @@ and the cloud-only tenant-column assertion stays in this package.
 ## Billing and readiness facts
 
 Cloud publishes subscription and Plan business facts, together with the shared
-identity and readiness contracts. Its event routes are currently empty. Billing publishes
+identity and readiness contracts. Configured mode selects 12 CRM event-to-job routes; disabled selects none. Billing publishes
 a subscription fact only after accepting and committing a newer provider revision.
 Plan changes describe actual stored transitions: an inactive Pro subscription can
 suspend access without changing Plan. Hobby downgrade facts follow its local
@@ -202,4 +206,4 @@ returns a row. Publication awaits Graphile admission and preserves the existing 
 locks, provider checks, critical provisioning jobs, and cleanup guarantees.
 
 See the internal [event bus guide](../../docs/event-bus.md) for emitted facts and
-Graphile handler wiring.
+Graphile handler wiring and the [CRM operations runbook](../../docs/crm-operations.md).

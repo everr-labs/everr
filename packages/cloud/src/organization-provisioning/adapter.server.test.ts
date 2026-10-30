@@ -11,7 +11,7 @@ import {
 } from "@everr/app/server/alerting/testing/pglite-database";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { organization as organizationPlugin } from "better-auth/plugins";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { PgTransaction } from "drizzle-orm/pg-core";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createAutomaticOrganizationSessionHook } from "../auto-org.server";
@@ -572,4 +572,46 @@ it("preserves atomic provisioning and cleanup under the shared post-commit ident
       })),
     ),
   );
+});
+
+it("protects the Cloud-only Company mapping through create, update and bulk metadata replacement", async () => {
+  const { COMPANY_ID_METADATA, saveCompanyId } = await import("../crm/metadata");
+  const headers = await signup();
+  const created = await auth.api.createOrganization({
+    headers,
+    body: {
+      name: "Mapping",
+      slug: "mapping",
+      metadata: { [COMPANY_ID_METADATA]: "forged", label: "initial" },
+    },
+  });
+  if (!created) throw new Error("Organization was not created");
+  expect(parseOrganizationMetadata(created.metadata)).not.toHaveProperty(COMPANY_ID_METADATA);
+  await saveCompanyId(fixture.db as unknown as Database, created.id, "company-owned");
+  await auth.api.updateOrganization({
+    headers,
+    body: {
+      organizationId: created.id,
+      data: { metadata: { [COMPANY_ID_METADATA]: "replacement", label: "updated" } },
+    },
+  });
+  let [stored] = await fixture.db
+    .select()
+    .from(organization)
+    .where(eq(organization.id, created.id));
+  expect(parseOrganizationMetadata(stored.metadata)).toEqual({
+    [COMPANY_ID_METADATA]: "company-owned",
+    label: "updated",
+    clickhouseReady: false,
+  });
+  await adapter.updateMany({
+    model: "organization",
+    where: [{ field: "id", value: created.id }],
+    update: { metadata: "{}" },
+  });
+  [stored] = await fixture.db.select().from(organization).where(eq(organization.id, created.id));
+  expect(parseOrganizationMetadata(stored.metadata)).toEqual({
+    [COMPANY_ID_METADATA]: "company-owned",
+    clickhouseReady: false,
+  });
 });
