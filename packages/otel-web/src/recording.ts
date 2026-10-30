@@ -22,19 +22,23 @@ export type RecordingOptions = {
 };
 
 export type EmitClipOptions = {
-  /** Starts the Clip this many milliseconds before the call. Without it, the Clip is the whole buffer. */
+  /**
+   * Starts the Clip this many milliseconds before the call, at the full
+   * snapshot at or before that moment. Without it, `emitClip()` sends the whole
+   * buffer (up to 5 minutes) and `startClip()` starts at the call.
+   */
   last?: number;
 };
 
 export type StartClipOptions = EmitClipOptions & {
-  /** Closes the tail after this many milliseconds, capped at 60 000. */
+  /** Closes the Clip this many milliseconds after the call. Capped at, and by default, 60 000. */
   next?: number;
 };
 
 export type RecordingClip = {
   /** Empty for an inert Clip. */
   readonly id: string;
-  /** Epoch milliseconds of the requested start. */
+  /** Epoch milliseconds of the start: the call, or `last` milliseconds before it. */
   readonly startTime: number;
   /** False before the recorder chunk loads, in an unsampled Session, after the Stream ends, or after end(). */
   isRecording(): boolean;
@@ -56,11 +60,17 @@ let page: { stream?: Stream } | undefined;
 
 /** Acts on the recorder of the current page. Each method does nothing when no Stream buffers. */
 export const recorder = {
-  /** Sends the buffered history now and closes the Clip: `startClip(options).end()`. */
-  emitClip(options?: EmitClipOptions): void {
-    recorder.startClip(options).end();
+  /** Sends the buffered history now: the last `last` milliseconds, or by default the whole buffer (up to 5 minutes). */
+  emitClip(options: EmitClipOptions = {}): void {
+    (
+      page?.stream?.clip({ ...options, whole: true, next: 0 }, "manual") ?? inertClip(options)
+    ).end();
   },
-  /** Starts a Clip from the current Stream. The buffered part is sent before it returns. */
+  /**
+   * Starts a Clip that records until `end()`, `next`, or 60 seconds. Without
+   * `last`, it starts at the call with a new full snapshot and sends nothing
+   * from before. With `last`, the buffered part is sent before it returns.
+   */
   startClip(options: StartClipOptions = {}): RecordingClip {
     return page?.stream?.clip(options, "manual") ?? inertClip(options);
   },
