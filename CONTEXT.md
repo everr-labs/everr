@@ -153,6 +153,36 @@ _Avoid_: anonymous mode, bannerless mode
 The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
 _Avoid_: identified mode, cookie mode
 
+### Session recording
+
+**Recording**:
+The DOM history of a page captured by the `recording()` Instrumentation with rrweb, kept in memory and sent only as Clips. Masked and Blocked in the browser before it enters memory.
+_Avoid_: session replay (the product feature, not the data), video, screen capture
+
+**Mask**:
+To replace text, an input value, or an attribute value in a Recording with asterisks of the same length, keeping the element. All text, inputs, and the sensitive attributes are Masked by default; passwords always.
+_Avoid_: redact, scrub, hide
+
+**Block**:
+To replace an element in a Recording with an empty placeholder of the same size, so none of its content is captured. Media is Blocked by default.
+_Avoid_: mask (which keeps the element), exclude
+
+**Stream**:
+The in-memory buffer of one page's Recording: the last 5 minutes, at most 10 MB, with a full snapshot every 30 seconds. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
+_Avoid_: buffer (informal), session recording
+
+**Clip**:
+A range of a Stream that leaves the page: automatically on an error or a failed request (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back into the Stream. Indexed by one root `recording` Span.
+_Avoid_: recording (the whole history), snippet, replay
+
+**Segment**:
+One OTLP Log (`everr.browser.recording.segment`) that carries part of a Clip as a JSON array of rrweb events, about 950 KB at most. Ordered by `everr.recording.segment.index`.
+_Avoid_: chunk, batch, part
+
+**Replay**:
+Playing a Clip's Segments back in an rrweb player, from its first full snapshot.
+_Avoid_: playback video, recording
+
 ### CI
 
 **CI run**:
