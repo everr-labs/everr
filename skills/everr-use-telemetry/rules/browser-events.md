@@ -58,7 +58,7 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 ### Recording Segments
 
-Only with `recording()` from `@everr/otel-web/recording`. Each Clip is sent as one or more `everr.browser.recording.segment` logs. The `Body` is a JSON array of rrweb events that is already masked; the first Segment of a Clip starts with a Meta event and a full snapshot. A Segment holds about 950 KB, or one larger event alone, and its `Timestamp` is that of its last event. Join the Segments of a Clip by `everr.recording.clip.id` and order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit.
+Only with `recording()` from `@everr/otel-web/recording`. Each Clip is sent as one or more `everr.browser.recording.segment` logs. The `Body` is a JSON array of rrweb events that is already masked; the first Segment of a Clip starts with a Meta event and a full snapshot. A Segment holds about 950 KB, and its `Timestamp` is that of its last event. Join the Segments of a Clip by `everr.recording.clip.id` and order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit.
 
 | Attribute                       | Meaning                                                                   |
 | ------------------------------- | ------------------------------------------------------------------------- |
@@ -67,13 +67,22 @@ Only with `recording()` from `@everr/otel-web/recording`. Each Clip is sent as o
 | `everr.recording.segment.index` | Int from 0 per Clip                                                       |
 | `session.id`                    | The Session the Stream started in, not a fresh read                       |
 
+An event larger than one Segment, in practice a full snapshot with big text or inline images, goes in pieces: consecutive Segments whose `Body` is a slice of that one event's JSON text, not an array. Each piece is cut between characters and holds at most 950 KB of UTF-8, and it carries three more attributes:
+
+| Attribute                      | Meaning                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| `everr.recording.event.index`  | The `everr.recording.segment.index` of the event's first piece |
+| `everr.recording.event.piece`  | Int from 0: the place of this piece in the event               |
+| `everr.recording.event.pieces` | The count of pieces of the event                               |
+
+To reassemble a Clip, read its Segments in `everr.recording.segment.index` order. Parse a Segment without `everr.recording.event.pieces` as an array of events. For pieces, join the bodies with the same `everr.recording.event.index` in `everr.recording.event.piece` order, then parse the joined text as one event in that place. An event with a missing piece is lost; skip it.
+
 Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
 
-| Tag                         | Meaning                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| `everr.recording.pause`     | The app called `recorder.pause()`; nothing is recorded until the resume marker  |
-| `everr.recording.resume`    | The app called `recorder.resume()`; a full snapshot follows                     |
-| `everr.recording.oversized` | One event was over 10 MB; the recorder stopped until `resume()` or a new Stream |
+| Tag                      | Meaning                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `everr.recording.pause`  | The app called `recorder.pause()`; nothing is recorded until the resume marker |
+| `everr.recording.resume` | The app called `recorder.resume()`; a full snapshot follows                    |
 
 ## Spans (in `traces`)
 
