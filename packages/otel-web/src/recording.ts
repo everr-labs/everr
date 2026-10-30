@@ -3,7 +3,11 @@
 // keeps the last 5 minutes of the page in memory, and nothing leaves the page
 // until a Clip. Refer to docs/specs/2026-10-22-otel-web-recording.md.
 
-import { type Instrumentation, onSessionChange, setRecordingTrigger } from "@everr/otel-web";
+import type { Instrumentation } from "@everr/otel-web";
+// The page state is imported by path, not by the package name, so these stay
+// off the public entry. The build puts it in a chunk shared with that entry.
+import { setRecordingTrigger } from "./state/recording.js";
+import { onSessionChange } from "./state/session.js";
 import { hashUnit } from "./instrumentations/sampled.js";
 import type { Stream } from "./recording/recorder.js";
 

@@ -1,10 +1,11 @@
 // The recorder chunk. The stub in ../recording.ts imports it only for a sampled
 // Session, so rrweb stays out of every other bundle.
 
-import { emitLogNow, setAttributes } from "@everr/otel-web";
+import { setAttributes } from "@everr/otel-web";
 import type { Tracer } from "@opentelemetry/api";
 import { record } from "@rrweb/record";
 import type { RecordingClip, RecordingOptions, StartClipOptions } from "../recording.js";
+import { emitLogNow } from "../state/emit.js";
 import { privacy } from "./privacy.js";
 
 const WINDOW_MS = 5 * 60_000;
