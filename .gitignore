@@ -14,7 +14,6 @@ collector/build-local
 *.p8
 *.p12
 private_keys/
-.turbo
 
 # debug
 .pnpm-debug.log*

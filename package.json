@@ -32,7 +32,6 @@
     "lefthook": "^2.1.6",
     "oxlint-plugin-eslint": "^1.88.0",
     "portless": "0.15.8",
-    "turbo": "^2.9.12",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
