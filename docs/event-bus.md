@@ -23,8 +23,8 @@ Handlers execute in ordinary Graphile task lists selected by `registerWorkers()`
 Producers know only `EventPublisher<FeatureEvent>`, never the handlers.
 
 Self-hosted configures no routes. Cloud selects `crmEventRoutes(mode)` in
-`packages/cloud/src/crm/jobs.ts`: disabled admits no jobs, paused admits jobs
-without starting the CRM worker, configured admits jobs and runs the worker.
+`packages/cloud/src/crm/jobs.ts`: disabled admits no jobs and runs no CRM worker;
+configured admits jobs and runs the worker.
 Events without a matching route are ignored without empty registrations.
 
 CRM routes exactly 12 event types: the four User facts to `crm/sync-user`, the

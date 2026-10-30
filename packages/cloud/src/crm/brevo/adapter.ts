@@ -8,7 +8,6 @@ type Failure = {
   ok: false;
   kind:
     | "disabled"
-    | "paused"
     | "cancelled"
     | "transient"
     | "rate_limited"

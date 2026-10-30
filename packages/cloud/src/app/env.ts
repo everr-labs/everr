@@ -5,8 +5,8 @@ import { readBrevoConfig } from "../crm/brevo/config";
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
-    // Server-only CRM configuration. The shared parser below validates enabled modes.
-    CRM_BREVO_MODE: z.enum(["disabled", "configured", "paused"]).default("disabled"),
+    // Server-only CRM configuration. The shared parser below validates configured mode.
+    CRM_BREVO_MODE: z.enum(["disabled", "configured"]).default("disabled"),
     CRM_BREVO_API_KEY: z.string().optional(),
     CRM_BREVO_TIMEOUT_MS: z.string().optional(),
     CLICKHOUSE_SQL_API_MASTER_KEY: z.string().min(32),

@@ -19,8 +19,8 @@ import {
   relatedSyncSpec,
 } from "./commands";
 
-/** Disabled mode admits no work; paused mode persists the same jobs without consuming them. */
-export function crmEventRoutes(mode: "disabled" | "configured" | "paused"): ApplicationEvents {
+/** Disabled mode admits no work. */
+export function crmEventRoutes(mode: "disabled" | "configured"): ApplicationEvents {
   if (mode === "disabled") return [];
   return [
     ...userEventDefinitions.map((definition): EventRoute<UserEvent> => ({

@@ -33,7 +33,7 @@ it("loads cloud configuration and constructs the disabled adapter without provid
   expect(transport).not.toHaveBeenCalled();
 });
 
-it("rejects incomplete enabled cloud startup and validates complete paused startup without provider calls", async () => {
+it("rejects incomplete configured startup and validates complete startup without provider calls", async () => {
   vi.resetModules();
   cloudEnv();
   const transport = vi.fn();
@@ -41,10 +41,9 @@ it("rejects incomplete enabled cloud startup and validates complete paused start
   vi.stubEnv("CRM_BREVO_MODE", "configured");
   await expect(import("../../app/env")).rejects.toThrow("Invalid Brevo CRM configuration.");
   vi.resetModules();
-  vi.stubEnv("CRM_BREVO_MODE", "paused");
   vi.stubEnv("CRM_BREVO_API_KEY", "fixture-secret");
   const { appEnv } = await import("../../app/env");
-  expect(appEnv.CRM_BREVO_MODE).toBe("paused");
+  expect(appEnv.CRM_BREVO_MODE).toBe("configured");
   expect(transport).not.toHaveBeenCalled();
 });
 
@@ -60,22 +59,25 @@ it.each([undefined, ""])("defaults an absent or empty mode to disabled (%s)", as
   expect(runtime.events).toEqual([]);
 });
 
-it.each(["configured", "paused"])(
-  "uses the same default timeout for empty Cloud and script settings in %s mode",
-  async (mode) => {
-    vi.resetModules();
-    cloudEnv();
-    vi.stubEnv("CRM_BREVO_MODE", mode);
-    vi.stubEnv("CRM_BREVO_API_KEY", " fixture-secret ");
-    vi.stubEnv("CRM_BREVO_TIMEOUT_MS", "");
-    const { appEnv } = await import("../../app/env");
-    const { runtime } = await import("../../app/composition/runtime");
-    const expected = { mode, apiKey: "fixture-secret", timeoutMs: 10_000 };
-    expect(readBrevoConfig(appEnv)).toEqual(expected);
-    expect(readBrevoConfig(process.env)).toEqual(expected);
-    expect(runtime.events).toHaveLength(12);
-  },
-);
+it("uses the same default timeout for empty Cloud and script settings", async () => {
+  vi.resetModules();
+  cloudEnv();
+  vi.stubEnv("CRM_BREVO_MODE", "configured");
+  vi.stubEnv("CRM_BREVO_API_KEY", " fixture-secret ");
+  vi.stubEnv("CRM_BREVO_TIMEOUT_MS", "");
+  const { appEnv } = await import("../../app/env");
+  const { runtime } = await import("../../app/composition/runtime");
+  const expected = { mode: "configured", apiKey: "fixture-secret", timeoutMs: 10_000 };
+  expect(readBrevoConfig(appEnv)).toEqual(expected);
+  expect(readBrevoConfig(process.env)).toEqual(expected);
+  expect(runtime.events).toHaveLength(12);
+});
+
+it("rejects the removed paused mode instead of treating it as configured", () => {
+  expect(() =>
+    readBrevoConfig({ CRM_BREVO_MODE: "paused", CRM_BREVO_API_KEY: "fixture-secret" }),
+  ).toThrow(/^Invalid Brevo CRM configuration\.$/);
+});
 
 it.each(["99", "30001", "1.5", "invalid"])(
   "rejects invalid timeout %s without exposing the API key",

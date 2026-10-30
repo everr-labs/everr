@@ -6,16 +6,16 @@ within an account and have no deployment namespace.
 
 ## Configuration
 
-| Variable               | Value                                           |
-| ---------------------- | ----------------------------------------------- |
-| `CRM_BREVO_MODE`       | `disabled` (default), `paused`, or `configured` |
-| `CRM_BREVO_API_KEY`    | Required in configured and paused modes         |
-| `CRM_BREVO_TIMEOUT_MS` | Optional request deadline, default 10000 ms     |
+| Variable               | Value                                       |
+| ---------------------- | ------------------------------------------- |
+| `CRM_BREVO_MODE`       | `disabled` (default) or `configured`        |
+| `CRM_BREVO_API_KEY`    | Required in configured mode                 |
+| `CRM_BREVO_TIMEOUT_MS` | Optional request deadline, default 10000 ms |
 
 The Cloud server declares these server-only variables in
 `packages/cloud/src/app/env.ts`. Composition and the worker consume that normalized
 environment; the shared Brevo parser checks the API key and request deadline for
-enabled modes. The deadline accepts integer values from 100 to 30000 ms and covers
+configured mode. The deadline accepts integer values from 100 to 30000 ms and covers
 one HTTP request, including its response body. It does not set Graphile backoff or
 the 429 cooldown. Empty mode and timeout values use their defaults.
 
@@ -28,9 +28,11 @@ key. Deployment operations are maintained in `everr-deploy`; this repository doe
 not configure those Brevo secrets. The key is never a `VITE_` variable or a Docker
 build argument.
 
-Disabled mode admits no CRM work. Paused mode admits commands but runs no CRM
-consumer. Configured mode starts the dedicated one-slot runner. Changes require
-restarting the affected process. There are no CRM tables or migrations.
+Disabled mode admits no CRM work and stops the CRM consumer. Already queued jobs
+remain pending. Configured mode admits commands and starts the dedicated one-slot
+runner. Changes require restarting the affected process. After re-enabling, a
+manual full sync repairs changes missed while disabled. There are no CRM tables
+or migrations.
 
 Before enabling an account, prepare the owned provider attributes and read back
 fixture records. Brevo can ignore unknown attributes, so HTTP success alone does
@@ -73,8 +75,8 @@ pnpm --filter @everr/app-cloud crm:sync --prune --apply
 
 The result includes `eventId`, Graphile `jobId`, task and admitted count. A full
 scan reports its candidate/admitted counts in telemetry with that event ID. These
-counts describe queue admission, not successful remote synchronization. In paused
-mode work waits until a configured runner starts.
+counts describe queue admission, not successful remote synchronization. Manual
+admission requires configured mode.
 
 A full scan starts at the beginning on each run. It admits Users and Organizations;
 parent handlers admit their current Memberships. Prune inventories the current

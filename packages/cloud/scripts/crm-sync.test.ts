@@ -100,3 +100,12 @@ it("admits with an empty timeout and without unrelated Cloud credentials", async
   expect(mocks.query).toHaveBeenCalledOnce();
   expect(console.error).not.toHaveBeenCalled();
 });
+
+it.each(["disabled", "paused"])("rejects admission in %s mode", async (mode) => {
+  vi.stubEnv("CRM_BREVO_MODE", mode);
+  process.argv = ["node", "crm-sync.ts"];
+  await import("./crm-sync");
+  await vi.waitFor(() => expect(console.error).toHaveBeenCalledOnce());
+  expect(mocks.query).not.toHaveBeenCalled();
+  expect(process.exitCode).toBe(1);
+});

@@ -1,7 +1,7 @@
 import * as z from "zod";
 
 const enabled = z.object({
-  mode: z.enum(["configured", "paused"]),
+  mode: z.literal("configured"),
   apiKey: z.string().trim().min(1),
   timeoutMs: z.coerce.number().int().min(100).max(30_000).default(10_000),
 });

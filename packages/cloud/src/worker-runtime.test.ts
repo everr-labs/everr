@@ -117,7 +117,7 @@ async function loadRuntime(mode = "disabled") {
 }
 
 describe("worker runtime", () => {
-  it.each(["configured", "paused", "disabled"])(
+  it.each(["configured", "disabled"])(
     "publishes readiness without CRM admission or diagnostics in %s mode",
     async (mode) => {
       await loadRuntime(mode);
@@ -160,12 +160,12 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
   });
 
-  it("pauses consumption while retaining CRM routes to preserve pending facts", async () => {
-    const runtime = await loadRuntime("paused");
+  it("disables CRM admission and consumption while keeping the other runners active", async () => {
+    const runtime = await loadRuntime("disabled");
     await runtime.startWorkerRuntime();
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
     const { runtime: composition } = await import("./app/composition/runtime");
-    expect(composition.events).toHaveLength(12);
+    expect(composition.events).toHaveLength(0);
     expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
       true,
     );

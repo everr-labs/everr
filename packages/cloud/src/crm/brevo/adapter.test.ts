@@ -58,17 +58,11 @@ const transport = (response: Response) =>
   vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => response);
 afterEach(() => vi.useRealTimers());
 
-it("keeps disabled and paused adapters inert without requiring namespaces", async () => {
+it("keeps the disabled adapter inert without requiring credentials", async () => {
   const fetch = vi.fn();
   expect(await createBrevoAdapter(readBrevoConfig({}), fetch).createContact(user)).toMatchObject({
     kind: "disabled",
   });
-  expect(
-    await createBrevoAdapter(
-      readBrevoConfig({ CRM_BREVO_MODE: "paused", CRM_BREVO_API_KEY: "x" }),
-      fetch,
-    ).createContact(user),
-  ).toMatchObject({ kind: "paused" });
   expect(fetch).not.toHaveBeenCalled();
 });
 it("omits unchanged fields and preserves opt-outs without touching unrelated fields", async () => {

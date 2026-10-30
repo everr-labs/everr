@@ -6,14 +6,14 @@ production always uses the fixed Brevo API origin with redirects rejected.
 
 ## Configuration
 
-- `CRM_BREVO_MODE`: `disabled` by default, `paused`, or `configured`.
-- `CRM_BREVO_API_KEY`: required in enabled modes.
+- `CRM_BREVO_MODE`: `disabled` by default, or `configured`.
+- `CRM_BREVO_API_KEY`: required in configured mode.
 - `CRM_BREVO_TIMEOUT_MS`: per-request deadline including body consumption, default
   10000 ms, accepted range 100 to 30000 ms.
 
 Production Cloud and local development use different accounts. No deployment
 namespace, account-scope variable or persistent request budget is required.
-Disabled and paused adapters return without network calls.
+Disabled adapters return without network calls.
 
 ## Requests and backpressure
 

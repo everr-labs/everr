@@ -196,7 +196,7 @@ and the cloud-only tenant-column assertion stays in this package.
 ## Billing and readiness facts
 
 Cloud publishes subscription and Plan business facts, together with the shared
-identity and readiness contracts. Configured and paused modes select 12 CRM event-to-job routes; disabled selects none. Billing publishes
+identity and readiness contracts. Configured mode selects 12 CRM event-to-job routes; disabled selects none. Billing publishes
 a subscription fact only after accepting and committing a newer provider revision.
 Plan changes describe actual stored transitions: an inactive Pro subscription can
 suspend access without changing Plan. Hobby downgrade facts follow its local

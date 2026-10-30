@@ -27,13 +27,11 @@ const membershipTypes = ["membership.added", "membership.updated", "membership.r
 
 it("selects exactly the 12 CRM triggers and leaves disabled mode inert", () => {
   expect(crmEventRoutes("disabled")).toEqual([]);
-  for (const mode of ["configured", "paused"] as const) {
-    expect(
-      crmEventRoutes(mode)
-        .map(({ definition }) => definition.type)
-        .sort(),
-    ).toEqual([...userTypes, ...organizationTypes, ...membershipTypes].sort());
-  }
+  expect(
+    crmEventRoutes("configured")
+      .map(({ definition }) => definition.type)
+      .sort(),
+  ).toEqual([...userTypes, ...organizationTypes, ...membershipTypes].sort());
 });
 
 it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
@@ -41,7 +39,7 @@ it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
   async (type) => {
     const enqueue = vi.fn(async () => {});
     const diagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
-    const events = createEventPublisher({ routes: crmEventRoutes("paused"), enqueue });
+    const events = createEventPublisher({ routes: crmEventRoutes("configured"), enqueue });
     const isUser = userTypes.includes(type);
     const isMember = membershipTypes.includes(type);
     const data = isUser
