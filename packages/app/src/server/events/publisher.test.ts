@@ -76,10 +76,42 @@ it("rejects invalid data without leaking schema input to diagnostics", async () 
     "business_events.publication.failed",
     expect.objectContaining({
       "everr.business_event.type": fact.type,
+      "everr.business_event.version": 1,
       "everr.business_event.failure_stage": "validation",
       "exception.message": "Business event validation failed",
     }),
   );
+  expect(diagnostics.mock.calls[0][1]).not.toHaveProperty("everr.business_event.task");
+  expect(JSON.stringify(diagnostics.mock.calls)).not.toContain("secret");
+});
+
+it("labels job construction failures before Graphile admission", async () => {
+  const enqueue = vi.fn();
+  const events = createEventPublisher({
+    routes: [
+      {
+        ...route,
+        job: () => {
+          throw new TypeError("Private job payload: secret");
+        },
+      },
+    ],
+    enqueue,
+  });
+  await expect(events.publish(fact)).resolves.toBeUndefined();
+  expect(enqueue).not.toHaveBeenCalled();
+  expect(diagnostics).toHaveBeenCalledWith(
+    "business_events.publication.failed",
+    expect.objectContaining({
+      "everr.business_event.type": fact.type,
+      "everr.business_event.version": 1,
+      "everr.business_event.failure_stage": "job",
+      "exception.type": "TypeError",
+      "exception.message": "Business event job construction failed",
+    }),
+  );
+  expect(diagnostics.mock.calls[0][1]).not.toHaveProperty("everr.business_event.task");
+  expect(diagnostics.mock.calls[0][1]).not.toHaveProperty("exception.stacktrace");
   expect(JSON.stringify(diagnostics.mock.calls)).not.toContain("secret");
 });
 
@@ -101,7 +133,10 @@ it.each(["throw", "reject"])(
     expect(diagnostics).toHaveBeenCalledOnce();
     expect(diagnostics).toHaveBeenCalledWith(
       "business_events.publication.failed",
-      expect.objectContaining({ "everr.business_event.failure_stage": "subscriber" }),
+      expect.objectContaining({
+        "everr.business_event.failure_stage": "enqueue",
+        "everr.business_event.task": "test/handle",
+      }),
     );
   },
 );

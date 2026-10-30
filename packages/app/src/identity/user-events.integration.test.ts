@@ -109,6 +109,35 @@ it("publishes initially verified OAuth creation without fabricating a verificati
   ]);
 });
 
+it("publishes User creation from the inserted row when the caller selects other fields", async () => {
+  const { facts, events } = capture();
+  const auth = createAuth(events);
+  const { adapter } = await auth.$context;
+  expect(
+    await adapter.create({
+      model: "user",
+      data: {
+        id: "projected",
+        name: "Projected",
+        email: "projected@example.test",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      forceAllowId: true,
+      select: ["name"],
+    }),
+  ).toEqual({ name: "Projected" });
+  expect(facts).toEqual([
+    {
+      type: "identity.user.created",
+      version: 1,
+      subjectId: "projected",
+      data: { userId: "projected", emailVerified: true },
+    },
+  ]);
+});
+
 it("keeps nested adapter facts private until the outermost source commit and discards rollback facts", async () => {
   const { facts, events } = capture();
   const auth = createAuth(events);
@@ -202,7 +231,7 @@ it("keeps a real committed signup successful when a subscriber fails", async () 
     "business_events.publication.failed",
     expect.objectContaining({
       "everr.business_event.type": "identity.user.created",
-      "everr.business_event.failure_stage": "subscriber",
+      "everr.business_event.failure_stage": "enqueue",
     }),
   );
   failure.mockRestore();
