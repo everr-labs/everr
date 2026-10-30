@@ -35,10 +35,13 @@ export async function start(
   options: RecordingOptions = {},
   {
     extra = () => [],
+    rate,
     sdkOptions = {},
     settle = true,
   }: {
     extra?: (sdk: typeof Sdk) => Instrumentation[];
+    /** Wraps the recording in `sampled()` with this rate. */
+    rate?: number;
     sdkOptions?: Partial<WebSDKOptions>;
     settle?: boolean;
   } = {},
@@ -53,7 +56,7 @@ export async function start(
     send: (signal, body) => void sent.push({ signal, body }),
     ...sdkOptions,
     instrumentations: [
-      rec.recording(options),
+      rate === undefined ? rec.recording(options) : sdk.sampled(rec.recording(options), rate),
       ...(typeof extra === "function" ? extra(sdk) : extra),
     ],
   });
