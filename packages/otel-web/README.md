@@ -135,14 +135,17 @@ new WebSDK({
 });
 
 recorder.emitClip({ last: 15_000 }); // send the last 15 seconds
+recorder.emitClip(); // send the whole buffer, up to 5 minutes
 
-const flow = recorder.startClip({ last: 60_000 });
+const flow = recorder.startClip(); // records from here until end()
 try {
   await submitOrder();
 } finally {
   flow.end();
 }
 ```
+
+A Clip from `startClip()` holds only what happens between the call and `end()`, and closes after 60 seconds at the latest (`next` sets a shorter close). Pass `last` to start it that many milliseconds before the call instead. Automatic Clips cover 60 seconds before the error or failed request and 10 seconds after it.
 
 Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. Password fields are always masked.
 
