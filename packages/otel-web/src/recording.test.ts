@@ -66,6 +66,8 @@ describe("loading and sampling", () => {
     const clip = t.rec.recorder.startClip();
     expect(clip.id).toBe("");
     expect(clip.isRecording()).toBe(false);
+    t.rec.recorder.pause();
+    t.rec.recorder.resume();
     t.rec.recorder.emitClip();
     expect(t.sent).toEqual([]);
   });
@@ -438,8 +440,22 @@ describe("the Stream and the Session", () => {
   });
 });
 
-describe("oversized events", () => {
-  it("stops at an event over 10 MB of UTF-8 for the rest of the page, and keeps the buffer", async () => {
+describe("pause, resume, and oversized events", () => {
+  it("marks pause and resume, and buffers nothing between them", async () => {
+    const t = await start();
+    t.rec.recorder.pause();
+    t.rec.recorder.pause();
+    box().textContent = "while paused";
+    await mutations();
+    t.rec.recorder.resume();
+    t.rec.recorder.resume();
+    t.rec.recorder.emitClip();
+    const all = t.segments().flatMap((s) => s.events);
+    expect(tags(all)).toEqual(["everr.recording.pause", "everr.recording.resume"]);
+    expect(JSON.stringify(all)).not.toContain('"texts":[{');
+  });
+
+  it("stops at an event over 10 MB of UTF-8, keeps the buffer, and tries again on resume", async () => {
     const t = await start({ unmask: ["#box"] });
     // 3.4 million characters, but 10.2 MB in UTF-8.
     box().textContent = "€".repeat(3_400_000);
@@ -456,25 +472,10 @@ describe("oversized events", () => {
       JSON.stringify(t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id)),
     ).not.toContain("small again");
 
-    vi.advanceTimersByTime(60_000);
-    t.rec.recorder.emitClip();
-    const later = t.segments().at(-1)!.events;
-    expect(tags(later)).toEqual(["everr.recording.oversized"]);
-    expect(types(later).filter((type) => type === FULL_SNAPSHOT)).toHaveLength(1);
-  });
-
-  it("returns an inert Clip from startClip() without last after the stop", async () => {
-    const t = await start({ unmask: ["#box"] });
-    box().textContent = "€".repeat(3_400_000);
-    await mutations();
-    const sent = t.sent.length;
-    const clip = t.rec.recorder.startClip();
-    expect(clip.id).toBe("");
-    expect(clip.isRecording()).toBe(false);
-    clip.end();
-    vi.advanceTimersByTime(60_000);
-    expect(t.sent.length).toBe(sent);
-    expect(await t.spans()).toEqual([]);
+    t.rec.recorder.resume();
+    const resumed = t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id);
+    expect(tags(resumed)).toEqual(["everr.recording.oversized", "everr.recording.resume"]);
+    expect(types(resumed).slice(-2)).toEqual([META, FULL_SNAPSHOT]);
   });
 
   it("stops when the first snapshot itself is oversized, and has no Clip to send", async () => {
