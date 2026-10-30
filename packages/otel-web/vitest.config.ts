@@ -24,6 +24,9 @@ export default defineConfig({
     reporters: ["verbose"],
     environment: "jsdom",
     setupFiles: ["../../vitest.file-isolation.ts", "./src/test-setup.ts"],
+    // rrweb keeps Date.now from its first load. Inlined, each test that loads
+    // the package again also loads rrweb again, under its own fake clock.
+    server: { deps: { inline: [/rrweb/] } },
     coverage: {
       provider: "v8",
       include: ["src/**"],
