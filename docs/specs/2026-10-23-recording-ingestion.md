@@ -1,10 +1,10 @@
 # Recording Ingestion: Collector and Storage
 
 **Date:** 2026-10-23
-**Status:** implemented in PR #527 with a landing table and view; this revision moves storage to a single table, not released
-**PR:** [#527](https://github.com/everr-labs/everr/pull/527)
+**Status:** not implemented. No open PR covers the collector and storage; the WebSDK half is in draft PR #555
+**PR:** none yet. WebSDK: [#555](https://github.com/everr-labs/everr/pull/555)
 **Scope:** the Cloud collector and ClickHouse storage
-**Companions:** [WebSDK Recording](./2026-10-22-otel-web-recording.md) (capture, API, transport), [Session Replay](./2026-10-17-session-replay.md) (overall design)
+**Companions:** [WebSDK Recording](./2026-10-22-otel-web-recording.md) (capture, API, transport)
 
 ## Problem Statement
 
@@ -377,9 +377,8 @@ The collector must be ahead of the WebSDK release. If the SDK ships first, Segme
 
 ## References
 
-- PR: https://github.com/everr-labs/everr/pull/527
+- WebSDK PR: https://github.com/everr-labs/everr/pull/555
 - WebSDK spec: `docs/specs/2026-10-22-otel-web-recording.md`
-- Overall design: `docs/specs/2026-10-17-session-replay.md`
 - Cloud schema: `clickhouse/init/03-create-otel-tables.sql`, `clickhouse/init/10-create-mvs.sql`, `clickhouse/init/15-create-sql-api-role.sql`, `clickhouse/init/20-apply-rls.sql`
 - Existing-cluster DDL: `clickhouse/manual/recordings.sql`
 - Cloud collector config: `collector/config.example.yml`, `collector/config/manifest.yaml`

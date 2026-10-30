@@ -52,8 +52,6 @@ recording(options?: RecordingOptions): Instrumentation;
 const recorder: {
   emitClip(options?: EmitClipOptions): void;
   startClip(options?: StartClipOptions): RecordingClip;
-  pause(): void;
-  resume(): void;
 };
 ```
 
@@ -124,14 +122,8 @@ type RecordingClip = {
 - Without `next`, the tail stays open until `end()`. A tail is open for at most 60 seconds after the Clip opens, so a handle that is never ended closes at the cap.
 - `end()` is the analogue of `span.end()`. Calling it twice is safe. If the page hides first, the hide listener closes the Clip and its `recording` Span goes in the exit flush.
 - `isRecording()` is the analogue of `span.isRecording()`. It is false for an inert Clip.
-- `startClip()` always returns a handle, even when capture cannot start: before the recorder chunk loads, in an unsampled Session, when the page had no Session id at setup, or when `last` asks for history and the buffer has no full snapshot. The handle is inert: its `id` is empty, `isRecording()` is false, and `end()` does nothing. Callers do not need to branch before `end()`.
+- `startClip()` always returns a handle, even when capture cannot start: before the recorder chunk loads, in an unsampled Session, when the page had no Session id at setup, when `last` asks for history and the buffer has no full snapshot, or without `last` after an oversized event stopped the recorder (no fresh snapshot is possible). The handle is inert: its `id` is empty, `isRecording()` is false, and `end()` does nothing. Callers do not need to branch before `end()`.
 - With `last`, the buffered part of a real Clip is sent before `startClip()` returns. A Clip that is inert sends nothing.
-
-### `recorder.pause()` and `recorder.resume()`
-
-`recorder.pause()` stops the rrweb recorder. Nothing is buffered while paused, so no Clip can contain that time. `recorder.resume()` starts the recorder again with a full snapshot. Both act on the current page only.
-
-Pause and resume travel inside the Segment body as rrweb custom events with tags `everr.recording.pause` and `everr.recording.resume`, so the player can draw the paused range instead of guessing from event silence. Repeated calls are no-ops. The oversized-event marker (see Oversized events) travels the same way.
 
 ### Internal seams
 
@@ -145,7 +137,7 @@ Sampling goes through the existing `sampled()` wrapper, unchanged: `sampled(reco
 
 - `sampled()` hashes the Session id with the Instrumentation name, so every tab and reload of a Session decides the same way.
 - The decision is made once per page, at setup. A Session change during the page does not decide again.
-- An unsampled Session never runs the `recording()` setup. It loads no recorder and starts no Stream. `recorder.emitClip()` sends nothing, `recorder.startClip()` returns an inert Clip, and `recorder.pause()` and `recorder.resume()` do nothing.
+- An unsampled Session never runs the `recording()` setup. It loads no recorder and starts no Stream. `recorder.emitClip()` sends nothing, and `recorder.startClip()` returns an inert Clip.
 - The recorder chunk (`dist/recording/recorder.js`) is loaded with `import()` when the setup runs, so only for a sampled Session. The stub stays at 1.05 KB and the chunk at 26 KB in the size budgets.
 - A trigger that arrives while no Stream is buffering (before the chunk loads) is dropped. A new Stream has no history to send yet.
 
@@ -185,8 +177,9 @@ Prior art: PostHog's `MutationRateLimiter`, as used by HyperDX ([limiter](https:
 ### Oversized events
 
 - Each event is measured as UTF-8 bytes of its serialized JSON, not string length. The serialization is the one the buffer already stores.
-- An event over 10 MB is not buffered. The buffer gets an rrweb custom event with tag `everr.recording.oversized` in its place, and the recorder stops for the rest of the document, as if `recorder.pause()` were called. The buffer keeps what it has, so a Clip can still cover the moments before the stop.
-- A new document starts a new Stream and tries again. `recorder.resume()` also tries again.
+- An event over 10 MB is not buffered. The buffer gets an rrweb custom event with tag `everr.recording.oversized` in its place, and the recorder stops for the rest of the page. The buffer keeps what it has and keeps aging out.
+- After the stop, `recorder.startClip({ last })`, `recorder.emitClip()`, and automatic Clips can still send the buffer, so a Clip can cover the moments before the stop. `recorder.startClip()` without `last` returns an inert Clip, because the recorder cannot take a fresh snapshot.
+- Only a new document starts a new Stream and tries again.
 - Why stop instead of skipping the event: in practice an event that large is a full snapshot. rrweb gives the nodes new ids on every full snapshot, so no later event can play without it, and the next checkout would be just as large.
 - 10 MB is the buffer cap, and it leaves room under the public receiver's 20 MiB body limit for the OTLP envelope, string escaping, and a request sent without gzip. The WebSDK never sends an event that the receiver would reject.
 - Events are never split across Segments. An event between 950 KB and 10 MB goes alone in its own Segment. Splitting a serialized event at byte offsets breaks multi-byte characters at the cut, and the player would need to reassemble chunks in order; HyperDX does both ([split](https://github.com/hyperdxio/hyperdx-js/blob/77350427759e0e083d18982efe24fed07fe9b7fd/packages/session-recorder/src/index.ts#L201-L218), [assembler](https://github.com/hyperdxio/hyperdx/blob/cf00ae53f75ac35f6082a6279bbbf1d84bafed87/packages/app/src/utils/rrwebChunkAssembler.ts#L108-L151)).
@@ -296,7 +289,7 @@ The exit flush is unchanged for Spans and Logs. It keeps the 64 KB keepalive bud
 | `everr.recording.trigger`         | span attr  | `error`, `network`, or `manual`                                  |
 | `recording`                       | span name  | one root Span per Clip, covering its range                       |
 
-The tags `everr.recording.pause`, `everr.recording.resume`, and `everr.recording.oversized` are rrweb custom events inside the Segment body, not OTLP attributes.
+The tag `everr.recording.oversized` is an rrweb custom event inside the Segment body, not an OTLP attribute.
 
 The envelope (`session.id`, `everr.page_view.id`, URL, route, `user.*`, and `everr.recording.stream.id` while a Stream buffers) is written as on every other record. There is no marker attribute `everr.recording`; the collector routes on the event name.
 
@@ -335,7 +328,7 @@ The browser events catalog in `skills/everr-use-telemetry/rules/browser-events.m
 
 The tests drive the public boundaries and assert on what crosses them. They do not reach into rrweb internals, buffer variables, or private functions.
 
-- `recording.test.ts` covers: nothing sent before `recorder.emitClip()` or `recorder.startClip()`; the chunk not loaded; unsampled Sessions; sampling with `sampled()` by the Session id hash, across reloads and tabs; one recorder per page and recording again after shutdown; the 5-minute buffer; Clip start at a full snapshot; `last` and `next`; `startClip()` without `last` starting at a full snapshot taken at the call; `emitClip()` sending the whole buffer without `last`, and the same Clip as `startClip({ last }).end()` with it; `clip.end()` and idempotence; inert handles before the chunk loads, in unsampled Sessions, and with no snapshot; truncation; 950 KB Segments and index order; the mutation throttle: the per-node bucket and refill, SVG descendants charged to the nearest `<svg>`, adds, removes, and texts passing through untouched, and dropping emptied events; oversized events: UTF-8 byte measurement, the `everr.recording.oversized` marker and the recorder stopping above 10 MB, the buffer kept after the stop, and a new Stream or `recorder.resume()` trying again; Stream id on the envelope; one root `recording` Span per Clip; the buffer surviving a Clip; the 10 MB cap; the 30-second checkout; large events alone in their own Segment; one Stream for the page across a Session change and `clearIdentity()`; `session.id` taken from the Stream without a Session read; pause and resume; automatic Clips from errors, filtered errors, 5xx, no response, 4xx, and aborts; triggers ignored while an automatic Clip is open; triggers dropped while no Stream is buffering; the 5-Clip cap per page; manual Clips not blocked and not counted; no fetch patch; page hide closing the Clip and dropping the unsent tail.
+- `recording.test.ts` covers: nothing sent before `recorder.emitClip()` or `recorder.startClip()`; the chunk not loaded; unsampled Sessions; sampling with `sampled()` by the Session id hash, across reloads and tabs; one recorder per page and recording again after shutdown; the 5-minute buffer; Clip start at a full snapshot; `last` and `next`; `startClip()` without `last` starting at a full snapshot taken at the call; `emitClip()` sending the whole buffer without `last`, and the same Clip as `startClip({ last }).end()` with it; `clip.end()` and idempotence; inert handles before the chunk loads, in unsampled Sessions, and with no snapshot; truncation; 950 KB Segments and index order; the mutation throttle: the per-node bucket and refill, SVG descendants charged to the nearest `<svg>`, adds, removes, and texts passing through untouched, and dropping emptied events; oversized events: UTF-8 byte measurement, the `everr.recording.oversized` marker and the recorder stopping above 10 MB, the buffer kept after the stop and still sent by `startClip({ last })` and `emitClip()`, `startClip()` without `last` inert after the stop, and a new document trying again; Stream id on the envelope; one root `recording` Span per Clip; the buffer surviving a Clip; the 10 MB cap; the 30-second checkout; large events alone in their own Segment; one Stream for the page across a Session change and `clearIdentity()`; `session.id` taken from the Stream without a Session read; automatic Clips from errors, filtered errors, 5xx, no response, 4xx, and aborts; triggers ignored while an automatic Clip is open; triggers dropped while no Stream is buffering; the 5-Clip cap per page; manual Clips not blocked and not counted; no fetch patch; page hide closing the Clip and dropping the unsent tail.
 - `recording.privacy.test.ts` covers the default bundle in development and production (the `dev` option does not change it), the values rrweb leaves in the clear, URL query and fragment removal, markers, selector options, `unmask` precedence, passwords, file inputs, attribute masking, `maskFn`, and the media list.
 - `emitter.test.ts` covers the immediate Segment path, the Stream's `session.id` on Segment envelopes, the existing exit budget for Spans and Logs, and host send.
 - `transport.test.ts` covers endpoint resolution, keepalive on the exit path, and the host receiving a string.
@@ -354,7 +347,7 @@ The tests drive the public boundaries and assert on what crosses them. They do n
 
 - `recording()` without `sampled()` loads the recorder chunk and runs rrweb observers in every Session, even when no Clip is sent.
 - A Session change during the page keeps the old Stream. Later Clips carry the Session id from setup, and sampling is not decided again, also after `clearIdentity()`.
-- `recorder.startClip()` returns an inert Clip, and `recorder.pause()` and `recorder.resume()` do nothing, before the chunk loads or in an unsampled Session.
+- `recorder.startClip()` returns an inert Clip before the chunk loads or in an unsampled Session.
 - A manual Clip that is never ended closes 60 seconds after it opens.
 - A Clip whose requested start is before the oldest snapshot starts later than asked and is marked truncated.
 - A Clip can start up to 30 seconds before the requested time, because it starts at a full snapshot.
@@ -363,7 +356,7 @@ The tests drive the public boundaries and assert on what crosses them. They do n
 - The throttle bounds what enters the buffer, not rrweb's own observer cost. A page with very many DOM changes still costs CPU to observe.
 - After the throttle drops attribute mutations, the player shows a stale page until the next full snapshot, up to 30 seconds. Nothing marks the range.
 - Adds, removes, and texts are not throttled. A page that rebuilds a large subtree in a loop can fill the 10 MB buffer and evict older history. Only the buffer cap and Oversized events bound it.
-- One event over 10 MB stops the recorder for the rest of the document. A page whose full snapshot is always that large records nothing after the stop until a new document or `recorder.resume()`.
+- One event over 10 MB stops the recorder for the rest of the page. There is no way to restart it: only a new document records again. Until then, only Clips with buffered history (`startClip({ last })`, `emitClip()`, automatic Clips) send anything, and the buffer ages out.
 - A full page load or reload document request is its own Trace and has no Session.
 - A cross-origin request that does not send `traceparent` is its own Trace.
 - Cron, webhooks, and other Traces with no browser Client Span have no Session and no player.
