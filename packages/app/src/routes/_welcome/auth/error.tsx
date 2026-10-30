@@ -14,7 +14,7 @@ type AuthErrorContent = {
 };
 
 const AUTH_ERROR_CONTENT: Record<string, AuthErrorContent> = {
-  "email_doesn't_match": {
+  email_does_not_match: {
     title: "Google account mismatch",
     description:
       "The Google account you selected uses a different email than the Everr account you are trying to use.",

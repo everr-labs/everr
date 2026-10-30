@@ -1,13 +1,28 @@
 import { polar, webhooks } from "@polar-sh/better-auth";
 import { appEnv as cloudEnv } from "../app/env";
-import { polarClient } from "./polar.server";
+import type { polarClient } from "./polar.server";
+import { normalizeSubscription, polarCore } from "./polar.server";
 import { billing } from "./server";
 import type { CreateOrganization } from "./types";
+
+type PolarSubscription = Awaited<ReturnType<typeof polarClient.subscriptions.get>>;
+
 export function billingAuthPlugin(createOrganization: CreateOrganization) {
-  const sync = (event: Parameters<typeof billing.syncSubscription>[0]) =>
-    billing.syncSubscription(event, createOrganization);
+  const sync = (event: { data: PolarSubscription }) => {
+    const { data } = event;
+    return billing.syncSubscription(
+      {
+        data: {
+          ...normalizeSubscription(data),
+          metadata: data.metadata,
+          customer: { id: data.customer.id, externalId: data.customer.external_id },
+        },
+      },
+      createOrganization,
+    );
+  };
   return polar({
-    client: polarClient,
+    client: polarCore,
     createCustomerOnSignUp: false,
     use: [
       webhooks({

@@ -8,6 +8,13 @@
       "when": 1792019447326,
       "tag": "0000_baseline",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792019447327,
+      "tag": "0011_better_auth_1_7",
+      "breakpoints": true
     }
   ]
 }

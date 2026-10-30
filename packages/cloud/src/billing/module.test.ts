@@ -79,7 +79,7 @@ const gateway = {
     members.set(m.id, m);
     return m;
   }),
-  updateMember: vi.fn(async (id, update) => {
+  updateMember: vi.fn(async (_customerId, id, update) => {
     const m = members.get(id);
     if (!m) throw new Error("missing member");
     if (update.role === "owner")
@@ -88,7 +88,7 @@ const gateway = {
     Object.assign(m, update);
     return m;
   }),
-  deleteMember: vi.fn(async (id) => {
+  deleteMember: vi.fn(async (_customerId, id) => {
     members.delete(id);
   }),
   portal: vi.fn(async (customerId, memberId) => {
@@ -743,7 +743,7 @@ it("does not revoke billing when the local downgrade eligibility check fails", a
 it("reflects ownership changes made directly in Polar", async () => {
   await upgrade();
   const other = required([...members.values()].find((m) => m.externalId === "other"));
-  await gateway.updateMember(other.id, { role: "owner" });
+  await gateway.updateMember(other.customerId, other.id, { role: "owner" });
   expect((await billing.getSettings("org", "owner")).owner?.id).toBe("other");
   await billing.beforeMembershipChange("org", "owner", "member");
   await expect(billing.beforeMembershipChange("org", "other", "member")).rejects.toMatchObject({

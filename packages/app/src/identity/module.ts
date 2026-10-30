@@ -29,6 +29,7 @@ import { member, session as sessionTable, user as userTable } from "#app/db/sche
 import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 import { membershipMutationPlugin, membershipOrganizationHooks } from "#app/identity/membership.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
+import { mcpResourceForBaseURL } from "#app/lib/mcp-resource.ts";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -150,6 +151,7 @@ export function createApplicationAuth(
   };
   const { authPlugins, identityAdapter, organizationHooks, createSessionOnboardingHook } = provider;
   const creationHooks = organizationHooks();
+  const mcpResource = mcpResourceForBaseURL(baseURL);
 
   const auth = betterAuth({
     baseURL,
@@ -381,11 +383,14 @@ export function createApplicationAuth(
         consentPage: "/mcp/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        validAudiences: [`${baseURL.replace(/\/$/, "")}/mcp`],
-        // The RFC 8414 authorization-server metadata is served at
-        // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
-        // same path); silence better-auth's startup check now that it exists.
-        silenceWarnings: { oauthAuthServerConfig: true },
+        // MCP native clients omit application_type when registering loopback callbacks.
+        clientRegistrationDefaultApplicationType: "infer",
+        // The MCP resource is installation-wide, as it was with validAudiences.
+        // Resource administration is not exposed by Everr.
+        resourcePrivileges: () => false,
+        resources: [mcpResource],
+        enforcePerClientResources: false,
+        clientRegistrationAllowedResources: [mcpResource],
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never
