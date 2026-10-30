@@ -79,23 +79,6 @@ let session: SessionState | null = null;
 const STORAGE_WRITE_DELAY_MS = 30_000;
 let lastWrite = 0;
 
-// The id that sessionId() returned last. A listener hears each change of it:
-// a rotation, a move by a different tab, and clearIdentity().
-let current: string | null = null;
-const sessionListeners = new Set<(id: string | null) => void>();
-
-const announce = (id: string | null): void => {
-  if (id === current) return;
-  current = id;
-  for (const listener of sessionListeners) listener(id);
-};
-
-/** @internal For `@everr/otel-web/recording`. */
-export function onSessionChange(listener: (id: string | null) => void): () => void {
-  sessionListeners.add(listener);
-  return () => sessionListeners.delete(listener);
-}
-
 /**
  * Finds the session id for the record that the SDK sends, and records the
  * activity.
@@ -118,7 +101,6 @@ export function sessionId(): string {
     lastWrite = now;
     store.writeSession(next);
   }
-  announce(next.id);
   return next.id;
 }
 
@@ -202,7 +184,6 @@ export function clearIdentity(): void {
   currentStore().clear();
   visitor = undefined;
   session = null;
-  announce(null);
 }
 
 /** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
