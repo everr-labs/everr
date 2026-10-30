@@ -22,7 +22,6 @@ beforeEach(() => {
   mocks.query.mockReset().mockResolvedValue({ rows: [{ id: "job-1" }] });
   mocks.end.mockReset().mockResolvedValue(undefined);
   vi.stubEnv("CRM_BREVO_MODE", "configured");
-  vi.stubEnv("CRM_BREVO_API_KEY", "fixture");
   vi.stubEnv("DATABASE_URL", "postgres://fixture@localhost/fixture");
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -83,9 +82,10 @@ it.each([
   expect(process.exitCode).toBe(1);
 });
 
-it("admits with an empty timeout and without unrelated Cloud credentials", async () => {
-  vi.stubEnv("CRM_BREVO_TIMEOUT_MS", "");
+it("admits without provider or unrelated Cloud credentials and ignores provider timeout", async () => {
+  vi.stubEnv("CRM_BREVO_TIMEOUT_MS", "not-a-provider-client");
   for (const name of [
+    "CRM_BREVO_API_KEY",
     "POLAR_ACCESS_TOKEN",
     "POLAR_WEBHOOK_SECRET",
     "POLAR_PRO_PRODUCT_ID",
@@ -101,8 +101,20 @@ it("admits with an empty timeout and without unrelated Cloud credentials", async
   expect(console.error).not.toHaveBeenCalled();
 });
 
-it.each(["disabled", "paused"])("rejects admission in %s mode", async (mode) => {
-  vi.stubEnv("CRM_BREVO_MODE", mode);
+it.each([undefined, "", "disabled", "paused", "unknown"])(
+  "rejects admission in %s mode",
+  async (mode) => {
+    vi.stubEnv("CRM_BREVO_MODE", mode);
+    process.argv = ["node", "crm-sync.ts"];
+    await import("./crm-sync");
+    await vi.waitFor(() => expect(console.error).toHaveBeenCalledOnce());
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  },
+);
+
+it("rejects admission without a database URL", async () => {
+  vi.stubEnv("DATABASE_URL", undefined);
   process.argv = ["node", "crm-sync.ts"];
   await import("./crm-sync");
   await vi.waitFor(() => expect(console.error).toHaveBeenCalledOnce());

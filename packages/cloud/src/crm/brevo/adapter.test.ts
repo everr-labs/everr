@@ -1,13 +1,8 @@
 // @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createBrevoAdapter } from "./adapter";
-import { readBrevoConfig } from "./config";
 
-const config = readBrevoConfig({
-  CRM_BREVO_MODE: "configured",
-  CRM_BREVO_API_KEY: "secret",
-  CRM_BREVO_TIMEOUT_MS: "100",
-});
+const config = { apiKey: "secret", timeoutMs: 100 };
 const user = {
   kind: "user",
   sourceId: "u",
@@ -58,13 +53,6 @@ const transport = (response: Response) =>
   vi.fn<(url: string, init: RequestInit) => Promise<Response>>(async () => response);
 afterEach(() => vi.useRealTimers());
 
-it("keeps the disabled adapter inert without requiring credentials", async () => {
-  const fetch = vi.fn();
-  expect(await createBrevoAdapter(readBrevoConfig({}), fetch).createContact(user)).toMatchObject({
-    kind: "disabled",
-  });
-  expect(fetch).not.toHaveBeenCalled();
-});
 it("omits unchanged fields and preserves opt-outs without touching unrelated fields", async () => {
   const fetch = transport(new Response(undefined, { status: 204 }));
   const adapter = createBrevoAdapter(config, fetch);

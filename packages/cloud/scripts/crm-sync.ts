@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { Pool } from "pg";
-import { readBrevoConfig } from "../src/crm/brevo/config";
 import {
   FULL_SYNC_TASK,
   USER_SYNC_TASK,
@@ -21,8 +20,7 @@ async function main() {
       apply: { type: "boolean", default: false },
     },
   });
-  const config = readBrevoConfig(process.env);
-  if (config.mode === "disabled") throw new Error("CRM disabled.");
+  if (process.env.CRM_BREVO_MODE !== "configured") throw new Error("CRM is not configured.");
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required.");
   const userId = values["user-id"];
   const organizationId = values["organization-id"];

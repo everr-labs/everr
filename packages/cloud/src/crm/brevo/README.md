@@ -13,7 +13,9 @@ production always uses the fixed Brevo API origin with redirects rejected.
 
 Production Cloud and local development use different accounts. No deployment
 namespace, account-scope variable or persistent request budget is required.
-Disabled adapters return without network calls.
+Cloud validates settings in `src/app/env.ts` and constructs the adapter only in
+configured mode. The adapter receives a typed API key and request timeout, without
+reading environment variables or interpreting application modes.
 
 ## Requests and backpressure
 

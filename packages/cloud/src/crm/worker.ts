@@ -7,7 +7,6 @@ import { run, type TaskList, type WorkerEvents } from "graphile-worker";
 import { Pool } from "pg";
 import { appEnv } from "../app/env";
 import { createBrevoAdapter } from "./brevo/adapter";
-import { readBrevoConfig } from "./brevo/config";
 import { createCrmSnapshotReader } from "./snapshots";
 import { createCrmTaskList } from "./task-list";
 
@@ -15,8 +14,8 @@ export const integrationWorker = managedWorker({
   name: "everrIntegrationWorker",
   hot: import.meta.hot,
   async start() {
-    const config = readBrevoConfig(appEnv);
-    if (config.mode !== "configured") throw new Error("CRM integration runner is not configured.");
+    if (appEnv.CRM_BREVO_MODE !== "configured" || !appEnv.CRM_BREVO_API_KEY)
+      throw new Error("CRM integration runner is not configured.");
     const pool = new Pool({ ...databasePoolConfig, max: 4 });
     const database = drizzle(pool, { schema });
     const controller = new AbortController();
@@ -25,7 +24,10 @@ export const integrationWorker = managedWorker({
       const tasks = createCrmTaskList({
         database,
         reader: createCrmSnapshotReader(database),
-        adapter: createBrevoAdapter(config),
+        adapter: createBrevoAdapter({
+          apiKey: appEnv.CRM_BREVO_API_KEY,
+          timeoutMs: appEnv.CRM_BREVO_TIMEOUT_MS,
+        }),
       });
       const taskList: TaskList = {};
       for (const [name, task] of Object.entries(tasks)) {

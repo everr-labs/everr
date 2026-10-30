@@ -9,7 +9,6 @@ import { eq } from "drizzle-orm";
 import type { JobHelpers } from "graphile-worker";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createBrevoAdapter } from "./brevo/adapter";
-import { readBrevoConfig } from "./brevo/config";
 import {
   FULL_SYNC_TASK,
   MEMBERSHIP_SYNC_TASK,
@@ -164,10 +163,7 @@ function state() {
     await hooks.after?.(method, path);
     return response;
   });
-  const adapter = createBrevoAdapter(
-    readBrevoConfig({ CRM_BREVO_MODE: "configured", CRM_BREVO_API_KEY: "fixture" }),
-    transport,
-  );
+  const adapter = createBrevoAdapter({ apiKey: "fixture", timeoutMs: 10_000 }, transport);
   const reader = createCrmSnapshotReader(database);
   const diagnostic = vi.fn();
   const tasks = createCrmTaskList({ database, reader, adapter, diagnostic });

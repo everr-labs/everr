@@ -2,12 +2,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import * as z from "zod";
 import { externalIdentity, type SourceSnapshot } from "../snapshots";
 import { rateLimitDiagnostic } from "../telemetry";
-import type { readBrevoConfig } from "./config";
 
 type Failure = {
   ok: false;
   kind:
-    | "disabled"
     | "cancelled"
     | "transient"
     | "rate_limited"
@@ -23,7 +21,7 @@ type Failure = {
 type Result<T> = { ok: true; value: T } | Failure;
 type User = Extract<SourceSnapshot, { kind: "user"; deleted: false }>;
 type Company = Extract<SourceSnapshot, { kind: "organization"; deleted: false }>;
-type Config = ReturnType<typeof readBrevoConfig>;
+type Config = { apiKey: string; timeoutMs: number };
 type Transport = (url: string, init: RequestInit) => Promise<Response>;
 const contact = z.object({
   id: z.number().int().positive(),
@@ -152,7 +150,6 @@ export function createBrevoAdapter(
     body?: unknown,
     signal?: AbortSignal,
   ): Promise<Result<T>> {
-    if (config.mode !== "configured") return failure(config.mode, `crm_${config.mode}`);
     if (signal?.aborted) return failure("cancelled", "request_cancelled");
     const controller = new AbortController();
     let timedOut = false;

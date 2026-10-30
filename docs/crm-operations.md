@@ -14,7 +14,7 @@ within an account and have no deployment namespace.
 
 The Cloud server declares these server-only variables in
 `packages/cloud/src/app/env.ts`. Composition and the worker consume that normalized
-environment; the shared Brevo parser checks the API key and request deadline for
+environment, which validates the request deadline and requires an API key in
 configured mode. The deadline accepts integer values from 100 to 30000 ms and covers
 one HTTP request, including its response body. It does not set Graphile backoff or
 the 429 cooldown. Empty mode and timeout values use their defaults.
@@ -52,12 +52,13 @@ without an explicit migration of the remote identities.
 
 ## Manual commands
 
-The script requires `DATABASE_URL`, enabled CRM configuration, and the same target
+The script requires `DATABASE_URL`, `CRM_BREVO_MODE=configured`, and the same target
 database as the integration runner. Supply configuration through the process
 environment. Unlike the Vite server, this script does not load `.env` files. Export
-the required variables before running it. It uses the same narrow Brevo parser
-without requiring unrelated Cloud credentials such as Polar or SMTP. It admits
-work through Graphile and makes no provider calls itself.
+the required variables before running it. It admits work through Graphile and makes
+no provider calls itself, so it requires no Brevo API key, provider timeout, or
+unrelated Cloud credentials such as Polar or SMTP. The consuming Cloud worker uses
+its own validated provider settings.
 
 ```sh
 # Full current-state sync, safe to repeat.
