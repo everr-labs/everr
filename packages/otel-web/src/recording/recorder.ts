@@ -68,6 +68,30 @@ const randomId = () =>
   ).join("");
 const utf8 = new TextEncoder();
 
+// Splits serialized JSON into pieces of at most SEGMENT_BYTES of UTF-8, between
+// code points, so each piece encodes on its own. The input has no raw control
+// characters, so the OTLP string escape at most doubles a piece (a quote or a
+// backslash), far under the 20 MiB limit of the collector.
+const pieces = (json: string): string[] => {
+  const out: string[] = [];
+  let start = 0;
+  let size = 0;
+  for (let i = 0; i < json.length; i++) {
+    const code = json.charCodeAt(i);
+    const pair = code >= 0xd800 && code < 0xdc00 && (json.charCodeAt(i + 1) & 0xfc00) === 0xdc00;
+    const width = code < 0x80 ? 1 : code < 0x800 ? 2 : pair ? 4 : 3;
+    if (size + width > SEGMENT_BYTES) {
+      out.push(json.slice(start, i));
+      start = i;
+      size = 0;
+    }
+    size += width;
+    if (pair) i++;
+  }
+  out.push(json.slice(start));
+  return out;
+};
+
 export function startStream(tracer: Tracer, sessionId: string, options: RecordingOptions): Stream {
   const streamId = randomId();
   const { rrweb, replacer } = privacy(options, (id) => {
@@ -84,10 +108,15 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   let paused = false;
   let ended = false;
 
-  // The 5-minute window and the 10 MB cap. The newest event always stays.
+  // The 5-minute window and the 10 MB cap. The newest event always stays, with
+  // the Meta in front of a full snapshot, so a snapshot over the cap still plays.
   const trim = (now: number) => {
+    const keep = entries.at(-2)?.type === META ? 2 : 1;
     let drop = 0;
-    while (drop < entries.length - 1 && (entries[drop].time < now - WINDOW_MS || bytes > MAX_BYTES))
+    while (
+      drop < entries.length - keep &&
+      (entries[drop].time < now - WINDOW_MS || bytes > MAX_BYTES)
+    )
       bytes -= entries[drop++].bytes;
     if (drop) entries = entries.slice(drop);
   };
@@ -138,18 +167,10 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       }
     }
     // The replacer applies the privacy rules on a copy. The bytes are UTF-8,
-    // so a Segment and the 10 MB check measure what the request carries.
+    // so a Segment and the 10 MB cap measure what the request carries.
     const json = JSON.stringify(event, replacer);
-    const size = utf8.encode(json).length;
-    if (size > MAX_BYTES) {
-      // In practice a full snapshot. No later event plays without it, so the
-      // recorder stops until resume() or a new Stream.
-      marker("everr.recording.oversized");
-      halt();
-      return;
-    }
     if (event.type === FULL_SNAPSHOT) buckets.clear();
-    push({ time: event.timestamp, type: event.type, json, bytes: size });
+    push({ time: event.timestamp, type: event.type, json, bytes: utf8.encode(json).length });
   };
 
   const halt = () => {
@@ -162,10 +183,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   const run = () => {
     paused = false;
     try {
-      const stopRecord = record({ emit: add, ...rrweb, errorHandler: () => true });
-      // An oversized initial snapshot halts before record() returns.
-      if (paused) return stopRecord?.();
-      stop = stopRecord;
+      stop = record({ emit: add, ...rrweb, errorHandler: () => true });
       // Our own checkout, and not checkoutEveryNms: rrweb counts that interval
       // from the last event, so an idle page would age its only snapshot out.
       checkout = setInterval(() => record.takeFullSnapshot(true), CHECKOUT_MS);
@@ -209,7 +227,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     });
 
     let index = 0;
-    const emitSegment = (events: Entry[]) =>
+    const emitSegment = (body: string, time: number, piece?: Record<string, number>) =>
       void emitLogNow(
         "everr.browser.recording.segment",
         {
@@ -217,24 +235,40 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
           "everr.recording.stream.id": streamId,
           "everr.recording.clip.id": id,
           "everr.recording.segment.index": index++,
+          ...piece,
         },
-        events[events.length - 1].time,
-        `[${events.map((e) => e.json).join(",")}]`,
+        time,
+        body,
       );
-    // About 950 KB per Segment. An event that is larger goes alone.
+    const emitBatch = (events: Entry[]) =>
+      emitSegment(`[${events.map((e) => e.json).join(",")}]`, events[events.length - 1].time);
+    // About 950 KB per Segment. A larger event goes in pieces, one Segment
+    // each, in a row. The reader joins the pieces in order and parses the event.
     const send = (list: Entry[]) => {
       let batch: Entry[] = [];
       let size = 2;
       for (const entry of list) {
         if (batch.length && size + entry.bytes > SEGMENT_BYTES) {
-          emitSegment(batch);
+          emitBatch(batch);
           batch = [];
           size = 2;
+        }
+        if (entry.bytes + 2 > SEGMENT_BYTES) {
+          const parts = pieces(entry.json);
+          const event = index;
+          parts.forEach((part, i) =>
+            emitSegment(part, entry.time, {
+              "everr.recording.event.index": event,
+              "everr.recording.event.piece": i,
+              "everr.recording.event.pieces": parts.length,
+            }),
+          );
+          continue;
         }
         batch.push(entry);
         size += entry.bytes + 1;
       }
-      if (batch.length) emitSegment(batch);
+      if (batch.length) emitBatch(batch);
     };
 
     let live = true;

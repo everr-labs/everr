@@ -147,6 +147,8 @@ try {
 
 A Clip from `startClip()` holds only what happens between the call and `end()`, and closes after 60 seconds at the latest (`next` sets a shorter close). Pass `last` to start it that many milliseconds before the call instead. Automatic Clips cover 60 seconds before the error or failed request and 10 seconds after it.
 
+A Clip leaves the page as Segment logs of about 950 KB. An event larger than that, such as the full snapshot of a page with a big inline image, is split into pieces sent as consecutive Segments, and the reader joins them back. The buffer holds at most 10 MB and always keeps its newest event, so on a page whose snapshot is larger, a Clip from `startClip()` without `last` is the one that holds it.
+
 Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. Password fields are always masked.
 
 ## Identity
