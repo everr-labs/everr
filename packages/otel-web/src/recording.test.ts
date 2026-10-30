@@ -7,6 +7,7 @@ import {
   INCREMENTAL,
   META,
   mutations,
+  reassemble,
   type RrwebEvent,
   type Started,
   start as startRecording,
@@ -36,6 +37,12 @@ afterEach(async () => {
 });
 
 const box = () => document.getElementById("box")!;
+const bytes = (text: string) => new TextEncoder().encode(text).length;
+const piece = (event: number, index: number, count: number) => ({
+  "everr.recording.event.index": String(event),
+  "everr.recording.event.piece": String(index),
+  "everr.recording.event.pieces": String(count),
+});
 const types = (events: { type: number }[]) => events.map((e) => e.type);
 const tags = (events: { type: number; data: { tag?: string } }[]) =>
   events.filter((e) => e.type === CUSTOM).map((e) => e.data.tag);
@@ -332,7 +339,7 @@ describe("Clips", () => {
     expect(t.segments().every((s) => s.traceId === undefined)).toBe(true);
   });
 
-  it("splits Segments at about 950 KB and sends a larger event alone", async () => {
+  it("splits Segments at about 950 KB and sends a larger event in pieces", async () => {
     const t = await start({ unmask: ["#box"] });
     for (let i = 0; i < 4; i++) {
       box().textContent = "y".repeat(400_000);
@@ -345,11 +352,15 @@ describe("Clips", () => {
     expect(segments.map((s) => Number(s.attrs["everr.recording.segment.index"]))).toEqual(
       segments.map((_, i) => i),
     );
-    const sizes = segments.map((s) => new TextEncoder().encode(JSON.stringify(s.events)).length);
-    const large = segments.findIndex((s) => JSON.stringify(s.events).includes("zzzz"));
-    expect(segments[large].events).toHaveLength(1);
-    expect(sizes.filter((_, i) => i !== large).every((size) => size <= 950_000)).toBe(true);
-    expect(segments.at(-1)?.time).toBe(segments.at(-1)?.events.at(-1)?.timestamp);
+    expect(segments.every((s) => bytes(s.body) <= 950_000)).toBe(true);
+    const parts = segments.filter((s) => s.attrs["everr.recording.event.pieces"] !== undefined);
+    expect(parts.map((s) => s.attrs)).toEqual([
+      expect.objectContaining(piece(segments.length - 2, 0, 2)),
+      expect.objectContaining(piece(segments.length - 2, 1, 2)),
+    ]);
+    expect(segments.at(-1)?.time).toBe(Date.now());
+    const events = reassemble(segments);
+    expect(JSON.stringify(events.at(-1))).toContain("z".repeat(1_200_000));
   });
 
   it("drops a Segment that beforeSend drops", async () => {
@@ -440,7 +451,7 @@ describe("the Stream and the Session", () => {
   });
 });
 
-describe("pause, resume, and oversized events", () => {
+describe("pause and resume", () => {
   it("marks pause and resume, and buffers nothing between them", async () => {
     const t = await start();
     t.rec.recorder.pause();
@@ -454,51 +465,76 @@ describe("pause, resume, and oversized events", () => {
     expect(tags(all)).toEqual(["everr.recording.pause", "everr.recording.resume"]);
     expect(JSON.stringify(all)).not.toContain('"texts":[{');
   });
+});
 
-  it("stops at an event over 10 MB of UTF-8, keeps the buffer, and tries again on resume", async () => {
+describe("large events", () => {
+  // The text of the box in the reassembled events, as its JSON string.
+  const holds = (events: RrwebEvent[], text: string) =>
+    JSON.stringify(events).includes(JSON.stringify(text).slice(1, -1));
+
+  it("keeps recording past an event over 10 MB, and sends it in pieces that join back", async () => {
     const t = await start({ unmask: ["#box"] });
+    // A Clip from the call, since the 10 MB buffer keeps only the newest event.
+    const clip = t.rec.recorder.startClip();
     // 3.4 million characters, but 10.2 MB in UTF-8.
-    box().textContent = "€".repeat(3_400_000);
+    const large = "€".repeat(3_400_000);
+    box().textContent = large;
     await mutations();
-    const clip = t.rec.recorder.startClip({ last: 300_000 });
-    clip.end();
-    const events = t.clipEvents(clip.id);
-    expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
-    expect(tags(events)).toEqual(["everr.recording.oversized"]);
-
     box().textContent = "small again";
     await mutations();
-    expect(
-      JSON.stringify(t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id)),
-    ).not.toContain("small again");
-
-    t.rec.recorder.resume();
-    const resumed = t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id);
-    expect(tags(resumed)).toEqual(["everr.recording.oversized", "everr.recording.resume"]);
-    expect(types(resumed).slice(-2)).toEqual([META, FULL_SNAPSHOT]);
+    clip.end();
+    const segments = t.segments();
+    const parts = segments.filter((s) => s.attrs["everr.recording.event.pieces"] !== undefined);
+    expect(parts.length).toBeGreaterThanOrEqual(11);
+    expect(parts.every((s) => bytes(s.body) <= 950_000)).toBe(true);
+    const first = Number(parts[0].attrs["everr.recording.segment.index"]);
+    expect(parts.map((s) => s.attrs)).toEqual(
+      parts.map((_, i) => expect.objectContaining(piece(first, i, parts.length))),
+    );
+    const events = t.clipEvents(clip.id);
+    expect(tags(events)).toEqual([]);
+    expect(holds(events, large)).toBe(true);
+    expect(holds(events, "small again")).toBe(true);
   });
 
-  it("stops when the first snapshot itself is oversized, and has no Clip to send", async () => {
-    document.body.innerHTML = `<div id="box" class="keep">${"€".repeat(3_400_000)}</div>`;
+  it("sends a first snapshot over 10 MB in pieces, and plays from it", async () => {
+    const large = "€".repeat(3_400_000);
+    document.body.innerHTML = `<div id="box" class="keep">${large}</div>`;
     const t = await start({ unmask: [".keep"] });
-    expect(t.rec.recorder.startClip({ last: 300_000 }).id).toBe("");
-    expect(t.sent).toEqual([]);
+    t.rec.recorder.emitClip();
+    const events = reassemble(t.segments());
+    expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
+    expect(holds(events.slice(1, 2), large)).toBe(true);
   });
 
-  it("keeps the request body of a 10 MB event under the 20 MiB receiver limit", async () => {
+  it("splits between code points, so emoji and quotes join back unchanged", async () => {
     const t = await start({ unmask: ["#box"] });
-    // Quotes double on each escape: once in the event JSON, once in the OTLP
-    // string. No character grows more, so a 10 MB event stays under 20 MiB.
-    box().textContent = '"'.repeat(4_999_000);
+    // 14 bytes per repeat in the JSON, so the 950 KB boundaries fall inside 2-, 3-, and 4-byte characters.
+    const text = 'a"😀é€\\'.repeat(400_000) + "😀";
+    box().textContent = text;
     await mutations();
     t.rec.recorder.emitClip({ last: 0 });
-    const large = t.sent.filter((s) => s.body.includes('\\\\\\"\\\\\\"'));
-    expect(large).toHaveLength(1);
-    const eventBytes = t.segments().find((s) => JSON.stringify(s.events).includes('\\"\\"'))!;
-    expect(new TextEncoder().encode(JSON.stringify(eventBytes.events)).length).toBeGreaterThan(
-      9_990_000,
-    );
-    expect(new TextEncoder().encode(large[0].body).length).toBeLessThan(20 * 1024 * 1024);
+    const parts = t.segments().filter((s) => s.attrs["everr.recording.event.pieces"] !== undefined);
+    expect(parts.length).toBeGreaterThan(1);
+    for (const part of parts) {
+      expect(new TextDecoder().decode(new TextEncoder().encode(part.body))).toBe(part.body);
+      expect(part.body).not.toMatch(/^[\udc00-\udfff]|[\ud800-\udbff]$/);
+    }
+    expect(holds(reassemble(t.segments()), text)).toBe(true);
+  });
+
+  it("keeps each request under the 20 MiB receiver limit, however escaped", async () => {
+    const t = await start({ unmask: ["#box"] });
+    // Quotes double on each escape: once in the event JSON, once in the OTLP string.
+    const clip = t.rec.recorder.startClip();
+    const text = '"'.repeat(9_000_000);
+    box().textContent = text;
+    await mutations();
+    clip.end();
+    const logs = t.sent.filter((s) => s.signal === "logs");
+    expect(logs.length).toBeGreaterThan(10);
+    expect(Math.max(...logs.map((s) => bytes(s.body)))).toBeLessThan(2 * 1024 * 1024);
+    expect(holds(t.clipEvents(clip.id), text)).toBe(true);
   });
 });
 

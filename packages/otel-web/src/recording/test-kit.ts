@@ -66,15 +66,22 @@ export async function start(
     sent
       .filter((s) => s.signal === "logs")
       .flatMap((s) => JSON.parse(s.body).resourceLogs[0].scopeLogs[0].logRecords);
+  /** The Segments in send order. A piece of a large event has no `events`. */
   const segments = () =>
     records()
       .filter((r) => r.eventName === "everr.browser.recording.segment")
-      .map((r) => ({
-        attrs: flat(r.attributes),
-        time: ms(r.timeUnixNano),
-        traceId: r.traceId,
-        events: JSON.parse(r.body?.stringValue ?? "[]") as RrwebEvent[],
-      }));
+      .map((r) => {
+        const attrs = flat(r.attributes);
+        const body = r.body?.stringValue ?? "";
+        const piece = attrs["everr.recording.event.pieces"] !== undefined;
+        return {
+          attrs,
+          body,
+          time: ms(r.timeUnixNano),
+          traceId: r.traceId,
+          events: piece ? [] : (JSON.parse(body) as RrwebEvent[]),
+        };
+      });
   const spans = async () => {
     await client.flush();
     return sent
@@ -96,11 +103,41 @@ export async function start(
   };
   /** The events of one Clip, in Segment order. */
   const clipEvents = (clipId: string) =>
-    segments()
-      .filter((s) => s.attrs["everr.recording.clip.id"] === clipId)
-      .flatMap((s) => s.events);
+    reassemble(segments().filter((s) => s.attrs["everr.recording.clip.id"] === clipId));
 
   return { sdk, rec, client, sent, segments, spans, logs, clipEvents };
+}
+
+/**
+ * The events of Segments in index order, as a reader gets them: the pieces of
+ * a large event are joined in piece order, and the whole text is parsed once.
+ */
+export function reassemble(
+  segments: { attrs: Record<string, unknown>; body: string; events: RrwebEvent[] }[],
+): RrwebEvent[] {
+  const ordered = [...segments].sort(
+    (a, b) =>
+      Number(a.attrs["everr.recording.segment.index"]) -
+      Number(b.attrs["everr.recording.segment.index"]),
+  );
+  const events: RrwebEvent[] = [];
+  const open = new Map<string, string[]>();
+  for (const s of ordered) {
+    const count = s.attrs["everr.recording.event.pieces"];
+    if (count === undefined) {
+      events.push(...s.events);
+      continue;
+    }
+    const key = String(s.attrs["everr.recording.event.index"]);
+    const parts = open.get(key) ?? [];
+    parts[Number(s.attrs["everr.recording.event.piece"])] = s.body;
+    open.set(key, parts);
+    if (parts.filter((p) => p !== undefined).length === Number(count)) {
+      events.push(JSON.parse(parts.join("")) as RrwebEvent);
+      open.delete(key);
+    }
+  }
+  return events;
 }
 
 /** Lets the MutationObserver callbacks run, so rrweb emits the pending mutations. */

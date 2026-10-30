@@ -176,8 +176,12 @@ A range of a Stream that leaves the page: automatically on an error or a failed 
 _Avoid_: recording (the whole history), snippet, replay
 
 **Segment**:
-One OTLP Log (`everr.browser.recording.segment`) that carries part of a Clip as a JSON array of rrweb events, about 950 KB at most. Ordered by `everr.recording.segment.index`.
+One OTLP Log (`everr.browser.recording.segment`) that carries part of a Clip as a JSON array of rrweb events, about 950 KB at most. Ordered by `everr.recording.segment.index`. An event larger than one Segment goes in Pieces.
 _Avoid_: chunk, batch, part
+
+**Piece**:
+A Segment that carries a slice, cut between characters, of one rrweb event too large for a Segment. The Pieces of an event are consecutive and share `everr.recording.event.index`; the reader joins them in `everr.recording.event.piece` order before parsing the event.
+_Avoid_: chunk, fragment
 
 **Replay**:
 Playing a Clip's Segments back in an rrweb player, from its first full snapshot.
