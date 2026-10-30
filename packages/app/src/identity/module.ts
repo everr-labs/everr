@@ -30,7 +30,6 @@ import { enforceIdentityPolicy } from "#app/identity/enforce-policy.ts";
 import { membershipMutationPlugin, membershipOrganizationHooks } from "#app/identity/membership.ts";
 import { selectSoleOrganization } from "#app/lib/auto-org.ts";
 import { mcpResourceForBaseURL } from "#app/lib/mcp-resource.ts";
-import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import {
   cliDeviceOrganizationPlugin,
   getCapturedDeviceOrganizationId,
@@ -124,20 +123,6 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
   typeof activeOrganizationId === "string" && activeOrganizationId.length > 0
     ? activeOrganizationId
     : undefined;
-
-async function activeOrgRole(
-  db: Database,
-  session: { userId: string; activeOrganizationId?: unknown },
-): Promise<string | null> {
-  const organizationId = selectedOrgId(session.activeOrganizationId);
-  if (!organizationId) return null;
-  const [membership] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)))
-    .limit(1);
-  return membership?.role ?? null;
-}
 
 export interface IdentityDependencies {
   database: Database;
@@ -400,17 +385,12 @@ export function createApplicationAuth(
         allowUnauthenticatedClientRegistration: true,
         // MCP native clients omit application_type when registering loopback callbacks.
         clientRegistrationDefaultApplicationType: "infer",
-        clientPrivileges: async ({ action, session }) => {
-          if (!session) return false;
-          if (action === "create") return true;
-          const role = await activeOrgRole(db, session);
-          return isOrganizationAdmin(role);
-        },
-        // This resource is installation-wide. No user session may administer
-        // its policy or links; dynamic registration links clients internally.
+        // The MCP resource is installation-wide, as it was with validAudiences.
+        // Resource administration is not exposed by Everr.
         resourcePrivileges: () => false,
         resources: [mcpResource],
-        clientRegistrationDefaultResources: [mcpResource],
+        enforcePerClientResources: false,
+        clientRegistrationAllowedResources: [mcpResource],
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never

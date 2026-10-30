@@ -52,8 +52,7 @@ CREATE UNIQUE INDEX "device_code_userCode_uidx" ON "device_code" USING btree ("u
 -- 3. OAuth provider --------------------------------------------------------
 --
 -- A resource used to be an entry in the `validAudiences` array. It is now a
--- row with its own token policy, and a client reaches one only through an
--- explicit link.
+-- row with its own token policy.
 CREATE TABLE "oauth_resource" (
 	"id" text PRIMARY KEY NOT NULL,
 	"identifier" text NOT NULL,
@@ -121,12 +120,6 @@ WHERE "application_type" IS NULL;--> statement-breakpoint
 UPDATE "oauth_client"
 SET "token_endpoint_auth_method" = CASE WHEN "public" THEN 'none' ELSE 'client_secret_basic' END
 WHERE "token_endpoint_auth_method" IS NULL;--> statement-breakpoint
--- Machine scopes are assigned per client by an administrator. Empty means the
--- client_credentials grant fails closed, which is the right default for every
--- client that exists today.
-UPDATE "oauth_client"
-SET "client_credentials_scopes" = '{}'::text[]
-WHERE "client_credentials_scopes" IS NULL;--> statement-breakpoint
 ALTER TABLE "oauth_client" DROP COLUMN "public";--> statement-breakpoint
 ALTER TABLE "oauth_client" DROP COLUMN "type";--> statement-breakpoint
 ALTER TABLE "oauth_refresh_token" ADD COLUMN "authorization_code_id" text;--> statement-breakpoint
