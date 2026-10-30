@@ -39,9 +39,16 @@ type Entry = { time: number; type: number; json: string; bytes: number };
 
 type Trigger = "error" | "network" | "manual";
 
+/**
+ * Where a Clip starts. With `last`, at the full snapshot at or before that
+ * many milliseconds ago. Else with `whole`, at the oldest snapshot in the
+ * buffer. Else at a new full snapshot taken at the call.
+ */
+export type ClipRange = StartClipOptions & { whole?: boolean };
+
 /** The buffer of one document in one Session. */
 export type Stream = {
-  clip(options: StartClipOptions, trigger: Trigger): RecordingClip | undefined;
+  clip(range: ClipRange, trigger: Trigger): RecordingClip | undefined;
   trigger(kind: "error" | "network"): void;
   pause(): void;
   resume(): void;
@@ -167,12 +174,14 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     }
   };
 
-  const clip = (clipOptions: StartClipOptions, trigger: Trigger): RecordingClip | undefined => {
+  const clip = (range: ClipRange, trigger: Trigger): RecordingClip | undefined => {
     if (ended) return;
     const now = Date.now();
     trim(now);
-    const requested = clipOptions.last === undefined ? undefined : now - clipOptions.last;
-    // A Clip starts at a full snapshot, with the Meta event in front of it.
+    const fromBuffer = range.last !== undefined || range.whole === true;
+    const requested = range.last === undefined ? undefined : now - range.last;
+    // A Clip from the buffer starts at a full snapshot, with the Meta event in
+    // front of it.
     let first = -1;
     let earliest = -1;
     entries.forEach((entry, i) => {
@@ -180,11 +189,11 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       if (earliest < 0) earliest = i;
       if (requested === undefined ? first < 0 : entry.time <= requested) first = i;
     });
-    if (earliest < 0) return;
-    const truncated = first < 0;
+    if (fromBuffer && earliest < 0) return;
+    const truncated = requested !== undefined && first < 0;
     if (truncated) first = earliest;
     if (entries[first - 1]?.type === META) first--;
-    const startTime = requested ?? entries[first].time;
+    const startTime = !fromBuffer ? now : (requested ?? entries[first].time);
 
     const id = randomId();
     const span = tracer.startSpan("recording", {
@@ -242,14 +251,23 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
         span.end();
       },
     };
-    send(entries.slice(first));
+    if (fromBuffer) send(entries.slice(first));
     clips.add(state);
+    // A Clip from the call starts with the Meta and full snapshot that this
+    // takes, through its tail. A paused recorder takes them on resume.
+    if (!fromBuffer && !paused) {
+      try {
+        record.takeFullSnapshot(true);
+      } catch {
+        // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
+      }
+    }
     const flush = setInterval(() => send(state.tail.splice(0)), TAIL_FLUSH_MS);
     const cap = setTimeout(
       () => state.close(false),
-      Math.min(clipOptions.next ?? TAIL_CAP_MS, TAIL_CAP_MS),
+      Math.min(range.next ?? TAIL_CAP_MS, TAIL_CAP_MS),
     );
-    if (clipOptions.next === 0) state.close(false);
+    if (range.next === 0) state.close(false);
     return { id, startTime, isRecording: () => live, end: () => state.close(false) };
   };
 

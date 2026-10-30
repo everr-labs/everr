@@ -22,7 +22,8 @@ async function recordPage(
   running.push(t);
   await act();
   await mutations();
-  const clip = t.rec.recorder.startClip();
+  // The whole buffer, with the act() events.
+  const clip = t.rec.recorder.startClip({ last: 5 * 60_000 });
   clip.end();
   return JSON.stringify(t.clipEvents(clip.id));
 }

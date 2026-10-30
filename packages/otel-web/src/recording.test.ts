@@ -139,7 +139,7 @@ describe("loading and sampling", () => {
 });
 
 describe("the buffer", () => {
-  it("keeps the last 5 minutes and starts each Clip at a full snapshot with its Meta", async () => {
+  it("keeps the last 5 minutes, and emitClip() sends all of it from a full snapshot with its Meta", async () => {
     const t = await start();
     for (let i = 0; i < 12; i++) {
       vi.advanceTimersByTime(30_000);
@@ -147,11 +147,14 @@ describe("the buffer", () => {
       await mutations();
     }
     const now = Date.now();
-    const clip = t.rec.recorder.startClip();
-    const events = t.clipEvents(clip.id);
+    t.rec.recorder.emitClip();
+    const events = t.segments().flatMap((s) => s.events);
     expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
     expect(events[0].timestamp).toBeGreaterThanOrEqual(now - 300_000);
-    expect(clip.startTime).toBe(events[0].timestamp);
+    expect(events[0].timestamp).toBeLessThanOrEqual(now - 270_000);
+    const [span] = await t.spans();
+    expect(span.start).toBe(events[0].timestamp);
+    expect(span.attrs["everr.recording.clip.truncated"]).toBeUndefined();
   });
 
   it("takes a full snapshot every 30 seconds", async () => {
@@ -198,18 +201,18 @@ describe("the buffer", () => {
       await mutations();
     }
     // About 9 MB: the first snapshot is still in the buffer.
-    expect(t.rec.recorder.startClip().isRecording()).toBe(true);
+    expect(t.rec.recorder.startClip({ last: 300_000 }).isRecording()).toBe(true);
     box().textContent = chunk;
     await mutations();
     // Past the cap the oldest events, the snapshot first, leave the buffer.
-    expect(t.rec.recorder.startClip().id).toBe("");
+    expect(t.rec.recorder.startClip({ last: 300_000 }).id).toBe("");
   });
 
   it("keeps the buffer after a Clip", async () => {
     const t = await start();
-    const a = t.rec.recorder.startClip();
+    const a = t.rec.recorder.startClip({ last: 60_000 });
     a.end();
-    const b = t.rec.recorder.startClip();
+    const b = t.rec.recorder.startClip({ last: 60_000 });
     b.end();
     expect(types(t.clipEvents(b.id))).toEqual(types(t.clipEvents(a.id)));
     expect(a.id).not.toBe(b.id);
@@ -217,10 +220,53 @@ describe("the buffer", () => {
 });
 
 describe("Clips", () => {
-  it("emitClip sends the same Clip as startClip().end()", async () => {
+  it("records from the call to end() when startClip has no last", async () => {
+    const t = await start({ unmask: ["#box"] });
+    vi.advanceTimersByTime(40_000);
+    box().textContent = "before the call";
+    await mutations();
+    vi.advanceTimersByTime(1_000);
+    const calledAt = Date.now();
+    const clip = t.rec.recorder.startClip();
+    expect(clip.startTime).toBe(calledAt);
+    expect(t.segments()).toEqual([]);
+    box().textContent = "during the clip";
+    await mutations();
+    vi.advanceTimersByTime(2_000);
+    clip.end();
+    box().textContent = "after end";
+    await mutations();
+    vi.advanceTimersByTime(10_000);
+    const events = t.clipEvents(clip.id);
+    expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
+    expect(events[0].timestamp).toBe(calledAt);
+    expect(events.every((e) => e.timestamp >= calledAt)).toBe(true);
+    const json = JSON.stringify(events);
+    // The new snapshot holds the page as it is at the call, not the mutation before it.
+    expect(json.match(/before the call/g)).toHaveLength(1);
+    expect(events.slice(2).some((e) => JSON.stringify(e).includes("before the call"))).toBe(false);
+    expect(json).toContain("during the clip");
+    expect(json).not.toContain("after end");
+    const [span] = await t.spans();
+    expect(span.start).toBe(calledAt);
+    expect(span.end).toBe(calledAt + 2_000);
+    expect(span.attrs["everr.recording.clip.truncated"]).toBeUndefined();
+  });
+
+  it("emitClip() with no last sends the whole buffer", async () => {
     const t = await start();
+    const opened = Date.now();
+    vi.advanceTimersByTime(100_000);
     t.rec.recorder.emitClip();
-    const viaEnd = t.rec.recorder.startClip();
+    const events = t.segments().flatMap((s) => s.events);
+    expect(events[0].timestamp).toBe(opened);
+    expect(types(events).filter((type) => type === FULL_SNAPSHOT)).toHaveLength(4);
+  });
+
+  it("emitClip sends the same Clip as startClip().end() with the same last", async () => {
+    const t = await start();
+    t.rec.recorder.emitClip({ last: 60_000 });
+    const viaEnd = t.rec.recorder.startClip({ last: 60_000 });
     viaEnd.end();
     const [first, second] = t.segments();
     expect(types(first.events)).toEqual(types(second.events));
@@ -231,7 +277,7 @@ describe("Clips", () => {
 
   it("sends the buffered part before startClip returns, and the tail every 5 seconds", async () => {
     const t = await start();
-    const clip = t.rec.recorder.startClip({ next: 12_000 });
+    const clip = t.rec.recorder.startClip({ last: 60_000, next: 12_000 });
     expect(t.segments()).toHaveLength(1);
     box().textContent = "one";
     await mutations();
@@ -319,7 +365,7 @@ describe("Clips", () => {
 
   it("closes a Clip on page hide and drops its unsent tail", async () => {
     const t = await start();
-    const clip = t.rec.recorder.startClip({ next: 30_000 });
+    const clip = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
     box().textContent = "unsent";
     await mutations();
     vi.advanceTimersByTime(1_000);
@@ -334,7 +380,7 @@ describe("Clips", () => {
 
   it("finishes the recording Span of an open Clip on shutdown", async () => {
     const t = await start();
-    const clip = t.rec.recorder.startClip({ next: 30_000 });
+    const clip = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
     box().textContent = "tail";
     await mutations();
     await t.client.shutdown();
@@ -414,7 +460,7 @@ describe("pause, resume, and oversized events", () => {
     // 3.4 million characters, but 10.2 MB in UTF-8.
     box().textContent = "€".repeat(3_400_000);
     await mutations();
-    const clip = t.rec.recorder.startClip();
+    const clip = t.rec.recorder.startClip({ last: 300_000 });
     clip.end();
     const events = t.clipEvents(clip.id);
     expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
@@ -422,12 +468,12 @@ describe("pause, resume, and oversized events", () => {
 
     box().textContent = "small again";
     await mutations();
-    expect(JSON.stringify(t.clipEvents(t.rec.recorder.startClip().id))).not.toContain(
-      "small again",
-    );
+    expect(
+      JSON.stringify(t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id)),
+    ).not.toContain("small again");
 
     t.rec.recorder.resume();
-    const resumed = t.clipEvents(t.rec.recorder.startClip().id);
+    const resumed = t.clipEvents(t.rec.recorder.startClip({ last: 300_000 }).id);
     expect(tags(resumed)).toEqual(["everr.recording.oversized", "everr.recording.resume"]);
     expect(types(resumed).slice(-2)).toEqual([META, FULL_SNAPSHOT]);
   });
@@ -435,7 +481,7 @@ describe("pause, resume, and oversized events", () => {
   it("stops when the first snapshot itself is oversized, and has no Clip to send", async () => {
     document.body.innerHTML = `<div id="box" class="keep">${"€".repeat(3_400_000)}</div>`;
     const t = await start({ unmask: [".keep"] });
-    expect(t.rec.recorder.startClip().id).toBe("");
+    expect(t.rec.recorder.startClip({ last: 300_000 }).id).toBe("");
     expect(t.sent).toEqual([]);
   });
 
@@ -480,7 +526,7 @@ describe("the mutation throttle", () => {
   it("charges SVG descendants to the nearest svg, and drops emptied events", async () => {
     box().innerHTML = `<svg id="svg"><g><rect id="a"></rect><rect id="b"></rect></g></svg>`;
     const t = await start({ blockAllMedia: false });
-    const before = t.rec.recorder.startClip();
+    const before = t.rec.recorder.startClip({ last: 300_000 });
     before.end();
     const count = t.clipEvents(before.id).length;
     for (let i = 0; i < 60; i++) {
@@ -488,7 +534,7 @@ describe("the mutation throttle", () => {
       document.getElementById("b")!.setAttribute("x", String(i));
       await mutations();
     }
-    const clip = t.rec.recorder.startClip();
+    const clip = t.rec.recorder.startClip({ last: 300_000 });
     clip.end();
     const events = t.clipEvents(clip.id);
     expect(attributeChanges(events)).toBe(100);
