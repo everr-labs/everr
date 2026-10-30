@@ -1,0 +1,11 @@
+segment=0 event.index=- piece=- pieces=- body_bytes=121 fffd=False ts=2026-10-30 11:19:09.316000000
+segment=1 event.index=1 piece=0 pieces=3 body_bytes=950000 fffd=False ts=2026-10-30 11:19:09.324000000
+segment=2 event.index=1 piece=1 pieces=3 body_bytes=950000 fffd=False ts=2026-10-30 11:19:09.324000000
+segment=3 event.index=1 piece=2 pieces=3 body_bytes=300490 fffd=False ts=2026-10-30 11:19:09.324000000
+segment=4 event.index=- piece=- pieces=- body_bytes=786 fffd=False ts=2026-10-30 11:19:10.940000000
+segment=5 event.index=- piece=- pieces=- body_bytes=3535 fffd=False ts=2026-10-30 11:19:13.151000000
+joined event.index=1: type=2 json_bytes=2200490 has_png=True has_emoji=True has_quotes=True
+event types in order: 4 2 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3
+custom tags: []
+orders in mutations: 3
+png data URI (1746530 chars) byte-identical in joined snapshot: True

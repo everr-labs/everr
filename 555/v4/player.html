@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Recording player (rrweb 2.1.7)</title>
+    <link rel="stylesheet" href="./rrweb-2.1.7.css" />
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; background: #20232b; color: #e8eaf0; }
+      header { padding: 10px 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+      header b { color: #9fd; }
+      #stage { margin: 0 16px; background: #fff; display: inline-block; transform: scale(0.88); transform-origin: top left; }
+      .replayer-wrapper { position: relative; }
+      .replayer-wrapper iframe { border: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span>rrweb <b id="version">2.1.7</b> Replayer</span>
+      <span>clip <b id="clip">-</b></span>
+      <span>segments <b id="segments">-</b></span>
+      <span>events <b id="events">-</b></span>
+      <span>pieces joined <b id="pieces">-</b></span>
+      <span>time <b id="time">-</b></span>
+    </header>
+    <div id="stage"></div>
+    <script type="module">
+      import { Replayer } from "./rrweb-2.1.7.js";
+
+      // Input: the ndjson rows the everr CLI printed for the Segment logs, with
+      // Body (the JSON array of rrweb events) and the clip id and segment index.
+      const params = new URLSearchParams(location.search);
+      const text = await (await fetch(params.get("src") ?? "segments.ndjson")).text();
+      const rows = text.split("\n").filter(Boolean).map((line) => JSON.parse(line));
+      const clipId = params.get("clip") ?? rows[0].clip;
+      const segments = rows
+        .filter((row) => row.clip === clipId)
+        .sort((a, b) => Number(a.segment) - Number(b.segment));
+      // A Segment with `pieces` holds a slice of one large event's JSON text.
+      // Join the slices of each event in piece order, then parse it once.
+      const events = [];
+      const open = new Map();
+      for (const row of segments) {
+        if (!row.pieces) {
+          events.push(...JSON.parse(row.Body));
+          continue;
+        }
+        const parts = open.get(row.event_index) ?? [];
+        parts[Number(row.piece)] = row.Body;
+        open.set(row.event_index, parts);
+        if (parts.filter((p) => p !== undefined).length === Number(row.pieces)) {
+          events.push(JSON.parse(parts.join("")));
+          open.delete(row.event_index);
+        }
+      }
+      const pieceCount = segments.filter((row) => row.pieces).length;
+      events.sort((a, b) => a.timestamp - b.timestamp);
+
+      const replayer = new Replayer(events, {
+        root: document.getElementById("stage"),
+        skipInactive: false,
+        showWarning: true,
+        mouseTail: { strokeStyle: "#e33" },
+      });
+      const start = events[0].timestamp;
+      const end = events.at(-1).timestamp;
+      document.getElementById("clip").textContent = clipId;
+      document.getElementById("segments").textContent = segments.map((s) => s.segment).join(",");
+      document.getElementById("events").textContent = String(events.length);
+      document.getElementById("pieces").textContent = String(pieceCount);
+      const time = document.getElementById("time");
+      setInterval(() => {
+        time.textContent = `${(replayer.getCurrentTime() / 1000).toFixed(1)}s / ${((end - start) / 1000).toFixed(1)}s`;
+      }, 100);
+      window.player = { replayer, events, segments };
+      if (params.get("autoplay") !== "0") replayer.play();
+    </script>
+  </body>
+</html>
