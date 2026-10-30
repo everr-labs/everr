@@ -125,13 +125,13 @@ Before initialization, after shutdown, or with only a keyless production SDK, th
 `recording()` from `@everr/otel-web/recording` keeps the last 5 minutes of the page in memory with [rrweb](https://github.com/rrweb-io/rrweb). Nothing leaves the page until a Clip is emitted: automatically on an error from `errors()` or a failed request from `network()` (up to 5 per page), or by you.
 
 ```ts
-import { WebSDK, errors, network } from "@everr/otel-web";
+import { WebSDK, errors, network, sampled } from "@everr/otel-web";
 import { recorder, recording } from "@everr/otel-web/recording";
 
 new WebSDK({
   serviceName: "acme-web",
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
-  instrumentations: [errors(), network(), recording({ sampleRate: 0.2 })],
+  instrumentations: [errors(), network(), sampled(recording(), 0.2)],
 });
 
 recorder.emitClip({ last: 15_000 }); // send the last 15 seconds
@@ -144,7 +144,7 @@ try {
 }
 ```
 
-Only sampled Sessions download the recorder chunk. Use `sampleRate` rather than `sampled()`, which would multiply the two rates. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. Password fields are always masked.
+Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. Password fields are always masked.
 
 ## Identity
 

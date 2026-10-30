@@ -1,5 +1,5 @@
-// The recorder chunk. The stub in ../recording.ts imports it only for a sampled
-// Session, so rrweb stays out of every other bundle.
+// The recorder chunk. The stub in ../recording.ts imports it only when the
+// recording starts, so rrweb stays out of every other bundle.
 
 import { setAttributes } from "@everr/otel-web";
 import type { Tracer } from "@opentelemetry/api";
@@ -52,7 +52,7 @@ export type Stream = {
 };
 
 // The automatic Clips of this document. The chunk loads once per document, and
-// the count outlives a Session change.
+// the count outlives a shutdown and a new start.
 let autoClips = 0;
 
 const randomId = () =>

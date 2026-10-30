@@ -61,11 +61,11 @@ function recordingStateStaysInternal(
   // @ts-expect-error - not exported
   void browser.setRecordingTrigger;
   // @ts-expect-error - not exported
-  void browser.onSessionChange;
-  // @ts-expect-error - not exported
   void server.emitLogNow;
   // @ts-expect-error - not exported
-  void recording.onSessionChange;
+  void recording.setRecordingTrigger;
+  // @ts-expect-error - sampling is sampled(recording(), rate)
+  void recording.recording({ sampleRate: 0.2 });
 }
 
 describe("type guarantees", () => {

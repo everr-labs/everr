@@ -1,19 +1,15 @@
-// The recording entry. This stub decides the sampling for each Session, and
-// only a sampled Session imports the recorder chunk with rrweb. The chunk
-// keeps the last 5 minutes of the page in memory, and nothing leaves the page
-// until a Clip. Refer to docs/specs/2026-10-22-otel-web-recording.md.
+// The recording entry. This stub imports the recorder chunk with rrweb when
+// the instrumentation starts, so a Session that `sampled()` refuses never
+// downloads it. The chunk keeps the last 5 minutes of the page in memory, and
+// nothing leaves the page until a Clip. Refer to docs/specs/2026-10-22-otel-web-recording.md.
 
 import type { Instrumentation } from "@everr/otel-web";
 // The page state is imported by path, not by the package name, so these stay
 // off the public entry. The build puts it in a chunk shared with that entry.
 import { setRecordingTrigger } from "./state/recording.js";
-import { onSessionChange } from "./state/session.js";
-import { hashUnit } from "./instrumentations/sampled.js";
 import type { Stream } from "./recording/recorder.js";
 
 export type RecordingOptions = {
-  /** The share of Sessions that load the recorder, from 0 to 1. The default is 1. */
-  sampleRate?: number;
   maskAllText?: boolean;
   maskAllInputs?: boolean;
   blockAllMedia?: boolean;
@@ -77,35 +73,27 @@ export const recorder = {
 };
 
 export function recording(options: RecordingOptions = {}): Instrumentation {
-  const rate = options.sampleRate ?? 1;
   return function recording(ctx) {
     if (page) return;
     const state: { stream?: Stream } = {};
     page = state;
-    let session: string | null = null;
-
-    const start = (id: string | null) => {
-      state.stream?.end();
-      state.stream = undefined;
-      session = id;
-      if (!id || !(rate >= 1 || hashUnit(`${id}:recording`) < rate)) return;
+    // One Stream per page, for the Session at setup.
+    const id = ctx.ids().sessionId;
+    if (id) {
       import("./recording/recorder.js")
         .then(({ startStream }) => {
-          if (page === state && session === id) state.stream = startStream(ctx.tracer, id, options);
+          if (page === state) state.stream = startStream(ctx.tracer, id, options);
         })
         // A failed chunk load or start only means no recording. It is never an app error.
         .catch(() => {});
-    };
-
-    start(ctx.ids().sessionId);
-    const stopSession = onSessionChange((id) => id !== session && start(id));
+    }
     const stopTrigger = setRecordingTrigger((kind) => state.stream?.trigger(kind));
     const stopHide = ctx.onHide(() => state.stream?.hide());
     return () => {
       stopHide();
       stopTrigger();
-      stopSession();
-      start(null);
+      state.stream?.end();
+      state.stream = undefined;
       if (page === state) page = undefined;
     };
   };
