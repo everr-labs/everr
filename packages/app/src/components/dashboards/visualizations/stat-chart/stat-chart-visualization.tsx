@@ -1,15 +1,18 @@
-import { ChartContainer } from "@everr/ui/components/chart";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash } from "lucide-react";
 import { useMemo } from "react";
-import { Area, AreaChart, XAxis } from "recharts";
 import { queryLabel } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { StatChartSpec } from "./spec";
-import { resolveThresholdColor } from "./stat-calculations";
-import { resolveStatSparklineColor } from "./stat-colors";
+import {
+  resolveStatSparklineColor,
+  resolveStatTileColor,
+  STAT_BACKGROUND_GRADIENT,
+} from "./stat-colors";
 import { computeStatTiles } from "./stat-series";
+import { StatSparkline } from "./stat-sparkline";
+import "./stat-chart.css";
 
 /** Value text scales down as tiles crowd the panel. */
 function valueSizeClass(tileCount: number): string {
@@ -56,23 +59,28 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
   const unitSize = unitSizeClass(tiles.length);
 
   return (
-    <div className="flex h-full flex-wrap items-stretch justify-center gap-4">
+    <div className="stat-chart flex h-full w-full flex-wrap items-stretch justify-center overflow-hidden">
       {tiles.map((tile) => {
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
         const formatted = value === undefined ? undefined : formatter.parts(value);
-        const seriesMax = tile.points.length > 0 ? Math.max(...tile.points.map((p) => p.value)) : 0;
-        const color =
-          value !== undefined ? resolveThresholdColor(value, thresholds, seriesMax) : undefined;
+        const color = resolveStatTileColor(tile, thresholds);
         const background = colorMode === "background" && color !== undefined;
         const sparklineColor = resolveStatSparklineColor(label, colors, color, background);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
-            className={cn("flex min-w-24 flex-1 flex-col", background && "rounded-md p-2")}
-            style={background ? { backgroundColor: color } : undefined}
+            className={cn(
+              "relative flex min-w-24 flex-1 flex-col overflow-hidden",
+              multi && "border-r border-border/30 last:border-r-0",
+            )}
+            style={
+              background && multi
+                ? { backgroundColor: color, backgroundImage: STAT_BACKGROUND_GRADIENT }
+                : undefined
+            }
           >
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-3 pb-4">
               {(multi || showLabel) && (
                 <p
                   className={cn("text-xs", background ? "text-white/80" : "text-muted-foreground")}
@@ -104,25 +112,8 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
               </p>
             </div>
             {showSparkline && tile.points.length > 1 && (
-              <div className="h-1/3 max-h-24 w-full">
-                <ChartContainer config={{}} className="aspect-auto h-full w-full">
-                  <AreaChart data={tile.points} margin={{ top: 2, left: 0, right: 0, bottom: 0 }}>
-                    {/* Real time axis (hidden): without it recharts spaces
-                        points by index and missing buckets compress the
-                        timeline. */}
-                    <XAxis dataKey="ts" type="number" domain={["dataMin", "dataMax"]} hide />
-                    <Area
-                      dataKey="value"
-                      type="monotone"
-                      stroke={sparklineColor}
-                      fill={sparklineColor}
-                      fillOpacity={0.2}
-                      strokeWidth={1.5}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </AreaChart>
-                </ChartContainer>
+              <div className="stat-chart-sparkline pointer-events-none absolute inset-x-0 bottom-0 h-1/3 max-h-24">
+                <StatSparkline points={tile.points} color={sparklineColor} />
               </div>
             )}
           </div>

@@ -1,0 +1,9 @@
+.stat-chart {
+  container: stat-chart / size;
+}
+
+@container stat-chart (max-height: 72px) {
+  .stat-chart-sparkline {
+    display: none;
+  }
+}
