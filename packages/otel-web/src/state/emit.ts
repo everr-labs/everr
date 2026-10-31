@@ -30,5 +30,4 @@ export function bindEmit(next: Emit, nextNow?: EmitNow): () => void {
 }
 
 /** @internal For `@everr/otel-web/recording`. Silent when no client is bound. */
-export const emitLogNow: EmitNow = (eventName, attributes, timestamp, body) =>
-  emitNow ? emitNow(eventName, attributes, timestamp, body) : Promise.resolve();
+export const emitLogNow = (...args: Parameters<EmitNow>): void => void emitNow?.(...args);
