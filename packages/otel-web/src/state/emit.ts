@@ -7,9 +7,10 @@
 // is visible. After the code disconnects, an emit gives no warning. This is
 // correct.
 
-import type { Emit } from "../pipeline/emitter.js";
+import type { Emit, EmitNow } from "../pipeline/emitter.js";
 
 let emit: Emit | undefined;
+let emitNow: EmitNow | undefined;
 let started = false;
 
 export function currentEmit(): Emit | undefined {
@@ -17,12 +18,16 @@ export function currentEmit(): Emit | undefined {
   return emit;
 }
 
-export function bindEmit(next: Emit): () => void {
+export function bindEmit(next: Emit, nextNow?: EmitNow): () => void {
   started = true;
   emit = next;
+  emitNow = nextNow;
   return () => {
     // Only the current binding disconnects. A stale disposer, for example from
     // a client that a new client replaced, must not silence the new one.
-    if (emit === next) emit = undefined;
+    if (emit === next) emit = emitNow = undefined;
   };
 }
+
+/** @internal For `@everr/otel-web/recording`. Silent when no client is bound. */
+export const emitLogNow = (...args: Parameters<EmitNow>): void => void emitNow?.(...args);

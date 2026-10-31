@@ -203,7 +203,21 @@ type Emitter = [
    */
   exitFlush: () => void,
   emitSpan: EmitSpan,
+  emitNow: EmitNow,
 ];
+
+/**
+ * Sends one log record in its own logs request, outside the batch, without
+ * keepalive and without the active span. The recording Segments use it: one
+ * Segment is close to the size of a full request. The promise settles when the
+ * request ends, and it never rejects.
+ */
+export type EmitNow = (
+  eventName: string,
+  attributes: Record<string, AttrValue | null | undefined>,
+  timestamp: number,
+  body: string,
+) => Promise<void>;
 
 // These values are the same as the values in the browser telemetry client of
 // the web app. The queue has no limit, and this is correct. The SDK discards no
@@ -253,7 +267,7 @@ export function createEmitter(
   resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
   /** The code calls this for each record. It returns the context envelope. */
-  envelope: () => Record<string, AttrValue | null | undefined>,
+  envelope: (session?: string) => Record<string, AttrValue | null | undefined>,
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
   /** The span active at the time of the log, when there is one. */
@@ -265,6 +279,10 @@ export function createEmitter(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
   const applyBeforeSend = createBeforeSendGuard(beforeSend);
+  const withEnvelope = (attributes: Record<string, AttrValue | null | undefined> = {}) => {
+    const session = attributes["session.id"];
+    return { ...envelope(typeof session === "string" ? session : undefined), ...attributes };
+  };
 
   // One function makes the OTLP envelope for the two signals. The three keys
   // are different only in their names: resourceLogs, scopeLogs, and logRecords
@@ -406,6 +424,35 @@ export function createEmitter(
     }
   };
 
+  const logRecord = (
+    eventName: string,
+    attributes: Record<string, AttrValue | null | undefined> | undefined,
+    timestamp: string,
+    severityNumber: number,
+    body: string,
+    span: SpanContext | undefined,
+  ): OtlpLogRecord | undefined => {
+    const item = applyBeforeSend({
+      kind: "log",
+      eventName,
+      attributes: withEnvelope(attributes),
+      severityNumber,
+      body,
+    });
+    // The type of the hook permits a return of the other kind. Thus this test
+    // is the narrowing that the union needs, and it is not a check on the type
+    // at run time.
+    if (item?.kind !== "log") return;
+    return {
+      timeUnixNano: timestamp,
+      severityNumber: item.severityNumber,
+      eventName: item.eventName,
+      body: toAnyValue(item.body),
+      attributes: toKeyValues(item.attributes),
+      ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
+    };
+  };
+
   const emit: Emit = (
     eventName,
     attributes,
@@ -418,27 +465,22 @@ export function createEmitter(
     // queued. A log with an earlier timestamp takes the span that was already
     // active at that time, and not a span that became active after it.
     const timestamp = unixNano(time ?? Date.now());
-    const span = activeSpan?.(time);
-    const item = applyBeforeSend({
-      kind: "log",
+    const record = logRecord(
       eventName,
-      attributes: { ...envelope(), ...attributes },
+      attributes,
+      timestamp,
       severityNumber,
       body,
-    });
-    // The type of the hook permits a return of the other kind. Thus this test
-    // is the narrowing that the union needs, and it is not a check on the type
-    // at run time.
-    if (item?.kind !== "log") return;
-    queue.push({
-      timeUnixNano: timestamp,
-      severityNumber: item.severityNumber,
-      eventName: item.eventName,
-      body: toAnyValue(item.body),
-      attributes: toKeyValues(item.attributes),
-      ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
-    });
+      activeSpan?.(time),
+    );
+    if (!record) return;
+    queue.push(record);
     schedule();
+  };
+
+  const emitNow: EmitNow = (eventName, attributes, time, body) => {
+    const record = logRecord(eventName, attributes, unixNano(time), 9, body, undefined);
+    return record ? post("logs", build("Logs", "logRecords", [record])) : noop();
   };
 
   const emitSpan: EmitSpan = (
@@ -461,7 +503,7 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "span",
       name,
-      attributes: { ...envelope(), ...attributes },
+      attributes: withEnvelope(attributes),
       status,
       links,
     });
@@ -491,5 +533,5 @@ export function createEmitter(
     schedule();
   };
 
-  return [emit, flush, exitFlush, emitSpan];
+  return [emit, flush, exitFlush, emitSpan, emitNow];
 }

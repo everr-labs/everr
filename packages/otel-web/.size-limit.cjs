@@ -79,4 +79,26 @@ module.exports = [
     // Includes XHR lifecycle tracking alongside fetch.
     limit: "10 KB",
   },
+  {
+    // The stub only. The main entry and the recorder chunk load on their own.
+    name: "recording stub",
+    path: "dist/recording.js",
+    import: "{ recording, recorder }",
+    gzip: true,
+    ignore: ["@everr/otel-web"],
+    modifyEsbuildConfig: (config) => ({
+      ...config,
+      external: [...(config.external ?? []), "./recording/recorder.js"],
+    }),
+    limit: "1.05 KB",
+  },
+  {
+    // rrweb record is most of it.
+    name: "recording chunk",
+    path: "dist/recording/recorder.js",
+    import: "{ startStream }",
+    gzip: true,
+    ignore: ["@everr/otel-web"],
+    limit: "26 KB",
+  },
 ];

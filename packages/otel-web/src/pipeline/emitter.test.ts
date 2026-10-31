@@ -32,7 +32,10 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(envelope: () => Record<string, string> = () => ({}), beforeSend?: BeforeSend) {
+function makeEmitter(
+  envelope: (session?: string) => Record<string, string> = () => ({}),
+  beforeSend?: BeforeSend,
+) {
   sent = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -669,5 +672,43 @@ describe("a caller-supplied send owns delivery", () => {
     await vi.advanceTimersByTimeAsync(50);
     await pending;
     expect(settled).toBe(true);
+  });
+});
+
+describe("emitNow, the path of the recording Segments", () => {
+  it("sends one record on its own request, outside the queue and without keepalive", async () => {
+    const [queued, flushQueue, , , emitNow] = makeEmitter();
+    queued("page_view");
+    await emitNow(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 0 },
+      1_000,
+      "[]",
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBeUndefined();
+    const [record] = sent[0].payload.resourceLogs[0].scopeLogs[0].logRecords;
+    expect(record).toMatchObject({
+      eventName: "everr.browser.recording.segment",
+      timeUnixNano: "1000000000",
+    });
+    expect(record.body).toEqual({ stringValue: "[]" });
+    await flushQueue();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("passes the record's own session to the envelope, so the session is not read", async () => {
+    const envelope = vi.fn((session?: string) => ({ "session.id": session ?? "read" }));
+    const [queued, flushQueue, , , emitNow] = makeEmitter(envelope);
+    await emitNow("segment", { "session.id": "stream-session" }, 1, "[]");
+    queued("page_view");
+    await flushQueue();
+    expect(envelope.mock.calls).toEqual([["stream-session"], [undefined]]);
+  });
+
+  it("goes through beforeSend, and a null drops it without a request", async () => {
+    const [, , , , emitNow] = makeEmitter(undefined, () => null);
+    await emitNow("segment", {}, 1, "[]");
+    expect(sent).toEqual([]);
   });
 });
