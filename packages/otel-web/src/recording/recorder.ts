@@ -6,6 +6,7 @@ import type { Tracer } from "@opentelemetry/api";
 import { record } from "@rrweb/record";
 import type { RecordingClip, RecordingOptions, StartClipOptions } from "../recording.js";
 import { emitLogNow } from "../state/emit.js";
+import { randomHex } from "../state/session.js";
 import { privacy } from "./privacy.js";
 
 const WINDOW_MS = 5 * 60_000;
@@ -62,11 +63,24 @@ export type Stream = {
 // the count outlives a shutdown and a new start.
 let autoClips = 0;
 
-const randomId = () =>
-  Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
-    b.toString(16).padStart(2, "0"),
-  ).join("");
-const utf8 = new TextEncoder();
+// The UTF-8 width of the code point at i. A surrogate pair is 4 bytes.
+const width = (s: string, i: number) => {
+  const code = s.charCodeAt(i);
+  if (code < 0x80) return 1;
+  if (code < 0x800) return 2;
+  return code >= 0xd800 && code < 0xdc00 && (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00 ? 4 : 3;
+};
+
+// Counts the UTF-8 bytes without encoding the string.
+const utf8Bytes = (s: string) => {
+  let size = 0;
+  for (let i = 0; i < s.length; i++) {
+    const w = width(s, i);
+    size += w;
+    if (w === 4) i++;
+  }
+  return size;
+};
 
 // Splits serialized JSON into pieces of at most SEGMENT_BYTES of UTF-8, between
 // code points, so each piece encodes on its own. The input has no raw control
@@ -77,28 +91,26 @@ const pieces = (json: string): string[] => {
   let start = 0;
   let size = 0;
   for (let i = 0; i < json.length; i++) {
-    const code = json.charCodeAt(i);
-    const pair = code >= 0xd800 && code < 0xdc00 && (json.charCodeAt(i + 1) & 0xfc00) === 0xdc00;
-    const width = code < 0x80 ? 1 : code < 0x800 ? 2 : pair ? 4 : 3;
-    if (size + width > SEGMENT_BYTES) {
+    const w = width(json, i);
+    if (size + w > SEGMENT_BYTES) {
       out.push(json.slice(start, i));
       start = i;
       size = 0;
     }
-    size += width;
-    if (pair) i++;
+    size += w;
+    if (w === 4) i++;
   }
   out.push(json.slice(start));
   return out;
 };
 
 export function startStream(tracer: Tracer, sessionId: string, options: RecordingOptions): Stream {
-  const streamId = randomId();
+  const streamId = randomHex(16);
   const { rrweb, replacer } = privacy(options, (id) => {
     const node = record.mirror.getNode(id);
     return node instanceof Element ? node : null;
   });
-  let entries: Entry[] = [];
+  const entries: Entry[] = [];
   let bytes = 0;
   const buckets = new Map<number, [tokens: number, time: number]>();
   const clips = new Set<{ tail: Entry[]; close(hide: boolean): void }>();
@@ -118,7 +130,8 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       (entries[drop].time < now - WINDOW_MS || bytes > MAX_BYTES)
     )
       bytes -= entries[drop++].bytes;
-    if (drop) entries = entries.slice(drop);
+    // In place: V8 trims the front of the array without copying it.
+    if (drop) entries.splice(0, drop);
   };
 
   const push = (entry: Entry) => {
@@ -128,20 +141,15 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     for (const clip of clips) clip.tail.push(entry);
   };
 
-  const marker = (tag: string) => {
-    const json = JSON.stringify({
-      type: CUSTOM,
-      timestamp: Date.now(),
-      data: { tag, payload: {} },
-    });
-    push({ time: Date.now(), type: CUSTOM, json, bytes: json.length });
-  };
+  const marker = (tag: string) =>
+    add({ type: CUSTOM, timestamp: Date.now(), data: { tag, payload: {} } });
 
   // One token per attribute mutation on a node. A node inside an <svg> pays
   // from the bucket of its nearest <svg>.
   const allowed = (id: number, now: number) => {
     const node = record.mirror.getNode(id);
-    const svg = node instanceof Element ? node.closest("svg") : null;
+    // Only an SVG node walks up; an HTML node pays from its own bucket.
+    const svg = node instanceof SVGElement ? node.closest("svg") : null;
     const key = svg ? record.mirror.getId(svg) : id;
     const [tokens, time] = buckets.get(key) ?? [BUCKET_TOKENS, now];
     const refilled = Math.min(BUCKET_TOKENS, tokens + (now - time) * TOKENS_PER_MS);
@@ -170,7 +178,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     // so a Segment and the 10 MB cap measure what the request carries.
     const json = JSON.stringify(event, replacer);
     if (event.type === FULL_SNAPSHOT) buckets.clear();
-    push({ time: event.timestamp, type: event.type, json, bytes: utf8.encode(json).length });
+    push({ time: event.timestamp, type: event.type, json, bytes: utf8Bytes(json) });
   };
 
   const halt = () => {
@@ -181,7 +189,6 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
   };
 
   const run = () => {
-    paused = false;
     try {
       stop = record({ emit: add, ...rrweb, errorHandler: () => true });
       // Our own checkout, and not checkoutEveryNms: rrweb counts that interval
@@ -213,7 +220,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     if (entries[first - 1]?.type === META) first--;
     const startTime = !fromBuffer ? now : (requested ?? entries[first].time);
 
-    const id = randomId();
+    const id = randomHex(16);
     const span = tracer.startSpan("recording", {
       root: true,
       startTime,
@@ -228,7 +235,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
 
     let index = 0;
     const emitSegment = (body: string, time: number, piece?: Record<string, number>) =>
-      void emitLogNow(
+      emitLogNow(
         "everr.browser.recording.segment",
         {
           "session.id": sessionId,
@@ -281,7 +288,9 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
         clearInterval(flush);
         clearTimeout(cap);
         clips.delete(state);
-        if (!hide) send(state.tail);
+        // Emptied on both paths, so a kept Clip handle holds no events.
+        const rest = state.tail.splice(0);
+        if (!hide) send(rest);
         span.end();
       },
     };
@@ -334,7 +343,7 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       for (const open of clips) open.close(false);
       halt();
       ended = true;
-      entries = [];
+      entries.length = 0;
       setAttributes({ "everr.recording.stream.id": null });
     },
   };

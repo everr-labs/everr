@@ -16,7 +16,7 @@ const RRWEB_MASKED =
 const stars = (text: string) => text.replace(/\S/g, "*");
 
 /** A URL without its query and fragment. A mailto:, tel:, or sms: URL keeps its scheme only. */
-export const stripUrl = (url: string) =>
+const stripUrl = (url: string) =>
   url.replace(/^\s*(mailto|tel|sms):.*$/is, "$1:").replace(/[?#][^\s,]*/g, "");
 
 /**
