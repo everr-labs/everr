@@ -1,4 +1,5 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import type { LineSeriesOption } from "echarts/charts";
@@ -477,30 +478,38 @@ export function TimeSeriesChartVisualization({
       {showLegend && (
         <section
           ref={legendRef}
-          className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-start gap-4 overflow-x-auto p-3 text-xs text-foreground"
-          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users need to scroll overflowing series legends.
-          tabIndex={0}
+          className="pointer-events-auto absolute inset-x-0 bottom-0 text-xs text-foreground"
           aria-label="Series legend"
         >
-          {modelSeries.map(({ id, identity, label, color }) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={activeSeries === id}
-              className={cn(
-                "flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2",
-                activeSeries !== null && activeSeries !== id && "opacity-40",
-              )}
-              onClick={() => {
-                setFocusedSeries((current) => (current === identity ? null : identity));
-                setTooltipState(null);
-                cursorStore.clear(cursorSourceRef.current);
-              }}
-            >
-              <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
-              {label}
-            </button>
-          ))}
+          <ScrollArea
+            orientation="horizontal"
+            viewportProps={{ tabIndex: 0, "aria-label": "Series legend" }}
+          >
+            <div className="flex w-max min-w-full items-center gap-4 p-3">
+              {modelSeries.map(({ id, identity, label, color }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={activeSeries === id}
+                  className={cn(
+                    "flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2",
+                    activeSeries !== null && activeSeries !== id && "opacity-40",
+                  )}
+                  onClick={() => {
+                    setFocusedSeries((current) => (current === identity ? null : identity));
+                    setTooltipState(null);
+                    cursorStore.clear(cursorSourceRef.current);
+                  }}
+                >
+                  <div
+                    className="h-2 w-2 shrink-0 rounded-[2px]"
+                    style={{ backgroundColor: color }}
+                  />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
         </section>
       )}
       {plot && bounds && (
