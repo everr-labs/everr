@@ -485,7 +485,7 @@ export function TimeSeriesChartVisualization({
             orientation="horizontal"
             viewportProps={{ tabIndex: 0, "aria-label": "Series legend" }}
           >
-            <div className="flex w-max min-w-full items-center gap-4 p-3">
+            <div className="flex w-max min-w-full items-center justify-center gap-4 p-3">
               {modelSeries.map(({ id, identity, label, color }) => (
                 <button
                   key={id}
