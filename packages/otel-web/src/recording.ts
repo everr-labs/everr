@@ -62,9 +62,8 @@ let page: { stream?: Stream } | undefined;
 export const recorder = {
   /** Sends the buffered history now: the last `last` milliseconds, or by default the whole buffer (up to 5 minutes). */
   emitClip(options: EmitClipOptions = {}): void {
-    (
-      page?.stream?.clip({ ...options, whole: true, next: 0 }, "manual") ?? inertClip(options)
-    ).end();
+    // With next: 0 the Clip closes before clip() returns.
+    page?.stream?.clip({ ...options, whole: true, next: 0 }, "manual");
   },
   /**
    * Starts a Clip that records until `end()`, `next`, or 60 seconds. Without
@@ -89,21 +88,18 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
     page = state;
     // One Stream per page, for the Session at setup.
     const id = ctx.ids().sessionId;
-    if (id) {
-      import("./recording/recorder.js")
-        .then(({ startStream }) => {
-          if (page === state) state.stream = startStream(ctx.tracer, id, options);
-        })
-        // A failed chunk load or start only means no recording. It is never an app error.
-        .catch(() => {});
-    }
+    import("./recording/recorder.js")
+      .then(({ startStream }) => {
+        if (page === state) state.stream = startStream(ctx.tracer, id, options);
+      })
+      // A failed chunk load or start only means no recording. It is never an app error.
+      .catch(() => {});
     const stopTrigger = setRecordingTrigger((kind) => state.stream?.trigger(kind));
     const stopHide = ctx.onHide(() => state.stream?.hide());
     return () => {
       stopHide();
       stopTrigger();
       state.stream?.end();
-      state.stream = undefined;
       if (page === state) page = undefined;
     };
   };

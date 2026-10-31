@@ -57,7 +57,7 @@ export async function start(
     ...sdkOptions,
     instrumentations: [
       rate === undefined ? rec.recording(options) : sdk.sampled(rec.recording(options), rate),
-      ...(typeof extra === "function" ? extra(sdk) : extra),
+      ...extra(sdk),
     ],
   });
   if (settle) await vi.dynamicImportSettled();
