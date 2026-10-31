@@ -90,6 +90,7 @@ const registry: Record<string, VisualizationEntry> = {
   StatChart: defineVisualization({
     schema: statChartSpec,
     component: StatChartVisualization,
+    inset: "flush-content",
   }),
   StateTimeline: defineVisualization({
     schema: stateTimelineSpec,

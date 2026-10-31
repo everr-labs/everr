@@ -9,13 +9,14 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { AlertCircle, CircleHelp, Info } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { PanelChromeProps } from "./panel-types";
 
 export interface PanelShellProps extends PanelChromeProps {
   status: "pending" | "error" | "success";
   errorMessage?: string;
   children?: ReactNode;
+  style?: CSSProperties;
 }
 
 function PanelTitle({ title, description }: { title?: string; description?: string }) {
@@ -78,11 +79,12 @@ export function PanelShell({
   inset = "default",
   headerClassName,
   className,
+  style,
   children,
 }: PanelShellProps) {
   if (variant === "stat") {
     return (
-      <Card inset={inset} className={className}>
+      <Card inset={inset} className={className} style={style}>
         <CardHeader className="relative pb-2">
           <div className="flex items-center justify-between">
             {title && <StatTitle title={title} titleHint={titleHint} />}
@@ -103,7 +105,7 @@ export function PanelShell({
   const hasHeader = title || description || action;
 
   return (
-    <Card inset={inset} className={className}>
+    <Card inset={inset} className={className} style={style}>
       {hasHeader && (
         <CardHeader className={headerClassName}>
           {(title || description) && <PanelTitle title={title} description={description} />}
