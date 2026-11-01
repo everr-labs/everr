@@ -1,4 +1,5 @@
 import type { record } from "@rrweb/record";
+import { NO_CAPTURE } from "../instrumentations/element.js";
 import type { RecordingOptions } from "../recording.js";
 
 type RecordOptions = NonNullable<Parameters<typeof record>[0]>;
@@ -81,6 +82,7 @@ export function privacy(options: RecordingOptions, element: (id: number) => Form
       "base",
       "iframe[srcdoc]",
       "[data-everr-block]",
+      NO_CAPTURE,
     ),
     ignoreClass: "everr-ignore",
     // rrweb tests the selector on the input itself, so the descendant form

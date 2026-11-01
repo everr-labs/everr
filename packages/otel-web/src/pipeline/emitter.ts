@@ -208,9 +208,9 @@ type Emitter = [
 
 /**
  * Sends one log record in its own logs request, outside the batch, without
- * keepalive and without the active span. The recording Segments use it: one
- * Segment is close to the size of a full request. The promise settles when the
- * request ends, and it never rejects.
+ * keepalive and without the active span. It is for a record close to the size
+ * of a full request, a recording Segment for example. The promise settles when
+ * the request ends, and it never rejects.
  */
 export type EmitNow = (
   eventName: string,
@@ -272,6 +272,8 @@ export function createEmitter(
   beforeSend?: BeforeSend,
   /** The span active at the time of the log, when there is one. */
   activeSpan?: (time?: number) => SpanContext | undefined,
+  /** Sees each item that passes the hook, before it goes in a queue or a request. */
+  observe?: (item: SendEvent) => void,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -443,6 +445,7 @@ export function createEmitter(
     // is the narrowing that the union needs, and it is not a check on the type
     // at run time.
     if (item?.kind !== "log") return;
+    observe?.(item);
     return {
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
@@ -508,6 +511,7 @@ export function createEmitter(
       links,
     });
     if (item?.kind !== "span") return;
+    observe?.(item);
     const wireLinks = item.links?.map((link) => {
       const attributes = toKeyValues(link.attributes ?? {});
       return {
