@@ -1,0 +1,51 @@
+# v5 segments, read back with `everr local query` (see cli-command.txt)
+
+segments carry no everr.recording.clip.id: True
+
+## v5-error stream 6b33e2a823294062e2e2fc1a07683c54
+segments [0, 1, 2, 3]: contiguous from 0 = True, duplicates = False, one session = True
+  Meta events (segment, ts): [('0', 1793524751880)]
+  manual Clip d705da6466594548d6e651f99b961f2a: span 1793524751880..1793524758575 (6695 ms, truncated=true) -> segments [0, 1, 2]
+  error Clip 210cfced6e68a4df9f219ae228f615d7: span 1793524751880..1793524765921 (14041 ms, truncated=true) -> segments [0, 1, 2, 3]
+
+## v5-gen stream 0288fb11c6a60dea579854d57c687822
+segments [0]: contiguous from 0 = True, duplicates = False, one session = True
+  Meta events (segment, ts): [('0', 1793524866253)]
+  manual Clip 1d0cf382dab2610581f0429cbce7e812: span 1793524866253..1793524870370 (4117 ms, truncated=false) -> segments [0]
+
+## v5-network stream 638ea22b3975eda8486d7e16f77fc666
+segments [0, 1]: contiguous from 0 = True, duplicates = False, one session = True
+  Meta events (segment, ts): [('0', 1793524776569)]
+  network Clip d80f5a49f5c537887b25a6d651126793: span 1793524776569..1793524787237 (10668 ms, truncated=true) -> segments [0, 1]
+
+## v5-pause stream 1273caff0715df4f5c96f5ec564547dc
+segments [0, 1]: contiguous from 0 = True, duplicates = False, one session = True
+  custom event in segment 0: everr.recording.pause
+  custom event in segment 0: everr.recording.resume
+  Meta events (segment, ts): [('0', 1793524809438), ('1', 1793524811553)]
+  manual Clip 6e8127e7e379fb12e92b876d65368991: span 1793524809437..1793524812355 (2918 ms, truncated=false) -> segments [0, 1]
+
+## v5-start stream a0204ad904a80ea76d73e80a15b94a2b
+segments [0]: contiguous from 0 = True, duplicates = False, one session = True
+  Meta events (segment, ts): [('0', 1793524798621)]
+  manual Clip 89c46b75262e1372e061622cd88df3eb: span 1793524798620..1793524800287 (1667 ms, truncated=false) -> segments [0]
+
+## verify-recording-web-v5-pieces stream 7a57c0080637ef4d054aaab48eabb640
+segments [0, 1, 2, 3, 4, 5]: contiguous from 0 = True, duplicates = False, one session = True
+  Meta events (segment, ts): [('0', 1793524820568)]
+  manual Clip aef6ddca162777ff1d6a8bf942d41fe8: span 1793524820568..1793524824438 (3870 ms, truncated=true) -> segments [0, 1, 2, 3, 4, 5]
+
+## privacy: strings searched in every Segment body
+  'Guido Secret': absent
+  '4242 4242': absent
+  'no-capture region': absent
+  'href-secret-4242': absent
+  'meta-secret-4242': absent
+  'DroppedByBeforeSend': absent
+
+## pieces
+  segment 1 event.index 1 piece 0/3: 950000 bytes, U+FFFD=False
+  segment 2 event.index 1 piece 1/3: 950000 bytes, U+FFFD=False
+  segment 3 event.index 1 piece 2/3: 300492 bytes, U+FFFD=False
+  joined: 2200492 bytes, parses as one event of type 2
+  inline PNG data URI (1746530 chars) present intact in the joined event: True
