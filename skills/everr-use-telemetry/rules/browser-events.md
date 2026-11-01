@@ -58,13 +58,12 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 ### Recording Segments
 
-Only with `recording()` from `@everr/otel-web/recording`. Each Clip is sent as one or more `everr.browser.recording.segment` logs. The `Body` is a JSON array of rrweb events that is already masked; the first Segment of a Clip starts with a Meta event and a full snapshot. A Segment holds about 950 KB, and its `Timestamp` is that of its last event. Join the Segments of a Clip by `everr.recording.clip.id` and order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit.
+Only with `recording()` from `@everr/otel-web/recording`. A page's buffer (the Stream) is sent as `everr.browser.recording.segment` logs, each event at most once, while a Clip needs it. The `Body` is a JSON array of rrweb events that is already masked. A Segment holds about 950 KB and never spans two full snapshots, and its `Timestamp` is that of its first event. A Clip is a time range of the Stream, given by its `recording` span: its Segments are those with the span's `everr.recording.stream.id` and a `Timestamp` from the span's start to its end, and the first of them starts with a Meta event and a full snapshot. Two Clips can share Segments. Order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit.
 
 | Attribute                       | Meaning                                                                   |
 | ------------------------------- | ------------------------------------------------------------------------- |
-| `everr.recording.clip.id`       | Random id per Clip; also on the `recording` span                          |
 | `everr.recording.stream.id`     | Random id per page's buffer; on every record of the page while it buffers |
-| `everr.recording.segment.index` | Int from 0 per Clip                                                       |
+| `everr.recording.segment.index` | Int from 0 per Stream                                                     |
 | `session.id`                    | The Session the Stream started in, not a fresh read                       |
 
 An event larger than one Segment, in practice a full snapshot with big text or inline images, goes in pieces: consecutive Segments whose `Body` is a slice of that one event's JSON text, not an array. Each piece is cut between characters and holds at most 950 KB of UTF-8, and it carries three more attributes:
@@ -75,7 +74,7 @@ An event larger than one Segment, in practice a full snapshot with big text or i
 | `everr.recording.event.piece`  | Int from 0: the place of this piece in the event               |
 | `everr.recording.event.pieces` | The count of pieces of the event                               |
 
-To reassemble a Clip, read its Segments in `everr.recording.segment.index` order. Parse a Segment without `everr.recording.event.pieces` as an array of events. For pieces, join the bodies with the same `everr.recording.event.index` in `everr.recording.event.piece` order, then parse the joined text as one event in that place. An event with a missing piece is lost; skip it.
+To reassemble a Clip, read its Segments in `everr.recording.segment.index` order, and play the events up to the span's end. Parse a Segment without `everr.recording.event.pieces` as an array of events. For pieces, join the bodies with the same `everr.recording.event.index` in `everr.recording.event.piece` order, then parse the joined text as one event in that place. An event with a missing piece is lost; skip it.
 
 Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
 
@@ -90,7 +89,7 @@ Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: j
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Application-defined name (e.g. `prepare checkout`) | Manual segment from `tracer.startSpan()` or `tracer.startActiveSpan()`. The latter stays active until `end()` in the browser; custom and built-in spans started during that time join the most recently active span's trace. Overlapping interactions share this stack, not isolated async contexts. `root: true` starts a new trace | Context envelope plus caller-supplied attributes (a scalar or an array). Prefer bounded names and `everr.*` for custom attributes. `setStatus({ code: 2 })` marks failure (`StatusCode = 'Error'`, message kept). `setStatus({ code: 1 })` marks OK and sticks. Links carry the linked span's trace id, span id, and trace flags                                                                                                                                      |
 | `<METHOD> <route>` (e.g. `GET /api/posts/{id}`)    | One per browser `fetch` or XHR; the server spans parent to it, so `TraceId` joins frontend to backend. Each request is its own trace root                                                                                                                                                                                            | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type`                                                                                                                                                                                                                                                              |
-| `recording`                                        | One root span per Clip, the index entry for its Segments. It starts at the Clip's requested start (the `startClip()` call, or `last` ms before it) and ends at `end()`, `next`, the 60-second cap, or page hide. It never has a parent, and nothing is a child of it                                                                 | `everr.recording.trigger` (`error`, `network`, or `manual`), `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.clip.truncated` (`true` only when the buffer did not reach back to the requested start), `session.id`                                                                                                                                                                                                                           |
+| `recording`                                        | One root span per Clip, the time range of its Segments. It starts at the Clip's full snapshot (the `startClip()` call, or the newest snapshot at or before `last` ms before it) and ends at `end()`, `next`, the 60-second cap, or page hide. It never has a parent, and nothing is a child of it                                    | `everr.recording.trigger` (`error`, `network`, or `manual`), `everr.recording.clip.id`, `everr.recording.stream.id`, `everr.recording.clip.truncated` (`true` only when the buffer did not reach back to the requested start), `session.id`                                                                                                                                                                                                                           |
 | `slow_interaction`                                 | Event Timing entry over threshold, from the same observer as INP                                                                                                                                                                                                                                                                     | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
 
 XHR spans start at `send()` and end on completion, timeout, network failure, or cancellation. Network failures set `error.type = NetworkError`; timeouts set `error.type = TimeoutError`. Explicit aborts and requests replaced by `open()` end without an error status. A missing HTTP response has no `http.response.status_code`. Shutdown detaches listeners and discards unfinished XHR observations without aborting application requests. Everr owns XHR trace propagation. Caller-supplied `traceparent` headers are not detected; setting one alongside `network()` causes XHR to append the SDK value, producing an invalid trace header.
@@ -140,12 +139,13 @@ ORDER BY errors DESC
 LIMIT 20
 ```
 
-Recordings of the last day with what opened them; play one by reading its Segments in index order:
+Recordings of the last day with what opened them; play one by reading the Segments of its Stream in its time range, in index order:
 
 ```sql
 SELECT Timestamp, Duration / 1e9 AS seconds,
   toString(SpanAttributes.`everr.recording.trigger`) AS trigger,
-  toString(SpanAttributes.`everr.recording.clip.id`) AS clip_id,
+  toString(SpanAttributes.`everr.recording.stream.id`) AS stream_id,
+  Timestamp + toIntervalNanosecond(Duration) AS ended,
   toString(SpanAttributes.`session.id`) AS session_id
 FROM traces
 WHERE Timestamp > now() - INTERVAL 24 HOUR
@@ -158,7 +158,8 @@ LIMIT 20
 SELECT toUInt32OrZero(toString(LogAttributes.`everr.recording.segment.index`)) AS segment, Body
 FROM logs
 WHERE EventName = 'everr.browser.recording.segment'
-  AND toString(LogAttributes.`everr.recording.clip.id`) = '<clip-id>'
+  AND toString(LogAttributes.`everr.recording.stream.id`) = '<stream-id>'
+  AND Timestamp BETWEEN '<span-start>' AND '<ended>'
 ORDER BY segment
 ```
 

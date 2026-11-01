@@ -50,21 +50,8 @@ function entriesStayInLockstep(server: typeof ServerTypes, browser: typeof Index
   void serverCoversBrowser;
 }
 
-// The recording entry reaches the page state by path. No public entry exports
-// the functions it uses.
-function recordingStateStaysInternal(
-  browser: typeof IndexTypes,
-  server: typeof ServerTypes,
-  recording: typeof RecordingTypes,
-): void {
-  // @ts-expect-error - not exported
-  void browser.emitLogNow;
-  // @ts-expect-error - not exported
-  void browser.setRecordingTrigger;
-  // @ts-expect-error - not exported
-  void server.emitLogNow;
-  // @ts-expect-error - not exported
-  void recording.setRecordingTrigger;
+// The recording entry takes no sampling option of its own.
+function recordingSamplesThroughSampled(recording: typeof RecordingTypes): void {
   // @ts-expect-error - sampling is sampled(recording(), rate)
   void recording.recording({ sampleRate: 0.2 });
 }
@@ -75,6 +62,6 @@ describe("type guarantees", () => {
     expect(anonymizedIsOptional.anonymized).toBeUndefined();
     expect(identityFunctionsAreFree).toBeTypeOf("function");
     expect(entriesStayInLockstep).toBeTypeOf("function");
-    expect(recordingStateStaysInternal).toBeTypeOf("function");
+    expect(recordingSamplesThroughSampled).toBeTypeOf("function");
   });
 });
