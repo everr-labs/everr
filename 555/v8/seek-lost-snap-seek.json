@@ -1,0 +1,19 @@
+{
+ "ok": true,
+ "errors": [],
+ "firstTs": 1793529576118,
+ "lastTs": 1793529578030,
+ "shots": [
+  {
+   "frame": "lost-snap-A-rep-first",
+   "off": 0,
+   "at": 0
+  },
+  {
+   "frame": "lost-snap-A-rep-last",
+   "off": 1912,
+   "at": 1912
+  }
+ ],
+ "body": "rrweb 2.1.7 Replayer\nclip c7486370977006dc2eddcbd48f6b14ef\nstream 3b51380f\nsegments 0,1,3,4,5\nevents 5\npieces joined 3\ntime 1.9s / 1.9s"
+}

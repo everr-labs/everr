@@ -1,0 +1,17 @@
+# Runtime instrumentation.name of recording() and errors() from packages/otel-web/dist (built from b5290e16d), after an app bundler.
+$ esbuild e.js --bundle --format=esm
+recording3 errors2
+$ esbuild e.js --bundle --format=esm --minify
+"" ""  (both empty)
+$ rolldown 1.1.0, minify false
+recording errors
+$ rolldown 1.1.0, minify true
+"" ""  (both empty)
+
+e.js:
+import { recording } from "/workspace/eggbot-recording/packages/otel-web/dist/recording.js";
+import { errors } from "/workspace/eggbot-recording/packages/otel-web/dist/index.js";
+console.log(recording().name, errors().name);
+
+The v8 test page (esbuild bundle of src) names it:
+return function recording2

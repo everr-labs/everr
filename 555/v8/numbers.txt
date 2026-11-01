@@ -1,0 +1,158 @@
+# v8: limits. Downloaded with `everr local query` (cli-command.txt). Times: seconds after page load. Request sizes: the OTLP logging proxy between the page and the local collector (proxy.ndjson).
+
+## An event over 10 MB (v8-huge)
+moments: load t+0.0, loaded t+1.5, emitA t+3.7, before-emitB t+28.6, emitB t+29.6
+page image: big12.png, 9004303 bytes; data URI 12005762 chars
+Stream 53dec98004a96061287b105b3fbafb0e: 16 Segments, indices 0..15, duplicates 0, missing indices []
+  seg  0 ts t+-0.2 body 121 chars  array {'Meta': 1}
+  seg  1 ts t+-0.2 body 950000 chars  piece 0/13 of event 1
+  seg  2 ts t+-0.2 body 950000 chars  piece 1/13 of event 1
+  seg  3 ts t+-0.2 body 950000 chars  piece 2/13 of event 1
+  seg  4 ts t+-0.2 body 950000 chars  piece 3/13 of event 1
+  seg  5 ts t+-0.2 body 950000 chars  piece 4/13 of event 1
+  seg  6 ts t+-0.2 body 950000 chars  piece 5/13 of event 1
+  seg  7 ts t+-0.2 body 950000 chars  piece 6/13 of event 1
+  seg  8 ts t+-0.2 body 950000 chars  piece 7/13 of event 1
+  seg  9 ts t+-0.2 body 950000 chars  piece 8/13 of event 1
+  seg 10 ts t+-0.2 body 950000 chars  piece 9/13 of event 1
+  seg 11 ts t+-0.2 body 950000 chars  piece 10/13 of event 1
+  seg 12 ts t+-0.2 body 950000 chars  piece 11/13 of event 1
+  seg 13 ts t+-0.2 body 609140 chars  piece 12/13 of event 1
+  seg 14 ts t+0.5 body 1069 chars  array {'Incremental': 4}
+  seg 15 ts t+2.6 body 6313 chars  array {'Incremental': 29}
+Clip 91cee1023ce0262fd4b4a229a2bf236d span t+-0.2 .. t+2.6 truncated=false: Segments [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 35 events, full snapshots 1
+  full snapshot at t+-0.2: 12009489 chars of JSON; contains the page's data URI byte for byte: True
+Clip 48bb194a4ac923cd2374d8bdd2ffc3c7 span t+-0.2 .. t+28.7 truncated=true: Segments [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 35 events, full snapshots 1
+  full snapshot at t+-0.2: 12009489 chars of JSON; contains the page's data URI byte for byte: True
+requests with Segments: 16; largest 952478 bytes; all answered ['200']
+
+## An event over 10 MB (v8-huge2)
+moments: load t+0.0, loaded t+1.5, emitA t+3.7, before-emitB t+46.6, emitB t+47.9
+page image: big12.png, 9004303 bytes; data URI 12005762 chars
+Stream 8ee34f3e0c9479fc1372b28d5f9d1bf5: 30 Segments, indices 0..29, duplicates 0, missing indices []
+  seg  0 ts t+-0.1 body 121 chars  array {'Meta': 1}
+  seg  1 ts t+-0.1 body 950000 chars  piece 0/13 of event 1
+  seg  2 ts t+-0.1 body 950000 chars  piece 1/13 of event 1
+  seg  3 ts t+-0.1 body 950000 chars  piece 2/13 of event 1
+  seg  4 ts t+-0.1 body 950000 chars  piece 3/13 of event 1
+  seg  5 ts t+-0.1 body 950000 chars  piece 4/13 of event 1
+  seg  6 ts t+-0.1 body 950000 chars  piece 5/13 of event 1
+  seg  7 ts t+-0.1 body 950000 chars  piece 6/13 of event 1
+  seg  8 ts t+-0.1 body 950000 chars  piece 7/13 of event 1
+  seg  9 ts t+-0.1 body 950000 chars  piece 8/13 of event 1
+  seg 10 ts t+-0.1 body 950000 chars  piece 9/13 of event 1
+  seg 11 ts t+-0.1 body 950000 chars  piece 10/13 of event 1
+  seg 12 ts t+-0.1 body 950000 chars  piece 11/13 of event 1
+  seg 13 ts t+-0.1 body 609141 chars  piece 12/13 of event 1
+  seg 14 ts t+0.7 body 1069 chars  array {'Incremental': 4}
+  seg 15 ts t+30.6 body 121 chars  array {'Meta': 1}
+  seg 16 ts t+30.6 body 950000 chars  piece 0/13 of event 16
+  seg 17 ts t+30.6 body 950000 chars  piece 1/13 of event 16
+  seg 18 ts t+30.6 body 950000 chars  piece 2/13 of event 16
+  seg 19 ts t+30.6 body 950000 chars  piece 3/13 of event 16
+  seg 20 ts t+30.6 body 950000 chars  piece 4/13 of event 16
+  seg 21 ts t+30.6 body 950000 chars  piece 5/13 of event 16
+  seg 22 ts t+30.6 body 950000 chars  piece 6/13 of event 16
+  seg 23 ts t+30.6 body 950000 chars  piece 7/13 of event 16
+  seg 24 ts t+30.6 body 950000 chars  piece 8/13 of event 16
+  seg 25 ts t+30.6 body 950000 chars  piece 9/13 of event 16
+  seg 26 ts t+30.6 body 950000 chars  piece 10/13 of event 16
+  seg 27 ts t+30.6 body 950000 chars  piece 11/13 of event 16
+  seg 28 ts t+30.6 body 609497 chars  piece 12/13 of event 16
+  seg 29 ts t+31.6 body 3729 chars  array {'Incremental': 17}
+Clip 0cb8d953d8101bc64d17fcfdafb4b529 span t+-0.1 .. t+2.6 truncated=false: Segments [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], 6 events, full snapshots 1
+  full snapshot at t+-0.1: 12009490 chars of JSON; contains the page's data URI byte for byte: True
+Clip 5991158c98561fd11685829b40854eca span t+30.6 .. t+46.8 truncated=true: Segments [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29], 19 events, full snapshots 1
+  full snapshot at t+30.6: 12009889 chars of JSON; contains the page's data URI byte for byte: True
+requests with Segments: 30; largest 952523 bytes; all answered ['200']
+
+## Request size against the 20 MiB bound (v8-escape)
+The page holds 3 000 000 characters of '"\\' text: each is escaped once in the rrweb JSON and again in the OTLP JSON body.
+Stream 9ce66016c1b925c345157557feba8bd0: 9 Segments, indices 0..8, duplicates 0, missing indices []
+  seg  0 piece None/None  Segment body 121 chars -> request 1984 bytes (0.002 MiB, 0.0% of 20 MiB)  status 200
+  seg  1 piece 0/7  Segment body 950000 chars -> request 1899482 bytes (1.811 MiB, 9.1% of 20 MiB)  status 200
+  seg  2 piece 1/7  Segment body 950000 chars -> request 1902039 bytes (1.814 MiB, 9.1% of 20 MiB)  status 200
+  seg  3 piece 2/7  Segment body 950000 chars -> request 1902039 bytes (1.814 MiB, 9.1% of 20 MiB)  status 200
+  seg  4 piece 3/7  Segment body 950000 chars -> request 1902039 bytes (1.814 MiB, 9.1% of 20 MiB)  status 200
+  seg  5 piece 4/7  Segment body 950000 chars -> request 1902039 bytes (1.814 MiB, 9.1% of 20 MiB)  status 200
+  seg  6 piece 5/7  Segment body 950000 chars -> request 1902039 bytes (1.814 MiB, 9.1% of 20 MiB)  status 200
+  seg  7 piece 6/7  Segment body 303402 chars -> request 608526 bytes (0.580 MiB, 2.9% of 20 MiB)  status 200
+  seg  8 piece None/None  Segment body 1276 chars -> request 3335 bytes (0.003 MiB, 0.0% of 20 MiB)  status 200
+joined snapshot: 6003754 chars of JSON; it holds the page's text node, 1 500 000 times '"' + backslash (3 000 000 chars), unchanged: True
+largest request of every v8 run: 1902039 bytes (1.814 MiB) from v8-escape, of 205 requests
+collector bound (collector-limit.txt):
+  POST http://127.0.0.1:45463/v1/logs (the local collector), Content-Type application/json
+  19.9 MiB: body 20865972 bytes (19.899 MiB) -> 200
+  20 MiB + 1 KiB: body 20972516 bytes (20.001 MiB) -> 400 b'{"code":3,"message":"http: request body too large"}'
+
+## A lost piece (v8-lost-mut)
+moments: load t+0.0, startA t+1.5, before-image t+3.3, image t+5.9, before-endA t+6.8, endA t+6.9
+proxy dropped: Segment 2 = piece 1/4 (answered 200 to the page, not forwarded)
+Stream 03f912e9b0b137023e648e77a351388d: 5 Segments, indices 0..5, duplicates 0, missing indices [2]
+Clip 8a277cdca351b548870f56adcdf9ce24 span t+1.5 .. t+6.9: Segments [0, 1, 3, 4, 5]
+  reassembled per the spec: 10 events {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 8}; skipped events (index, pieces present, pieces): [('1', [0, 2, 3], 4)]
+
+## A lost piece (v8-lost-snap)
+moments: load t+0.0, loaded t+1.5, before-emitA t+2.5, emitA t+2.5
+proxy dropped: Segment 2 = piece 1/4 (answered 200 to the page, not forwarded)
+Stream 3b51380f87d7992baed81ea85f2eec24: 5 Segments, indices 0..5, duplicates 0, missing indices [2]
+Clip c7486370977006dc2eddcbd48f6b14ef span t+-0.1 .. t+2.6: Segments [0, 1, 3, 4, 5]
+  reassembled per the spec: 5 events {'Meta': 1, 'Incremental': 4}; skipped events (index, pieces present, pieces): [('1', [0, 2, 3], 4)]
+
+## The cap of 5 automatic Clips (v8-cap)
+moments: load t+0.0, before-error1 t+2.4, error1 t+2.4, before-error2 t+14.5, error2 t+14.5, before-error3 t+26.5, error3 t+26.5, before-error4 t+38.6, error4 t+38.6, before-error5 t+50.6, error5 t+50.6, before-error6 t+62.6, error6 t+62.7, before-error7 t+74.7, error7 t+74.7, end t+86.7
+exception logs: 7; recording spans: 5 (all trigger=['error'])
+  error 1 at t+2.4: Clip 4033b4eec056ef3c531c80c5887eda97 ends t+12.4 (error + 10.0 s), starts t+-0.0, truncated=true
+  error 2 at t+14.5: Clip 314d758e1507934a7477d9668ed966b4 ends t+24.5 (error + 10.0 s), starts t+-0.0, truncated=true
+  error 3 at t+26.5: Clip 857b5ae5b913eccaeda158d33adbbde3 ends t+36.5 (error + 10.0 s), starts t+-0.0, truncated=true
+  error 4 at t+38.6: Clip 09e774691aa2592e27fc726a4a0c1f22 ends t+48.6 (error + 10.0 s), starts t+-0.0, truncated=true
+  error 5 at t+50.6: Clip de7471a1cd3fc88c4de8e5e2a7c1721e ends t+60.6 (error + 10.0 s), starts t+-0.0, truncated=true
+  error 6 at t+62.7: no Clip
+  error 7 at t+74.7: no Clip
+Stream d9d42302b1f7b166b19f412cd5dd9849: 16 Segments, indices 0..15, duplicates 0, missing indices []
+Segments after the 5th Clip's end (t+60.6): []
+
+## The 5-minute window, the 60 s cap, and next without last (v8-long)
+moments: load t+0.0, startN t+1.5, afterN t+12.3, startCAP t+12.4, afterCAP t+82.6, before-emitW t+320.5, emitW t+321.4
+Stream 588d79741d27ae81dbc4c968c8837123: 24 Segments, indices 0..23, duplicates 0, missing indices []
+generations sent (Meta times): ['t+1.5', 't+12.4', 't+42.9', 't+73.9', 't+104.9', 't+135.9', 't+166.9', 't+197.9', 't+228.9', 't+259.9', 't+290.7']
+Clip 56e945144f8441652a4d707d89c329eb span t+1.5 .. t+9.5 (8002 ms) truncated=false: Segments [0, 1], first event Meta at t+1.5, last event t+8.9
+Clip 8a53a0078c60a38a62cef9717dd9b027 span t+12.4 .. t+72.4 (60002 ms) truncated=false: Segments [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], first event Meta at t+12.4, last event t+71.9
+Clip ac5fb1fd50ef5a6c9020a6198869f67c span t+12.4 .. t+320.5 (308149 ms) truncated=true: Segments [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23], first event Meta at t+12.4, last event t+319.9
+W: called at t+321.4 with last 400 000 ms (requested start t+-78.6); starts t+12.4, 309.1 s before the call; the page is 321.4 s old
+
+## A Clip closed by page hide (v8-hide)
+moments: load t+0.0, startA t+1.5, mid t+7.8, before-hide t+9.7, hide t+9.7
+Stream 077ce440e39a9f982207f3315c1e52ec: 1 Segments, indices 0..0, duplicates 0, missing indices []
+Clip c2f7d2f44e8c8c9c2160aa2d7fa15edb span t+1.5 .. t+9.7 (8222 ms); hide (navigation) at t+9.7
+events sent: 13, last at t+6.0; Segment requests: seg 0 at t+6.5
+all requests of the page: t+6.5 /v1/logs 9505 B everr.browser.recording.segment; t+9.7 /v1/traces 1960 B recording
+
+## sampled(recording(), 0.5)
+60 page loads, each in a fresh browser context (a new session), each calling emitClip() and flush().
+recorder chunk fetched: 26 of 60 (43%)
+loads with a recording span: 26; with Segments: 26
+sampled loads with span and Segments: 26 of 26
+not-sampled loads with any span or Segment: 0 of 34
+decision equals djb2('<session>:recording') < 0.5 on 32 of 60 loads
+decision equals djb2('<session>:recording2') < 0.5 on 60 of 60 loads; 'recording2' is the name the bundler gave the function (sample-names.txt)
+Segment rows of v8-sample: 26; streams 26
+video (v8-sample-video3): load 1 session ...691343 recording; load 2 session ...691343 recording; load 3 session ...783303 not sampled; load 4 session ...254693 not sampled; load 5 session ...658593 not sampled; load 6 session ...827596 not sampled; load 7 session ...627461 recording; load 8 session ...199020 not sampled
+  recording spans: 3, sessions ['627461', '691343']; Segments 3
+first video attempt (v8-sample-video, 6 reloads of one session, not sampled): spans 0, Segments 0
+
+## Player (rrweb 2.1.7, player5.html, from the CLI download)
+huge2 A and B: both open on the 12 MB noise image (pair-huge2-*.png).
+escape A: plays; the text node is in the DOM (the <pre> is not visibly rendered on the source page either).
+lost-mut A: plays; the 3.24 MB image and its list line never appear; later orders do (pair-lost-mut-A-*.png).
+lost-snap A: the player opens 5 events and shows a blank page for the whole Clip (pair-lost-snap-A-before-emitA.png).
+cap 5: plays t+0 .. t+60 with errors E1..E5 (pair-cap-5-before-error5.png).
+long N: t+1.5 .. t+9.5; long CAP: t+12.4 .. t+72 (last frame shows orders through #1007 at t+62.9).
+long W (seeked, seek-long-W-seek.json): first frame t+12 s, middle t+166 s, last t+319 s.
+hide A: ends at order #1005 (t+6.1); orders #1006..#1008 (t+7.0..t+8.8) are not in the replay.
+sample 7: plays the sampled load.
+
+## Findings (reported, not fixed)
+1. Minified bundles (esbuild --minify, rolldown minify) give every built-in instrumentation the name "" (sample-names.txt), so sampled() hashes the same key for recording, errors, and others: their decisions are identical per session. Unminified esbuild renames to recording2/recording3, which changes the key. The code comment relies on the function name.
+2. A lost piece of the full snapshot leaves the Clip without a full snapshot; following the spec ("skip it"), the player shows a blank page for the whole Clip (lost-snap).
+3. The window clamp kept a start 309.1 s before the call (more than 5 min): trim keeps the newest generation at or before now-5min. By design per the gen[1] rule; noted.

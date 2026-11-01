@@ -1,0 +1,24 @@
+{
+ "ok": true,
+ "errors": [],
+ "firstTs": 1793529541734,
+ "lastTs": 1793529849311,
+ "shots": [
+  {
+   "frame": "long-W-rep-first",
+   "off": 0,
+   "at": 0
+  },
+  {
+   "frame": "long-W-rep-mid",
+   "off": 154000,
+   "at": 154000
+  },
+  {
+   "frame": "long-W-rep-last",
+   "off": 307577,
+   "at": 307577
+  }
+ ],
+ "body": "rrweb 2.1.7 Replayer\nclip ac5fb1fd50ef5a6c9020a6198869f67c\nstream 588d7974\nsegments 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23\nevents 360\npieces joined 0\ntime 307.6s / 307.6s"
+}

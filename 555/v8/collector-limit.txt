@@ -1,0 +1,3 @@
+POST http://127.0.0.1:45463/v1/logs (the local collector), Content-Type application/json
+19.9 MiB: body 20865972 bytes (19.899 MiB) -> 200
+20 MiB + 1 KiB: body 20972516 bytes (20.001 MiB) -> 400 b'{"code":3,"message":"http: request body too large"}'
