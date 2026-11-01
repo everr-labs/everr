@@ -1,0 +1,105 @@
+# v7: pause/resume with Clip states, and concurrent Clips. Downloaded with `everr local query` (cli-command.txt). Times: seconds after page load.
+
+## 1 pause, startClip, resume, end  (service v7-pause-start)
+moments: before-pause t+2.4, pause t+2.5, startA t+3.4, paused t+5.2, resume t+6.7, after-resume t+7.6, endA t+10.1, end t+11.0
+Stream 72a3756522dac852b8bc1791c337b831: 2 Segments uploaded, indices [0, 1], duplicates 0, gaps []
+  seg  0 ts t+6.7  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+  seg  1 ts t+8.9  first Incremental  {'Incremental': 2}  
+Clip 94b8773366f7fcc847972582082136f6 trigger=manual truncated=false span t+3.4 .. t+10.1 (6705 ms)
+  Segments in range: [0, 1]; first Segment starts with Meta
+
+## 2b startClip A, pause, startClip B, resume  (service v7-pause-two)
+moments: startA t+1.5, before-pause t+8.8, pause t+8.9, startB t+15.3, paused t+17.1, resume t+17.1, after-resume t+18.0, endB t+21.4, endA t+23.2
+Stream e7f4b653fc4152d2b0f349ff0bb1391b: 6 Segments uploaded, indices [0, 1, 2, 3, 4, 5], duplicates 0, gaps []
+  seg  0 ts t+1.5  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 7}  
+  seg  1 ts t+7.0  first Incremental  {'Incremental': 2, 'Custom': 1}  everr.recording.pause@t+8.9
+  seg  2 ts t+17.1  first Custom  {'Custom': 1}  everr.recording.resume@t+17.1
+  seg  3 ts t+17.1  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 5}  
+  seg  4 ts t+20.4  first Incremental  {'Incremental': 3}  
+  seg  5 ts t+22.0  first Incremental  {'Incremental': 1}  
+Clip 64fbf9fd2e95ee7941c9296ef4664a33 trigger=manual truncated=false span t+1.5 .. t+22.3 (20792 ms)
+  Segments in range: [0, 1, 2, 3, 4, 5]; first Segment starts with Meta
+Clip 50038c5762c0eb9bb47d42ca6f021200 trigger=manual truncated=false span t+15.3 .. t+20.4 (5181 ms)
+  Segments in range: [2, 3, 4]; first Segment starts with Custom
+
+## 3 error, pause in tail, resume in tail  (service v7-error-pause)
+moments: error t+2.4, tail-before-pause t+4.2, pause t+5.3, paused t+7.1, resume t+8.1, after-resume t+9.9, after-tail t+15.9
+Stream 5bd80d354cc63958407c88995cbf96cd: 4 Segments uploaded, indices [0, 1, 2, 3], duplicates 0, gaps []
+  seg  0 ts t+-0.0  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 5}  
+  seg  1 ts t+3.0  first Incremental  {'Incremental': 4, 'Custom': 1}  everr.recording.pause@t+5.3
+  seg  2 ts t+8.1  first Custom  {'Custom': 1}  everr.recording.resume@t+8.1
+  seg  3 ts t+8.1  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 6}  
+Clip 18498713db83503d2a354aa8ae844d3d trigger=error truncated=true span t+-0.0 .. t+12.4 (12456 ms)
+  Segments in range: [0, 1, 2, 3]; first Segment starts with Meta
+exception log at t+2.4
+
+## 4 error while paused  (service v7-pause-error)
+moments: before-pause t+2.4, pause t+2.5, error t+4.3, paused t+6.1, resume t+16.1, after-resume t+17.9
+Stream 02c3811669bc1aa4f839cca1ca3fb24a: 1 Segments uploaded, indices [0], duplicates 0, gaps []
+  seg  0 ts t+-0.0  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4, 'Custom': 1}  everr.recording.pause@t+2.5
+Clip 9f74e61687cb593be78358d2d4e4511e trigger=error truncated=true span t+-0.0 .. t+14.3 (14292 ms)
+  Segments in range: [0]; first Segment starts with Meta
+exception log at t+4.3
+
+## 5 emitClip over a paused window  (service v7-emit-paused)
+moments: before-pause t+2.4, pause t+2.5, paused t+4.3, resume t+6.3, after-resume t+7.2, emitC t+8.2, emit t+9.1
+Stream 1040e36621f488584cdbfdfd4cca72ea: 2 Segments uploaded, indices [0, 1], duplicates 0, gaps []
+  seg  0 ts t+-0.0  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4, 'Custom': 2}  everr.recording.pause@t+2.5 everr.recording.resume@t+6.3
+  seg  1 ts t+6.3  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+Clip 4577ffe9d141296c490188cfdaeb7136 trigger=manual truncated=true span t+-0.0 .. t+8.2 (8193 ms)
+  Segments in range: [0, 1]; first Segment starts with Meta
+
+## 6 startClip while paused, end before resume  (service v7-pause-end)
+moments: pause t+2.4, startA t+3.3, endA t+7.5
+Stream -: 0 Segments uploaded, indices [], duplicates 0, gaps []
+Clip f64f1147a81f11e9e79232294e9bc8c4 trigger=manual truncated=false span t+3.3 .. t+6.6 (3315 ms)
+  Segments in range: []; first Segment starts with None
+
+## 7 startClip A + error B + emitClip C  (service v7-concurrent)
+moments: startA t+1.5, before-error t+3.3, errorB t+3.4, before-emit t+5.2, emitC t+5.2, after-tail t+16.5, before-endA t+17.4, endA t+18.4
+Stream 0a5d64e64dff29a031a538d9a45e7b38: 8 Segments uploaded, indices [0, 1, 2, 3, 4, 5, 6, 7], duplicates 0, gaps []
+  seg  0 ts t+-0.0  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 2}  
+  seg  1 ts t+1.5  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 5}  
+  seg  2 ts t+4.0  first Incremental  {'Incremental': 3}  
+  seg  3 ts t+5.2  first Incremental  {'Incremental': 3}  
+  seg  4 ts t+7.0  first Incremental  {'Incremental': 5}  
+  seg  5 ts t+12.0  first Incremental  {'Incremental': 2}  
+  seg  6 ts t+14.0  first Incremental  {'Incremental': 3}  
+  seg  7 ts t+16.5  first Incremental  {'Incremental': 2}  
+Clip e224752ec4bfd04d72c7f6e75db1a12e trigger=manual truncated=false span t+-0.0 .. t+5.2 (5232 ms)
+  Segments in range: [0, 1, 2, 3]; first Segment starts with Meta
+Clip 702b8db012293d4224628a60352311a1 trigger=error truncated=true span t+-0.0 .. t+13.4 (13393 ms)
+  Segments in range: [0, 1, 2, 3, 4, 5]; first Segment starts with Meta
+Clip 63ef852b4d15c0aaab7f78bf5d5282f0 trigger=manual truncated=false span t+1.5 .. t+17.5 (15968 ms)
+  Segments in range: [1, 2, 3, 4, 5, 6, 7]; first Segment starts with Meta
+exception log at t+3.4
+
+## 8 overlapping startClip handles  (service v7-overlap)
+moments: startA t+1.5, startB t+3.3, before-endA t+5.1, endA t+5.2, before-endB t+7.0, endB t+7.0, startC t+8.8, startD t+10.7, before-endD t+12.5, endD t+12.5, before-endC t+14.3, endC t+15.3
+Stream 491a62f2a785496e2c4f4fae1f4d0456: 8 Segments uploaded, indices [0, 1, 2, 3, 4, 5, 6, 7], duplicates 0, gaps []
+  seg  0 ts t+1.5  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+  seg  1 ts t+3.3  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+  seg  2 ts t+5.2  first Incremental  {'Incremental': 3}  
+  seg  3 ts t+7.0  first Incremental  {'Incremental': 1}  
+  seg  4 ts t+8.8  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+  seg  5 ts t+10.7  first Meta  {'Meta': 1, 'FullSnapshot': 1, 'Incremental': 4}  
+  seg  6 ts t+12.5  first Incremental  {'Incremental': 3}  
+  seg  7 ts t+14.0  first Incremental  {'Incremental': 1}  
+Clip 042a6844a50435188f7251ee1265654b trigger=manual truncated=false span t+1.5 .. t+5.2 (3665 ms)
+  Segments in range: [0, 1, 2]; first Segment starts with Meta
+Clip 110686c0a5b65f6f91240daec4912235 trigger=manual truncated=false span t+3.3 .. t+7.0 (3695 ms)
+  Segments in range: [1, 2, 3]; first Segment starts with Meta
+Clip b7e8b5e4e48330f0657918b49ce8471e trigger=manual truncated=false span t+8.8 .. t+14.3 (5512 ms)
+  Segments in range: [4, 5, 6, 7]; first Segment starts with Meta
+Clip 1507bff512ee52380cfba4b2dfeede17 trigger=manual truncated=false span t+10.7 .. t+12.5 (1848 ms)
+  Segments in range: [5, 6]; first Segment starts with Meta
+
+## Upload counts
+31 Segment rows over 7 Streams; distinct (stream, index) pairs: 31; any uploaded twice: False
+
+## Notes
+- Clip span ends: a moment named like the call (endA, endB, endC) is the screenshot taken about 0.9 s after the call, so it reads later than the span end.
+- 2b: Clip B's first Segment (index 2) is one Custom event, the everr.recording.resume marker. It belongs to A's generation: resume() writes the marker before the new snapshot, and A's flush sends it as its own Segment at the resume time, which is inside B's range. rrweb 2.1.7 still replays B from the snapshot in Segment 3.
+- 6: the Clip opened while paused and ended before resume() has a span (3315 ms) and no Segments: the Stream sent none. The player has nothing to play ("Replayer need at least 2 events").
+- 4: the error while paused opens a Clip. It holds the page up to the pause marker; its span runs to error + 10 s; resume() after the tail adds nothing to it.
+
