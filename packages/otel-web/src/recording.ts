@@ -4,9 +4,6 @@
 // nothing leaves the page until a Clip. Refer to docs/specs/2026-10-22-otel-web-recording.md.
 
 import type { Instrumentation } from "@everr/otel-web";
-// The page state is imported by path, not by the package name, so these stay
-// off the public entry. The build puts it in a chunk shared with that entry.
-import { setRecordingTrigger } from "./state/recording.js";
 import type { Stream } from "./recording/recorder.js";
 
 export type RecordingOptions = {
@@ -38,11 +35,11 @@ export type StartClipOptions = EmitClipOptions & {
 export type RecordingClip = {
   /** Empty for an inert Clip. */
   readonly id: string;
-  /** Epoch milliseconds of the start: the call, or `last` milliseconds before it. */
+  /** Epoch milliseconds of the start: the call, or the full snapshot at or before `last` milliseconds before it. */
   readonly startTime: number;
   /** False before the recorder chunk loads, in an unsampled Session, after the Stream ends, or after end(). */
   isRecording(): boolean;
-  /** Closes the tail and emits the recording Span. Idempotent. */
+  /** Sends what the Clip still needs and emits the recording Span. Idempotent. */
   end(): void;
 };
 
@@ -90,15 +87,15 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
     const id = ctx.ids().sessionId;
     import("./recording/recorder.js")
       .then(({ startStream }) => {
-        if (page === state) state.stream = startStream(ctx.tracer, id, options);
+        if (page === state) state.stream = startStream(ctx, id, options);
       })
       // A failed chunk load or start only means no recording. It is never an app error.
       .catch(() => {});
-    const stopTrigger = setRecordingTrigger((kind) => state.stream?.trigger(kind));
+    const stopRecord = ctx.onRecord((item) => state.stream?.observe(item));
     const stopHide = ctx.onHide(() => state.stream?.hide());
     return () => {
       stopHide();
-      stopTrigger();
+      stopRecord();
       state.stream?.end();
       if (page === state) page = undefined;
     };

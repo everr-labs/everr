@@ -25,7 +25,7 @@ async function recordPage(
   // The whole buffer, with the act() events.
   const clip = t.rec.recorder.startClip({ last: 5 * 60_000 });
   clip.end();
-  return JSON.stringify(t.clipEvents(clip.id));
+  return JSON.stringify(await t.clipEvents(clip.id));
 }
 
 const type = (el: Element | null, value: string) => {
@@ -206,12 +206,20 @@ describe("the options", () => {
     const json = await recordPage(
       `<p class="everr-mask">class-mask</p><p data-everr-mask>data-mask</p>
        <div class="everr-block">class-block</div><div data-everr-block>data-block</div>
+       <div class="everr-no-capture">no-capture-text</div>
        <div data-everr-ignore><input id="ignored"></div>
        <p>open text</p>`,
       { maskAllText: false, maskAllInputs: false, maskAttributes: [] },
       () => type(document.getElementById("ignored"), "ignored-typing"),
     );
-    for (const secret of ["class-mask", "data-mask", "class-block", "data-block", "ignored-typing"])
+    for (const secret of [
+      "class-mask",
+      "data-mask",
+      "class-block",
+      "data-block",
+      "no-capture-text",
+      "ignored-typing",
+    ])
       expect(json, secret).not.toContain(secret);
     expect(json).toContain("open text");
   });
