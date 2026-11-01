@@ -1,0 +1,38 @@
+[
+ {
+  "frame": "mdefault-rep-first",
+  "replayMs": 40,
+  "video": {
+   "paused": true,
+   "currentTime": 0,
+   "readyState": 0
+  }
+ },
+ {
+  "frame": "mdefault-rep-playing",
+  "replayMs": 6040,
+  "video": {
+   "paused": true,
+   "currentTime": 0,
+   "readyState": 0
+  }
+ },
+ {
+  "frame": "mdefault-rep-paused",
+  "replayMs": 9040,
+  "video": {
+   "paused": true,
+   "currentTime": 0,
+   "readyState": 0
+  }
+ },
+ {
+  "frame": "mdefault-rep-last",
+  "replayMs": 9040,
+  "video": {
+   "paused": true,
+   "currentTime": 0,
+   "readyState": 0
+  }
+ }
+]

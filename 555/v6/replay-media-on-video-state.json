@@ -1,0 +1,47 @@
+[
+ {
+  "frame": "mon-rep-first",
+  "replayMs": 81,
+  "video": {
+   "paused": true,
+   "currentTime": 0,
+   "readyState": 4
+  }
+ },
+ {
+  "frame": "mon-rep-playing1",
+  "replayMs": 3601,
+  "video": {
+   "paused": false,
+   "currentTime": 1.1,
+   "readyState": 4
+  }
+ },
+ {
+  "frame": "mon-rep-playing",
+  "replayMs": 6098,
+  "video": {
+   "paused": false,
+   "currentTime": 3.59,
+   "readyState": 4
+  }
+ },
+ {
+  "frame": "mon-rep-paused",
+  "replayMs": 9047,
+  "video": {
+   "paused": true,
+   "currentTime": 5.12,
+   "readyState": 4
+  }
+ },
+ {
+  "frame": "mon-rep-last",
+  "replayMs": 9047,
+  "video": {
+   "paused": true,
+   "currentTime": 5.12,
+   "readyState": 4
+  }
+ }
+]

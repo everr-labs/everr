@@ -1,0 +1,105 @@
+# Big media (services v6-media-on and v6-media-default), downloaded with `everr local query` (cli-command.txt)
+Page: <img> with an inline data: PNG (1 827 924 bytes, 2 437 254-char data URI); <img src=/v6media/photo.jpg?v=6> (9 384 649 bytes, 4000x3000);
+<video src=/v6media/clip.webm> (10 371 614 bytes, VP9 1280x720); a small inline <svg>. Journey: load, order 1, play the video, order 2, pause it, order 3, emitClip({ last: 60_000 }).
+
+## v6-media-on (blockAllMedia: false)
+Clip span: 9075 ms from the page-load snapshot, truncated=true
+  Segment 0: 122 bytes, 1 events
+  Segment 1: 950000 bytes, event 1 piece 0/3
+  Segment 2: 950000 bytes, event 1 piece 1/3
+  Segment 3: 543980 bytes, event 1 piece 2/3
+  joined event 1: 2443980 bytes, type 2, U+FFFD=False, inline data URI intact=True
+  Segment 4: 5363 bytes, 42 events
+  total 2449465 bytes in 5 Segments
+  full snapshot: 2444725 bytes
+    <img> {"id": "inline", "width": "300", "height": "300", "alt": "inline", "src": "<2437254 chars: data:image/png;base64,iVBORw0KGgoAAAANSU...>"} childNodes=0
+    <img> {"id": "photo", "width": "400", "height": "300", "alt": "photo", "src": "http://127.0.0.1:8765/v6media/photo.jpg"} childNodes=0
+    <video> {"id": "vid", "width": "400", "height": "225", "muted": "", "loop": "", "playsinline": "", "src": "http://127.0.0.1:8765/v6media/clip.webm", "rr_mediaState": "paused", "rr_mediaCurrentTime": 0, "rr_mediaPlaybackRate": 1, "rr_mediaMuted": true, "rr_mediaLoop": true, "rr_mediaVolume": 1} childNodes=0
+    <svg> {"id": "icon", "width": "60", "height": "60", "viewBox": "0 0 60 60"} childNodes=2
+  incremental events by source: {"mutation": 5, "mouse move": 6, "mouse interaction": 29, "media interaction": 2}
+    media interaction: {"source": 7, "type": 0, "id": 46, "currentTime": 0.014145, "volume": 1, "muted": true, "playbackRate": 1, "loop": true}
+    media interaction: {"source": 7, "type": 1, "id": 46, "currentTime": 5.115615, "volume": 1, "muted": true, "playbackRate": 1, "loop": true}
+
+## v6-media-default (default options)
+Clip span: 9031 ms from the page-load snapshot, truncated=true
+  Segment 0: 11060 bytes, 41 events
+  total 11060 bytes in 1 Segments
+  full snapshot: 6785 bytes
+    <img> {"rr_width": "302px", "rr_height": "302px"} childNodes=0
+    <img> {"rr_width": "402px", "rr_height": "302px"} childNodes=0
+    <video> {"rr_width": "402px", "rr_height": "227px"} childNodes=0
+    <svg> {"rr_width": "60px", "rr_height": "60px"} childNodes=0
+  incremental events by source: {"mutation": 4, "mouse move": 6, "mouse interaction": 29}
+
+## Replay of the media Clips (rrweb 2.1.7, standalone player, Clip downloaded with the CLI)
+v6-media-on: inline PNG drawn from the joined snapshot; photo.jpg and clip.webm fetched by URL from the test server at replay time
+  (server log: GET /v6media/photo.jpg without ?v=6, GET /v6media/clip.webm). Replayed <video> state at each frame (out/replay-media-on-video-state.json):
+    mon-rep-first replay 81 ms {'paused': True, 'currentTime': 0, 'readyState': 4}
+    mon-rep-playing1 replay 3601 ms {'paused': False, 'currentTime': 1.1, 'readyState': 4}
+    mon-rep-playing replay 6098 ms {'paused': False, 'currentTime': 3.59, 'readyState': 4}
+    mon-rep-paused replay 9047 ms {'paused': True, 'currentTime': 5.12, 'readyState': 4}
+    mon-rep-last replay 9047 ms {'paused': True, 'currentTime': 5.12, 'readyState': 4}
+    default mdefault-rep-first replay 40 ms {'paused': True, 'currentTime': 0, 'readyState': 0}
+    default mdefault-rep-playing replay 6040 ms {'paused': True, 'currentTime': 0, 'readyState': 0}
+    default mdefault-rep-paused replay 9040 ms {'paused': True, 'currentTime': 0, 'readyState': 0}
+    default mdefault-rep-last replay 9040 ms {'paused': True, 'currentTime': 0, 'readyState': 0}
+  The video plays from the recorded play event and stops at currentTime 5.12 (recorded 5.115615).
+  Test-server note: seeking needs HTTP Range. With the first server (no Range), the replayed video jumped back to 0 at the pause event;
+  the server now answers Range with 206 and the replays above were recorded with it. A real CDN answers Range.
+v6-media-default: img, video and svg replay as empty boxes of the recorded size (readyState 0, nothing fetched).
+
+# Huge animated SVG (service v6-svg2), downloaded with `everr local query` (cli-command.txt)
+Page: 6408 SVG nodes (3000 drawn paths, 3000 <defs> paths of 85 segments, 400 dots, SMIL <animateTransform> arrow, SMIL <animate> bar, CSS ring).
+Every animation frame moves the 400 dots: setAttribute cx, cy, fill on each (1200 calls per frame).
+recording({ maskAllText: false, blockAllMedia: false }). Times are seconds after page load.
+
+Clip: emitClip({ last: 120_000 }) at t+100.4 s. Span starts t+60.2 s, lasts 40011 ms, truncated=true.
+## Segments
+index  t(s)    bytes     piece
+    0    60.2       122  1 events
+    1    60.2    950000  event 1 piece 0/5
+    2    60.2    950000  event 1 piece 1/5
+    3    60.2    950000  event 1 piece 2/5
+    4    60.2    950000  event 1 piece 3/5
+    5    60.2    640789  event 1 piece 4/5
+    6    60.2     79207  335 events
+    7    90.2       122  1 events
+    8    90.3    950000  event 8 piece 0/5
+    9    90.3    950000  event 8 piece 1/5
+   10    90.3    950000  event 8 piece 2/5
+   11    90.3    950000  event 8 piece 3/5
+   12    90.3    640821  event 8 piece 4/5
+   13    90.3     33157  119 events
+total: 14 Segments, 8994218 bytes, 10 of them pieces
+
+## Full snapshots (joined from pieces)
+event 1: 4440789 bytes in 5 pieces, type 2, at t+60.2 s, U+FFFD=False
+event 8: 4440821 bytes in 5 pieces, type 2, at t+90.3 s, U+FFFD=False
+Meta events (generation starts) in the Clip: ['t+60.2 s', 't+90.2 s']
+Generations 0 (t+0) and 1 (t+30) were not sent: about 4.44 MB each, so the buffer passed 10 MB and they were dropped whole, oldest first.
+The Clip asked for 120 s, the page was 100 s old, and the 5-minute window drops nothing that young. So the 10 MB cap set the Clip's start.
+
+## Attribute throttle
+page: 6453 animation frames and 7743600 setAttribute calls in 108 s; about 2384 frames and 953600 node attribute changes in the Clip's range
+recorded in the Clip: 440 mutation events, 398 with attributes, 596 node attribute entries
+kept attribute entries per second: t+60:107, t+61:10, t+62:10, t+63:10, t+64:10, t+65:10, t+66:10, t+67:10, t+68:10, t+69:10, t+70:10, t+71:10, t+72:10, t+73:10, t+74:10, t+75:10, t+76:10, t+77:10, t+78:10, t+79:10, t+80:10, t+81:10, t+82:10, t+83:10, t+84:10, t+85:10, t+86:10, t+87:10, t+88:10, t+89:10, t+90:108, t+91:10, t+92:10, t+93:10, t+94:10, t+95:10, t+96:10, t+97:10, t+98:10, t+99:10, t+100:1
+in the 1 s after each snapshot: 218 entries over 100 distinct dots (the 100-token burst)
+the rest of the time: 378 entries, over 1 distinct dot(s): {6048: 378}
+So the per-<svg> bucket keeps 10 changes per second, and they all go to the dot that comes first in each mutation's list. The other 399 dots replay where the latest snapshot or burst left them.
+incremental events by source: {0: 440, 1: 3, 2: 11} (0 mutation, 1 mouse move, 2 mouse interaction)
+
+## Page cost (from the source page: rAF frames per second and PerformanceObserver long tasks)
+fps per second: min 47, median 61; seconds under 58 fps: t+0:50, t+62:55, t+63:49, t+67:57, t+99:47
+long tasks: t+-0.1 s 118 ms, t+0.1 s 85 ms, t+9.8 s 50 ms, t+30.1 s 67 ms, t+60.2 s 58 ms, t+63.5 s 53 ms, t+63.6 s 66 ms, t+67.8 s 68 ms, t+90.2 s 59 ms, t+100.0 s 155 ms
+
+Headless runs of the same page, 35 s each, recording off, default (svg blocked), on (blockAllMedia: false):
+      off: 2092 frames, min fps 57, long tasks t+-0.1 s 120 ms, t+14.4 s 51 ms, t+18.1 s 57 ms
+  default: 2096 frames, min fps 57, long tasks t+-0.1 s 132 ms, t+23.3 s 51 ms
+       on: 2096 frames, min fps 55, long tasks t+-0.1 s 138 ms, t+0.1 s 92 ms, t+29.6 s 57 ms, t+30.1 s 68 ms
+
+## SMIL
+SMIL elements in the snapshots, as rrweb 2.1.7 serialized them: {'animatetransform': 2, 'animate': 2}
+
+## SMIL in the replay
+The replayer rebuilds the <animateTransform> and <animate> elements, but the replayed <svg> clock stays at 0 (getCurrentTime() = 0),
+so the arrow and the bar do not move in the replay. The CSS ring keeps pulsing. This is the rrweb 2.1.7 replayer, not the recorder.
