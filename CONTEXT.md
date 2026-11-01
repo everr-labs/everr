@@ -164,19 +164,23 @@ To replace text, an input value, or an attribute value in a Recording with aster
 _Avoid_: redact, scrub, hide
 
 **Block**:
-To replace an element in a Recording with an empty placeholder of the same size, so none of its content is captured. Media is Blocked by default.
+To replace an element in a Recording with an empty placeholder of the same size, so none of its content is captured. Media and `.everr-no-capture` regions are Blocked by default.
 _Avoid_: mask (which keeps the element), exclude
 
 **Stream**:
-The in-memory buffer of one page's Recording: the last 5 minutes, at most 10 MB, with a full snapshot every 30 seconds. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
+The in-memory buffer of one page's Recording, as Generations: the last 5 minutes, at most 10 MB. Each event leaves the page at most once, in a Segment of the Stream. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
 _Avoid_: buffer (informal), session recording
 
+**Generation**:
+The events of a Stream from one full snapshot up to the next. A new one starts at the first change 30 seconds after the last snapshot, so an idle page keeps one. The Stream drops whole Generations, oldest first, and always keeps the newest.
+_Avoid_: checkout (rrweb's word for taking the snapshot)
+
 **Clip**:
-A range of a Stream that leaves the page: automatically on an error or a failed request (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back into the Stream. Indexed by one root `recording` Span.
+A time range of a Stream that leaves the page: automatically on an error or a failed request (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its one root `recording` Span gives the range; the Clip sends only the Segments the Stream has not sent yet.
 _Avoid_: recording (the whole history), snippet, replay
 
 **Segment**:
-One OTLP Log (`everr.browser.recording.segment`) that carries part of a Clip as a JSON array of rrweb events, about 950 KB at most. Ordered by `everr.recording.segment.index`. An event larger than one Segment goes in Pieces.
+One OTLP Log (`everr.browser.recording.segment`) that carries part of a Stream as a JSON array of rrweb events, about 950 KB at most, inside one Generation. Its time is that of its first event. Ordered by `everr.recording.segment.index`. An event larger than one Segment goes in Pieces.
 _Avoid_: chunk, batch, part
 
 **Piece**:
@@ -184,7 +188,7 @@ A Segment that carries a slice, cut between characters, of one rrweb event too l
 _Avoid_: chunk, fragment
 
 **Replay**:
-Playing a Clip's Segments back in an rrweb player, from its first full snapshot.
+Playing back the Segments of a Clip's Stream in its Span's time range, in an rrweb player.
 _Avoid_: playback video, recording
 
 ### CI

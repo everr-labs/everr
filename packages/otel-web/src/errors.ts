@@ -1,6 +1,5 @@
 import { currentEmit } from "./state/emit.js";
 import { currentErrorFilter } from "./state/error-filter.js";
-import { triggerRecording } from "./state/recording.js";
 
 // The error reports of the browser. This module has the `captureError`
 // function, and each browser error path uses it. The ErrorBoundary is in the
@@ -116,7 +115,6 @@ export const captureError = (error: unknown, context?: ErrorContext, fileName?: 
       17,
       message ? `${type}: ${message}` : type,
     );
-    triggerRecording("error");
   } catch {
     // The code ignores this error, and this is correct.
   }

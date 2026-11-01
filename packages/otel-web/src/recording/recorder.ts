@@ -2,10 +2,10 @@
 // recording starts, so rrweb stays out of every other bundle.
 
 import { setAttributes } from "@everr/otel-web";
-import type { Tracer } from "@opentelemetry/api";
 import { record } from "@rrweb/record";
+import type { InstrumentationContext } from "../instrumentations/runtime.js";
+import type { SendEvent } from "../pipeline/emitter.js";
 import type { RecordingClip, RecordingOptions, StartClipOptions } from "../recording.js";
-import { emitLogNow } from "../state/emit.js";
 import { randomHex } from "../state/session.js";
 import { privacy } from "./privacy.js";
 
@@ -13,8 +13,8 @@ const WINDOW_MS = 5 * 60_000;
 const MAX_BYTES = 10_000_000;
 const CHECKOUT_MS = 30_000;
 const SEGMENT_BYTES = 950_000;
-const TAIL_FLUSH_MS = 5_000;
-const TAIL_CAP_MS = 60_000;
+const FLUSH_MS = 5_000;
+const CLIP_CAP_MS = 60_000;
 const BUCKET_TOKENS = 100;
 const TOKENS_PER_MS = 10 / 1_000;
 const AUTO_CLIP = { last: 60_000, next: 10_000 };
@@ -36,7 +36,15 @@ type Mutation = {
 };
 
 /** One buffered event, already scrubbed and serialized. */
-type Entry = { time: number; type: number; json: string; bytes: number };
+type Entry = { time: number; json: string; bytes: number };
+
+/**
+ * The events from one Meta and full snapshot up to the next, so a replay can
+ * start at each. The number counts the generations of the Stream from 0. The
+ * sent entries are a prefix, so `sent` counts them. The first entry is the
+ * Meta, and its time is the time of the generation.
+ */
+type Generation = { n: number; entries: Entry[]; bytes: number; sent: number };
 
 type Trigger = "error" | "network" | "manual";
 
@@ -50,12 +58,13 @@ export type ClipRange = StartClipOptions & { whole?: boolean };
 /** The buffer of one document in one Session. */
 export type Stream = {
   clip(range: ClipRange, trigger: Trigger): RecordingClip | undefined;
-  trigger(kind: "error" | "network"): void;
+  /** Reads each record that the SDK sends, and opens an automatic Clip on a failure. */
+  observe(item: SendEvent): void;
   pause(): void;
   resume(): void;
-  /** Closes the open Clips at the hide time and drops their unsent tails. */
+  /** Closes the open Clips at the hide time, and sends nothing more for them. */
   hide(): void;
-  /** Sends the open tails, ends the Clips, and drops the buffer. */
+  /** Sends what the open Clips still need, ends them, and drops the buffer. */
   end(): void;
 };
 
@@ -104,45 +113,120 @@ const pieces = (json: string): string[] => {
   return out;
 };
 
-export function startStream(tracer: Tracer, sessionId: string, options: RecordingOptions): Stream {
+// The failures that open an automatic Clip, read from what the SDK sends: an
+// exception, and a request span with a 5xx or with no response. An abort is
+// not one. startRequest in ../instrumentations/network/request.ts sets these
+// attributes, and also an error.type for a 4xx, which is not a failure here.
+const failure = (item: SendEvent): Trigger | undefined => {
+  if (item.kind === "log") return item.eventName === "exception" ? "error" : undefined;
+  const { attributes: a } = item;
+  const status = a["http.response.status_code"];
+  const error = a["error.type"];
+  return a["http.request.method"] !== undefined &&
+    (typeof status === "number" ? status >= 500 : !!error && error !== "AbortError")
+    ? "network"
+    : undefined;
+};
+
+export function startStream(
+  ctx: InstrumentationContext,
+  sessionId: string,
+  options: RecordingOptions,
+): Stream {
   const streamId = randomHex(16);
   const { rrweb, replacer } = privacy(options, (id) => {
     const node = record.mirror.getNode(id);
     return node instanceof Element ? node : null;
   });
-  const entries: Entry[] = [];
+  // The Clips are ranges over this Stream, so each event leaves the page at
+  // most once. A reader finds the events of a Clip by the Stream id and the
+  // time range of the Clip's Span.
+  const generations: Generation[] = [];
+  let generationCount = 0;
   let bytes = 0;
+  let index = 0;
   const buckets = new Map<number, [tokens: number, time: number]>();
-  const clips = new Set<{ tail: Entry[]; close(hide: boolean): void }>();
+  // Each open Clip needs the events of its first generation and after.
+  const clips = new Set<{ from: number; close(hide: boolean): void }>();
+  let flush: ReturnType<typeof setInterval> | undefined;
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
-  let checkout: ReturnType<typeof setInterval> | undefined;
   let paused = false;
   let ended = false;
 
-  // The 5-minute window and the 10 MB cap. The newest event always stays, with
-  // the Meta in front of a full snapshot, so a snapshot over the cap still plays.
+  const emitSegment = (body: string, time: number, piece?: Record<string, number>) =>
+    void ctx.emitNow(
+      "everr.browser.recording.segment",
+      {
+        "session.id": sessionId,
+        "everr.recording.stream.id": streamId,
+        "everr.recording.segment.index": index++,
+        ...piece,
+      },
+      time,
+      body,
+    );
+  const emitBatch = (events: Entry[]) =>
+    emitSegment(`[${events.map((e) => e.json).join(",")}]`, events[0].time);
+
+  // Sends the unsent events of one generation. A Segment never spans two
+  // generations, so its time, that of its first event, places it in a Clip.
+  // About 950 KB per Segment. A larger event goes in pieces, one Segment
+  // each, in a row. The reader joins the pieces in order and parses the event.
+  const send = (generation: Generation) => {
+    let batch: Entry[] = [];
+    let size = 2;
+    for (; generation.sent < generation.entries.length; generation.sent++) {
+      const entry = generation.entries[generation.sent];
+      if (batch.length && size + entry.bytes > SEGMENT_BYTES) {
+        emitBatch(batch);
+        batch = [];
+        size = 2;
+      }
+      if (entry.bytes + 2 > SEGMENT_BYTES) {
+        const parts = pieces(entry.json);
+        const event = index;
+        parts.forEach((part, i) =>
+          emitSegment(part, entry.time, {
+            "everr.recording.event.index": event,
+            "everr.recording.event.piece": i,
+            "everr.recording.event.pieces": parts.length,
+          }),
+        );
+        continue;
+      }
+      batch.push(entry);
+      size += entry.bytes + 1;
+    }
+    if (batch.length) emitBatch(batch);
+  };
+
+  // The first generation that an open Clip needs, or Infinity with none open.
+  const liveFrom = () => {
+    let from = Infinity;
+    for (const c of clips) from = Math.min(from, c.from);
+    return from;
+  };
+  const sendLive = () => {
+    const from = liveFrom();
+    for (const generation of generations) if (generation.n >= from) send(generation);
+  };
+
+  // Drops whole generations, oldest first, past the 5-minute window or the
+  // 10 MB cap. The newest generation always stays, so an idle page keeps its
+  // only snapshot, and the cap gives way by at most one generation. An open
+  // Clip gets the events of a generation before it goes.
   const trim = (now: number) => {
-    const keep = entries.at(-2)?.type === META ? 2 : 1;
-    let drop = 0;
     while (
-      drop < entries.length - keep &&
-      (entries[drop].time < now - WINDOW_MS || bytes > MAX_BYTES)
-    )
-      bytes -= entries[drop++].bytes;
-    // In place: V8 trims the front of the array without copying it.
-    if (drop) entries.splice(0, drop);
+      generations.length > 1 &&
+      (generations[1].entries[0].time <= now - WINDOW_MS || bytes > MAX_BYTES)
+    ) {
+      const oldest = generations[0];
+      generations.shift();
+      if (oldest.n >= liveFrom()) send(oldest);
+      bytes -= oldest.bytes;
+    }
   };
-
-  const push = (entry: Entry) => {
-    entries.push(entry);
-    bytes += entry.bytes;
-    trim(entry.time);
-    for (const clip of clips) clip.tail.push(entry);
-  };
-
-  const marker = (tag: string) =>
-    add({ type: CUSTOM, timestamp: Date.now(), data: { tag, payload: {} } });
 
   // One token per attribute mutation on a node. A node inside an <svg> pays
   // from the bucket of its nearest <svg>.
@@ -174,26 +258,41 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
         event = { ...event, data: { ...data, attributes } };
       }
     }
+    // rrweb emits a Meta event right before each full snapshot.
+    if (event.type === META)
+      generations.push({ n: generationCount++, entries: [], bytes: 0, sent: 0 });
+    if (event.type === FULL_SNAPSHOT) buckets.clear();
+    const current = generations.at(-1);
+    if (!current) return;
     // The replacer applies the privacy rules on a copy. The bytes are UTF-8,
     // so a Segment and the 10 MB cap measure what the request carries.
     const json = JSON.stringify(event, replacer);
-    if (event.type === FULL_SNAPSHOT) buckets.clear();
-    push({ time: event.timestamp, type: event.type, json, bytes: utf8Bytes(json) });
+    const entry = { time: event.timestamp, json, bytes: utf8Bytes(json) };
+    current.entries.push(entry);
+    current.bytes += entry.bytes;
+    bytes += entry.bytes;
+    trim(entry.time);
   };
+
+  const marker = (tag: string) =>
+    add({ type: CUSTOM, timestamp: Date.now(), data: { tag, payload: {} } });
 
   const halt = () => {
     paused = true;
     stop?.();
     stop = undefined;
-    clearInterval(checkout);
   };
 
   const run = () => {
     try {
-      stop = record({ emit: add, ...rrweb, errorHandler: () => true });
-      // Our own checkout, and not checkoutEveryNms: rrweb counts that interval
-      // from the last event, so an idle page would age its only snapshot out.
-      checkout = setInterval(() => record.takeFullSnapshot(true), CHECKOUT_MS);
+      // rrweb checks the interval at each change, so an idle page takes no new
+      // snapshot. Its newest generation keeps it playable.
+      stop = record({
+        emit: add,
+        ...rrweb,
+        checkoutEveryNms: CHECKOUT_MS,
+        errorHandler: () => true,
+      });
     } catch {
       halt();
     }
@@ -204,26 +303,21 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
     const now = Date.now();
     trim(now);
     const fromBuffer = range.last !== undefined || range.whole === true;
-    const requested = range.last === undefined ? undefined : now - range.last;
-    // A Clip from the buffer starts at a full snapshot, with the Meta event in
-    // front of it.
-    let first = -1;
-    let earliest = -1;
-    entries.forEach((entry, i) => {
-      if (entry.type !== FULL_SNAPSHOT) return;
-      if (earliest < 0) earliest = i;
-      if (requested === undefined ? first < 0 : entry.time <= requested) first = i;
-    });
-    if (fromBuffer && earliest < 0) return;
-    const truncated = requested !== undefined && first < 0;
-    if (truncated) first = earliest;
-    if (entries[first - 1]?.type === META) first--;
-    const startTime = !fromBuffer ? now : (requested ?? entries[first].time);
+    if (fromBuffer && !generations.length) return;
+    // A Clip from the buffer starts at a generation: the newest one at or
+    // before the requested start, else the oldest one. A Clip from the call
+    // starts at the generation that the snapshot below opens.
+    const time = (i: number) => generations[i].entries[0].time;
+    const requested = range.last === undefined ? -Infinity : now - range.last;
+    let first = 0;
+    while (first + 1 < generations.length && time(first + 1) <= requested) first++;
+    const truncated = range.last !== undefined && time(0) > requested;
+    const start = fromBuffer ? time(first) : now;
 
     const id = randomHex(16);
-    const span = tracer.startSpan("recording", {
+    const span = ctx.tracer.startSpan("recording", {
       root: true,
-      startTime,
+      startTime: start,
       attributes: {
         "session.id": sessionId,
         "everr.recording.clip.id": id,
@@ -233,85 +327,36 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       },
     });
 
-    let index = 0;
-    const emitSegment = (body: string, time: number, piece?: Record<string, number>) =>
-      emitLogNow(
-        "everr.browser.recording.segment",
-        {
-          "session.id": sessionId,
-          "everr.recording.stream.id": streamId,
-          "everr.recording.clip.id": id,
-          "everr.recording.segment.index": index++,
-          ...piece,
-        },
-        time,
-        body,
-      );
-    const emitBatch = (events: Entry[]) =>
-      emitSegment(`[${events.map((e) => e.json).join(",")}]`, events[events.length - 1].time);
-    // About 950 KB per Segment. A larger event goes in pieces, one Segment
-    // each, in a row. The reader joins the pieces in order and parses the event.
-    const send = (list: Entry[]) => {
-      let batch: Entry[] = [];
-      let size = 2;
-      for (const entry of list) {
-        if (batch.length && size + entry.bytes > SEGMENT_BYTES) {
-          emitBatch(batch);
-          batch = [];
-          size = 2;
-        }
-        if (entry.bytes + 2 > SEGMENT_BYTES) {
-          const parts = pieces(entry.json);
-          const event = index;
-          parts.forEach((part, i) =>
-            emitSegment(part, entry.time, {
-              "everr.recording.event.index": event,
-              "everr.recording.event.piece": i,
-              "everr.recording.event.pieces": parts.length,
-            }),
-          );
-          continue;
-        }
-        batch.push(entry);
-        size += entry.bytes + 1;
-      }
-      if (batch.length) emitBatch(batch);
-    };
-
     let live = true;
-    const tail: Entry[] = [];
     const state = {
-      tail,
+      from: fromBuffer ? generations[first].n : generationCount,
       close(hide: boolean) {
         if (!live) return;
         live = false;
-        clearInterval(flush);
         clearTimeout(cap);
+        if (!hide) sendLive();
         clips.delete(state);
-        // Emptied on both paths, so a kept Clip handle holds no events.
-        const rest = state.tail.splice(0);
-        if (!hide) send(rest);
+        if (!clips.size) clearInterval(flush);
         span.end();
       },
     };
-    if (fromBuffer) send(entries.slice(first));
+    if (!clips.size) flush = setInterval(sendLive, FLUSH_MS);
     clips.add(state);
-    // A Clip from the call starts with the Meta and full snapshot that this
-    // takes, through its tail. A paused recorder takes them on resume.
-    if (!fromBuffer && !paused) {
+    if (fromBuffer) sendLive();
+    // A paused recorder takes the snapshot on resume.
+    else if (!paused) {
       try {
         record.takeFullSnapshot(true);
       } catch {
         // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
       }
     }
-    const flush = setInterval(() => send(state.tail.splice(0)), TAIL_FLUSH_MS);
     const cap = setTimeout(
       () => state.close(false),
-      Math.min(range.next ?? TAIL_CAP_MS, TAIL_CAP_MS),
+      Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS),
     );
     if (range.next === 0) state.close(false);
-    return { id, startTime, isRecording: () => live, end: () => state.close(false) };
+    return { id, startTime: start, isRecording: () => live, end: () => state.close(false) };
   };
 
   setAttributes({ "everr.recording.stream.id": streamId });
@@ -319,8 +364,9 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
 
   return {
     clip,
-    trigger(kind) {
-      if (auto?.isRecording() || autoClips >= AUTO_CLIPS_PER_PAGE) return;
+    observe(item) {
+      const kind = failure(item);
+      if (!kind || auto?.isRecording() || autoClips >= AUTO_CLIPS_PER_PAGE) return;
       auto = clip(AUTO_CLIP, kind);
       if (auto) autoClips++;
     },
@@ -343,7 +389,8 @@ export function startStream(tracer: Tracer, sessionId: string, options: Recordin
       for (const open of clips) open.close(false);
       halt();
       ended = true;
-      entries.length = 0;
+      generations.length = 0;
+      buckets.clear();
       setAttributes({ "everr.recording.stream.id": null });
     },
   };

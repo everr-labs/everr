@@ -164,24 +164,41 @@ describe("the buffer", () => {
     expect(span.attrs["everr.recording.clip.truncated"]).toBeUndefined();
   });
 
-  it("takes a full snapshot every 30 seconds", async () => {
+  it("takes a full snapshot at the first change 30 seconds after the last one", async () => {
     const t = await start();
     const opened = Date.now();
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(45_000);
+    box().setAttribute("data-step", "1");
+    await mutations();
     t.rec.recorder.emitClip({ last: 0 });
     const events = t.segments()[0].events;
     expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
-    expect(events[1].timestamp).toBe(opened + 30_000);
+    expect(events[1].timestamp).toBe(opened + 45_000);
+  });
+
+  it("keeps the only snapshot of an idle page past 5 minutes", async () => {
+    const t = await start();
+    const opened = Date.now();
+    vi.advanceTimersByTime(10 * 60_000);
+    t.rec.recorder.emitClip({ last: 0 });
+    const events = t.segments()[0].events;
+    expect(types(events)).toEqual([META, FULL_SNAPSHOT]);
+    expect(events[0].timestamp).toBe(opened);
   });
 
   it("starts at the last snapshot at or before the requested start", async () => {
     const t = await start();
-    vi.advanceTimersByTime(40_000);
+    vi.advanceTimersByTime(35_000);
+    box().setAttribute("data-step", "1");
+    await mutations();
+    const snapshotAt = Date.now();
+    vi.advanceTimersByTime(5_000);
     const clip = t.rec.recorder.startClip({ last: 5_000 });
     clip.end();
-    const events = t.clipEvents(clip.id);
-    expect(events[1].type).toBe(FULL_SNAPSHOT);
-    expect(events[1].timestamp).toBe(clip.startTime - 5_000);
+    const events = await t.clipEvents(clip.id);
+    expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
+    expect(events[1].timestamp).toBe(snapshotAt);
+    expect(clip.startTime).toBe(snapshotAt);
     const [span] = await t.spans();
     expect(span.start).toBe(clip.startTime);
     expect(span.attrs["everr.recording.clip.truncated"]).toBeUndefined();
@@ -193,35 +210,39 @@ describe("the buffer", () => {
     vi.advanceTimersByTime(10_000);
     const clip = t.rec.recorder.startClip({ last: 600_000 });
     clip.end();
-    expect(clip.startTime).toBe(Date.now() - 600_000);
-    expect(t.clipEvents(clip.id)[0].timestamp).toBe(opened);
+    expect(clip.startTime).toBe(opened);
+    expect((await t.clipEvents(clip.id))[0].timestamp).toBe(opened);
     const [span] = await t.spans();
     expect(span.start).toBe(clip.startTime);
     expect(span.attrs["everr.recording.clip.truncated"]).toBe(true);
   });
 
-  it("caps the buffer at 10 MB, oldest first", async () => {
+  it("caps the buffer at 10 MB by whole generations, oldest first", async () => {
     const t = await start({ unmask: ["#box"] });
-    const chunk = "x".repeat(3_000_000);
-    for (let i = 0; i < 3; i++) {
-      box().textContent = chunk;
+    const opened = Date.now();
+    // Each change is 3 MB, and the snapshot after it holds the same 3 MB.
+    for (const char of "abcd") {
+      vi.advanceTimersByTime(31_000);
+      box().textContent = char.repeat(3_000_000);
       await mutations();
     }
-    // About 9 MB: the first snapshot is still in the buffer.
-    expect(t.rec.recorder.startClip({ last: 300_000 }).isRecording()).toBe(true);
-    box().textContent = chunk;
-    await mutations();
-    // Past the cap the oldest events, the snapshot first, leave the buffer.
-    expect(t.rec.recorder.startClip({ last: 300_000 }).id).toBe("");
+    t.rec.recorder.emitClip();
+    const events = reassemble(t.segments());
+    expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
+    // The last two generations, 9 MB, are what fits.
+    expect(events[0].timestamp).toBe(opened + 93_000);
+    expect(t.segments().reduce((sum, s) => sum + bytes(s.body), 0)).toBeLessThan(10_000_000);
   });
 
-  it("keeps the buffer after a Clip", async () => {
+  it("sends each event once, and a later Clip reads the Segments already sent", async () => {
     const t = await start();
     const a = t.rec.recorder.startClip({ last: 60_000 });
     a.end();
+    const count = t.segments().length;
     const b = t.rec.recorder.startClip({ last: 60_000 });
     b.end();
-    expect(types(t.clipEvents(b.id))).toEqual(types(t.clipEvents(a.id)));
+    expect(t.segments()).toHaveLength(count);
+    expect(types(await t.clipEvents(b.id))).toEqual(types(await t.clipEvents(a.id)));
     expect(a.id).not.toBe(b.id);
   });
 });
@@ -244,7 +265,7 @@ describe("Clips", () => {
     box().textContent = "after end";
     await mutations();
     vi.advanceTimersByTime(10_000);
-    const events = t.clipEvents(clip.id);
+    const events = await t.clipEvents(clip.id);
     expect(types(events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
     expect(events[0].timestamp).toBe(calledAt);
     expect(events.every((e) => e.timestamp >= calledAt)).toBe(true);
@@ -263,7 +284,11 @@ describe("Clips", () => {
   it("emitClip() with no last sends the whole buffer", async () => {
     const t = await start();
     const opened = Date.now();
-    vi.advanceTimersByTime(100_000);
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(31_000);
+      box().setAttribute("data-step", String(i));
+      await mutations();
+    }
     t.rec.recorder.emitClip();
     const events = t.segments().flatMap((s) => s.events);
     expect(events[0].timestamp).toBe(opened);
@@ -275,14 +300,14 @@ describe("Clips", () => {
     t.rec.recorder.emitClip({ last: 60_000 });
     const viaEnd = t.rec.recorder.startClip({ last: 60_000 });
     viaEnd.end();
-    const [first, second] = t.segments();
-    expect(types(first.events)).toEqual(types(second.events));
     const spans = await t.spans();
     expect(spans).toHaveLength(2);
+    expect(spans[1].start).toBe(spans[0].start);
+    expect(spans[1].end).toBe(spans[0].end);
     expect(spans.map((s) => s.attrs["everr.recording.trigger"])).toEqual(["manual", "manual"]);
   });
 
-  it("sends the buffered part before startClip returns, and the tail every 5 seconds", async () => {
+  it("sends the buffered part before startClip returns, and the new events every 5 seconds", async () => {
     const t = await start();
     const clip = t.rec.recorder.startClip({ last: 60_000, next: 12_000 });
     expect(t.segments()).toHaveLength(1);
@@ -302,7 +327,7 @@ describe("Clips", () => {
     expect(span.end).toBe(Date.now());
   });
 
-  it("closes a tail at 60 seconds, and next: 0 at once", async () => {
+  it("closes a Clip at 60 seconds, and next: 0 at once", async () => {
     const t = await start();
     const open = t.rec.recorder.startClip({ next: 120_000 });
     const closed = t.rec.recorder.startClip({ next: 0 });
@@ -374,7 +399,7 @@ describe("Clips", () => {
     expect(t.segments()).toEqual([]);
   });
 
-  it("closes a Clip on page hide and drops its unsent tail", async () => {
+  it("closes a Clip on page hide and drops its unsent events", async () => {
     const t = await start();
     const clip = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
     box().textContent = "unsent";
@@ -440,10 +465,11 @@ describe("the Stream and the Session", () => {
     t.sdk.logger.info("new session");
     t.sdk.clearIdentity();
     t.sdk.logger.info("cleared");
+    const count = t.segments().length;
     const after = t.rec.recorder.startClip();
     expect(after.isRecording()).toBe(true);
     after.end();
-    const last = t.segments().filter((s) => s.attrs["everr.recording.clip.id"] === after.id);
+    const last = t.segments().slice(count);
     expect(last[0].attrs["everr.recording.stream.id"]).toBe(
       first.attrs["everr.recording.stream.id"],
     );
@@ -491,7 +517,7 @@ describe("large events", () => {
     expect(parts.map((s) => s.attrs)).toEqual(
       parts.map((_, i) => expect.objectContaining(piece(first, i, parts.length))),
     );
-    const events = t.clipEvents(clip.id);
+    const events = await t.clipEvents(clip.id);
     expect(tags(events)).toEqual([]);
     expect(holds(events, large)).toBe(true);
     expect(holds(events, "small again")).toBe(true);
@@ -534,7 +560,7 @@ describe("large events", () => {
     const logs = t.sent.filter((s) => s.signal === "logs");
     expect(logs.length).toBeGreaterThan(10);
     expect(Math.max(...logs.map((s) => bytes(s.body)))).toBeLessThan(2 * 1024 * 1024);
-    expect(holds(t.clipEvents(clip.id), text)).toBe(true);
+    expect(holds(await t.clipEvents(clip.id), text)).toBe(true);
   });
 });
 
@@ -564,7 +590,7 @@ describe("the mutation throttle", () => {
     const t = await start({ blockAllMedia: false });
     const before = t.rec.recorder.startClip({ last: 300_000 });
     before.end();
-    const count = t.clipEvents(before.id).length;
+    const count = (await t.clipEvents(before.id)).length;
     for (let i = 0; i < 60; i++) {
       document.getElementById("a")!.setAttribute("x", String(i));
       document.getElementById("b")!.setAttribute("x", String(i));
@@ -572,7 +598,7 @@ describe("the mutation throttle", () => {
     }
     const clip = t.rec.recorder.startClip({ last: 300_000 });
     clip.end();
-    const events = t.clipEvents(clip.id);
+    const events = await t.clipEvents(clip.id);
     expect(attributeChanges(events)).toBe(100);
     // 60 events with mutations, of which 10 fully emptied ones are dropped.
     expect(events.length - count).toBe(50);
@@ -590,7 +616,7 @@ describe("the mutation throttle", () => {
     await mutations();
     const clip = t.rec.recorder.startClip({ last: 0 });
     clip.end();
-    const last = t.clipEvents(clip.id).at(-1)!;
+    const last = (await t.clipEvents(clip.id)).at(-1)!;
     expect(last.data.attributes).toEqual([]);
     expect(last.data.adds).toHaveLength(1);
     expect(last.data.texts).toHaveLength(1);
@@ -604,12 +630,19 @@ describe("automatic Clips", () => {
 
   it("opens a Clip on an error, with the last 60 seconds and the next 10", async () => {
     const t = await start({}, withErrors);
-    vi.advanceTimersByTime(90_000);
+    vi.advanceTimersByTime(35_000);
+    box().setAttribute("data-step", "1");
+    await mutations();
+    const snapshotAt = Date.now();
+    vi.advanceTimersByTime(65_000);
+    const erroredAt = Date.now();
     t.sdk.captureError(new Error("boom"));
     vi.advanceTimersByTime(10_000);
     const [span] = await t.spans();
     expect(span.attrs["everr.recording.trigger"]).toBe("error");
-    expect(span.end - span.start).toBe(70_000);
+    // The newest snapshot at or before 60 seconds back.
+    expect(span.start).toBe(snapshotAt);
+    expect(span.end).toBe(erroredAt + 10_000);
   });
 
   it("ignores filtered errors", async () => {
@@ -624,7 +657,10 @@ describe("automatic Clips", () => {
     const t = await start({}, withErrors);
     t.sdk.captureError(new Error("one"));
     t.sdk.captureError(new Error("two"));
-    expect(new Set(t.segments().map((s) => s.attrs["everr.recording.clip.id"])).size).toBe(1);
+    vi.advanceTimersByTime(10_000);
+    expect(
+      (await t.spans()).filter((s) => s.attrs["everr.recording.trigger"] === "error"),
+    ).toHaveLength(1);
     for (let i = 0; i < 7; i++) {
       vi.advanceTimersByTime(11_000);
       t.sdk.captureError(new Error(`next ${i}`));

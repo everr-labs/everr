@@ -101,9 +101,22 @@ export async function start(
       .filter((r) => r.eventName !== "everr.browser.recording.segment")
       .map((r) => ({ eventName: r.eventName, attrs: flat(r.attributes) }));
   };
-  /** The events of one Clip, in Segment order. */
-  const clipEvents = (clipId: string) =>
-    reassemble(segments().filter((s) => s.attrs["everr.recording.clip.id"] === clipId));
+  /**
+   * The events of one Clip, as a reader finds them: the Segments of its Stream
+   * in the time range of its Span, up to the end of the Span.
+   */
+  const clipEvents = async (clipId: string) => {
+    const span = (await spans()).find((s) => s.attrs["everr.recording.clip.id"] === clipId)!;
+    const stream = span.attrs["everr.recording.stream.id"];
+    return reassemble(
+      segments().filter(
+        (s) =>
+          s.attrs["everr.recording.stream.id"] === stream &&
+          s.time >= span.start &&
+          s.time <= span.end,
+      ),
+    ).filter((e) => e.timestamp <= span.end);
+  };
 
   return { sdk, rec, client, sent, segments, spans, logs, clipEvents };
 }

@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
-import { type BeforeSend, createEmitter, type Emit, type EmitSpan } from "./emitter.js";
+import {
+  type BeforeSend,
+  createEmitter,
+  type Emit,
+  type EmitSpan,
+  type SendEvent,
+} from "./emitter.js";
 import { fetchSend } from "./transport.js";
 
 type SentBatch = {
@@ -35,6 +41,7 @@ let emitSpan: EmitSpan;
 function makeEmitter(
   envelope: (session?: string) => Record<string, string> = () => ({}),
   beforeSend?: BeforeSend,
+  observe?: (item: SendEvent) => void,
 ) {
   sent = [];
   stubTransportFetch(
@@ -59,6 +66,8 @@ function makeEmitter(
     { name: "@everr/otel-web", version: "test" },
     envelope,
     beforeSend,
+    undefined,
+    observe,
   );
 }
 
@@ -672,6 +681,32 @@ describe("a caller-supplied send owns delivery", () => {
     await vi.advanceTimersByTimeAsync(50);
     await pending;
     expect(settled).toBe(true);
+  });
+});
+
+describe("observe", () => {
+  it("sees each log and span that beforeSend keeps, as the hook returned it", () => {
+    const seen: SendEvent[] = [];
+    const [log, , , span, now] = makeEmitter(
+      undefined,
+      (item) =>
+        item.kind === "log" && item.eventName === "dropped"
+          ? null
+          : { ...item, attributes: { ...item.attributes, scrubbed: true } },
+      (item) => seen.push(item),
+    );
+    log("kept");
+    log("dropped");
+    span("a".repeat(32), "b".repeat(16), "request", 0, 1, {});
+    void now("segment", {}, 1, "[]");
+    expect(
+      seen.map((item) => [item.kind, item.kind === "log" ? item.eventName : item.name]),
+    ).toEqual([
+      ["log", "kept"],
+      ["span", "request"],
+      ["log", "segment"],
+    ]);
+    expect(seen.every((item) => item.attributes.scrubbed)).toBe(true);
   });
 });
 
