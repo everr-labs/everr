@@ -2,7 +2,7 @@ import type { SpanContext } from "@opentelemetry/api";
 import { attributionAttributes } from "./attribution.js";
 import type { InstrumentationContext } from "./instrumentations/runtime.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
-import { createEmitter, noop } from "./pipeline/emitter.js";
+import { createEmitter, noop, type SendEvent } from "./pipeline/emitter.js";
 import { createEnvelope } from "./pipeline/envelope.js";
 import { createTracer } from "./pipeline/tracer.js";
 import { resolveTransport } from "./pipeline/transport.js";
@@ -62,6 +62,7 @@ export class WebSDK {
     const [rotate, current] = createSessionContext(location.href, document.referrer);
 
     let activeSpan: (time?: number) => SpanContext | undefined = () => undefined;
+    const recordListeners = new Set<(item: SendEvent) => void>();
     const [emit, flush, exitFlush, emitSpan, emitNow] = createEmitter(
       ...transport,
       // The resource does not contain the viewport, and this is correct. The
@@ -94,11 +95,14 @@ export class WebSDK {
       createEnvelope(current),
       options.beforeSend,
       (time) => activeSpan(time),
+      (item) => {
+        for (const listener of recordListeners) listener(item);
+      },
     );
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
     // current.ts.
-    const unbindEmit = bindEmit(emit, emitNow);
+    const unbindEmit = bindEmit(emit);
     const sdkTracer = createTracer(emitSpan);
     activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
@@ -109,30 +113,29 @@ export class WebSDK {
     // before the pipeline disconnects.
     //
     // One context serves all the instrumentations. The ids, the route, and the
-    // page read the current module data directly. The list of navigation
-    // listeners is dynamic: for each navigation the watcher below reads the
-    // full list. Thus a ctx.onNavigation subscription from each instrumentation
-    // goes into the same dispatch.
+    // page read the current module data directly. The listener lists are
+    // dynamic: each dispatch reads the full list. Thus a subscription from
+    // each instrumentation goes into the same dispatch.
     const navigationListeners = new Set<NavigationListener>();
     const hideListeners = new Set<() => void>();
+    const subscribe =
+      <T>(listeners: Set<T>) =>
+      (listener: T) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      };
     const ctx: InstrumentationContext = {
       emit,
+      emitNow,
       tracer: sdkTracer,
       ids: () => ({ visitorId: visitorId(), sessionId: sessionId() }),
       route: () => routePattern(current().url) ?? null,
       page: current,
-      onNavigation: (listener) => {
-        navigationListeners.add(listener);
-        return () => {
-          navigationListeners.delete(listener);
-        };
-      },
-      onHide: (listener) => {
-        hideListeners.add(listener);
-        return () => {
-          hideListeners.delete(listener);
-        };
-      },
+      onNavigation: subscribe(navigationListeners),
+      onHide: subscribe(hideListeners),
+      onRecord: subscribe(recordListeners),
       dev: options.dev === true,
     };
 
