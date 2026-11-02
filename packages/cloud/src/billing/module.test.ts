@@ -1,6 +1,10 @@
+import { createEventPublisher } from "@everr/app/server/events/publisher";
+import { billingEventDefinitions } from "./events";
+import { membershipEventDefinitions } from "@everr/app/identity/events";
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
+import type { EventInput } from "@everr/app/composition";
 import type { Database } from "@everr/app/db/client";
 import * as coreSchema from "@everr/app/db/schema";
 import { serverLogger } from "@everr/app/telemetry/logger";
@@ -8,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import * as cloudSchema from "../db/schema";
+import { createBillingStore } from "./store";
 import { createBillingModule } from "./module";
 import { beforeCreateCheckoutOrganization } from "./organization-context.server";
 import type { BillingMember, Checkout, Customer, PolarGateway, Subscription } from "./types";
@@ -133,7 +138,12 @@ const gateway = {
   ),
   revokeSubscription: vi.fn(async () => {}),
 } satisfies PolarGateway;
+const published: EventInput[] = [];
+const publish = vi.fn(async (fact: EventInput) => {
+  published.push(fact);
+});
 const billing = createBillingModule({
+  events: { publish },
   db: database as unknown as Database,
   polar: gateway,
   appUrl: "https://app.example",
@@ -173,6 +183,10 @@ const createOrganization = vi.fn(
 );
 beforeEach(async () => {
   vi.clearAllMocks();
+  published.length = 0;
+  publish.mockImplementation(async (fact) => {
+    published.push(fact);
+  });
   customers.clear();
   members.clear();
   checkouts.clear();
@@ -547,6 +561,21 @@ it("updates email by member ID and refuses to adopt an independent contact", asy
     }),
   ).rejects.toMatchObject({ code: "identity_conflict" });
 });
+it("reconciles persisted identity overrides while the base connection still sees the old row", async () => {
+  await upgrade();
+  const before = required([...members.values()].find((m) => m.externalId === "admin"));
+  await billing.beforeUserUpdate("admin", { email: "committing@example.com", emailVerified: true });
+  await billing.afterUserUpdate("admin", { email: "committing@example.com" });
+  expect(
+    (
+      await database
+        .select({ email: schema.user.email })
+        .from(schema.user)
+        .where(eq(schema.user.id, "admin"))
+    )[0].email,
+  ).toBe("admin@example.com");
+  expect(members.get(before.id)?.email).toBe("committing@example.com");
+});
 it("adopts a matching team and preserves its Polar owner without local owner configuration", async () => {
   await gateway.createTeam({
     orgId: "org",
@@ -817,3 +846,188 @@ it("links the reserved billing customer to the new Pro organization after paymen
 vi.mock("../app/env", async () => ({
   appEnv: (await import("@everr/app/env")).env,
 }));
+
+const store = createBillingStore({
+  db: database as unknown as Database,
+  polar: gateway,
+  events: { publish },
+  appUrl: "https://app.example",
+  lock: async (_key, run) => run(),
+});
+function revision(overrides: Partial<Subscription> = {}): Subscription {
+  return {
+    id: "subscription",
+    customerId: "customer",
+    checkoutId: "checkout",
+    productId: "pro",
+    status: "active",
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    modifiedAt: null,
+    ...overrides,
+  };
+}
+
+it("publishes only accepted subscription revisions and actual Plan transitions", async () => {
+  const active = revision();
+  await store.saveSubscription("org", active);
+  expect(published).toEqual([
+    {
+      type: "billing.subscription.changed",
+      version: 1,
+      subjectId: "org",
+      data: { organizationId: "org", subscriptionId: active.id },
+    },
+    {
+      type: "organization.plan.changed",
+      version: 1,
+      subjectId: "org",
+      data: { organizationId: "org", previousPlan: "hobby", plan: "pro" },
+    },
+  ]);
+  published.length = 0;
+  await store.saveSubscription("org", active);
+  await store.saveSubscription(
+    "org",
+    revision({ createdAt: new Date("2025-12-01T00:00:00Z"), status: "canceled" }),
+  );
+  expect(published).toEqual([]);
+  const canceled = revision({ modifiedAt: new Date("2026-01-02T00:00:00Z"), status: "canceled" });
+  await store.saveSubscription("org", canceled);
+  expect(published.map((fact) => fact.type)).toEqual(["billing.subscription.changed"]);
+  expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("pro");
+  expect((await database.select().from(schema.orgSubscription))[0].status).toBe("canceled");
+  published.length = 0;
+  await store.saveSubscription(
+    "org",
+    revision({ modifiedAt: new Date("2026-01-03T00:00:00Z"), cancelAtPeriodEnd: true }),
+  );
+  expect(published.map((fact) => fact.type)).toEqual(["billing.subscription.changed"]);
+});
+
+it("rolls back accepted subscription persistence when its Plan write fails, without facts", async () => {
+  await client.exec(
+    "ALTER TABLE organization_billing ADD CONSTRAINT reject_pro CHECK (plan <> 'pro')",
+  );
+  try {
+    await expect(store.saveSubscription("org", revision())).rejects.toThrow();
+    expect(await database.select().from(schema.orgSubscription)).toEqual([]);
+    expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("hobby");
+    expect(published).toEqual([]);
+  } finally {
+    await client.exec("ALTER TABLE organization_billing DROP CONSTRAINT reject_pro");
+  }
+});
+
+it.each(["Graphile unavailable"])(
+  "preserves committed billing and attempts both facts when Graphile admission fails (%s)",
+  async (failure) => {
+    publish.mockImplementation(
+      createEventPublisher({
+        routes: [...billingEventDefinitions, ...membershipEventDefinitions].map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/event", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+      }).publish,
+    );
+    await expect(store.saveSubscription("org", revision())).resolves.toBeUndefined();
+    expect((await database.select().from(schema.orgSubscription))[0].status).toBe("active");
+    expect((await database.select().from(schema.organizationBilling))[0].plan).toBe("pro");
+    expect(publish).toHaveBeenCalledTimes(2);
+  },
+);
+
+it("publishes the committed owner repair even if later checkout billing fails", async () => {
+  const { c } = await paidNew();
+  const orgId = required(c.externalCustomerId);
+  await database.insert(schema.organization).values({
+    id: orgId,
+    name: "New",
+    slug: String(c.metadata.everrOrganizationSlug),
+    createdAt: new Date(),
+  });
+  gateway.getCustomer.mockResolvedValueOnce(required(customers.get(required(c.customerId))));
+  gateway.getCustomer.mockRejectedValueOnce(new Error("provider unavailable after repair"));
+  await expect(
+    billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
+  ).rejects.toThrow("provider unavailable after repair");
+  const [repaired] = await database
+    .select()
+    .from(schema.member)
+    .where(eq(schema.member.organizationId, orgId));
+  expect(published).toEqual([
+    {
+      type: "membership.added",
+      version: 1,
+      subjectId: repaired.id,
+      data: { membershipId: repaired.id, organizationId: orgId, userId: "owner" },
+    },
+  ]);
+  await billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization);
+  expect(published.filter((fact) => fact.type === "membership.added")).toHaveLength(1);
+});
+
+it.each(["Graphile unavailable"])(
+  "preserves the owner repair and completed checkout when Graphile admission fails (%s)",
+  async (failure) => {
+    const { c } = await paidNew();
+    const orgId = required(c.externalCustomerId);
+    await database.insert(schema.organization).values({
+      id: orgId,
+      name: "New",
+      slug: String(c.metadata.everrOrganizationSlug),
+      createdAt: new Date(),
+    });
+    publish.mockImplementation(
+      createEventPublisher({
+        routes: [...billingEventDefinitions, ...membershipEventDefinitions].map((definition) => ({
+          definition,
+          job: (event) => ({ task: "test/event", payload: event }),
+        })),
+        enqueue: async () => {
+          throw new Error(failure);
+        },
+      }).publish,
+    );
+    await expect(
+      billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
+    ).resolves.toMatchObject({ status: "completed" });
+    expect(
+      await database.select().from(schema.member).where(eq(schema.member.organizationId, orgId)),
+    ).toHaveLength(1);
+    expect(publish.mock.calls.map(([fact]) => fact.type)).toEqual([
+      "membership.added",
+      "billing.subscription.changed",
+      "organization.plan.changed",
+    ]);
+  },
+);
+
+it("does not publish an owner repair when the membership insert fails", async () => {
+  const { c } = await paidNew();
+  const orgId = required(c.externalCustomerId);
+  await database.insert(schema.organization).values({
+    id: orgId,
+    name: "New",
+    slug: String(c.metadata.everrOrganizationSlug),
+    createdAt: new Date(),
+  });
+  await client.exec(
+    "ALTER TABLE member ADD CONSTRAINT reject_repair CHECK (organization_id = 'org')",
+  );
+  try {
+    await expect(
+      billing.completeNewOrganizationCheckout(c.id, "owner", createOrganization),
+    ).rejects.toThrow();
+    expect(
+      await database.select().from(schema.member).where(eq(schema.member.organizationId, orgId)),
+    ).toEqual([]);
+    expect(published).toEqual([]);
+  } finally {
+    await client.exec("ALTER TABLE member DROP CONSTRAINT reject_repair");
+  }
+});

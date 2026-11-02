@@ -1,3 +1,4 @@
+import type { ApplicationEvents } from "./events";
 import type { MigrationDatabase } from "#app/db/migrations.ts";
 
 /**
@@ -15,6 +16,7 @@ export interface ApplicationWorker {
 
 /** Application-owned database upgrades and background work. */
 export interface ApplicationRuntime {
+  readonly events: ApplicationEvents;
   migrateDatabase(this: void, database: MigrationDatabase): Promise<void>;
   /** Only additional workers owned by this composition, never product workers. */
   registerWorkers(this: void): Promise<readonly ApplicationWorker[]>;

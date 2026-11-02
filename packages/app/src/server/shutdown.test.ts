@@ -22,6 +22,7 @@ it("waits for worker shutdown before flushing telemetry and is idempotent", asyn
   const first = shutdownRuntime();
   expect(shutdownRuntime()).toBe(first);
   expect(order).toEqual([]);
+  await Promise.resolve();
   release();
   await first;
   expect(order).toEqual(["workers", "telemetry"]);

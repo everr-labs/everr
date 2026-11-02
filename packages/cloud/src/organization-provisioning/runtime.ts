@@ -1,3 +1,8 @@
+import type { EventPublisher } from "@everr/app/composition";
+import {
+  organizationProvisioned,
+  type OrganizationReadinessEvent,
+} from "@everr/app/organizations/events";
 import type { Database } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
 import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
@@ -78,6 +83,7 @@ function organizationLifecycleJob(
 export function createOrganizationTaskList(
   database: Database,
   recoverRetries: () => Promise<void>,
+  events: EventPublisher<OrganizationReadinessEvent>,
 ): TaskList {
   const cleanup = async (organizationId: string, abortSignal?: AbortSignal) => {
     await deletePostgresOrganizationData(organizationId, database);
@@ -109,6 +115,7 @@ export function createOrganizationTaskList(
             .where(eq(organization.id, organizationId));
           if (!remaining) await cleanup(organizationId, helpers.abortSignal);
         } else {
+          await events.publish(organizationProvisioned(organizationId));
           serverLogger.info("clickhouse.organization.provision.completed", {
             "everr.organization.id": organizationId,
           });

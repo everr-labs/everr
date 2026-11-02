@@ -2,6 +2,7 @@
 
 import type { Database } from "@everr/app/db/database";
 import { account, invitation, member, organization, session, user } from "@everr/app/db/schema";
+import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";
 import { createApplicationAuth } from "@everr/app/identity/module";
 import {
   createTestDatabase,
@@ -56,13 +57,14 @@ beforeAll(async () => {
         release: state.releaseLock,
       }) as unknown as PoolClient,
   });
+  const authDatabase = withTransactionReads(fixture.db as unknown as Database);
   auth = createApplicationAuth(
     {
       provider: {
         withIdentityRequest: locks.withBillingRequest,
         lockUserLifecycle: locks.lockUserLifecycle,
         lockAccountDeletion: locks.lockAccountDeletion,
-        identityAdapter: () => drizzleAdapter(fixture.db, { provider: "pg" }),
+        identityAdapter: (executor) => drizzleAdapter(executor, { provider: "pg" }),
         organizationHooks: () => ({
           beforeCreateOrganization: beforeCreateCheckoutOrganization,
           afterCreateOrganization: state.afterOrganizationCreate,
@@ -80,7 +82,8 @@ beforeAll(async () => {
       }),
     },
     {
-      database: fixture.db as unknown as Database,
+      database: authDatabase,
+      events: { async publish() {} },
       baseURL: "http://localhost:3000",
       secret: "cloud-membership-test-secret-long-enough",
       email: {

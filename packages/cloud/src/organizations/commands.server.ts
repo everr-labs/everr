@@ -1,7 +1,10 @@
 import { db } from "@everr/app/db/client";
+import { membershipChanged } from "@everr/app/identity/events";
+import { events } from "@everr/app/server/events/runtime";
+import { organizationPlanChanged } from "../billing/events";
 import { restrictOrganizationToOwner } from "@everr/app/identity/memberships";
 import { auth } from "@everr/app/identity/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { billing } from "../billing/server";
 import { readOrgEntitlement, userOwnsHobbyOrganization } from "../billing-data.server";
@@ -87,8 +90,8 @@ export const organizationCommands = {
   },
   async downgradeToHobby({ organizationId, actorId }: { organizationId: string; actorId: string }) {
     // Billing rechecks the actor's current Owner membership under its organization lock.
-    return billing.downgrade(organizationId, actorId, (revokeBillingAccess) =>
-      db.transaction(async (tx) => {
+    return billing.downgrade(organizationId, actorId, async (revokeBillingAccess) => {
+      const committed = await db.transaction(async (tx) => {
         // Serialize the application-level one-Hobby-per-Owner check before
         // revoking a subscription that may not be convertible to Hobby.
         await lockOrganizationOwnership(tx, actorId);
@@ -110,12 +113,23 @@ export const organizationCommands = {
           organizationId,
           ownerId: actorId,
         });
-        await tx
+        const [changedPlan] = await tx
           .update(organizationBilling)
           .set({ plan: "hobby" })
-          .where(eq(organizationBilling.orgId, organizationId));
-        return membershipChanges;
-      }),
-    );
+          .where(
+            and(eq(organizationBilling.orgId, organizationId), eq(organizationBilling.plan, "pro")),
+          )
+          .returning({ id: organizationBilling.orgId });
+        return { ...membershipChanges, changedPlan: !!changedPlan };
+      });
+      for (const removed of committed.removedMemberships)
+        await events.publish(membershipChanged("membership.removed", removed));
+      if (committed.changedPlan)
+        await events.publish(organizationPlanChanged(organizationId, "pro", "hobby"));
+      return {
+        removedMembers: committed.removedMembers,
+        canceledInvitations: committed.canceledInvitations,
+      };
+    });
   },
 };

@@ -33,6 +33,7 @@ function createAuth(emailEnabled = false) {
   });
   return createApplicationAuth(createInstallationIdentity(database, requests), {
     database,
+    events: { async publish() {} },
     baseURL: "http://localhost:3000",
     secret: "invitation-integration-test-secret-long-enough",
     email: {

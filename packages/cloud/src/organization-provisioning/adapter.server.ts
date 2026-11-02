@@ -1,4 +1,4 @@
-import { type Database, type DbExecutor, db, runInTransaction } from "@everr/app/db/client";
+import { type DbExecutor, db, runInTransaction } from "@everr/app/db/client";
 import { deletePostgresOrganizationData } from "@everr/app/organizations/cleanup";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
@@ -7,10 +7,11 @@ import { organizationBilling } from "../db/schema/billing";
 import { enqueueOrganizationDeprovisioning, enqueueOrganizationProvisioning } from "./jobs";
 import { parseOrganizationMetadata } from "./metadata";
 import { preserveOrganizationProvisioningStatus } from "./metadata.server";
+import { COMPANY_ID_METADATA } from "../crm/metadata";
 
 // Keep access-entity work in the same commit as the organization mutation.
 // Better Auth's after-hooks cannot provide that guarantee after process death.
-export function organizationLifecycleAdapter(database: Database = db) {
+export function organizationLifecycleAdapter(database: DbExecutor = db) {
   return (options: Parameters<ReturnType<typeof drizzleAdapter>>[0]) => {
     const factory = (executor: DbExecutor) => drizzleAdapter(executor, { provider: "pg" })(options);
     const wrap = (executor: DbExecutor): ReturnType<typeof factory> => {
@@ -25,13 +26,16 @@ export function organizationLifecycleAdapter(database: Database = db) {
         forceAllowId?: boolean;
       }): Promise<R> => {
         if (input.model !== "organization") return adapter.create<T, R>(input);
+        const { [COMPANY_ID_METADATA]: _companyId, ...metadata } = parseOrganizationMetadata(
+          input.data.metadata,
+        );
         return runInTransaction(executor, async (tx) => {
           const created = await factory(tx).create<T, R>({
             ...input,
             data: {
               ...input.data,
               metadata: JSON.stringify({
-                ...parseOrganizationMetadata(input.data.metadata),
+                ...metadata,
                 clickhouseReady: false,
               }),
             },

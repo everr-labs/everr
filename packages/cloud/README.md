@@ -22,9 +22,9 @@ retries left with longer delays by an older deployment or an interrupted
 reschedule.
 Each runner has an independent supervisor that restarts startup and runtime
 failures every five seconds. A retry-recovery failure is logged and does not
-stop either runner. Organization handlers and the scanner use their reserved
+stop the other runners. Organization handlers and the scanner use their reserved
 Postgres pool too.
-SIGTERM and SIGINT drain both runners before flushing telemetry. ClickHouse
+SIGTERM and SIGINT drain all runners before flushing telemetry. ClickHouse
 requests receive Graphile's shutdown abort signal after five seconds, allowing
 normal shutdown to release job and queue locks. Hard kills can leave locks
 behind. Inspect `graphile_worker.jobs`, confirm the owning workers are dead,
@@ -105,11 +105,15 @@ Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 The common runtime always owns the product worker (alerting, optional GitHub
 handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
-registers only its organization lifecycle worker, without starting it. Both
-runners remain in the web process, with the existing reserved provisioning pool.
-See [background work and domain events](../../docs/background-work.md) for task
-ownership, transactional enqueue, payload compatibility and future CRM facts.
-Billing callbacks remain synchronous; no CRM integration is registered.
+registers its organization lifecycle worker and, when a Brevo API key is present, the independent
+one-slot CRM worker, without starting either. They remain in the web process with
+separate reserved pools (maximum four connections each). An absent or blank key
+selects no CRM routes or runner. Manual commands can still be admitted to wait for
+an enabled consumer. Billing callbacks remain synchronous. See
+[background work and domain events](../../docs/background-work.md) for task
+ownership and the [CRM operations runbook](../../docs/crm-operations.md) for the
+required schema/field readback gates, bounded bootstrap, repair and recovery.
+Configuration validation does not establish operational readiness.
 
 # Package composition
 
@@ -188,3 +192,18 @@ configuration passes cloud migrations and the schema target to the shared
 alerting harness; the suites exercise the same behavior against this
 application's database setup. Provisioning fixtures remain in `src/testing`,
 and the cloud-only tenant-column assertion stays in this package.
+
+## Billing and readiness facts
+
+Cloud publishes subscription and Plan business facts, together with the shared
+identity and readiness contracts. A nonempty Brevo API key selects 12 CRM event-to-job routes; an absent or blank key selects none. Billing publishes
+a subscription fact only after accepting and committing a newer provider revision.
+Plan changes describe actual stored transitions: an inactive Pro subscription can
+suspend access without changing Plan. Hobby downgrade facts follow its local
+transaction, and owner Membership repair facts follow their standalone insert.
+Provisioning publishes readiness only for a guarded pending-to-ready update that
+returns a row. Publication awaits Graphile admission and preserves the existing billing
+locks, provider checks, critical provisioning jobs, and cleanup guarantees.
+
+See the internal [event bus guide](../../docs/event-bus.md) for emitted facts and
+Graphile handler wiring and the [CRM operations runbook](../../docs/crm-operations.md).

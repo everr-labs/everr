@@ -93,7 +93,9 @@ Shared membership mutations belong to `@everr/app/identity/memberships`.
 `restrictOrganizationToOwner` checks the retained Owner, removes other Members,
 and cancels pending invitations within the caller's transaction. Cloud owns
 downgrade eligibility and billing coordination and composes this shared operation
-with its plan update.
+with its plan update. The operation returns the actual removed Membership IDs
+for publication after that transaction commits; the shared module imports no
+cloud billing types.
 
 ## Extending the application
 
@@ -213,6 +215,37 @@ persistent queues and usage accounting. Self-hosted reads do not filter by tenan
 Production self-hosted uses the separate
 [deployment stack](../../deploy/README.md#send-telemetry). Configure exporters
 with the installation's public ingestion URL and an ingest key.
+
+Shared identity publishes User, Organization, and Membership lifecycle facts
+through `EventPublisher<IdentityEvent>`. `identity/identity-adapter.ts` captures
+persisted before/after identity under locks and publishes after its outermost
+source transaction commits. Better Auth 1.6.33 also runs queued database
+after-hooks following rollback, so those hooks are not the publication boundary.
+Providers build adapters for the supplied database executor to preserve their
+billing and Organization lifecycle checks inside nested transactions. Installation
+setup publishes User, Organization, and initial Membership creation after its own
+transaction commits. Onboarding publishes its Organization update after its
+standalone statement succeeds. Membership facts retain the persisted relationship
+ID plus its User and Organization IDs. Parent deletion facts require cleanup of
+all remote associations for that parent; database cascades do not fabricate child
+facts. The self-hosted composition selects no CRM routes.
+
+Business event publication diagnostics reuse the server OTel providers. The error
+log `business_events.publication.failed` carries event type, version, event and
+subject IDs, and the failure stage (`validation`, `job`, or `enqueue`). Enqueue
+failures also identify the Graphile task. Exception attributes describe the
+error; job construction messages and stacks are redacted. See the
+[event bus guide](../../docs/event-bus.md) for the emitted-event
+catalog, direct Graphile admission, handler wiring and accepted loss.
+
+For an isolated local verification, set `OTEL_EXPORTER_OTLP_ENDPOINT` to the OTLP
+origin returned by that instance's status, then start the app. For deployed server
+export, configure `EVERR_INGEST_ENDPOINT` and secret `EVERR_INGEST_KEY`, restart
+the app, and query that installation for the log after exercising a
+publication failure. An explicit `OTEL_EXPORTER_OTLP_ENDPOINT` takes precedence
+and does not add the Everr ingest-key header. No new exporter configuration or
+production activation is introduced by the publisher. Local test ingestion does
+not prove production ingestion.
 
 Useful package commands include `pnpm --filter @everr/app build`,
 `pnpm --filter @everr/app typecheck`, and

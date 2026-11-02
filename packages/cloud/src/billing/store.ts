@@ -2,10 +2,11 @@ import { member, organization, user } from "@everr/app/db/schema";
 import { isOrganizationAdmin, isOrganizationOwner } from "@everr/app/identity/roles";
 import { and, eq, getTableColumns, isNull, or, sql } from "drizzle-orm";
 import { organizationBilling, orgSubscription } from "../db/schema";
+import { organizationPlanChanged } from "./events";
 import { assertPolarProductGrantsPlan } from "./catalog.server";
 import { type BillingDependencies, BillingError, type Subscription } from "./types";
 
-export function createBillingStore({ db }: BillingDependencies) {
+export function createBillingStore({ db, events }: BillingDependencies) {
   const store = {
     async person(id: string) {
       const [person] = await db
@@ -79,7 +80,7 @@ export function createBillingStore({ db }: BillingDependencies) {
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
         polarModifiedAt: subscription.modifiedAt ?? subscription.createdAt,
       };
-      await db.transaction(async (tx) => {
+      const changes = await db.transaction(async (tx) => {
         const updated = await tx
           .insert(orgSubscription)
           .values(values)
@@ -89,15 +90,30 @@ export function createBillingStore({ db }: BillingDependencies) {
             setWhere: sql`${orgSubscription.polarModifiedAt} < ${values.polarModifiedAt}`,
           })
           .returning();
-        if (updated.length && subscription.status === "active")
-          await tx
+        if (!updated.length) return;
+        let planChanged = false;
+        if (subscription.status === "active") {
+          const changed = await tx
             .insert(organizationBilling)
             .values({ orgId, plan: "pro" })
             .onConflictDoUpdate({
               target: organizationBilling.orgId,
               set: { plan: "pro" },
-            });
+              setWhere: sql`${organizationBilling.plan} <> 'pro'`,
+            })
+            .returning({ id: organizationBilling.orgId });
+          planChanged = changed.length > 0;
+        }
+        return { planChanged };
       });
+      if (!changes) return;
+      await events.publish({
+        type: "billing.subscription.changed",
+        version: 1,
+        subjectId: orgId,
+        data: { organizationId: orgId, subscriptionId: subscription.id },
+      });
+      if (changes.planChanged) await events.publish(organizationPlanChanged(orgId, "hobby", "pro"));
     },
   };
   return store;

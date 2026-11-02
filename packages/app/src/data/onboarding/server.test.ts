@@ -5,6 +5,7 @@ vi.mock("@composition/deployment", () => ({
 }));
 
 const store = vi.hoisted(() => ({ getStatus: vi.fn(), complete: vi.fn() }));
+vi.mock("#app/server/events/runtime.ts", () => ({ events: { async publish() {} } }));
 vi.mock("#app/db/client.ts", () => ({ db: {} }));
 vi.mock("#app/data/onboarding/store.ts", () => ({
   createOnboardingStore: () => store,

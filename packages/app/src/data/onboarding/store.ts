@@ -4,12 +4,18 @@ import type { Database } from "#app/db/client.ts";
 import { member, organization } from "#app/db/schema/index.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 
+import type { EventPublisher } from "#app/composition/events.ts";
+import { organizationChanged, type OrganizationEvent } from "#app/identity/events.ts";
+
 interface OnboardingScope {
   organizationId: string;
   userId: string;
 }
 
-export function createOnboardingStore(database: Pick<Database, "select" | "update">) {
+export function createOnboardingStore(
+  database: Pick<Database, "select" | "update">,
+  events: EventPublisher<OrganizationEvent> = { async publish() {} },
+) {
   // Metadata is stored as JSON text. Both SQL NULL and JSON null represent an
   // organization without metadata; malformed JSON must surface as an error.
   const metadata = sql`coalesce(nullif(nullif(${organization.metadata}, '')::jsonb, 'null'::jsonb), '{}'::jsonb)`;
@@ -55,6 +61,7 @@ export function createOnboardingStore(database: Pick<Database, "select" | "updat
         .where(and(eq(organization.id, scope.organizationId), exists(membership)))
         .returning({ onboardingCompleted });
       if (!row) throw new Error("You are no longer a member of this organization.");
+      await events.publish(organizationChanged("organization.updated", scope.organizationId));
       return row;
     },
   };

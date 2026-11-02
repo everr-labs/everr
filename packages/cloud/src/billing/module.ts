@@ -74,9 +74,15 @@ export function createBillingModule(deps: BillingDependencies) {
         });
       }
     },
-    async afterUserUpdate(userId: string) {
-      for (const { orgId } of await userOrganizations(userId))
-        await identity.afterMembershipChange(orgId);
+    async afterUserUpdate(userId: string, update?: Partial<Person>) {
+      const person = update
+        ? { ...(await store.person(userId)), ...update, id: userId }
+        : undefined;
+      for (const { orgId } of await userOrganizations(userId)) {
+        await lock(`billing:${orgId}`, async () => {
+          await identity.reconcile(orgId, person ? { person } : undefined);
+        });
+      }
     },
     async beforeUserDelete(userId: string) {
       for (const { orgId } of await userOrganizations(userId))

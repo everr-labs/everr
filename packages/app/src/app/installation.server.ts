@@ -3,6 +3,13 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "#app/db/database.ts";
 import { account, invitation, member, organization, user } from "#app/db/schema/index.ts";
+import type { EventPublisher } from "#app/composition/events.ts";
+import {
+  membershipChanged,
+  organizationChanged,
+  userCreated,
+  type IdentityEvent,
+} from "#app/identity/events.ts";
 import { IdentityPolicyError } from "#app/identity/policy-error.ts";
 
 export class InstallationSetupError extends Error {}
@@ -55,16 +62,18 @@ export async function assertInvitedUser(
 export async function setupWorkspace(
   input: z.infer<typeof SetupWorkspaceSchema>,
   database: Database,
+  events: EventPublisher<IdentityEvent> = { async publish() {} },
 ) {
   const data = SetupWorkspaceSchema.parse(input);
   const password = await hashPassword(data.password);
-  return database.transaction(async (tx) => {
+  const result = await database.transaction(async (tx) => {
     // One installation-wide lock, shared by concurrent setup requests and replicas.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(1936028277, 1)`);
     const [existing] = await tx.select({ id: organization.id }).from(organization).limit(1);
     if (existing) throw new InstallationSetupError("This installation is already configured.");
     const userId = crypto.randomUUID();
     const organizationId = crypto.randomUUID();
+    const membershipId = crypto.randomUUID();
     const now = new Date();
     await tx.insert(user).values({
       id: userId,
@@ -86,12 +95,18 @@ export async function setupWorkspace(
       createdAt: now,
     });
     await tx.insert(member).values({
-      id: crypto.randomUUID(),
+      id: membershipId,
       userId,
       organizationId,
       role: "owner",
       createdAt: now,
     });
-    return { organizationId };
+    return { organizationId, userId, membershipId };
   });
+  await events.publish(userCreated(result.userId, false));
+  await events.publish(organizationChanged("organization.created", result.organizationId));
+  await events.publish(
+    membershipChanged("membership.added", { id: result.membershipId, ...result }),
+  );
+  return { organizationId: result.organizationId };
 }

@@ -35,7 +35,7 @@ export const identity = {
     lockAccountDeletion,
     lockUserLifecycle,
     createSessionOnboardingHook,
-    identityAdapter: () => billingIdentityAdapter(organizationLifecycleAdapter()),
+    identityAdapter: (executor) => billingIdentityAdapter(organizationLifecycleAdapter(executor)),
     organizationHooks: () => ({
       beforeCreateOrganization: beforeCreateCheckoutOrganization,
       afterCreateOrganization,
