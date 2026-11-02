@@ -19,9 +19,7 @@ import {
   relatedSyncSpec,
 } from "./commands";
 
-/** Disabled mode admits no work. */
-export function crmEventRoutes(mode: "disabled" | "configured"): ApplicationEvents {
-  if (mode === "disabled") return [];
+export function crmEventRoutes(): ApplicationEvents {
   return [
     ...userEventDefinitions.map((definition): EventRoute<UserEvent> => ({
       definition,

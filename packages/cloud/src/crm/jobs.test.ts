@@ -25,10 +25,9 @@ const organizationTypes = [
 ];
 const membershipTypes = ["membership.added", "membership.updated", "membership.removed"];
 
-it("selects exactly the 12 CRM triggers and leaves disabled mode inert", () => {
-  expect(crmEventRoutes("disabled")).toEqual([]);
+it("selects exactly the 12 CRM triggers", () => {
   expect(
-    crmEventRoutes("configured")
+    crmEventRoutes()
       .map(({ definition }) => definition.type)
       .sort(),
   ).toEqual([...userTypes, ...organizationTypes, ...membershipTypes].sort());
@@ -39,7 +38,7 @@ it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
   async (type) => {
     const enqueue = vi.fn(async () => {});
     const diagnostics = vi.spyOn(serverLogger, "error").mockImplementation(() => {});
-    const events = createEventPublisher({ routes: crmEventRoutes("configured"), enqueue });
+    const events = createEventPublisher({ routes: crmEventRoutes(), enqueue });
     const isUser = userTypes.includes(type);
     const isMember = membershipTypes.includes(type);
     const data = isUser
@@ -78,7 +77,7 @@ it.each([...userTypes, ...organizationTypes, ...membershipTypes])(
 
 it("does not create a CRM job for provisioning readiness", async () => {
   const enqueue = vi.fn(async () => {});
-  await createEventPublisher({ routes: crmEventRoutes("configured"), enqueue }).publish({
+  await createEventPublisher({ routes: crmEventRoutes(), enqueue }).publish({
     type: "organization.provisioned",
     version: 1,
     subjectId: "o",
@@ -93,7 +92,7 @@ it("contains mismatched subjects and Graphile failures without changing committe
     throw new Error("enqueue unavailable");
   });
   const events = createEventPublisher({
-    routes: crmEventRoutes("configured"),
+    routes: crmEventRoutes(),
     enqueue,
   });
   await events.publish({ ...userCreated("u", false), subjectId: "other" });
@@ -146,7 +145,7 @@ it("preserves stable job keys and one serialized Graphile queue", () => {
 
 it("retains previous Membership endpoints and does not coalesce distinct moves", async () => {
   const enqueue = vi.fn(async () => {});
-  const publisher = createEventPublisher({ routes: crmEventRoutes("configured"), enqueue });
+  const publisher = createEventPublisher({ routes: crmEventRoutes(), enqueue });
   const fact = {
     type: "membership.updated",
     version: 1,

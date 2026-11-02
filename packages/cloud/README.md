@@ -105,11 +105,11 @@ Deployment alerts and runbooks are maintained in the `everr-deploy` repository.
 
 The common runtime always owns the product worker (alerting, optional GitHub
 handlers, preview retention). Cloud's `ApplicationRuntime.registerWorkers()`
-registers its organization lifecycle worker and, in configured mode, the independent
+registers its organization lifecycle worker and, when a Brevo API key is present, the independent
 one-slot CRM worker, without starting either. They remain in the web process with
-separate reserved pools (maximum four connections each). Paused mode admits CRM
-commands without running outbound work; disabled mode selects no CRM routes
-or runner. Billing callbacks remain synchronous. See
+separate reserved pools (maximum four connections each). An absent or blank key
+selects no CRM routes or runner. Manual commands can still be admitted to wait for
+an enabled consumer. Billing callbacks remain synchronous. See
 [background work and domain events](../../docs/background-work.md) for task
 ownership and the [CRM operations runbook](../../docs/crm-operations.md) for the
 required schema/field readback gates, bounded bootstrap, repair and recovery.
@@ -196,7 +196,7 @@ and the cloud-only tenant-column assertion stays in this package.
 ## Billing and readiness facts
 
 Cloud publishes subscription and Plan business facts, together with the shared
-identity and readiness contracts. Configured mode selects 12 CRM event-to-job routes; disabled selects none. Billing publishes
+identity and readiness contracts. A nonempty Brevo API key selects 12 CRM event-to-job routes; an absent or blank key selects none. Billing publishes
 a subscription fact only after accepting and committing a newer provider revision.
 Plan changes describe actual stored transitions: an inactive Pro subscription can
 suspend access without changing Plan. Hobby downgrade facts follow its local

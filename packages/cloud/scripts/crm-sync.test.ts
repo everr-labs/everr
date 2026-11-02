@@ -21,7 +21,6 @@ beforeEach(() => {
   vi.resetModules();
   mocks.query.mockReset().mockResolvedValue({ rows: [{ id: "job-1" }] });
   mocks.end.mockReset().mockResolvedValue(undefined);
-  vi.stubEnv("CRM_BREVO_MODE", "configured");
   vi.stubEnv("DATABASE_URL", "postgres://fixture@localhost/fixture");
   vi.spyOn(console, "info").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -100,18 +99,6 @@ it("admits without provider or unrelated Cloud credentials and ignores provider 
   expect(mocks.query).toHaveBeenCalledOnce();
   expect(console.error).not.toHaveBeenCalled();
 });
-
-it.each([undefined, "", "disabled", "paused", "unknown"])(
-  "rejects admission in %s mode",
-  async (mode) => {
-    vi.stubEnv("CRM_BREVO_MODE", mode);
-    process.argv = ["node", "crm-sync.ts"];
-    await import("./crm-sync");
-    await vi.waitFor(() => expect(console.error).toHaveBeenCalledOnce());
-    expect(mocks.query).not.toHaveBeenCalled();
-    expect(process.exitCode).toBe(1);
-  },
-);
 
 it("rejects admission without a database URL", async () => {
   vi.stubEnv("DATABASE_URL", undefined);

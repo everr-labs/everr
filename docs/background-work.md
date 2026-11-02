@@ -17,7 +17,7 @@ refactoring.
 `ApplicationRuntime.registerWorkers()` returns supervised workers without
 starting them. The self-hosted composition returns none. The cloud composition
 returns the organization lifecycle worker (provisioning, deprovisioning and its
-pending scanner), plus the independent CRM runner in configured mode. The common
+pending scanner), plus the independent CRM runner when a Brevo API key is present. The common
 runtime manages the product worker and registered workers as one list, releases
 partial startups, and drains all of them before telemetry shutdown. Registration
 acquires no running resources. `start()` returns no handle and resolves when
@@ -35,7 +35,7 @@ in the web process and share the durable Graphile schema:
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------- | --------------------------------------------- |
 | Product                                 | Alert evaluation, notification delivery, history projection and retention; GitHub replay/status; preview retention | 2               | Shared app pool                               |
 | Cloud organization lifecycle            | ClickHouse provisioning, cleanup and recovery scan                                                                 | 2               | Reserved pool, maximum 4 connections          |
-| Cloud CRM integration (configured mode) | User, Company and explicit pair sync/cleanup                                                                       | 1               | Separate reserved pool, maximum 4 connections |
+| Cloud CRM integration (API key present) | User, Company and explicit pair sync/cleanup                                                                       | 1               | Separate reserved pool, maximum 4 connections |
 
 The reserved organization runner already protects signup from long alert or
 GitHub jobs. Removing that isolation would change user-visible readiness
@@ -51,7 +51,7 @@ work to the reserved provisioning runner without revisiting its capacity.
 
 The event publisher maps committed facts to application-selected
 Graphile jobs directly. Publication awaits admission and contains enqueue failures,
-with no outbox; Graphile owns durable execution. Self-hosted configures no ancillary routes. Cloud selects CRM routes and starts their worker only in configured mode.
+with no outbox; Graphile owns durable execution. Self-hosted configures no ancillary routes. Cloud selects CRM routes and starts their worker only when a Brevo API key is present.
 Publication becomes active when a composition selects a concrete consumer.
 
 See the [event bus guide](event-bus.md) for the complete emitted-event catalog,

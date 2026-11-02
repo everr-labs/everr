@@ -20,7 +20,6 @@ async function main() {
       apply: { type: "boolean", default: false },
     },
   });
-  if (process.env.CRM_BREVO_MODE !== "configured") throw new Error("CRM is not configured.");
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required.");
   const userId = values["user-id"];
   const organizationId = values["organization-id"];

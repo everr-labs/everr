@@ -6,18 +6,17 @@ within an account and have no deployment namespace.
 
 ## Configuration
 
-| Variable               | Value                                       |
-| ---------------------- | ------------------------------------------- |
-| `CRM_BREVO_MODE`       | `disabled` (default) or `configured`        |
-| `CRM_BREVO_API_KEY`    | Required in configured mode                 |
-| `CRM_BREVO_TIMEOUT_MS` | Optional request deadline, default 10000 ms |
+| Variable               | Value                                                 |
+| ---------------------- | ----------------------------------------------------- |
+| `CRM_BREVO_API_KEY`    | Nonempty key enables CRM; absent or blank disables it |
+| `CRM_BREVO_TIMEOUT_MS` | Optional request deadline, default 10000 ms           |
 
 The Cloud server declares these server-only variables in
 `packages/cloud/src/app/env.ts`. Composition and the worker consume that normalized
-environment, which validates the request deadline and requires an API key in
-configured mode. The deadline accepts integer values from 100 to 30000 ms and covers
+environment, which trims the API key and treats empty or whitespace-only keys as
+absent. The deadline accepts integer values from 100 to 30000 ms and covers
 one HTTP request, including its response body. It does not set Graphile backoff or
-the 429 cooldown. Empty mode and timeout values use their defaults.
+the 429 cooldown. An empty timeout uses its default.
 
 For local Cloud development, set them in `packages/cloud/.env`, using
 `packages/cloud/.env.example` as a template. Vite loads the package's `.env` files;
@@ -28,11 +27,19 @@ key. Deployment operations are maintained in `everr-deploy`; this repository doe
 not configure those Brevo secrets. The key is never a `VITE_` variable or a Docker
 build argument.
 
-Disabled mode admits no CRM work and stops the CRM consumer. Already queued jobs
-remain pending. Configured mode admits commands and starts the dedicated one-slot
-runner. Changes require restarting the affected process. After re-enabling, a
-manual full sync repairs changes missed while disabled. There are no CRM tables
-or migrations.
+Before rollout, update `everr-deploy` to remove the old mode-based gate that decides
+whether to inject the API key. Its previous default omitted the key; retaining
+that gate would leave CRM disabled even when the production secret exists.
+Inject the key only for deployments where CRM should run, and omit it to disable
+the integration.
+
+Without an API key, Cloud admits no automatic CRM work and starts no CRM consumer.
+Already queued jobs remain pending. A nonempty key enables automatic admission and
+the dedicated one-slot runner. To disable CRM, remove the variable from the process
+environment while retaining the stored secret in 1Password. Restart every affected
+replica after changing the key. A missing secret disables CRM instead of failing
+startup. After re-enabling, a manual full sync repairs changes missed while
+disabled. There are no CRM tables or migrations.
 
 Before enabling an account, prepare the owned provider attributes and read back
 fixture records. Brevo can ignore unknown attributes, so HTTP success alone does
@@ -52,8 +59,8 @@ without an explicit migration of the remote identities.
 
 ## Manual commands
 
-The script requires `DATABASE_URL`, `CRM_BREVO_MODE=configured`, and the same target
-database as the integration runner. Supply configuration through the process
+The script requires only `DATABASE_URL`, pointing at the same target database as
+the integration runner. Supply configuration through the process
 environment. Unlike the Vite server, this script does not load `.env` files. Export
 the required variables before running it. It admits work through Graphile and makes
 no provider calls itself, so it requires no Brevo API key, provider timeout, or
@@ -77,7 +84,8 @@ pnpm --filter @everr/app-cloud crm:sync --prune --apply
 The result includes `eventId`, Graphile `jobId`, task and admitted count. A full
 scan reports its candidate/admitted counts in telemetry with that event ID. These
 counts describe queue admission, not successful remote synchronization. Manual
-admission requires configured mode.
+admission also works while the consumer is disabled; jobs wait until a Cloud
+process with a nonempty API key starts consuming them.
 
 A full scan starts at the beginning on each run. It admits Users and Organizations;
 parent handlers admit their current Memberships. Prune inventories the current
@@ -114,6 +122,12 @@ event or manual full sync/prune. There is no periodic repair or persistent statu
 that proves the remote record is synchronized.
 
 ## Telemetry
+
+Worker registration emits `crm.integration.status` with boolean
+`everr.crm.enabled`, showing whether the process selected CRM routes and its runner.
+This reports configuration, not worker health or successful provider access.
+Check a fresh status log for each restarted replica through the existing Everr
+log pipeline, locally or in production. No key value is logged.
 
 Task spans use scope `everr-cloud.crm`. Structured `crm.sync` logs include outcome,
 entity kind, source ID, business event ID, job ID, operation, attempt, bounded error

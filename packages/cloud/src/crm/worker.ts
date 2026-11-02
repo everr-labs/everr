@@ -14,8 +14,7 @@ export const integrationWorker = managedWorker({
   name: "everrIntegrationWorker",
   hot: import.meta.hot,
   async start() {
-    if (appEnv.CRM_BREVO_MODE !== "configured" || !appEnv.CRM_BREVO_API_KEY)
-      throw new Error("CRM integration runner is not configured.");
+    if (!appEnv.CRM_BREVO_API_KEY) throw new Error("CRM integration runner is not configured.");
     const pool = new Pool({ ...databasePoolConfig, max: 4 });
     const database = drizzle(pool, { schema });
     const controller = new AbortController();

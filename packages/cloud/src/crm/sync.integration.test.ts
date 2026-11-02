@@ -548,9 +548,7 @@ it.each([false, true])(
       { id: "m", userId: "v", organizationId: "p" },
       { userId: "u", organizationId: "o" },
     );
-    const route = crmEventRoutes("configured").find(
-      (route) => route.definition.type === "membership.updated",
-    )!;
+    const route = crmEventRoutes().find((route) => route.definition.type === "membership.updated")!;
     const job = route.job({ ...fact, id: "move-1", occurredAt: new Date().toISOString() });
     await s.invoke(job.task, job.payload);
     await s.invoke(job.task, job.payload);

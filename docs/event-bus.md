@@ -22,9 +22,9 @@ contains the feature definition and a synchronous `job(event)` function returnin
 Handlers execute in ordinary Graphile task lists selected by `registerWorkers()`.
 Producers know only `EventPublisher<FeatureEvent>`, never the handlers.
 
-Self-hosted configures no routes. Cloud selects `crmEventRoutes(mode)` in
-`packages/cloud/src/crm/jobs.ts`: disabled admits no jobs and runs no CRM worker;
-configured admits jobs and runs the worker.
+Self-hosted configures no routes. Cloud selects `crmEventRoutes()` in
+`packages/cloud/src/crm/jobs.ts` only when a nonempty Brevo API key is configured.
+Without the key, Cloud selects no CRM routes and starts no CRM worker.
 Events without a matching route are ignored without empty registrations.
 
 CRM routes exactly 12 event types: the four User facts to `crm/sync-user`, the

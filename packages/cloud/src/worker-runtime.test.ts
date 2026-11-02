@@ -33,6 +33,7 @@ const runtimeMocks = vi.hoisted(() => {
     }),
     runOptions,
     serverLoggerError: vi.fn(),
+    serverLoggerInfo: vi.fn(),
   };
 });
 
@@ -79,7 +80,7 @@ vi.mock("@everr/app/telemetry/logger", () => ({
   errorMessage: (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
   serverLogger: {
     error: runtimeMocks.serverLoggerError,
-    info: vi.fn(),
+    info: runtimeMocks.serverLoggerInfo,
   },
 }));
 
@@ -90,10 +91,9 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-async function loadRuntime(mode = "disabled") {
+async function loadRuntime(apiKey?: string) {
   vi.stubEnv("EVERR_GITHUB_ENABLED", "false");
-  vi.stubEnv("CRM_BREVO_MODE", mode);
-  vi.stubEnv("CRM_BREVO_API_KEY", "fixture");
+  vi.stubEnv("CRM_BREVO_API_KEY", apiKey);
   vi.resetModules();
   // The runner handle deliberately lives on the hot-singleton registry on
   // globalThis to survive HMR module replacement; tests need each import to
@@ -106,6 +106,7 @@ async function loadRuntime(mode = "disabled") {
   runtimeMocks.organizationPool.query.mockClear();
   runtimeMocks.organizationPool.end.mockClear();
   runtimeMocks.serverLoggerError.mockClear();
+  runtimeMocks.serverLoggerInfo.mockClear();
   const runtime = await import("@everr/app/server/worker/runtime");
   return {
     startWorkerRuntime: async () => {
@@ -117,13 +118,13 @@ async function loadRuntime(mode = "disabled") {
 }
 
 describe("worker runtime", () => {
-  it.each(["configured", "disabled"])(
-    "publishes readiness without CRM admission or diagnostics in %s mode",
-    async (mode) => {
-      await loadRuntime(mode);
+  it.each(["fixture", undefined])(
+    "publishes readiness without CRM admission or diagnostics with API key %s",
+    async (apiKey) => {
+      await loadRuntime(apiKey);
       const { runtime: composition } = await import("./app/composition/runtime");
       const { createEventPublisher } = await import("@everr/app/server/events/publisher");
-      expect(composition.events).toHaveLength(mode === "disabled" ? 0 : 12);
+      expect(composition.events).toHaveLength(apiKey ? 12 : 0);
       expect(
         composition.events.find(({ definition }) => definition.type === "organization.provisioned"),
       ).toBeUndefined();
@@ -141,8 +142,11 @@ describe("worker runtime", () => {
   );
 
   it("reserves a third runner with one independent CRM execution slot", async () => {
-    const runtime = await loadRuntime("configured");
+    const runtime = await loadRuntime("fixture");
     await runtime.startWorkerRuntime();
+    expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith("crm.integration.status", {
+      "everr.crm.enabled": true,
+    });
     expect(runtimeMocks.run).toHaveBeenCalledTimes(3);
     const integration = runtimeMocks.runOptions.find((options) =>
       Object.keys(options.taskList).includes("crm/sync-user"),
@@ -160,19 +164,25 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
   });
 
-  it("disables CRM admission and consumption while keeping the other runners active", async () => {
-    const runtime = await loadRuntime("disabled");
-    await runtime.startWorkerRuntime();
-    expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-    const { runtime: composition } = await import("./app/composition/runtime");
-    expect(composition.events).toHaveLength(0);
-    expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
-      true,
-    );
-  });
+  it.each([undefined, "", "   "])(
+    "disables CRM admission and consumption without a key (%s)",
+    async (apiKey) => {
+      const runtime = await loadRuntime(apiKey);
+      await runtime.startWorkerRuntime();
+      expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
+      const { runtime: composition } = await import("./app/composition/runtime");
+      expect(composition.events).toHaveLength(0);
+      expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith("crm.integration.status", {
+        "everr.crm.enabled": false,
+      });
+      expect(
+        runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList)),
+      ).toBe(true);
+    },
+  );
 
   it("rolls back only CRM startup when its runner fails", async () => {
-    const runtime = await loadRuntime("configured");
+    const runtime = await loadRuntime("fixture");
     const start = runtimeMocks.run.getMockImplementation()!;
     runtimeMocks.run.mockImplementation(async (options) => {
       if ("crm/sync-user" in options.taskList) throw new Error("CRM runner unavailable");
