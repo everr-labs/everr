@@ -168,7 +168,7 @@ To replace an element in a Recording with an empty placeholder of the same size,
 _Avoid_: mask (which keeps the element), exclude
 
 **Stream**:
-The in-memory buffer of one page's Recording, as Generations: the last 5 minutes, at most 10 MB. Each event leaves the page at most once, in a Segment of the Stream. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
+The in-memory buffer of one page's Recording, as Generations. It aims for the last 5 minutes and 10 MB, and always keeps the newest Generation, so that one can be older or larger. Each event leaves the page at most once, in a Segment of the Stream. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
 _Avoid_: buffer (informal), session recording
 
 **Generation**:
@@ -176,7 +176,7 @@ The events of a Stream from one full snapshot up to the next. A new one starts a
 _Avoid_: checkout (rrweb's word for taking the snapshot)
 
 **Clip**:
-A time range of a Stream that leaves the page: automatically on an error or a failed request (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its one root `recording` Span gives the range; the Clip sends only the Segments the Stream has not sent yet.
+A time range of a Stream that leaves the page: automatically on an error, a 5xx response, or a request that gets no response (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its one root `recording` Span gives the range; the Clip sends only the Segments the Stream has not sent yet.
 _Avoid_: recording (the whole history), snippet, replay
 
 **Segment**:

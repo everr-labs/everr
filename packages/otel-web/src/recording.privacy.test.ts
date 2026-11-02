@@ -199,6 +199,37 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
       '"srcset":"http://localhost:3000/a.png 1x, http://localhost:3000/b.png 2x"',
     );
   });
+
+  it("strips the query and the fragment of a CSS url", async () => {
+    const json = await recordPage(
+      `<style>@import "/font?token=import-secret"; body { background: url("/bg?token=sheet-secret#frag-sheet") }</style>
+       <div id="box" style="background-image: url('/avatar?token=style-secret,extra-secret#frag-style'), url('data:image/gif;base64,AAAA?keep')">x</div>`,
+      { maskAllText: false },
+      () => {
+        document
+          .getElementById("box")!
+          .setAttribute("style", "background-image: url('/next?token=late-style-secret')");
+        document.querySelector("style")!.textContent =
+          "body { background: url('/late?token=late-sheet-secret') }";
+      },
+    );
+    for (const secret of [
+      "import-secret",
+      "sheet-secret",
+      "frag-sheet",
+      "style-secret",
+      "extra-secret",
+      "frag-style",
+      "late-style-secret",
+      "late-sheet-secret",
+    ])
+      expect(json, secret).not.toContain(secret);
+    for (const path of ["/avatar", "/bg", "/font", "/late"])
+      expect(json, path).toContain(`http://localhost:3000${path}`);
+    // A style diff keeps the property value rrweb read, which stays relative.
+    expect(json).toContain('url(\\"/next\\")');
+    expect(json).toContain("AAAA?keep");
+  });
 });
 
 describe("the options", () => {

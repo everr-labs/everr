@@ -8,6 +8,9 @@ export type FormElement = Element & { type?: string; value?: string };
 const MEDIA = 'img,svg,video,object,picture,embed,map,audio,link[rel*="icon"]';
 const DEFAULT_ATTRIBUTES = ["title", "placeholder", "aria-label", "content", "data-*"];
 const URL_ATTRIBUTES = /^(href|src|srcset|action|formaction|poster|cite|background|ping)$/;
+// The url() shapes rrweb 2.1.7 copies unchanged from a style attribute, a
+// stylesheet's _cssText, and the text of a style element.
+const CSS_URL = /url\((?:(')([^']*)'|(")(.*?)"|([^)]*))\)/gi;
 // The input types whose value rrweb hands to maskInputFn when maskAllInputs is
 // true. rrweb copies every other value as is: hidden, checkbox, radio, button,
 // and the options of a select.
@@ -20,12 +23,49 @@ const stars = (text: string) => text.replace(/\S/g, "*");
 const stripUrl = (url: string) =>
   url.replace(/^\s*(mailto|tel|sms):.*$/is, "$1:").replace(/[?#][^\s,]*/g, "");
 
+// The whole capture is one URL, so a comma inside the query goes too.
+// A data: URL stays whole: its payload can contain ? and #, and it is the image.
+const stripCssUrls = (css: string) =>
+  css.replace(
+    CSS_URL,
+    (
+      match,
+      q1: string | undefined,
+      p1: string | undefined,
+      q2: string | undefined,
+      p2: string | undefined,
+      p3: string | undefined,
+    ) => {
+      const raw = p1 ?? p2 ?? p3 ?? "";
+      if (/^\s*data:/i.test(raw)) return match;
+      const quote = q1 ?? q2 ?? "";
+      return `url(${quote}${raw.replace(/[?#].*/s, "")}${quote})`;
+    },
+  );
+
+// A style mutation may be the whole attribute, or rrweb's per-property diff:
+// a string, or [value, priority].
+const stripStyle = (value: unknown): unknown => {
+  if (typeof value === "string") return stripCssUrls(value);
+  if (Array.isArray(value))
+    return typeof value[0] === "string" ? [stripCssUrls(value[0]), ...value.slice(1)] : value;
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) out[key] = stripStyle(item);
+  return out;
+};
+
 /**
  * The rrweb options of the privacy defaults, and the scrub for the parts that
- * rrweb 2.1.7 leaves in the clear: attributes, the value of the inputs that
- * maskInputFn never sees, and the URL of the page.
+ * rrweb 2.1.7 leaves in the clear: attributes, CSS urls, the value of the inputs
+ * that maskInputFn never sees, and the URL of the page.
  */
-export function privacy(options: RecordingOptions, element: (id: number) => FormElement | null) {
+export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node | null) {
+  const element = (id: number): FormElement | null => {
+    const node = nodeOf(id);
+    return node instanceof Element ? node : null;
+  };
+  const inStyle = (id: number) => nodeOf(id)?.parentElement?.tagName.toLowerCase() === "style";
   const list = (selectors: string[] | undefined, ...markers: string[]) =>
     [...(selectors ?? []), ...markers].filter(Boolean).join(",");
   const unmask = options.unmask?.join(",");
@@ -58,12 +98,14 @@ export function privacy(options: RecordingOptions, element: (id: number) => Form
   const scrubAttributes = (el: FormElement | null, attributes: Record<string, unknown>) => {
     const out = { ...attributes };
     for (const [name, value] of Object.entries(out)) {
-      if (typeof value !== "string") continue;
-      if (name === "value" && rawValue(el)) {
+      if (typeof value === "string" && name === "value" && rawValue(el)) {
         if (typeOf(el) === "file") delete out.value;
         else out.value = maskInput(value, el);
-      } else if (URL_ATTRIBUTES.test(name)) out[name] = stripUrl(value);
-      else if (maskAttribute(name) && !unmasked(el)) out[name] = mask(value);
+      } else if (typeof value === "string" && URL_ATTRIBUTES.test(name))
+        out[name] = stripUrl(value);
+      else if (typeof value === "string" && maskAttribute(name) && !unmasked(el))
+        out[name] = mask(value);
+      else if (name === "style" || name === "_cssText") out[name] = stripStyle(value);
     }
     return out;
   };
@@ -116,6 +158,14 @@ export function privacy(options: RecordingOptions, element: (id: number) => Form
     }
     // The Meta event carries the URL of the page.
     if (key === "href" && typeof value === "string" && "width" in this) return stripUrl(value);
+    // The text of a style element, in the snapshot and in a later text mutation.
+    if (
+      (key === "textContent" || key === "value") &&
+      typeof value === "string" &&
+      typeof this.id === "number" &&
+      inStyle(this.id)
+    )
+      return stripCssUrls(value);
     return value;
   }
 
