@@ -11,7 +11,8 @@
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts cloud",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
-    "test:billing:sandbox": "vp test run --config vitest.billing-sandbox.config.ts"
+    "test:billing:sandbox": "vp test run --config vitest.billing-sandbox.config.ts",
+    "crm:sync": "tsx --tsconfig tsconfig.json scripts/crm-sync.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.18.4",
