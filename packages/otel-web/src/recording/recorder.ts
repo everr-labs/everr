@@ -134,10 +134,7 @@ export function startStream(
   options: RecordingOptions,
 ): Stream {
   const streamId = randomHex(16);
-  const { rrweb, replacer } = privacy(options, (id) => {
-    const node = record.mirror.getNode(id);
-    return node instanceof Element ? node : null;
-  });
+  const { rrweb, replacer } = privacy(options, (id) => record.mirror.getNode(id) ?? null);
   // The Clips are ranges over this Stream, so each event leaves the page at
   // most once. A reader finds the events of a Clip by the Stream id and the
   // time range of the Clip's Span.
