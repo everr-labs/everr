@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 
 export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
@@ -12,6 +12,7 @@ export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
         // offline_access request. The helper only forbids `openid` here.
         const meta = await mcpResourceClient().getProtectedResourceMetadata({
           resource: MCP_RESOURCE,
+          authorization_servers: [AUTH_ISSUER],
           scopes_supported: ["observability:read", "offline_access"],
         });
         return Response.json(meta, {

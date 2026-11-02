@@ -31,7 +31,7 @@ describe("/auth/error route", () => {
   });
 
   it("renders a clear message for Google email mismatch errors", () => {
-    routeSearch.value = { error: "email_doesn't_match" };
+    routeSearch.value = { error: "email_does_not_match" };
     const Component = Route.options.component as React.ComponentType;
 
     render(<Component />);
