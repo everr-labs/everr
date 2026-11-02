@@ -22,13 +22,12 @@ interface DashboardTreeProps {
 
 export function DashboardTree({ dashboards, search, resource = "dashboard" }: DashboardTreeProps) {
   const matchRoute = useMatchRoute();
-  // Fuzzy for runbooks: a runbook page is a route below the runbook, and the
-  // tree still has to know which runbook is open.
-  const match = matchRoute(
-    resource === "runbook"
-      ? { to: "/runbooks/$project/$slug", fuzzy: true }
-      : { to: "/dashboards/$project/$slug" },
-  );
+  // Fuzzy: a runbook page or a dashboard's panel page is a route below the
+  // item, and the tree still has to know which one is open.
+  const match = matchRoute({
+    to: resource === "runbook" ? "/runbooks/$project/$slug" : "/dashboards/$project/$slug",
+    fuzzy: true,
+  });
   const selected = match
     ? dashboards.find((d) => d.project === match.project && d.slug === match.slug)
     : undefined;

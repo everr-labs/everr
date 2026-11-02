@@ -1,12 +1,11 @@
 import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
-import { FrameToggle } from "#app/components/rail/frame-toggle.tsx";
 import { persesToRGL } from "#app/data/dashboards/convert.ts";
 import { GRID_COLS } from "#app/data/dashboards/schema.ts";
-import { DashboardPanel } from "./dashboard-panel";
+import { DashboardPanel, type PanelFullscreenTo } from "./dashboard-panel";
+import { DashboardToolbar } from "./dashboard-toolbar";
 import { useDashboard } from "./use-dashboard";
-import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
 const ROW_HEIGHT = 30;
 
@@ -14,14 +13,21 @@ export function DashboardGrid({
   actions,
   notice,
   frameToggle = true,
+  panelFullscreenTo,
 }: {
   actions?: ReactNode;
   notice?: ReactNode;
   /** Off where the grid is not seated next to a rail (the home page). */
   frameToggle?: boolean;
+  /**
+   * The dashboard whose panel pages the grid's maximize links open: the
+   * dashboard pages pass their own address, Home passes its built-in. Runbook
+   * embeds render `DashboardPanel` without a grid, so they show no maximize
+   * affordance.
+   */
+  panelFullscreenTo: PanelFullscreenTo;
 }) {
   const dashboard = useDashboard();
-  const hasVariables = useHasVisibleVariables();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
@@ -34,22 +40,7 @@ export function DashboardGrid({
 
   return (
     <div>
-      <div className="mb-3 flex items-start gap-x-3">
-        {frameToggle && (
-          <div className="flex h-8 shrink-0 items-center">
-            <FrameToggle />
-          </div>
-        )}
-        {frameToggle && hasVariables && (
-          <div aria-hidden className="flex h-8 items-center">
-            <div className="h-5 w-px bg-border" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <VariableBar layout="inline" />
-        </div>
-        {actions && <div className="ml-auto flex h-8 shrink-0 items-center gap-2">{actions}</div>}
-      </div>
+      <DashboardToolbar actions={actions} frameToggle={frameToggle} />
       {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>
         <GridLayout
@@ -73,7 +64,7 @@ export function DashboardGrid({
             if (!panel) return null;
             return (
               <div key={item.i}>
-                <DashboardPanel panel={panel} panelKey={item.i} />
+                <DashboardPanel panel={panel} panelKey={item.i} fullscreenTo={panelFullscreenTo} />
               </div>
             );
           })}
