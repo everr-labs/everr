@@ -122,7 +122,7 @@ Before initialization, after shutdown, or with only a keyless production SDK, th
 
 ## Session recording
 
-`recording()` from `@everr/otel-web/recording` keeps the last 5 minutes of the page in memory with [rrweb](https://github.com/rrweb-io/rrweb). Nothing leaves the page until a Clip is emitted: automatically on an error from `errors()` or a failed request from `network()` (up to 5 per page), or by you.
+`recording()` from `@everr/otel-web/recording` keeps the page in memory with [rrweb](https://github.com/rrweb-io/rrweb), aiming for the last 5 minutes and 10 MB. Nothing leaves the page until a Clip is emitted: automatically on an error from `errors()`, or from `network()` on a 5xx response or a request that gets no response (up to 5 per page), or by you. `network()` still marks a 4xx span as an error, and that response opens no Clip.
 
 ```ts
 import { WebSDK, errors, network, sampled } from "@everr/otel-web";
@@ -134,22 +134,27 @@ new WebSDK({
   instrumentations: [errors(), network(), sampled(recording(), 0.2)],
 });
 
-recorder.emitClip({ last: 15_000 }); // send the last 15 seconds
-recorder.emitClip(); // send the whole buffer, up to 5 minutes
+// Call these from a user action. A call before the recorder loads produces no Clip.
+function onErrorReport() {
+  recorder.emitClip({ last: 15_000 }); // send the last 15 seconds
+  recorder.emitClip(); // send the whole buffer
+}
 
-const flow = recorder.startClip(); // records from here until end()
-try {
-  await submitOrder();
-} finally {
-  flow.end();
+async function onCheckoutSubmit() {
+  const flow = recorder.startClip(); // records from here until end()
+  try {
+    await submitOrder();
+  } finally {
+    flow.end();
+  }
 }
 ```
 
-A Clip from `startClip()` holds only what happens between the call and `end()`, and closes after 60 seconds at the latest (`next` sets a shorter close). Pass `last` to start it that many milliseconds before the call instead. Automatic Clips cover 60 seconds before the error or failed request and 10 seconds after it.
+A Clip from `startClip()` holds only what happens between the call and `end()`, and closes after 60 seconds at the latest (`next` sets a shorter close). Pass `last` to start it that many milliseconds before the call instead. Automatic Clips cover 60 seconds before the error, the 5xx response, or the request with no response, and 10 seconds after it.
 
-A Clip starts at a full snapshot. The buffer takes a new one at the first change 30 seconds after the last, so on an idle page `last` reaches back to the one snapshot it has. The buffer leaves the page as Segment logs of about 950 KB, each event at most once, so overlapping Clips share Segments. An event larger than a Segment, such as the full snapshot of a page with a big inline image, is split into pieces sent as consecutive Segments, and the reader joins them back. The buffer holds at most 10 MB, drops whole snapshots with their changes, oldest first, and always keeps the newest one.
+A Clip starts at a full snapshot. The buffer takes a new one at the first change 30 seconds after the last, so on an idle page `last` reaches back to the one snapshot it has. The buffer leaves the page as Segment logs of about 950 KB, each event at most once, so overlapping Clips share Segments. An event larger than a Segment, such as the full snapshot of a page with a big inline image, is split into pieces sent as consecutive Segments, and the reader joins them back. The buffer aims for the last 5 minutes and 10 MB. It drops whole snapshots with their changes, oldest first, and always keeps the newest one, so that snapshot can be older than 5 minutes or larger than 10 MB.
 
-Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. A `.everr-no-capture` region is blocked, as it is hidden from element capture. Password fields are always masked.
+Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text, inputs, `title`, `placeholder`, `aria-label`, `content` and `data-*` attributes are masked, and media is blocked. URLs keep no query or fragment, including a `url()` in a style or a stylesheet. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. A `.everr-no-capture` region is blocked, as it is hidden from element capture. Password fields are always masked.
 
 ## Identity
 
