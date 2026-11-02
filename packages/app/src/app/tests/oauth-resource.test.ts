@@ -8,6 +8,7 @@ import { createWorkspaceIdentityRequests } from "#app/app/request.ts";
 import type { Database } from "#app/db/database.ts";
 import { member, organization, session, user } from "#app/db/schema/index.ts";
 import { createApplicationAuth } from "#app/identity/module.ts";
+import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import {
   createTestDatabase,
   type TestDatabase,
@@ -15,6 +16,8 @@ import {
 
 let fixture: TestDatabase;
 let auth: ReturnType<typeof createApplicationAuth>;
+
+vi.hoisted(() => vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000"));
 
 beforeAll(async () => {
   fixture = await createTestDatabase();
@@ -67,7 +70,36 @@ beforeAll(async () => {
 
 afterAll(async () => fixture?.close());
 
-it("authorizes an MCP client without a client-resource link", async () => {
+it("discovers and authorizes an MCP client without a client-resource link", async () => {
+  vi.doMock("#app/identity/server.ts", () => ({ auth }));
+  const { Route: resourceRoute } =
+    await import("#app/routes/[.]well-known/oauth-protected-resource.ts");
+  const { Route: authorizationRoute } =
+    await import("#app/routes/[.]well-known/oauth-authorization-server/api/auth.ts");
+
+  type Handler = (args: { request: Request }) => Response | Promise<Response>;
+  function getHandler(route: { options: unknown }): Handler {
+    const options = route.options as { server: { handlers: { GET: Handler } } };
+    return options.server.handlers.GET;
+  }
+
+  const resourceResponse = await getHandler(resourceRoute)({
+    request: new Request(`${AUTH_BASE}/.well-known/oauth-protected-resource`),
+  });
+  expect(resourceResponse.status).toBe(200);
+  const resourceMetadata = await resourceResponse.json();
+  expect(resourceMetadata.resource).toBe(MCP_RESOURCE);
+  expect(resourceMetadata.authorization_servers).toEqual([AUTH_ISSUER]);
+
+  const issuer = new URL(resourceMetadata.authorization_servers[0]);
+  const metadataURL = new URL(`/.well-known/oauth-authorization-server${issuer.pathname}`, issuer);
+  expect(metadataURL.pathname).toBe("/.well-known/oauth-authorization-server/api/auth");
+  const authorizationResponse = await getHandler(authorizationRoute)({
+    request: new Request(metadataURL),
+  });
+  expect(authorizationResponse.status).toBe(200);
+  const authorizationMetadata = await authorizationResponse.json();
+  expect(authorizationMetadata.issuer).toBe(issuer.href);
   const registered = await auth.handler(
     new Request("http://localhost:3000/api/auth/oauth2/register", {
       method: "POST",
