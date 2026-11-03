@@ -1,7 +1,7 @@
 /* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import {
   extractVariableTokens,
   type VariableMeta,
@@ -13,6 +13,7 @@ import { pickByNames } from "#app/data/dashboards/variable-values.ts";
 import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
+import { useRetainedPanelData } from "./use-retained-panel-data";
 import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
 
 export interface PanelQueryRequest {
@@ -137,7 +138,6 @@ export function useDashboardPanelData(
   panel: Panel,
   options?: { enabled?: boolean },
 ): DashboardPanelData {
-  const lastComplete = useRef<{ panel: Panel; result: DashboardPanelData }>(null);
   const active = options?.enabled ?? true;
   // Effective range: explicit URL params, else the dashboard's route defaults,
   // else the global default — resolved before first render (no flash). The
@@ -195,16 +195,8 @@ export function useDashboardPanelData(
   const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
   // Keep the last complete batch and its axis range together while replacement
   // queries finish. A panel can have several queries that resolve separately.
-  const current = {
+  return useRetainedPanelData(panel, {
     ...combined,
     timeRange: { from: viz.fromDate, to: viz.toDate },
-  };
-  if (combined.status === "success") {
-    lastComplete.current = { panel, result: current };
-    return current;
-  }
-  if (combined.status === "pending" && lastComplete.current?.panel === panel) {
-    return lastComplete.current.result;
-  }
-  return current;
+  });
 }
