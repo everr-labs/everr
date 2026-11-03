@@ -308,6 +308,36 @@ spec:
                     - { name: p50_ms, start: 40, noise: 6, min: 0 }
                     - { name: p95_ms, start: 120, noise: 14, min: 0 }
                     - { name: p99_ms, start: 240, noise: 30, min: 0 }
+    stat-multi-tile-background:
+      kind: Panel
+      spec:
+        display:
+          name: "Stat: multi-tile (3 columns), background color"
+          description: "Three bounded series with sparklines and threshold background colors."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            sparkline: true
+            colorMode: background
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 85, color: "#eab308" }
+                - { value: 185, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 61
+                  series:
+                    - { name: p50_ms, start: 40, noise: 6, min: 0, max: 70 }
+                    - { name: p95_ms, start: 120, noise: 14, min: 100, max: 170 }
+                    - { name: p99_ms, start: 240, noise: 30, min: 200, max: 300 }
     stat-empty:
       kind: Panel
       spec:
@@ -518,21 +548,28 @@ spec:
               content: { $ref: "#/spec/panels/stat-multi-tile" },
             }
           - { x: 16, y: 21, width: 8, height: 6, content: { $ref: "#/spec/panels/stat-empty" } }
-          - { x: 0, y: 27, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
+          - {
+              x: 0,
+              y: 27,
+              width: 24,
+              height: 6,
+              content: { $ref: "#/spec/panels/stat-multi-tile-background" },
+            }
+          - { x: 0, y: 33, width: 12, height: 9, content: { $ref: "#/spec/panels/format-none" } }
           - {
               x: 12,
-              y: 27,
+              y: 33,
               width: 12,
               height: 9,
               content: { $ref: "#/spec/panels/format-decimal" },
             }
-          - { x: 0, y: 36, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
+          - { x: 0, y: 42, width: 12, height: 9, content: { $ref: "#/spec/panels/format-binary" } }
           - {
               x: 12,
-              y: 36,
+              y: 42,
               width: 12,
               height: 9,
               content: { $ref: "#/spec/panels/format-duration" },
             }
-          - { x: 0, y: 45, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
-          - { x: 12, y: 45, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }
+          - { x: 0, y: 51, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
+          - { x: 12, y: 51, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }

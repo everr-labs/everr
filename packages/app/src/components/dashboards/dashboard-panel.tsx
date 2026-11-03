@@ -12,6 +12,13 @@ import {
   getVisualizationSpecWarnings,
   PanelVisualization,
 } from "./visualizations";
+import { parseSpecLenient } from "./visualizations/parse-spec";
+import { statChartSpec } from "./visualizations/stat-chart/spec";
+import {
+  resolveStatBackgroundAppearance,
+  resolveStatTileColor,
+} from "./visualizations/stat-chart/stat-colors";
+import { computeStatTiles } from "./visualizations/stat-chart/stat-series";
 
 interface DashboardPanelProps {
   panel: Panel;
@@ -58,6 +65,18 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
   });
 
   const specWarnings = useMemo(() => getVisualizationSpecWarnings(plugin), [plugin]);
+  const statBackground = useMemo(() => {
+    if (plugin.kind !== "StatChart" || !data || status !== "success") return undefined;
+    const spec = parseSpecLenient(statChartSpec, plugin.spec).spec;
+    if (spec.colorMode !== "background") return undefined;
+    const tiles = computeStatTiles(data, spec.calculation);
+    return tiles.length === 1 && tiles[0]
+      ? resolveStatTileColor(tiles[0], spec.thresholds)
+      : undefined;
+  }, [data, plugin, status]);
+  const statAppearance = statBackground
+    ? resolveStatBackgroundAppearance(statBackground)
+    : undefined;
 
   const handleTimeRangeChange = useCallback(
     (range: { from: Date; to: Date }) => {
@@ -82,6 +101,18 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
         status={status}
         errorMessage={errorMessage}
         className="h-full"
+        style={
+          statBackground && statAppearance
+            ? {
+                backgroundColor: statBackground,
+                backgroundImage: statAppearance.gradient,
+                color: statAppearance.foreground,
+              }
+            : undefined
+        }
+        headerClassName={
+          statBackground ? "[&_button]:text-inherit [&_button:hover]:text-inherit" : undefined
+        }
         inset={getVisualizationInset(plugin.kind)}
         action={
           action || specWarnings.length > 0 ? (

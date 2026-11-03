@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
@@ -27,6 +28,7 @@ export function createAppConfig(
     for (const [name, value] of Object.entries(env)) {
       process.env[name] ??= value;
     }
+    const require = createRequire(import.meta.url);
 
     return {
       root: appDirectory,
@@ -53,7 +55,7 @@ export function createAppConfig(
           // CJS interop path entirely.
           {
             find: /^tslib$/,
-            replacement: "tslib/tslib.es6.mjs",
+            replacement: require.resolve("tslib/tslib.es6.mjs"),
           },
           // use-sync-external-store is a CJS shim that does require("react") which
           // Rollup can't inline for SSR, causing "Cannot find module 'react'" in
