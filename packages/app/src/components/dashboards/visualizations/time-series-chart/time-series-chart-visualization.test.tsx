@@ -78,26 +78,14 @@ describe("TimeSeriesChartVisualization", () => {
     const { rerender } = render(
       <TimeSeriesChartVisualization {...props} spec={spec} data={[rows]} />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "a", exact: true }));
-    expect(screen.getByRole("button", { name: "a", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    fireEvent.click(screen.getByRole("button", { name: /^a$/ }));
+    expect(screen.getByRole("button", { name: /^a$/ })).toHaveAttribute("aria-pressed", "true");
 
     rerender(<TimeSeriesChartVisualization {...props} spec={spec} data={[[...rows].reverse()]} />);
-    expect(screen.getByRole("button", { name: "a", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: "b", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.getByRole("button", { name: /^a$/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^b$/ })).toHaveAttribute("aria-pressed", "false");
 
     rerender(<TimeSeriesChartVisualization {...props} spec={spec} data={[[rows[1]!]]} />);
-    expect(screen.getByRole("button", { name: "b", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.getByRole("button", { name: /^b$/ })).toHaveAttribute("aria-pressed", "false");
   });
 });
