@@ -4,6 +4,27 @@ import { statChartSpec } from "./spec";
 import { StatChartVisualization } from "./stat-chart-visualization";
 
 describe("StatChartVisualization", () => {
+  it("chooses a foreground for each threshold-colored tile", () => {
+    render(
+      <StatChartVisualization
+        spec={statChartSpec.parse({
+          colorMode: "background",
+          thresholds: { defaultColor: "#fff", steps: [{ value: 5, color: "#111" }] },
+        })}
+        data={[[{ alpha: 2, beta: 10 }]]}
+        timeRange={{ from: new Date(0), to: new Date(60000) }}
+        onTimeRangeChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("alpha").closest('[style*="background"]')).toHaveStyle({
+      color: "#000",
+    });
+    expect(screen.getByText("beta").closest('[style*="background"]')).toHaveStyle({
+      color: "#fff",
+    });
+  });
+
   it("displays percent while absolute thresholds compare the original ratio", () => {
     render(
       <StatChartVisualization

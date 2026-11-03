@@ -6,9 +6,9 @@ import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { StatChartSpec } from "./spec";
 import {
+  resolveStatBackgroundAppearance,
   resolveStatSparklineColor,
   resolveStatTileColor,
-  STAT_BACKGROUND_GRADIENT,
 } from "./stat-colors";
 import { computeStatTiles } from "./stat-series";
 import { StatSparkline } from "./stat-sparkline";
@@ -66,7 +66,14 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
         const formatted = value === undefined ? undefined : formatter.parts(value);
         const color = resolveStatTileColor(tile, thresholds);
         const background = colorMode === "background" && color !== undefined;
-        const sparklineColor = resolveStatSparklineColor(label, colors, color, background);
+        const appearance = background ? resolveStatBackgroundAppearance(color) : undefined;
+        const sparklineColor = resolveStatSparklineColor(
+          label,
+          colors,
+          color,
+          background,
+          appearance?.foreground,
+        );
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
@@ -75,24 +82,24 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
               multi && "border-r border-border/30 last:border-r-0",
             )}
             style={
-              background && multi
-                ? { backgroundColor: color, backgroundImage: STAT_BACKGROUND_GRADIENT }
+              background && appearance
+                ? {
+                    color: appearance.foreground,
+                    ...(multi
+                      ? { backgroundColor: color, backgroundImage: appearance.gradient }
+                      : {}),
+                  }
                 : undefined
             }
           >
             <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-3 pb-4">
               {(multi || showLabel) && (
-                <p
-                  className={cn("text-xs", background ? "text-white/80" : "text-muted-foreground")}
-                >
-                  {label}
-                </p>
+                <p className={cn("text-xs", !background && "text-muted-foreground")}>{label}</p>
               )}
               <p
                 className={cn(
                   valueSize,
                   "font-semibold tabular-nums",
-                  background && "text-white",
                   value === undefined && !background && "text-muted-foreground",
                 )}
                 style={!background && color ? { color } : undefined}
@@ -103,7 +110,7 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
                     className={cn(
                       unitSize,
                       formatted.separator && "ml-1",
-                      background ? "text-white/70" : "text-muted-foreground",
+                      !background && "text-muted-foreground",
                     )}
                   >
                     {formatted.unit}

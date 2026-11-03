@@ -15,8 +15,8 @@ import {
 import { parseSpecLenient } from "./visualizations/parse-spec";
 import { statChartSpec } from "./visualizations/stat-chart/spec";
 import {
+  resolveStatBackgroundAppearance,
   resolveStatTileColor,
-  STAT_BACKGROUND_GRADIENT,
 } from "./visualizations/stat-chart/stat-colors";
 import { computeStatTiles } from "./visualizations/stat-chart/stat-series";
 
@@ -74,6 +74,9 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
       ? resolveStatTileColor(tiles[0], spec.thresholds)
       : undefined;
   }, [data, plugin, status]);
+  const statAppearance = statBackground
+    ? resolveStatBackgroundAppearance(statBackground)
+    : undefined;
 
   const handleTimeRangeChange = useCallback(
     (range: { from: Date; to: Date }) => {
@@ -99,14 +102,16 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
         errorMessage={errorMessage}
         className="h-full"
         style={
-          statBackground
-            ? { backgroundColor: statBackground, backgroundImage: STAT_BACKGROUND_GRADIENT }
+          statBackground && statAppearance
+            ? {
+                backgroundColor: statBackground,
+                backgroundImage: statAppearance.gradient,
+                color: statAppearance.foreground,
+              }
             : undefined
         }
         headerClassName={
-          statBackground
-            ? "text-white [&_button]:text-white/80 [&_button:hover]:text-white"
-            : undefined
+          statBackground ? "[&_button]:text-inherit [&_button:hover]:text-inherit" : undefined
         }
         inset={getVisualizationInset(plugin.kind)}
         action={
