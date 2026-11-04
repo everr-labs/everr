@@ -32,6 +32,8 @@ import { Route as WelcomeAuthErrorRouteImport } from './routes/_welcome/auth/err
 import { Route as WelcomeInviteDotinvitationIdRouteImport } from './routes/_welcome/invite.$invitationId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
+import { Route as ApiCliRecordingsSessionsSessionIdRouteImport } from './routes/api/cli/recordings/sessions/$sessionId'
+import { Route as ApiCliRecordingsSessionsSessionIdPageRouteImport } from './routes/api/cli/recordings/sessions/$sessionId/page'
 import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
 import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
@@ -207,6 +209,18 @@ const ApiCliMeRoute = ApiCliMeRouteImport.update({
   path: '/me',
   getParentRoute: () => ApiCliRoute,
 } as any)
+const ApiCliRecordingsSessionsSessionIdRoute =
+  ApiCliRecordingsSessionsSessionIdRouteImport.update({
+    id: '/recordings/sessions/$sessionId',
+    path: '/recordings/sessions/$sessionId',
+    getParentRoute: () => ApiCliRoute,
+  } as any)
+const ApiCliRecordingsSessionsSessionIdPageRoute =
+  ApiCliRecordingsSessionsSessionIdPageRouteImport.update({
+    id: '/page',
+    path: '/page',
+    getParentRoute: () => ApiCliRecordingsSessionsSessionIdRoute,
+  } as any)
 const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
   id: '/resources',
   path: '/resources',
@@ -668,6 +682,7 @@ export interface FileRoutesByFullPath {
   '/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -679,6 +694,7 @@ export interface FileRoutesByFullPath {
   '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -737,6 +753,7 @@ export interface FileRoutesByTo {
   '/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -748,6 +765,7 @@ export interface FileRoutesByTo {
   '/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -809,6 +827,7 @@ export interface FileRoutesById {
   '/_welcome/invite/$invitationId': typeof WelcomeInviteDotinvitationIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
   '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
@@ -821,6 +840,7 @@ export interface FileRoutesById {
   '/_welcome/_guest/auth/reset-password': typeof WelcomeGuestAuthResetPasswordRoute
   '/_welcome/_guest/auth/sign-in': typeof WelcomeGuestAuthSignInRoute
   '/_welcome/_guest/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
@@ -887,6 +907,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/api/auth/$'
     | '/api/cli/me'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -898,6 +919,7 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -956,6 +978,7 @@ export interface FileRouteTypes {
     | '/invite/$invitationId'
     | '/api/auth/$'
     | '/api/cli/me'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -967,6 +990,7 @@ export interface FileRouteTypes {
     | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -1027,6 +1051,7 @@ export interface FileRouteTypes {
     | '/_welcome/invite/$invitationId'
     | '/api/auth/$'
     | '/api/cli/me'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/resources'
     | '/api/cli/runs'
     | '/api/cli/sql'
@@ -1039,6 +1064,7 @@ export interface FileRouteTypes {
     | '/_welcome/_guest/auth/reset-password'
     | '/_welcome/_guest/auth/sign-in'
     | '/_welcome/_guest/auth/sign-up'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/runs/$traceId'
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
@@ -1267,6 +1293,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cli/me'
       preLoaderRoute: typeof ApiCliMeRouteImport
       parentRoute: typeof ApiCliRoute
+    }
+    '/api/cli/recordings/sessions/$sessionId': {
+      id: '/api/cli/recordings/sessions/$sessionId'
+      path: '/recordings/sessions/$sessionId'
+      fullPath: '/api/cli/recordings/sessions/$sessionId'
+      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
+    '/api/cli/recordings/sessions/$sessionId/page': {
+      id: '/api/cli/recordings/sessions/$sessionId/page'
+      path: '/page'
+      fullPath: '/api/cli/recordings/sessions/$sessionId/page'
+      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdPageRouteImport
+      parentRoute: typeof ApiCliRecordingsSessionsSessionIdRoute
     }
     '/api/cli/resources': {
       id: '/api/cli/resources'
@@ -2136,8 +2176,24 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
   ApiCliRunsRouteChildren,
 )
 
+interface ApiCliRecordingsSessionsSessionIdRouteChildren {
+  ApiCliRecordingsSessionsSessionIdPageRoute: typeof ApiCliRecordingsSessionsSessionIdPageRoute
+}
+
+const ApiCliRecordingsSessionsSessionIdRouteChildren: ApiCliRecordingsSessionsSessionIdRouteChildren =
+  {
+    ApiCliRecordingsSessionsSessionIdPageRoute:
+      ApiCliRecordingsSessionsSessionIdPageRoute,
+  }
+
+const ApiCliRecordingsSessionsSessionIdRouteWithChildren =
+  ApiCliRecordingsSessionsSessionIdRoute._addFileChildren(
+    ApiCliRecordingsSessionsSessionIdRouteChildren,
+  )
+
 interface ApiCliRouteChildren {
   ApiCliMeRoute: typeof ApiCliMeRoute
+  ApiCliRecordingsSessionsSessionIdRoute: typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
@@ -2145,6 +2201,8 @@ interface ApiCliRouteChildren {
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliMeRoute: ApiCliMeRoute,
+  ApiCliRecordingsSessionsSessionIdRoute:
+    ApiCliRecordingsSessionsSessionIdRouteWithChildren,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
