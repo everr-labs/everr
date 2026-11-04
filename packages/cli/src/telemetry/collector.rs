@@ -165,14 +165,6 @@ async fn restart_collector(
     // Restore them before stopping the collector so extraction failure leaves it running.
     let assets = assets.context("extract embedded collector assets for restart")?;
     stop_collector(child).await;
-    // The previous process can leave OTLP/SQL listeners held briefly after exit.
-    super::local_instance::wait_for_free_port(&crate::build::sql_http_origin(), Duration::from_secs(5))
-        .await?;
-    super::local_instance::wait_for_free_port(
-        &crate::build::otlp_http_origin(),
-        Duration::from_secs(5),
-    )
-    .await?;
     *child = Some(start_collector(&assets, telemetry_dir, instance_id).await?);
     Ok(())
 }
