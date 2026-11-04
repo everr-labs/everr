@@ -3,10 +3,15 @@
 use std::{
     net::{TcpListener, TcpStream},
     process::{Child, Command, Stdio},
+    sync::Mutex,
     time::{Duration, Instant},
 };
 
 use serde_json::{Value, json};
+
+// These tests pick ephemeral ports then release them before start. Running them
+// in parallel lets one test rebind another's reserved ports mid-lifecycle.
+static LIFECYCLE_LOCK: Mutex<()> = Mutex::new(());
 
 struct Instance {
     data: tempfile::TempDir,
@@ -110,6 +115,9 @@ impl Drop for Foreground {
 
 #[test]
 fn detached_and_foreground_instances_share_the_full_lifecycle() {
+    let _guard = LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let instance = Instance::new();
     // Local commands must work even with an unusable remote session.
     let config = instance.data.path().join("remote-config");
@@ -153,7 +161,7 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
         .json(&json!({"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"local-detach-test"}}]},"scopeLogs":[{"logRecords":[{"timeUnixNano":now,"severityNumber":9,"severityText":"INFO","body":{"stringValue":marker}}]}]}]}))
         .send().unwrap().error_for_status().unwrap();
     instance.wait_log(&marker);
-    let restarted: Value = reqwest::blocking::Client::new()
+    let restart = reqwest::blocking::Client::new()
         .post(format!(
             "{}/api/commands/restart_collector",
             instance.origins[2]
@@ -162,11 +170,14 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
         .header("x-everr-local", "1")
         .json(&json!({}))
         .send()
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json()
         .unwrap();
+    let restart_status = restart.status();
+    let restart_body = restart.text().unwrap();
+    assert!(
+        restart_status.is_success(),
+        "restart_collector failed ({restart_status}): {restart_body}"
+    );
+    let restarted: Value = serde_json::from_str(&restart_body).unwrap();
     assert_eq!(restarted["status"], "running");
     assert_eq!(instance.identity(), identity);
     instance.wait_log(&marker);
@@ -216,6 +227,9 @@ fn detached_and_foreground_instances_share_the_full_lifecycle() {
 
 #[test]
 fn unavailable_log_directory_does_not_start_a_supervisor() {
+    let _guard = LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let instance = Instance::new();
     let blocker = instance.data.path().join("not-a-directory");
     std::fs::write(&blocker, "blocked").unwrap();
@@ -237,6 +251,9 @@ fn unavailable_log_directory_does_not_start_a_supervisor() {
 
 #[test]
 fn stop_waits_for_slow_supervisor_telemetry_before_immediate_restart() {
+    let _guard = LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let instance = Instance::new();
     let mut exporter = mockito::Server::new();
     let _slow_exports = exporter
@@ -275,6 +292,9 @@ fn stop_waits_for_slow_supervisor_telemetry_before_immediate_restart() {
 
 #[test]
 fn stop_waits_for_cleanup_even_when_the_listeners_are_already_closed() {
+    let _guard = LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let instance = Instance::new();
     let lock = std::fs::File::create(instance.data.path().join("local.lock")).unwrap();
     fs2::FileExt::try_lock_exclusive(&lock).unwrap();
@@ -295,6 +315,9 @@ fn stop_waits_for_cleanup_even_when_the_listeners_are_already_closed() {
 
 #[test]
 fn failed_detached_start_cleans_up_and_reports_its_log() {
+    let _guard = LIFECYCLE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let instance = Instance::new();
     let blocker = TcpListener::bind(instance.origins[1].trim_start_matches("http://")).unwrap();
     let mut command = assert_cmd::Command::from_std(instance.command());
