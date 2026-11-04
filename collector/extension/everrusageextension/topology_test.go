@@ -182,6 +182,84 @@ func TestPublicationFanout(t *testing.T) {
 	}
 }
 
+func routedAdmissionConfig() map[string]any {
+	c := admissionConfig()
+	c["connectors"].(map[string]any)["routing"] = map[string]any{}
+	c["exporters"].(map[string]any)["storage/recordings"] = map[string]any{
+		"sending_queue": map[string]any{
+			"enabled": true, "storage": "file_storage/ingestion", "wait_for_result": false,
+			"queue_size": 10000, "num_consumers": 10,
+			"batch": map[string]any{"min_size": 16, "max_size": 16, "flush_timeout": "1s"},
+		},
+		"retry_on_failure": map[string]any{"enabled": true, "max_elapsed_time": "0s"},
+	}
+	pipes := c["service"].(map[string]any)["pipelines"].(map[string]any)
+	pipes["logs"] = map[string]any{
+		"receivers": []any{"otlp"}, "processors": []any{"resource", Type},
+		"exporters": []any{"routing", Type + "_connector"},
+	}
+	pipes["logs/public"] = map[string]any{
+		"receivers": []any{"otlp/public"}, "processors": []any{"resource", Type},
+		"exporters": []any{"routing", Type + "_connector"},
+	}
+	pipes["logs/telemetry"] = map[string]any{
+		"receivers": []any{"routing"}, "exporters": []any{"storage"},
+	}
+	pipes["logs/recordings"] = map[string]any{
+		"receivers": []any{"routing"}, "exporters": []any{"storage/recordings"},
+	}
+	return c
+}
+
+func TestRoutedAdmission(t *testing.T) {
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(routedAdmissionConfig())))
+	for _, tc := range []struct {
+		name     string
+		change   func(map[string]any)
+		contains string
+	}{
+		{"meter_downstream", func(c map[string]any) {
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs/recordings"].(map[string]any)["processors"] = []any{Type}
+		}, "must not run processors"},
+		{"downstream_processor", func(c map[string]any) {
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs/telemetry"].(map[string]any)["processors"] = []any{"batch"}
+		}, "must not run processors"},
+		{"bad_downstream_queue", func(c map[string]any) {
+			c["exporters"].(map[string]any)["storage/recordings"].(map[string]any)["sending_queue"].(map[string]any)["wait_for_result"] = true
+		}, "wait_for_result"},
+		{"no_downstream", func(c map[string]any) {
+			pipes := c["service"].(map[string]any)["pipelines"].(map[string]any)
+			delete(pipes, "logs/telemetry")
+			delete(pipes, "logs/recordings")
+		}, "no downstream"},
+		{"non_routing_connector", func(c map[string]any) {
+			c["connectors"].(map[string]any)["forward"] = map[string]any{}
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs"].(map[string]any)["exporters"] = []any{"forward", Type + "_connector"}
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs/public"].(map[string]any)["exporters"] = []any{"forward", Type + "_connector"}
+		}, "exporter directly"},
+		{"two_downstream_exporters", func(c map[string]any) {
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs/recordings"].(map[string]any)["exporters"] = []any{"storage", "storage/recordings"}
+		}, "exactly one exporter"},
+		{"partial_logs_routing", func(c map[string]any) {
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["logs/public"].(map[string]any)["exporters"] = []any{"storage", Type + "_connector"}
+		}, "every metered logs pipeline must export routing"},
+		{"routing_on_traces", func(c map[string]any) {
+			c["service"].(map[string]any)["pipelines"].(map[string]any)["traces"] = map[string]any{
+				"receivers": []any{"otlp"}, "processors": []any{Type},
+				"exporters": []any{"routing", Type + "_connector"},
+			}
+		}, "only the routing connector may follow"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := routedAdmissionConfig()
+			tc.change(c)
+			err := validateTopology(confmap.NewFromStringMap(c))
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.contains)
+		})
+	}
+}
+
 func TestPublicationRootCannotAlsoBeDownstream(t *testing.T) {
 	for _, converted := range []bool{false, true} {
 		t.Run(fmt.Sprint("converted=", converted), func(t *testing.T) {
