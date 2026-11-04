@@ -1,4 +1,7 @@
-use std::{error::Error, time::Duration};
+use std::{
+    error::Error,
+    time::{Duration, Instant},
+};
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -199,6 +202,19 @@ pub async fn require_free_port(origin: &str) -> Result<()> {
         })?;
     drop(listener);
     Ok(())
+}
+
+pub async fn wait_for_free_port(origin: &str, deadline: Duration) -> Result<()> {
+    let start = Instant::now();
+    loop {
+        match require_free_port(origin).await {
+            Ok(()) => return Ok(()),
+            Err(_) if start.elapsed() < deadline => {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 #[cfg(test)]
