@@ -31,6 +31,10 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
   ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces_trace_id_ts
   ON app.traces_trace_id_ts            FOR SELECT USING 0 TO sql_api_role;
+-- Recordings hold raw rrweb. Deny by default and never GRANT SELECT so an
+-- accidental grant later stays fail-closed. Not in SQL_API_TABLES.
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_recordings
+  ON app.recordings FOR SELECT USING 0 TO sql_api_role;
 
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;

@@ -54,8 +54,15 @@ export async function provisionSqlApiOrgUser(
 
   for (const table of SQL_API_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
+    // Hide recording Segment bodies that may still sit in app.logs from a
+    // pre-routing cutover. AND into the existing logs policy (a second policy
+    // would OR and leak other tenants).
+    const using =
+      table === "logs"
+        ? `tenant_id = ${tenantLiteral} AND EventName != 'everr.browser.recording.segment'`
+        : `tenant_id = ${tenantLiteral}`;
     await command(
-      `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING ${using} TO \`${username}\``,
     );
   }
 

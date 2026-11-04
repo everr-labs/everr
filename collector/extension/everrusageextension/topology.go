@@ -86,10 +86,23 @@ func validateTopology(conf *confmap.Conf) error {
 				meters++
 			}
 		}
+		receivesRouting := false
 		for _, id := range p.Receivers {
 			if componentType(id) == Type+"_connector" {
 				publishers++
 			}
+			if componentType(id) == "routing" {
+				receivesRouting = true
+			}
+		}
+		// Routed receiving pipelines are checked from the ingress via
+		// validateRouted. Do not treat a processor there as a second
+		// admission site (that would hide the "must not run processors" rule).
+		if receivesRouting {
+			if len(p.Processors) > 0 || meters > 0 || publishers > 0 {
+				return fmt.Errorf("pipeline %s: routed downstream must not run processors", name)
+			}
+			continue
 		}
 		storageExporters := []string{}
 		anchors := []string{}
@@ -115,10 +128,6 @@ func validateTopology(conf *confmap.Conf) error {
 		if len(storageExporters) != 1 || len(anchors) > 1 {
 			return fmt.Errorf("pipeline %s: admission metering requires one exporter", name)
 		}
-		_, ok := cfg.Exporters[storageExporters[0]]
-		if !ok {
-			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
-		}
 		for _, id := range p.Processors {
 			if componentType(id) != Type {
 				continue
@@ -131,11 +140,105 @@ func validateTopology(conf *confmap.Conf) error {
 		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
 			return fmt.Errorf("pipeline %s: one usage processor must directly precede the exporter", name)
 		}
-		if err := cfg.validateQueue(storageExporters[0]); err != nil {
+		storageID := storageExporters[0]
+		if _, ok := cfg.Exporters[storageID]; ok {
+			if err := cfg.validateQueue(storageID); err != nil {
+				return fmt.Errorf("pipeline %s: %w", name, err)
+			}
+			continue
+		}
+		if componentType(storageID) != "routing" {
+			return fmt.Errorf("pipeline %s: usage must feed an exporter directly", name)
+		}
+		if _, ok := cfg.Connectors[storageID]; !ok {
+			return fmt.Errorf("pipeline %s: missing routing connector %s", name, storageID)
+		}
+		if err := cfg.validateRouted(name, storageID); err != nil {
+			return err
+		}
+	}
+	if err := cfg.validateRoutedAdmissionUniformity(); err != nil {
+		return err
+	}
+	return cfg.validatePublication()
+}
+
+// validateRouted checks a logs admission pipeline whose storage slot is a
+// routing connector: every downstream pipeline is processor-free, exports
+// exactly one queued exporter, and does not re-meter or re-route.
+func (cfg topologyConfig) validateRouted(ingress, connectorID string) error {
+	if componentType(ingress) != "logs" {
+		return fmt.Errorf("pipeline %s: only the routing connector may follow the usage processor on logs pipelines", ingress)
+	}
+	downstreams := 0
+	for name, next := range cfg.Service.Pipelines {
+		if !slices.Contains(next.Receivers, connectorID) {
+			continue
+		}
+		downstreams++
+		if len(next.Processors) > 0 {
+			return fmt.Errorf("pipeline %s: routed downstream must not run processors", name)
+		}
+		storage := []string{}
+		for _, id := range next.Exporters {
+			if _, ok := cfg.Connectors[id]; ok || componentType(id) == Type+"_connector" {
+				return fmt.Errorf("pipeline %s: routed downstream must not export a connector", name)
+			}
+			storage = append(storage, id)
+		}
+		if len(storage) != 1 {
+			return fmt.Errorf("pipeline %s: routed downstream requires exactly one exporter", name)
+		}
+		if _, ok := cfg.Exporters[storage[0]]; !ok {
+			return fmt.Errorf("pipeline %s: routed downstream must feed an exporter directly", name)
+		}
+		if err := cfg.validateQueue(storage[0]); err != nil {
 			return fmt.Errorf("pipeline %s: %w", name, err)
 		}
 	}
-	return cfg.validatePublication()
+	if downstreams == 0 {
+		return fmt.Errorf("connector %s: routing has no downstream pipeline", connectorID)
+	}
+	return nil
+}
+
+// Metered logs pipelines either all route or all write directly. A half
+// migrated collector would meter Segments on one path and store them on another.
+func (cfg topologyConfig) validateRoutedAdmissionUniformity() error {
+	var routed, direct []string
+	for name, p := range cfg.Service.Pipelines {
+		if componentType(name) != "logs" {
+			continue
+		}
+		meters := 0
+		for _, id := range p.Processors {
+			if componentType(id) == Type {
+				meters++
+			}
+		}
+		if meters == 0 {
+			continue
+		}
+		storage := []string{}
+		for _, id := range p.Exporters {
+			if componentType(id) == Type+"_connector" {
+				continue
+			}
+			storage = append(storage, id)
+		}
+		if len(storage) != 1 {
+			continue
+		}
+		if componentType(storage[0]) == "routing" {
+			routed = append(routed, name)
+		} else if _, ok := cfg.Exporters[storage[0]]; ok {
+			direct = append(direct, name)
+		}
+	}
+	if len(routed) > 0 && len(direct) > 0 {
+		return fmt.Errorf("routed admission: every metered logs pipeline must export routing (routed=%v direct=%v)", routed, direct)
+	}
+	return nil
 }
 
 func componentType(id string) string { kind, _, _ := strings.Cut(id, "/"); return kind }

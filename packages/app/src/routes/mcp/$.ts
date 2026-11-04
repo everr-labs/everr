@@ -6,9 +6,17 @@ import { getMcpIdentity } from "#app/data/mcp/identity.ts";
 import { assertCurrentMember } from "#app/data/mcp/membership.ts";
 import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
 import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
+import { pageAt, replayErrorText, sessionJourney } from "#app/data/replay/session.ts";
 import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
+
+const MCP_MAX_OUTPUT_CHARS = 60_000;
+
+function boundMcpText(text: string): string {
+  if (text.length <= MCP_MAX_OUTPUT_CHARS) return text;
+  return `${text.slice(0, MCP_MAX_OUTPUT_CHARS)}\n…truncated`;
+}
 
 // Per-request identity, carried on the verified token's AuthInfo.extra. The MCP
 // SDK threads AuthInfo into every tool call's `extra`, so there's no need to
@@ -77,6 +85,65 @@ function createTransport() {
           return {
             content: [{ type: "text", text: JSON.stringify(identity, null, 2) }],
           };
+        },
+      );
+
+      server.registerTool(
+        "recording_journey",
+        {
+          description:
+            "Summarize one browser session's recordings: clips, pages, clicks, inputs, pauses, and gaps. " +
+            "Use this to understand a user journey. Session recording bodies are not in the SQL tables.",
+          inputSchema: {
+            sessionId: z.string().min(1),
+            from: z.string().datetime().optional(),
+            to: z.string().datetime().optional(),
+          },
+        },
+        async ({ sessionId, from, to }, extra) => {
+          const ctx = contextOf(extra);
+          if (!ctx) {
+            return { isError: true, content: [{ type: "text", text: "No org context." }] };
+          }
+          try {
+            const journey = await sessionJourney(ctx.orgId, sessionId, {
+              from: from ? new Date(from) : undefined,
+              to: to ? new Date(to) : undefined,
+            });
+            return { content: [{ type: "text", text: JSON.stringify(journey) }] };
+          } catch (error) {
+            return { isError: true, content: [{ type: "text", text: replayErrorText(error) }] };
+          }
+        },
+      );
+
+      server.registerTool(
+        "recording_page",
+        {
+          description:
+            "Page URL (and HTML when available) at one instant inside a Clip, for triage. " +
+            "Pass streamId when the session had more than one tab. " +
+            "The document is already privacy-masked in the browser. Recording bodies are not in SQL.",
+          inputSchema: {
+            sessionId: z.string().min(1).optional(),
+            clipId: z.string().min(1).optional(),
+            at: z.string().datetime(),
+            streamId: z.string().min(1).optional(),
+          },
+        },
+        async ({ sessionId, clipId, at, streamId }, extra) => {
+          const ctx = contextOf(extra);
+          if (!ctx) {
+            return { isError: true, content: [{ type: "text", text: "No org context." }] };
+          }
+          try {
+            const page = await pageAt(ctx.orgId, { sessionId, clipId, at, streamId });
+            return {
+              content: [{ type: "text", text: boundMcpText(JSON.stringify(page)) }],
+            };
+          } catch (error) {
+            return { isError: true, content: [{ type: "text", text: replayErrorText(error) }] };
+          }
         },
       );
     },
