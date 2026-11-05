@@ -13,7 +13,7 @@ const sdk = new WebSDK({
   endpoint: params.get("otlp") ?? undefined,
   instrumentations: [errors(), network(), ...(recordingOn ? [recording({ sampleRate: 1 })] : [])],
 });
-Object.assign(window, { verifySdk: { sdk, emitRecording: recordingOn ? emitRecording : undefined } });
+Object.assign(window, { verifySdk: { sdk, recorder: recordingOn ? recorder : undefined } });
 
 const byId = (id: string) => document.getElementById(id) as HTMLElement;
 let items = 0;
@@ -36,6 +36,6 @@ byId("fail-fetch").addEventListener("click", () => {
   });
 });
 byId("emit").addEventListener("click", () => {
-  if (recordingOn) emitRecording({ last: 30_000 });
+  if (recordingOn) recorder.emitClip({ last: 30_000 });
 });
 byId("status").textContent = `sdk ready (recording ${recordingOn ? "on" : "off"})`;
