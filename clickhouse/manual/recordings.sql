@@ -1,13 +1,32 @@
--- Cloud-only: browser recording Segments land here via the collector's
--- clickhouse/recordings exporter (direct insert, create_schema: false).
--- Not created on self-hosted. Existing Cloud clusters apply the same statements
--- from clickhouse/manual/recordings.sql once.
+-- Cloud-only, for clusters that already ran the older init. The CREATE TABLE
+-- block below must stay byte-identical with
+-- clickhouse/init/cloud/14-create-recordings.sql (fresh clusters take the DDL
+-- from there; this file exists so an existing cluster can apply it once).
+-- Edit 14-create-recordings.sql first, then copy its CREATE TABLE block here.
 --
--- MATERIALIZED columns stamp tenant, retention, and Segment ids at insert.
--- There is no clip_id: overlapping Clips share Segment bodies; membership is
--- the recording span's stream id plus time range (see packages/app replay).
--- ResourceAttributes keeps everr.retention.days so retention_days can read it
--- (SKIP would remove the path before the expression runs).
+-- Operator notes beyond the DDL:
+-- 1. Residual Segment rows: if this cluster ever ingested recording Segments
+--    into app.logs before the routing cutover, those rows are still readable
+--    by SQL API org users whose row policies were created before the
+--    `EventName != 'everr.browser.recording.segment'` filter existed (see
+--    packages/cloud/src/clickhouse/provisioning.ts). Clean them up once:
+--      ALTER TABLE app.logs DELETE WHERE EventName = 'everr.browser.recording.segment';
+-- 2. Existing policies: provisioning used CREATE ROW POLICY IF NOT EXISTS, so
+--    the logs policy of an existing SQL API org user still uses the old
+--    USING clause. Provisioning now runs CREATE ROW POLICY OR REPLACE; run it
+--    again for the affected organizations, or fix them once with:
+--      -- list the stale policies:
+--      SELECT policy.name, policy.source, user.name
+--      FROM system.row_policies AS policy LEFT JOIN system.users AS user
+--      ON user.id = policy.user_id
+--      WHERE policy.table = 'logs' AND policy.name LIKE 'org_SQL%'
+--      -- then per policy:
+--      ALTER ROW POLICY <policy.name> ON app.logs
+--      FOR SELECT USING tenant_id = <tenant literal>
+--        AND EventName != 'everr.browser.recording.segment'
+--      TO <user.name>
+--
+-- The CREATE TABLE block matches clickhouse/init/cloud/14-create-recordings.sql.
 
 CREATE TABLE IF NOT EXISTS app.recordings
 (
@@ -33,34 +52,9 @@ CREATE TABLE IF NOT EXISTS app.recordings
 
     tenant_id LowCardinality(String) MATERIALIZED toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))),
     retention_days UInt16 MATERIALIZED everrRetentionDaysJson(ResourceAttributes),
-    session_id String MATERIALIZED substringUTF8(
-        toString(getSubcolumn(LogAttributes, 'session.id')),
-        1,
-        lengthUTF8(toString(getSubcolumn(LogAttributes, 'session.id')))
-            + throwIf(
-                toString(getSubcolumn(LogAttributes, 'session.id')) = '',
-                'session.id log attribute missing'
-              )
-    ),
-    stream_id String MATERIALIZED substringUTF8(
-        toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')),
-        1,
-        lengthUTF8(toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')))
-            + throwIf(
-                toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')) = '',
-                'everr.recording.stream.id log attribute missing'
-              )
-    ),
+    session_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'session.id')),
+    stream_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')),
     segment_index UInt32 MATERIALIZED toUInt32OrZero(toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')))
-        + throwIf(
-            toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')) = ''
-                OR toString(toUInt32OrZero(toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index'))))
-                    != toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')),
-            'everr.recording.segment.index missing or not a non-negative integer'
-          ),
-
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_stream_id stream_id TYPE bloom_filter(0.001) GRANULARITY 1
 )
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
