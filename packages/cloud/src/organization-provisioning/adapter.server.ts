@@ -4,8 +4,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { z } from "zod";
 import { organizationCreationPlan } from "../billing/organization-context.server";
 import { organizationBilling } from "../db/schema/billing";
-import { userTerms } from "../db/schema/legal";
-import { acceptedSignupTerms } from "../legal/signup.server";
 import { enqueueOrganizationDeprovisioning, enqueueOrganizationProvisioning } from "./jobs";
 import { parseOrganizationMetadata } from "./metadata";
 import { preserveOrganizationProvisioningStatus } from "./metadata.server";
@@ -27,15 +25,6 @@ export function organizationLifecycleAdapter(database: DbExecutor = db) {
         select?: string[];
         forceAllowId?: boolean;
       }): Promise<R> => {
-        const termsHash = input.model === "user" ? acceptedSignupTerms() : undefined;
-        if (termsHash) {
-          return runInTransaction(executor, async (tx) => {
-            const created = await factory(tx).create<T, R>(input);
-            const { id } = z.object({ id: z.string() }).parse(created);
-            await tx.insert(userTerms).values({ userId: id, termsHash });
-            return created;
-          });
-        }
         if (input.model !== "organization") return adapter.create<T, R>(input);
         const { [COMPANY_ID_METADATA]: _companyId, ...metadata } = parseOrganizationMetadata(
           input.data.metadata,

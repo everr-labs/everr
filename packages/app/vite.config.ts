@@ -5,7 +5,7 @@ import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
-import { defineConfig, loadEnv, type PluginOption } from "vite-plus";
+import { defineConfig, loadEnv } from "vite-plus";
 import svgr from "vite-plugin-svgr";
 import { migrationAssets } from "./build/migrations.ts";
 import {
@@ -20,7 +20,6 @@ import { smeeWebhookPlugin } from "./vite.smee.ts";
 export function createAppConfig(
   composition: AppComposition = installationComposition,
   outputDirectory = resolve(appDirectory, ".output"),
-  plugins: PluginOption[] = [],
 ) {
   return defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), "");
@@ -77,7 +76,6 @@ export function createAppConfig(
         ],
       },
       plugins: [
-        ...plugins,
         {
           name: "app-composition-css",
           enforce: "pre",

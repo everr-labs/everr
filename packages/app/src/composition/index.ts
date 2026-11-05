@@ -16,7 +16,7 @@ export type { OrganizationPolicy, ProductPolicy } from "./policy";
 export type { TenantRetention } from "./retention";
 export type { ApplicationRuntime, ApplicationWorker } from "./runtime";
 export type { ApplicationStorage } from "./storage";
-export type { ProductUI, SignInFooterProps, SignupPolicy } from "./ui";
+export type { ProductUI, SignInFooterProps } from "./ui";
 
 export type {
   ApplicationEvents,

@@ -1,4 +1,3 @@
-import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -21,7 +20,6 @@ import {
 const SignUpSearchSchema = z.object({
   redirect: returnToSchema.optional(),
   email: z.string().optional(),
-  error: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
@@ -35,10 +33,9 @@ export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
 });
 
 function SignUp() {
-  const signupPolicy = productUI.useSignupPolicy();
   const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
-  const { redirect: redirectTo, email: prefillEmail, error: oauthError } = Route.useSearch();
+  const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const callbackURL = buildPostAuthenticationURL(redirectTo);
@@ -54,13 +51,11 @@ function SignUp() {
       password: "",
     },
     onSubmit: async ({ value }) => {
-      if (!signupPolicy.canSubmit) return;
       setError(null);
       setIsSubmitting(true);
 
       try {
         const result = await authClient.signUp.email({
-          ...signupPolicy.additionalData,
           name: value.name,
           email: value.email,
           password: value.password,
@@ -88,16 +83,13 @@ function SignUp() {
     <>
       <AuthPageHeader title="Create your account" subtitle="Get started with Everr" />
 
-      {signupPolicy.notice}
-
       {googleSignInEnabled && (
         <div className="flex flex-col gap-4">
           <GoogleAuthButton
             label="Sign up with Google"
             callbackURL={callbackURL}
             errorCallbackURL={errorCallbackURL}
-            disabled={isSubmitting || !signupPolicy.canSubmit}
-            additionalData={signupPolicy.additionalData}
+            disabled={isSubmitting}
             onError={setError}
           />
           <AuthProviderSeparator />
@@ -165,14 +157,13 @@ function SignUp() {
           )}
         </form.Field>
 
-        {(error || oauthError) && (
+        {error && (
           <p className="text-xs text-destructive" role="alert">
-            {error ??
-              "Google signup could not finish. Review the signup requirements or try again."}
+            {error}
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting || !signupPolicy.canSubmit}>
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />

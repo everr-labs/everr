@@ -156,7 +156,6 @@ it.each([
     await user.click(await screen.findByRole("button", { name: "Create account" }));
     await screen.findByRole("heading", { name: "Create your account" });
     expect(screen.getByLabelText("Email")).toHaveValue("invited@example.com");
-    await user.click(screen.getByRole("checkbox", { name: /I agree to the Terms of Service/ }));
     /* oxlint-disable vitest/no-conditional-expect -- The test table covers each signup and verification mode, with shared acceptance assertions afterward. */
     if (provider === "email") {
       expect(screen.queryByRole("button", { name: "Sign up with Google" })).toBeNull();

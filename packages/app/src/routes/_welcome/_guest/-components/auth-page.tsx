@@ -51,14 +51,12 @@ export function GoogleAuthButton({
   errorCallbackURL,
   label,
   disabled,
-  additionalData,
   onError,
 }: {
   callbackURL: string;
   errorCallbackURL: string;
   label: string;
   disabled?: boolean;
-  additionalData?: Record<string, unknown>;
   onError: (message: string | null) => void;
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +70,6 @@ export function GoogleAuthButton({
         provider: "google",
         callbackURL,
         errorCallbackURL,
-        additionalData,
       });
 
       if (result.error) {

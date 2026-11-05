@@ -32,7 +32,7 @@ const CARDS: PlanCard[] = [
     name: "Hobby",
     price: "€0",
     unit: "/month",
-    tagline: "For professional projects and solo developers",
+    tagline: "For personal projects and solo developers",
     data: [
       { signal: "Ingestion", included: "30 GB / month" },
       { signal: "Query allowance", included: "5x", overage: "150 GB scanned" },

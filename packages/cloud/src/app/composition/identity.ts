@@ -7,7 +7,6 @@ import {
   withBillingRequest,
 } from "../../billing/lock.server";
 import { beforeCreateCheckoutOrganization } from "../../billing/organization-context.server";
-import { signupTermsPlugin, withSignupTerms } from "../../legal/signup.server";
 import { organizationLifecycleAdapter } from "../../organization-provisioning/adapter.server";
 import { waitForOrganizationProvisioning } from "../../organization-provisioning/fast-path";
 import { parseOrganizationMetadata } from "../../organization-provisioning/metadata";
@@ -32,8 +31,7 @@ async function afterCreateOrganization({
 export const identity = {
   policy: identityPolicy,
   provider: {
-    withIdentityRequest: <T>(run: () => Promise<T>) =>
-      withBillingRequest(() => withSignupTerms(run)),
+    withIdentityRequest: withBillingRequest,
     lockAccountDeletion,
     lockUserLifecycle,
     createSessionOnboardingHook,
@@ -42,9 +40,6 @@ export const identity = {
       beforeCreateOrganization: beforeCreateCheckoutOrganization,
       afterCreateOrganization,
     }),
-    authPlugins: (createOrganization) => [
-      billingAuthPlugin(createOrganization),
-      signupTermsPlugin(),
-    ],
+    authPlugins: (createOrganization) => [billingAuthPlugin(createOrganization)],
   },
 } satisfies ApplicationIdentity;
