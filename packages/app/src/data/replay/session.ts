@@ -2,11 +2,19 @@ import "@tanstack/react-start/server-only";
 
 import { query } from "#app/lib/clickhouse.ts";
 
-const SPAN_LOOKBACK_DAYS = 31;
 const MAX_CLIPS = 20;
 const MAX_SEGMENT_BYTES = 32 * 1024 * 1024;
 const MAX_STEPS = 500;
 const WINDOW_MAX_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * ClickHouse renders DateTime64 through its query timezone, so civil-format
+ * strings would be re-parsed by `new Date(...)` in the Node host's timezone
+ * and silently shift by the offset between the two. Every timestamp crosses
+ * the boundary as an epoch number instead (ISO-8601 UTC strings parse with
+ * best_effort where a string parameter is unavoidable).
+ */
+const QUERY_SETTINGS = { date_time_input_format: "best_effort" } as const;
 
 type Trigger = "error" | "network" | "manual";
 
@@ -39,7 +47,8 @@ type RrwebEvent = {
 type Gap =
   | { kind: "index"; streamId: string; after: number; missing: number }
   | { kind: "piece"; streamId: string; eventIndex: number }
-  | { kind: "conflict"; streamId: string; segmentIndex: number };
+  | { kind: "conflict"; streamId: string; segmentIndex: number }
+  | { kind: "clip"; atMs: number; reason: string };
 
 type JourneyStep =
   | { kind: "page"; at: string; streamId: string; url: string }
@@ -50,6 +59,7 @@ type JourneyStep =
 export type SessionJourney = {
   sessionId: string;
   windowStart: string;
+  windowEnd: string;
   truncated: boolean;
   clips: Array<{
     clipId: string;
@@ -92,9 +102,13 @@ class ReplayError extends Error {
   }
 }
 
-function asTrigger(raw: string): Trigger {
+/**
+ * An unrecognized trigger value skips the span where it is read (recorded as a
+ * "clip" gap), so a future producer version cannot fail a whole session.
+ */
+function parseTrigger(raw: string): Trigger | undefined {
   if (raw === "error" || raw === "network" || raw === "manual") return raw;
-  throw new ReplayError("bad_request", `unknown recording trigger: ${raw}`);
+  return undefined;
 }
 
 function iso(d: Date): string {
@@ -111,8 +125,8 @@ function parseInstant(raw: string): Date {
 
 type SpanRow = {
   serviceName: string;
-  start: string;
-  end: string;
+  startMs: number;
+  endMs: number;
   clipId: string;
   streamId: string;
   trigger: string;
@@ -125,13 +139,13 @@ async function loadClips(
   sessionId: string,
   from: Date,
   to: Date,
-): Promise<ClipWindow[]> {
+): Promise<{ clips: ClipWindow[]; gaps: Gap[] }> {
   const rows = await query<SpanRow>(
     `
 SELECT
   ServiceName AS serviceName,
-  toString(Timestamp) AS start,
-  toString(Timestamp + toIntervalNanosecond(Duration)) AS end,
+  toUnixTimestamp64Milli(Timestamp) AS startMs,
+  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
   toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId,
   toString(SpanAttributes.\`everr.recording.stream.id\`) AS streamId,
   toString(SpanAttributes.\`everr.recording.trigger\`) AS trigger,
@@ -140,44 +154,62 @@ SELECT
 FROM traces
 WHERE SpanName = 'recording'
   AND toString(SpanAttributes.\`session.id\`) = {sessionId:String}
-  AND Timestamp >= {from:DateTime64(3)}
-  AND Timestamp < {to:DateTime64(3)}
+  AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
+  AND Timestamp < fromUnixTimestamp64Milli({toMs: Int64})
 ORDER BY Timestamp DESC
 LIMIT {cap:UInt16}
 `,
     organizationId,
-    { sessionId, from, to, cap: MAX_CLIPS },
+    { sessionId, fromMs: from.getTime(), toMs: to.getTime(), cap: MAX_CLIPS },
+    QUERY_SETTINGS,
   );
 
-  return rows.map((r) => {
+  const clips: ClipWindow[] = [];
+  const gaps: Gap[] = [];
+  for (const r of rows) {
     if (!r.clipId || !r.streamId || !r.serviceName) {
-      throw new ReplayError("bad_request", "recording span missing clip, stream, or service");
+      gaps.push({
+        kind: "clip",
+        atMs: Number(r.startMs ?? 0),
+        reason: "recording span missing clip, stream, or service",
+      });
+      continue;
     }
-    return {
+    const trigger = parseTrigger(r.trigger ?? "");
+    if (!trigger) {
+      gaps.push({
+        kind: "clip",
+        atMs: Number(r.startMs ?? 0),
+        reason: `unknown recording trigger: ${r.trigger ?? ""}`,
+      });
+      continue;
+    }
+    clips.push({
       clipId: r.clipId,
       streamId: r.streamId,
       sessionId: r.sessionId || sessionId,
       serviceName: r.serviceName,
-      start: new Date(r.start),
-      end: new Date(r.end),
-      trigger: asTrigger(r.trigger),
+      start: new Date(r.startMs),
+      end: new Date(r.endMs),
+      trigger,
       bufferTruncated: r.truncated === "true",
-    };
-  });
+    });
+  }
+  return { clips, gaps };
 }
 
 async function loadClipById(
   organizationId: string,
   clipId: string,
-  at: Date,
+  atMs: number,
 ): Promise<ClipWindow | undefined> {
   const lookbackMs = 60 * 60 * 1000;
   const rows = await query<SpanRow>(
     `
 SELECT
   ServiceName AS serviceName,
-  toString(Timestamp) AS start,
-  toString(Timestamp + toIntervalNanosecond(Duration)) AS end,
+  toUnixTimestamp64Milli(Timestamp) AS startMs,
+  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
   toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId,
   toString(SpanAttributes.\`everr.recording.stream.id\`) AS streamId,
   toString(SpanAttributes.\`everr.recording.trigger\`) AS trigger,
@@ -186,29 +218,38 @@ SELECT
 FROM traces
 WHERE SpanName = 'recording'
   AND toString(SpanAttributes.\`everr.recording.clip.id\`) = {clipId:String}
-  AND Timestamp >= {from:DateTime64(3)}
-  AND Timestamp <= {to:DateTime64(3)}
+  AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
+  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
 ORDER BY Timestamp ASC
-LIMIT 2
+LIMIT 1 BY clipId
 `,
     organizationId,
-    {
-      clipId,
-      from: new Date(at.getTime() - lookbackMs),
-      to: new Date(at.getTime() + lookbackMs),
-    },
+    { clipId, fromMs: atMs - lookbackMs, toMs: atMs + lookbackMs },
+    QUERY_SETTINGS,
   );
-  if (rows.length !== 1) return undefined;
-  const r = rows[0];
+  // `LIMIT 1 BY clipId` collapses rows duplicated by at-least-once delivery on
+  // the server; the dedupe here keeps the same guarantee behind a mock or a
+  // future server change. Two DIFFERENT shapes for one clip id stay rejected.
+  const seen = new Set<string>();
+  const deduped = rows.filter((r) => {
+    const identity = `${r.clipId}:${r.startMs}:${r.endMs}:${r.streamId}:${r.serviceName}:${r.sessionId}`;
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+  if (deduped.length !== 1) return undefined;
+  const r = deduped[0];
   if (!r?.clipId || !r.streamId || !r.serviceName || !r.sessionId) return undefined;
+  const trigger = parseTrigger(r.trigger ?? "");
+  if (!trigger) return undefined;
   return {
     clipId: r.clipId,
     streamId: r.streamId,
     sessionId: r.sessionId,
     serviceName: r.serviceName,
-    start: new Date(r.start),
-    end: new Date(r.end),
-    trigger: asTrigger(r.trigger),
+    start: new Date(r.startMs),
+    end: new Date(r.endMs),
+    trigger,
     bufferTruncated: r.truncated === "true",
   };
 }
@@ -228,8 +269,8 @@ async function loadSegments(
 ): Promise<{ byStream: Map<string, StoredSegment[]>; gaps: Gap[] }> {
   if (windows.length === 0) return { byStream: new Map(), gaps: [] };
 
-  const from = new Date(Math.min(...windows.map((w) => w.start.getTime())));
-  const to = new Date(Math.max(...windows.map((w) => w.end.getTime())));
+  const fromMs = Math.min(...windows.map((w) => w.start.getTime()));
+  const toMs = Math.max(...windows.map((w) => w.end.getTime()));
   const services = [...new Set(windows.map((w) => w.serviceName))];
   const streams = [...new Set(windows.map((w) => w.streamId))];
 
@@ -245,12 +286,13 @@ SELECT
 FROM recordings
 WHERE ServiceName IN {services:Array(String)}
   AND stream_id IN {streams:Array(String)}
-  AND Timestamp >= {from:DateTime64(9)}
-  AND Timestamp <= {to:DateTime64(9)}
+  AND Timestamp >= fromUnixTimestamp64Nano(toInt64({fromMs: Int64}) * 1000000)
+  AND Timestamp <= fromUnixTimestamp64Nano(toInt64({toMs: Int64}) * 1000000)
 ORDER BY stream_id, segment_index
 `,
     organizationId,
-    { services, streams, from, to },
+    { services, streams, fromMs, toMs },
+    QUERY_SETTINGS,
   );
 
   let bytes = 0;
@@ -259,7 +301,7 @@ ORDER BY stream_id, segment_index
   const seen = new Map<string, string>();
 
   for (const row of rows) {
-    bytes += row.Body.length;
+    bytes += Buffer.byteLength(row.Body);
     if (bytes > MAX_SEGMENT_BYTES) {
       throw new ReplayError("too_large", "recording segment payload exceeds 32 MiB");
     }
@@ -285,8 +327,6 @@ ORDER BY stream_id, segment_index
     byStream.set(row.stream_id, list);
   }
 
-  // Drop segments whose timestamp-as-index placement is outside every window for that stream.
-  // We already filtered by the union range in SQL; event-level clip happens after reassemble.
   return { byStream, gaps };
 }
 
@@ -421,22 +461,29 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function serializeNode(node: SnapNode): string {
+/**
+ * Text inside <style> and <script> is not markup: serialize it unescaped so
+ * CSS or JavaScript with `>` or `&` survives, while markup text stays
+ * HTML-escaped.
+ */
+function serializeNode(node: SnapNode, rawText = false): string {
   // rrweb NodeType: Document=0, DocumentType=1, Element=2, Text=3, CDATA=4, Comment=5
-  if (node.type === 3) return escapeHtml(node.textContent ?? "");
+  if (node.type === 3)
+    return rawText ? (node.textContent ?? "") : escapeHtml(node.textContent ?? "");
   if (node.type === 5) return `<!--${escapeHtml(node.textContent ?? "")}-->`;
   if (node.type === 1) {
     const name = node.tagName ?? "html";
     return `<!DOCTYPE ${name}>`;
   }
   if (node.type === 0) {
-    return (node.childNodes ?? []).map(serializeNode).join("");
+    return (node.childNodes ?? []).map((child) => serializeNode(child, rawText)).join("");
   }
   if (node.type === 2) {
     const tag = (node.tagName ?? "div").toLowerCase();
     const attrs = Object.entries(node.attributes ?? {})
       .map(([k, v]) => ` ${k}="${escapeHtml(String(v))}"`)
       .join("");
+    const rawChild = tag === "style" || tag === "script";
     const voidTags = new Set([
       "area",
       "base",
@@ -454,7 +501,7 @@ function serializeNode(node: SnapNode): string {
       "wbr",
     ]);
     if (voidTags.has(tag)) return `<${tag}${attrs}>`;
-    const kids = (node.childNodes ?? []).map(serializeNode).join("");
+    const kids = (node.childNodes ?? []).map((child) => serializeNode(child, rawChild)).join("");
     return `<${tag}${attrs}>${kids}</${tag}>`;
   }
   return "";
@@ -497,10 +544,11 @@ function htmlFromEvents(
   };
 }
 
-function emptyJourney(sessionId: string, windowStart: Date): SessionJourney {
+function emptyJourney(sessionId: string, from: Date, to: Date): SessionJourney {
   return {
     sessionId,
-    windowStart: iso(windowStart),
+    windowStart: iso(from),
+    windowEnd: iso(to),
     truncated: false,
     clips: [],
     steps: [],
@@ -534,26 +582,36 @@ export async function sessionJourney(
   if (!organizationId || !sessionId) {
     throw new ReplayError("bad_request", "sessionId is required");
   }
+  // The window is capped at 24 hours on every call, including the implicit
+  // default: `to` without `from` and a no-window call pick the same default
+  // lookback, so scans of `traces` stay inside a day.
   const to = asDate(range?.to, "to") ?? new Date();
-  const from =
-    asDate(range?.from, "from") ??
-    new Date(to.getTime() - SPAN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const from = asDate(range?.from, "from") ?? new Date(to.getTime() - WINDOW_MAX_MS);
   if (!(from < to)) {
     throw new ReplayError("bad_request", "from must be before to");
   }
-  if ((range?.from || range?.to) && to.getTime() - from.getTime() > WINDOW_MAX_MS) {
+  if (to.getTime() - from.getTime() > WINDOW_MAX_MS) {
     throw new ReplayError("bad_request", "from/to window must be at most 24 hours");
   }
 
-  const clips = await loadClips(organizationId, sessionId, from, to);
-  if (clips.length === 0) return emptyJourney(sessionId, from);
+  const { clips, gaps: clipGaps } = await loadClips(organizationId, sessionId, from, to);
+  if (clips.length === 0) {
+    const empty = emptyJourney(sessionId, from, to);
+    return {
+      ...empty,
+      gaps: clipGaps,
+      facts: { ...empty.facts, gapCount: clipGaps.length },
+    };
+  }
 
   const overlapping = clips.filter((c) => c.end >= from && c.start <= to);
   const { byStream, gaps: loadGaps } = await loadSegments(organizationId, overlapping);
-  const steps: JourneyStep[] = [];
-  const gaps = [...loadGaps];
+  const gaps = [...clipGaps, ...loadGaps];
   let truncated = overlapping.length >= MAX_CLIPS;
 
+  // The step cap is enforced over all streams at the end (after sorting), so
+  // a single busy stream cannot hide another stream's earliest steps.
+  let steps: JourneyStep[] = [];
   for (const [streamId, segs] of byStream) {
     const streamClips = overlapping.filter((c) => c.streamId === streamId);
     const until = new Date(Math.max(...streamClips.map((c) => c.end.getTime())));
@@ -564,14 +622,14 @@ export async function sessionJourney(
         (c) => e.timestamp >= c.start.getTime() && e.timestamp <= c.end.getTime(),
       );
     });
-    const projected = projectSteps(streamId, clipped, until, MAX_STEPS - steps.length);
-    steps.push(...projected.steps);
+    const projected = projectSteps(streamId, clipped, until, MAX_STEPS);
     if (projected.truncated) truncated = true;
+    steps.push(...projected.steps);
   }
 
   steps.sort((a, b) => a.at.localeCompare(b.at));
-  const capped = steps.slice(0, MAX_STEPS);
   if (steps.length > MAX_STEPS) truncated = true;
+  steps = steps.slice(0, MAX_STEPS);
 
   const clipsByTrigger: Record<Trigger, number> = { error: 0, network: 0, manual: 0 };
   for (const c of overlapping) clipsByTrigger[c.trigger]++;
@@ -579,6 +637,7 @@ export async function sessionJourney(
   return {
     sessionId,
     windowStart: iso(from),
+    windowEnd: iso(to),
     truncated,
     clips: overlapping
       .slice()
@@ -592,12 +651,12 @@ export async function sessionJourney(
         start: iso(c.start),
         end: iso(c.end),
       })),
-    steps: capped,
+    steps,
     gaps,
     facts: {
-      pages: capped.filter((s) => s.kind === "page").length,
-      clicks: capped.filter((s) => s.kind === "click").length,
-      inputs: capped.filter((s) => s.kind === "input").length,
+      pages: steps.filter((s) => s.kind === "page").length,
+      clicks: steps.filter((s) => s.kind === "click").length,
+      inputs: steps.filter((s) => s.kind === "input").length,
       clipsByTrigger,
       gapCount: gaps.length,
     },
@@ -611,23 +670,29 @@ export async function pageAt(
   if (!organizationId) throw new ReplayError("bad_request", "missing organization");
   if (!request.at) throw new ReplayError("bad_request", "at is required");
   const at = parseInstant(request.at);
+  const atMs = at.getTime();
 
   let clip: ClipWindow | undefined;
   if (request.clipId) {
-    clip = await loadClipById(organizationId, request.clipId, at);
+    clip = await loadClipById(organizationId, request.clipId, atMs);
     if (!clip) throw new ReplayError("outside_clip", "no recording clip found near at");
+    // The clip must belong to the session in the request: a clip id from
+    // another organization's session never resolves here (tenant isolation),
+    // but one from another session of the same organization must not either.
+    if (request.sessionId && clip.sessionId !== request.sessionId) {
+      throw new ReplayError("outside_clip", "clip belongs to another session");
+    }
   } else {
     if (!request.sessionId) {
       throw new ReplayError("bad_request", "sessionId or clipId is required");
     }
-    const from = new Date(at.getTime() - SPAN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-    const to = new Date(at.getTime() + 60 * 60 * 1000);
-    const clips = (await loadClips(organizationId, request.sessionId, from, to)).filter(
-      (c) => c.start <= at && c.end >= at,
-    );
+    const from = new Date(atMs - WINDOW_MAX_MS);
+    const to = new Date(atMs + 60 * 60 * 1000);
+    const { clips } = await loadClips(organizationId, request.sessionId, from, to);
+    const covering = clips.filter((c) => c.start <= at && c.end >= at);
     const byStream = request.streamId
-      ? clips.filter((c) => c.streamId === request.streamId)
-      : clips;
+      ? covering.filter((c) => c.streamId === request.streamId)
+      : covering;
     const streams = [...new Set(byStream.map((c) => c.streamId))];
     if (streams.length > 1) {
       throw new ReplayError("ambiguous_stream", "multiple streams cover at", streams);
@@ -651,7 +716,7 @@ export async function pageAt(
   const allGaps = [...gaps, ...streamGaps];
   const inRange = events.filter((e) => e.timestamp <= clip.end.getTime());
   const built = htmlFromEvents(inRange, at);
-  const gapBefore = allGaps.some((g) => g.streamId === clip.streamId);
+  const gapBefore = allGaps.some((g) => g.kind !== "clip" && g.streamId === clip.streamId);
 
   return {
     sessionId: clip.sessionId,
