@@ -7,6 +7,41 @@
 -- the recording span's stream id plus time range (see packages/app replay).
 -- ResourceAttributes keeps everr.retention.days so retention_days can read it
 -- (SKIP would remove the path before the expression runs).
+--
+-- session_id, stream_id, and segment_index come from client-sent log
+-- attributes, so their MATERIALIZED expressions must never throw: one row
+-- with a missing or malformed attribute would fail the exporter's whole
+-- insert batch, and with retries of 0s max elapsed time the queue would back
+-- up for every tenant. Malformed rows get total fallback values ('' and 0)
+-- and the reader never selects them outside a known stream id (see
+-- packages/app replay). The retention_days check stays a throwIf because the
+-- collector sets that attribute itself.
+--
+-- No secondary indexes: stream_id is the ORDER BY's second column (the reader
+-- always filters by stream id and tenant), and nothing in the product queries
+-- recordings by session_id (the replay reader matches sessions through the
+-- `recording` span, not through these rows).
+--
+-- Operator notes for Cloud clusters that ran before this file:
+-- 1. Residual Segment rows: if the cluster ever ingested recording Segments
+--    into app.logs before the routing cutover, those rows are still readable
+--    by SQL API org users whose row policies were created before the
+--    `EventName != 'everr.browser.recording.segment'` filter existed (see
+--    packages/cloud/src/clickhouse/provisioning.ts). Clean them up once:
+--      ALTER TABLE app.logs DELETE WHERE EventName = 'everr.browser.recording.segment'
+-- 2. Existing policies: provisioning used CREATE ROW POLICY IF NOT EXISTS, so
+--    the logs policy of an existing SQL API org user still uses the old
+--    USING clause. Provisioning now runs CREATE ROW POLICY OR REPLACE. Run it
+--    again for the affected organizations, or fix them once with:
+--      SELECT policy.name, policy.source, user.name
+--      FROM system.row_policies AS policy LEFT JOIN system.users AS user
+--      ON user.id = policy.user_id
+--      WHERE policy.table = 'logs' AND policy.name LIKE 'org_SQL%'
+--    then, per policy:
+--      ALTER ROW POLICY <policy.name> ON app.logs
+--      FOR SELECT USING tenant_id = <tenant literal>
+--        AND EventName != 'everr.browser.recording.segment'
+--      TO <user.name>
 
 CREATE TABLE IF NOT EXISTS app.recordings
 (
@@ -32,34 +67,9 @@ CREATE TABLE IF NOT EXISTS app.recordings
 
     tenant_id LowCardinality(String) MATERIALIZED toLowCardinality(toString(getSubcolumn(ResourceAttributes, 'everr.tenant.id'))),
     retention_days UInt16 MATERIALIZED everrRetentionDaysJson(ResourceAttributes),
-    session_id String MATERIALIZED substringUTF8(
-        toString(getSubcolumn(LogAttributes, 'session.id')),
-        1,
-        lengthUTF8(toString(getSubcolumn(LogAttributes, 'session.id')))
-            + throwIf(
-                toString(getSubcolumn(LogAttributes, 'session.id')) = '',
-                'session.id log attribute missing'
-              )
-    ),
-    stream_id String MATERIALIZED substringUTF8(
-        toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')),
-        1,
-        lengthUTF8(toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')))
-            + throwIf(
-                toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')) = '',
-                'everr.recording.stream.id log attribute missing'
-              )
-    ),
+    session_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'session.id')),
+    stream_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')),
     segment_index UInt32 MATERIALIZED toUInt32OrZero(toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')))
-        + throwIf(
-            toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')) = ''
-                OR toString(toUInt32OrZero(toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index'))))
-                    != toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')),
-            'everr.recording.segment.index missing or not a non-negative integer'
-          ),
-
-    INDEX idx_session_id session_id TYPE bloom_filter(0.001) GRANULARITY 1,
-    INDEX idx_stream_id stream_id TYPE bloom_filter(0.001) GRANULARITY 1
 )
 ENGINE = MergeTree
 PARTITION BY (toDate(Timestamp), retention_days)
