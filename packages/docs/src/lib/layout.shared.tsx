@@ -93,6 +93,19 @@ export function docsOptions(): DocsLayoutOptions {
     },
     sidebar: {
       collapsible: false,
+      footer: (
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <a href="/privacy" className="text-xs text-fd-muted-foreground hover:text-fd-foreground">
+            Privacy notice
+          </a>
+          <a href="/terms" className="text-xs text-fd-muted-foreground hover:text-fd-foreground">
+            Terms of Service
+          </a>
+          <a href="/dpa" className="text-xs text-fd-muted-foreground hover:text-fd-foreground">
+            Data Processing Agreement
+          </a>
+        </div>
+      ),
     },
     containerProps: {
       style: containerStyle,

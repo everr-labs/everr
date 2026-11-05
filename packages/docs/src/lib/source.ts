@@ -1,4 +1,4 @@
-import { blog, devlog, docs } from "fumadocs-mdx:collections/server";
+import { blog, devlog, docs, legal } from "fumadocs-mdx:collections/server";
 import { loader } from "fumadocs-core/source";
 import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { toFumadocsSource } from "fumadocs-mdx/runtime/server";
@@ -17,4 +17,9 @@ export const blogposts = loader({
 export const devlogposts = loader({
   source: toFumadocsSource(devlog, []),
   baseUrl: "/devlog",
+});
+
+export const legalPages = loader({
+  source: toFumadocsSource(legal, []),
+  baseUrl: "/",
 });

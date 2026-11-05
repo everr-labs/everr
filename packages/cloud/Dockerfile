@@ -30,6 +30,7 @@ COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
 COPY packages/app ./packages/app
 COPY packages/cloud ./packages/cloud
+COPY packages/docs/content/legal/terms.mdx ./packages/docs/content/legal/terms.mdx
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md
 # SPA prerender initializes auth and mailer configuration without using them.

@@ -1,6 +1,7 @@
 import type { ProductUI } from "#app/composition/ui.ts";
 
 export const productUI: ProductUI = {
+  useSignupPolicy: () => ({ canSubmit: true }),
   SignInFooter: () => (
     <p className="text-center text-sm text-muted-foreground">
       Contact your administrator for an invitation.

@@ -7,6 +7,10 @@ import { SelfHostedBanner } from "@/components/self-hosted-banner";
 
 const PRICING_FAQS: FaqItem[] = [
   {
+    q: "Who is Everr for?",
+    a: "Everr is for business and professional use, including evaluation, learning, and small professional projects.",
+  },
+  {
     q: "What counts toward ingestion?",
     a: "Only data we actually store counts toward ingestion. Logs, traces, and metrics sent to Everr but dropped before storage do not count toward your monthly usage.",
   },
@@ -46,7 +50,7 @@ const PRICING_FAQS: FaqItem[] = [
   },
   {
     q: "Is Hobby really free?",
-    a: "Yes. Hobby is free forever, with no credit card required. The included quotas are designed to be generous enough for several hobby projects.",
+    a: "Yes. Hobby is free forever, with no credit card required. The included quotas support several small professional projects.",
   },
   {
     q: "How do additional costs work?",

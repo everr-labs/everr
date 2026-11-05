@@ -19,6 +19,7 @@ import {
 const SignInSearchSchema = z.object({
   redirect: returnToSchema.optional(),
   email: z.string().optional(),
+  error: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_welcome/_guest/auth/sign-in")({
@@ -29,7 +30,7 @@ export const Route = createFileRoute("/_welcome/_guest/auth/sign-in")({
 function SignIn() {
   const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
-  const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
+  const { redirect: redirectTo, email: prefillEmail, error: oauthError } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const callbackURL = redirectTo ?? "/";
@@ -136,9 +137,10 @@ function SignIn() {
           </Link>
         </div>
 
-        {error && (
+        {(error || oauthError) && (
           <p className="text-xs text-destructive" role="alert">
-            {error}
+            {error ??
+              "Google sign-in could not finish. Review the signup requirements or try again."}
           </p>
         )}
 

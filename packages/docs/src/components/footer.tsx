@@ -167,6 +167,30 @@ function FooterDirectory() {
                 Discord
               </a>
             </li>
+            <li>
+              <Link
+                to="/privacy"
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                Privacy notice
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/terms"
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                Terms of Service
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/dpa"
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                Data Processing Agreement
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

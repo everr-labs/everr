@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -28,6 +31,26 @@ export default defineConfig({
     port: 3000,
   },
   plugins: lazyPlugins(async () => [
+    {
+      name: "everr-terms-revision",
+      config() {
+        return {
+          define: {
+            "import.meta.env.VITE_TERMS_HASH": JSON.stringify(
+              createHash("sha256")
+                .update(readFileSync(resolve(import.meta.dirname, "content/legal/terms.mdx")))
+                .digest("hex"),
+            ),
+          },
+        };
+      },
+      handleHotUpdate({ file, server }) {
+        if (file === resolve(import.meta.dirname, "content/legal/terms.mdx")) {
+          void server.restart();
+          return [];
+        }
+      },
+    } satisfies Plugin,
     devtools(),
     docsMarkdownDevRequests(),
     mdx(await import("./source.config")),
