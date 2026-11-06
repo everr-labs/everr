@@ -1,4 +1,12 @@
-import { AgentDemo } from "@/components/agent-demo/AgentDemo";
+import { AGENT_CHAPTER_MS, type AgentChapter, AgentDemo } from "@/components/agent-demo/AgentDemo";
+import { DemoPlayer, type PlayerChapter } from "@/components/demo-player";
+
+// Each chapter is one agent session, named for what Everr helps with
+const CHAPTERS: PlayerChapter<AgentChapter>[] = [
+  { chapter: 0, label: "Instrument", color: "oklch(0.7 0.15 255)", ms: AGENT_CHAPTER_MS[0] },
+  { chapter: 1, label: "Understand", color: "oklch(0.83 0.15 80)", ms: AGENT_CHAPTER_MS[1] },
+  { chapter: 2, label: "Act", color: "oklch(0.78 0.17 340)", ms: AGENT_CHAPTER_MS[2] },
+];
 
 const headingClass =
   "text-balance text-[32px] leading-[1.14] tracking-[-0.03em] min-[761px]:text-[clamp(32px,3.5vw,48px)]";
@@ -19,9 +27,27 @@ export function ObservabilityVision() {
             keeping the setup useful are others.
           </p>
         </div>
-        <figure className="mt-10 min-w-0 overflow-hidden rounded-xl border border-border bg-card">
-          <AgentDemo />
-        </figure>
+        <div className="mt-10 grid gap-7 min-[761px]:grid-cols-3 min-[761px]:gap-8">
+          <div className="border-t border-border pt-5">
+            <h3 className={subheadingClass}>What should you instrument?</h3>
+            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
+              Which requests and dependencies need visibility? How much data is enough?
+            </p>
+          </div>
+          <div className="border-t border-border pt-5">
+            <h3 className={subheadingClass}>How do you get useful answers?</h3>
+            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
+              Building queries and dashboards takes time and knowledge.
+            </p>
+          </div>
+          <div className="border-t border-border pt-5">
+            <h3 className={subheadingClass}>What needs to stay up to date?</h3>
+            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
+              As your application changes, instrumentation, dashboards, and alert rules need
+              attention.
+            </p>
+          </div>
+        </div>
         <p className="mt-8 max-w-[80ch] text-[17px] leading-[1.65] text-muted-foreground">
           Those decisions take experience. Keeping them useful takes time. It’s understandable to
           put monitoring off when getting value looks like a project of its own.
@@ -69,6 +95,9 @@ export function ObservabilityVision() {
               problems.
             </p>
           </div>
+        </div>
+        <div className="mt-12 max-w-[1000px]">
+          <DemoPlayer chapters={CHAPTERS}>{(player) => <AgentDemo {...player} />}</DemoPlayer>
         </div>
       </div>
     </section>

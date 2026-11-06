@@ -1,51 +1,174 @@
-/* The agent's terminal fills the card; the card around the stage is its frame */
+/* An agent's desktop app filling the card: the card is its frame */
 .ag .ss-stage {
   overflow: hidden;
   background: transparent;
+  border-radius: 0;
 }
 
-.ag .ag-win {
+.ag .ag-app {
   position: absolute;
   inset: 0;
-  border-radius: 0;
-  box-shadow: none;
-  --ss-term-bg: var(--card);
-  --ss-term-ok: var(--lime);
-  --ss-term-sigil: var(--lime);
-  --ss-term-dim: oklch(0.55 0 0);
-}
-
-.ag .ag-win > .ss-window__body {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 28px 22px;
+  background: var(--bg);
   color: var(--mfg);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
-/* The session, pinned to the input: new lines push older ones up and out
-   under a soft fade */
+.ag code {
+  font-family: var(--ss-mono);
+  font-size: 0.92em;
+}
+
+.ag .ag-cut {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Threads ---- */
+
+.ag .ag-side {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  width: 236px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--line);
+  background: var(--card);
+}
+
+.ag .ag-side-row,
+.ag .ag-side-label,
+.ag .ag-side-foot {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+}
+
+.ag .ag-side-row {
+  color: var(--fg);
+}
+
+.ag .ag-side-label {
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.ag .ag-side-foot {
+  margin-top: auto;
+  font-size: 12px;
+}
+
+.ag .ag-thread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 30px;
+  padding: 0 10px 0 20px;
+  border-radius: 7px;
+  animation: ag-in 0.35s ease both;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.ag .ag-thread[data-on] {
+  background: var(--muted);
+  color: var(--fg);
+}
+
+@keyframes ag-in {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+
+.ag .ag-meta {
+  flex: none;
+  color: oklch(0.55 0 0);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag .ag-spin {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid oklch(1 0 0 / 15%);
+  border-top-color: var(--lime);
+  border-radius: 50%;
+  animation: ag-spin 0.8s linear infinite;
+}
+
+@keyframes ag-spin {
+  to {
+    rotate: 1turn;
+  }
+}
+
+/* ---- The open thread ---- */
+
+.ag .ag-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 32px 20px;
+}
+
+.ag .ag-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.ag .ag-skill {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: oklch(0.937 0.264 119.7 / 12%);
+  color: var(--lime);
+  font: 11px/18px var(--ss-mono);
+  opacity: 0;
+  transition: opacity 0.3s ease 0.4s;
+}
+
+.ag .ag-skill[data-on] {
+  opacity: 1;
+}
+
+.ag .ag-new {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: 7px;
+  color: var(--fg);
+}
+
+/* Short, the thread reads from the top; taller than the pane, it is held by
+   its foot and older lines leave under a soft fade */
 .ag .ag-log {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   justify-content: flex-end;
   min-height: 0;
   overflow: hidden;
-  white-space: normal;
-}
-
-/* Short, it starts at the top as a fresh session does; taller than the
-   log, it is held by its foot and older lines leave under a soft fade */
-.ag .ag-scroll {
-  flex: none;
-  min-height: 100%;
-}
-
-.ag .ag-log {
-  position: relative;
 }
 
 .ag .ag-log::before {
@@ -53,119 +176,123 @@
   position: absolute;
   inset: 0 0 auto;
   z-index: 1;
-  height: 48px;
-  background: linear-gradient(var(--card), transparent);
-  opacity: 0;
-  transition: opacity 0.4s ease;
+  height: 40px;
+  background: linear-gradient(var(--bg), transparent);
   pointer-events: none;
 }
 
-.ag .ag-log[data-full]::before {
-  opacity: 1;
+.ag .ag-scroll {
+  flex: none;
+  min-height: 100%;
+  padding-top: 8px;
+  animation: ag-fade 0.3s ease both;
 }
 
-.ag .ag-blocks {
-  transition: opacity 0.3s ease;
-}
-
-.ag .ag-blocks[data-clearing] {
-  opacity: 0;
-}
-
-.ag .ag-hello {
-  display: flex;
-  flex-direction: column;
-  margin: 8px 0 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-.ag .ag-hello-title {
-  color: var(--fg);
-}
-
-.ag .ag-hello .dim {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 2ch;
+@keyframes ag-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 .ag .ag-user {
   display: flex;
-  gap: 10px;
-  margin: 14px 0 8px;
-  padding: 7px 12px;
-  border-radius: 6px;
+  justify-content: flex-end;
+  padding: 4px 0 14px;
+}
+
+.ag .ag-user > span {
+  max-width: 78%;
+  padding: 8px 14px;
+  border-radius: 14px;
   background: var(--muted);
   color: var(--fg);
 }
 
-.ag .ag-sigil {
-  color: var(--lime);
+.ag .ag-tool {
+  padding: 3px 0;
 }
 
-.ag .ag-step {
+.ag .ag-tool-head {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 2px 12px;
+}
+
+.ag .ag-verb {
+  flex: none;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.ag .ag-tool-head code {
+  color: var(--mfg);
+}
+
+.ag .ag-add {
+  flex: none;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.ag .ag-del {
+  flex: none;
+  color: var(--red);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The output hangs under its command, on a rule */
+.ag .ag-out {
+  margin: 2px 0 2px 3px;
+  padding-left: 12px;
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  color: oklch(0.55 0 0);
+  font: 11.5px/1.6 var(--ss-mono);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ag .ag-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--lime);
-  translate: 0 -1px;
-}
-
-.ag .ag-dot--mute {
-  background: oklch(0.55 0 0);
-}
-
-.ag .ag-step > .dim {
-  flex: none;
-  width: 5ch;
-}
-
-.ag .ag-skill {
-  color: var(--lime);
-}
-
-.ag .ag-cut {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ag .ag-cmd {
+.ag .ag-say {
+  max-width: 68ch;
+  padding: 10px 0 8px;
   color: var(--fg);
 }
 
-/* The result hangs under the command it came from */
-.ag .ag-result {
-  padding-left: calc(12px + 7px + 10px);
+.ag .ag-say p {
+  margin: 0;
 }
 
-.ag .ag-answer {
-  max-width: 64ch;
-  padding: 10px 12px 2px;
-  color: var(--fg);
+.ag .ag-say ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* While the agent works: a quiet line above the input */
-.ag .ag-status {
+.ag .ag-say li {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding: 0 12px;
-  color: oklch(0.55 0 0);
+  gap: 10px;
+  color: var(--mfg);
+}
+
+.ag .ag-say li code {
+  flex: none;
+  width: 3ch;
+  color: var(--fg);
+}
+
+.ag .ag-status {
+  width: max-content;
+  height: 26px;
+  padding-top: 4px;
+  background: linear-gradient(90deg, oklch(0.55 0 0) 40%, var(--fg) 50%, oklch(0.55 0 0) 60%) 0 0 /
+    300% 100%;
+  background-clip: text;
+  color: transparent;
   opacity: 0;
+  animation: ag-shimmer 1.6s linear infinite;
   transition: opacity 0.25s ease;
 }
 
@@ -173,53 +300,94 @@
   opacity: 1;
 }
 
-.ag .ag-spin {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--lime);
-  animation: ag-pulse 1s ease-in-out infinite alternate;
-}
-
-@keyframes ag-pulse {
+@keyframes ag-shimmer {
   from {
-    opacity: 0.25;
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
   }
 }
 
-.ag .ag-input {
+.ag .ag-composer {
   display: flex;
   flex: none;
+  align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  min-height: 48px;
+  padding: 8px 8px 8px 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.ag .ag-typed {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   color: var(--fg);
   white-space: nowrap;
 }
 
-.ag .ag-typed {
-  min-width: 0;
-  overflow: hidden;
+.ag .ag-typed[data-empty] {
+  color: oklch(0.5 0 0);
 }
 
-/* Phone column: the same session, set smaller with tighter insets */
-.ag .ss-stage[data-layout="compact"] .ag-win > .ss-window__body {
+.ag .ag-send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--muted);
+  color: var(--mfg);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.ag .ag-send[data-on] {
+  background: var(--lime);
+  color: var(--on-lime);
+}
+
+.ag .ag-rest {
+  position: absolute;
+  top: 46%;
+  right: 34px;
+  width: 1px;
+  height: 1px;
+}
+
+/* Phone column: the open thread alone, the new-thread button in its header */
+.ag .ss-stage[data-layout="compact"] .ag-side {
+  display: none;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-main {
   padding: 0 14px 14px;
-  font-size: 11.5px;
 }
 
-.ag .ss-stage[data-layout="compact"] .ag-step,
-.ag .ss-stage[data-layout="compact"] .ag-answer {
-  padding-inline: 8px;
+.ag .ss-stage[data-layout="compact"] .ag-app {
+  font-size: 12.5px;
 }
 
-.ag .ss-stage[data-layout="compact"] .ag-result {
-  padding-left: calc(8px + 7px + 10px);
+.ag .ss-stage[data-layout="compact"] .ag-head {
+  gap: 8px;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-head > .ag-cut {
+  flex: 1;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-new {
+  margin-left: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ag .ag-spin {
+  .ag .ag-spin,
+  .ag .ag-status {
     animation: none;
   }
 }
