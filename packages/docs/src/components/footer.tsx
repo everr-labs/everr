@@ -172,7 +172,7 @@ function FooterDirectory() {
                 to="/privacy"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Privacy notice
+                Privacy Policy
               </Link>
             </li>
             <li>

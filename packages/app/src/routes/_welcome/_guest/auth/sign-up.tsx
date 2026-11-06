@@ -1,3 +1,4 @@
+import { productUI } from "@composition/ui";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -38,6 +39,8 @@ function SignUp() {
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const maySignUp = !productUI.legalAcceptanceRequired || termsAccepted;
   const callbackURL = buildPostAuthenticationURL(redirectTo);
   const errorCallbackURL = buildAuthErrorCallbackURL("/auth/sign-up", {
     redirect: redirectTo,
@@ -51,6 +54,7 @@ function SignUp() {
       password: "",
     },
     onSubmit: async ({ value }) => {
+      if (!maySignUp) return;
       setError(null);
       setIsSubmitting(true);
 
@@ -83,13 +87,46 @@ function SignUp() {
     <>
       <AuthPageHeader title="Create your account" subtitle="Get started with Everr" />
 
+      {productUI.legalAcceptanceRequired && (
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input
+            id="terms-accepted"
+            type="checkbox"
+            className="mt-1"
+            checked={termsAccepted}
+            onChange={(event) => setTermsAccepted(event.target.checked)}
+          />
+          <label htmlFor="terms-accepted">
+            I agree to the{" "}
+            <a
+              href="https://everr.dev/terms"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Terms of Service
+            </a>{" "}
+            and acknowledge the{" "}
+            <a
+              href="https://everr.dev/privacy"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Privacy Policy
+            </a>
+            .
+          </label>
+        </div>
+      )}
+
       {googleSignInEnabled && (
         <div className="flex flex-col gap-4">
           <GoogleAuthButton
             label="Sign up with Google"
             callbackURL={callbackURL}
             errorCallbackURL={errorCallbackURL}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !maySignUp}
             onError={setError}
           />
           <AuthProviderSeparator />
@@ -163,7 +200,7 @@ function SignUp() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting || !maySignUp}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 size-4 animate-spin" />

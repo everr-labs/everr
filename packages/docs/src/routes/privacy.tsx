@@ -11,7 +11,7 @@ export const Route = createFileRoute("/privacy")({
   },
   head: ({ loaderData }) => ({
     meta: [
-      { title: "Privacy notice | Everr" },
+      { title: "Privacy Policy | Everr" },
       { name: "description", content: loaderData?.description },
       ...(loaderData?.draft ? [{ name: "robots", content: "noindex, nofollow" }] : []),
     ],
