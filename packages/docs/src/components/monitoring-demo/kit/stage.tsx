@@ -27,6 +27,7 @@ import {
 } from "./measure";
 import { StillContext, useReducedMotion } from "./reduced-motion";
 import { clock } from "./clock";
+import type { Playhead } from "./playhead";
 import { clamp, easeInOutCubic, isDev, warn } from "./util";
 
 // The stage: fits a design-size scene into its container, runs the script
@@ -104,6 +105,8 @@ export interface StageProps<S> {
   ground?: "orbs" | [string, string] | [string, string, string];
   /** Plays the script faster (above 1) or slower (below 1). Waits and tweens divide by it. */
   speed?: number;
+  /** A clock the script's waits and tweens follow. Pausing it pauses the script. */
+  playhead?: Playhead;
   className?: string;
   /** A specimen sheet of parts (the kit's chrome, controls, phones sheets), not a product frame: film's composition checks (framing, ladders, voids) stand down. */
   specimen?: boolean;
@@ -132,6 +135,7 @@ export function Stage<S extends object>({
   specimen,
   unframed,
   speed: speedProp = 1,
+  playhead,
   accent,
   tokens,
   ground,
@@ -446,7 +450,7 @@ export function Stage<S extends object>({
         step();
       });
     },
-    [layout],
+    [layout, initial],
   ); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Each run gets its own act (act.ts), bound to its own signal, so a
@@ -465,6 +469,7 @@ export function Stage<S extends object>({
         autoRef,
         scaleRef,
         speed,
+        now: playhead ? () => playhead.now() : clock.now,
         layout,
         cursor,
         resolve,
@@ -476,7 +481,7 @@ export function Stage<S extends object>({
         setKeys,
         setLastKeys,
       }),
-    [resolve, place, speed, layout], // eslint-disable-line react-hooks/exhaustive-deps
+    [resolve, place, speed, playhead, layout], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Run the loop only while the stage is on screen and the tab is visible.

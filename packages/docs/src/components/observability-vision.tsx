@@ -1,3 +1,13 @@
+import { AGENT_CHAPTER_MS, type AgentChapter, AgentDemo } from "@/components/agent-demo/AgentDemo";
+import { DemoPlayer, type PlayerChapter } from "@/components/demo-player";
+
+// Each chapter is one agent session, named for what Everr helps with
+const CHAPTERS: PlayerChapter<AgentChapter>[] = [
+  { chapter: 0, label: "Instrument", color: "oklch(0.7 0.15 255)", ms: AGENT_CHAPTER_MS[0] },
+  { chapter: 1, label: "Understand", color: "oklch(0.83 0.15 80)", ms: AGENT_CHAPTER_MS[1] },
+  { chapter: 2, label: "Act", color: "oklch(0.78 0.17 340)", ms: AGENT_CHAPTER_MS[2] },
+];
+
 const headingClass =
   "text-balance text-[32px] leading-[1.14] tracking-[-0.03em] min-[761px]:text-[clamp(32px,3.5vw,48px)]";
 const bodyClass = "mt-5 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground";
@@ -85,6 +95,9 @@ export function ObservabilityVision() {
               problems.
             </p>
           </div>
+        </div>
+        <div className="mt-12 max-w-[1000px]">
+          <DemoPlayer chapters={CHAPTERS}>{(player) => <AgentDemo {...player} />}</DemoPlayer>
         </div>
       </div>
     </section>

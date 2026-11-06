@@ -16,18 +16,18 @@
   font-family: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
 }
 .mo .ss-stage {
-  --gutter: 28px;
   overflow: hidden;
   background: transparent;
-  border-radius: 12px;
+  /* The card around it clips and rounds; its corners square where the player attaches */
+  border-radius: 0;
 }
 
-.mo-win {
+/* The window is the whole panel: the card around the stage is its frame */
+.mo .mo-win {
   position: absolute;
-  top: var(--gutter);
-  left: var(--gutter);
-  width: calc(100% - var(--gutter) * 2);
-  height: 560px;
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mo-app {
@@ -211,12 +211,16 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .mo-tname strong {
+  flex: none;
   font-size: 13.5px;
   font-weight: 500;
 }
 .mo-verb {
+  flex: none;
   padding: 1px 6px;
   border: 1px solid oklch(0.62 0.15 240);
   border-radius: 4px;
@@ -230,6 +234,9 @@
   color: oklch(0.8 0.15 75);
 }
 .mo-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--mfg);
   font-family: var(--ss-mono);
   font-size: 11.5px;
@@ -243,6 +250,7 @@
 .mo-svc i,
 .mo-wf-name i,
 .mo-tag i {
+  flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -330,6 +338,13 @@
   font-size: 11px;
   font-family: var(--ss-mono);
 }
+.mo-wf-axis > span,
+.mo-wf-name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .mo-wf-axis > div {
   display: flex;
   justify-content: space-between;
@@ -361,6 +376,7 @@
   white-space: nowrap;
 }
 .mo-wf-name small {
+  flex: none;
   color: var(--mfg);
   font-size: 11.5px;
 }
@@ -622,9 +638,6 @@
 }
 
 /* Compact: sidebar folds away, as in the app */
-.mo .ss-stage[data-layout="compact"] {
-  --gutter: 16px;
-}
 .mo .ss-stage[data-layout="compact"] .mo-side,
 .mo .ss-stage[data-layout="compact"] .mo-hide-c,
 .mo .ss-stage[data-layout="compact"] .mo-pill--search {
@@ -645,6 +658,11 @@
 .mo .ss-stage[data-layout="compact"] .mo-wf {
   grid-template-columns: 112px minmax(0, 1fr);
   padding-left: 10px;
+}
+.mo .ss-stage[data-layout="compact"] .mo-dtitle,
+.mo .ss-stage[data-layout="compact"] .mo-wf-head {
+  padding-left: 10px;
+  padding-right: 10px;
 }
 .mo .ss-stage[data-layout="compact"] .mo-wf-name small,
 .mo .ss-stage[data-layout="compact"] .mo-wf-name code {

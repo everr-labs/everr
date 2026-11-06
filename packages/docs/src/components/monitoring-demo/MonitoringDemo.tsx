@@ -17,25 +17,45 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useRef } from "react";
-import { Chart, Roll, Stage, Window, type Act } from "./kit";
+import { Chart, Roll, Stage, Window, type Act, type Playhead } from "./kit";
+import { AlertsView, type AlertState } from "../alerts-demo/AlertsView";
+import { RunbookView, type RunbookStep } from "../alerts-demo/RunbookView";
 import "./monitoring-demo.css";
 
 // The real Everr app, in three screens: a slow trace, a dashboard under load,
 // an error with its stack trace.
 
 type S = {
-  nav: 0 | 1 | 2;
+  nav: 0 | 1 | 2 | 3 | 4;
   detail: boolean;
   rows: number;
   mark: boolean;
   spike: boolean;
   dialog: boolean;
+  alert: AlertState;
+  runbook: RunbookStep;
 };
 
-const initial: S = { nav: 0, detail: false, rows: 0, mark: false, spike: false, dialog: false };
+const ALERT_OK: AlertState = { phase: "ok", sent: false, panel: false };
+const initial: S = {
+  nav: 0,
+  detail: false,
+  rows: 0,
+  mark: false,
+  spike: false,
+  dialog: false,
+  alert: ALERT_OK,
+  runbook: 0,
+};
 const POSTER: S = { ...initial, detail: true, rows: 4, mark: true };
 
-const PATHS = ["traces", "dashboards/http-endpoints", "errors"] as const;
+const PATHS = [
+  "traces",
+  "dashboards/http-endpoints",
+  "errors",
+  "alerts",
+  "runbooks/api/checkout-latency",
+] as const;
 
 const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number }[] }[] = [
   { label: "", items: [{ name: "Home", icon: House }] },
@@ -43,13 +63,13 @@ const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number
     label: "Monitor",
     items: [
       { name: "Dashboards", icon: LayoutDashboard, at: 1 },
-      { name: "Runbooks", icon: NotebookText },
+      { name: "Runbooks", icon: NotebookText, at: 4 },
     ],
   },
   {
     label: "Alerts",
     items: [
-      { name: "Triage", icon: Flame },
+      { name: "Triage", icon: Flame, at: 3 },
       { name: "Silences", icon: BellOff },
       { name: "Notifications", icon: Hash },
     ],
@@ -150,13 +170,43 @@ const OK_SPIKE = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 6, 16, 22];
 const ERR = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5];
 
 const CHART = { wide: { w: 270, h: 200 }, compact: { w: 272, h: 150 } };
+const RUNBOOK_CHART = { wide: { w: 440, h: 110 }, compact: { w: 310, h: 100 } };
 
-function makeScript(onScreen: (screen: 0 | 1 | 2) => void) {
-  return async function script(a: Act<S>) {
-    onScreen(0);
-    await a.wait(800);
+export type Chapter = 0 | 1 | 2 | 3 | 4;
 
-    // 1. A request that returned 200 and took 2.1 s: open its trace
+/** How long each chapter plays, in ms. A chapter that finishes early holds its last frame. */
+export const CHAPTER_MS = [7400, 5600, 6600, 11200, 7600] as const;
+
+const STARTS: readonly S[] = [
+  initial,
+  { ...initial, nav: 1 },
+  { ...initial, nav: 2 },
+  { ...initial, nav: 3 },
+  { ...initial, nav: 4 },
+];
+const POSTERS: readonly S[] = [
+  POSTER,
+  { ...initial, nav: 1, spike: true },
+  { ...initial, nav: 2, dialog: true },
+  { ...initial, nav: 3, alert: { phase: "firing", sent: true, panel: true } },
+  { ...initial, nav: 4, runbook: 2 },
+];
+
+// Each chapter runs from its STARTS state, or, when `flowing`, straight on
+// from the end of the one before it.
+const CHAPTERS: ((a: Act<S>, flowing: boolean) => Promise<void>)[] = [
+  // 1. A request that returned 200 and took 2.1 s: open its trace
+  async (a, flowing) => {
+    if (flowing) {
+      await a.snap({ detail: false, rows: 0, mark: false, spike: false });
+      await a.move("nav-0");
+      await a.click();
+      await a.set({ nav: 0 });
+      await a.wait(500);
+      // The other views have faded out by now: close the error detail and put
+      // the alert and runbook back to their start, unseen
+      await a.snap({ dialog: false, alert: ALERT_OK, runbook: 0 });
+    } else await a.wait(800);
     await a.move("row-slow");
     await a.wait(250);
     await a.click();
@@ -166,63 +216,130 @@ function makeScript(onScreen: (screen: 0 | 1 | 2) => void) {
     await a.wait(400);
     await a.set({ mark: true });
     await a.wait(2600);
-
-    // 2. The dashboard under a traffic spike
-    await a.move("nav-1");
-    await a.click();
-    await a.set({ nav: 1 });
-    onScreen(1);
+  },
+  // 2. The dashboard under a traffic spike
+  async (a, flowing) => {
+    if (flowing) {
+      await a.move("nav-1");
+      await a.click();
+      await a.set({ nav: 1 });
+    }
     await a.wait(1700);
     await a.set({ spike: true });
     await a.wait(2800);
-
-    // 3. The failure: its stack trace and occurrences
-    await a.move("nav-2");
-    await a.click();
-    await a.set({ nav: 2 });
-    onScreen(2);
+  },
+  // 3. The failure: its stack trace and occurrences
+  async (a, flowing) => {
+    if (flowing) {
+      await a.move("nav-2");
+      await a.click();
+      await a.set({ nav: 2 });
+    }
     await a.wait(800);
     await a.move("err-card");
     await a.wait(250);
     await a.click();
     await a.set({ dialog: true });
     await a.wait(3200);
-
-    // Back to traces, reset while it is hidden
-    await a.set({ dialog: false });
-    await a.wait(500);
-    await a.snap({ detail: false, rows: 0, mark: false, spike: false });
-    await a.move("nav-0");
+  },
+  // 4. An alert fires: pending, firing, the on-call channel told, then opened
+  async (a, flowing) => {
+    if (flowing) {
+      await a.move("nav-3");
+      await a.click();
+      await a.set({ nav: 3 });
+    }
+    await a.wait(1000);
+    await a.set((s) => ({ alert: { ...s.alert, phase: "pending" } }));
+    await a.wait(1700);
+    await a.set((s) => ({ alert: { ...s.alert, phase: "firing" } }));
+    await a.wait(1000);
+    await a.set((s) => ({ alert: { ...s.alert, sent: true } }));
+    await a.wait(1100);
+    await a.move("alert-card");
+    await a.wait(200);
     await a.click();
-    await a.set({ nav: 0 });
-    onScreen(0);
-    await a.wait(500);
+    await a.set((s) => ({ alert: { ...s.alert, panel: true } }));
+    await a.wait(1300);
+    await a.move("runbook");
+    await a.wait(2000);
+  },
+  // 5. The runbook it links to: find the breaching service, then its slow query
+  async (a, flowing) => {
+    if (flowing) {
+      // The cursor rests on the alert's Runbook button
+      await a.click();
+      await a.set({ nav: 4 });
+    }
+    await a.wait(900);
+    await a.set({ runbook: 1 });
+    await a.wait(1900);
+    await a.set({ runbook: 2 });
+    await a.wait(1000);
+    await a.move("rb-row");
+    await a.wait(2400);
+  },
+];
+
+const NEXT = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 0 } as const satisfies Record<Chapter, Chapter>;
+
+function makeScript(
+  from: { current: Chapter },
+  playhead: Playhead,
+  onChapter: (chapter: Chapter, startedAt: number) => void,
+) {
+  return async function script(a: Act<S>) {
+    // A restart (the stage left the screen and came back) resumes the chapter on show
+    let chapter = from.current;
+    await a.snap(STARTS[chapter]);
+    for (let flowing = false; ; flowing = true) {
+      const t0 = playhead.now();
+      from.current = chapter;
+      onChapter(chapter, t0);
+      await CHAPTERS[chapter](a, flowing);
+      await a.wait(Math.max(0, CHAPTER_MS[chapter] - (playhead.now() - t0)));
+      chapter = NEXT[chapter];
+    }
   };
 }
 
-const TITLES = ["Traces", "Dashboards", "Errors"] as const;
+const TITLES = ["Traces", "Dashboards", "Errors", "Triage", "Runbooks"] as const;
 
-export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) => void }) {
-  const report = useRef(onScreen);
-  report.current = onScreen;
-  const script = useMemo(() => makeScript((screen) => report.current?.(screen)), []);
+export function MonitoringDemo({
+  jump,
+  playhead,
+  onChapter,
+}: {
+  /** The chapter to play from. A new object restarts the demo there. */
+  jump: { chapter: Chapter };
+  playhead: Playhead;
+  onChapter?: (chapter: Chapter, startedAt: number) => void;
+}) {
+  const report = useRef(onChapter);
+  report.current = onChapter;
+  const from = useRef<Chapter>(jump.chapter);
+  const script = useMemo(() => {
+    from.current = jump.chapter;
+    return makeScript(from, playhead, (chapter, at) => report.current?.(chapter, at));
+  }, [jump, playhead]);
   return (
     <Stage<S>
       width={880}
       height={560}
       compact={{ below: 640, width: 358, height: 560 }}
       theme="dark"
-      initial={initial}
-      poster={POSTER}
+      initial={STARTS[jump.chapter]}
+      poster={POSTERS[jump.chapter]}
       script={script}
-      play="loop"
+      playhead={playhead}
+      play="once"
       fill
       cursor={{
         at: { wide: { x: 820, y: 420 }, compact: { x: 250, y: 420 } },
         style: "arrow",
         ripple: true,
       }}
-      className="mo"
+      className="mo al"
     >
       {(s, _rect, layout) => {
         const chart = CHART[layout === "compact" ? "compact" : "wide"];
@@ -271,6 +388,11 @@ export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) =>
                         <span className="mo-dim">Dashboards</span>{" "}
                         <span className="mo-dim">&gt;</span> HTTP Endpoints
                       </>
+                    ) : s.nav === 4 ? (
+                      <>
+                        <span className="mo-dim">Runbooks</span>{" "}
+                        <span className="mo-dim">&gt;</span> Checkout latency
+                      </>
                     ) : s.nav === 0 && s.detail ? (
                       "Trace"
                     ) : (
@@ -283,7 +405,7 @@ export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) =>
                   </span>
                   <span className="mo-pill">
                     <Clock size={13} aria-hidden="true" />{" "}
-                    {s.nav === 1 ? "Last 6 hours" : "Last 7 days"}
+                    {s.nav === 1 ? "Last 6 hours" : s.nav >= 3 ? "Last 1 hour" : "Last 7 days"}
                   </span>
                 </header>
 
@@ -355,7 +477,7 @@ export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) =>
                           data-hot={(s.mark && i === 2) || undefined}
                         >
                           <span className="mo-wf-name" style={{ paddingLeft: sp.depth * 12 }}>
-                            <i /> <small>api</small> {sp.name}
+                            <i /> <small>api</small> <span>{sp.name}</span>
                             {sp.tag && <code>{sp.tag}</code>}
                           </span>
                           <div className="mo-wf-track">
@@ -544,6 +666,20 @@ export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) =>
                         </div>
                       </div>
                     </div>
+                  </section>
+
+                  {/* Alerts: Triage as a rule fires */}
+                  <section className="mo-view al-view" data-on={s.nav === 3 || undefined}>
+                    <AlertsView s={s.alert} />
+                  </section>
+
+                  {/* Runbooks: the one the alert links to */}
+                  <section className="mo-view rb-view" data-on={s.nav === 4 || undefined}>
+                    <RunbookView
+                      step={s.runbook}
+                      show={s.nav === 4}
+                      chart={RUNBOOK_CHART[layout === "compact" ? "compact" : "wide"]}
+                    />
                   </section>
                 </div>
               </div>
