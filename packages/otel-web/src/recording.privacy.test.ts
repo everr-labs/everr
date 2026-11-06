@@ -163,6 +163,21 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
       expect(json, secret).not.toContain(secret);
   });
 
+  it("keeps the data-* keys of component state, unless maskAttributes is set", async () => {
+    const html = `<div data-state="open" data-side="bottom" data-user="data-secret">x</div>`;
+    const kept = await recordPage(html, {}, () => {
+      document.querySelector("div")!.setAttribute("data-state", "closed");
+    });
+    expect(kept).toContain('"data-state":"open"');
+    expect(kept).toContain('"data-side":"bottom"');
+    expect(kept).toContain('"data-state":"closed"');
+    expect(kept).not.toContain("data-secret");
+
+    const masked = await recordPage(html, { maskAttributes: ["data-*"] });
+    expect(masked).not.toContain('"data-state":"open"');
+    expect(masked).not.toContain('"data-side":"bottom"');
+  });
+
   it("strips the query and the fragment of URLs, and the address of mailto: and tel:", async () => {
     window.history.replaceState(null, "", "/page?token=page-secret#frag-secret");
     const json = await recordPage(
@@ -229,6 +244,29 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
     // A style diff keeps the property value rrweb read, which stays relative.
     expect(json).toContain('url(\\"/next\\")');
     expect(json).toContain("AAAA?keep");
+  });
+
+  it("keeps references to elements of the page", async () => {
+    const json = await recordPage(
+      `<div id="box">x</div><svg><use href="#icon"></use></svg>`,
+      { blockAllMedia: false },
+      () => {
+        document.getElementById("box")!.style.clipPath = "url(#clip)";
+      },
+    );
+    expect(json).toContain('"href":"#icon"');
+    expect(json).toContain('url(\\"#clip\\")');
+  });
+
+  it("keeps the quotes of a url() that has spaces inside, so the style still parses", async () => {
+    const json = await recordPage(
+      `<div style="background: url( '/bg?token=spaced-secret' ); color: red">x</div>`,
+      { maskAllText: false },
+    );
+    expect(json).not.toContain("spaced-secret");
+    const style = /"style":"([^"]*)"/.exec(json)![1];
+    expect(style.split("'").length % 2, style).toBe(1);
+    expect(style).toContain("color: red");
   });
 });
 
