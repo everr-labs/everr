@@ -355,7 +355,7 @@ export function MonitoringDemo({ onScreen }: { onScreen?: (screen: 0 | 1 | 2) =>
                           data-hot={(s.mark && i === 2) || undefined}
                         >
                           <span className="mo-wf-name" style={{ paddingLeft: sp.depth * 12 }}>
-                            <i /> <small>api</small> {sp.name}
+                            <i /> <small>api</small> <span>{sp.name}</span>
                             {sp.tag && <code>{sp.tag}</code>}
                           </span>
                           <div className="mo-wf-track">
