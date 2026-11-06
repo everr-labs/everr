@@ -1,6 +1,7 @@
 import type { ProductUI } from "@everr/app/composition";
 import { Link } from "@tanstack/react-router";
 export const productUI: ProductUI = {
+  legalAcceptanceRequired: true,
   SignInFooter: ({ redirect, email }) => (
     <p className="text-center text-sm text-muted-foreground">
       Don&apos;t have an account?{" "}

@@ -6,6 +6,7 @@ export interface SignInFooterProps {
 }
 
 export interface ProductUI {
+  legalAcceptanceRequired: boolean;
   SignInFooter: ComponentType<SignInFooterProps>;
   DeviceLoginRecovery: ComponentType;
 }

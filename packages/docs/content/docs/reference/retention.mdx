@@ -3,7 +3,7 @@ title: Data Retention
 description: How long Everr keeps your traces, logs, and metrics, and how retention behaves when your plan changes.
 ---
 
-Everr keeps your telemetry for a fixed window based on your plan. Once data falls outside that window it is removed automatically and cannot be recovered.
+Everr schedules telemetry to expire based on the plan in effect when it is received. Expiry is based on the event's calendar date, and automatic removal may take additional time. Required deletion or end-of-service handling may result in earlier deletion.
 
 ## How long we keep your data
 
@@ -17,12 +17,10 @@ One window per plan, the same for traces, logs and metrics. No signal rolls off 
 
 ## When your plan changes
 
-Each event is kept for the window of your plan **at the time we receive it**. Retention is not retroactive, so a plan change only affects data that arrives after it. A new window takes effect within about a minute.
+Each event is assigned the window of your plan **at the time we receive it**. Retention is not retroactive, so a plan change only affects data that arrives after it. A new window takes effect within about a minute.
 
-- **Upgrading.** Data that arrives after the upgrade is kept for the longer window. Data you already have still expires on the old schedule, which on the Hobby plan is at most the last 14 days.
-- **Downgrading.** Data you already have keeps its original window, up to a year. Data that arrives after the downgrade follows the shorter window. Nothing is deleted early.
-
-We never delete your data before the window it was stored with, even when something goes wrong on our side.
+- **Upgrading.** Data that arrives after the upgrade is assigned the longer window. Data you already have remains scheduled to expire under the old window.
+- **Downgrading.** Data you already have retains its original window, while data that arrives after the downgrade follows the shorter window.
 
 ## Custom retention
 

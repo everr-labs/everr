@@ -11,7 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiAssistedRouteImport } from './routes/ai-assisted'
+import { Route as DpaRouteImport } from './routes/dpa'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as WhyObservabilityRouteImport } from './routes/why-observability'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
@@ -32,9 +35,24 @@ const AiAssistedRoute = AiAssistedRouteImport.update({
   path: '/ai-assisted',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DpaRoute = DpaRouteImport.update({
+  id: '/dpa',
+  path: '/dpa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WhyObservabilityRoute = WhyObservabilityRouteImport.update({
@@ -86,7 +104,10 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/dpa': typeof DpaRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -100,7 +121,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/dpa': typeof DpaRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -115,7 +139,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai-assisted': typeof AiAssistedRoute
+  '/dpa': typeof DpaRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
   '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -131,7 +158,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai-assisted'
+    | '/dpa'
     | '/pricing'
+    | '/privacy'
+    | '/terms'
     | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
@@ -145,7 +175,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ai-assisted'
+    | '/dpa'
     | '/pricing'
+    | '/privacy'
+    | '/terms'
     | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
@@ -159,7 +192,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ai-assisted'
+    | '/dpa'
     | '/pricing'
+    | '/privacy'
+    | '/terms'
     | '/why-observability'
     | '/api/search'
     | '/blog/$slug'
@@ -174,7 +210,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiAssistedRoute: typeof AiAssistedRoute
+  DpaRoute: typeof DpaRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
   WhyObservabilityRoute: typeof WhyObservabilityRoute
   ApiSearchRoute: typeof ApiSearchRoute
   BlogSlugRoute: typeof BlogSlugRoute
@@ -202,11 +241,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiAssistedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dpa': {
+      id: '/dpa'
+      path: '/dpa'
+      fullPath: '/dpa'
+      preLoaderRoute: typeof DpaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/why-observability': {
@@ -278,7 +338,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiAssistedRoute: AiAssistedRoute,
+  DpaRoute: DpaRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
   WhyObservabilityRoute: WhyObservabilityRoute,
   ApiSearchRoute: ApiSearchRoute,
   BlogSlugRoute: BlogSlugRoute,
