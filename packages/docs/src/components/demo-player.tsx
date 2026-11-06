@@ -278,7 +278,10 @@ function ChapterIndex<C extends number>({
   onJump: (chapter: C) => void;
 }) {
   return (
-    <nav aria-label="Demo chapters" className="hidden w-[200px] shrink-0 pt-[5.125rem] xl:block">
+    <nav
+      aria-label="Demo chapters"
+      className="hidden w-[200px] shrink-0 pt-[5.125rem] motion-reduce:pt-0 xl:block"
+    >
       <ul className="grid gap-1">
         {chapters.map(({ chapter, label, color }) => {
           const active = chapter === current;

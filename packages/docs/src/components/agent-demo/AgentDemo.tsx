@@ -191,7 +191,9 @@ async function run(a: Act<S>, c: AgentChapter, flowing: boolean) {
   const thread = THREADS[c];
   if (flowing) {
     // A new session for a new question
-    await a.wait(200);
+    // The last chapter may have left its dashboard open: close it before going on
+    await a.set({ dash: false });
+    await a.wait(500);
     await a.move("new");
     await a.wait(150);
     await a.click();
@@ -420,7 +422,7 @@ export function AgentDemo({
                 </span>
               </div>
             </main>
-            <div className="ag-dash" data-on={s.dash || undefined}>
+            <div className="ag-dash" data-on={s.dash || undefined} aria-hidden={!s.dash}>
               <Window url={PREVIEW_URL} className="mo-win">
                 <div className="ag-dash-body">
                   <div className="ag-dash-head">
