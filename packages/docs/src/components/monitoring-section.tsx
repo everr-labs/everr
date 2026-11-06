@@ -27,10 +27,68 @@ const clockTime = (ms: number) => {
 
 type Side = "top" | "bottom";
 
+// The timeline's elements and geometry, drawn imperatively: geometry is
+// measured on resize, and a frame only writes transforms and text, so it
+// never forces a layout.
+class TimelineView {
+  segments: (HTMLButtonElement | null)[] = [];
+  fills: (HTMLSpanElement | null)[] = [];
+  track: HTMLDivElement | null = null;
+  head: HTMLSpanElement | null = null;
+  flag: HTMLSpanElement | null = null;
+  hoverFlag: HTMLSpanElement | null = null;
+  time: HTMLSpanElement | null = null;
+  hoverX: number | null = null;
+  geo: { segs: { left: number; width: number }[]; track: number; flag: number; hover: number } = {
+    segs: [],
+    track: 0,
+    flag: 0,
+    hover: 0,
+  };
+
+  constructor(
+    private playhead: Playhead,
+    private chapter: RefObject<Chapter>,
+    private startedAt: RefObject<number>,
+  ) {}
+
+  measure() {
+    this.geo = {
+      segs: this.segments.map((el) => ({ left: el?.offsetLeft ?? 0, width: el?.offsetWidth ?? 0 })),
+      track: this.track?.offsetWidth ?? 0,
+      flag: this.flag?.offsetWidth ?? 0,
+      hover: this.hoverFlag?.offsetWidth ?? 0,
+    };
+    this.draw();
+  }
+
+  draw() {
+    const g = this.geo;
+    const c = this.chapter.current;
+    const into = Math.min(CHAPTER_MS[c], Math.max(0, this.playhead.now() - this.startedAt.current));
+    const p = into / CHAPTER_MS[c];
+    const seg = g.segs[c];
+    const x = seg ? seg.left + p * seg.width : 0;
+    const clamp = (at: number, w: number) =>
+      Math.min(Math.max(0, at - w / 2), Math.max(0, g.track - w));
+    this.fills.forEach((el, i) => {
+      if (el) el.style.transform = `scaleX(${i < c ? 1 : i === c ? p : 0})`;
+    });
+    if (this.head) this.head.style.transform = `translateX(${x}px)`;
+    if (this.flag) this.flag.style.transform = `translateX(${clamp(x, g.flag)}px)`;
+    if (this.hoverFlag && this.hoverX !== null)
+      this.hoverFlag.style.transform = `translateX(${clamp(this.hoverX, g.hover)}px)`;
+    const before = CHAPTER_MS.slice(0, c).reduce((sum, ms) => sum + ms, 0);
+    const text = `${clockTime(before + into)} / ${clockTime(TOTAL_MS)}`;
+    if (this.time && this.time.textContent !== text) this.time.textContent = text;
+  }
+}
+
 // Pause, the chapters as colored segments, a bar at the play position with the
 // chapter's name in a flag, and the time played. Hovering a segment previews
 // its name in a flag at the pointer. The fills, bar, flag positions and time
-// are written each frame from the playhead, outside React.
+// are written from the playhead outside React, as transforms, from geometry
+// measured on resize.
 function Timeline({
   playhead,
   chapter,
@@ -50,50 +108,46 @@ function Timeline({
   onToggle: () => void;
   onJump: (chapter: Chapter) => void;
 }) {
-  const segments = useRef<(HTMLButtonElement | null)[]>([]);
-  const fills = useRef<(HTMLSpanElement | null)[]>([]);
-  const head = useRef<HTMLSpanElement>(null);
-  const flag = useRef<HTMLSpanElement>(null);
-  const time = useRef<HTMLSpanElement>(null);
-  const hoverFlag = useRef<HTMLSpanElement>(null);
-  const hoverX = useRef<number | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const [view] = useState(() => new TimelineView(playhead, chapter, startedAt));
   const [hover, setHover] = useState<Chapter | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  // Measure now and whenever the track or a flag resizes (a flag resizes when
+  // its label changes), then redraw at the new geometry
   useEffect(() => {
+    view.measure();
+    const ro = new ResizeObserver(() => view.measure());
+    for (const el of [view.track, view.flag, view.hoverFlag]) if (el) ro.observe(el);
+    return () => ro.disconnect();
+  }, [view]);
+
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  // Run frames only while the player is on screen and playing. Paused or
+  // jumped, one frame brings it up to date.
+  useEffect(() => {
+    view.draw();
+    if (!visible || paused) return;
     let id = 0;
     const tick = () => {
-      const c = chapter.current;
-      const into = Math.min(CHAPTER_MS[c], Math.max(0, playhead.now() - startedAt.current));
-      const p = into / CHAPTER_MS[c];
-      // Read layout before writing styles, so each frame lays out once
-      const seg = segments.current[c];
-      const track = seg?.parentElement;
-      const x = seg ? seg.offsetLeft + p * seg.offsetWidth : 0;
-      const width = track?.offsetWidth ?? 0;
-      const room = width - (flag.current?.offsetWidth ?? 0);
-      const hx = hoverX.current;
-      const hw = hoverFlag.current?.offsetWidth ?? 0;
-      fills.current.forEach((el, i) => {
-        if (el) el.style.transform = `scaleX(${i < c ? 1 : i === c ? p : 0})`;
-      });
-      if (head.current) head.current.style.left = `${x}px`;
-      if (flag.current) {
-        const w = flag.current.offsetWidth;
-        flag.current.style.left = `${Math.min(Math.max(0, x - w / 2), Math.max(0, room))}px`;
-      }
-      if (hoverFlag.current && hx !== null)
-        hoverFlag.current.style.left = `${Math.min(Math.max(0, hx - hw / 2), Math.max(0, width - hw))}px`;
-      const before = CHAPTER_MS.slice(0, c).reduce((sum, ms) => sum + ms, 0);
-      if (time.current)
-        time.current.textContent = `${clockTime(before + into)} / ${clockTime(TOTAL_MS)}`;
+      view.draw();
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
-  }, [playhead, chapter, startedAt]);
+  }, [view, visible, paused, current]);
 
   const color = CHAPTERS[current].color;
   return (
     <div
+      ref={root}
       className={cn(
         "flex h-11 items-center gap-3 border border-border bg-card px-2.5",
         side === "top" ? "rounded-t-xl border-b-0" : "rounded-b-xl border-t-0",
@@ -108,16 +162,21 @@ function Timeline({
         {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
       </button>
       <div
+        ref={(el) => {
+          view.track = el;
+        }}
         className="relative flex min-w-0 flex-1 gap-1"
         onPointerMove={(e) => {
           const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-          hoverX.current = x;
-          const i = segments.current.findIndex((el) => el && x < el.offsetLeft + el.offsetWidth);
+          view.hoverX = x;
+          const i = view.geo.segs.findIndex((s) => x < s.left + s.width);
           const next = CHAPTERS[i === -1 ? CHAPTERS.length - 1 : i].chapter;
           if (next !== hover) setHover(next);
+          // The frame loop may be stopped (paused, or between frames): place the preview now
+          view.draw();
         }}
         onPointerLeave={() => {
-          hoverX.current = null;
+          view.hoverX = null;
           setHover(null);
         }}
       >
@@ -125,7 +184,7 @@ function Timeline({
           <button
             key={chapter}
             ref={(el) => {
-              segments.current[i] = el;
+              view.segments[i] = el;
             }}
             type="button"
             onClick={() => onJump(chapter)}
@@ -136,7 +195,7 @@ function Timeline({
             <span className="block h-[3px] overflow-hidden rounded-full bg-muted transition-[height,background-color] duration-150 group-hover:h-[7px] group-hover:bg-white/35">
               <span
                 ref={(el) => {
-                  fills.current[i] = el;
+                  view.fills[i] = el;
                 }}
                 style={{ backgroundColor: color, transform: "scaleX(0)" }}
                 className="block h-full origin-left"
@@ -145,12 +204,16 @@ function Timeline({
           </button>
         ))}
         <span
-          ref={head}
+          ref={(el) => {
+            view.head = el;
+          }}
           style={{ backgroundColor: color }}
           className="pointer-events-none absolute top-1/2 left-0 h-3.5 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card"
         />
         <span
-          ref={flag}
+          ref={(el) => {
+            view.flag = el;
+          }}
           aria-live="polite"
           style={{ backgroundColor: color }}
           className={cn(
@@ -163,7 +226,9 @@ function Timeline({
         </span>
         {/* The preview: which chapter a click on the segment under the pointer plays */}
         <span
-          ref={hoverFlag}
+          ref={(el) => {
+            view.hoverFlag = el;
+          }}
           aria-hidden="true"
           style={{ backgroundColor: hover === null ? undefined : CHAPTERS[hover].color }}
           className={cn(
@@ -175,7 +240,12 @@ function Timeline({
           {hover === null ? "" : CHAPTERS[hover].label}
         </span>
       </div>
-      <span ref={time} className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+      <span
+        ref={(el) => {
+          view.time = el;
+        }}
+        className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground"
+      >
         {`0:00 / ${clockTime(TOTAL_MS)}`}
       </span>
     </div>
@@ -186,8 +256,9 @@ function Timeline({
 // scrolled under the site header.
 const HEADER_PX = 56;
 const SIDES: Side[] = ["top", "bottom"];
-// Far enough to clear the clip, flag included: up and out at the top, down and out below
-const SLIDE: Record<Side, number> = { top: -90, bottom: 90 };
+// The controls tuck into the card's edge: down behind it at the top, up behind
+// it below. Far enough to clear the clip, flag included.
+const SLIDE: Record<Side, number> = { top: 90, bottom: -90 };
 
 function MonitoringShowcase() {
   const [playhead] = useState(() => new Playhead());

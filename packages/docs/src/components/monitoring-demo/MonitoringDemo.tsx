@@ -203,8 +203,9 @@ const CHAPTERS: ((a: Act<S>, flowing: boolean) => Promise<void>)[] = [
       await a.click();
       await a.set({ nav: 0 });
       await a.wait(500);
-      // Triage has faded out by now: put its alert back to OK unseen
-      await a.snap({ alert: ALERT_OK, runbook: 0 });
+      // The other views have faded out by now: close the error detail and put
+      // the alert and runbook back to their start, unseen
+      await a.snap({ dialog: false, alert: ALERT_OK, runbook: 0 });
     } else await a.wait(800);
     await a.move("row-slow");
     await a.wait(250);
@@ -240,8 +241,6 @@ const CHAPTERS: ((a: Act<S>, flowing: boolean) => Promise<void>)[] = [
     await a.click();
     await a.set({ dialog: true });
     await a.wait(3200);
-    await a.set({ dialog: false });
-    await a.wait(500);
   },
   // 4. An alert fires: pending, firing, the on-call channel told, then opened
   async (a, flowing) => {
