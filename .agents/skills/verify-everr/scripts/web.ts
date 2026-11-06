@@ -858,8 +858,8 @@ async function cmdWebSdkPage(args: string[]): Promise<number> {
     .replace(
       "__RECORDING_IMPORT__",
       recordingOn
-        ? `import { emitRecording, recording } from ${JSON.stringify(recordingSrc)};`
-        : "const recording: any = undefined;\nconst emitRecording: any = undefined;",
+        ? `import { recording, recorder } from ${JSON.stringify(recordingSrc)};`
+        : "const recording: any = undefined;\nconst recorder: any = undefined;",
     );
   writeFileSync(path.join(dir, "entry.ts"), entry);
   copyFileSync(path.join(SCRIPT_DIR, "sdk-page/index.html"), path.join(dir, "index.html"));

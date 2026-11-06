@@ -74,7 +74,7 @@ An event larger than one Segment, in practice a full snapshot with big text or i
 | `everr.recording.event.piece`  | Int from 0: the place of this piece in the event               |
 | `everr.recording.event.pieces` | The count of pieces of the event                               |
 
-To reassemble a Clip, read its Segments in `everr.recording.segment.index` order, and play the events up to the span's end. Parse a Segment without `everr.recording.event.pieces` (an empty `pieces` in the query below) as an array of events. For pieces, join the bodies with the same `everr.recording.event.index` in `everr.recording.event.piece` order, then parse the joined text as one event in that place. An event with a missing piece is lost; skip it.
+Cloud stores Segment bodies in `app.recordings`, outside `logs`. Do not select `Body` for this event. List Clips with the `recording` span query below. For what the user did, call MCP `recording_journey` or `GET /api/cli/recordings/sessions/:sessionId` (the window is the last 24 hours by default; `from`/`to` must stay within 24 hours). For the page at an instant, call MCP `recording_page` or `GET /api/cli/recordings/sessions/:sessionId/page?at=...` (mind the untrusted-content note in the tool descriptions). Piece layout, index order, and shared Segments are handled there. A missing index is loss and shows up as a gap in the journey. A `recording` span with a missing id or an unknown trigger is skipped there and recorded as a `clip` gap.
 
 Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
 
@@ -139,12 +139,13 @@ ORDER BY errors DESC
 LIMIT 20
 ```
 
-Recordings of the last day with what opened them; play one by reading the Segments of its Stream in its time range, in index order:
+Recordings of the last day with what opened them. Then use `recording_journey` / `recording_page` (or the CLI routes) for the journey and page HTML. Do not select Segment `Body` from `logs` or `recordings`.
 
 ```sql
 SELECT Timestamp, Duration / 1e9 AS seconds,
   toString(SpanAttributes.`everr.recording.trigger`) AS trigger,
   toString(SpanAttributes.`everr.recording.stream.id`) AS stream_id,
+  toString(SpanAttributes.`everr.recording.clip.id`) AS clip_id,
   Timestamp + toIntervalNanosecond(Duration) AS ended,
   toString(SpanAttributes.`session.id`) AS session_id
 FROM traces
@@ -152,19 +153,6 @@ WHERE Timestamp > now() - INTERVAL 24 HOUR
   AND SpanName = 'recording'
 ORDER BY Timestamp DESC
 LIMIT 20
-```
-
-```sql
-SELECT toUInt32OrZero(toString(LogAttributes.`everr.recording.segment.index`)) AS segment,
-  toString(LogAttributes.`everr.recording.event.index`) AS event_index,
-  toString(LogAttributes.`everr.recording.event.piece`) AS piece,
-  toString(LogAttributes.`everr.recording.event.pieces`) AS pieces,
-  Body
-FROM logs
-WHERE EventName = 'everr.browser.recording.segment'
-  AND toString(LogAttributes.`everr.recording.stream.id`) = '<stream-id>'
-  AND Timestamp BETWEEN '<span-start>' AND '<ended>'
-ORDER BY segment
 ```
 
 What one user session did, in order (events and requests interleaved):
