@@ -27,6 +27,7 @@ import type { ReactNode } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
+import { everrVersion } from "#app/version.ts";
 
 export interface UserMenuProps {
   beforeOrganization?: ReactNode;
@@ -153,6 +154,11 @@ export function UserMenu({ beforeOrganization, organizationItems }: UserMenuProp
               <LogOut />
               Log out
             </DropdownMenuItem>
+            {everrVersion ? (
+              <div className="px-2 pt-1 pb-1.5 text-xs text-muted-foreground tabular-nums">
+                Everr {everrVersion}
+              </div>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

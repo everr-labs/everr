@@ -121,6 +121,24 @@ describe("telemetry config", () => {
     });
   });
 
+  it("falls back to the release version when no deployment names one", () => {
+    expect(
+      telemetryResourceAttributes({ NODE_ENV: "production" }, "instance-1", "0.10.2")[
+        "service.version"
+      ],
+    ).toBe("0.10.2");
+    expect(
+      telemetryResourceAttributes({ GITHUB_SHA: "abc123" }, "instance-1", "0.10.2")[
+        "service.version"
+      ],
+    ).toBe("abc123");
+    expect(
+      telemetryResourceAttributes({ NODE_ENV: "development" }, "instance-1", "0.10.2")[
+        "service.version"
+      ],
+    ).toBe("local-dev");
+  });
+
   it("builds OTLP signal URLs from base or signal-specific endpoints", () => {
     expect(signalUrl("http://127.0.0.1:54318", "traces")).toBe("http://127.0.0.1:54318/v1/traces");
     expect(signalUrl("http://127.0.0.1:54318/v1/traces", "logs")).toBe(

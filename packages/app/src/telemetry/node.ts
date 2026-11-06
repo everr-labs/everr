@@ -11,6 +11,7 @@ import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-node";
 import { registerShutdownHook } from "#app/server/shutdown.ts";
+import { everrVersion } from "#app/version.ts";
 import { resolveTelemetryConfig, signalUrl } from "./config";
 import { identityLogProcessor, identitySpanProcessor } from "./identity";
 
@@ -52,7 +53,7 @@ export function getTelemetryTracer(name = "everr-app.server") {
 export { captureError, SpanKind };
 
 function startTelemetry(): TelemetryState {
-  const config = resolveTelemetryConfig(process.env, randomUUID());
+  const config = resolveTelemetryConfig(process.env, randomUUID(), everrVersion);
 
   if (!config) {
     return { sdk: null, shuttingDown: false };

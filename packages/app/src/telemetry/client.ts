@@ -1,5 +1,6 @@
 import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 import { readConsent } from "#app/telemetry/consent.ts";
+import { everrVersion } from "#app/version.ts";
 import { resolveBrowserTelemetryConfig } from "./config";
 
 // The browser telemetry of the web app, and this app uses our own product. The
@@ -32,6 +33,7 @@ const browserTelemetry = resolveBrowserTelemetryConfig({
 new WebSDK({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
   serviceName: "everr-dev-app-web",
+  serviceVersion: everrVersion,
   deploymentEnvironment: import.meta.env.MODE,
   // Pass credentials only when this build has selected a destination.
   ingestKey: browserTelemetry.ingestKey,

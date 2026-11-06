@@ -12,4 +12,6 @@ interface ImportMetaEnv {
    * development can use the local collector.
    */
   readonly VITE_EVERR_INGEST_ENDPOINT?: string;
+  /** Release version of this build, from package.json. Unset outside Vite builds. */
+  readonly EVERR_VERSION?: string;
 }

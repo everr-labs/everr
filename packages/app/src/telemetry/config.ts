@@ -37,6 +37,7 @@ export function resolveBrowserTelemetryConfig(env: { endpoint?: string; publicKe
 export function resolveTelemetryConfig(
   env: TelemetryEnv,
   serviceInstanceId: string,
+  releaseVersion?: string,
 ): TelemetryConfig | null {
   const explicitEndpoint = cleanEnvValue(env.OTEL_EXPORTER_OTLP_ENDPOINT);
   const everrEndpoint = cleanEnvValue(env.EVERR_INGEST_ENDPOINT);
@@ -57,16 +58,23 @@ export function resolveTelemetryConfig(
   return {
     endpoint,
     headers: usesEverrIngest && ingestKey ? { Authorization: `Bearer ${ingestKey}` } : undefined,
-    resourceAttributes: telemetryResourceAttributes(env, serviceInstanceId),
+    resourceAttributes: telemetryResourceAttributes(env, serviceInstanceId, releaseVersion),
   };
 }
 
-export function telemetryResourceAttributes(env: TelemetryEnv, serviceInstanceId: string) {
+export function telemetryResourceAttributes(
+  env: TelemetryEnv,
+  serviceInstanceId: string,
+  releaseVersion?: string,
+) {
+  // A deployment can still name a finer version (a commit). Otherwise the build
+  // reports its release, which is what self-hosted installations run.
   const serviceVersion =
     cleanEnvValue(env.SERVICE_VERSION) ??
     cleanEnvValue(env.VERCEL_GIT_COMMIT_SHA) ??
     cleanEnvValue(env.GITHUB_SHA) ??
-    localServiceVersion(env);
+    localServiceVersion(env) ??
+    cleanEnvValue(releaseVersion);
   const deploymentEnvironment =
     cleanEnvValue(env.DEPLOYMENT_ENVIRONMENT) ??
     cleanEnvValue(env.VERCEL_ENV) ??

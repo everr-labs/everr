@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
@@ -29,9 +30,15 @@ export function createAppConfig(
       process.env[name] ??= value;
     }
     const require = createRequire(import.meta.url);
+    // One release version for the app, its Cloud composition, the CLI, and the
+    // libraries (a fixed changesets group). Baked in so the image reports it.
+    const { version } = JSON.parse(readFileSync(resolve(appDirectory, "package.json"), "utf8"));
 
     return {
       root: appDirectory,
+      define: {
+        "import.meta.env.EVERR_VERSION": JSON.stringify(version),
+      },
       envDir: process.cwd(),
       cacheDir: resolve(process.cwd(), "node_modules/.vite"),
       publicDir: resolve(appDirectory, "public"),
