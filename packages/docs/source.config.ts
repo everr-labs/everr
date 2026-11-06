@@ -49,7 +49,6 @@ export const legal = defineCollections({
     title: z.string(),
     description: z.string(),
     updated: z.string().date(),
-    draft: z.boolean(),
   }),
 });
 

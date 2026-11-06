@@ -13,7 +13,6 @@ export const Route = createFileRoute("/dpa")({
     meta: [
       { title: "Data Processing Agreement | Everr" },
       { name: "description", content: loaderData?.description },
-      ...(loaderData?.draft ? [{ name: "robots", content: "noindex, nofollow" }] : []),
     ],
   }),
   component: DpaPage,
@@ -28,7 +27,6 @@ const serverLoader = createServerFn({ method: "GET" }).handler(async () => {
     title: page.data.title,
     description: page.data.description,
     updated: page.data.updated,
-    draft: page.data.draft,
   };
 });
 
