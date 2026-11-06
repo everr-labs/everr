@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
-import { type BeforeSend, createEmitter, type Emit, type EmitSpan } from "./emitter.js";
+import {
+  type BeforeSend,
+  createEmitter,
+  type Emit,
+  type EmitSpan,
+  type SendEvent,
+} from "./emitter.js";
 import { fetchSend } from "./transport.js";
 
 type SentBatch = {
@@ -32,7 +38,11 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(envelope: () => Record<string, string> = () => ({}), beforeSend?: BeforeSend) {
+function makeEmitter(
+  envelope: (session?: string) => Record<string, string> = () => ({}),
+  beforeSend?: BeforeSend,
+  observe?: (item: SendEvent) => void,
+) {
   sent = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -56,6 +66,8 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({}), before
     { name: "@everr/otel-web", version: "test" },
     envelope,
     beforeSend,
+    undefined,
+    observe,
   );
 }
 
@@ -669,5 +681,69 @@ describe("a caller-supplied send owns delivery", () => {
     await vi.advanceTimersByTimeAsync(50);
     await pending;
     expect(settled).toBe(true);
+  });
+});
+
+describe("observe", () => {
+  it("sees each log and span that beforeSend keeps, as the hook returned it", () => {
+    const seen: SendEvent[] = [];
+    const [log, , , span, now] = makeEmitter(
+      undefined,
+      (item) =>
+        item.kind === "log" && item.eventName === "dropped"
+          ? null
+          : { ...item, attributes: { ...item.attributes, scrubbed: true } },
+      (item) => seen.push(item),
+    );
+    log("kept");
+    log("dropped");
+    span("a".repeat(32), "b".repeat(16), "request", 0, 1, {});
+    void now("segment", {}, 1, "[]");
+    expect(
+      seen.map((item) => [item.kind, item.kind === "log" ? item.eventName : item.name]),
+    ).toEqual([
+      ["log", "kept"],
+      ["span", "request"],
+      ["log", "segment"],
+    ]);
+    expect(seen.every((item) => item.attributes.scrubbed)).toBe(true);
+  });
+});
+
+describe("emitNow, the path of the recording Segments", () => {
+  it("sends one record on its own request, outside the queue and without keepalive", async () => {
+    const [queued, flushQueue, , , emitNow] = makeEmitter();
+    queued("page_view");
+    await emitNow(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 0 },
+      1_000,
+      "[]",
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBeUndefined();
+    const [record] = sent[0].payload.resourceLogs[0].scopeLogs[0].logRecords;
+    expect(record).toMatchObject({
+      eventName: "everr.browser.recording.segment",
+      timeUnixNano: "1000000000",
+    });
+    expect(record.body).toEqual({ stringValue: "[]" });
+    await flushQueue();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("passes the record's own session to the envelope, so the session is not read", async () => {
+    const envelope = vi.fn((session?: string) => ({ "session.id": session ?? "read" }));
+    const [queued, flushQueue, , , emitNow] = makeEmitter(envelope);
+    await emitNow("segment", { "session.id": "stream-session" }, 1, "[]");
+    queued("page_view");
+    await flushQueue();
+    expect(envelope.mock.calls).toEqual([["stream-session"], [undefined]]);
+  });
+
+  it("goes through beforeSend, and a null drops it without a request", async () => {
+    const [, , , , emitNow] = makeEmitter(undefined, () => null);
+    await emitNow("segment", {}, 1, "[]");
+    expect(sent).toEqual([]);
   });
 });

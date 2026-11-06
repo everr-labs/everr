@@ -1,7 +1,7 @@
 // The rules for an instrumentation. The code that operates them is in the
 // WebSDK constructor. That constructor calls each instrumentation with a small
-// context. The context has seven members and nothing more: no transport, no
-// batch code, and no internal parts of a record. The shutdown() function calls
+// context. The context has what a source of capture needs and nothing more: no
+// transport, no batch code, and no internal parts of a record. The shutdown() function calls
 // the stop functions in the opposite sequence, before the pipeline
 // disconnects.
 //
@@ -15,7 +15,7 @@
 // does not hide it.
 
 import type { Tracer } from "@opentelemetry/api";
-import type { AttrValue } from "../pipeline/emitter.js";
+import type { AttrValue, EmitNow, SendEvent } from "../pipeline/emitter.js";
 import type { PageContext } from "../state/session.js";
 
 /**
@@ -39,6 +39,12 @@ export interface InstrumentationContext {
     attributes?: Record<string, AttrValue | null | undefined>,
     timestamp?: number,
   ): void;
+  /**
+   * Sends one log record with the envelope, as `EmitNow` says. Its
+   * `session.id` attribute, when present, names the session of the record,
+   * and the SDK then does not refresh the current session.
+   */
+  emitNow: EmitNow;
   /**
    * The OTel tracer of the SDK. The traces pipeline sends a completed span.
    * The SDK has no context manager, and thus its rule for the active span is
@@ -74,6 +80,13 @@ export interface InstrumentationContext {
    * listener.
    */
   onHide(listener: () => void): () => void;
+  /**
+   * Adds a listener for each log record and span that the SDK sends, after the
+   * `beforeSend` hook keeps it. Thus a listener sees only what leaves the page,
+   * the records that it sends itself with `emitNow` too. This function returns
+   * the function that removes the listener.
+   */
+  onRecord(listener: (item: SendEvent) => void): () => void;
   /** The `dev` option of the WebSDK. */
   dev: boolean;
 }
