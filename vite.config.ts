@@ -32,6 +32,8 @@ const ignorePatterns = [
   "**/.vscode/**",
   "packages/docs/content/**/*.json",
   "packages/docs/cli.json",
+  // Vendored demo animation kit, kept as upstream ships it.
+  "packages/docs/src/components/monitoring-demo/kit/**",
 ];
 
 export default defineConfig({

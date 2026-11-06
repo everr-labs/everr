@@ -157,6 +157,11 @@
   },
   "ignoreExports": [
     {
+      // Vendored demo animation kit: exports are the kit's own API surface.
+      "file": "packages/docs/src/components/monitoring-demo/kit/**",
+      "exports": ["*"],
+    },
+    {
       // Explicitly registered TanStack layouts still require the named Route export.
       "file": "packages/app/src/routes/**/-_*.tsx",
       "exports": ["Route"],
