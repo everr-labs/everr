@@ -158,6 +158,8 @@ export interface ActEnv<S> {
   autoRef: Ref<((p: Point) => void) | null>;
   scaleRef: Ref<number>;
   speed: number;
+  /** Script time in ms. A paused playhead holds it, and with it every wait and tween. */
+  now: () => number;
   layout: Layout;
   cursor?: { ripple?: boolean; style?: string };
   resolve: (t: Target) => Point;
@@ -185,6 +187,7 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
     autoRef,
     scaleRef,
     speed,
+    now,
     layout,
     cursor,
     resolve,
@@ -218,7 +221,11 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
       signal.addEventListener("abort", abort, { once: true });
     });
   const frame = () => pause((done) => requestAnimationFrame(done), cancelAnimationFrame);
-  const wait = (ms: number) => pause((done) => setTimeout(done, ms / speed), clearTimeout);
+  const wait = async (ms: number) => {
+    const end = now() + ms / speed;
+    do await frame();
+    while (now() < end);
+  };
   // Release transient DOM/ref state synchronously on abort. The guarded
   // finally call cannot then clear a new run's press or drag ownership.
   const own = (release: () => void) => {
@@ -233,11 +240,11 @@ export function createAct<S>(signal: AbortSignal, env: ActEnv<S>): Act<S> {
     return done;
   };
   const tween = async (ms: number, step: (t: number) => void) => {
-    const start = performance.now();
+    const start = now();
     const dur = ms / speed;
     for (;;) {
       check();
-      const t = Math.min(1, (performance.now() - start) / dur);
+      const t = Math.min(1, (now() - start) / dur);
       step(t);
       if (t === 1) return;
       await frame();

@@ -16,18 +16,18 @@
   font-family: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
 }
 .mo .ss-stage {
-  --gutter: 28px;
   overflow: hidden;
   background: transparent;
-  border-radius: 12px;
+  /* The card around it clips and rounds; its corners square where the player attaches */
+  border-radius: 0;
 }
 
-.mo-win {
+/* The window is the whole panel: the card around the stage is its frame */
+.mo .mo-win {
   position: absolute;
-  top: var(--gutter);
-  left: var(--gutter);
-  width: calc(100% - var(--gutter) * 2);
-  height: 560px;
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .mo-app {
@@ -638,9 +638,6 @@
 }
 
 /* Compact: sidebar folds away, as in the app */
-.mo .ss-stage[data-layout="compact"] {
-  --gutter: 16px;
-}
 .mo .ss-stage[data-layout="compact"] .mo-side,
 .mo .ss-stage[data-layout="compact"] .mo-hide-c,
 .mo .ss-stage[data-layout="compact"] .mo-pill--search {
