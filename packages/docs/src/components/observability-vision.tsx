@@ -96,7 +96,7 @@ export function ObservabilityVision() {
             </p>
           </div>
         </div>
-        <div className="mt-12 max-w-[1000px]">
+        <div className="mt-12">
           <DemoPlayer chapters={CHAPTERS}>{(player) => <AgentDemo {...player} />}</DemoPlayer>
         </div>
       </div>
