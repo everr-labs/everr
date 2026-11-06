@@ -9,7 +9,7 @@
     "check": "vp check",
     "check:fix": "vp check --fix",
     "changeset": "changeset",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && node scripts/sync-self-hosted-version.mjs",
     "changeset:publish": "node scripts/publish-packages.mjs",
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
