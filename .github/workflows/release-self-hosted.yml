@@ -1,0 +1,187 @@
+name: Release self-hosted images
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    tags: ["@everr/app@*"]
+
+env:
+  IMAGE_PREFIX: ghcr.io/everr-labs
+
+jobs:
+  build:
+    name: Build ${{ matrix.image.name }} (${{ matrix.platform.arch }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - name: everr-app
+            context: .
+            file: packages/app/Dockerfile
+            target: ""
+            build-args: ""
+          - name: everr-collector
+            context: ./collector
+            file: collector/Dockerfile
+            target: ""
+            build-args: EVERR_BUILD_TARGET=self-hosted
+          - name: everr-clickhouse
+            context: ./clickhouse
+            file: clickhouse/Dockerfile
+            target: self-hosted
+            build-args: ""
+        platform:
+          - arch: amd64
+            runner: blacksmith-2vcpu-ubuntu-2404
+          - arch: arm64
+            runner: blacksmith-2vcpu-ubuntu-2404-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Verify release tag
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./packages/app/package.json').version")"
+          if [[ "$GITHUB_REF_NAME" != "@everr/app@${version}" ]]; then
+            echo "Release tag '$GITHUB_REF_NAME' does not match @everr/app@${version}." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Each platform builds on a native runner and pushes by digest only. The
+      # merge job then publishes one multi-platform manifest under the version tags.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.file }}
+          target: ${{ matrix.image.target }}
+          build-args: ${{ matrix.image.build-args }}
+          platforms: linux/${{ matrix.platform.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
+
+      - name: Export digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image.name }}-${{ matrix.platform.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish ${{ matrix.image }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: build
+    strategy:
+      matrix:
+        image: [everr-app, everr-collector, everr-clickhouse]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Read version
+        id: version
+        run: echo "version=$(node -p "require('./packages/app/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Prereleases (changesets pre mode, e.g. 0.12.0-next.0) get only their exact
+      # version tag. Stable releases also move the minor tag and latest.
+      # GHCR reads the source, description, and version of a multi-platform image
+      # from the annotations of its index.
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable=${{ !contains(steps.version.outputs.version, '-') }}
+          annotations: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: Create multi-platform manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r tag; do args+=(-t "$tag"); done \
+            < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          while IFS= read -r annotation; do args+=(--annotation "$annotation"); done \
+            < <(jq -r '.annotations[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          for digest in *; do
+            args+=("${{ env.IMAGE_PREFIX }}/${{ matrix.image }}@sha256:${digest}")
+          done
+          docker buildx imagetools create "${args[@]}"
+
+      - name: Inspect image
+        run: docker buildx imagetools inspect "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ steps.version.outputs.version }}"

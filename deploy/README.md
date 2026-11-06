@@ -1,8 +1,8 @@
 # Run Everr with Docker Compose
 
 This stack runs the Everr app, collector, PostgreSQL, and ClickHouse on one
-machine. It builds the self-hostable product from this checkout. Docker with
-Compose and OpenSSL are required; Node and Go are built inside Docker.
+machine. It pulls the `everr-app`, `everr-collector`, and `everr-clickhouse`
+images from `ghcr.io/everr-labs`, pinned to the release this file ships with. Docker with Compose and OpenSSL are required.
 
 From the repository root:
 
@@ -29,10 +29,9 @@ operators can use the recovery commands below.
 Start the stack:
 
 ```sh
-docker compose up -d --build --wait
+docker compose up -d --wait
 ```
 
-The first build downloads dependencies and compiles the app and collector.
 Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
@@ -129,6 +128,24 @@ Back up both databases and the secrets before changing versions. PostgreSQL
 migrations run automatically, but ClickHouse initialization scripts are not an
 upgrade migration mechanism. Review schema changes before upgrading an existing
 installation; this bundle currently targets fresh installations.
+
+### Versions
+
+The app, collector, and ClickHouse images share one version, the same as the
+`everr` CLI. `compose.yaml` pins the release it ships with. To pin another
+release, set `EVERR_VERSION` in `.env`:
+
+```sh
+EVERR_VERSION=0.10.2
+```
+
+Each release is also tagged by minor version (`0.10`) and as `latest`.
+
+To build the images from this checkout instead of pulling them:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait
+```
 
 Development uses `pnpm dev` and its separate dependency configuration.
 Run installation commands from this directory to select the deployment stack.

@@ -2,9 +2,7 @@ name: everr
 
 services:
   app:
-    build:
-      context: ..
-      dockerfile: packages/app/Dockerfile
+    image: ghcr.io/everr-labs/everr-app:${EVERR_VERSION:-0.10.1}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -68,9 +66,7 @@ services:
       retries: 20
 
   clickhouse:
-    build:
-      context: ../clickhouse
-      target: self-hosted
+    image: ghcr.io/everr-labs/everr-clickhouse:${EVERR_VERSION:-0.10.1}
     restart: unless-stopped
     environment:
       CLICKHOUSE_USER: default
@@ -97,10 +93,7 @@ services:
       retries: 30
 
   collector:
-    build:
-      context: ../collector
-      args:
-        EVERR_BUILD_TARGET: self-hosted
+    image: ghcr.io/everr-labs/everr-collector:${EVERR_VERSION:-0.10.1}
     restart: unless-stopped
     stop_grace_period: 60s
     depends_on:
