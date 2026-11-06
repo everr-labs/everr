@@ -149,7 +149,7 @@ const OK = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 4, 3, 3];
 const OK_SPIKE = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 6, 16, 22];
 const ERR = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5];
 
-const CHART = { wide: { w: 285, h: 200 }, compact: { w: 272, h: 150 } };
+const CHART = { wide: { w: 270, h: 200 }, compact: { w: 272, h: 150 } };
 
 function makeScript(onScreen: (screen: 0 | 1 | 2) => void) {
   return async function script(a: Act<S>) {
