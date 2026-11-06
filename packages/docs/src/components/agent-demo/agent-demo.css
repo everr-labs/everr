@@ -1,0 +1,225 @@
+/* The agent's terminal fills the card; the card around the stage is its frame */
+.ag .ss-stage {
+  overflow: hidden;
+  background: transparent;
+}
+
+.ag .ag-win {
+  position: absolute;
+  inset: 0;
+  border-radius: 0;
+  box-shadow: none;
+  --ss-term-bg: var(--card);
+  --ss-term-ok: var(--lime);
+  --ss-term-sigil: var(--lime);
+  --ss-term-dim: oklch(0.55 0 0);
+}
+
+.ag .ag-win > .ss-window__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 28px 22px;
+  color: var(--mfg);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* The session, pinned to the input: new lines push older ones up and out
+   under a soft fade */
+.ag .ag-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  overflow: hidden;
+  white-space: normal;
+}
+
+/* Short, it starts at the top as a fresh session does; taller than the
+   log, it is held by its foot and older lines leave under a soft fade */
+.ag .ag-scroll {
+  flex: none;
+  min-height: 100%;
+}
+
+.ag .ag-log {
+  position: relative;
+}
+
+.ag .ag-log::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 48px;
+  background: linear-gradient(var(--card), transparent);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.ag .ag-log[data-full]::before {
+  opacity: 1;
+}
+
+.ag .ag-blocks {
+  transition: opacity 0.3s ease;
+}
+
+.ag .ag-blocks[data-clearing] {
+  opacity: 0;
+}
+
+.ag .ag-hello {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.ag .ag-hello-title {
+  color: var(--fg);
+}
+
+.ag .ag-hello .dim {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 2ch;
+}
+
+.ag .ag-user {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 8px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: var(--muted);
+  color: var(--fg);
+}
+
+.ag .ag-sigil {
+  color: var(--lime);
+}
+
+.ag .ag-step {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px 12px;
+  white-space: nowrap;
+}
+
+.ag .ag-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  translate: 0 -1px;
+}
+
+.ag .ag-dot--mute {
+  background: oklch(0.55 0 0);
+}
+
+.ag .ag-step > .dim {
+  flex: none;
+  width: 5ch;
+}
+
+.ag .ag-skill {
+  color: var(--lime);
+}
+
+.ag .ag-cut {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag .ag-cmd {
+  color: var(--fg);
+}
+
+/* The result hangs under the command it came from */
+.ag .ag-result {
+  padding-left: calc(12px + 7px + 10px);
+}
+
+.ag .ag-answer {
+  max-width: 64ch;
+  padding: 10px 12px 2px;
+  color: var(--fg);
+}
+
+/* While the agent works: a quiet line above the input */
+.ag .ag-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px;
+  color: oklch(0.55 0 0);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.ag .ag-status[data-on] {
+  opacity: 1;
+}
+
+.ag .ag-spin {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  animation: ag-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes ag-pulse {
+  from {
+    opacity: 0.25;
+  }
+}
+
+.ag .ag-input {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.ag .ag-typed {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Phone column: the same session, set smaller with tighter insets */
+.ag .ss-stage[data-layout="compact"] .ag-win > .ss-window__body {
+  padding: 0 14px 14px;
+  font-size: 11.5px;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-step,
+.ag .ss-stage[data-layout="compact"] .ag-answer {
+  padding-inline: 8px;
+}
+
+.ag .ss-stage[data-layout="compact"] .ag-result {
+  padding-left: calc(8px + 7px + 10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag .ag-spin {
+    animation: none;
+  }
+}

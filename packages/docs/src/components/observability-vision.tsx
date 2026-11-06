@@ -1,3 +1,5 @@
+import { AgentDemo } from "@/components/agent-demo/AgentDemo";
+
 const headingClass =
   "text-balance text-[32px] leading-[1.14] tracking-[-0.03em] min-[761px]:text-[clamp(32px,3.5vw,48px)]";
 const bodyClass = "mt-5 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground";
@@ -17,27 +19,9 @@ export function ObservabilityVision() {
             keeping the setup useful are others.
           </p>
         </div>
-        <div className="mt-10 grid gap-7 min-[761px]:grid-cols-3 min-[761px]:gap-8">
-          <div className="border-t border-border pt-5">
-            <h3 className={subheadingClass}>What should you instrument?</h3>
-            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
-              Which requests and dependencies need visibility? How much data is enough?
-            </p>
-          </div>
-          <div className="border-t border-border pt-5">
-            <h3 className={subheadingClass}>How do you get useful answers?</h3>
-            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
-              Building queries and dashboards takes time and knowledge.
-            </p>
-          </div>
-          <div className="border-t border-border pt-5">
-            <h3 className={subheadingClass}>What needs to stay up to date?</h3>
-            <p className="mt-3 max-w-[70ch] text-[17px] leading-[1.65] text-muted-foreground">
-              As your application changes, instrumentation, dashboards, and alert rules need
-              attention.
-            </p>
-          </div>
-        </div>
+        <figure className="mt-10 min-w-0 overflow-hidden rounded-xl border border-border bg-card">
+          <AgentDemo />
+        </figure>
         <p className="mt-8 max-w-[80ch] text-[17px] leading-[1.65] text-muted-foreground">
           Those decisions take experience. Keeping them useful takes time. It’s understandable to
           put monitoring off when getting value looks like a project of its own.
