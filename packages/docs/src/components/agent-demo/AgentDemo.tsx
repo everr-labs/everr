@@ -1,6 +1,14 @@
 import { ArrowUp, FolderClosed, Settings, SquarePen } from "lucide-react";
 import { useMemo, useRef } from "react";
-import { type Act, Collapse, type Playhead, Stage, Stream } from "../monitoring-demo/kit";
+import {
+  type Act,
+  Chart,
+  Collapse,
+  type Playhead,
+  Stage,
+  Stream,
+  Window,
+} from "../monitoring-demo/kit";
 import "../monitoring-demo/monitoring-demo.css";
 import "./agent-demo.css";
 
@@ -12,7 +20,16 @@ import "./agent-demo.css";
 
 type Block =
   | { kind: "user"; text: string }
-  | { kind: "tool"; verb: string; text: string; out?: string; add?: number; del?: number }
+  | {
+      kind: "tool";
+      verb: string;
+      text: string;
+      out?: string;
+      /** The link a command prints, which the demo then clicks */
+      link?: string;
+      add?: number;
+      del?: number;
+    }
   | { kind: "plan"; text: string; items: [string, string][] }
   | { kind: "say"; text: string };
 
@@ -22,8 +39,12 @@ type Thread = {
   prompt: string;
   /** What the thread shows in the list once it is not the open one */
   meta: string;
+  /** The thread ends by opening its link in the app */
+  opens?: boolean;
   blocks: Block[];
 };
+
+const PREVIEW_URL = "app.everr.dev/dashboards/robots-ecommerce?preview=checkout-dashboard";
 
 const THREADS: Thread[] = [
   {
@@ -59,8 +80,9 @@ const THREADS: Thread[] = [
   {
     title: "Checkout dashboard",
     skill: "everr-setup-resources",
-    prompt: "Make a checkout dashboard. What should we watch?",
+    prompt: "Make a dashboard for the checkout API",
     meta: "+72",
+    opens: true,
     blocks: [
       {
         kind: "tool",
@@ -74,16 +96,17 @@ const THREADS: Thread[] = [
         text: 'everr cloud query "SELECT SpanName, count() FROM traces … LIMIT 20"',
         out: "20 rows",
       },
-      { kind: "tool", verb: "Created", text: "everr/checkout-api.dashboard.yaml", add: 72 },
+      { kind: "tool", verb: "Created", text: "everr/robots-ecommerce.dashboard.yaml", add: 72 },
       {
         kind: "tool",
         verb: "Ran",
         text: "everr apply ./everr --preview",
-        out: "1 dashboard added, preview checkout-dashboard",
+        out: "1 dashboard added",
+        link: PREVIEW_URL,
       },
       {
         kind: "say",
-        text: "The preview has request rate, errors and p95 latency per route, plus the slowest Postgres queries. Watch p95 on POST /checkout and failed Stripe calls first: those two move with revenue.",
+        text: "The preview has request rate, errors and p95 latency per route, plus the slowest Postgres queries. Open the link to see it. Watch p95 on POST /checkout and failed Stripe calls first: those two move with revenue.",
       },
     ],
   },
@@ -121,7 +144,7 @@ const THREADS: Thread[] = [
 
 export type AgentChapter = 0 | 1 | 2;
 // How long each chapter plays, its answer held for reading at the end
-export const AGENT_CHAPTER_MS = [20000, 17000, 17500] as const;
+export const AGENT_CHAPTER_MS = [20000, 23000, 17500] as const;
 const NEXT = { 0: 1, 1: 2, 2: 0 } as const satisfies Record<AgentChapter, AgentChapter>;
 
 type S = {
@@ -138,6 +161,8 @@ type S = {
   streaming: number;
   words: number;
   busy: boolean;
+  /** The preview link has been opened: the dashboard is on screen */
+  dash: boolean;
 };
 
 const blank = (c: AgentChapter): S => ({
@@ -149,6 +174,7 @@ const blank = (c: AgentChapter): S => ({
   streaming: -1,
   words: 0,
   busy: false,
+  dash: false,
 });
 const STARTS: readonly S[] = [blank(0), blank(1), blank(2)];
 // Each chapter's poster is its answer
@@ -194,6 +220,14 @@ async function run(a: Act<S>, c: AgentChapter, flowing: boolean) {
       await a.wait(block.kind === "plan" ? 2200 : block.kind === "tool" && block.out ? 1000 : 700);
     }
   }
+  if (thread.opens) {
+    // The preview link opens the dashboard in the app
+    await a.wait(900);
+    await a.move("link");
+    await a.wait(200);
+    await a.click();
+    await a.set({ dash: true });
+  }
 }
 
 function makeScript(
@@ -234,6 +268,14 @@ function Line({ block, count }: { block: Block; count: number }) {
             {block.del !== undefined && <span className="ag-del">-{block.del}</span>}
           </div>
           {block.out && <div className="ag-out">{block.out}</div>}
+          {block.link && (
+            <div className="ag-out">
+              Preview:{" "}
+              <span className="ag-link" data-target="link">
+                {block.link}
+              </span>
+            </div>
+          )}
         </div>
       );
     case "plan":
@@ -258,6 +300,16 @@ function Line({ block, count }: { block: Block; count: number }) {
       );
   }
 }
+
+const STATS: [string, string, string][] = [
+  ["Requests", "1,284", ""],
+  ["5xx rate", "0.4%", "mo-red"],
+  ["P95 latency", "310 ms", ""],
+  ["Stripe failures", "3", "mo-green"],
+];
+const REQUESTS = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 4, 3, 3];
+const LATENCY = [9, 10, 9, 11, 10, 10, 9, 10, 11, 10, 9, 10, 11, 10, 10, 9];
+const DASH_CHART = { wide: { w: 400, h: 200 }, compact: { w: 300, h: 150 } };
 
 const REST = { wide: { x: 880, y: 250 }, compact: { x: 330, y: 250 } };
 
@@ -296,6 +348,7 @@ export function AgentDemo({
       {(s, _rect, layout) => {
         const thread = THREADS[s.open];
         const compact = layout === "compact";
+        const dash = DASH_CHART[compact ? "compact" : "wide"];
         const blocks: Block[] = [{ kind: "user", text: thread.prompt }, ...thread.blocks];
         const listed = THREADS.slice(0, s.listed)
           .map((t, i) => ({ t, i }))
@@ -309,7 +362,7 @@ export function AgentDemo({
               </span>
               <span className="ag-side-label">
                 <FolderClosed size={13} aria-hidden="true" />
-                checkout-api
+                robots-ecommerce
               </span>
               {listed.map(({ t, i }) => {
                 const here = i === s.open && s.sent;
@@ -367,6 +420,54 @@ export function AgentDemo({
                 </span>
               </div>
             </main>
+            <div className="ag-dash" data-on={s.dash || undefined}>
+              <Window url={PREVIEW_URL} className="mo-win">
+                <div className="ag-dash-body">
+                  <div className="ag-dash-head">
+                    <strong>Checkout API</strong>
+                    <span className="ag-badge">added in preview</span>
+                  </div>
+                  <div className="mo-stats">
+                    {STATS.map(([name, value, tone]) => (
+                      <div key={name} className="mo-card">
+                        <b>{name}</b>
+                        <strong className={tone}>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mo-charts">
+                    <div className="mo-card mo-chartcard">
+                      <b>Requests by route</b>
+                      <div className="mo-chart" style={{ width: dash.w, height: dash.h }}>
+                        <Chart
+                          data={REQUESTS}
+                          width={dash.w}
+                          height={dash.h}
+                          max={6}
+                          dot={false}
+                          show={s.dash}
+                          className="mo-c-purple"
+                        />
+                      </div>
+                    </div>
+                    <div className="mo-card mo-chartcard mo-hide-c">
+                      <b>p95 latency, POST /checkout</b>
+                      <div className="mo-chart" style={{ width: dash.w, height: dash.h }}>
+                        <Chart
+                          data={LATENCY}
+                          width={dash.w}
+                          height={dash.h}
+                          max={14}
+                          dot={false}
+                          show={s.dash}
+                          className="mo-c-purple"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Window>
+            </div>
             <span className="ag-rest" data-target="rest" />
           </div>
         );

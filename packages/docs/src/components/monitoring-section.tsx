@@ -23,7 +23,12 @@ const CHAPTERS: PlayerChapter<Chapter>[] = [
     color: "oklch(0.86 0.19 135)",
     ms: CHAPTER_MS[3],
   },
-  { chapter: 4, label: "Follow the runbook", color: "oklch(0.78 0.17 340)", ms: CHAPTER_MS[4] },
+  {
+    chapter: 4,
+    label: "Respond the way your team planned",
+    color: "oklch(0.78 0.17 340)",
+    ms: CHAPTER_MS[4],
+  },
 ];
 
 export function MonitoringSection() {
@@ -48,7 +53,7 @@ export function MonitoringSection() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="max-w-[1000px]"
+          className="w-full"
         >
           <DemoPlayer chapters={CHAPTERS}>{(player) => <MonitoringDemo {...player} />}</DemoPlayer>
         </motion.div>

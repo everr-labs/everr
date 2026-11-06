@@ -391,3 +391,61 @@
     animation: none;
   }
 }
+
+/* ---- The preview link, and the dashboard it opens ---- */
+
+.ag .ag-link {
+  color: var(--lime);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.ag .ag-dash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  translate: 0 14px;
+  pointer-events: none;
+  transition:
+    opacity 0.45s ease,
+    translate 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ag .ag-dash[data-on] {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.ag .ag-dash-body {
+  height: 100%;
+  padding: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+.ag .ag-dash-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ag .ag-dash-head strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ag .ag-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: oklch(0.86 0.19 135 / 15%);
+  color: var(--lime);
+  font-size: 11.5px;
+}
+
+.ag .ag-out:has(.ag-link) {
+  white-space: normal;
+}

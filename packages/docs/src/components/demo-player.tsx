@@ -265,8 +265,56 @@ function Timeline<C extends number>({
   );
 }
 
+// The chapters as a list beside the demo, on screens wide enough to have room
+// for it. Narrower, the timeline's segments do the same job. Level with the
+// card, not the bar above it.
+function ChapterIndex<C extends number>({
+  chapters,
+  current,
+  onJump,
+}: {
+  chapters: readonly PlayerChapter<C>[];
+  current: C;
+  onJump: (chapter: C) => void;
+}) {
+  return (
+    <nav aria-label="Demo chapters" className="hidden w-[200px] shrink-0 pt-[5.125rem] xl:block">
+      <ul className="grid gap-1">
+        {chapters.map(({ chapter, label, color }) => {
+          const active = chapter === current;
+          return (
+            <li key={chapter}>
+              <button
+                type="button"
+                onClick={() => onJump(chapter)}
+                aria-current={active ? "step" : undefined}
+                className={cn(
+                  "flex w-full cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-left text-sm leading-snug transition-colors duration-200 hover:bg-muted hover:text-foreground",
+                  active ? "font-medium text-foreground" : "text-muted-foreground",
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: color }}
+                  className={cn(
+                    "mt-[0.45em] size-2 shrink-0 rounded-full transition-opacity duration-200",
+                    active ? "opacity-100" : "opacity-40",
+                  )}
+                />
+                {label}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 // The controls sit above the demo, and move below it once its top has
-// scrolled under the site header.
+// scrolled under the site header. The player reserves its own room above the
+// card (5.125rem: the 44px bar plus the flag and its gap), so the flag never
+// hangs over the text before it.
 const HEADER_PX = 56;
 const SIDES: Side[] = ["top", "bottom"];
 // The controls tuck into the card's edge: down behind it at the top, up behind
@@ -325,50 +373,53 @@ export function DemoPlayer<C extends number>({
   };
 
   return (
-    <div className="relative pt-11 motion-reduce:pt-0">
-      <div ref={sentinel} className="absolute inset-x-0 top-11 h-px" />
-      {/* One clip per side, with room for the flag: the controls slide out of
+    <div className="flex items-start gap-8">
+      <div className="relative min-w-0 max-w-[1000px] flex-1 pt-[5.125rem] motion-reduce:pt-0">
+        <div ref={sentinel} className="absolute inset-x-0 top-[5.125rem] h-px" />
+        {/* One clip per side, with room for the flag: the controls slide out of
           one and into the other instead of fading */}
-      {SIDES.map((at) => (
-        <div
-          key={at}
-          className={cn(
-            "pointer-events-none absolute inset-x-0 z-10 overflow-hidden motion-reduce:hidden",
-            at === "top" ? "-top-10 pt-10" : "top-full pb-10",
-          )}
-        >
-          <AnimatePresence initial={false}>
-            {side === at && (
-              <motion.div
-                initial={{ y: SLIDE[at] }}
-                animate={{ y: 0 }}
-                exit={{ y: SLIDE[at] }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                className="pointer-events-auto"
-              >
-                <Timeline
-                  chapters={chapters}
-                  playhead={playhead}
-                  chapter={chapter}
-                  startedAt={startedAt}
-                  current={screen}
-                  paused={paused}
-                  side={side}
-                  onToggle={toggle}
-                  onJump={go}
-                />
-              </motion.div>
+        {SIDES.map((at) => (
+          <div
+            key={at}
+            className={cn(
+              "pointer-events-none absolute inset-x-0 z-10 overflow-hidden motion-reduce:hidden",
+              at === "top" ? "-top-0.5 pt-10" : "top-full pb-10",
             )}
-          </AnimatePresence>
-        </div>
-      ))}
-      {/* The controls are the card's top or bottom edge, so that corner squares off */}
-      <figure
-        className="min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-[border-radius] duration-300 motion-safe:data-[side=bottom]:rounded-b-none motion-safe:data-[side=top]:rounded-t-none"
-        data-side={side}
-      >
-        {children({ jump, playhead, onChapter })}
-      </figure>
+          >
+            <AnimatePresence initial={false}>
+              {side === at && (
+                <motion.div
+                  initial={{ y: SLIDE[at] }}
+                  animate={{ y: 0 }}
+                  exit={{ y: SLIDE[at] }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="pointer-events-auto"
+                >
+                  <Timeline
+                    chapters={chapters}
+                    playhead={playhead}
+                    chapter={chapter}
+                    startedAt={startedAt}
+                    current={screen}
+                    paused={paused}
+                    side={side}
+                    onToggle={toggle}
+                    onJump={go}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+        {/* The controls are the card's top or bottom edge, so that corner squares off */}
+        <figure
+          className="min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-[border-radius] duration-300 motion-safe:data-[side=bottom]:rounded-b-none motion-safe:data-[side=top]:rounded-t-none"
+          data-side={side}
+        >
+          {children({ jump, playhead, onChapter })}
+        </figure>
+      </div>
+      <ChapterIndex chapters={chapters} current={screen} onJump={go} />
     </div>
   );
 }
