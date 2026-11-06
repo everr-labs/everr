@@ -145,10 +145,10 @@ The app, collector, and ClickHouse images share one version, the same as the
 release, set `EVERR_VERSION` in `.env`:
 
 ```sh
-EVERR_VERSION=0.11.0
+EVERR_VERSION=0.10.2
 ```
 
-Each release is also tagged by minor version (`0.11`) and as `latest`.
+Each release is also tagged by minor version (`0.10`) and as `latest`.
 
 To build the images from this checkout instead of pulling them:
 
