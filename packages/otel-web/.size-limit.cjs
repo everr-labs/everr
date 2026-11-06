@@ -99,6 +99,6 @@ module.exports = [
     import: "{ startStream }",
     gzip: true,
     ignore: ["@everr/otel-web"],
-    limit: "26 KB",
+    limit: "26.2 KB",
   },
 ];

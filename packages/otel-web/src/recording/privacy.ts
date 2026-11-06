@@ -7,6 +7,15 @@ export type FormElement = Element & { type?: string; value?: string };
 
 const MEDIA = 'img,svg,video,object,picture,embed,map,audio,link[rel*="icon"]';
 const DEFAULT_ATTRIBUTES = ["title", "placeholder", "aria-label", "content", "data-*"];
+// The data-* keys of component state that UI kits style by, as in Radix and
+// shadcn selectors like [data-state=open]. Their values are a small vocabulary,
+// and a masked value makes the replay show the wrong state. A boolean key such
+// as data-disabled is empty, and a mask keeps it as it is. Only the default
+// list keeps these; a maskAttributes list masks as it says.
+const UI_STATE = /^data-(state|side|align|orientation|slot|variant|size|motion|swipe)$/;
+// A reference to an element of the page, as in <use href="#icon"> or a
+// url(#clip) that rrweb keeps relative. It holds an id, not data.
+const LOCAL_REF = /^\s*#[\w:.-]*\s*$/;
 const URL_ATTRIBUTES = /^(href|src|srcset|action|formaction|poster|cite|background|ping)$/;
 // The url() shapes rrweb 2.1.7 copies unchanged from a style attribute, a
 // stylesheet's _cssText, and the text of a style element.
@@ -19,12 +28,19 @@ const RRWEB_MASKED =
 
 const stars = (text: string) => text.replace(/\S/g, "*");
 
-/** A URL without its query and fragment. A mailto:, tel:, or sms: URL keeps its scheme only. */
+/**
+ * A URL without its query and fragment. A mailto:, tel:, or sms: URL keeps its
+ * scheme only. A reference to an element of the page stays whole.
+ */
 const stripUrl = (url: string) =>
-  url.replace(/^\s*(mailto|tel|sms):.*$/is, "$1:").replace(/[?#][^\s,]*/g, "");
+  LOCAL_REF.test(url)
+    ? url
+    : url.replace(/^\s*(mailto|tel|sms):.*$/is, "$1:").replace(/[?#][^\s,]*/g, "");
 
 // The whole capture is one URL, so a comma inside the query goes too.
 // A data: URL stays whole: its payload can contain ? and #, and it is the image.
+// An unquoted capture can hold quotes, as `url( 'a?b' )` does after rrweb makes
+// it absolute. The cut keeps those quotes, so the CSS after it still parses.
 const stripCssUrls = (css: string) =>
   css.replace(
     CSS_URL,
@@ -37,9 +53,10 @@ const stripCssUrls = (css: string) =>
       p3: string | undefined,
     ) => {
       const raw = p1 ?? p2 ?? p3 ?? "";
-      if (/^\s*data:/i.test(raw)) return match;
+      if (/^\s*data:/i.test(raw) || LOCAL_REF.test(raw)) return match;
       const quote = q1 ?? q2 ?? "";
-      return `url(${quote}${raw.replace(/[?#].*/s, "")}${quote})`;
+      const kept = raw.replace(/[?#].*/s, (cut) => cut.replace(/[^'"]/g, ""));
+      return `url(${quote}${kept}${quote})`;
     },
   );
 
@@ -85,6 +102,7 @@ export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node 
   };
   const maskText = (text: string, el: HTMLElement | null) => (unmasked(el) ? text : mask(text));
   const maskAttribute = (name: string) =>
+    !(options.maskAttributes === undefined && UI_STATE.test(name)) &&
     (options.maskAttributes ?? DEFAULT_ATTRIBUTES).some((pattern) =>
       pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : pattern === name,
     );
