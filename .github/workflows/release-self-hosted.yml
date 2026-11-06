@@ -2,6 +2,7 @@ name: Release self-hosted images
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,7 +13,7 @@ on:
     tags: ["@everr/app@*"]
 
 env:
-  DOCKERHUB_NAMESPACE: everr
+  IMAGE_PREFIX: ghcr.io/everr-labs
 
 jobs:
   build:
@@ -62,27 +63,18 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Load Docker Hub credentials
-        id: dockerhub-creds
-        uses: 1password/load-secrets-action@v2
-        with:
-          export-env: false
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          DOCKERHUB_USERNAME: op://Everr/Docker Hub/username
-          DOCKERHUB_TOKEN: op://Everr/Docker Hub/token
-
-      - name: Login to Docker Hub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ steps.dockerhub-creds.outputs.DOCKERHUB_USERNAME }}
-          password: ${{ steps.dockerhub-creds.outputs.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image.name }}
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }}
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
@@ -101,7 +93,7 @@ jobs:
           build-args: ${{ matrix.image.build-args }}
           platforms: linux/${{ matrix.platform.arch }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
           cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
@@ -148,46 +140,48 @@ jobs:
           pattern: digests-${{ matrix.image }}-*
           merge-multiple: true
 
-      - name: Load Docker Hub credentials
-        id: dockerhub-creds
-        uses: 1password/load-secrets-action@v2
-        with:
-          export-env: false
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          DOCKERHUB_USERNAME: op://Everr/Docker Hub/username
-          DOCKERHUB_TOKEN: op://Everr/Docker Hub/token
-
-      - name: Login to Docker Hub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ steps.dockerhub-creds.outputs.DOCKERHUB_USERNAME }}
-          password: ${{ steps.dockerhub-creds.outputs.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # Prereleases (changesets pre mode, e.g. 0.12.0-next.0) get only their exact
       # version tag. Stable releases also move the minor tag and latest.
+      # GHCR reads the source, description, and version of a multi-platform image
+      # from the annotations of its index.
       - name: Image tags
         id: meta
         uses: docker/metadata-action@v5
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
         with:
-          images: ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}
           flavor: latest=false
           tags: |
             type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
             type=raw,value=latest,enable=${{ !contains(steps.version.outputs.version, '-') }}
+          annotations: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Create multi-platform manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
           set -euo pipefail
-          # shellcheck disable=SC2046
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}@sha256:%s ' *)
+          args=()
+          while IFS= read -r tag; do args+=(-t "$tag"); done \
+            < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          while IFS= read -r annotation; do args+=(--annotation "$annotation"); done \
+            < <(jq -r '.annotations[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          for digest in *; do
+            args+=("${{ env.IMAGE_PREFIX }}/${{ matrix.image }}@sha256:${digest}")
+          done
+          docker buildx imagetools create "${args[@]}"
 
       - name: Inspect image
-        run: docker buildx imagetools inspect "${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}:${{ steps.version.outputs.version }}"
+        run: docker buildx imagetools inspect "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ steps.version.outputs.version }}"
