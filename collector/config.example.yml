@@ -3,6 +3,13 @@ extensions:
     directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}
     create_directory: true
     fsync: true
+  # Recording Segments queue apart from the ordinary telemetry, under the same
+  # volume. Its exporter caps the queue at 500 requests (one Segment each, at
+  # most about 2 MB), so a ClickHouse stall cannot fill the disk that logs use.
+  file_storage/recordings:
+    directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}/recordings
+    create_directory: true
+    fsync: true
   everr_usage:
     max_series: 30000
   # Authenticates public OTLP ingest by exchanging a Bearer key with the
@@ -211,9 +218,11 @@ exporters:
     json: true
     sending_queue:
       enabled: true
-      storage: file_storage/ingestion
+      storage: file_storage/recordings
       wait_for_result: false
-      queue_size: 10000
+      # One request is one Segment. A full queue refuses new Segments, and the
+      # browser tries them again; ordinary logs never share this queue.
+      queue_size: 500
       num_consumers: 10
       sizer: requests
       batch:
@@ -225,7 +234,7 @@ exporters:
       enabled: true
       max_elapsed_time: 0s
 service:
-  extensions: [everr_apikey, everr_usage, file_storage/ingestion]
+  extensions: [everr_apikey, everr_usage, file_storage/ingestion, file_storage/recordings]
   pipelines:
     metrics/usage:
       receivers: [everr_usage_connector]
