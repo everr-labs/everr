@@ -22,10 +22,16 @@ export type Signal = "logs" | "traces";
 
 /**
  * One OTLP/JSON payload for one signal. The `keepalive` value is for the exit
- * path of the browser, and it has no function in a custom sender. Thus the
- * public option does not contain it.
+ * path of the browser, and `gzipped`, the body already compressed, is for the
+ * fetch sender. Both have no function in a custom sender. Thus the public
+ * option does not contain them.
  */
-export type Send = (signal: Signal, body: string, keepalive?: boolean) => unknown;
+export type Send = (
+  signal: Signal,
+  body: string,
+  keepalive?: boolean,
+  gzipped?: ArrayBuffer,
+) => unknown;
 
 /**
  * The public `send` option. It is the same, but it has no `keepalive` value.
@@ -46,11 +52,11 @@ export function fetchSend(
   extraHeaders: Record<string, string> | undefined,
 ): Send {
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  return (signal, body, keepalive) =>
+  return (signal, body, keepalive, gzipped) =>
     doFetch(signal === "logs" ? logsUrl : tracesUrl, {
       method: "POST",
-      headers,
-      body,
+      headers: gzipped ? { ...headers, "Content-Encoding": "gzip" } : headers,
+      body: gzipped ?? body,
       keepalive,
     });
 }

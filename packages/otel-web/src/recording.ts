@@ -93,7 +93,11 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
       // A failed chunk load or start only means no recording. It is never an app error.
       .catch(() => {});
     const stopRecord = ctx.onRecord((item) => state.stream?.observe(item));
-    const stopHide = ctx.onHide(() => state.stream?.hide());
+    // A hidden tab can come back: its open Clips send what they have and go
+    // on. An unload ends them; a request started then may not finish.
+    const stopHide = ctx.onHide((unload) =>
+      unload ? state.stream?.hide() : state.stream?.flush(),
+    );
     return () => {
       stopHide();
       stopRecord();

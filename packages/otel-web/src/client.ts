@@ -117,7 +117,7 @@ export class WebSDK {
     // dynamic: each dispatch reads the full list. Thus a subscription from
     // each instrumentation goes into the same dispatch.
     const navigationListeners = new Set<NavigationListener>();
-    const hideListeners = new Set<() => void>();
+    const hideListeners = new Set<(unload: boolean) => void>();
     const subscribe =
       <T>(listeners: Set<T>) =>
       (listener: T) => {
@@ -156,22 +156,23 @@ export class WebSDK {
     // The SDK uses the pagehide event and the visibilitychange event with the
     // hidden state. It does not use beforeunload, because beforeunload does not
     // occur on a mobile device and it prevents the bfcache.
-    const onHide = () => {
-      for (const listener of hideListeners) listener();
+    const onHide = (unload: boolean) => {
+      for (const listener of hideListeners) listener(unload);
       // The write of the activity of the session is on a delay. Thus the code
       // writes it now, while the page can still use the store.
       persistSession();
       exitFlush();
     };
+    const onPageHide = () => onHide(true);
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") onHide();
+      if (document.visibilityState === "hidden") onHide(false);
     };
-    addEventListener("pagehide", onHide);
+    addEventListener("pagehide", onPageHide);
     addEventListener("visibilitychange", onVisibilityChange);
 
     this.flush = flush;
     this.shutdown = () => {
-      removeEventListener("pagehide", onHide);
+      removeEventListener("pagehide", onPageHide);
       removeEventListener("visibilitychange", onVisibilityChange);
       // The opposite sequence to the setup, before the pipeline disconnects.
       for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]?.();
