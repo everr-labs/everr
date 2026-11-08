@@ -1,6 +1,7 @@
 import "@tanstack/react-start/server-only";
 
 import { query } from "#app/lib/clickhouse.ts";
+import { createMirror } from "./mirror.ts";
 
 const MAX_CLIPS = 20;
 const MAX_SEGMENT_BYTES = 32 * 1024 * 1024;
@@ -48,11 +49,18 @@ type Gap =
   | { kind: "index"; streamId: string; after: number; missing: number }
   | { kind: "piece"; streamId: string; eventIndex: number }
   | { kind: "conflict"; streamId: string; segmentIndex: number }
-  | { kind: "clip"; atMs: number; reason: string };
+  | { kind: "clip"; atMs: number; reason: string }
+  /**
+   * The journey kept to its byte budget: "pieces" read the stream without its
+   * snapshots over 950 KB (its steps before the next small snapshot have no
+   * target), "stream" left the stream out.
+   */
+  | { kind: "budget"; streamId: string; skipped: "pieces" | "stream" };
 
 type JourneyStep =
   | { kind: "page"; at: string; streamId: string; url: string }
   | { kind: "click"; at: string; streamId: string; target: string | null }
+  /** One step per run of input events on the same element. */
   | { kind: "input"; at: string; streamId: string; target: string | null }
   | { kind: "pause" | "resume"; at: string; streamId: string };
 
@@ -87,7 +95,9 @@ export type PageSnapshot = {
   clipId: string;
   at: string;
   url: string;
+  /** The page at `at`: the last full snapshot with every change after it applied. */
   html: string;
+  /** Incomplete when a Segment is missing or a change named a node the page did not have. */
   coverage: "complete" | "incomplete";
 };
 
@@ -139,7 +149,7 @@ async function loadClips(
   sessionId: string,
   from: Date,
   to: Date,
-): Promise<{ clips: ClipWindow[]; gaps: Gap[] }> {
+): Promise<{ clips: ClipWindow[]; gaps: Gap[]; more: boolean }> {
   const rows = await query<SpanRow>(
     `
 SELECT
@@ -160,13 +170,16 @@ ORDER BY Timestamp DESC
 LIMIT {cap:UInt16}
 `,
     organizationId,
-    { sessionId, fromMs: from.getTime(), toMs: to.getTime(), cap: MAX_CLIPS },
+    // One more than the cap tells a full window from a truncated one.
+    { sessionId, fromMs: from.getTime(), toMs: to.getTime(), cap: MAX_CLIPS + 1 },
     QUERY_SETTINGS,
   );
 
   const clips: ClipWindow[] = [];
   const gaps: Gap[] = [];
-  for (const r of rows) {
+  // At-least-once delivery can store a span twice.
+  const seen = new Set<string>();
+  for (const r of rows.slice(0, MAX_CLIPS)) {
     if (!r.clipId || !r.streamId || !r.serviceName) {
       gaps.push({
         kind: "clip",
@@ -184,6 +197,9 @@ LIMIT {cap:UInt16}
       });
       continue;
     }
+    const identity = `${r.clipId}:${r.streamId}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     clips.push({
       clipId: r.clipId,
       streamId: r.streamId,
@@ -195,7 +211,7 @@ LIMIT {cap:UInt16}
       bufferTruncated: r.truncated === "true",
     });
   }
-  return { clips, gaps };
+  return { clips, gaps, more: rows.length > MAX_CLIPS };
 }
 
 async function loadClipById(
@@ -263,16 +279,56 @@ type SegmentRow = {
   pieces: string;
 };
 
+// The rows of the Segments of some windows: their streams, in the time range
+// that covers them all. The SQL fragment selects the piece rows.
+const SEGMENT_SCOPE = `
+FROM recordings
+WHERE ServiceName IN {services:Array(String)}
+  AND stream_id IN {streams:Array(String)}
+  AND Timestamp >= fromUnixTimestamp64Nano(toInt64({fromMs: Int64}) * 1000000)
+  AND Timestamp <= fromUnixTimestamp64Nano(toInt64({toMs: Int64}) * 1000000)`;
+const IS_PIECE = "toString(LogAttributes.`everr.recording.event.pieces`) != ''";
+
+function segmentScope(windows: ClipWindow[]) {
+  return {
+    services: [...new Set(windows.map((w) => w.serviceName))],
+    streams: [...new Set(windows.map((w) => w.streamId))],
+    fromMs: Math.min(...windows.map((w) => w.start.getTime())),
+    toMs: Math.max(...windows.map((w) => w.end.getTime())),
+  };
+}
+
+type StreamBytes = { stream_id: string; bytes: number; piece_bytes: number };
+
+/** The Body bytes of each stream in the windows, and how many of them are snapshot pieces. */
+async function segmentBytes(
+  organizationId: string,
+  windows: ClipWindow[],
+): Promise<Map<string, { bytes: number; pieceBytes: number }>> {
+  const rows = await query<StreamBytes>(
+    `
+SELECT
+  stream_id,
+  sum(length(Body)) AS bytes,
+  sumIf(length(Body), ${IS_PIECE}) AS piece_bytes
+${SEGMENT_SCOPE}
+GROUP BY stream_id
+`,
+    organizationId,
+    segmentScope(windows),
+    QUERY_SETTINGS,
+  );
+  return new Map(
+    rows.map((r) => [r.stream_id, { bytes: Number(r.bytes), pieceBytes: Number(r.piece_bytes) }]),
+  );
+}
+
 async function loadSegments(
   organizationId: string,
   windows: ClipWindow[],
+  { pieces = true }: { pieces?: boolean } = {},
 ): Promise<{ byStream: Map<string, StoredSegment[]>; gaps: Gap[] }> {
   if (windows.length === 0) return { byStream: new Map(), gaps: [] };
-
-  const fromMs = Math.min(...windows.map((w) => w.start.getTime()));
-  const toMs = Math.max(...windows.map((w) => w.end.getTime()));
-  const services = [...new Set(windows.map((w) => w.serviceName))];
-  const streams = [...new Set(windows.map((w) => w.streamId))];
 
   const rows = await query<SegmentRow>(
     `
@@ -283,15 +339,11 @@ SELECT
   toString(LogAttributes.\`everr.recording.event.index\`) AS event_index,
   toString(LogAttributes.\`everr.recording.event.piece\`) AS piece,
   toString(LogAttributes.\`everr.recording.event.pieces\`) AS pieces
-FROM recordings
-WHERE ServiceName IN {services:Array(String)}
-  AND stream_id IN {streams:Array(String)}
-  AND Timestamp >= fromUnixTimestamp64Nano(toInt64({fromMs: Int64}) * 1000000)
-  AND Timestamp <= fromUnixTimestamp64Nano(toInt64({toMs: Int64}) * 1000000)
+${SEGMENT_SCOPE}${pieces ? "" : `\n  AND NOT (${IS_PIECE})`}
 ORDER BY stream_id, segment_index
 `,
     organizationId,
-    { services, streams, fromMs, toMs },
+    segmentScope(windows),
     QUERY_SETTINGS,
   );
 
@@ -391,41 +443,59 @@ function reassemble(
   return { events, gaps };
 }
 
+/**
+ * Walks the events of one stream in order through a mirror of its page, and
+ * gives the steps of the events inside a Clip: pages, pauses, clicks, and runs
+ * of input, each click and input named by its element as the page was then.
+ */
 function projectSteps(
   streamId: string,
   events: RrwebEvent[],
-  until: Date,
+  inClip: (time: number) => boolean,
   cap: number,
 ): { steps: JourneyStep[]; truncated: boolean } {
   const steps: JourneyStep[] = [];
-  const untilMs = until.getTime();
+  const mirror = createMirror();
+  let lastInput: number | undefined;
   for (const e of events) {
-    if (e.timestamp > untilMs) break;
-    if (steps.length >= cap) return { steps, truncated: true };
-    const at = new Date(e.timestamp).toISOString();
-    if (e.type === 4) {
-      const href = typeof e.data.href === "string" ? e.data.href : "";
-      steps.push({ kind: "page", at, streamId, url: href });
-      continue;
+    const step = inClip(e.timestamp) && stepOf(streamId, e, mirror.describe, lastInput);
+    if (step) {
+      if (steps.length >= cap) return { steps, truncated: true };
+      steps.push(step);
+      // Any step ends a run of input; an input step starts one.
+      lastInput = inputId(e);
     }
-    if (e.type === 5) {
-      const tag = typeof e.data.tag === "string" ? e.data.tag : "";
-      if (tag === "everr.recording.pause") steps.push({ kind: "pause", at, streamId });
-      if (tag === "everr.recording.resume") steps.push({ kind: "resume", at, streamId });
-      continue;
-    }
-    if (e.type === 3 && e.data.source === 2) {
-      const mouseType = e.data.type;
-      if (mouseType === 2 || mouseType === 4) {
-        steps.push({ kind: "click", at, streamId, target: null });
-      }
-      continue;
-    }
-    if (e.type === 3 && e.data.source === 5) {
-      steps.push({ kind: "input", at, streamId, target: null });
-    }
+    mirror.apply(e);
   }
   return { steps, truncated: false };
+}
+
+const isMouseClick = (e: RrwebEvent) =>
+  e.type === 3 && e.data.source === 2 && (e.data.type === 2 || e.data.type === 4);
+const inputId = (e: RrwebEvent) =>
+  e.type === 3 && e.data.source === 5 && typeof e.data.id === "number" ? e.data.id : undefined;
+
+function stepOf(
+  streamId: string,
+  e: RrwebEvent,
+  describe: (id: number) => string | null,
+  lastInput: number | undefined,
+): JourneyStep | undefined {
+  const at = new Date(e.timestamp).toISOString();
+  if (e.type === 4) {
+    return { kind: "page", at, streamId, url: typeof e.data.href === "string" ? e.data.href : "" };
+  }
+  if (e.type === 5) {
+    const tag = typeof e.data.tag === "string" ? e.data.tag : "";
+    if (tag === "everr.recording.pause") return { kind: "pause", at, streamId };
+    if (tag === "everr.recording.resume") return { kind: "resume", at, streamId };
+    return;
+  }
+  const target = typeof e.data.id === "number" ? describe(e.data.id) : null;
+  if (isMouseClick(e)) return { kind: "click", at, streamId, target };
+  const id = inputId(e);
+  if (id !== undefined && id !== lastInput) return { kind: "input", at, streamId, target };
+  return;
 }
 
 function isRrwebEvent(value: unknown): value is RrwebEvent {
@@ -437,111 +507,6 @@ function isRrwebEvent(value: unknown): value is RrwebEvent {
     typeof value.data === "object" &&
     value.data !== null
   );
-}
-
-type SnapNode = {
-  type: number;
-  tagName?: string;
-  attributes?: Record<string, string>;
-  textContent?: string;
-  childNodes?: SnapNode[];
-  id?: number;
-};
-
-function isSnapNode(value: unknown): value is SnapNode {
-  if (!value || typeof value !== "object") return false;
-  return "type" in value && typeof value.type === "number";
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-/**
- * Text inside <style> and <script> is not markup: serialize it unescaped so
- * CSS or JavaScript with `>` or `&` survives, while markup text stays
- * HTML-escaped.
- */
-function serializeNode(node: SnapNode, rawText = false): string {
-  // rrweb NodeType: Document=0, DocumentType=1, Element=2, Text=3, CDATA=4, Comment=5
-  if (node.type === 3)
-    return rawText ? (node.textContent ?? "") : escapeHtml(node.textContent ?? "");
-  if (node.type === 5) return `<!--${escapeHtml(node.textContent ?? "")}-->`;
-  if (node.type === 1) {
-    const name = node.tagName ?? "html";
-    return `<!DOCTYPE ${name}>`;
-  }
-  if (node.type === 0) {
-    return (node.childNodes ?? []).map((child) => serializeNode(child, rawText)).join("");
-  }
-  if (node.type === 2) {
-    const tag = (node.tagName ?? "div").toLowerCase();
-    const attrs = Object.entries(node.attributes ?? {})
-      .map(([k, v]) => ` ${k}="${escapeHtml(String(v))}"`)
-      .join("");
-    const rawChild = tag === "style" || tag === "script";
-    const voidTags = new Set([
-      "area",
-      "base",
-      "br",
-      "col",
-      "embed",
-      "hr",
-      "img",
-      "input",
-      "link",
-      "meta",
-      "param",
-      "source",
-      "track",
-      "wbr",
-    ]);
-    if (voidTags.has(tag)) return `<${tag}${attrs}>`;
-    const kids = (node.childNodes ?? []).map((child) => serializeNode(child, rawChild)).join("");
-    return `<${tag}${attrs}>${kids}</${tag}>`;
-  }
-  return "";
-}
-
-function htmlFromEvents(
-  events: RrwebEvent[],
-  until: Date,
-): { url: string; html: string; coverage: "complete" | "incomplete" } {
-  const untilMs = until.getTime();
-  let url = "";
-  let snapshotNode: SnapNode | undefined;
-  let snapshotAt = -1;
-  let sawLaterMutation = false;
-
-  for (const e of events) {
-    if (e.timestamp > untilMs) break;
-    if (e.type === 4 && typeof e.data.href === "string") {
-      url = e.data.href;
-    }
-    if (e.type === 2 && isSnapNode(e.data.node)) {
-      snapshotNode = e.data.node;
-      snapshotAt = e.timestamp;
-      sawLaterMutation = false;
-    }
-    if (e.type === 3 && e.timestamp > snapshotAt && snapshotAt >= 0) {
-      sawLaterMutation = true;
-    }
-  }
-
-  if (!snapshotNode) {
-    return { url, html: "", coverage: "incomplete" };
-  }
-  const html = serializeNode(snapshotNode);
-  return {
-    url,
-    html:
-      html.startsWith("<!DOCTYPE") || html.startsWith("<html") ? html : `<!doctype html>${html}`,
-    coverage: sawLaterMutation ? "incomplete" : "complete",
-  };
 }
 
 function emptyJourney(sessionId: string, from: Date, to: Date): SessionJourney {
@@ -574,6 +539,51 @@ function asDate(value: string | Date | undefined, label: string): Date | undefin
   return parseInstant(value);
 }
 
+/**
+ * The Segments of a journey within MAX_SEGMENT_BYTES, newest stream first. A
+ * stream that does not fit whole is read without its snapshot pieces, and one
+ * that does not fit even so is left out; each is a "budget" gap.
+ */
+async function loadJourneySegments(
+  organizationId: string,
+  windows: ClipWindow[],
+): Promise<{ byStream: Map<string, StoredSegment[]>; gaps: Gap[]; truncated: boolean }> {
+  if (windows.length === 0) return { byStream: new Map(), gaps: [], truncated: false };
+  const sizes = await segmentBytes(organizationId, windows);
+  const newest = new Map<string, number>();
+  for (const w of windows)
+    newest.set(w.streamId, Math.max(newest.get(w.streamId) ?? 0, w.end.getTime()));
+  let left = MAX_SEGMENT_BYTES;
+  const whole: ClipWindow[] = [];
+  const small: ClipWindow[] = [];
+  const gaps: Gap[] = [];
+  for (const [streamId] of [...newest].sort((a, b) => b[1] - a[1])) {
+    const size = sizes.get(streamId) ?? { bytes: 0, pieceBytes: 0 };
+    const ofStream = windows.filter((w) => w.streamId === streamId);
+    if (size.bytes <= left) {
+      whole.push(...ofStream);
+      left -= size.bytes;
+    } else if (size.bytes - size.pieceBytes <= left) {
+      small.push(...ofStream);
+      left -= size.bytes - size.pieceBytes;
+      gaps.push({ kind: "budget", streamId, skipped: "pieces" });
+    } else {
+      gaps.push({ kind: "budget", streamId, skipped: "stream" });
+    }
+  }
+  const byStream = new Map<string, StoredSegment[]>();
+  for (const [part, pieces] of [
+    [whole, true],
+    [small, false],
+  ] as const) {
+    if (!part.length) continue;
+    const loaded = await loadSegments(organizationId, part, { pieces });
+    gaps.push(...loaded.gaps);
+    for (const [streamId, segs] of loaded.byStream) byStream.set(streamId, segs);
+  }
+  return { byStream, gaps, truncated: gaps.some((g) => g.kind === "budget") };
+}
+
 export async function sessionJourney(
   organizationId: string,
   sessionId: string,
@@ -594,7 +604,7 @@ export async function sessionJourney(
     throw new ReplayError("bad_request", "from/to window must be at most 24 hours");
   }
 
-  const { clips, gaps: clipGaps } = await loadClips(organizationId, sessionId, from, to);
+  const { clips, gaps: clipGaps, more } = await loadClips(organizationId, sessionId, from, to);
   if (clips.length === 0) {
     const empty = emptyJourney(sessionId, from, to);
     return {
@@ -605,24 +615,27 @@ export async function sessionJourney(
   }
 
   const overlapping = clips.filter((c) => c.end >= from && c.start <= to);
-  const { byStream, gaps: loadGaps } = await loadSegments(organizationId, overlapping);
+  const {
+    byStream,
+    gaps: loadGaps,
+    truncated: overBudget,
+  } = await loadJourneySegments(organizationId, overlapping);
   const gaps = [...clipGaps, ...loadGaps];
-  let truncated = overlapping.length >= MAX_CLIPS;
+  let truncated = more || overBudget;
 
   // The step cap is enforced over all streams at the end (after sorting), so
   // a single busy stream cannot hide another stream's earliest steps.
   let steps: JourneyStep[] = [];
   for (const [streamId, segs] of byStream) {
     const streamClips = overlapping.filter((c) => c.streamId === streamId);
-    const until = new Date(Math.max(...streamClips.map((c) => c.end.getTime())));
     const { events, gaps: streamGaps } = reassemble(segs, streamId);
     gaps.push(...streamGaps);
-    const clipped = events.filter((e) => {
-      return streamClips.some(
-        (c) => e.timestamp >= c.start.getTime() && e.timestamp <= c.end.getTime(),
-      );
-    });
-    const projected = projectSteps(streamId, clipped, until, MAX_STEPS);
+    const projected = projectSteps(
+      streamId,
+      events,
+      (time) => streamClips.some((c) => time >= c.start.getTime() && time <= c.end.getTime()),
+      MAX_STEPS,
+    );
     if (projected.truncated) truncated = true;
     steps.push(...projected.steps);
   }
@@ -666,6 +679,8 @@ export async function sessionJourney(
 export async function pageAt(
   organizationId: string,
   request: { sessionId?: string; clipId?: string; at: string; streamId?: string },
+  /** `compact` gives the body only, without scripts, styles, or drawing. */
+  options: { compact?: boolean } = {},
 ): Promise<PageSnapshot> {
   if (!organizationId) throw new ReplayError("bad_request", "missing organization");
   if (!request.at) throw new ReplayError("bad_request", "at is required");
@@ -714,8 +729,14 @@ export async function pageAt(
   const segs = byStream.get(clip.streamId) ?? [];
   const { events, gaps: streamGaps } = reassemble(segs, clip.streamId);
   const allGaps = [...gaps, ...streamGaps];
-  const inRange = events.filter((e) => e.timestamp <= clip.end.getTime());
-  const built = htmlFromEvents(inRange, at);
+  // Replay the stream up to `at`: the last snapshot, then every change after it.
+  const mirror = createMirror();
+  let url = "";
+  for (const e of events) {
+    if (e.timestamp > atMs) break;
+    if (e.type === 4 && typeof e.data.href === "string") url = e.data.href;
+    mirror.apply(e);
+  }
   const gapBefore = allGaps.some((g) => g.kind !== "clip" && g.streamId === clip.streamId);
 
   return {
@@ -723,9 +744,9 @@ export async function pageAt(
     streamId: clip.streamId,
     clipId: clip.clipId,
     at: iso(at),
-    url: built.url,
-    html: built.html,
-    coverage: built.coverage === "incomplete" || gapBefore ? "incomplete" : "complete",
+    url,
+    html: mirror.html(options.compact),
+    coverage: !mirror.loaded() || mirror.lost() || gapBefore ? "incomplete" : "complete",
   };
 }
 

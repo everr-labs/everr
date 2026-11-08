@@ -100,6 +100,83 @@ function pageSnapshot(): Record<string, unknown> {
   };
 }
 
+function snapshotEvent(atMs: number, node = pageSnapshot()): Record<string, unknown> {
+  return { type: 2, timestamp: atMs, data: { node } };
+}
+
+function mutationEvent(atMs: number, data: Record<string, unknown>): Record<string, unknown> {
+  return {
+    type: 3,
+    timestamp: atMs,
+    data: { source: 0, texts: [], attributes: [], removes: [], adds: [], ...data },
+  };
+}
+
+function inputEvent(atMs: number, id: number, text: string): Record<string, unknown> {
+  return { type: 3, timestamp: atMs, data: { source: 5, id, text, isChecked: false } };
+}
+
+/** A page with a head, a body, a form, and replay-only attributes. */
+function formSnapshot(): Record<string, unknown> {
+  return {
+    type: 0,
+    id: 1,
+    childNodes: [
+      {
+        type: 2,
+        tagName: "html",
+        attributes: {},
+        id: 2,
+        childNodes: [
+          {
+            type: 2,
+            tagName: "head",
+            attributes: {},
+            id: 3,
+            childNodes: [
+              {
+                type: 2,
+                tagName: "link",
+                attributes: { rel: "stylesheet", _cssText: "body { margin: 0 }" },
+                id: 4,
+              },
+            ],
+          },
+          {
+            type: 2,
+            tagName: "body",
+            attributes: {},
+            id: 10,
+            childNodes: [
+              {
+                type: 2,
+                tagName: "h1",
+                attributes: { style: "color: red" },
+                id: 11,
+                childNodes: [{ type: 3, id: 12, textContent: "Checkout" }],
+              },
+              {
+                type: 2,
+                tagName: "input",
+                attributes: { name: "email", type: "email", rr_width: "120px" },
+                id: 13,
+              },
+              {
+                type: 2,
+                tagName: "button",
+                attributes: { id: "pay" },
+                id: 14,
+                childNodes: [{ type: 3, id: 15, textContent: "Pay now" }],
+              },
+              { type: 2, tagName: "script", attributes: {}, id: 16, childNodes: [] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 function segRow(body: string, overrides: Partial<SegmentRow> = {}): SegmentRow {
   return {
     stream_id: STREAM,
@@ -116,10 +193,36 @@ function eventBody(events: Array<Record<string, unknown>>): string {
   return JSON.stringify(events);
 }
 
-function plan(rows?: { traces?: Array<unknown>; recordings?: Array<unknown> }): void {
-  mockedQuery.mockImplementation(async (sql: string) => {
+type SizeRow = { stream_id: string; bytes: number; piece_bytes: number };
+
+/** The bytes per stream that the journey's size query returns for these rows. */
+function sizesOf(rows: SegmentRow[]): SizeRow[] {
+  const sizes = new Map<string, SizeRow>();
+  for (const row of rows) {
+    const size = sizes.get(row.stream_id) ?? { stream_id: row.stream_id, bytes: 0, piece_bytes: 0 };
+    size.bytes += row.Body.length;
+    if (row.pieces) size.piece_bytes += row.Body.length;
+    sizes.set(row.stream_id, size);
+  }
+  return [...sizes.values()];
+}
+
+function plan(rows?: {
+  traces?: Array<unknown>;
+  recordings?: SegmentRow[];
+  sizes?: SizeRow[];
+}): void {
+  mockedQuery.mockImplementation(async (sql: string, _org, params) => {
     if (/FROM\s+traces/.test(sql)) return (rows?.traces ?? []) as never;
-    if (/FROM\s+recordings/.test(sql)) return (rows?.recordings ?? []) as never;
+    if (/FROM\s+recordings/.test(sql)) {
+      const streams = (params as { streams?: string[] } | undefined)?.streams;
+      const recordings = (rows?.recordings ?? []).filter(
+        (r) => !streams || streams.includes(r.stream_id),
+      );
+      if (sql.includes("GROUP BY stream_id")) return (rows?.sizes ?? sizesOf(recordings)) as never;
+      if (sql.includes("AND NOT (")) return recordings.filter((r) => !r.pieces) as never;
+      return recordings as never;
+    }
     throw new Error(`unexpected query: ${sql}`);
   });
 }
@@ -195,7 +298,7 @@ describe("sessionJourney", () => {
     expect(toOnly.windowEnd).toBe(new Date(T0 + HOUR).toISOString());
     const toCall = callsFor("traces").at(-1);
     expect(toCall).toBeDefined();
-    expect(toOnly.windowStart).toMatch(/^2026-11-0[45]/);
+    expect(toOnly.windowStart).toBe(new Date(T0 + HOUR - WINDOW_MAX_MS).toISOString());
     expect((toCall?.params.toMs as number) - (toCall?.params.fromMs as number)).toBe(WINDOW_MAX_MS);
   });
 
@@ -276,6 +379,92 @@ describe("sessionJourney", () => {
     expect(journey.facts.clicks).toBe(500);
   });
 
+  it("names the element of each click, as the page was then, and folds a run of input into one step", async () => {
+    plan({
+      traces: [spanRow()],
+      recordings: [
+        segRow(
+          eventBody([
+            metaEvent(T0 + 10),
+            snapshotEvent(T0 + 20, formSnapshot() as never),
+            inputEvent(T0 + 100, 13, "a"),
+            inputEvent(T0 + 110, 13, "ab"),
+            inputEvent(T0 + 120, 13, "abc"),
+            rrwebEvent({ type: 3, data: { source: 2, type: 2, id: 15 } }, T0 + 200),
+            mutationEvent(T0 + 300, { texts: [{ id: 15, value: "Paying" }] }),
+            rrwebEvent({ type: 3, data: { source: 2, type: 2, id: 14 } }, T0 + 400),
+            inputEvent(T0 + 500, 13, "abcd"),
+          ]),
+        ),
+      ],
+    });
+    const journey = await sessionJourney(ORG, SESSION);
+
+    expect(journey.steps.map((s) => [s.kind, "target" in s ? s.target : null])).toEqual([
+      ["page", null],
+      ["input", 'input[name="email"][type="email"]'],
+      ["click", 'button#pay "Pay now"'],
+      ["click", 'button#pay "Paying"'],
+      ["input", 'input[name="email"][type="email"]'],
+    ]);
+    expect(journey.facts.inputs).toBe(2);
+  });
+
+  it("flags more clips than the cap, and counts a clip stored twice once", async () => {
+    const many = Array.from({ length: 21 }, (_, i) => spanRow({ clipId: `clip-${i}` }));
+    plan({ traces: many, recordings: [] });
+    const capped = await sessionJourney(ORG, SESSION);
+    expect(capped.clips).toHaveLength(20);
+    expect(capped.truncated).toBe(true);
+
+    plan({ traces: [spanRow(), spanRow()], recordings: [] });
+    const once = await sessionJourney(ORG, SESSION);
+    expect(once.clips).toHaveLength(1);
+    expect(once.facts.clipsByTrigger.error).toBe(1);
+    expect(once.truncated).toBe(false);
+  });
+
+  it("keeps to its byte budget: newest stream whole, then without snapshot pieces, then left out", async () => {
+    const MiB = 1024 * 1024;
+    plan({
+      traces: [
+        spanRow({ streamId: "newest", clipId: "c1", endMs: T0 + 9_000 }),
+        spanRow({ streamId: "middle", clipId: "c2", endMs: T0 + 8_000 }),
+        spanRow({ streamId: "oldest", clipId: "c3", endMs: T0 + 7_000 }),
+      ],
+      recordings: [
+        segRow(eventBody([metaEvent(T0 + 10)]), { stream_id: "newest" }),
+        segRow(eventBody([metaEvent(T0 + 11)]), { stream_id: "middle" }),
+        segRow("piece", {
+          stream_id: "middle",
+          segment_index: 1,
+          event_index: "1",
+          piece: "0",
+          pieces: "2",
+        }),
+        segRow(eventBody([metaEvent(T0 + 12)]), { stream_id: "oldest" }),
+      ],
+      sizes: [
+        { stream_id: "newest", bytes: 20 * MiB, piece_bytes: 0 },
+        { stream_id: "middle", bytes: 15 * MiB, piece_bytes: 10 * MiB },
+        { stream_id: "oldest", bytes: 9 * MiB, piece_bytes: 0 },
+      ],
+    });
+    const journey = await sessionJourney(ORG, SESSION);
+
+    expect(journey.truncated).toBe(true);
+    expect(journey.gaps).toEqual([
+      { kind: "budget", streamId: "middle", skipped: "pieces" },
+      { kind: "budget", streamId: "oldest", skipped: "stream" },
+    ]);
+    expect(new Set(journey.steps.map((s) => s.streamId))).toEqual(new Set(["newest", "middle"]));
+    const reads = callsFor("recordings").filter((c) => !c.sql.includes("GROUP BY"));
+    expect(reads.map((c) => [c.params.streams, c.sql.includes("AND NOT (")])).toEqual([
+      [["newest"], false],
+      [["middle"], true],
+    ]);
+  });
+
   it("records index, piece, and conflict gaps", async () => {
     plan({
       traces: [spanRow()],
@@ -351,6 +540,98 @@ describe("pageAt", () => {
 
     expect(page.html).toContain("a > b { color: red }");
     expect(page.html).not.toContain("a &gt; b");
+  });
+
+  it("applies the changes after the snapshot up to at, and only those", async () => {
+    plan({
+      traces: [spanRow()],
+      recordings: [
+        segRow(
+          eventBody([
+            metaEvent(T0 + 10),
+            snapshotEvent(T0 + 20, formSnapshot() as never),
+            mutationEvent(T0 + 100, {
+              texts: [{ id: 12, value: "Order placed" }],
+              attributes: [{ id: 14, attributes: { disabled: "", id: null } }],
+              removes: [{ parentId: 10, id: 13 }],
+              adds: [
+                {
+                  parentId: 10,
+                  nextId: 14,
+                  node: { type: 2, tagName: "p", attributes: { class: "notice" }, id: 20 },
+                },
+                { parentId: 20, nextId: null, node: { type: 3, textContent: "Paid", id: 21 } },
+              ],
+            }),
+            mutationEvent(T0 + 3_000, { texts: [{ id: 12, value: "Later" }] }),
+          ]),
+        ),
+      ],
+    });
+    const before = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 50).toISOString() });
+    expect(before.html).toContain("Checkout");
+    expect(before.html).toContain('name="email"');
+
+    const after = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    expect(after.coverage).toBe("complete");
+    expect(after.html).toContain("<h1");
+    expect(after.html).toContain("Order placed");
+    expect(after.html).not.toContain("Later");
+    expect(after.html).not.toContain('name="email"');
+    expect(after.html).toContain('<p class="notice">Paid</p><button disabled="">');
+  });
+
+  it("sets the value of an input from its input events", async () => {
+    plan({
+      traces: [spanRow()],
+      recordings: [
+        segRow(
+          eventBody([
+            metaEvent(T0 + 10),
+            snapshotEvent(T0 + 20, formSnapshot() as never),
+            inputEvent(T0 + 100, 13, "***@***"),
+          ]),
+        ),
+      ],
+    });
+    const page = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    expect(page.html).toContain('value="***@***"');
+  });
+
+  it("marks the page incomplete when a change names a node it does not have", async () => {
+    plan({
+      traces: [spanRow()],
+      recordings: [
+        segRow(
+          eventBody([
+            metaEvent(T0 + 10),
+            snapshotEvent(T0 + 20, formSnapshot() as never),
+            mutationEvent(T0 + 100, { texts: [{ id: 999, value: "lost" }] }),
+          ]),
+        ),
+      ],
+    });
+    const page = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    expect(page.coverage).toBe("incomplete");
+  });
+
+  it("gives the body only in the compact form, without scripts, styles, or replay attributes", async () => {
+    plan({
+      traces: [spanRow()],
+      recordings: [
+        segRow(eventBody([metaEvent(T0 + 10), snapshotEvent(T0 + 20, formSnapshot() as never)])),
+      ],
+    });
+    const at = new Date(T0 + 1_000).toISOString();
+    const full = await pageAt(ORG, { clipId: CLIP_ID, at });
+    expect(full.html).toContain("<head>");
+    expect(full.html).not.toContain("_cssText");
+    expect(full.html).not.toContain("rr_width");
+
+    const compact = await pageAt(ORG, { clipId: CLIP_ID, at }, { compact: true });
+    expect(compact.html).toBe(
+      '<body><h1>Checkout</h1><input name="email" type="email"><button id="pay">Pay now</button></body>',
+    );
   });
 
   it("rejects an at outside the clip span with 404", async () => {
