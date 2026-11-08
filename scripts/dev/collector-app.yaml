@@ -20,6 +20,7 @@ receivers:
           allowed_headers:
             - Authorization
             - Content-Type
+            - Content-Encoding
         max_request_body_size: 20971520
   githubactions:
     path: /webhook/github
