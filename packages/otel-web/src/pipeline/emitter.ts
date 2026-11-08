@@ -207,17 +207,27 @@ type Emitter = [
 ];
 
 /**
- * Sends one log record in its own logs request, outside the batch, without
+ * Makes one log record for its own logs request, outside the batch, without
  * keepalive and without the active span. It is for a record close to the size
- * of a full request, a recording Segment for example. The promise settles when
- * the request ends, and it never rejects.
+ * of a full request, a recording Segment for example. It gives the OTLP/JSON
+ * payload, the function that sends it once, and whether that function takes a
+ * gzipped copy of the payload (true for the fetch sender, false for a host
+ * `send`). It gives undefined when `beforeSend` drops the record. The caller
+ * decides on compression and retries. The promise gives what the transport
+ * gave (a Response from fetch), and rejects on a failure.
+ *
+ * `beforeSend` sees the record with the event name as its body, as `emit`
+ * gives by default, and can drop it or change its attributes. The body on the
+ * wire is always `body`: the hook never parses or rewrites a large payload.
  */
 export type EmitNow = (
   eventName: string,
   attributes: Record<string, AttrValue | null | undefined>,
   timestamp: number,
   body: string,
-) => Promise<void>;
+) =>
+  | [payload: string, send: (gzipped?: ArrayBuffer) => Promise<unknown>, gzip: boolean]
+  | undefined;
 
 // These values are the same as the values in the browser telemetry client of
 // the web app. The queue has no limit, and this is correct. The SDK discards no
@@ -433,6 +443,8 @@ export function createEmitter(
     severityNumber: number,
     body: string,
     span: SpanContext | undefined,
+    /** The body on the wire, when the hook must not see it. */
+    wire?: string,
   ): OtlpLogRecord | undefined => {
     const item = applyBeforeSend({
       kind: "log",
@@ -450,7 +462,7 @@ export function createEmitter(
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
-      body: toAnyValue(item.body),
+      body: toAnyValue(wire ?? item.body),
       attributes: toKeyValues(item.attributes),
       ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
     };
@@ -482,8 +494,22 @@ export function createEmitter(
   };
 
   const emitNow: EmitNow = (eventName, attributes, time, body) => {
-    const record = logRecord(eventName, attributes, unixNano(time), 9, body, undefined);
-    return record ? post("logs", build("Logs", "logRecords", [record])) : noop();
+    const record = logRecord(eventName, attributes, unixNano(time), 9, eventName, undefined, body);
+    if (!record) return;
+    const payload = build("Logs", "logRecords", [record]);
+    return [
+      payload,
+      (gzipped) => {
+        // The send starts in the call. A synchronous error is a rejection.
+        try {
+          return Promise.resolve(send("logs", payload, false, gzipped));
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      },
+      // A host sender takes text only. The flag that marks the fetch sender.
+      truncateAtExit,
+    ];
   };
 
   const emitSpan: EmitSpan = (

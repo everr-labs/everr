@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type * as Sdk from "./index.js";
 import { hashUnit } from "./instrumentations/sampled.js";
+import { stubTransportFetch } from "./test-fetch.js";
 import {
   CUSTOM,
   FULL_SNAPSHOT,
@@ -414,6 +415,45 @@ describe("Clips", () => {
     expect(span?.end).toBe(hiddenAt);
   });
 
+  it("keeps a Clip open on a hidden tab, and sends what it has so far", async () => {
+    const t = await start({ maskAllText: false });
+    const clip = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
+    box().textContent = "before the tab switch";
+    await mutations();
+    const setVisibility = (value: string) =>
+      Object.defineProperty(document, "visibilityState", { value, configurable: true });
+    setVisibility("hidden");
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    setVisibility("visible");
+    expect(clip.isRecording()).toBe(true);
+    expect(t.segments()).toHaveLength(2);
+    expect(JSON.stringify(t.segments()[1].events)).toContain("before the tab switch");
+    box().textContent = "after the tab is back";
+    await mutations();
+    clip.end();
+    expect(JSON.stringify(t.segments().at(-1)?.events)).toContain("after the tab is back");
+    expect(await t.spans()).toHaveLength(1);
+  });
+
+  it("shows beforeSend the event name as the Segment body, and sends the real body", async () => {
+    const seen: string[] = [];
+    const t = await start(
+      {},
+      {
+        sdkOptions: {
+          beforeSend: (item) => {
+            if (item.kind !== "log") return item;
+            seen.push(String(item.body));
+            return { ...item, body: "rewritten" };
+          },
+        },
+      },
+    );
+    t.rec.recorder.emitClip();
+    expect(seen).toEqual(["everr.browser.recording.segment"]);
+    expect(types(t.segments()[0].events)).toEqual([META, FULL_SNAPSHOT]);
+  });
+
   it("finishes the recording Span of an open Clip on shutdown", async () => {
     const t = await start();
     const clip = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
@@ -423,6 +463,97 @@ describe("Clips", () => {
     expect(clip.isRecording()).toBe(false);
     expect(t.segments()).toHaveLength(2);
     expect(await t.spans()).toHaveLength(1);
+  });
+});
+
+describe("delivery over fetch", () => {
+  type Request = { encoding?: string; text: string };
+  /** A collector at a fetch endpoint. `answer` gives the response to each Segment request. */
+  const collector = (answer: (encoding: string | undefined, n: number) => Response) => {
+    const segments: Request[] = [];
+    stubTransportFetch(
+      vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const encoding = ((init?.headers ?? {}) as Record<string, string>)["Content-Encoding"];
+        const text =
+          typeof init?.body === "string"
+            ? init.body
+            : await new Response(
+                new Response(init!.body).body!.pipeThrough(new DecompressionStream("gzip")),
+              ).text();
+        if (!text.includes("everr.browser.recording.segment")) return new Response(null);
+        segments.push({ encoding, text });
+        return answer(encoding, segments.length);
+      }),
+    );
+    return segments;
+  };
+  const viaFetch = { sdkOptions: { send: undefined, endpoint: "https://collector.test" } };
+  // A real macrotask: gzip runs on real ticks, which the fake clock does not drive.
+  const tick = () =>
+    new Promise((resolve) => {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => {
+        channel.port1.close();
+        resolve(undefined);
+      };
+      channel.port2.postMessage(0);
+    });
+  /** Moves the fake clock `ms` ahead in 100 ms steps, letting the real work of each step finish. */
+  const settle = async (ms = 10_000) => {
+    for (let t = 0; t < ms; t += 100) {
+      for (let i = 0; i < 5; i++) await tick();
+      await vi.advanceTimersByTimeAsync(100);
+    }
+  };
+
+  it("sends Segments gzipped", async () => {
+    const segments = collector(() => new Response(null));
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    await settle();
+    expect(segments.map((r) => r.encoding)).toEqual(["gzip"]);
+    expect(segments[0].text).toContain('\\"type\\":4');
+  });
+
+  it("tries a 5xx or a 429 again twice, 2 and 4 seconds later, and then gives up", async () => {
+    const times: number[] = [];
+    const segments = collector((_, n) => {
+      times.push(Date.now());
+      return new Response(null, { status: n === 1 ? 503 : 429 });
+    });
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    for (let i = 0; i < 400 && segments.length < 3; i++) await settle(100);
+    await settle();
+    expect(segments.map((r) => r.encoding)).toEqual(["gzip", "gzip", "gzip"]);
+    expect(times[1] - times[0]).toBeGreaterThanOrEqual(2_000);
+    expect(times[2] - times[1]).toBeGreaterThanOrEqual(4_000);
+  });
+
+  it("does not try a 4xx again", async () => {
+    const segments = collector(() => new Response(null, { status: 400 }));
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    await settle();
+    expect(segments).toHaveLength(1);
+  });
+
+  it("sends plain from then on when a gzipped request fails and the plain retry goes through", async () => {
+    // A collector whose CORS refuses Content-Encoding fails each gzipped request.
+    const segments = collector((encoding) => {
+      if (encoding) throw new TypeError("Failed to fetch");
+      return new Response(null);
+    });
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    await settle();
+    box().textContent = "next";
+    await mutations();
+    t.rec.recorder.emitClip();
+    await settle();
+    // The gzipped try failed, its plain retry went through, and the next
+    // Segment goes plain at once.
+    expect(segments.map((r) => r.encoding)).toEqual(["gzip", undefined, undefined]);
   });
 });
 

@@ -42,7 +42,9 @@ receivers:
         # their allowlisted origins.
         cors:
           allowed_origins: ["*"]
-          allowed_headers: ["Authorization", "Content-Type"]
+          # Content-Encoding is not CORS-safelisted. The WebSDK gzips the
+          # recording Segments, and falls back to plain when a collector refuses it.
+          allowed_headers: ["Authorization", "Content-Type", "Content-Encoding"]
         # confighttp's default (20 MiB), made explicit for the public edge.
         max_request_body_size: 20971520
       grpc:
