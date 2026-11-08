@@ -9,6 +9,10 @@ extensions:
     directory: ${env:EVERR_QUEUE_DIRECTORY}
     create_directory: true
     fsync: true
+  file_storage/recordings:
+    directory: ${env:EVERR_QUEUE_DIRECTORY}/recordings
+    create_directory: true
+    fsync: true
 connectors:
   everr_usage_connector:
     interval: 60s
@@ -160,7 +164,7 @@ exporters:
     sending_queue:
       enabled: true
       wait_for_result: false
-      queue_size: 10000
+      queue_size: 500
       num_consumers: 10
       sizer: requests
       batch:
@@ -168,7 +172,7 @@ exporters:
         min_size: 16
         max_size: 16
         flush_timeout: 1s
-      storage: file_storage/ingestion
+      storage: file_storage/recordings
     retry_on_failure:
       enabled: true
       max_elapsed_time: 0s
@@ -177,6 +181,7 @@ service:
     - everr_apikey
     - everr_usage
     - file_storage/ingestion
+    - file_storage/recordings
   pipelines:
     metrics/usage:
       receivers:
