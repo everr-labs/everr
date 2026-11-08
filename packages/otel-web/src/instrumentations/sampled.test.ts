@@ -20,7 +20,7 @@ function fakeCtx(sessionId: string): InstrumentationContext {
     onNavigation: () => () => {},
     onHide: () => () => {},
     onRecord: () => () => {},
-    emitNow: () => Promise.resolve(),
+    emitNow: () => undefined,
     dev: false,
   };
 }

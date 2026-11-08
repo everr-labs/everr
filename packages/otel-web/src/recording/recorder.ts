@@ -19,6 +19,7 @@ const BUCKET_TOKENS = 100;
 const TOKENS_PER_MS = 10 / 1_000;
 const AUTO_CLIP = { last: 60_000, next: 10_000 };
 const AUTO_CLIPS_PER_PAGE = 5;
+const RETRY_MS = 2_000;
 
 // The rrweb event types and the incremental sources that the recorder reads.
 const FULL_SNAPSHOT = 2;
@@ -62,7 +63,9 @@ export type Stream = {
   observe(item: SendEvent): void;
   pause(): void;
   resume(): void;
-  /** Closes the open Clips at the hide time, and sends nothing more for them. */
+  /** Sends what the open Clips need so far, and keeps them open. For a hidden tab, which can come back. */
+  flush(): void;
+  /** Closes the open Clips at the unload time, and sends nothing more for them. */
   hide(): void;
   /** Sends what the open Clips still need, ends them, and drops the buffer. */
   end(): void;
@@ -71,6 +74,41 @@ export type Stream = {
 // The automatic Clips of this document. The chunk loads once per document, and
 // the count outlives a shutdown and a new start.
 let autoClips = 0;
+
+// Segments go gzipped until a collector refuses it: a collector whose CORS
+// does not allow Content-Encoding fails every gzipped request. After a plain
+// retry goes through where gzip failed, this page sends plain.
+let gzip = typeof CompressionStream === "function";
+
+const compress = (text: string) =>
+  new Response(
+    // oxlint-disable-next-line typescript/no-non-null-assertion -- A Response made from a string always has a body.
+    new Response(text).body!.pipeThrough(new CompressionStream("gzip")),
+  ).arrayBuffer();
+
+// Sends one Segment request. A network error, a 5xx, or a 429 is tried again
+// twice, 2 and 4 seconds later. A server error keeps the gzipped copy; a
+// network error tries plain. A lost Segment leaves a hole in each Clip that
+// needs it, and a lost snapshot piece leaves the Clip blank.
+const deliver = (
+  request: NonNullable<ReturnType<InstrumentationContext["emitNow"]>>,
+  retries = 2,
+  // null sends plain.
+  zipped = gzip && request[2] ? compress(request[0]) : null,
+): Promise<void> =>
+  (zipped ? zipped.then(request[1]) : request[1]())
+    .then((response) => {
+      if (response instanceof Response && (response.status >= 500 || response.status === 429))
+        throw response;
+      if (!zipped && request[2]) gzip = false;
+    })
+    .catch((error: unknown) =>
+      retries
+        ? new Promise((resolve) => setTimeout(resolve, RETRY_MS * (3 - retries))).then(() =>
+            deliver(request, retries - 1, error instanceof Response ? zipped : null),
+          )
+        : undefined,
+    );
 
 // The UTF-8 width of the code point at i. A surrogate pair is 4 bytes.
 const width = (s: string, i: number) => {
@@ -151,8 +189,8 @@ export function startStream(
   let paused = false;
   let ended = false;
 
-  const emitSegment = (body: string, time: number, piece?: Record<string, number>) =>
-    void ctx.emitNow(
+  const emitSegment = (body: string, time: number, piece?: Record<string, number>) => {
+    const request = ctx.emitNow(
       "everr.browser.recording.segment",
       {
         "session.id": sessionId,
@@ -163,6 +201,8 @@ export function startStream(
       time,
       body,
     );
+    if (request) void deliver(request);
+  };
   const emitBatch = (events: Entry[]) =>
     emitSegment(`[${events.map((e) => e.json).join(",")}]`, events[0].time);
 
@@ -378,6 +418,7 @@ export function startStream(
       marker("everr.recording.resume");
       run();
     },
+    flush: sendLive,
     hide() {
       for (const open of clips) open.close(true);
     },

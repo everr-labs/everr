@@ -76,10 +76,11 @@ export interface InstrumentationContext {
    * Adds a listener for the hidden state: the `pagehide` event and the
    * `visibilitychange` event with the hidden state. The SDK calls the listener
    * before its exit flush. Thus a record that the listener sends goes in the
-   * batch of that flush. This function returns the function that removes the
-   * listener.
+   * batch of that flush. `unload` is true for `pagehide`, when the document
+   * goes away, and false for a hidden tab that can come back. This function
+   * returns the function that removes the listener.
    */
-  onHide(listener: () => void): () => void;
+  onHide(listener: (unload: boolean) => void): () => void;
   /**
    * Adds a listener for each log record and span that the SDK sends, after the
    * `beforeSend` hook keeps it. Thus a listener sees only what leaves the page,

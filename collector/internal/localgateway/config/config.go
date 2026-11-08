@@ -52,6 +52,9 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 						"read_timeout":        "1s",
 						"cors": map[string]any{
 							"allowed_origins": []any{"*"},
+							// The WebSDK gzips recording Segments. Content-Encoding
+							// is not CORS-safelisted, and the default list lacks it.
+							"allowed_headers": []any{"Authorization", "Content-Type", "Content-Encoding"},
 						},
 					},
 				},
