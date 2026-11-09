@@ -1,16 +1,16 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
-import { LaneTimelineChart, laneItemAt } from "./lane-timeline-chart";
+import { LaneTimelineChart } from "./lane-timeline-chart";
 import { SharedTimeCursorProvider } from "./shared-time-cursor";
 
 vi.mock("echarts/core", async (importOriginal) =>
   (await import("@everr/ui/testing/echarts")).ssrEChartsCore(importOriginal),
 );
 
-it("marks the instant hovered in one panel in every panel of the dashboard", () => {
+it("shows the hovered block and marks its instant in every panel of the dashboard", () => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-    DOMRect.fromRect({ x: 0, y: 0, width: 200, height: 20 }),
+    DOMRect.fromRect({ x: 0, y: 0, width: 400, height: 200 }),
   );
   const lane = (label: string) => (
     <LaneTimelineChart
@@ -37,19 +37,13 @@ it("marks the instant hovered in one panel in every panel of the dashboard", () 
     );
   const track = container.querySelector("[data-slot=time-track]")!;
 
-  fireEvent.mouseMove(track, { clientX: 50 });
-  expect(cursors()).toEqual(["25%", "25%"]);
+  fireEvent.mouseMove(track, { clientX: 300, clientY: 50 });
+  expect(screen.getByText("up")).toBeInTheDocument();
+  const [first, second] = cursors();
+  expect(cursors()).toHaveLength(2);
+  expect(second).toBe(first);
 
   fireEvent.mouseLeave(track);
+  expect(screen.queryByText("up")).toBeNull();
   expect(cursors()).toEqual([]);
-});
-
-it("finds the item under the pointer, with a little slack for narrow ones", () => {
-  const items = [
-    { start: 0, end: 10, state: "up", title: "" },
-    { start: 20, end: 21, state: "down", title: "" },
-  ];
-  expect(laneItemAt(items, 5, 0)?.state).toBe("up");
-  expect(laneItemAt(items, 15, 0)).toBeNull();
-  expect(laneItemAt(items, 22, 1)?.state).toBe("down");
 });

@@ -116,18 +116,20 @@ export function createValueFormatter(format: ValueFormat = { unit: "", scale: "n
       : formatted.value;
   }
 
+  /** Fix one scale for the entire axis, selected from its largest magnitude. */
+  const axis = (reference: number) => (value: number) => join(parts(value, reference, true));
+
   return {
     parts: (value: number) => parts(value),
     format: (value: number) => join(parts(value)),
-    /** Fix one scale for the entire axis, selected from its largest magnitude. */
-    axis: (reference: number) => (value: number) => join(parts(value, reference, true)),
+    axis,
     /**
      * The axis labels for `reference`, plus what they divide values by, so tick
      * steps can be chosen round in the unit shown (2 GiB rather than 2e9 bytes).
      */
     axisFor: (reference: number) => ({
       divisor: percent || !Number.isFinite(reference) ? 1 : scaleFor(Math.abs(reference)).divisor,
-      format: (value: number) => join(parts(value, reference, true)),
+      format: axis(reference),
     }),
   };
 }

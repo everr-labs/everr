@@ -2,7 +2,7 @@ import { ChartEmptyState, formatChartDate } from "@everr/ui/components/chart-hel
 import { SeriesChart } from "@everr/ui/components/series-chart";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { useMemo } from "react";
-import { niceValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
+import { seriesValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
 import { createValueFormatter } from "#app/components/dashboards/visualizations/value-format.ts";
 import type { RepoDurationPoint } from "#app/data/repo-detail/schemas.ts";
 
@@ -17,18 +17,12 @@ export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
     const p50 = data.map((point) => point.p50Duration);
     const p95 = data.map((point) => point.p95Duration);
     // Ticks round in the displayed unit (whole minutes), not in milliseconds.
-    const { scale, format } = niceValueAxis(DURATION, 0, Math.max(0, ...p50, ...p95), { min: 0 });
+    const max = Math.max(0, ...p50, ...p95);
     return {
       labels: data.map((point) => formatChartDate(point.date)),
       titles: data.map((point) => new Date(point.date).toLocaleDateString()),
       axes: {
-        left: {
-          format: (value: number) => formatDurationCompact(value),
-          min: scale.domain[0],
-          max: scale.domain[1],
-          ticks: scale.ticks,
-          tickFormat: format,
-        },
+        left: seriesValueAxis(DURATION, max, formatDurationCompact),
       },
       series: [
         {

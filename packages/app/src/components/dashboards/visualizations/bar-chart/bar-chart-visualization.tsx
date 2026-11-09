@@ -9,13 +9,14 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bucketIndexAt, createTimeTickFormatter } from "../data-utils";
+import { bucketIndexAt } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
   createTextMeasurer,
   niceValueAxis,
   plainAxisOption,
+  timeLabelFormatter,
   VALUE_AXIS_EDGE_INSET,
   valueAxisOption,
 } from "../echarts/axis";
@@ -99,19 +100,19 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
  */
 function BucketCursor({
   bucketTimes,
-  chart,
+  size,
   grid,
   horizontal,
 }: {
   bucketTimes: number[];
-  chart: { getWidth(): number; getHeight(): number };
+  size: { width: number; height: number };
   grid: GridInsets;
   horizontal: boolean;
 }) {
   const cursor = useTimeCursor();
   const index = cursor === null ? null : bucketIndexAt(bucketTimes, cursor);
   if (index === null) return null;
-  const plot = plotWithin(chart, grid);
+  const plot = plotWithin(size, grid);
   const along = (index + 0.5) / bucketTimes.length;
   return (
     <CursorLine
@@ -166,7 +167,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     if (!isTimeAxis) return chartData.map((row) => String(row[X_KEY]));
     const first = chartData[0]?.[X_KEY];
     const last = chartData.at(-1)?.[X_KEY];
-    const format = createTimeTickFormatter([Number(first), Number(last)]);
+    const format = timeLabelFormatter([Number(first), Number(last)]);
     return chartData.map((row) => format(Number(row[X_KEY])));
   }, [chartData, isTimeAxis]);
 
@@ -404,10 +405,10 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
-      {bucketTimes && chart && layout && (
+      {bucketTimes && mounted && layout && (
         <BucketCursor
           bucketTimes={bucketTimes}
-          chart={chart}
+          size={mounted}
           grid={layout.grid}
           horizontal={horizontal}
         />

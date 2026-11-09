@@ -1,91 +1,120 @@
-import { type RefObject, useRef, useState } from "react";
+import { type RefObject, useCallback, useState } from "react";
 import { SERIES_COLORS } from "./data-utils";
-import { type PlotRect, ratioWithin } from "./echarts/plot-rect";
+import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
 import { CursorLine } from "@everr/ui/components/cursor-line";
 import { usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
 
 const BRUSH_COLOR = SERIES_COLORS[0];
 
+/** The pointer over a plot: where across it (each axis 0..1), the instant
+ * under it, and the plot's rect in client coordinates. */
+export interface PlotPointer {
+  x: number;
+  y: number;
+  time: number;
+  plot: PlotRect;
+  clientY: number;
+}
+
 /**
- * The pointer behavior of canvas panels drawn as rows over the time range
- * (heatmap, state timeline, status history): drag across the plot to zoom,
- * point the dashboard's shared cursor, and track the hovered item for its
- * tooltip. `itemAt` finds the item under the pointer: a canvas has no element
- * per item to hover. Spread `handlers` on the chart area and render
- * `TimeTrackOverlay` over the plot.
+ * The pointer behavior of a panel drawn over the time range: drag across the
+ * plot to zoom, point the dashboard's shared cursor, and track the hovered
+ * item for its tooltip. `itemAt` finds the item under the pointer, since a
+ * canvas has no element per item to hover. Spread `handlers` on the chart
+ * area and render `TimeTrackOverlay` over the plot.
  */
-export function useTimeTrack<T>(
-  domain: [number, number],
-  onTimeRangeChange: (range: ResolvedTimeRange) => void,
-  itemAt: (e: React.MouseEvent) => T | null,
-) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ rect: DOMRect; from: number; to: number | null } | null>(null);
+export function useTimeTrack<T>({
+  chartElementRef,
+  grid,
+  domain,
+  onTimeRangeChange,
+  itemAt,
+  cursorTime,
+  ignore,
+}: {
+  chartElementRef: RefObject<HTMLElement | null>;
+  grid: GridInsets | null;
+  domain: [number, number];
+  onTimeRangeChange: (range: ResolvedTimeRange) => void;
+  itemAt: (at: PlotPointer) => T | null;
+  /** The instant the shared cursor marks for an item; by default the pointer's. */
+  cursorTime?: (item: T) => number;
+  /** Parts of the chart area the pointer does nothing over, e.g. a legend. */
+  ignore?: (target: EventTarget) => boolean;
+}) {
+  const [drag, setDrag] = useState<{ plot: PlotRect; from: number; to: number | null } | null>(
+    null,
+  );
   const [hover, setHover] = useState<{ target: T; x: number; y: number } | null>(null);
   const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
-  const timeAt = (clientX: number, rect: DOMRect) =>
-    domain[0] + ratioWithin(clientX, rect.left, rect.width) * (domain[1] - domain[0]);
+  const timeAt = (clientX: number, plot: PlotRect) =>
+    domain[0] + ratioWithin(clientX, plot.left, plot.width) * (domain[1] - domain[0]);
+  const plotRect = () =>
+    chartElementRef.current && grid ? getPlotRect(chartElementRef.current, grid) : null;
+
+  const clearHover = useCallback(() => {
+    setHover(null);
+    clearCursor();
+  }, [clearCursor]);
 
   const handlers = {
     onPointerDown: (e: React.PointerEvent) => {
-      const rect = trackRef.current?.getBoundingClientRect();
-      if (!rect || rect.width === 0) return;
-      setDrag({ rect, from: timeAt(e.clientX, rect), to: null });
+      const plot = ignore?.(e.target) ? null : plotRect();
+      if (!plot) return;
+      setDrag({ plot, from: timeAt(e.clientX, plot), to: null });
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     onPointerMove: (e: React.PointerEvent) => {
-      if (drag) setDrag({ ...drag, to: timeAt(e.clientX, drag.rect) });
+      if (drag) setDrag({ ...drag, to: timeAt(e.clientX, drag.plot) });
     },
     onPointerUp: () => {
       if (drag?.to != null) {
         const from = Math.min(drag.from, drag.to);
         const to = Math.max(drag.from, drag.to);
-        if (to - from > 1000) onTimeRangeChange({ from: new Date(from), to: new Date(to) });
+        if (to - from > 1000) {
+          setHover(null);
+          onTimeRangeChange({ from: new Date(from), to: new Date(to) });
+        }
       }
       setDrag(null);
     },
+    onPointerCancel: () => setDrag(null),
     onMouseMove: (e: React.MouseEvent) => {
-      const target = itemAt(e);
+      const plot = ignore?.(e.target) ? null : plotRect();
+      const x = plot ? (e.clientX - plot.left) / plot.width : -1;
+      const y = plot ? (e.clientY - plot.top) / plot.height : -1;
+      if (!plot || x < 0 || x > 1 || y < 0 || y > 1) return clearHover();
+      const time = domain[0] + x * (domain[1] - domain[0]);
+      const target = itemAt({ x, y, time, plot, clientY: e.clientY });
       setHover(target === null ? null : { target, x: e.clientX, y: e.clientY });
-      const rect = trackRef.current?.getBoundingClientRect();
-      if (rect && rect.width > 0 && e.clientX >= rect.left && e.clientX <= rect.right) {
-        setCursor(timeAt(e.clientX, rect));
-      } else {
-        clearCursor();
-      }
+      setCursor(target !== null && cursorTime ? cursorTime(target) : time);
     },
-    onMouseLeave: () => {
-      setHover(null);
-      clearCursor();
-    },
+    onMouseLeave: clearHover,
   };
 
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { trackRef, handlers, hover, brush };
+  return { handlers, hover, clearHover, brush };
 }
 
-/** The drag selection and the shared cursor, laid over `plot`. `trackRef`
- * measures the plot for the pointer. It reads the cursor itself, so a move
- * redraws the line and not the chart. */
+/** The drag selection and the shared cursor, laid over `plot` (in the chart
+ * element's coordinates). It reads the cursor itself, so a move redraws the
+ * line and not the chart. */
 export function TimeTrackOverlay({
   domain,
   brush,
   plot,
-  trackRef,
 }: {
   domain: [number, number];
   brush: [number, number] | null;
   plot: PlotRect;
-  trackRef: RefObject<HTMLDivElement | null>;
 }) {
   const cursor = useTimeCursor();
   const [start, end] = domain;
   const pct = (ts: number) => ((ts - start) / (end - start)) * 100;
   return (
     <div
-      ref={trackRef}
       className="pointer-events-none absolute overflow-hidden"
       style={{ left: plot.left, top: plot.top, width: plot.width, height: plot.height }}
     >

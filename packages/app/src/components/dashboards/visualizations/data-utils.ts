@@ -43,24 +43,6 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Tick label formatter for a time axis: date for multi-day spans, time otherwise. */
-export function createTimeTickFormatter(domain: [number, number]) {
-  const span = domain[1] - domain[0];
-  return (ms: number) => {
-    const d = new Date(ms);
-    if (span > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-}
-
 /** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
 export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
   const span = domain[1] - domain[0];

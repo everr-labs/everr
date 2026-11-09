@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { heatmapColorRgb, isDarkColor } from "./heatmap-colors";
+import { heatmapColorRgb } from "./heatmap-colors";
 
 describe("heatmapColorRgb", () => {
   it("interpolates between the stops, clamping t to 0..1", () => {
@@ -9,12 +9,5 @@ describe("heatmapColorRgb", () => {
     expect(heatmapColorRgb("blues", 0.5)).toEqual([59, 130, 246]);
     expect(heatmapColorRgb("reds", -1)).toEqual(heatmapColorRgb("reds", 0));
     expect(heatmapColorRgb("reds", 2)).toEqual(heatmapColorRgb("reds", 1));
-  });
-});
-
-describe("isDarkColor", () => {
-  it("flags dark ramp ends and not light ones", () => {
-    expect(isDarkColor(heatmapColorRgb("blues", 1))).toBe(true);
-    expect(isDarkColor(heatmapColorRgb("blues", 0))).toBe(false);
   });
 });

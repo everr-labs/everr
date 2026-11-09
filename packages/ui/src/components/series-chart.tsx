@@ -234,19 +234,7 @@ export function SeriesChart({
       },
       { notMerge: true },
     );
-  }, [
-    activeSeries,
-    axes,
-    chart,
-    compact,
-    grid,
-    labels,
-    series,
-    shadeFrom,
-    shadeTo,
-    showLegend,
-    theme,
-  ]);
+  }, [activeSeries, axes, chart, compact, grid, labels, series, shadeFrom, shadeTo, theme]);
 
   const pointAt = (event: PointerEvent): Pointer | null => {
     const element = elementRef.current;
