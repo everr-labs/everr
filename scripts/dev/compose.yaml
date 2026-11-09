@@ -21,17 +21,12 @@ services:
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-app:
-    build:
-      context: ../../clickhouse
-      target: self-hosted
+    # The app dev server applies its ClickHouse migrations on startup.
+    image: clickhouse/clickhouse-server:26.8.34.13
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: dev
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-      CLICKHOUSE_SQL_API_PASSWORD: dev
-      COLLECTOR_RW_PASSWORD: dev
-      APP_RO_PASSWORD: dev
-      WEB_APP_ADMIN_PASSWORD: dev
     ports:
       - target: 8123
         host_ip: 127.0.0.1
@@ -40,16 +35,12 @@ services:
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-cloud:
-    build:
-      context: ../../clickhouse
-      target: cloud
+    # The cloud dev server applies its ClickHouse migrations on startup.
+    image: clickhouse/clickhouse-server:26.8.34.13
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: dev
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-      COLLECTOR_RW_PASSWORD: dev
-      APP_RO_PASSWORD: dev
-      WEB_APP_ADMIN_PASSWORD: dev
     ports:
       - target: 8123
         host_ip: 127.0.0.1

@@ -37,14 +37,15 @@ Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
-The self-hosted app applies the application PostgreSQL migration history during
-startup. The image contains only that history. ClickHouse initializes
-its schema and access roles on the first start with an empty data volume.
-The self-hosted image loads the table definitions and SQL query limits from
-`clickhouse/init/shared/` and its access setup from `clickhouse/init/self-hosted/`.
-It creates `otel` landing tables, `app` read tables, and installation-wide users,
-without Cloud tenant policies or per-organization provisioning privileges. Local
-development uses this same image in a separate container from Cloud.
+The self-hosted app applies its PostgreSQL and ClickHouse migrations during
+startup, so an upgrade only needs a newer app image. ClickHouse runs the stock
+`clickhouse/clickhouse-server` image. The app connects as `default` and applies the
+table definitions and SQL query limits from `packages/app/clickhouse/shared/` and
+the access setup from `packages/app/clickhouse/self-hosted/`. It creates `otel`
+landing tables, `app` read tables, and installation-wide users, without Cloud
+tenant policies or per-organization provisioning privileges.
+The collector starts after the app is healthy, because it reads the landing table
+columns when it starts. Run the app and collector images at the same version.
 Self-hosted telemetry does not stamp a tenant, and queries do not filter by tenant.
 Workers run inside the app; no separate worker service is needed.
 

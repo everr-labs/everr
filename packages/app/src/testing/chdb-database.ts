@@ -10,8 +10,8 @@ import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 const HISTORY_TABLE = "app.alert_events";
 
 function clickhouseRoot(): string {
-  // testing/ -> src/ -> package -> packages/ -> repo root
-  return join(dirname(fileURLToPath(import.meta.url)), "../../../../clickhouse");
+  // testing/ -> src/ -> package
+  return join(dirname(fileURLToPath(import.meta.url)), "../../clickhouse");
 }
 
 // Strip line comments before splitting statements: comments can contain semicolons.
@@ -106,7 +106,7 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
-  const initDir = join(clickhouseRoot(), "init", "shared");
+  const initDir = join(clickhouseRoot(), "shared");
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 

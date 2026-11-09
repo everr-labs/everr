@@ -81,7 +81,7 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `packages/app/src/**/replay*`, `src/data/replay/**` | `web-browser-sdk.md`, `web-replay.md` |
 | `packages/otel-web/**` | `web-browser-sdk.md` (+ `web-replay.md` when `src/recording*` changed) |
 | `scripts/dev/collector-*.yaml`, `collector/**` (public edge, processors, exporters) | Web Launch + Doctor (CORS and config checks), `web-explore.md` Seed, `web-browser-sdk.md` |
-| `clickhouse/init/**`, `clickhouse/manual/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded, `web-replay.md` if `recordings` changed |
+| `packages/*/clickhouse/**`, `clickhouse/manual/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded, `web-replay.md` if `recordings` changed |
 | `packages/app/drizzle/**` | Web Launch + Doctor (migrations), `web-auth.md` |
 | `packages/app/src/**/github*`, `/webhook/github` | `web-github.md` |
 | `packages/app/src/**/dashboards/**`, `src/components/dashboards/**`, `**/runbooks/**`, `src/data/as-code/**`, `/api/apply` | `web-dashboards.md` (needs `web-api-keys.md` with `VERIFY_KEY_MANAGE=1`, `web-seed`) |

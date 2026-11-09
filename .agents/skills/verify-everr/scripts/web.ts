@@ -273,7 +273,7 @@ const rowPolicies = async (clickhouse: string) =>
 
 function expectedRowPolicies(product: string): string {
   if (product === "app") return "0";
-  const dir = path.join(REPO, "clickhouse/init/cloud");
+  const dir = path.join(REPO, "packages/cloud/clickhouse");
   let n = 0;
   for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
     n += readFileSync(path.join(dir, f), "utf8").split("\n").filter((l) => l.startsWith("CREATE ROW POLICY")).length;

@@ -30,6 +30,9 @@ services:
       CLICKHOUSE_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
       CLICKHOUSE_SQL_API_USERNAME: ${CLICKHOUSE_SQL_API_USERNAME:-sql_api}
       CLICKHOUSE_SQL_API_PASSWORD: ${CLICKHOUSE_SQL_API_PASSWORD:?Run ./configure.sh first}
+      CLICKHOUSE_MIGRATION_USERNAME: default
+      CLICKHOUSE_MIGRATION_PASSWORD: ${CLICKHOUSE_PASSWORD:?Run ./configure.sh first}
+      CLICKHOUSE_COLLECTOR_PASSWORD: ${COLLECTOR_RW_PASSWORD:?Run ./configure.sh first}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Run ./configure.sh first}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       EVERR_PUBLIC_INGEST_URL: ${EVERR_PUBLIC_INGEST_URL:-http://localhost:4318}
@@ -67,30 +70,20 @@ services:
       timeout: 3s
       retries: 20
 
+  # The app applies the ClickHouse schema and users on startup.
   clickhouse:
-    build:
-      context: ../clickhouse
-      target: self-hosted
+    image: clickhouse/clickhouse-server:26.8.34.13
     restart: unless-stopped
     environment:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Run ./configure.sh first}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-      COLLECTOR_RW_PASSWORD: ${COLLECTOR_RW_PASSWORD:?Run ./configure.sh first}
-      APP_RO_PASSWORD: ${APP_RO_PASSWORD:?Run ./configure.sh first}
-      WEB_APP_ADMIN_PASSWORD: ${WEB_APP_ADMIN_PASSWORD:?Run ./configure.sh first}
-      CLICKHOUSE_SQL_API_USERNAME: ${CLICKHOUSE_SQL_API_USERNAME:-sql_api}
-      CLICKHOUSE_SQL_API_PASSWORD: ${CLICKHOUSE_SQL_API_PASSWORD:?Run ./configure.sh first}
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
       test:
         - CMD-SHELL
-        - >-
-          clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --multiquery --query
-          "SELECT 1 FROM app.alert_events LIMIT 0;
-          SELECT throwIf(count() != 1, 'SQL API access is not initialized')
-          FROM system.quotas WHERE name = 'sql_api_quota'"
+        - clickhouse-client --host clickhouse --user default --password "$$CLICKHOUSE_PASSWORD" --query "SELECT 1"
       interval: 5s
       timeout: 5s
       start_period: 30s

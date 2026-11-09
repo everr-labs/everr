@@ -28,6 +28,27 @@ This migration code does not upgrade pre-split Cloud databases directly.
 Restored Cloud databases must already contain the App and Cloud migration
 baselines.
 
+## ClickHouse
+
+| Location                              | Owns                                           | Applied by |
+| ------------------------------------- | ---------------------------------------------- | ---------- |
+| `packages/app/clickhouse/shared`      | `otel` landing tables, `app` tables, functions | App, Cloud |
+| `packages/app/clickhouse/self-hosted` | Installation-wide users and SQL API user       | App        |
+| `packages/cloud/clickhouse`           | Tenant row policies, provisioning grants       | Cloud      |
+
+Each application applies its files in file-name order across its directories,
+after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
+into the server, and `default.everr_clickhouse_migrations` records each applied
+file name. Add a change as a new file with the next number; do not edit an
+applied file. A file that fails partway runs again from its first statement, so
+every statement must be safe to repeat (`IF NOT EXISTS`, `OR REPLACE`).
+
+Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
+as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`). Statements bind the other
+users' passwords as `{name:String}` parameters. `GRANT` does not accept
+parameters, so a parameterized user gets its role through `DEFAULT ROLE`.
+`pnpm db:migrate` applies only the PostgreSQL histories.
+
 ## Verification
 
 Use separate disposable PostgreSQL databases before changing an existing
