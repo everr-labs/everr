@@ -47,6 +47,7 @@ interface MountedChart {
   chart: EChartsType;
   theme: ChartTheme;
   width: number;
+  height: number;
 }
 
 /**
@@ -68,10 +69,23 @@ export function useEChart(
     if (!enabled || !element) return;
     const instance = echarts.init(element, undefined, { renderer: "canvas" });
     const theme = readChartTheme(element);
-    setMounted({ chart: instance, theme, width: instance.getWidth() });
+    const measure = () => ({
+      chart: instance,
+      theme,
+      width: instance.getWidth(),
+      height: instance.getHeight(),
+    });
+    setMounted(measure());
     const observer = new ResizeObserver(() => {
+      // The first report arrives right after observing, at the size the
+      // chart was just created with: a resize then would lay it all out again.
+      if (
+        element.clientWidth === instance.getWidth() &&
+        element.clientHeight === instance.getHeight()
+      )
+        return;
       instance.resize();
-      setMounted({ chart: instance, theme, width: instance.getWidth() });
+      setMounted(measure());
       onResize?.();
     });
     observer.observe(element);

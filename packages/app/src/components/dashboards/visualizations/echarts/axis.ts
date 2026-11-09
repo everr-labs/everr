@@ -1,6 +1,7 @@
 import type { YAXisComponentOption } from "echarts";
-import { createTimeTickFormatter, niceLinearDomain } from "../data-utils";
+import { niceLinearDomain } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
+import type { ChartValueAxis } from "@everr/ui/components/series-chart";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
 
 const AXIS_FONT_SIZE = 12;
@@ -57,8 +58,8 @@ export const TIME_AXIS_HEIGHT = 22;
 
 /**
  * The category axis of a chart drawn as rows over time, top row first, and
- * the inset it needs: as wide as the widest label up to a cap. Only labels
- * wider than the cap truncate, at the room it leaves.
+ * its grid: the labels are as wide as the widest one up to a cap, and only
+ * labels wider than the cap truncate, at the room it leaves.
  */
 export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
   const width = Math.min(
@@ -67,7 +68,7 @@ export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
   );
   const plain = plainAxisOption(theme);
   return {
-    width,
+    grid: { left: width, right: 0, top: 0, bottom: TIME_AXIS_HEIGHT },
     axis: {
       type: "category" as const,
       data: labels,
@@ -89,13 +90,13 @@ const DAY = 86_400_000;
 /** Time labels for an axis over `domain`: dates for multi-day ranges, hours
  * and minutes otherwise. */
 export function timeLabelFormatter(domain: [number, number]): (value: number) => string {
-  if (domain[1] - domain[0] > DAY) return createTimeTickFormatter(domain);
-  const time = new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return (value) => time.format(value);
+  const format = new Intl.DateTimeFormat(
+    undefined,
+    domain[1] - domain[0] > DAY
+      ? { month: "short", day: "numeric" }
+      : { hour: "2-digit", minute: "2-digit", hour12: false },
+  );
+  return (value) => format.format(value);
 }
 
 /** A label-only time axis over `domain`, one tick per day at most. */
@@ -163,4 +164,15 @@ export function niceValueAxis(
   );
   const { divisor, format } = formatter.axisFor(reference);
   return { scale: niceLinearDomain(lo, hi, 5, { ...bounds, divisor }), format };
+}
+
+/** A `SeriesChart` value axis from 0 to `max`, its ticks round in the unit
+ * `formatter` shows (2 MiB/s, not 1.9 MB/s). `format` labels the values. */
+export function seriesValueAxis(
+  formatter: ValueFormatter,
+  max: number,
+  format: (value: number) => string = formatter.format,
+): ChartValueAxis {
+  const { scale, format: tickFormat } = niceValueAxis(formatter, 0, max, { min: 0 });
+  return { format, min: scale.domain[0], max: scale.domain[1], ticks: scale.ticks, tickFormat };
 }

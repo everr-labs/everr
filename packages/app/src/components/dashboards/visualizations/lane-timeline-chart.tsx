@@ -8,7 +8,7 @@ import * as echarts from "echarts/core";
 import type { ComposeOption } from "echarts/core";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { createTextMeasurer, rowLabelAxis, TIME_AXIS_HEIGHT, timeAxisOption } from "./echarts/axis";
-import { type GridInsets, plotWithin, pointerInPlot } from "./echarts/plot-rect";
+import { gridOption, plotWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
 import { TimeTrackOverlay, useTimeTrack } from "./time-track";
 
@@ -23,9 +23,6 @@ const MIN_ITEM_WIDTH = 2;
 const VALUE_FONT_SIZE = 10;
 /** Room kept clear on either side of a value inside its item. */
 const VALUE_PADDING = 8;
-
-/** Nothing to do on resize: the hovered item is looked up again on the next move. */
-const ignoreResize = () => {};
 
 export interface LaneTimelineItem {
   /** Item bounds in ms, already clamped to the domain. */
@@ -43,7 +40,7 @@ export interface LaneTimelineLane {
 }
 
 /** The item of `items` at `time`, or within `tolerance` ms of it. */
-export function laneItemAt(
+function laneItemAt(
   items: LaneTimelineItem[],
   time: number,
   tolerance: number,
@@ -91,34 +88,32 @@ export function LaneTimelineChart({
   const span = domain[1] - domain[0];
   const hasChart = span > 0 && lanes.some((l) => l.items.length > 0);
 
-  const mounted = useEChart(chartElementRef, hasChart, ignoreResize);
-  const chart = mounted?.chart ?? null;
+  const mounted = useEChart(chartElementRef, hasChart);
   const theme = mounted?.theme ?? null;
 
   const labels = useMemo(() => lanes.map((lane) => lane.label), [lanes]);
   const yAxis = useMemo(() => (theme ? rowLabelAxis(theme, labels) : null), [theme, labels]);
-  const grid = useMemo<GridInsets | null>(
-    () => (yAxis ? { left: yAxis.width, right: 0, top: 0, bottom: TIME_AXIS_HEIGHT } : null),
-    [yAxis],
-  );
+  const grid = yAxis?.grid ?? null;
 
-  // The item under the pointer: a canvas has no element per item to hover.
-  const track = useTimeTrack(domain, onTimeRangeChange, (e) => {
-    const at = pointerInPlot(chartElementRef.current, grid, e);
-    if (!at || !chart || !grid) return null;
-    const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
-    if (!lane) return null;
-    const msPerPixel = span / plotWithin(chart, grid).width;
-    const item = laneItemAt(lane.items, domain[0] + at.x * span, msPerPixel * (MIN_ITEM_WIDTH / 2));
-    return item ? { lane: lane.label, item } : null;
+  const track = useTimeTrack({
+    chartElementRef,
+    size: mounted,
+    grid,
+    domain,
+    onTimeRangeChange,
+    itemAt: (at) => {
+      const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
+      if (!lane) return null;
+      const msPerPixel = span / at.plot.width;
+      const item = laneItemAt(lane.items, at.time, msPerPixel * (MIN_ITEM_WIDTH / 2));
+      return item ? { lane: lane.label, item } : null;
+    },
   });
   const { hover } = track;
 
   useEffect(() => {
     if (!mounted || !grid || !yAxis) return;
     const { chart, theme } = mounted;
-    // After a hot reload this effect can still hold the replaced instance.
-    if (chart.isDisposed()) return;
     const element = chartElementRef.current;
     const fills = states.map((state) => {
       const color = colorByState[state] ?? theme.textColor;
@@ -129,14 +124,11 @@ export function LaneTimelineChart({
     // A value shows only where it fits its item whole.
     const measure = createTextMeasurer(theme.fontFamily, VALUE_FONT_SIZE);
     const valueWidths = states.map((state) => measure(state) + VALUE_PADDING);
-    const plot = plotWithin(chart, grid);
+    const plot = plotWithin(mounted, grid);
     const laneHeight = (plot.height / lanes.length) * rowHeight;
     const option: ChartOption = {
       animation: false,
-      // The insets already leave room for the labels; with ECharts fitting
-      // them as well, the plot would drift from where hover and the cursor
-      // place it.
-      grid: { ...grid, outerBoundsMode: "none" },
+      grid: gridOption(grid),
       xAxis: timeAxisOption(theme, domain),
       yAxis: yAxis.axis,
       series: [
@@ -192,7 +184,7 @@ export function LaneTimelineChart({
     return empty;
   }
 
-  const plot = chart && grid ? plotWithin(chart, grid) : null;
+  const plot = mounted && grid ? plotWithin(mounted, grid) : null;
 
   return (
     <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
@@ -208,14 +200,7 @@ export function LaneTimelineChart({
         >
           {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
           <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
-          {plot && (
-            <TimeTrackOverlay
-              domain={domain}
-              brush={track.brush}
-              plot={plot}
-              trackRef={track.trackRef}
-            />
-          )}
+          {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
         </div>
       </div>
 

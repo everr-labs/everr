@@ -25,19 +25,16 @@ export function getPlotRect(element: HTMLElement, grid: GridInsets): PlotRect | 
 }
 
 /**
- * The plotting area in the chart element's own coordinates, from the size
- * ECharts keeps. Unlike `getPlotRect` it reads no layout, so it is safe to call
- * while rendering on every pointer move.
+ * The plotting area in the chart element's own coordinates, from the chart's
+ * size (`useEChart` reports it). Unlike `getPlotRect` it reads no layout, so it
+ * is safe to call while rendering on every pointer move.
  */
-export function plotWithin(
-  chart: { getWidth(): number; getHeight(): number },
-  grid: GridInsets,
-): PlotRect {
+export function plotWithin(size: { width: number; height: number }, grid: GridInsets): PlotRect {
   return {
     left: grid.left,
     top: grid.top,
-    width: chart.getWidth() - grid.left - grid.right,
-    height: chart.getHeight() - grid.top - grid.bottom,
+    width: size.width - grid.left - grid.right,
+    height: size.height - grid.top - grid.bottom,
   };
 }
 
@@ -46,15 +43,9 @@ export function ratioWithin(client: number, start: number, length: number): numb
   return Math.max(0, Math.min(1, (client - start) / length));
 }
 
-/** Where the pointer is across the plot, each axis 0..1, or null outside it. */
-export function pointerInPlot(
-  element: HTMLElement | null,
-  grid: GridInsets | null,
-  e: { clientX: number; clientY: number },
-): { x: number; y: number } | null {
-  const plot = element && grid ? getPlotRect(element, grid) : null;
-  if (!plot) return null;
-  const x = (e.clientX - plot.left) / plot.width;
-  const y = (e.clientY - plot.top) / plot.height;
-  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
+/** The grid option for `grid`: the insets already leave room for the labels.
+ * Left to fit the labels itself, ECharts would shrink the plot away from
+ * where `plotWithin` places hover and the cursor. */
+export function gridOption(grid: GridInsets) {
+  return { ...grid, outerBoundsMode: "none" as const };
 }

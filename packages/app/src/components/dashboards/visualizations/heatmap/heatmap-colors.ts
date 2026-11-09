@@ -85,8 +85,3 @@ export function heatmapColor(scheme: HeatmapColorScheme, t: number): string {
   const [r, g, b] = heatmapColorRgb(scheme, t);
   return `rgb(${r}, ${g}, ${b})`;
 }
-
-/** Whether white text is readable on the color (perceived luminance). */
-export function isDarkColor([r, g, b]: Rgb): boolean {
-  return 0.299 * r + 0.587 * g + 0.114 * b < 150;
-}
