@@ -225,9 +225,18 @@ export type EmitNow = (
   attributes: Record<string, AttrValue | null | undefined>,
   timestamp: number,
   body: string,
-) =>
-  | [payload: string, send: (gzipped?: ArrayBuffer) => Promise<unknown>, gzip: boolean]
-  | undefined;
+) => SegmentRequest | undefined;
+
+/**
+ * One request of `emitNow`: the OTLP/JSON payload, the function that sends it
+ * once (with a gzipped copy of the payload, or plain), and whether that
+ * function takes a gzipped copy.
+ */
+export type SegmentRequest = [
+  payload: string,
+  send: (gzipped?: ArrayBuffer) => Promise<unknown>,
+  gzip: boolean,
+];
 
 // These values are the same as the values in the browser telemetry client of
 // the web app. The queue has no limit, and this is correct. The SDK discards no
@@ -443,8 +452,6 @@ export function createEmitter(
     severityNumber: number,
     body: string,
     span: SpanContext | undefined,
-    /** The body on the wire, when the hook must not see it. */
-    wire?: string,
   ): OtlpLogRecord | undefined => {
     const item = applyBeforeSend({
       kind: "log",
@@ -462,7 +469,7 @@ export function createEmitter(
       timeUnixNano: timestamp,
       severityNumber: item.severityNumber,
       eventName: item.eventName,
-      body: toAnyValue(wire ?? item.body),
+      body: toAnyValue(item.body),
       attributes: toKeyValues(item.attributes),
       ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
     };
@@ -494,19 +501,15 @@ export function createEmitter(
   };
 
   const emitNow: EmitNow = (eventName, attributes, time, body) => {
-    const record = logRecord(eventName, attributes, unixNano(time), 9, eventName, undefined, body);
+    // The hook sees the event name as the body; the payload goes on the wire.
+    const record = logRecord(eventName, attributes, unixNano(time), 9, eventName, undefined);
     if (!record) return;
+    record.body = toAnyValue(body);
     const payload = build("Logs", "logRecords", [record]);
     return [
       payload,
-      (gzipped) => {
-        // The send starts in the call. A synchronous error is a rejection.
-        try {
-          return Promise.resolve(send("logs", payload, false, gzipped));
-        } catch (error) {
-          return Promise.reject(error);
-        }
-      },
+      // The send starts in the call. A synchronous error is a rejection.
+      (gzipped) => new Promise((resolve) => resolve(send("logs", payload, false, gzipped))),
       // A host sender takes text only. The flag that marks the fetch sender.
       truncateAtExit,
     ];
