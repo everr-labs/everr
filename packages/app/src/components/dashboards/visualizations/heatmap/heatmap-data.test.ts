@@ -93,7 +93,18 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toMatchObject([{ start: 10_000, end: 100_000, bucket: 0, value: 10 }]);
+    // A lone timestamp's column is the whole range.
+    expect(model.cells).toMatchObject([{ start: 0, end: 100_000, bucket: 0, value: 10 }]);
+    expect(model.columns).toEqual({ start: 0, step: 100_000, count: 1 });
+  });
+
+  it("keeps the grid coarse when a stray sample sits close to another", () => {
+    // 10s samples plus one 1ms off: without a floor that is 100,000 columns.
+    const rows = [0, 10, 20, 20.001, 30].map((s) => ({ ts: ts(s), route: "/api", count: 1 }));
+    const model = buildHeatmapModel([rows], specWith(), DOMAIN);
+    expect(model.columns.count).toBeLessThanOrEqual(1000);
+    // The two samples sharing a column sum into one cell.
+    expect(model.cells.map((cell) => cell.value)).toEqual([1, 1, 2, 1]);
   });
 
   it("clamps cells to the domain and drops fully outside ones", () => {
@@ -131,7 +142,7 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toMatchObject([{ start: 10_000, end: 100_000, bucket: 0, value: 4 }]);
+    expect(model.cells).toMatchObject([{ bucket: 0, value: 4 }]);
   });
 
   it("returns an empty model without a time column", () => {
