@@ -3,9 +3,9 @@ import { GridComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
 import { describe, expect, it } from "vite-plus/test";
-import { niceLinearDomain } from "../data-utils";
+import { generateTimeTicks, niceLinearDomain, timeTickInterval } from "../data-utils";
 import { createValueFormatter } from "../value-format";
-import { niceValueAxis, timeLabelFormatter, timeTicks, valueAxisOption } from "./axis";
+import { niceValueAxis, timeLabelFormatter, valueAxisOption } from "./axis";
 
 echarts.use([BarChart, GridComponent, SVGRenderer]);
 
@@ -61,18 +61,36 @@ describe("valueAxisOption", () => {
 });
 
 describe("timeLabelFormatter", () => {
+  const start = new Date(2026, 10, 4).getTime();
+  const month = new Intl.DateTimeFormat(undefined, { month: "short" }).format(start);
+  const labels = (hours: number) => {
+    const domain: [number, number] = [start + 2 * 3_600_000, start + (2 + hours) * 3_600_000];
+    return generateTimeTicks(domain, 6).map(
+      timeLabelFormatter(domain, timeTickInterval(domain, 6)),
+    );
+  };
+
   it.each([
-    ["two days of half-day ticks", 2],
-    ["a week of day ticks", 7],
-  ])("names each day ticked once over %s, and no two neighboring ticks alike", (_, days) => {
-    const start = new Date(2026, 10, 4).getTime();
-    const domain: [number, number] = [start, start + days * 86_400_000];
-    const format = timeLabelFormatter(domain);
-    const ticks = timeTicks(domain);
-    const labels = ticks.map(format);
-    expect(labels.filter((label, i) => label === labels[i - 1])).toEqual([]);
-    const dates = ticks.filter((tick) => new Date(tick).getHours() === 0).map(format);
-    expect(dates.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(dates).size).toBe(dates.length);
+    ["half a day, as times alone", 12, false],
+    ["two days, each with its date", 48, true],
+  ])("labels every tick over %s", (_, hours, dated) => {
+    const ticks = labels(hours);
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(ticks.map((label) => label.includes(month))).toEqual(ticks.map(() => dated));
+    expect(new Set(ticks).size).toBe(ticks.length);
+  });
+
+  it("labels a whole day, midnight to midnight, with times alone", () => {
+    const day: [number, number] = [start, start + 24 * 3_600_000];
+    expect(timeLabelFormatter(day, 6 * 3_600_000)(start)).not.toContain(month);
+  });
+
+  it.each([
+    ["a week of day ticks", 7 * 24],
+    ["three years of year ticks", 3 * 365 * 24],
+  ])("names each tick over %s once", (_, hours) => {
+    const ticks = labels(hours);
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(ticks).size).toBe(ticks.length);
   });
 });

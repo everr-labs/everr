@@ -1,5 +1,5 @@
 import { isNumericValue } from "#app/lib/numeric.ts";
-import { detectTimeKey, toNumber, toTimestamp } from "../data-utils";
+import { detectTimeKey, samplingStep, toNumber, toTimestamp } from "../data-utils";
 import type { QueryResultRow } from "../index";
 import type { HeatmapSpec } from "./spec";
 
@@ -107,19 +107,16 @@ export function buildHeatmapModel(
   // sample per bucket has no gap to measure: a cell then spans the range.
   const times = [...timesSeen].sort((a, b) => a - b);
   const span = domain[1] - domain[0];
-  const gaps = [...timesByBucket.values()]
-    .flatMap((bucketTimes) => {
-      const sorted = [...bucketTimes].sort((a, b) => a - b);
-      return sorted.slice(1).map((time, i) => time - (sorted[i] ?? time));
-    })
-    .sort((a, b) => a - b);
-  const gap = gaps[Math.floor(gaps.length / 2)] ?? span;
+  const sampled = samplingStep(
+    [...timesByBucket.values()].map((set) => [...set].sort((a, b) => a - b)),
+  );
+  const gap = sampled || span;
   const step = gap * Math.max(1, Math.ceil(span / MAX_COLUMNS / gap));
 
   // Columns are anchored on the samples and extended to cover the range, so
   // empty stretches keep their place on the axis. Without a gap there is
   // nothing to anchor: the one column is the range itself.
-  const anchor = gaps.length > 0 ? times[0] : domain[0];
+  const anchor = sampled ? times[0] : domain[0];
   const start = anchor + Math.floor((domain[0] - anchor) / step) * step;
   const count = Math.max(1, Math.ceil((domain[1] - start) / step));
 

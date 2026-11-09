@@ -9,28 +9,21 @@ import type { ComposeOption } from "echarts/core";
 import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bucketIndexAt, bucketStep } from "../data-utils";
+import { useEffect, useMemo, useRef } from "react";
+import { bucketIndexAt, samplingStep } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
   createTextMeasurer,
   niceValueAxis,
   plainAxisOption,
+  fitTimeTicks,
   timeLabelFormatter,
-  timeTickStep,
-  timeTicks,
   VALUE_AXIS_EDGE_INSET,
   VALUE_LABEL_OVERHANG,
   valueAxisOption,
 } from "../echarts/axis";
-import {
-  type GridInsets,
-  getPlotRect,
-  gridOption,
-  plotWithin,
-  ratioWithin,
-} from "../echarts/plot-rect";
+import { type GridInsets, gridOption, plotWithin } from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -38,13 +31,11 @@ import {
 } from "@everr/ui/components/series-legend";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
-import { Brush } from "../time-track";
+import { type TimeScale, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
-import { CursorLine } from "@everr/ui/components/cursor-line";
-import { usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -53,6 +44,8 @@ type ChartOption = ComposeOption<BarSeriesOption | GridComponentOption>;
 const MAX_CATEGORY_TICKS = 8;
 const VALUE_LABEL_FONT_SIZE = 10;
 const PLOT_EDGE_INSET = 12;
+/** The least space between two category labels. */
+const LABEL_GAP = 8;
 /** Narrowest the category axis gets on horizontal bars before labels truncate. */
 const MIN_CATEGORY_AXIS_WIDTH = 90;
 /** `percent` stacking draws shares of 1, labelled as percentages. */
@@ -106,67 +99,25 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
 }
 
 /**
- * The shared cursor through the middle of the bar for its bucket. It reads the
- * cursor itself, so a move redraws the line and not the chart.
+ * Where instants fall across bars laid out one bucket each, by index: within
+ * its bar, a bucket's time runs evenly from start to end. An instant in a
+ * bucket the query skipped has no bar.
  */
-function BucketCursor({
-  bucketTimes,
-  size,
-  grid,
-  horizontal,
-}: {
-  bucketTimes: number[];
-  size: { width: number; height: number };
-  grid: GridInsets;
-  horizontal: boolean;
-}) {
-  const cursor = useTimeCursor();
-  const index = cursor === null ? null : bucketIndexAt(bucketTimes, cursor);
-  if (index === null) return null;
-  const plot = plotWithin(size, grid);
-  const along = (index + 0.5) / bucketTimes.length;
-  return (
-    <CursorLine
-      horizontal={horizontal}
-      style={
-        horizontal
-          ? { left: plot.left, top: plot.top + along * plot.height, width: plot.width }
-          : { left: plot.left + along * plot.width, top: plot.top, height: plot.height }
-      }
-    />
-  );
-}
-
-/** The drag-to-zoom selection, over whole buckets `from` to `to`. */
-function BucketBrush({
-  from,
-  to,
-  count,
-  size,
-  grid,
-  horizontal,
-}: {
-  from: number;
-  to: number;
-  count: number;
-  size: { width: number; height: number };
-  grid: GridInsets;
-  horizontal: boolean;
-}) {
-  const plot = plotWithin(size, grid);
-  const band = (horizontal ? plot.height : plot.width) / count;
-  const start = from * band;
-  const length = (to - from + 1) * band;
-  return (
-    <Brush
-      horizontal={horizontal}
-      style={
-        horizontal
-          ? { left: plot.left, width: plot.width, top: plot.top + start, height: length }
-          : { left: plot.left + start, width: length, top: plot.top, height: plot.height }
-      }
-    />
-  );
+function bucketScale(starts: readonly number[], step: number): TimeScale {
+  const count = starts.length;
+  return {
+    timeAt: (ratio) => {
+      const along = ratio * count;
+      const index = Math.min(count - 1, Math.floor(along));
+      return (starts[index] ?? 0) + (along - index) * step;
+    },
+    ratioAt: (time) => {
+      const index = bucketIndexAt(starts, step, time);
+      if (index === null) return null;
+      const within = step > 0 ? (time - (starts[index] ?? time)) / step : 0.5;
+      return (index + within) / count;
+    },
+  };
 }
 
 export function BarChartVisualization({
@@ -191,52 +142,53 @@ export function BarChartVisualization({
   );
 
   const chartElementRef = useRef<HTMLDivElement>(null);
-  const [tooltipState, setTooltipState] = useState<{
-    clientX: number;
-    clientY: number;
-    index: number;
-  } | null>(null);
-  /** Bucket indices a drag-to-zoom runs between. */
-  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
-  const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
-
   const hasChart = !!data && chartData.length > 0 && series.length > 0;
-  const clearTooltip = useCallback(() => setTooltipState(null), []);
-  const mounted = useEChart(chartElementRef, hasChart, clearTooltip);
+  const mounted = useEChart(chartElementRef, hasChart);
   const chart = mounted?.chart ?? null;
   const theme = mounted?.theme ?? null;
   const width = mounted?.width ?? 0;
 
-  // Bars over time share the dashboard's time cursor, one bucket at a time.
+  // Bars over time share the dashboard's time cursor and zoom.
   const bucketTimes = useMemo(
     () => (isTimeAxis ? chartData.map((row) => Number(row[X_KEY])) : null),
     [chartData, isTimeAxis],
   );
+  // Each bucket's width: how often the series are sampled, each on its own,
+  // so merged queries sampled at offset times don't narrow it.
+  const bucketWidth = useMemo(
+    () =>
+      bucketTimes
+        ? samplingStep(
+            series.map(({ id }) =>
+              bucketTimes.filter((_, i) => typeof chartData[i]?.[id] === "number"),
+            ),
+          )
+        : 0,
+    [bucketTimes, chartData, series],
+  );
+  const timeScale = useMemo(
+    () => (bucketTimes ? bucketScale(bucketTimes, bucketWidth) : null),
+    [bucketTimes, bucketWidth],
+  );
 
-  // Bars over time are labelled like every other time axis on the dashboard:
-  // the same round times, each on the bar whose bucket holds it. Buckets as
-  // wide as those times are apart, or too few of them under the range's
-  // ticks, get their own times instead, thinned like categories.
-  const { categoryLabels, tickLabelsOnly } = useMemo(() => {
-    if (!bucketTimes) {
-      return { categoryLabels: chartData.map((row) => String(row[X_KEY])), tickLabelsOnly: false };
-    }
-    const domain: [number, number] = [timeRange.from.getTime(), timeRange.to.getTime()];
-    const format = timeLabelFormatter(domain);
-    const step = bucketStep(bucketTimes);
-    if (step > 0 && step < timeTickStep(domain)) {
-      const labels = bucketTimes.map(() => "");
-      let placed = 0;
-      for (const tick of timeTicks(domain)) {
-        const index = bucketIndexAt(bucketTimes, tick);
-        if (index === null) continue;
-        labels[index] = format(tick);
-        placed++;
-      }
-      if (placed >= 2) return { categoryLabels: labels, tickLabelsOnly: true };
-    }
-    return { categoryLabels: bucketTimes.map(format), tickLabelsOnly: false };
-  }, [chartData, bucketTimes, timeRange]);
+  // Bars over time name times as every other time axis over the time they
+  // span does: the dashboard's range when the bars cover it, their own when a
+  // query fixes its times.
+  const timeLabels = useMemo(() => {
+    if (!bucketTimes) return null;
+    const first = bucketTimes[0] ?? 0;
+    const end = (bucketTimes.at(-1) ?? first) + bucketWidth;
+    const domain: [number, number] =
+      end > first ? [first, end] : [timeRange.from.getTime(), timeRange.to.getTime()];
+    // A bar naming its own time does so as precisely as bars are apart, so
+    // bars finer than the axis's round times read apart.
+    const barFormat = timeLabelFormatter(domain, bucketWidth || domain[1] - domain[0]);
+    return { domain, barLabels: bucketTimes.map(barFormat) };
+  }, [bucketTimes, bucketWidth, timeRange]);
+  const categoryLabels = useMemo(
+    () => timeLabels?.barLabels ?? chartData.map((row) => String(row[X_KEY])),
+    [timeLabels, chartData],
+  );
 
   const ids = useMemo(() => series.map(({ id }) => id), [series]);
   const drawn = useMemo(
@@ -313,11 +265,6 @@ export function BarChartVisualization({
     };
   }, [theme, scale, formatValueTick, valueLabels, stacked, horizontal, categoryLabels]);
 
-  // Round-time labels already sit only on the bars that hold one.
-  const tickInterval = tickLabelsOnly
-    ? 0
-    : Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
-
   const layout = useMemo(() => {
     if (!measured) return null;
     const { measure, valueAxisWidth, widestTick, widestValueLabel } = measured;
@@ -347,26 +294,33 @@ export function BarChartVisualization({
           }
         : { left: valueAxisWidth, right: 0 }),
     };
-    // Each category label owns its band (vertical) or the axis width
-    // (horizontal); long ones are cut in the middle to fit it. Only the
-    // labels ECharts shows at this tick interval are fitted.
-    const shown = categoryLabels.filter(
-      (label, index) => label && index % (tickInterval + 1) === 0,
-    ).length;
     const plotWidth = width - grid.left - grid.right;
     const band = plotWidth / chartData.length;
+    // Centered on its bar, a label near the right edge has only the room to
+    // its side.
+    const roomAt = (index: number) => 2 * (chartData.length - index - 0.5) * band;
+    if (!horizontal && timeLabels && bucketTimes) {
+      const fitted = fitTimeLabels(timeLabels, bucketTimes, bucketWidth, plotWidth, band, measure);
+      // A round time would misread cut short: one with no room goes unlabelled.
+      if (fitted) {
+        return {
+          grid,
+          fittedLabels: fitted.map((label, index) =>
+            measure(label) <= roomAt(index) ? label : "",
+          ),
+        };
+      }
+    }
+    // Otherwise every so many bars are labelled, each label cut in the middle
+    // to its share of the plot (vertical) or to the axis width (horizontal).
+    const every = Math.ceil(chartData.length / MAX_CATEGORY_TICKS);
     const labelPx = horizontal
       ? categoryAxisWidth - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET
-      : plotWidth / Math.max(1, shown) - 8;
+      : plotWidth / Math.ceil(chartData.length / every) - LABEL_GAP;
     const fittedLabels = categoryLabels.map((label, index) => {
-      if (index % (tickInterval + 1) !== 0) return "";
+      if (index % every !== 0) return "";
       if (horizontal) return fitMiddle(label, labelPx, measure);
-      // Centered on its bar, a label near the right edge has only the room to
-      // it on that side. A round time would misread cut short: it goes
-      // unlabelled. A category is cut to fit.
-      const room = 2 * (chartData.length - index - 0.5) * band;
-      if (tickLabelsOnly) return measure(label) <= room ? label : "";
-      return fitMiddle(label, Math.min(labelPx, room), measure);
+      return fitMiddle(label, Math.min(labelPx, roomAt(index)), measure);
     });
     return { grid, fittedLabels };
   }, [
@@ -375,9 +329,10 @@ export function BarChartVisualization({
     horizontal,
     gridBottom,
     chartData.length,
-    tickInterval,
     categoryLabels,
-    tickLabelsOnly,
+    timeLabels,
+    bucketTimes,
+    bucketWidth,
   ]);
 
   useEffect(() => {
@@ -392,7 +347,8 @@ export function BarChartVisualization({
       ...plain,
       axisLabel: {
         ...plain.axisLabel,
-        interval: tickInterval,
+        // Every label is placed above; skipped bars have an empty one.
+        interval: 0,
         formatter: (_: string, index: number) => layout.fittedLabels[index] ?? "",
       },
     };
@@ -450,71 +406,34 @@ export function BarChartVisualization({
     series,
     stacked,
     theme,
-    tickInterval,
     valueLabels,
   ]);
 
-  /** The bucket under the pointer: null outside the plot, or with `clamped`
-   * the nearest bucket at its edge (a drag running past it). */
-  const bucketAt = (e: React.MouseEvent, clamped = false): number | null => {
-    const element = chartElementRef.current;
-    const plot = element && layout ? getPlotRect(element, layout.grid) : null;
-    if (!plot) return null;
-    const inPlot =
-      e.clientX >= plot.left &&
-      e.clientX <= plot.left + plot.width &&
-      e.clientY >= plot.top &&
-      e.clientY <= plot.top + plot.height;
-    if (!inPlot && !clamped) return null;
-    const ratio = horizontal
-      ? ratioWithin(e.clientY, plot.top, plot.height)
-      : ratioWithin(e.clientX, plot.left, plot.width);
-    return Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
+  // Zooms snap out to whole buckets, but never past the time range: buckets
+  // start on round times, so the outer ones can reach beyond it.
+  const zoomToBuckets = ({ from, to }: { from: Date; to: Date }) => {
+    if (!bucketTimes) return;
+    const startOf = (time: number) => {
+      const index = bucketIndexAt(bucketTimes, bucketWidth, time);
+      return index === null ? time : (bucketTimes[index] ?? time);
+    };
+    const start = Math.max(startOf(from.getTime()), timeRange.from.getTime());
+    const end = Math.min(startOf(to.getTime()) + bucketWidth, timeRange.to.getTime());
+    if (end > start) onTimeRangeChange({ from: new Date(start), to: new Date(end) });
   };
 
-  const clearHover = () => {
-    setTooltipState(null);
-    clearCursor();
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (drag) {
-      const to = bucketAt(e, true);
-      if (to !== null && to !== drag.to) setDrag({ ...drag, to });
-    }
-    const index = isOnLegend(e.target) ? null : bucketAt(e);
-    if (index === null) return clearHover();
-    setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
-    const bucket = bucketTimes?.[index];
-    if (bucket !== undefined) setCursor(bucket);
-  };
-
-  // Bars over time zoom like the time series: drag across buckets to show
-  // just those.
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (!bucketTimes || e.button !== 0 || isOnLegend(e.target)) return;
-    const from = bucketAt(e);
-    if (from === null) return;
-    setDrag({ from, to: from });
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerUp = () => {
-    setDrag(null);
-    if (!drag || !bucketTimes || drag.from === drag.to) return;
-    const first = Math.min(drag.from, drag.to);
-    const last = Math.max(drag.from, drag.to);
-    const start = bucketTimes[first];
-    const lastStart = bucketTimes[last];
-    if (start === undefined || lastStart === undefined) return;
-    // Buckets start on round times, so the outer ones can reach past the time
-    // range: a zoom never reaches outside it.
-    const from = Math.max(start, timeRange.from.getTime());
-    const to = Math.min(lastStart + bucketStep(bucketTimes), timeRange.to.getTime());
-    if (to <= from) return;
-    clearHover();
-    onTimeRangeChange({ from: new Date(from), to: new Date(to) });
-  };
+  const track = useTimeTrack({
+    chartElementRef,
+    size: mounted,
+    grid: layout?.grid ?? null,
+    scale: timeScale,
+    vertical: horizontal,
+    onTimeRangeChange: zoomToBuckets,
+    ignore: isOnLegend,
+    itemAt: (at) =>
+      Math.min(chartData.length - 1, Math.floor((horizontal ? at.y : at.x) * chartData.length)),
+  });
+  const { hover } = track;
 
   if (!hasChart) {
     return (
@@ -526,18 +445,11 @@ export function BarChartVisualization({
     );
   }
 
-  const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
+  const tooltipRow = hover ? chartData[hover.target] : undefined;
   const tooltipX = tooltipRow?.[X_KEY];
 
   return (
-    <div
-      className="relative h-full w-full text-muted-foreground"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={clearHover}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={() => setDrag(null)}
-    >
+    <div className="relative h-full w-full text-muted-foreground" {...track.handlers}>
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       {/* The canvas has no text of its own: say what it shows. */}
       <p className="sr-only">
@@ -547,27 +459,17 @@ export function BarChartVisualization({
         )}
       </p>
       <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
-      {bucketTimes && mounted && layout && (
-        <BucketCursor
-          bucketTimes={bucketTimes}
-          size={mounted}
-          grid={layout.grid}
-          horizontal={horizontal}
-        />
-      )}
-      {drag && mounted && layout && (
-        <BucketBrush
-          from={Math.min(drag.from, drag.to)}
-          to={Math.max(drag.from, drag.to)}
-          count={chartData.length}
-          size={mounted}
-          grid={layout.grid}
-          horizontal={horizontal}
+      {timeScale && mounted && layout && (
+        <TimeTrackOverlay
+          scale={timeScale}
+          vertical={horizontal}
+          brush={track.brush}
+          plot={plotWithin(mounted, layout.grid)}
         />
       )}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
-      {tooltipState && tooltipRow && (
-        <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
+      {hover && tooltipRow && (
+        <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
             title={isTimeAxis ? new Date(Number(tooltipX)).toLocaleString() : String(tooltipX)}
             rows={seriesTooltipRows(series, tooltipRow, activeSeries, formatter.format)}
@@ -576,4 +478,36 @@ export function BarChartVisualization({
       )}
     </div>
   );
+}
+
+/**
+ * Time labels for bars over time. Bars with room to each name their own
+ * time, and distinct ones, do. Otherwise the round times across them, each on
+ * the bar whose bucket holds it, as many as fit the plot and a whole number
+ * of bars apart where the bucket width allows. Null when fewer than two land
+ * on a bar, e.g. buckets as wide as the ticks are apart.
+ */
+function fitTimeLabels(
+  { domain, barLabels }: { domain: [number, number]; barLabels: string[] },
+  bucketTimes: number[],
+  bucketWidth: number,
+  plotWidth: number,
+  band: number,
+  measure: (text: string) => number,
+): string[] | null {
+  const widest = Math.max(0, ...barLabels.map(measure)) + LABEL_GAP;
+  // Bars narrower than the axis's precision, e.g. half days on an axis of
+  // days, would repeat each other.
+  if (widest <= band && new Set(barLabels).size === barLabels.length) return barLabels;
+  if (bucketWidth <= 0) return null;
+  const { ticks, format } = fitTimeTicks(domain, plotWidth, measure, bucketWidth);
+  const labels = bucketTimes.map(() => "");
+  let placed = 0;
+  for (const tick of ticks) {
+    const index = bucketIndexAt(bucketTimes, bucketWidth, tick);
+    if (index === null || labels[index]) continue;
+    labels[index] = format(tick);
+    placed++;
+  }
+  return placed >= 2 ? labels : null;
 }

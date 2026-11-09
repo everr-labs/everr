@@ -6,6 +6,7 @@ import {
   getValueKeys,
   nearestSampleIndex,
   bucketIndexAt,
+  samplingStep,
   niceLinearDomain,
   toNumber,
   toTimestamp,
@@ -165,13 +166,31 @@ describe("bucketIndexAt", () => {
     ["past the last bucket", 400, null],
     ["before the first bucket", -1, null],
   ])("finds the bucket %s", (_, target, expected) => {
-    expect(bucketIndexAt([0, 100, 200, 300], target)).toBe(expected);
+    expect(bucketIndexAt([0, 100, 200, 300], 100, target)).toBe(expected);
   });
 
   it("finds no bucket in one the query skipped", () => {
     // Hourly buckets with 03:00 to 08:00 empty.
-    expect(bucketIndexAt([0, 100, 200, 900], 500)).toBeNull();
-    expect(bucketIndexAt([0, 100, 200, 900], 950)).toBe(3);
+    expect(bucketIndexAt([0, 100, 200, 900], 100, 500)).toBeNull();
+    expect(bucketIndexAt([0, 100, 200, 900], 100, 950)).toBe(3);
+  });
+});
+
+describe("samplingStep", () => {
+  it.each([
+    ["regular samples", [[0, 60, 120, 180]], 60],
+    ["samples with a skipped bucket", [[0, 60, 120, 600, 660]], 60],
+    [
+      "series sampled at offset times",
+      [
+        [0, 60, 120],
+        [1, 61, 121],
+      ],
+      60,
+    ],
+    ["lone samples", [[0], [5]], 0],
+  ])("reads %s", (_, series, expected) => {
+    expect(samplingStep(series)).toBe(expected);
   });
 });
 
@@ -195,5 +214,13 @@ describe("generateTimeTicks", () => {
     expect(local.every((at) => at.getMinutes() === 0)).toBe(true);
     const hours = new Set(local.map((at) => at.getHours() % 3));
     expect(hours).toEqual(new Set([0]));
+  });
+
+  it("falls a whole number of buckets apart over buckets that allow it", () => {
+    const hour = 3_600_000;
+    const start = new Date(2026, 5, 8, 1).getTime();
+    const ticks = generateTimeTicks([start, start + 24 * hour], 6, 4 * hour);
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    expect(ticks.every((tick) => (tick - ticks[0]!) % (4 * hour) === 0)).toBe(true);
   });
 });

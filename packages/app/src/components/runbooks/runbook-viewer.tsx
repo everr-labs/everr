@@ -3,6 +3,7 @@ import { useRouteContext, useRouterState, useSearch } from "@tanstack/react-rout
 import { FileQuestion } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
+import { SharedTimeCursorProvider } from "#app/components/dashboards/visualizations/shared-time-cursor.tsx";
 import { useHasVisibleVariables, VariableBar } from "#app/components/dashboards/variable-bar.tsx";
 import { lastViewedRunbook } from "#app/data/runbooks/last-viewed.ts";
 import { runbookOptions } from "#app/data/runbooks/options.ts";
@@ -81,12 +82,15 @@ export function RunbookViewer({
       {/* The reading measure is the frame's job: the pane centers this column
           (see the runbooks route layout), so nothing here caps its width. */}
       {page ? (
-        <RunbookMarkdown
-          markdown={page.markdown}
-          project={project}
-          slug={slug}
-          resolveLink={resolvePageLink}
-        />
+        // Panels on a page share a hover cursor, like on a dashboard.
+        <SharedTimeCursorProvider key={pagePath}>
+          <RunbookMarkdown
+            markdown={page.markdown}
+            project={project}
+            slug={slug}
+            resolveLink={resolvePageLink}
+          />
+        </SharedTimeCursorProvider>
       ) : (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
           <FileQuestion className="size-10" />

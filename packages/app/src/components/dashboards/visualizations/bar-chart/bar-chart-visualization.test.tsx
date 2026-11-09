@@ -113,7 +113,7 @@ describe("BarChartVisualization", () => {
     // The last quarter of the plot is the last bucket, so a drag from the
     // second one to the panel's edge covers buckets 1 to 3.
     fireEvent.pointerDown(area, { button: 0, clientX: 200, clientY: 100 });
-    fireEvent.mouseMove(area, { clientX: 399, clientY: 100 });
+    fireEvent.pointerMove(area, { clientX: 399, clientY: 100 });
     fireEvent.pointerUp(area);
 
     expect(onTimeRangeChange).toHaveBeenCalledWith({
@@ -125,8 +125,8 @@ describe("BarChartVisualization", () => {
   it("labels round times only on bars whose bucket holds them", () => {
     const hour = (h: number) => new Date(2026, 5, 7, h).getTime();
     const domain: [number, number] = [hour(0), hour(24)];
-    // Hourly buckets, with 05:00 to 07:00 empty and so skipped by the query.
-    const hours = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 5 || h > 7);
+    // Hourly buckets, with 03:00 to 08:00 empty and so skipped by the query.
+    const hours = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 3 || h > 8);
     render(
       <BarChartVisualization
         {...props}
@@ -141,8 +141,58 @@ describe("BarChartVisualization", () => {
       const label = formatter("", index);
       return label ? [[h, label]] : [];
     });
-    // 06:00 falls in a skipped bucket: no bar takes its label.
-    const format = timeLabelFormatter(domain);
-    expect(labelled).toEqual([0, 12, 18].map((h) => [h, format(hour(h))]));
+    // Each label names the hour its bar starts at. A round time in the
+    // skipped hours labels no bar, not the next one along.
+    const format = timeLabelFormatter(domain, 3_600_000);
+    expect(labelled.length).toBeGreaterThanOrEqual(3);
+    expect(labelled).toEqual(labelled.map(([h]) => [h, format(hour(h as number))]));
+    expect(labelled.map(([h]) => h)).not.toContain(9);
+  });
+
+  it("labels bars a query fixes in time for the time they span, not the dashboard's", () => {
+    const hour = (h: number) => new Date(2026, 5, 8, h).getTime();
+    // A day of 4-hour buckets, while the dashboard shows another week.
+    const hours = [0, 4, 8, 12, 16, 20];
+    render(
+      <BarChartVisualization
+        {...props}
+        timeRange={{ from: new Date(2026, 10, 1), to: new Date(2026, 10, 8) }}
+        spec={barChartSpec.parse({})}
+        data={[hours.map((h) => ({ ts: new Date(hour(h)).toISOString(), count: 1 }))]}
+      />,
+    );
+
+    const { formatter } = renderedChart().getOption().xAxis[0].axisLabel;
+    // Six bars have room to each name their own time, as any time axis over
+    // that day reads it: times alone, no dates.
+    const format = timeLabelFormatter([hour(0), hour(24)], 4 * 3_600_000);
+    expect(hours.map((_, index) => formatter("", index))).toEqual(
+      hours.map((h) => format(hour(h))),
+    );
+  });
+
+  it("names each bar finer than the axis's round times with its date and time", () => {
+    // 18-hour buckets, over almost four days: an axis of days.
+    const from = new Date(2026, 10, 2).getTime();
+    const times = Array.from({ length: 5 }, (_, i) => from + i * 18 * 3_600_000);
+    render(
+      <BarChartVisualization
+        {...props}
+        timeRange={{ from: new Date(from), to: new Date(from + 7 * 86_400_000) }}
+        spec={barChartSpec.parse({})}
+        data={[times.map((t) => ({ ts: new Date(t).toISOString(), count: 1 }))]}
+      />,
+    );
+
+    const { formatter } = renderedChart().getOption().xAxis[0].axisLabel;
+    const format = new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    expect(times.map((_, index) => formatter("", index))).toEqual(
+      times.map((t) => format.format(t)),
+    );
   });
 });

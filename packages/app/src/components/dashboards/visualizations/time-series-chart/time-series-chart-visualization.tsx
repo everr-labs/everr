@@ -27,7 +27,7 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { TimeTrackOverlay, useTimeTrack } from "../time-track";
+import { linearTimeScale, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
@@ -188,11 +188,12 @@ export function TimeSeriesChartVisualization({
 
   const sampleTimes = useMemo(() => chartData.map((row) => row[TS_KEY]), [chartData]);
   // Hover snaps to the nearest sample, and so does the dashboard's cursor.
+  const scale = useMemo(() => linearTimeScale(domain), [domain]);
   const track = useTimeTrack({
     chartElementRef,
     size: mounted,
     grid,
-    domain,
+    scale,
     onTimeRangeChange,
     ignore: isOnLegend,
     itemAt: (at) => {
@@ -278,7 +279,7 @@ export function TimeSeriesChartVisualization({
       </p>
       <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
       {showLegend && <SeriesLegend {...legend} onToggle={onLegendToggle} />}
-      {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
+      {plot && <TimeTrackOverlay scale={scale} brush={track.brush} plot={plot} />}
       {plot && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {markerX !== null &&

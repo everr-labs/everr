@@ -48,10 +48,11 @@ export function resolveCssColor(element: HTMLElement, color: string): string {
 const MAX_CANVAS_PIXELS = 16_000_000;
 
 /** The screen's pixel ratio, lowered as needed to fit a `width` × `height`
- * canvas within MAX_CANVAS_PIXELS (tall scrolling charts). */
-function pixelRatioFor(width: number, height: number): number {
+ * canvas within MAX_CANVAS_PIXELS (tall scrolling charts), times `headroom`
+ * in area. */
+function pixelRatioFor(width: number, height: number, headroom = 1): number {
   const screen = window.devicePixelRatio || 1;
-  const area = width * height;
+  const area = width * height * headroom;
   return area > 0 ? Math.min(screen, Math.sqrt(MAX_CANVAS_PIXELS / area)) : screen;
 }
 
@@ -82,7 +83,9 @@ export function useEChart(
   useEffect(() => {
     const element = elementRef.current;
     if (!enabled || !element) return;
-    const devicePixelRatio = pixelRatioFor(element.clientWidth, element.clientHeight);
+    // Room to grow to twice the area before the chart is created again: a
+    // chart growing a row at a time would otherwise be on every resize.
+    const devicePixelRatio = pixelRatioFor(element.clientWidth, element.clientHeight, 2);
     const instance = echarts.init(element, undefined, { renderer: "canvas", devicePixelRatio });
     const theme = readChartTheme(element);
     const measure = () => ({

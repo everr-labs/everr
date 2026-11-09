@@ -11,7 +11,7 @@ import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { createTextMeasurer, rowLabelAxis } from "./echarts/axis";
 import { gridOption, plotWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
-import { TimeAxis, TimeTrackOverlay, useTimeTrack } from "./time-track";
+import { linearTimeScale, TimeAxis, TimeTrackOverlay, useTimeTrack } from "./time-track";
 
 echarts.use([CustomChart]);
 
@@ -99,11 +99,12 @@ export function LaneTimelineChart({
   const yAxis = useMemo(() => (theme ? rowLabelAxis(theme, labels) : null), [theme, labels]);
   const grid = yAxis?.grid ?? null;
 
+  const scale = useMemo(() => linearTimeScale(domain), [domain]);
   const track = useTimeTrack({
     chartElementRef,
     size: mounted,
     grid,
-    domain,
+    scale,
     onTimeRangeChange,
     itemAt: (at) => {
       const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
@@ -196,7 +197,8 @@ export function LaneTimelineChart({
       {/* No overscroll-none here: lanes usually fit, and a non-scrollable
           scroll container with overscroll-behavior:none swallows wheel
           events instead of letting the page scroll. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* A scroll moves the rows from under the pointer: drop their hover. */}
+      <div className="min-h-0 flex-1 overflow-y-auto" onScroll={track.clearHover}>
         <div
           data-slot="time-track"
           className="relative h-full"
@@ -207,10 +209,12 @@ export function LaneTimelineChart({
           {/* The canvas has no text of its own: say what it shows. */}
           <p className="sr-only">{chartLabel(kind, labels)}</p>
           <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
-          {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
+          {plot && <TimeTrackOverlay scale={scale} brush={track.brush} plot={plot} />}
         </div>
       </div>
-      {plot && mounted && <TimeAxis theme={mounted.theme} domain={domain} plot={plot} />}
+      {plot && mounted && (
+        <TimeAxis theme={mounted.theme} domain={domain} scale={scale} plot={plot} />
+      )}
 
       {showLegend && states.length > 0 && (
         <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5 pb-3">

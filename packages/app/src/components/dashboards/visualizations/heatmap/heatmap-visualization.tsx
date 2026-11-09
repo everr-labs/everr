@@ -18,7 +18,7 @@ import { createTextMeasurer, plainAxisOption, rowLabelAxis } from "../echarts/ax
 import { gridOption, plotWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
 import { PanelEmptyState } from "../panel-empty-state";
-import { TimeAxis, TimeTrackOverlay, useTimeTrack } from "../time-track";
+import { linearTimeScale, TimeAxis, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapSchemeColors } from "./heatmap-colors";
 import { buildHeatmapModel } from "./heatmap-data";
@@ -90,11 +90,12 @@ export function HeatmapVisualization({
   );
   const grid = yAxis?.grid ?? null;
 
+  const scale = useMemo(() => linearTimeScale(gridRange), [gridRange]);
   const track = useTimeTrack({
     chartElementRef,
     size: mounted,
     grid,
-    domain: gridRange,
+    scale,
     // The column grid runs past the time range: a zoom never reaches outside it.
     onTimeRangeChange: ({ from, to }) => {
       const start = Math.max(from.getTime(), domain[0]);
@@ -216,7 +217,8 @@ export function HeatmapVisualization({
   return (
     <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
       {/* Rows keep a readable height and scroll past it, like the lanes. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* A scroll moves the rows from under the pointer: drop their hover. */}
+      <div className="min-h-0 flex-1 overflow-y-auto" onScroll={track.clearHover}>
         <div
           className="relative h-full"
           style={{ minHeight: model.yBuckets.length * MIN_ROW_HEIGHT }}
@@ -226,11 +228,11 @@ export function HeatmapVisualization({
           {/* The canvas has no text of its own: say what it shows. */}
           <p className="sr-only">{chartLabel("Heatmap", model.yBuckets)}</p>
           <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
-          {plot && <TimeTrackOverlay domain={gridRange} brush={track.brush} plot={plot} />}
+          {plot && <TimeTrackOverlay scale={scale} brush={track.brush} plot={plot} />}
         </div>
       </div>
       {plot && mounted && (
-        <TimeAxis theme={mounted.theme} domain={domain} plotDomain={gridRange} plot={plot} />
+        <TimeAxis theme={mounted.theme} domain={domain} scale={scale} plot={plot} />
       )}
 
       {spec.showLegend && (

@@ -8,8 +8,10 @@ const AXIS_FONT_SIZE = 12;
 /** How far the top value label reaches above the plot: labels are centered
  * on their ticks, and the top tick is the plot's top edge. */
 export const VALUE_LABEL_OVERHANG = AXIS_FONT_SIZE / 2;
-/** Time labels per axis, at most. */
-const TIME_TICKS = 6;
+/** The most round times a time axis labels, however wide. */
+const MAX_TIME_TICKS = 12;
+/** The least room between two time labels. */
+const TIME_LABEL_GAP = 16;
 export const AXIS_LABEL_MARGIN = 8;
 /** Breathing room between the value labels and the panel edge. */
 export const VALUE_AXIS_EDGE_INSET = 8;
@@ -94,35 +96,60 @@ export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
 const DAY = 86_400_000;
 
 /**
- * Time labels for an axis over `domain`, in the user's locale and clock:
- * dates when ticks are a day or more apart, else times (to the second when
- * ticks are), with the date at each midnight so a day change still reads.
+ * Time labels for an axis over `domain` whose times are `spacing` apart, in
+ * the user's locale and clock, all in one format: years or months for times
+ * that far apart, else times, with the date too when the range spans more
+ * than one day (to the second when times are under a minute apart).
  */
-export function timeLabelFormatter(domain: [number, number]): (value: number) => string {
-  const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-  const interval = timeTickInterval(domain, TIME_TICKS);
-  if (interval >= DAY) return (value) => date.format(value);
-  const time = new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-    // Ticks under a minute apart would otherwise read the same.
-    ...(interval < 60_000 && { second: "2-digit" }),
-  });
-  return (value) => {
-    const at = new Date(value);
-    const midnight = at.getHours() === 0 && at.getMinutes() === 0 && at.getSeconds() === 0;
-    return (midnight ? date : time).format(value);
-  };
+export function timeLabelFormatter(
+  domain: [number, number],
+  spacing: number,
+): (value: number) => string {
+  // A range ending at midnight ends on the day before it.
+  const lastInstant = Math.max(domain[0], domain[1] - 1);
+  const multiDay = new Date(domain[0]).toDateString() !== new Date(lastInstant).toDateString();
+  const format = new Intl.DateTimeFormat(
+    undefined,
+    spacing >= 365 * DAY
+      ? { year: "numeric" }
+      : spacing >= 28 * DAY
+        ? { month: "short", year: "numeric" }
+        : {
+            ...(multiDay && { month: "short", day: "numeric" }),
+            hour: "numeric",
+            minute: "2-digit",
+            // Ticks under a minute apart would otherwise read the same.
+            ...(spacing < 60_000 && { second: "2-digit" }),
+          },
+  );
+  return (value) => format.format(value);
 }
 
-/** How far apart the round times every time axis over `domain` labels are. */
-export function timeTickStep(domain: [number, number]): number {
-  return timeTickInterval(domain, TIME_TICKS);
-}
-
-/** The round times every time axis over `domain` labels. */
-export function timeTicks(domain: [number, number]): number[] {
-  return generateTimeTicks(domain, TIME_TICKS);
+/**
+ * The round times to label across `domain` on a plot `plotWidth` wide, and
+ * their format: as many as fit with room between their labels, up to
+ * `MAX_TIME_TICKS`. Over buckets `multipleOf` wide, a whole number of buckets
+ * apart where they can be.
+ */
+export function fitTimeTicks(
+  domain: [number, number],
+  plotWidth: number,
+  measure: (text: string) => number,
+  multipleOf?: number,
+): { ticks: number[]; format: (value: number) => string } {
+  const span = domain[1] - domain[0];
+  for (let count = MAX_TIME_TICKS; ; count--) {
+    const interval = timeTickInterval(domain, count, multipleOf);
+    const format = timeLabelFormatter(domain, interval);
+    const ticks = generateTimeTicks(domain, count, multipleOf);
+    const widest = Math.max(0, ...ticks.map((tick) => measure(format(tick))));
+    // Placed on the buckets holding them, ticks a fraction of buckets apart
+    // can land a whole bucket nearer each other.
+    const nearest = multipleOf && interval % multipleOf ? interval - multipleOf : interval;
+    if (count === 2 || (nearest / span) * plotWidth >= widest + TIME_LABEL_GAP) {
+      return { ticks, format };
+    }
+  }
 }
 
 /**
@@ -130,18 +157,22 @@ export function timeTicks(domain: [number, number]): number[] {
  * centered on their ticks and the plot runs to the panel's right edge, so a
  * tick closer to it than half its label goes unlabelled rather than cut off.
  */
-function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotWidth: number) {
-  const format = timeLabelFormatter(domain);
+export function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotWidth: number) {
   const measure = createTextMeasurer(theme.fontFamily);
+  const { ticks, format } = fitTimeTicks(domain, plotWidth, measure);
   const span = domain[1] - domain[0];
-  return timeTicks(domain).filter(
-    (tick) => ((domain[1] - tick) / span) * plotWidth >= measure(format(tick)) / 2,
-  );
+  return {
+    ticks: ticks.filter(
+      (tick) => ((domain[1] - tick) / span) * plotWidth >= measure(format(tick)) / 2,
+    ),
+    format,
+  };
 }
 
 /** A label-only time axis over `domain`, on a plot `plotWidth` wide. */
 export function timeAxisOption(theme: ChartTheme, domain: [number, number], plotWidth: number) {
   const plain = plainAxisOption(theme);
+  const { ticks, format } = timeAxisTicks(theme, domain, plotWidth);
   return {
     type: "time" as const,
     min: domain[0],
@@ -149,8 +180,8 @@ export function timeAxisOption(theme: ChartTheme, domain: [number, number], plot
     ...plain,
     axisLabel: {
       ...plain.axisLabel,
-      customValues: timeAxisTicks(theme, domain, plotWidth),
-      formatter: timeLabelFormatter(domain),
+      customValues: ticks,
+      formatter: format,
     },
   };
 }

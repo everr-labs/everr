@@ -70,7 +70,7 @@ function computeRates(points: ResourceUsagePoint[]) {
  * than the sampling interval still shades the samples around it. Null when
  * the window misses the samples entirely.
  */
-export function stepSampleRange(
+function stepSampleRange(
   points: readonly ResourceUsagePoint[],
   window: { startTime: number; endTime: number },
 ): { from: number; to: number } | null {

@@ -46,10 +46,33 @@ const TICK_INTERVALS = [
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
-/** The interval `generateTimeTicks` ticks `domain` at. */
-export function timeTickInterval(domain: [number, number], maxTicks: number): number {
+/** More round steps, still on the local clock, for ticks to fall a whole
+ * number of buckets apart: e.g. every 8 hours over 4-hour buckets. */
+const ALIGNABLE_INTERVALS = [
+  ...TICK_INTERVALS,
+  2 * 60_000,
+  15 * 60_000,
+  2 * HOUR,
+  4 * HOUR,
+  8 * HOUR,
+].sort((a, b) => a - b);
+
+/** The interval `generateTimeTicks` ticks `domain` at: a whole number of
+ * `multipleOf` when one is round enough, so ticks over buckets of that width
+ * fall the same number of buckets apart. */
+export function timeTickInterval(
+  domain: [number, number],
+  maxTicks: number,
+  multipleOf = 1,
+): number {
   const ideal = (domain[1] - domain[0]) / maxTicks;
-  return TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
+  const aligned = multipleOf > 1 ? ALIGNABLE_INTERVALS : TICK_INTERVALS;
+  return (
+    aligned.find((i) => i >= ideal && i % multipleOf === 0) ??
+    TICK_INTERVALS.find((i) => i >= ideal) ??
+    TICK_INTERVALS.at(-1) ??
+    1_000
+  );
 }
 
 /**
@@ -58,10 +81,14 @@ export function timeTickInterval(domain: [number, number], maxTicks: number): nu
  * Ticks of an hour or more step through the local calendar rather than by a
  * fixed number of milliseconds, so they stay on the clock across a DST change.
  */
-export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
+export function generateTimeTicks(
+  domain: [number, number],
+  maxTicks: number,
+  multipleOf?: number,
+): number[] {
   const [start, end] = domain;
   if (end <= start) return [];
-  const interval = timeTickInterval(domain, maxTicks);
+  const interval = timeTickInterval(domain, maxTicks, multipleOf);
   const ticks: number[] = [];
 
   if (interval < HOUR) {
@@ -324,25 +351,35 @@ export function nearestSampleIndex(samples: readonly number[], target: number): 
   return nearest;
 }
 
-/** The width of the buckets starting at ascending `starts`: the smallest gap
- * between them, as a query can skip empty ones. 0 for a lone bucket. */
-export function bucketStep(starts: readonly number[]): number {
-  let step = 0;
-  starts.forEach((start, i) => {
-    const gap = start - (starts[i - 1] ?? start);
-    if (gap > 0 && (step === 0 || gap < step)) step = gap;
-  });
-  return step;
+/**
+ * How often series are sampled: the median gap between consecutive times
+ * within each of `series` (each ascending). Gaps are measured per series, so
+ * series sampled at offset times (a at :00, b at :01) still read as a minute
+ * apart, and the median shrugs off a skipped bucket or a stray sample. 0 when
+ * no series has two times.
+ */
+export function samplingStep(series: Iterable<readonly number[]>): number {
+  const gaps: number[] = [];
+  for (const times of series) {
+    times.forEach((time, i) => {
+      const gap = time - (times[i - 1] ?? time);
+      if (gap > 0) gaps.push(gap);
+    });
+  }
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)] ?? 0;
 }
 
 /**
- * The index of the bucket containing `target`, where `starts` are the
- * ascending start times of buckets `bucketStep` wide. Null outside them all,
- * including in a skipped one; a lone bucket has no width to measure and only
- * contains its own start.
+ * The index of the bucket containing `target`, where `starts` are ascending
+ * bucket starts and each bucket is `step` wide. Null outside them all,
+ * including in a skipped one; with no step, a bucket only contains its start.
  */
-export function bucketIndexAt(starts: readonly number[], target: number): number | null {
-  const step = bucketStep(starts);
+export function bucketIndexAt(
+  starts: readonly number[],
+  step: number,
+  target: number,
+): number | null {
   let index: number | null = null;
   starts.forEach((start, i) => {
     if (start <= target) index = i;
