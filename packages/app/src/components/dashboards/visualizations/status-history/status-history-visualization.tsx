@@ -4,6 +4,7 @@ import type { VisualizationProps } from "../index";
 import { LaneTimelineChart } from "../lane-timeline-chart";
 import type { StatusHistorySpec } from "./spec";
 import { buildStatusHistoryModel } from "./status-history-data";
+import { PanelEmptyState } from "../panel-empty-state";
 
 export function StatusHistoryVisualization({
   spec,
@@ -48,8 +49,13 @@ export function StatusHistoryVisualization({
       showLegend={spec.showLegend}
       rounded
       onTimeRangeChange={onTimeRangeChange}
-      emptyIcon={<LayoutGrid className="size-8" />}
-      emptyMessage={data ? "No status data in this time range" : "Configure a query to see results"}
+      empty={
+        <PanelEmptyState
+          icon={LayoutGrid}
+          data={data}
+          unusable="No row has a time and a status inside this time range."
+        />
+      }
     />
   );
 }

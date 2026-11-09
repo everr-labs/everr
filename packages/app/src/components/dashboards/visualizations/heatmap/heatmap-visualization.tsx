@@ -11,6 +11,7 @@ import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
+import { PanelEmptyState } from "../panel-empty-state";
 
 const [BRUSH_COLOR] = SERIES_COLORS;
 const MAX_X_TICKS = 6;
@@ -112,14 +113,12 @@ export function HeatmapVisualization({
   }, [brushStart, brushEnd, onTimeRangeChange]);
 
   if (!model || span <= 0 || model.cells.length === 0) {
-    const message = !data
-      ? "Configure a query to see results"
-      : "No heatmap data in this time range";
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Grid3x3 className="size-8" />
-        <p className="text-sm">{message}</p>
-      </div>
+      <PanelEmptyState
+        icon={Grid3x3}
+        data={data}
+        unusable="The result needs time, bucket and numeric value columns."
+      />
     );
   }
 

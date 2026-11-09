@@ -20,11 +20,11 @@ import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "../ech
 import { SeriesLegend, seriesTooltipRows, useSeriesLegend } from "../echarts/series-legend";
 import { useEChart } from "../echarts/use-echart";
 import type { VisualizationProps } from "../index";
-import { SeriesEmptyState } from "../series-empty-state";
 import { createValueFormatter } from "../value-format";
 import { useSharedTimeCursor } from "./shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
+import { PanelEmptyState } from "../panel-empty-state";
 
 const BRUSH_COLOR = SERIES_COLORS[0] ?? "hsl(263, 90%, 65%)";
 const PLAIN_MARKER_RADIUS = 4;
@@ -323,7 +323,11 @@ export function TimeSeriesChartVisualization({
   // explicitly instead of letting an axis-only, line-less chart render.
   if (!hasChart) {
     return (
-      <SeriesEmptyState icon={LineChartIcon} hasQuery={!!data} hasRows={chartData.length > 0} />
+      <PanelEmptyState
+        icon={LineChartIcon}
+        data={data}
+        unusable="The result needs a time column and at least one numeric column."
+      />
     );
   }
 

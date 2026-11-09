@@ -23,10 +23,10 @@ import { type GridInsets, getPlotRect, ratioWithin } from "../echarts/plot-rect"
 import { SeriesLegend, seriesTooltipRows, useSeriesLegend } from "../echarts/series-legend";
 import { useEChart } from "../echarts/use-echart";
 import type { VisualizationProps } from "../index";
-import { SeriesEmptyState } from "../series-empty-state";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
+import { PanelEmptyState } from "../panel-empty-state";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -330,7 +330,13 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   );
 
   if (!hasChart) {
-    return <SeriesEmptyState icon={BarChart3} hasQuery={!!data} hasRows={chartData.length > 0} />;
+    return (
+      <PanelEmptyState
+        icon={BarChart3}
+        data={data}
+        unusable="The result needs at least one numeric column."
+      />
+    );
   }
 
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;

@@ -13,6 +13,7 @@ import {
 import { computeStatTiles } from "./stat-series";
 import { StatSparkline } from "./stat-sparkline";
 import "./stat-chart.css";
+import { PanelEmptyState } from "../panel-empty-state";
 
 /** Value text scales down as tiles crowd the panel. */
 function valueSizeClass(tileCount: number): string {
@@ -46,12 +47,7 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
 
   if (!data || !hasAnyValue) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Hash className="size-8" />
-        <p className="text-sm">{!data ? "Configure a query to see results" : "No numeric data"}</p>
-      </div>
-    );
+    return <PanelEmptyState icon={Hash} data={data} unusable="The result has no numeric values." />;
   }
 
   const multi = tiles.length > 1;

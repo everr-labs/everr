@@ -52,8 +52,7 @@ export function LaneTimelineChart({
   showValues,
   showLegend,
   rounded = false,
-  emptyIcon,
-  emptyMessage,
+  empty,
   onTimeRangeChange,
 }: {
   lanes: LaneTimelineLane[];
@@ -65,8 +64,8 @@ export function LaneTimelineChart({
   showLegend: boolean;
   /** Round item corners (StatusHistory cells). */
   rounded?: boolean;
-  emptyIcon: ReactNode;
-  emptyMessage: string;
+  /** Shown instead of the chart when no lane has an item in the domain. */
+  empty: ReactNode;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -123,12 +122,7 @@ export function LaneTimelineChart({
   }, [brushStart, brushEnd, onTimeRangeChange]);
 
   if (span <= 0 || !lanes.some((l) => l.items.length > 0)) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        {emptyIcon}
-        <p className="text-sm">{emptyMessage}</p>
-      </div>
-    );
+    return empty;
   }
 
   return (
