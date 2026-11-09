@@ -39,6 +39,7 @@ export function StatusHistoryVisualization({
 
   return (
     <LaneTimelineChart
+      kind="Status history"
       lanes={lanes}
       states={model?.states ?? []}
       colorByState={model?.colorByState ?? {}}

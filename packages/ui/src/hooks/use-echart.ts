@@ -43,6 +43,18 @@ export function resolveCssColor(element: HTMLElement, color: string): string {
   return resolved || color;
 }
 
+/** Canvas pixels a chart may use: under iOS Safari's ~16.7M limit, past which
+ * a canvas renders blank. */
+const MAX_CANVAS_PIXELS = 16_000_000;
+
+/** The screen's pixel ratio, lowered as needed to fit a `width` × `height`
+ * canvas within MAX_CANVAS_PIXELS (tall scrolling charts). */
+function pixelRatioFor(width: number, height: number): number {
+  const screen = window.devicePixelRatio || 1;
+  const area = width * height;
+  return area > 0 ? Math.min(screen, Math.sqrt(MAX_CANVAS_PIXELS / area)) : screen;
+}
+
 interface MountedChart {
   chart: EChartsType;
   theme: ChartTheme;
@@ -63,11 +75,15 @@ export function useEChart(
   onResize?: () => void,
 ): MountedChart | null {
   const [mounted, setMounted] = useState<MountedChart | null>(null);
+  // Bumped to create the chart again, at a lower pixel ratio, once the
+  // element outgrows the canvas budget: ECharts fixes the ratio at creation.
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     const element = elementRef.current;
     if (!enabled || !element) return;
-    const instance = echarts.init(element, undefined, { renderer: "canvas" });
+    const devicePixelRatio = pixelRatioFor(element.clientWidth, element.clientHeight);
+    const instance = echarts.init(element, undefined, { renderer: "canvas", devicePixelRatio });
     const theme = readChartTheme(element);
     const measure = () => ({
       chart: instance,
@@ -84,6 +100,10 @@ export function useEChart(
         element.clientHeight === instance.getHeight()
       )
         return;
+      if (pixelRatioFor(element.clientWidth, element.clientHeight) < devicePixelRatio) {
+        setGeneration((g) => g + 1);
+        return;
+      }
       instance.resize();
       setMounted(measure());
       onResize?.();
@@ -94,7 +114,7 @@ export function useEChart(
       instance.dispose();
       setMounted(null);
     };
-  }, [elementRef, enabled, onResize]);
+  }, [elementRef, enabled, onResize, generation]);
 
   // Between disposing an instance and mounting the next (a hot reload, or the
   // element changing), a render can still see the old one: hand out nothing

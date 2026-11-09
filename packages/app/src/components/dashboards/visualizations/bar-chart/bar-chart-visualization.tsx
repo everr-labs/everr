@@ -1,3 +1,4 @@
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { readableForeground } from "@everr/ui/lib/contrast";
@@ -9,7 +10,7 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { bucketIndexAt } from "../data-utils";
+import { bucketIndexAt, bucketStep } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
@@ -17,6 +18,7 @@ import {
   niceValueAxis,
   plainAxisOption,
   timeLabelFormatter,
+  timeTickStep,
   timeTicks,
   VALUE_AXIS_EDGE_INSET,
   VALUE_LABEL_OVERHANG,
@@ -211,18 +213,29 @@ export function BarChartVisualization({
     [chartData, isTimeAxis],
   );
 
-  // Labelled like every other time axis on the dashboard: the same round
-  // times, each on the bar whose bucket holds it.
-  const categoryLabels = useMemo(() => {
-    if (!bucketTimes) return chartData.map((row) => String(row[X_KEY]));
+  // Bars over time are labelled like every other time axis on the dashboard:
+  // the same round times, each on the bar whose bucket holds it. Buckets as
+  // wide as those times are apart, or too few of them under the range's
+  // ticks, get their own times instead, thinned like categories.
+  const { categoryLabels, tickLabelsOnly } = useMemo(() => {
+    if (!bucketTimes) {
+      return { categoryLabels: chartData.map((row) => String(row[X_KEY])), tickLabelsOnly: false };
+    }
     const domain: [number, number] = [timeRange.from.getTime(), timeRange.to.getTime()];
     const format = timeLabelFormatter(domain);
-    const labels = bucketTimes.map(() => "");
-    for (const tick of timeTicks(domain)) {
-      const index = bucketIndexAt(bucketTimes, tick);
-      if (index !== null) labels[index] = format(tick);
+    const step = bucketStep(bucketTimes);
+    if (step > 0 && step < timeTickStep(domain)) {
+      const labels = bucketTimes.map(() => "");
+      let placed = 0;
+      for (const tick of timeTicks(domain)) {
+        const index = bucketIndexAt(bucketTimes, tick);
+        if (index === null) continue;
+        labels[index] = format(tick);
+        placed++;
+      }
+      if (placed >= 2) return { categoryLabels: labels, tickLabelsOnly: true };
     }
-    return labels;
+    return { categoryLabels: bucketTimes.map(format), tickLabelsOnly: false };
   }, [chartData, bucketTimes, timeRange]);
 
   const ids = useMemo(() => series.map(({ id }) => id), [series]);
@@ -300,8 +313,8 @@ export function BarChartVisualization({
     };
   }, [theme, scale, formatValueTick, valueLabels, stacked, horizontal, categoryLabels]);
 
-  // Time labels already sit only on the bars that hold a round time.
-  const tickInterval = bucketTimes
+  // Round-time labels already sit only on the bars that hold one.
+  const tickInterval = tickLabelsOnly
     ? 0
     : Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
 
@@ -347,14 +360,25 @@ export function BarChartVisualization({
       : plotWidth / Math.max(1, shown) - 8;
     const fittedLabels = categoryLabels.map((label, index) => {
       if (index % (tickInterval + 1) !== 0) return "";
-      const fitted = fitMiddle(label, labelPx, measure);
-      // A label centered on one of the last bars could run past the panel's
-      // right edge: it goes unlabelled rather than cut off.
-      const room = (chartData.length - index - 0.5) * band;
-      return !horizontal && room < measure(fitted) / 2 ? "" : fitted;
+      if (horizontal) return fitMiddle(label, labelPx, measure);
+      // Centered on its bar, a label near the right edge has only the room to
+      // it on that side. A round time would misread cut short: it goes
+      // unlabelled. A category is cut to fit.
+      const room = 2 * (chartData.length - index - 0.5) * band;
+      if (tickLabelsOnly) return measure(label) <= room ? label : "";
+      return fitMiddle(label, Math.min(labelPx, room), measure);
     });
     return { grid, fittedLabels };
-  }, [measured, width, horizontal, gridBottom, chartData.length, tickInterval, categoryLabels]);
+  }, [
+    measured,
+    width,
+    horizontal,
+    gridBottom,
+    chartData.length,
+    tickInterval,
+    categoryLabels,
+    tickLabelsOnly,
+  ]);
 
   useEffect(() => {
     const element = chartElementRef.current;
@@ -483,11 +507,13 @@ export function BarChartVisualization({
     const start = bucketTimes[first];
     const lastStart = bucketTimes[last];
     if (start === undefined || lastStart === undefined) return;
-    // The last bucket runs to the next one's start.
-    const step = (lastStart - start) / (last - first);
-    const end = bucketTimes[last + 1] ?? lastStart + step;
+    // Buckets start on round times, so the outer ones can reach past the time
+    // range: a zoom never reaches outside it.
+    const from = Math.max(start, timeRange.from.getTime());
+    const to = Math.min(lastStart + bucketStep(bucketTimes), timeRange.to.getTime());
+    if (to <= from) return;
     clearHover();
-    onTimeRangeChange({ from: new Date(start), to: new Date(end) });
+    onTimeRangeChange({ from: new Date(from), to: new Date(to) });
   };
 
   if (!hasChart) {
@@ -513,7 +539,14 @@ export function BarChartVisualization({
       onPointerCancel={() => setDrag(null)}
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
-      <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+      {/* The canvas has no text of its own: say what it shows. */}
+      <p className="sr-only">
+        {chartLabel(
+          "Bar chart",
+          series.map(({ label }) => label),
+        )}
+      </p>
+      <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
       {bucketTimes && mounted && layout && (
         <BucketCursor
           bucketTimes={bucketTimes}

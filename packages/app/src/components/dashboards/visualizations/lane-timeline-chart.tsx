@@ -1,16 +1,17 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { readableForeground } from "@everr/ui/lib/contrast";
 import { CustomChart, type CustomSeriesOption } from "echarts/charts";
 import type { GridComponentOption } from "echarts/components";
 import * as echarts from "echarts/core";
 import type { ComposeOption } from "echarts/core";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import { createTextMeasurer, rowLabelAxis, TIME_AXIS_HEIGHT, timeAxisOption } from "./echarts/axis";
+import { createTextMeasurer, rowLabelAxis } from "./echarts/axis";
 import { gridOption, plotWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
-import { TimeTrackOverlay, useTimeTrack } from "./time-track";
+import { TimeAxis, TimeTrackOverlay, useTimeTrack } from "./time-track";
 
 echarts.use([CustomChart]);
 
@@ -60,6 +61,7 @@ function laneItemAt(
  * fixed-width cells) and a couple of cosmetic props.
  */
 export function LaneTimelineChart({
+  kind,
   lanes,
   states,
   colorByState,
@@ -71,6 +73,8 @@ export function LaneTimelineChart({
   empty,
   onTimeRangeChange,
 }: {
+  /** What the chart is, for its accessible name, e.g. "State timeline". */
+  kind: string;
   lanes: LaneTimelineLane[];
   states: string[];
   colorByState: Record<string, string>;
@@ -129,7 +133,8 @@ export function LaneTimelineChart({
     const option: ChartOption = {
       animation: false,
       grid: gridOption(grid),
-      xAxis: timeAxisOption(theme, domain, plot.width),
+      // Labelled by `TimeAxis` under the scrolling lanes.
+      xAxis: { type: "time", min: domain[0], max: domain[1], show: false },
       yAxis: yAxis.axis,
       series: [
         {
@@ -195,14 +200,17 @@ export function LaneTimelineChart({
         <div
           data-slot="time-track"
           className="relative h-full"
-          style={{ minHeight: lanes.length * MIN_LANE_HEIGHT + TIME_AXIS_HEIGHT }}
+          style={{ minHeight: lanes.length * MIN_LANE_HEIGHT }}
           {...track.handlers}
         >
           {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
-          <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+          {/* The canvas has no text of its own: say what it shows. */}
+          <p className="sr-only">{chartLabel(kind, labels)}</p>
+          <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
           {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
         </div>
       </div>
+      {plot && mounted && <TimeAxis theme={mounted.theme} domain={domain} plot={plot} />}
 
       {showLegend && states.length > 0 && (
         <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5 pb-3">

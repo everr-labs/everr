@@ -1,5 +1,5 @@
 import type { YAXisComponentOption } from "echarts";
-import { generateTimeTicks, niceLinearDomain } from "../data-utils";
+import { generateTimeTicks, niceLinearDomain, timeTickInterval } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
 import type { ChartValueAxis } from "@everr/ui/components/series-chart";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
@@ -58,7 +58,7 @@ export function plainAxisOption(theme: ChartTheme) {
 
 /** Row labels (heatmap buckets, timeline lanes) wider than this truncate. */
 const MAX_ROW_LABEL_WIDTH = 120;
-/** Room under a chart of rows for its time labels. */
+/** Height of the time axis under a chart of rows. */
 export const TIME_AXIS_HEIGHT = 22;
 
 /**
@@ -73,7 +73,8 @@ export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
   );
   const plain = plainAxisOption(theme);
   return {
-    grid: { left: width, right: 0, top: 0, bottom: TIME_AXIS_HEIGHT },
+    // The time axis is drawn under the chart (`TimeAxis`), out of the rows' scroll.
+    grid: { left: width, right: 0, top: 0, bottom: 0 },
     axis: {
       type: "category" as const,
       data: labels,
@@ -92,16 +93,31 @@ export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
 
 const DAY = 86_400_000;
 
-/** Time labels for an axis over `domain`: dates for multi-day ranges, hours
- * and minutes otherwise. */
+/**
+ * Time labels for an axis over `domain`, in the user's locale and clock:
+ * dates when ticks are a day or more apart, else times (to the second when
+ * ticks are), with the date at each midnight so a day change still reads.
+ */
 export function timeLabelFormatter(domain: [number, number]): (value: number) => string {
-  const format = new Intl.DateTimeFormat(
-    undefined,
-    domain[1] - domain[0] > DAY
-      ? { month: "short", day: "numeric" }
-      : { hour: "2-digit", minute: "2-digit", hour12: false },
-  );
-  return (value) => format.format(value);
+  const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+  const interval = timeTickInterval(domain, TIME_TICKS);
+  if (interval >= DAY) return (value) => date.format(value);
+  const time = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    // Ticks under a minute apart would otherwise read the same.
+    ...(interval < 60_000 && { second: "2-digit" }),
+  });
+  return (value) => {
+    const at = new Date(value);
+    const midnight = at.getHours() === 0 && at.getMinutes() === 0 && at.getSeconds() === 0;
+    return (midnight ? date : time).format(value);
+  };
+}
+
+/** How far apart the round times every time axis over `domain` labels are. */
+export function timeTickStep(domain: [number, number]): number {
+  return timeTickInterval(domain, TIME_TICKS);
 }
 
 /** The round times every time axis over `domain` labels. */
@@ -114,7 +130,7 @@ export function timeTicks(domain: [number, number]): number[] {
  * centered on their ticks and the plot runs to the panel's right edge, so a
  * tick closer to it than half its label goes unlabelled rather than cut off.
  */
-export function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotWidth: number) {
+function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotWidth: number) {
   const format = timeLabelFormatter(domain);
   const measure = createTextMeasurer(theme.fontFamily);
   const span = domain[1] - domain[0];

@@ -124,6 +124,16 @@ describe("generateTestData – table", () => {
     expect(typeof rows[0]!.ts).toBe("string");
   });
 
+  it("times rows like a query's buckets, the last one holding the range end", () => {
+    const rows = gen({ scenario: "table", rows: 4, columns: [{ name: "ts", time: true }] });
+    expect(rows.map((row) => row.ts)).toEqual([
+      "2026-06-10 00:00:00.000",
+      "2026-06-10 00:15:00.000",
+      "2026-06-10 00:30:00.000",
+      "2026-06-10 00:45:00.000",
+    ]);
+  });
+
   it("rows:0 yields an empty frame", () => {
     expect(gen({ scenario: "table", rows: 0, columns: [{ name: "a", seq: true }] })).toEqual([]);
   });

@@ -40,6 +40,7 @@ export function StateTimelineVisualization({
 
   return (
     <LaneTimelineChart
+      kind="State timeline"
       lanes={lanes}
       states={model?.states ?? []}
       colorByState={model?.colorByState ?? {}}

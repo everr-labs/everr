@@ -1,3 +1,4 @@
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { readableForeground } from "@everr/ui/lib/contrast";
@@ -122,7 +123,14 @@ export function TreemapVisualization({ spec, data }: VisualizationProps<TreemapS
         className="relative min-h-0 flex-1 overflow-hidden text-muted-foreground"
         onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
       >
-        <div ref={chartElementRef} className="h-full w-full" />
+        {/* The canvas has no text of its own: say what it shows. */}
+        <p className="sr-only">
+          {chartLabel(
+            "Treemap",
+            tiles.map(({ name }) => name),
+          )}
+        </p>
+        <div ref={chartElementRef} aria-hidden className="h-full w-full" />
 
         {/* rows the result contained but the treemap could not place */}
         {dropped > 0 && (

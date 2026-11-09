@@ -1,3 +1,4 @@
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import type { LineSeriesOption } from "echarts/charts";
@@ -268,7 +269,14 @@ export function TimeSeriesChartVisualization({
   return (
     <div className="relative h-full w-full select-none text-muted-foreground" {...track.handlers}>
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
-      <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+      {/* The canvas has no text of its own: say what it shows. */}
+      <p className="sr-only">
+        {chartLabel(
+          "Time series",
+          modelSeries.map(({ label }) => label),
+        )}
+      </p>
+      <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
       {showLegend && <SeriesLegend {...legend} onToggle={onLegendToggle} />}
       {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
       {plot && (

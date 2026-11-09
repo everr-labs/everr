@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 import { isNumericValue } from "#app/lib/numeric.ts";
 import {
   detectTimeKey,
+  generateTimeTicks,
   getValueKeys,
   nearestSampleIndex,
   bucketIndexAt,
@@ -165,5 +166,34 @@ describe("bucketIndexAt", () => {
     ["before the first bucket", -1, null],
   ])("finds the bucket %s", (_, target, expected) => {
     expect(bucketIndexAt([0, 100, 200, 300], target)).toBe(expected);
+  });
+
+  it("finds no bucket in one the query skipped", () => {
+    // Hourly buckets with 03:00 to 08:00 empty.
+    expect(bucketIndexAt([0, 100, 200, 900], 500)).toBeNull();
+    expect(bucketIndexAt([0, 100, 200, 900], 950)).toBe(3);
+  });
+});
+
+describe("generateTimeTicks", () => {
+  // US clocks fall back on Nov 1, 2026.
+  const zone = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "America/New_York";
+  });
+  afterAll(() => {
+    process.env.TZ = zone;
+  });
+
+  it.each([
+    ["days on local midnight", "2026-10-29T12:00:00-04:00", "2026-11-05T12:00:00-05:00"],
+    ["hours on whole local hours", "2026-11-01T00:00:00-04:00", "2026-11-01T12:00:00-05:00"],
+  ])("steps %s across a DST change", (_, from, to) => {
+    const ticks = generateTimeTicks([Date.parse(from), Date.parse(to)], 6);
+    const local = ticks.map((tick) => new Date(tick));
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    expect(local.every((at) => at.getMinutes() === 0)).toBe(true);
+    const hours = new Set(local.map((at) => at.getHours() % 3));
+    expect(hours).toEqual(new Set([0]));
   });
 });

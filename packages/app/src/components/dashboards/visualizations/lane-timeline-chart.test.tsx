@@ -14,6 +14,7 @@ it("shows the hovered block and marks its instant in every panel of the dashboar
   );
   const lane = (label: string) => (
     <LaneTimelineChart
+      kind="State timeline"
       lanes={[{ label, items: [{ start: 0, end: 1000, state: "up", title: "" }] }]}
       states={["up"]}
       colorByState={{ up: "green" }}

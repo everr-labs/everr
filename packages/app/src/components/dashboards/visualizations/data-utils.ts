@@ -43,22 +43,56 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Tick positions across a time domain on the local clock (whole hours,
- * local midnights), at most maxTicks of them. */
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
+/** The interval `generateTimeTicks` ticks `domain` at. */
+export function timeTickInterval(domain: [number, number], maxTicks: number): number {
+  const ideal = (domain[1] - domain[0]) / maxTicks;
+  return TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
+}
+
+/**
+ * Tick positions across a time domain, at most about maxTicks of them, on
+ * the local clock: whole local hours, local midnights, first days of months.
+ * Ticks of an hour or more step through the local calendar rather than by a
+ * fixed number of milliseconds, so they stay on the clock across a DST change.
+ */
 export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
-  const span = domain[1] - domain[0];
-  if (span <= 0) return [];
-
-  const ideal = span / maxTicks;
-  const interval = TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
-
-  // Local time is UTC shifted by the zone offset: align in local time, so a
-  // day tick lands on local midnight, not UTC's.
-  const offset = -new Date(domain[0]).getTimezoneOffset() * 60_000;
-  const first = Math.ceil((domain[0] + offset) / interval) * interval - offset;
+  const [start, end] = domain;
+  if (end <= start) return [];
+  const interval = timeTickInterval(domain, maxTicks);
   const ticks: number[] = [];
-  for (let t = first; t <= domain[1]; t += interval) {
-    ticks.push(t);
+
+  if (interval < HOUR) {
+    // Every zone offset is a whole number of these, give or take 45-minute
+    // zones, so UTC multiples are local ones too.
+    for (let t = Math.ceil(start / interval) * interval; t <= end; t += interval) ticks.push(t);
+    return ticks;
+  }
+
+  const at = new Date(start);
+  if (interval < DAY) {
+    const hours = interval / HOUR;
+    at.setMinutes(0, 0, 0);
+    if (at.getTime() < start) at.setHours(at.getHours() + 1);
+    for (; at.getTime() <= end; at.setHours(at.getHours() + 1)) {
+      if (at.getHours() % hours === 0) ticks.push(at.getTime());
+    }
+    return ticks;
+  }
+
+  at.setHours(0, 0, 0, 0);
+  if (at.getTime() < start) at.setDate(at.getDate() + 1);
+  const days = interval / DAY;
+  const months = days >= 365 ? 12 : days >= 90 ? 3 : days >= 30 ? 1 : 0;
+  for (; at.getTime() <= end; at.setDate(at.getDate() + 1)) {
+    const keep = months
+      ? at.getDate() === 1 && at.getMonth() % months === 0
+      : // Days since the epoch in local time, so the step does not drift
+        // with where the range starts.
+        Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / DAY) % days === 0;
+    if (keep) ticks.push(at.getTime());
   }
   return ticks;
 }
@@ -290,21 +324,30 @@ export function nearestSampleIndex(samples: readonly number[], target: number): 
   return nearest;
 }
 
+/** The width of the buckets starting at ascending `starts`: the smallest gap
+ * between them, as a query can skip empty ones. 0 for a lone bucket. */
+export function bucketStep(starts: readonly number[]): number {
+  let step = 0;
+  starts.forEach((start, i) => {
+    const gap = start - (starts[i - 1] ?? start);
+    if (gap > 0 && (step === 0 || gap < step)) step = gap;
+  });
+  return step;
+}
+
 /**
  * The index of the bucket containing `target`, where `starts` are the
- * ascending start times of evenly spaced buckets, each running to the next
- * start (the last one for a step more). Null outside them all; a lone bucket
- * has no step to measure and only contains its own start.
+ * ascending start times of buckets `bucketStep` wide. Null outside them all,
+ * including in a skipped one; a lone bucket has no width to measure and only
+ * contains its own start.
  */
 export function bucketIndexAt(starts: readonly number[], target: number): number | null {
-  const first = starts[0];
-  const last = starts.at(-1);
-  if (first === undefined || last === undefined || target < first) return null;
-  const step = starts.length > 1 ? (last - first) / (starts.length - 1) : 0;
-  if (step > 0 ? target >= last + step : target > last) return null;
-  let index = 0;
-  starts.forEach((bucketStart, i) => {
-    if (bucketStart <= target) index = i;
+  const step = bucketStep(starts);
+  let index: number | null = null;
+  starts.forEach((start, i) => {
+    if (start <= target) index = i;
   });
-  return index;
+  if (index === null) return null;
+  const start = starts[index] ?? target;
+  return target < start + step || target === start ? index : null;
 }

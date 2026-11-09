@@ -89,6 +89,24 @@ describe("buildHeatmapModel", () => {
     expect(model.cells.map((cell) => cell.value)).toEqual([1, 1, 2, 1]);
   });
 
+  it("lets buckets sampled at offset times share columns", () => {
+    // Each route every 10s, /web a second after /api.
+    const rows = [0, 10, 20].flatMap((s) => [
+      { ts: ts(s), route: "/api", count: 1 },
+      { ts: ts(s + 1), route: "/web", count: 1 },
+    ]);
+    const model = buildHeatmapModel([rows], specWith(), DOMAIN);
+    expect(model.columns.step).toBe(10_000);
+    expect(model.cells.map((cell) => [cell.column, cell.bucket])).toEqual([
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [2, 0],
+      [2, 1],
+    ]);
+  });
+
   it("merges the same number of samples into every column past the column cap", () => {
     // A day of minute samples is more columns than any panel is wide.
     const day: [number, number] = [0, 86_400_000];

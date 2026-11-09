@@ -1,6 +1,7 @@
 import { fireEvent, render } from "@testing-library/react";
 import * as echarts from "echarts/core";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
+import { timeLabelFormatter } from "../echarts/axis";
 import { BarChartVisualization } from "./bar-chart-visualization";
 import { barChartSpec } from "./spec";
 
@@ -92,7 +93,11 @@ describe("BarChartVisualization", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
       DOMRect.fromRect({ x: 0, y: 0, width: 400, height: 200 }),
     );
+    // jsdom has no pointer capture.
     HTMLElement.prototype.setPointerCapture = vi.fn();
+    onTestFinished(() => {
+      Reflect.deleteProperty(HTMLElement.prototype, "setPointerCapture");
+    });
     const onTimeRangeChange = vi.fn();
     const hour = (h: number) => Date.UTC(2026, 5, 7, h);
     const { container } = render(
@@ -115,5 +120,29 @@ describe("BarChartVisualization", () => {
       from: new Date(hour(1)),
       to: new Date(hour(4)),
     });
+  });
+
+  it("labels round times only on bars whose bucket holds them", () => {
+    const hour = (h: number) => new Date(2026, 5, 7, h).getTime();
+    const domain: [number, number] = [hour(0), hour(24)];
+    // Hourly buckets, with 05:00 to 07:00 empty and so skipped by the query.
+    const hours = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 5 || h > 7);
+    render(
+      <BarChartVisualization
+        {...props}
+        timeRange={{ from: new Date(domain[0]), to: new Date(domain[1]) }}
+        spec={barChartSpec.parse({})}
+        data={[hours.map((h) => ({ ts: new Date(hour(h)).toISOString(), count: 1 }))]}
+      />,
+    );
+
+    const { formatter } = renderedChart().getOption().xAxis[0].axisLabel;
+    const labelled = hours.flatMap((h, index) => {
+      const label = formatter("", index);
+      return label ? [[h, label]] : [];
+    });
+    // 06:00 falls in a skipped bucket: no bar takes its label.
+    const format = timeLabelFormatter(domain);
+    expect(labelled).toEqual([0, 12, 18].map((h) => [h, format(hour(h))]));
   });
 });

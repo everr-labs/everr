@@ -7,6 +7,7 @@ import {
 } from "@everr/ui/components/series-legend";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { cn } from "@everr/ui/lib/utils";
 import { BarChart, type BarSeriesOption, LineChart, type LineSeriesOption } from "echarts/charts";
 import { MarkAreaComponent } from "echarts/components";
@@ -295,7 +296,14 @@ export function SeriesChart({
       onPointerLeave={() => setPointer(null)}
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
-      <div ref={elementRef} className="pointer-events-none h-full w-full" />
+      {/* The canvas has no text of its own: say what it shows. */}
+      <p className="sr-only">
+        {chartLabel(
+          "Chart",
+          series.map(({ label }) => label),
+        )}
+      </p>
+      <div ref={elementRef} aria-hidden className="pointer-events-none h-full w-full" />
       {pointer && chart && <PointCursor chart={chart} top={grid.top} index={pointer.index} />}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {pointer && rows.length > 0 && (

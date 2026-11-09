@@ -1,5 +1,12 @@
 import { type CSSProperties, type RefObject, useCallback, useState } from "react";
 import { SERIES_COLORS } from "./data-utils";
+import type { ChartTheme } from "@everr/ui/hooks/use-echart";
+import {
+  createTextMeasurer,
+  TIME_AXIS_HEIGHT,
+  timeLabelFormatter,
+  timeTicks,
+} from "./echarts/axis";
 import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
 import { CursorLine } from "@everr/ui/components/cursor-line";
@@ -164,5 +171,47 @@ export function Brush({
       }
       style={{ ...style, backgroundColor: BRUSH_COLOR, opacity: 0.15, borderColor: BRUSH_COLOR }}
     />
+  );
+}
+
+/**
+ * A time axis drawn under a chart rather than in it, for charts whose rows
+ * scroll: it stays in view however far they do. Labels the same round times
+ * as every other time axis over `domain`, placed on a plot spanning
+ * `plotDomain` (a heatmap's column grid can run past the range).
+ */
+export function TimeAxis({
+  theme,
+  domain,
+  plotDomain = domain,
+  plot,
+}: {
+  theme: ChartTheme;
+  domain: [number, number];
+  plotDomain?: [number, number];
+  plot: PlotRect;
+}) {
+  const format = timeLabelFormatter(domain);
+  const measure = createTextMeasurer(theme.fontFamily);
+  const [start, end] = plotDomain;
+  const labels = timeTicks(domain).flatMap((tick) => {
+    const x = plot.left + ((tick - start) / (end - start)) * plot.width;
+    const text = format(tick);
+    // Centered on its tick: one that would run past the right edge goes
+    // unlabelled rather than cut off.
+    return x + measure(text) / 2 <= plot.left + plot.width ? [{ tick, x, text }] : [];
+  });
+  return (
+    <div className="relative shrink-0 overflow-hidden text-xs" style={{ height: TIME_AXIS_HEIGHT }}>
+      {labels.map(({ tick, x, text }) => (
+        <span
+          key={tick}
+          className="absolute top-1 -translate-x-1/2 whitespace-nowrap"
+          style={{ left: x }}
+        >
+          {text}
+        </span>
+      ))}
+    </div>
   );
 }

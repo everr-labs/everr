@@ -5,7 +5,7 @@ import { SVGRenderer } from "echarts/renderers";
 import { describe, expect, it } from "vite-plus/test";
 import { niceLinearDomain } from "../data-utils";
 import { createValueFormatter } from "../value-format";
-import { niceValueAxis, valueAxisOption } from "./axis";
+import { niceValueAxis, timeLabelFormatter, timeTicks, valueAxisOption } from "./axis";
 
 echarts.use([BarChart, GridComponent, SVGRenderer]);
 
@@ -57,5 +57,22 @@ describe("valueAxisOption", () => {
       Number(value),
     );
     expect(drawn.sort((a, b) => a - b)).toEqual(scale.ticks);
+  });
+});
+
+describe("timeLabelFormatter", () => {
+  it.each([
+    ["two days of half-day ticks", 2],
+    ["a week of day ticks", 7],
+  ])("names each day ticked once over %s, and no two neighboring ticks alike", (_, days) => {
+    const start = new Date(2026, 10, 4).getTime();
+    const domain: [number, number] = [start, start + days * 86_400_000];
+    const format = timeLabelFormatter(domain);
+    const ticks = timeTicks(domain);
+    const labels = ticks.map(format);
+    expect(labels.filter((label, i) => label === labels[i - 1])).toEqual([]);
+    const dates = ticks.filter((tick) => new Date(tick).getHours() === 0).map(format);
+    expect(dates.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(dates).size).toBe(dates.length);
   });
 });

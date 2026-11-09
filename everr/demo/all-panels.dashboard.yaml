@@ -56,7 +56,7 @@ spec:
       spec:
         display:
           name: Bar chart over time
-          description: Bars over time mark the bucket nearest the cursor.
+          description: Bars over time mark the bucket holding the cursor; drag across bars to zoom.
         plugin:
           kind: BarChart
           spec:

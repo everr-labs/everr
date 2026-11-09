@@ -1,6 +1,7 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useEChart } from "@everr/ui/hooks/use-echart";
+import { chartLabel } from "@everr/ui/lib/chart-label";
 import { readableForeground } from "@everr/ui/lib/contrast";
 import { HeatmapChart, type HeatmapSeriesOption } from "echarts/charts";
 import {
@@ -13,17 +14,11 @@ import type { ComposeOption } from "echarts/core";
 import { Grid3x3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { normalizeValue } from "../color-scale";
-import {
-  createTextMeasurer,
-  plainAxisOption,
-  rowLabelAxis,
-  timeAxisTicks,
-  timeLabelFormatter,
-} from "../echarts/axis";
+import { createTextMeasurer, plainAxisOption, rowLabelAxis } from "../echarts/axis";
 import { gridOption, plotWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
 import { PanelEmptyState } from "../panel-empty-state";
-import { TimeTrackOverlay, useTimeTrack } from "../time-track";
+import { TimeAxis, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapSchemeColors } from "./heatmap-colors";
 import { buildHeatmapModel } from "./heatmap-data";
@@ -39,6 +34,8 @@ type ChartOption = ComposeOption<
  * cover most of the cell. */
 const MIN_GAPPED_COLUMN = 4;
 const VALUE_FONT_SIZE = 10;
+/** Rows never get shorter than this: past it, the rows scroll. */
+const MIN_ROW_HEIGHT = 16;
 /** Rows shorter than this show no values. */
 const VALUE_MIN_HEIGHT = 12;
 /** Room kept clear on either side of a value inside its cell. */
@@ -118,7 +115,7 @@ export function HeatmapVisualization({
   useEffect(() => {
     if (!mounted || !grid || !yAxis || !model) return;
     const { chart, theme } = mounted;
-    const { start, step, count } = model.columns;
+    const { count } = model.columns;
     const plot = plotWithin(mounted, grid);
     const columnWidth = plot.width / count;
     // A value shows only where it fits its cell whole: clipped digits would
@@ -139,13 +136,6 @@ export function HeatmapVisualization({
         lineStyle: { color: theme.cardColor, width: spec.cellGap },
       },
     });
-    const formatTime = timeLabelFormatter(domain);
-    const tickByColumn = new Map(
-      timeAxisTicks(theme, domain, plot.width).map((tick) => [
-        Math.floor((tick - start) / step),
-        tick,
-      ]),
-    );
     const plain = plainAxisOption(theme);
     const option: ChartOption = {
       animation: false,
@@ -155,16 +145,8 @@ export function HeatmapVisualization({
         data: Array.from({ length: count }, (_, k) => String(k)),
         ...plain,
         ...gap(columnWidth >= MIN_GAPPED_COLUMN * spec.cellGap),
-        // Labelled at the same round times as the other panels' time axes,
-        // each on the column that contains it.
-        axisLabel: {
-          ...plain.axisLabel,
-          interval: (k: number) => tickByColumn.has(k),
-          formatter: (_: string, k: number) => {
-            const tick = tickByColumn.get(k);
-            return tick === undefined ? "" : formatTime(tick);
-          },
-        },
+        // Labelled by `TimeAxis` under the scrolling rows.
+        axisLabel: { show: false },
       },
       yAxis: { ...yAxis.axis, ...gap(true) },
       // Colors come from our own scale: each cell carries its position on it
@@ -233,11 +215,23 @@ export function HeatmapVisualization({
 
   return (
     <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
-      <div className="relative min-h-0 flex-1" {...track.handlers}>
-        {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
-        <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
-        {plot && <TimeTrackOverlay domain={gridRange} brush={track.brush} plot={plot} />}
+      {/* Rows keep a readable height and scroll past it, like the lanes. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          className="relative h-full"
+          style={{ minHeight: model.yBuckets.length * MIN_ROW_HEIGHT }}
+          {...track.handlers}
+        >
+          {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+          {/* The canvas has no text of its own: say what it shows. */}
+          <p className="sr-only">{chartLabel("Heatmap", model.yBuckets)}</p>
+          <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
+          {plot && <TimeTrackOverlay domain={gridRange} brush={track.brush} plot={plot} />}
+        </div>
       </div>
+      {plot && mounted && (
+        <TimeAxis theme={mounted.theme} domain={domain} plotDomain={gridRange} plot={plot} />
+      )}
 
       {spec.showLegend && (
         <div className="flex shrink-0 items-center justify-center gap-2 pt-1.5 pb-3 text-xs">
