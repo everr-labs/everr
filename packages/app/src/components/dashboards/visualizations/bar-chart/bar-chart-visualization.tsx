@@ -9,17 +9,18 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTimeTickFormatter } from "../data-utils";
+import { bucketIndexAt } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
   createTextMeasurer,
   niceValueAxis,
   plainAxisOption,
+  timeLabelFormatter,
   VALUE_AXIS_EDGE_INSET,
   valueAxisOption,
 } from "../echarts/axis";
-import { type GridInsets, getPlotRect, ratioWithin } from "../echarts/plot-rect";
+import { type GridInsets, getPlotRect, plotWithin, ratioWithin } from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -31,6 +32,8 @@ import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
+import { CursorLine } from "@everr/ui/components/cursor-line";
+import { usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -91,6 +94,38 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
   });
 }
 
+/**
+ * The shared cursor through the middle of the bar for its bucket. It reads the
+ * cursor itself, so a move redraws the line and not the chart.
+ */
+function BucketCursor({
+  bucketTimes,
+  size,
+  grid,
+  horizontal,
+}: {
+  bucketTimes: number[];
+  size: { width: number; height: number };
+  grid: GridInsets;
+  horizontal: boolean;
+}) {
+  const cursor = useTimeCursor();
+  const index = cursor === null ? null : bucketIndexAt(bucketTimes, cursor);
+  if (index === null) return null;
+  const plot = plotWithin(size, grid);
+  const along = (index + 0.5) / bucketTimes.length;
+  return (
+    <CursorLine
+      horizontal={horizontal}
+      style={
+        horizontal
+          ? { left: plot.left, top: plot.top + along * plot.height, width: plot.width }
+          : { left: plot.left + along * plot.width, top: plot.top, height: plot.height }
+      }
+    />
+  );
+}
+
 export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, stacking, orientation, showValues, colors } = spec;
@@ -113,6 +148,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     clientY: number;
     index: number;
   } | null>(null);
+  const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
 
   const hasChart = !!data && chartData.length > 0 && series.length > 0;
   const clearTooltip = useCallback(() => setTooltipState(null), []);
@@ -121,11 +157,17 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const theme = mounted?.theme ?? null;
   const width = mounted?.width ?? 0;
 
+  // Bars over time share the dashboard's time cursor, one bucket at a time.
+  const bucketTimes = useMemo(
+    () => (isTimeAxis ? chartData.map((row) => Number(row[X_KEY])) : null),
+    [chartData, isTimeAxis],
+  );
+
   const categoryLabels = useMemo(() => {
     if (!isTimeAxis) return chartData.map((row) => String(row[X_KEY]));
     const first = chartData[0]?.[X_KEY];
     const last = chartData.at(-1)?.[X_KEY];
-    const format = createTimeTickFormatter([Number(first), Number(last)]);
+    const format = timeLabelFormatter([Number(first), Number(last)]);
     return chartData.map((row) => format(Number(row[X_KEY])));
   }, [chartData, isTimeAxis]);
 
@@ -323,6 +365,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       const element = chartElementRef.current;
       if (isOnLegend(e.target) || !element || !layout) {
         setTooltipState(null);
+        clearCursor();
         return;
       }
       const plot = getPlotRect(element, layout.grid);
@@ -332,8 +375,10 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
         : ratioWithin(e.clientX, plot.left, plot.width);
       const index = Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
       setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
+      const bucket = bucketTimes?.[index];
+      if (bucket !== undefined) setCursor(bucket);
     },
-    [chartData.length, horizontal, isOnLegend, layout],
+    [bucketTimes, chartData.length, clearCursor, horizontal, isOnLegend, layout, setCursor],
   );
 
   if (!hasChart) {
@@ -353,9 +398,21 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     <div
       className="relative h-full w-full text-muted-foreground"
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => setTooltipState(null)}
+      onMouseLeave={() => {
+        setTooltipState(null);
+        clearCursor();
+      }}
     >
-      <div ref={chartElementRef} className="h-full w-full" />
+      {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+      <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+      {bucketTimes && mounted && layout && (
+        <BucketCursor
+          bucketTimes={bucketTimes}
+          size={mounted}
+          grid={layout.grid}
+          horizontal={horizontal}
+        />
+      )}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>

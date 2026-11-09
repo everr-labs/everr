@@ -1,3 +1,4 @@
+import { CursorLine } from "@everr/ui/components/cursor-line";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import {
   type LegendSeries,
@@ -66,6 +67,29 @@ interface Pointer {
 }
 
 /**
+ * The cursor line through the hovered point: the middle of a bar's band, or
+ * the point itself on lines. It runs from the top of the plot to the value
+ * axis baseline, positioned from what ECharts already knows, so it reads no
+ * layout. (The grid box also holds the axis labels, so its bottom is not the
+ * plot's.)
+ */
+function PointCursor({
+  chart,
+  top,
+  index,
+}: {
+  chart: echarts.ECharts;
+  top: number;
+  index: number;
+}) {
+  const x = chart.convertToPixel({ xAxisIndex: 0 }, String(index));
+  const baseline = chart.convertToPixel({ yAxisIndex: 0 }, 0);
+  if (typeof x !== "number" || typeof baseline !== "number") return null;
+  if (!Number.isFinite(x) || !(baseline > top)) return null;
+  return <CursorLine style={{ left: x, top, height: baseline - top }} />;
+}
+
+/**
  * A bar, line or area chart over a shared category axis, with the app's
  * hover tooltip and click-to-isolate legend. Series may stack and may use a
  * second value axis on the right.
@@ -96,6 +120,16 @@ export function SeriesChart({
   const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
     legendSeries,
     showLegend,
+  );
+
+  const grid = useMemo(
+    () => ({
+      left: compact ? 2 : 8,
+      right: compact ? 4 : 8,
+      top: compact ? 6 : 10,
+      bottom: showLegend ? gridBottom : compact ? 2 : 4,
+    }),
+    [compact, gridBottom, showLegend],
   );
 
   const shadeFrom = drag ? Math.min(drag.from, drag.to) : (highlight?.from ?? null);
@@ -134,12 +168,7 @@ export function SeriesChart({
     chart.setOption(
       {
         animation: false,
-        grid: {
-          left: compact ? 2 : 8,
-          right: compact ? 4 : 8,
-          top: compact ? 6 : 10,
-          bottom: showLegend ? gridBottom : compact ? 2 : 4,
-        },
+        grid,
         xAxis: {
           type: "category",
           // Index keys: two points can share a display label.
@@ -205,19 +234,7 @@ export function SeriesChart({
       },
       { notMerge: true },
     );
-  }, [
-    activeSeries,
-    axes,
-    chart,
-    compact,
-    gridBottom,
-    labels,
-    series,
-    shadeFrom,
-    shadeTo,
-    showLegend,
-    theme,
-  ]);
+  }, [activeSeries, axes, chart, compact, grid, labels, series, shadeFrom, shadeTo, theme]);
 
   const pointAt = (event: PointerEvent): Pointer | null => {
     const element = elementRef.current;
@@ -265,11 +282,7 @@ export function SeriesChart({
   return (
     <div
       data-slot="series-chart"
-      className={cn(
-        "relative text-muted-foreground",
-        onSelect && "cursor-ew-resize select-none",
-        className,
-      )}
+      className={cn("relative text-muted-foreground", onSelect && "select-none", className)}
       onPointerMove={handlePointerMove}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
@@ -279,7 +292,9 @@ export function SeriesChart({
         setDrag(null);
       }}
     >
-      <div ref={elementRef} className="h-full w-full" />
+      {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+      <div ref={elementRef} className="pointer-events-none h-full w-full" />
+      {pointer && chart && <PointCursor chart={chart} top={grid.top} index={pointer.index} />}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {pointer && rows.length > 0 && (
         <CursorTooltip x={pointer.x} y={pointer.y}>
