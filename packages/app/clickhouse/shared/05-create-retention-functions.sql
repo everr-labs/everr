@@ -1,10 +1,6 @@
 -- Views read and strip the retention stamp through these shared functions.
 -- Reject parsed zero so a missing or invalid stamp cannot expire rows silently.
 -- Keep throwIf dependent on the row; a constant throwIf can fire during folding.
---
--- init/ runs only on a fresh server. Apply to an existing cluster with:
---   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < packages/app/clickhouse/shared/05-create-retention-functions.sql
 CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->
   toUInt16OrZero(resourceAttributes['everr.retention.days'])
     + throwIf(

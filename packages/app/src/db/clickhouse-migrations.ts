@@ -1,67 +1,37 @@
 import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
+import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
+import {
+  type ClickHouseMigration,
+  clickHouseMigrationsFrom,
+  sharedClickHouseMigrations,
+  sqlStatements,
+} from "./clickhouse-sql";
 
-/** One SQL file. The file name orders it and records it as applied. */
-export interface ClickHouseMigration {
-  readonly name: string;
-  readonly sql: string;
-}
-
-export type ClickHouseMigrationParams = Readonly<Record<string, string | undefined>>;
+type Params = Readonly<Record<string, string | undefined>>;
 
 const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
-
-/** Files from `import.meta.glob(..., { query: "?raw", import: "default", eager: true })`. */
-export function clickHouseMigrationsFrom(files: Record<string, string>): ClickHouseMigration[] {
-  return Object.entries(files).map(([path, sql]) => ({
-    name: path.slice(path.lastIndexOf("/") + 1),
-    sql,
-  }));
-}
-
-/** Table definitions and SQL query limits that App and Cloud share. */
-export const sharedClickHouseMigrations = clickHouseMigrationsFrom(
-  import.meta.glob<string>("../../clickhouse/shared/*.sql", {
-    query: "?raw",
-    import: "default",
-    eager: true,
-  }),
-);
-
-// Strip line comments before splitting statements: comments can contain semicolons.
-export function sqlStatements(sql: string): string[] {
-  return sql
-    .split("\n")
-    .map((line) => line.replace(/--.*$/, ""))
-    .join("\n")
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-}
 
 /** Every migration not yet applied, in file-name order across directories. */
 export function pendingClickHouseMigrations(
   migrations: readonly ClickHouseMigration[],
   applied: ReadonlySet<string>,
 ): ClickHouseMigration[] {
-  const names = new Set<string>();
-  for (const { name } of migrations) {
-    if (names.has(name)) throw new Error(`Duplicate ClickHouse migration ${name}`);
-    names.add(name);
+  const sorted = [...migrations].sort((a, b) => (a.name < b.name ? -1 : 1));
+  for (const [i, { name }] of sorted.entries()) {
+    if (name === sorted[i + 1]?.name) throw new Error(`Duplicate ClickHouse migration ${name}`);
   }
-  return [...migrations]
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-    .filter(({ name }) => !applied.has(name));
+  return sorted.filter(({ name }) => !applied.has(name));
 }
 
 /** The values a statement's `{name:Type}` placeholders need. */
 export function statementParams(
   migration: string,
   statement: string,
-  params: ClickHouseMigrationParams,
+  params: Params,
 ): Record<string, string> {
   const bound: Record<string, string> = {};
   for (const [, name] of statement.matchAll(PARAMETER)) {
@@ -75,13 +45,14 @@ export function statementParams(
 }
 
 /**
- * Apply the migrations the journal does not list. Statements must be safe to
- * repeat: a migration that fails partway runs again from its first statement.
- * Run it under the PostgreSQL migration lock so replicas apply it once.
+ * Apply the shared files plus a product's own `productFiles` (an eager raw
+ * glob) that the journal does not list. Statements must be safe to repeat: a
+ * migration that fails partway runs again from its first statement. Run it
+ * under the PostgreSQL migration lock so replicas apply it once.
  */
 export async function migrateClickHouse(
-  migrations: readonly ClickHouseMigration[],
-  params: ClickHouseMigrationParams,
+  productFiles: Record<string, string>,
+  productParams: Params = {},
 ): Promise<void> {
   const { CLICKHOUSE_MIGRATION_USERNAME: username, CLICKHOUSE_MIGRATION_PASSWORD: password } =
     clickhouseMigrationEnv;
@@ -91,33 +62,50 @@ export async function migrateClickHouse(
     });
     return;
   }
+  const migrations = [...sharedClickHouseMigrations, ...clickHouseMigrationsFrom(productFiles)];
+  const params: Params = {
+    collector_rw_password: clickhouseMigrationEnv.CLICKHOUSE_COLLECTOR_PASSWORD,
+    app_ro_password: env.CLICKHOUSE_PASSWORD,
+    web_app_admin_password: env.CLICKHOUSE_ADMIN_PASSWORD,
+    ...productParams,
+  };
 
   const client = createClient({ url: env.CLICKHOUSE_URL, username, password });
+  const run = <T>(operation: string, call: () => Promise<T>) =>
+    instrumentClickhouseOperation({ client: "migration", operation }, call);
   try {
-    await client.command({
-      query: `CREATE TABLE IF NOT EXISTS ${JOURNAL} (
-        name String,
-        applied_at DateTime64(3) DEFAULT now64(3)
-      ) ENGINE = MergeTree ORDER BY name`,
+    await run("CREATE", () =>
+      client.command({
+        query: `CREATE TABLE IF NOT EXISTS ${JOURNAL} (
+          name String,
+          applied_at DateTime64(3) DEFAULT now64(3)
+        ) ENGINE = MergeTree ORDER BY name`,
+      }),
+    );
+    const applied = await run("SELECT", async () => {
+      const rows = await client.query({
+        query: `SELECT name FROM ${JOURNAL}`,
+        format: "JSONEachRow",
+      });
+      return new Set((await rows.json<{ name: string }>()).map(({ name }) => name));
     });
-    const rows = await client.query({
-      query: `SELECT name FROM ${JOURNAL}`,
-      format: "JSONEachRow",
-    });
-    const applied = new Set((await rows.json<{ name: string }>()).map(({ name }) => name));
 
     for (const migration of pendingClickHouseMigrations(migrations, applied)) {
       for (const statement of sqlStatements(migration.sql)) {
-        await client.command({
-          query: statement,
-          query_params: statementParams(migration.name, statement, params),
-        });
+        await run("QUERY", () =>
+          client.command({
+            query: statement,
+            query_params: statementParams(migration.name, statement, params),
+          }),
+        );
       }
-      await client.insert({
-        table: JOURNAL,
-        values: [{ name: migration.name }],
-        format: "JSONEachRow",
-      });
+      await run("INSERT", () =>
+        client.insert({
+          table: JOURNAL,
+          values: [{ name: migration.name }],
+          format: "JSONEachRow",
+        }),
+      );
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
       });

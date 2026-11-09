@@ -1,29 +1,17 @@
 import "./alerting-context";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { Session } from "chdb";
 
+import { sharedClickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 
 const HISTORY_TABLE = "app.alert_events";
 
-function clickhouseRoot(): string {
-  // testing/ -> src/ -> package
-  return join(dirname(fileURLToPath(import.meta.url)), "../../clickhouse");
-}
-
-// Strip line comments before splitting statements: comments can contain semicolons.
-function statementsIn(initDir: string, file: string): string[] {
-  return readFileSync(join(initDir, file), "utf8")
-    .split("\n")
-    .map((line) => line.replace(/--.*$/, ""))
-    .join("\n")
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-}
+const alertEventsSql = sharedClickHouseMigrations.find(
+  ({ name }) => name === "12-create-alert-events.sql",
+)?.sql;
 
 // Embedded chDB has no access management. Skip grants and policies;
 // these tests do not verify tenant isolation.
@@ -106,7 +94,6 @@ export function createChdbDatabase(): ChdbDatabase {
   const host = globalThis as unknown as ChdbHost;
   const existing = host[ACTIVE_KEY];
   if (existing) return existing;
-  const initDir = join(clickhouseRoot(), "shared");
   const dataDir = mkdtempSync(join(tmpdir(), "everr-chdb-"));
   const session = new Session(dataDir);
 
@@ -138,7 +125,8 @@ export function createChdbDatabase(): ChdbDatabase {
 
   run("CREATE DATABASE IF NOT EXISTS app");
   run("USE app");
-  for (const statement of statementsIn(initDir, "12-create-alert-events.sql")) {
+  if (alertEventsSql === undefined) throw new Error("12-create-alert-events.sql is not bundled");
+  for (const statement of sqlStatements(alertEventsSql)) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));
   }

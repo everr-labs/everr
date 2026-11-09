@@ -366,9 +366,9 @@ one migration rather than accumulate a file per change. Edit
 scratch and has not shipped. Patch `drizzle/meta/0011_snapshot.json` to
 match, and apply the change to the dev database by hand.
 
-ClickHouse is different again: fresh installs read `packages/app/clickhouse/shared/`,
-while existing deployments need a migration whose every statement carries
-its own `SETTINGS`. `ORDER BY` and `PARTITION BY` are immutable, so a
+ClickHouse is different again: a change is a new numbered file in
+`packages/app/clickhouse/shared/` that startup applies to fresh and existing
+installs alike, and every statement carries its own `SETTINGS`. `ORDER BY` and `PARTITION BY` are immutable, so a
 change to either means recreating the table. `app.alert_events` can be
 recreated only while it holds no history anyone would miss.
 

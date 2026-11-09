@@ -24,7 +24,6 @@
     "./db/schema": "./src/db/schema/index.ts",
     "./drizzle/config": "./drizzle.config.ts",
     "./env": "./src/env/index.ts",
-    "./env/clickhouse-migration": "./src/env/clickhouse-migration.ts",
     "./identity/client": "./src/lib/auth-client.ts",
     "./identity/server": "./src/identity/server.ts",
     "./lib/clickhouse": "./src/lib/clickhouse.ts",

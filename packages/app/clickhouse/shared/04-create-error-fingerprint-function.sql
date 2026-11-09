@@ -14,10 +14,6 @@
 --
 -- Keep in step with the collector's copy at
 -- collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql
---
--- init/ runs only on a fresh server. Apply to an existing cluster with:
---   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < packages/app/clickhouse/shared/04-create-error-fingerprint-function.sql
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
     fingerprint != '',

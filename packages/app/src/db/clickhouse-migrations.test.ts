@@ -1,11 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vite-plus/test";
-import {
-  pendingClickHouseMigrations,
-  sharedClickHouseMigrations,
-  sqlStatements,
-  statementParams,
-} from "./clickhouse-migrations";
+import { pendingClickHouseMigrations, statementParams } from "./clickhouse-migrations";
+import { sharedClickHouseMigrations, sqlStatements } from "./clickhouse-sql";
 
 const migration = (name: string) => ({ name, sql: `SELECT '${name}'` });
 
