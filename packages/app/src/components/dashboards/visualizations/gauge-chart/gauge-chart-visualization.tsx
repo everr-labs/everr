@@ -17,6 +17,7 @@ import {
   thresholdMarks,
 } from "./gauge-axis";
 import type { GaugeChartSpec } from "./spec";
+import { PanelEmptyState } from "../panel-empty-state";
 
 // The dimensions of the semicircle, in viewBox units. The round caps and the
 // threshold ticks go outside the radius of the arc. The viewBox thus includes
@@ -98,10 +99,7 @@ export function GaugeChartVisualization({ spec, data }: VisualizationProps<Gauge
 
   if (!data || !hasAnyValue) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Gauge className="size-8" />
-        <p className="text-sm">{!data ? "Configure a query to see results" : "No numeric data"}</p>
-      </div>
+      <PanelEmptyState icon={Gauge} data={data} unusable="The result has no numeric values." />
     );
   }
 

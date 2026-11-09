@@ -7,7 +7,7 @@ import { GRID_COLS } from "#app/data/dashboards/schema.ts";
 import { DashboardPanel } from "./dashboard-panel";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
-import { SharedTimeCursorProvider } from "./visualizations/time-series-chart/shared-time-cursor";
+import { SharedTimeCursorProvider } from "./visualizations/shared-time-cursor";
 
 const ROW_HEIGHT = 30;
 

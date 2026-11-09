@@ -21,7 +21,7 @@ export const SetupWorkspaceSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
-export async function getInstallation(database: Database) {
+export async function getInstallation(database: Database): Promise<{ id: string } | null> {
   const organizations = await database.select({ id: organization.id }).from(organization).limit(2);
   if (organizations.length > 1) {
     throw new Error(

@@ -27,6 +27,7 @@ it("returns members to their destination once access is available", async () => 
   vi.mocked(getActiveOrganizationAccess).mockResolvedValue({
     status: "available",
     organization: { id: "workspace", metadata: null },
+    entryRedirect: undefined,
   });
   await expect(openAccessPage()).rejects.toMatchObject({
     options: { href: "/logs?service=api#results", replace: true },

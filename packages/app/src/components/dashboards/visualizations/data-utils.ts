@@ -43,24 +43,6 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Tick label formatter for a time axis: date for multi-day spans, time otherwise. */
-export function createTimeTickFormatter(domain: [number, number]) {
-  const span = domain[1] - domain[0];
-  return (ms: number) => {
-    const d = new Date(ms);
-    if (span > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-}
-
 /** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
 export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
   const span = domain[1] - domain[0];
@@ -288,4 +270,37 @@ export function toTimestamp(value: unknown): number | null {
     if (parsed) return parsed.getTime();
   }
   return null;
+}
+
+/** The index of the sample nearest `target` in ascending `samples`; null
+ * only when there are none. */
+export function nearestSampleIndex(samples: readonly number[], target: number): number | null {
+  let nearest: number | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  samples.forEach((sample, index) => {
+    if (Math.abs(sample - target) < distance) {
+      distance = Math.abs(sample - target);
+      nearest = index;
+    }
+  });
+  return nearest;
+}
+
+/**
+ * The index of the bucket containing `target`, where `starts` are the
+ * ascending start times of evenly spaced buckets, each running to the next
+ * start (the last one for a step more). Null outside them all; a lone bucket
+ * has no step to measure and only contains its own start.
+ */
+export function bucketIndexAt(starts: readonly number[], target: number): number | null {
+  const first = starts[0];
+  const last = starts.at(-1);
+  if (first === undefined || last === undefined || target < first) return null;
+  const step = starts.length > 1 ? (last - first) / (starts.length - 1) : 0;
+  if (step > 0 ? target >= last + step : target > last) return null;
+  let index = 0;
+  starts.forEach((bucketStart, i) => {
+    if (bucketStart <= target) index = i;
+  });
+  return index;
 }
