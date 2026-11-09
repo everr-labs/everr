@@ -5,6 +5,7 @@ import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
+import { TimeCursorLine, useSharedTimeCursor } from "./shared-time-cursor";
 import type { ResolvedTimeRange } from "./index";
 
 const BRUSH_COLOR = SERIES_COLORS[0];
@@ -73,6 +74,7 @@ export function LaneTimelineChart({
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
+  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
 
   const span = domain[1] - domain[0];
   const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
@@ -87,6 +89,17 @@ export function LaneTimelineChart({
     },
     [domain, span],
   );
+
+  // Points the dashboard's shared cursor while the pointer is over the track.
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (rect && rect.width > 0 && e.clientX >= rect.left && e.clientX <= rect.right) {
+      setCursor(pxToTimestamp(e.clientX, rect));
+    } else {
+      clearCursor();
+    }
+  };
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -134,8 +147,11 @@ export function LaneTimelineChart({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
-        onMouseLeave={() => setHover(null)}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => {
+          setHover(null);
+          clearCursor();
+        }}
       >
         {/* No overscroll-none here: lanes usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
@@ -206,11 +222,12 @@ export function LaneTimelineChart({
           </div>
         </div>
 
-        {brushStart != null && brushEnd != null && (
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
-            style={{ left: LABEL_WIDTH }}
-          >
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
+          style={{ left: LABEL_WIDTH }}
+        >
+          <TimeCursorLine timestamp={cursorTs} domain={domain} />
+          {brushStart != null && brushEnd != null && (
             <div
               className="absolute inset-y-0 border-x"
               style={{
@@ -221,8 +238,8 @@ export function LaneTimelineChart({
                 borderColor: BRUSH_COLOR,
               }}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {showLegend && states.length > 0 && (

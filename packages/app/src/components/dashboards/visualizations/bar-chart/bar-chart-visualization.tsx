@@ -1,6 +1,7 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { readableForeground } from "@everr/ui/lib/contrast";
+import { cn } from "@everr/ui/lib/utils";
 import type { BarSeriesOption } from "echarts/charts";
 import { BarChart } from "echarts/charts";
 import type { GridComponentOption } from "echarts/components";
@@ -9,7 +10,7 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTimeTickFormatter } from "../data-utils";
+import { createTimeTickFormatter, nearestSampleIndex } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
@@ -31,6 +32,7 @@ import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
+import { useSharedTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -113,6 +115,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     clientY: number;
     index: number;
   } | null>(null);
+  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
 
   const hasChart = !!data && chartData.length > 0 && series.length > 0;
   const clearTooltip = useCallback(() => setTooltipState(null), []);
@@ -120,6 +123,12 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const chart = mounted?.chart ?? null;
   const theme = mounted?.theme ?? null;
   const width = mounted?.width ?? 0;
+
+  // Bars over time share the dashboard's time cursor, one bucket at a time.
+  const bucketTimes = useMemo(
+    () => (isTimeAxis ? chartData.map((row) => Number(row[X_KEY])) : null),
+    [chartData, isTimeAxis],
+  );
 
   const categoryLabels = useMemo(() => {
     if (!isTimeAxis) return chartData.map((row) => String(row[X_KEY]));
@@ -323,6 +332,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       const element = chartElementRef.current;
       if (isOnLegend(e.target) || !element || !layout) {
         setTooltipState(null);
+        clearCursor();
         return;
       }
       const plot = getPlotRect(element, layout.grid);
@@ -332,8 +342,10 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
         : ratioWithin(e.clientX, plot.left, plot.width);
       const index = Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
       setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
+      const bucket = bucketTimes?.[index];
+      if (bucket !== undefined) setCursor(bucket);
     },
-    [chartData.length, horizontal, isOnLegend, layout],
+    [bucketTimes, chartData.length, clearCursor, horizontal, isOnLegend, layout, setCursor],
   );
 
   if (!hasChart) {
@@ -349,13 +361,47 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
   const tooltipX = tooltipRow?.[X_KEY];
 
+  // The cursor runs through the middle of its bucket's band.
+  const cursorIndex =
+    bucketTimes && cursorTs !== null ? nearestSampleIndex(bucketTimes, cursorTs) : null;
+  const element = chartElementRef.current;
+  const plot = element && layout ? getPlotRect(element, layout.grid) : null;
+  const bounds = element?.getBoundingClientRect();
+  const cursorLine =
+    cursorIndex !== null && plot && bounds
+      ? horizontal
+        ? {
+            left: plot.left - bounds.left,
+            top: plot.top - bounds.top + ((cursorIndex + 0.5) / chartData.length) * plot.height,
+            width: plot.width,
+          }
+        : {
+            left: plot.left - bounds.left + ((cursorIndex + 0.5) / chartData.length) * plot.width,
+            top: plot.top - bounds.top,
+            height: plot.height,
+          }
+      : null;
+
   return (
     <div
       className="relative h-full w-full text-muted-foreground"
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => setTooltipState(null)}
+      onMouseLeave={() => {
+        setTooltipState(null);
+        clearCursor();
+      }}
     >
       <div ref={chartElementRef} className="h-full w-full" />
+      {cursorLine && (
+        <div
+          data-slot="time-cursor"
+          className={cn(
+            "pointer-events-none absolute border-dashed border-muted-foreground/70",
+            horizontal ? "border-t" : "border-l",
+          )}
+          style={cursorLine}
+        />
+      )}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>

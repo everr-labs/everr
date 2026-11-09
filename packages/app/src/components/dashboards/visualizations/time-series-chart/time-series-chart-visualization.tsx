@@ -25,7 +25,7 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { useSharedTimeCursor } from "./shared-time-cursor";
+import { useSharedTimeCursor } from "../shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
@@ -70,8 +70,7 @@ export function TimeSeriesChartVisualization({
   const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
 
   const chartElementRef = useRef<HTMLDivElement>(null);
-  const cursorSourceRef = useRef(Symbol("time-series-chart"));
-  const { cursor, store: cursorStore } = useSharedTimeCursor();
+  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
   const plotRectRef = useRef<PlotRect | null>(null);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
@@ -142,8 +141,6 @@ export function TimeSeriesChartVisualization({
   const mounted = useEChart(chartElementRef, hasChart, clearTooltip);
   const chart = mounted?.chart ?? null;
   const theme = mounted?.theme ?? null;
-
-  useEffect(() => () => cursorStore.clear(cursorSourceRef.current), [cursorStore]);
 
   const grid = useMemo<GridInsets | null>(() => {
     if (!theme) return null;
@@ -232,7 +229,7 @@ export function TimeSeriesChartVisualization({
     (e: React.MouseEvent) => {
       if (isOnLegend(e.target)) {
         setTooltipState(null);
-        cursorStore.clear(cursorSourceRef.current);
+        clearCursor();
         return;
       }
       const element = chartElementRef.current;
@@ -255,7 +252,7 @@ export function TimeSeriesChartVisualization({
       }
       const hoveredRow = chartData[nearest];
       if (!hoveredRow) return;
-      cursorStore.set(cursorSourceRef.current, hoveredRow[TS_KEY]);
+      setCursor(hoveredRow[TS_KEY]);
       setTooltipState({
         clientX: e.clientX,
         clientY: e.clientY,
@@ -269,13 +266,13 @@ export function TimeSeriesChartVisualization({
         tolerance: markerTolerance(plotRect.height, yAxis.domain[1] - yAxis.domain[0]),
       });
     },
-    [domain, chartData, cursorStore, grid, isOnLegend, yAxis],
+    [domain, chartData, setCursor, clearCursor, grid, isOnLegend, yAxis],
   );
 
   const handleChartMouseLeave = useCallback(() => {
     setTooltipState(null);
-    cursorStore.clear(cursorSourceRef.current);
-  }, [cursorStore]);
+    clearCursor();
+  }, [clearCursor]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -369,7 +366,7 @@ export function TimeSeriesChartVisualization({
     plot && bounds
       ? plot.left - bounds.left + ((timestamp - domain[0]) / (domain[1] - domain[0])) * plot.width
       : 0;
-  const crosshairTs = cursor?.timestamp ?? tooltipTs;
+  const crosshairTs = cursorTs ?? tooltipTs;
   const crosshairX = crosshairTs === undefined ? null : localX(crosshairTs);
 
   return (
@@ -389,7 +386,7 @@ export function TimeSeriesChartVisualization({
           onToggle={(identity) => {
             toggleSeries(identity);
             setTooltipState(null);
-            cursorStore.clear(cursorSourceRef.current);
+            clearCursor();
           }}
         />
       )}

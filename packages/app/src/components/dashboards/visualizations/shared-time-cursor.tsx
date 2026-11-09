@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useContext, useState, useSyncExternalStore } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 interface TimeCursor {
   source: symbol;
@@ -50,6 +58,11 @@ export function SharedTimeCursorProvider({ children }: { children: ReactNode }) 
   return <TimeCursorContext.Provider value={store}>{children}</TimeCursorContext.Provider>;
 }
 
+/**
+ * A panel's hold on its dashboard's shared time cursor: the instant every
+ * time-based panel marks, and setters that point it from this panel. The
+ * panel's claim is released when it unmounts.
+ */
 export function useSharedTimeCursor() {
   const store = useContext(TimeCursorContext);
   const cursor = useSyncExternalStore(
@@ -57,5 +70,31 @@ export function useSharedTimeCursor() {
     store.getSnapshot,
     inactiveStore.getSnapshot,
   );
-  return { cursor, store };
+  const [source] = useState(() => Symbol("panel"));
+  useEffect(() => () => store.clear(source), [store, source]);
+  const set = useCallback((timestamp: number) => store.set(source, timestamp), [store, source]);
+  const clear = useCallback(() => store.clear(source), [store, source]);
+  return { timestamp: cursor?.timestamp ?? null, set, clear };
+}
+
+/**
+ * The shared cursor as a dashed line across a track that spans `domain`, for
+ * panels laid out in percentages of the time range.
+ */
+export function TimeCursorLine({
+  timestamp,
+  domain,
+}: {
+  timestamp: number | null;
+  domain: [number, number];
+}) {
+  const [from, to] = domain;
+  if (timestamp === null || to <= from || timestamp < from || timestamp > to) return null;
+  return (
+    <div
+      data-slot="time-cursor"
+      className="absolute inset-y-0 border-l border-dashed border-muted-foreground/70"
+      style={{ left: `${((timestamp - from) / (to - from)) * 100}%` }}
+    />
+  );
 }

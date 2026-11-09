@@ -6,6 +6,7 @@ import { Grid3x3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { normalizeValue } from "../color-scale";
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "../data-utils";
+import { TimeCursorLine, useSharedTimeCursor } from "../shared-time-cursor";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
@@ -38,6 +39,7 @@ export function HeatmapVisualization({
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
+  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
 
   const domain = useMemo<[number, number]>(
     () => [timeRange.from.getTime(), timeRange.to.getTime()],
@@ -78,6 +80,17 @@ export function HeatmapVisualization({
     },
     [domain, span],
   );
+
+  // Points the dashboard's shared cursor while the pointer is over the track.
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (rect && rect.width > 0 && e.clientX >= rect.left && e.clientX <= rect.right) {
+      setCursor(pxToTimestamp(e.clientX, rect));
+    } else {
+      clearCursor();
+    }
+  };
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -136,8 +149,11 @@ export function HeatmapVisualization({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
-        onMouseLeave={() => setHover(null)}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => {
+          setHover(null);
+          clearCursor();
+        }}
       >
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
@@ -207,11 +223,12 @@ export function HeatmapVisualization({
           </div>
         </div>
 
-        {brushStart != null && brushEnd != null && (
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
-            style={{ left: LABEL_WIDTH }}
-          >
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
+          style={{ left: LABEL_WIDTH }}
+        >
+          <TimeCursorLine timestamp={cursorTs} domain={domain} />
+          {brushStart != null && brushEnd != null && (
             <div
               className="absolute inset-y-0 border-x"
               style={{
@@ -222,8 +239,8 @@ export function HeatmapVisualization({
                 borderColor: BRUSH_COLOR,
               }}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {spec.showLegend && (
