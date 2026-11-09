@@ -1,7 +1,6 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { readableForeground } from "@everr/ui/lib/contrast";
-import { cn } from "@everr/ui/lib/utils";
 import type { BarSeriesOption } from "echarts/charts";
 import { BarChart } from "echarts/charts";
 import type { GridComponentOption } from "echarts/components";
@@ -32,7 +31,7 @@ import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
-import { useSharedTimeCursor } from "../shared-time-cursor";
+import { CursorLine, useSharedTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -392,16 +391,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       }}
     >
       <div ref={chartElementRef} className="h-full w-full" />
-      {cursorLine && (
-        <div
-          data-slot="time-cursor"
-          className={cn(
-            "pointer-events-none absolute border-dashed border-muted-foreground/70",
-            horizontal ? "border-t" : "border-l",
-          )}
-          style={cursorLine}
-        />
-      )}
+      {cursorLine && <CursorLine horizontal={horizontal} style={cursorLine} />}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>

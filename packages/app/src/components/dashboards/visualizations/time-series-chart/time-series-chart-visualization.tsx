@@ -25,7 +25,7 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { useSharedTimeCursor } from "../shared-time-cursor";
+import { CursorLine, useSharedTimeCursor } from "../shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
@@ -408,13 +408,8 @@ export function TimeSeriesChartVisualization({
           )}
           {crosshairX !== null && (
             <>
-              <div
-                className="absolute border-l border-dashed border-muted-foreground/70"
-                style={{
-                  left: crosshairX,
-                  top: plot.top - bounds.top,
-                  height: plot.height,
-                }}
+              <CursorLine
+                style={{ left: crosshairX, top: plot.top - bounds.top, height: plot.height }}
               />
               {hoverPoints
                 .filter((point) => point.value !== null)

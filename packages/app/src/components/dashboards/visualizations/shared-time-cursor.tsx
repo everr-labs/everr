@@ -1,5 +1,7 @@
+import { cn } from "@everr/ui/lib/utils";
 import {
   createContext,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useContext,
@@ -13,14 +15,14 @@ interface TimeCursor {
   timestamp: number;
 }
 
-export interface TimeCursorStore {
+interface TimeCursorStore {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => TimeCursor | null;
   set: (source: symbol, timestamp: number) => void;
   clear: (source: symbol) => void;
 }
 
-export function createTimeCursorStore(): TimeCursorStore {
+function createTimeCursorStore(): TimeCursorStore {
   let cursor: TimeCursor | null = null;
   const listeners = new Set<() => void>();
   const notify = () => {
@@ -78,23 +80,24 @@ export function useSharedTimeCursor() {
 }
 
 /**
- * The shared cursor as a dashed line across a track that spans `domain`, for
- * panels laid out in percentages of the time range.
+ * The dashed line that marks the shared cursor, spanning the box `style`
+ * gives it. Every time-based panel draws its cursor with it.
  */
-export function TimeCursorLine({
-  timestamp,
-  domain,
+export function CursorLine({
+  horizontal = false,
+  style,
 }: {
-  timestamp: number | null;
-  domain: [number, number];
+  horizontal?: boolean;
+  style: CSSProperties;
 }) {
-  const [from, to] = domain;
-  if (timestamp === null || to <= from || timestamp < from || timestamp > to) return null;
   return (
     <div
       data-slot="time-cursor"
-      className="absolute inset-y-0 border-l border-dashed border-muted-foreground/70"
-      style={{ left: `${((timestamp - from) / (to - from)) * 100}%` }}
+      className={cn(
+        "pointer-events-none absolute border-dashed border-muted-foreground/70",
+        horizontal ? "border-t" : "border-l",
+      )}
+      style={style}
     />
   );
 }
