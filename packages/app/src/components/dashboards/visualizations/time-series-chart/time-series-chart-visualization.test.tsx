@@ -5,7 +5,7 @@ import { timeSeriesChartSpec } from "./spec";
 import { TimeSeriesChartVisualization } from "./time-series-chart-visualization";
 
 vi.mock("echarts/core", async (importOriginal) =>
-  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal),
+  (await import("@everr/ui/testing/echarts")).ssrEChartsCore(importOriginal),
 );
 
 const props = {

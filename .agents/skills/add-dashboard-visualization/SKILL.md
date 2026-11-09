@@ -96,14 +96,14 @@ export function <Kind>Visualization({
 }
 ```
 
-- Render the query results passed in `data`; handle the `!data` / empty cases
-- Available chart library: **Recharts** (Bar, Line, Area, ComposedChart, ScatterChart, etc.)
-- Available chart wrapper: `ChartContainer` from `@everr/ui/components/chart`
+- Render the query results passed in `data`; for the `!data` / empty cases render `PanelEmptyState` (`visualizations/panel-empty-state.tsx`) with what the panel needed from the rows
+- Available chart library: **ECharts**, imported modularly (`echarts/core`, `echarts/charts`) and registered with `echarts.use`. Mount it with `useEChart` from `@everr/ui/hooks/use-echart`, and reuse the axis helpers in `visualizations/echarts/axis.ts` and the legend in `@everr/ui/components/series-legend`
+- Plain bar, line or area series over a category axis: `SeriesChart` from `@everr/ui/components/series-chart`
 - Available table: `DataTable` from `@everr/ui/components/data-table`
 
-**Hover tooltips use the shared `CursorTooltip`** (`@/components/cursor-tooltip`) —
-do not hand-roll positioning or use recharts' `<Tooltip>` (it anchors at the
-shape's center, not the cursor). `CursorTooltip` is a portaled card that follows
+**Hover tooltips use the shared `CursorTooltip`** (`@everr/ui/components/cursor-tooltip`).
+Do not hand-roll positioning or use the ECharts tooltip component, which is
+styled apart from the app. `CursorTooltip` is a portaled card that follows
 the pointer and flips at viewport edges instead of clipping; you provide the
 content, it provides the card chrome and positioning. Track hover yourself and
 render it conditionally:

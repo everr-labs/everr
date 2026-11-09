@@ -20,8 +20,12 @@ import {
   valueAxisOption,
 } from "../echarts/axis";
 import { type GridInsets, getPlotRect, ratioWithin } from "../echarts/plot-rect";
-import { SeriesLegend, seriesTooltipRows, useSeriesLegend } from "../echarts/series-legend";
-import { useEChart } from "../echarts/use-echart";
+import {
+  SeriesLegend,
+  seriesTooltipRows,
+  useSeriesLegend,
+} from "@everr/ui/components/series-legend";
+import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";

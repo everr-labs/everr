@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { StatSparkline } from "./stat-sparkline";
 
 vi.mock("echarts/core", async (importOriginal) =>
-  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal, 100),
+  (await import("@everr/ui/testing/echarts")).ssrEChartsCore(importOriginal, 100),
 );
 
 describe("StatSparkline", () => {

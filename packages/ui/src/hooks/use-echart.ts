@@ -29,6 +29,20 @@ function readChartTheme(element: HTMLElement): ChartTheme {
   };
 }
 
+/**
+ * A CSS color as the canvas needs it: `var(--x)` and other CSS-only syntax
+ * resolve against `element`, so themed colors follow light and dark mode.
+ */
+export function resolveCssColor(element: HTMLElement, color: string): string {
+  if (!color.includes("var(")) return color;
+  const probe = document.createElement("span");
+  probe.style.color = color;
+  element.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  return resolved || color;
+}
+
 interface MountedChart {
   chart: EChartsType;
   theme: ChartTheme;

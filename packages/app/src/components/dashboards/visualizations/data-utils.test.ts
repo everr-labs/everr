@@ -172,8 +172,8 @@ describe("niceLinearDomain", () => {
   });
 
   it("labels fractional ticks cleanly, without binary-addition dust", () => {
-    // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which recharts
-    // would print verbatim on the axis.
+    // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which an axis
+    // would print verbatim.
     expect(niceLinearDomain(0, 1, 5, { min: 0 }).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
   });
 

@@ -1,7 +1,7 @@
 import type { YAXisComponentOption } from "echarts";
 import { niceLinearDomain } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
-import type { ChartTheme } from "./use-echart";
+import type { ChartTheme } from "@everr/ui/hooks/use-echart";
 
 const AXIS_FONT_SIZE = 12;
 export const AXIS_LABEL_MARGIN = 8;

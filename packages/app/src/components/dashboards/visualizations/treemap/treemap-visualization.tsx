@@ -7,7 +7,7 @@ import type { ECElementEvent } from "echarts/core";
 import * as echarts from "echarts/core";
 import { LayoutGrid } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useEChart } from "../echarts/use-echart";
+import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { TreemapSpec } from "./spec";

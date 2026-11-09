@@ -1,38 +1,42 @@
-/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@everr/ui/components/chart";
+import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { cn } from "@everr/ui/lib/utils";
-import { useId } from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceArea, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+import { niceValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
+import { createValueFormatter } from "#app/components/dashboards/visualizations/value-format.ts";
 import type { JobResourceUsage, ResourceUsagePoint } from "#app/data/resource-usage.ts";
-import { formatBytes, formatPercent, formatSpeed, formatTimeOfDay } from "#app/lib/formatting.ts";
+import { formatBytes, formatPercent, formatTimeOfDay } from "#app/lib/formatting.ts";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;
   stepWindow?: { startTime: number; endTime: number } | null;
 }
 
-const cpuConfig = {
+type RatePoint = ReturnType<typeof computeRates>[number];
+type SeriesKey = keyof RatePoint & keyof typeof SERIES_META;
+
+const SERIES_META = {
   cpuAvg: { label: "CPU Avg", color: "hsl(217, 91%, 60%)" },
-  cpuMax: { label: "CPU Max", color: "hsl(217, 91%, 60%)" },
-} satisfies ChartConfig;
-
-const memoryConfig = {
   memoryUtilization: { label: "Memory", color: "hsl(262, 83%, 58%)" },
-} satisfies ChartConfig;
-
-const diskConfig = {
   diskRate: { label: "I/O", color: "hsl(25, 95%, 53%)" },
-} satisfies ChartConfig;
-
-const networkConfig = {
   networkReceiveRate: { label: "Received", color: "hsl(142, 71%, 45%)" },
   networkTransmitRate: { label: "Transmitted", color: "hsl(198, 93%, 60%)" },
-} satisfies ChartConfig;
+};
+
+const CPU_KEYS: SeriesKey[] = ["cpuAvg"];
+const MEMORY_KEYS: SeriesKey[] = ["memoryUtilization"];
+const DISK_KEYS: SeriesKey[] = ["diskRate"];
+const NETWORK_KEYS: SeriesKey[] = ["networkReceiveRate", "networkTransmitRate"];
+const PERCENT_AXES = {
+  left: { format: formatPercent, tickFormat: (value: number) => `${value}%`, min: 0, max: 100 },
+};
+const SPEED = createValueFormatter({ unit: "By/s", scale: "binary" });
+
+/** A rate axis whose ticks round in the displayed unit (2 MiB/s, not 1.9 MB/s). */
+function speedAxes(max: number) {
+  const { scale, format } = niceValueAxis(SPEED, 0, max, { min: 0 });
+  const [min, top] = scale.domain;
+  return { left: { format: SPEED.format, min, max: top, ticks: scale.ticks, tickFormat: format } };
+}
 
 function computeRates(points: ResourceUsagePoint[]) {
   return points.map((point, i) => {
@@ -63,138 +67,57 @@ function computeRates(points: ResourceUsagePoint[]) {
   });
 }
 
-function clampToRange(value: number, rangeStart: number, rangeEnd: number): number {
-  return Math.max(rangeStart, Math.min(rangeEnd, value));
-}
-
-// Recharts only handles recognized chart primitives as direct AreaChart children.
-// Returning ReferenceArea from a helper keeps the overlay renderable; wrapping it in
-// a custom component here would be ignored by the chart.
-function renderStepHighlight({
-  stepWindow,
-  chartStart,
-  chartEnd,
-}: {
-  stepWindow: { startTime: number; endTime: number };
-  chartStart: number;
-  chartEnd: number;
-}) {
-  const x1 = clampToRange(stepWindow.startTime, chartStart, chartEnd);
-  const x2 = clampToRange(stepWindow.endTime, chartStart, chartEnd);
-
-  if (x1 >= x2) return null;
-
-  return (
-    <ReferenceArea
-      x1={x1}
-      x2={x2}
-      isFront
-      fill="hsl(217, 91%, 60%)"
-      fillOpacity={0.08}
-      stroke="hsl(217, 91%, 60%)"
-      strokeOpacity={0.3}
-      strokeDasharray="3 3"
-    />
-  );
+/**
+ * The samples covering the step's window, inclusive: from the last sample at
+ * or before its start to the first at or after its end, so a step shorter
+ * than the sampling interval still shades the samples around it. Null when
+ * the window misses the samples entirely.
+ */
+export function stepSampleRange(
+  points: readonly ResourceUsagePoint[],
+  window: { startTime: number; endTime: number },
+): { from: number; to: number } | null {
+  const first = points[0]?.timestamp;
+  const last = points.at(-1)?.timestamp;
+  if (first === undefined || last === undefined) return null;
+  if (window.endTime < first || window.startTime > last) return null;
+  // Samples are in time order.
+  const startsBefore = points.filter((point) => point.timestamp <= window.startTime).length - 1;
+  const endsAfter = points.findIndex((point) => point.timestamp >= window.endTime);
+  return {
+    from: Math.max(0, startsBefore),
+    to: endsAfter === -1 ? points.length - 1 : endsAfter,
+  };
 }
 
 function MiniChart({
   points,
-  dataKeys,
-  config,
-  yDomain,
-  yFormatter,
-  tooltipFormatter,
-  stepWindow,
+  keys,
+  unit,
+  highlight,
 }: {
-  points: ResourceUsagePoint[];
-  dataKeys: string[];
-  config: ChartConfig;
-  yDomain?: [number, number];
-  yFormatter: (v: number) => string;
-  tooltipFormatter: (v: number, name: string) => string;
-  stepWindow?: { startTime: number; endTime: number } | null;
+  points: RatePoint[];
+  keys: SeriesKey[];
+  unit: "percent" | "speed";
+  highlight: { from: number; to: number } | null;
 }) {
-  const gradientId = useId();
-  const chartStart = points[0]?.timestamp ?? 0;
-  const chartEnd = points[points.length - 1]?.timestamp ?? 0;
-
-  return (
-    <ChartContainer config={config} className="h-[100px] w-full">
-      <AreaChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-        <defs>
-          {dataKeys.map((key) => (
-            <linearGradient key={key} id={`${gradientId}-${key}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.05} />
-            </linearGradient>
-          ))}
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-        <XAxis
-          dataKey="timestamp"
-          type="number"
-          domain={["dataMin", "dataMax"]}
-          tickFormatter={formatTimeOfDay}
-          tickLine={false}
-          axisLine={false}
-          tickMargin={4}
-          fontSize={9}
-          minTickGap={40}
-        />
-        <YAxis
-          domain={yDomain}
-          tickFormatter={yFormatter}
-          tickLine={false}
-          axisLine={false}
-          fontSize={9}
-          width={40}
-        />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={(_, payload) => {
-                const ts = payload?.[0]?.payload?.timestamp;
-                return ts ? formatTimeOfDay(ts) : "";
-              }}
-              formatter={(value, name) => (
-                <>
-                  <div
-                    className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
-                    style={{ backgroundColor: `var(--color-${name})` }}
-                  />
-                  <span className="text-muted-foreground">{config[String(name)]?.label}</span>
-                  <span className="ml-auto font-mono font-medium tabular-nums">
-                    {tooltipFormatter(value as number, String(name))}
-                  </span>
-                </>
-              )}
-            />
-          }
-        />
-        {dataKeys.map((key, i) => (
-          <Area
-            key={key}
-            type="monotone"
-            dataKey={key}
-            stroke={`var(--color-${key})`}
-            fill={`url(#${gradientId}-${key})`}
-            strokeWidth={1.5}
-            dot={false}
-            isAnimationActive={false}
-            fillOpacity={i === 0 ? 1 : 0.5}
-          />
-        ))}
-        {stepWindow
-          ? renderStepHighlight({
-              stepWindow,
-              chartStart,
-              chartEnd,
-            })
-          : null}
-      </AreaChart>
-    </ChartContainer>
+  const chart = useMemo(
+    () => ({
+      axes:
+        unit === "percent"
+          ? PERCENT_AXES
+          : speedAxes(Math.max(0, ...keys.flatMap((key) => points.map((point) => point[key])))),
+      labels: points.map((point) => formatTimeOfDay(point.timestamp)),
+      series: keys.map((key): ChartSeries => ({
+        id: key,
+        ...SERIES_META[key],
+        kind: "area",
+        values: points.map((point) => point[key]),
+      })),
+    }),
+    [points, keys, unit],
   );
+  return <SeriesChart {...chart} highlight={highlight} compact className="h-[100px] w-full" />;
 }
 
 function SummaryItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -211,7 +134,11 @@ function SummaryItem({ label, value, sub }: { label: string; value: string; sub?
 
 export function ResourceUsagePanel({ data, stepWindow }: ResourceUsagePanelProps) {
   const { points, summary } = data;
-  const ratePoints = computeRates(points);
+  const ratePoints = useMemo(() => computeRates(points), [points]);
+  const highlight = useMemo(
+    () => (stepWindow ? stepSampleRange(points, stepWindow) : null),
+    [points, stepWindow],
+  );
 
   const hasNetwork = points.some((p) => p.networkReceive > 0 || p.networkTransmit > 0);
 
@@ -255,50 +182,20 @@ export function ResourceUsagePanel({ data, stepWindow }: ResourceUsagePanelProps
         )}
       >
         <ChartCard title="CPU">
-          <MiniChart
-            points={points}
-            dataKeys={["cpuAvg"]}
-            config={cpuConfig}
-            yDomain={[0, 100]}
-            yFormatter={(v) => `${v}%`}
-            tooltipFormatter={(v) => formatPercent(v)}
-            stepWindow={stepWindow}
-          />
+          <MiniChart points={ratePoints} keys={CPU_KEYS} unit="percent" highlight={highlight} />
         </ChartCard>
 
         <ChartCard title="Memory">
-          <MiniChart
-            points={points}
-            dataKeys={["memoryUtilization"]}
-            config={memoryConfig}
-            yDomain={[0, 100]}
-            yFormatter={(v) => `${v}%`}
-            tooltipFormatter={(v) => formatPercent(v)}
-            stepWindow={stepWindow}
-          />
+          <MiniChart points={ratePoints} keys={MEMORY_KEYS} unit="percent" highlight={highlight} />
         </ChartCard>
 
         <ChartCard title="Disk">
-          <MiniChart
-            points={ratePoints}
-            dataKeys={["diskRate"]}
-            config={diskConfig}
-            yFormatter={(v) => formatSpeed(v)}
-            tooltipFormatter={(v) => formatSpeed(v)}
-            stepWindow={stepWindow}
-          />
+          <MiniChart points={ratePoints} keys={DISK_KEYS} unit="speed" highlight={highlight} />
         </ChartCard>
 
         {hasNetwork && (
           <ChartCard title="Network">
-            <MiniChart
-              points={ratePoints}
-              dataKeys={["networkReceiveRate", "networkTransmitRate"]}
-              config={networkConfig}
-              yFormatter={(v) => formatSpeed(v)}
-              tooltipFormatter={(v) => formatSpeed(v)}
-              stepWindow={stepWindow}
-            />
+            <MiniChart points={ratePoints} keys={NETWORK_KEYS} unit="speed" highlight={highlight} />
           </ChartCard>
         )}
       </div>
