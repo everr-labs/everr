@@ -12,6 +12,8 @@ export interface ChartTheme {
   /** Text drawn on the plot itself, e.g. bar value labels. */
   foregroundColor: string;
   gridColor: string;
+  /** The panel surface, e.g. for gaps between treemap tiles. */
+  cardColor: string;
   fontFamily: string;
 }
 
@@ -22,6 +24,7 @@ function readChartTheme(element: HTMLElement): ChartTheme {
     textColor: style.color,
     foregroundColor: style.getPropertyValue("--foreground").trim(),
     gridColor: style.getPropertyValue("--border").trim(),
+    cardColor: style.getPropertyValue("--card").trim(),
     fontFamily: style.fontFamily,
   };
 }
