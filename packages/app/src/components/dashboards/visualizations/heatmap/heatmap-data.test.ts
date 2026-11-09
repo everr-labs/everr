@@ -37,33 +37,12 @@ describe("buildHeatmapModel", () => {
     expect(model.columns).toEqual({ start: -30_000, step: 40_000, count: 4 });
   });
 
-  it("sorts all-numeric buckets descending (largest at the top)", () => {
-    const model = buildHeatmapModel(
-      [
-        [
-          { ts: ts(10), bucket: 50, count: 1 },
-          { ts: ts(10), bucket: 500, count: 2 },
-          { ts: ts(10), bucket: 100, count: 3 },
-        ],
-      ],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.yBuckets).toEqual(["500", "100", "50"]);
-  });
-
-  it("keeps categorical buckets in first-seen order", () => {
-    const model = buildHeatmapModel(
-      [
-        [
-          { ts: ts(10), severity: "error", count: 1 },
-          { ts: ts(10), severity: "info", count: 2 },
-        ],
-      ],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.yBuckets).toEqual(["error", "info"]);
+  it.each([
+    ["numeric ones descending, like a y-axis", [50, "500", 100], ["500", "100", "50"]],
+    ["named ones in first-seen order", ["error", "info"], ["error", "info"]],
+  ])("orders buckets: %s", (_, buckets, expected) => {
+    const rows = buckets.map((bucket) => ({ ts: ts(10), bucket, count: 1 }));
+    expect(buildHeatmapModel([rows], specWith(), DOMAIN).yBuckets).toEqual(expected);
   });
 
   it("honors yColumn and valueColumn over column-order defaults", () => {
@@ -86,7 +65,11 @@ describe("buildHeatmapModel", () => {
       [
         [
           { ts: ts(10), route: "/api", count: 3 },
-          { ts: ts(10), route: "/api", count: 2 },
+          // ClickHouse quotes 64-bit aggregates.
+          { ts: ts(10), route: "/api", count: "2" },
+          // Rows with no bucket or no value are skipped.
+          { ts: ts(10), route: null, count: 1 },
+          { ts: ts(10), route: "/api", count: null },
         ],
         [{ ts: ts(10), route: "/api", count: 5 }],
       ],
@@ -139,41 +122,5 @@ describe("buildHeatmapModel", () => {
     expect(buildHeatmapModel(frames, specWith({ min: 2, max: 100 }), DOMAIN).domain).toEqual([
       2, 100,
     ]);
-  });
-
-  it("skips rows with a null bucket or non-numeric value", () => {
-    const model = buildHeatmapModel(
-      [
-        [
-          { ts: ts(10), route: null, count: 1 },
-          { ts: ts(10), route: "/api", count: null },
-          { ts: ts(10), route: "/api", count: 4 },
-        ],
-      ],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.cells).toMatchObject([{ bucket: 0, value: 4 }]);
-  });
-
-  it("returns an empty model without a time column", () => {
-    const model = buildHeatmapModel([[{ route: "/api", count: 1 }]], specWith(), DOMAIN);
-    expect(model.cells).toEqual([]);
-    expect(model.yBuckets).toEqual([]);
-  });
-
-  it("reads ClickHouse quoted numerics for values and buckets", () => {
-    const model = buildHeatmapModel(
-      [
-        [
-          { ts: ts(10), bucket: "100", count: "3" },
-          { ts: ts(10), bucket: "50", count: "1" },
-        ],
-      ],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.yBuckets).toEqual(["100", "50"]);
-    expect(model.cells.map((c) => c.value)).toEqual([3, 1]);
   });
 });

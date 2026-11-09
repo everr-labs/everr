@@ -69,12 +69,14 @@ describe("buildStateTimelineModel", () => {
     ]);
   });
 
-  it("clamps segments to the domain and keeps a state that started before it", () => {
+  it("clamps segments to the domain, keeping a state that started before it", () => {
     const model = buildStateTimelineModel(
       [
         [
           { ts: ts(10), api: "up" },
           { ts: ts(60), api: "down" },
+          // Past the domain: neither drawn nor listed.
+          { ts: ts(90), api: "maintenance" },
         ],
       ],
       specWith(),
@@ -84,12 +86,7 @@ describe("buildStateTimelineModel", () => {
       { start: 30_000, end: 60_000, state: "up" },
       { start: 60_000, end: 80_000, state: "down" },
     ]);
-  });
-
-  it("drops samples entirely outside the domain", () => {
-    const model = buildStateTimelineModel([[{ ts: ts(200), api: "up" }]], specWith(), DOMAIN);
-    expect(model.lanes[0]!.segments).toEqual([]);
-    expect(model.states).toEqual([]);
+    expect(model.states).toEqual(["up", "down"]);
   });
 
   it("pivots long-format rows into one lane per seriesColumn value", () => {
