@@ -202,11 +202,11 @@ describe("niceLinearDomain", () => {
 
 describe("nearestSampleIndex", () => {
   it.each([
-    ["between samples", 140, 1],
-    ["up to half a step past the last", 340, 3],
-    ["further out", 360, null],
-  ])("finds the sample %s", (_, target, expected) => {
-    expect(nearestSampleIndex([0, 100, 200, 300], target)).toBe(expected);
+    ["between samples", [0, 100, 200, 300], 140, 1],
+    ["past the last one", [0, 100, 200, 300], 900, 3],
+    ["when there is only one", [500], 0, 0],
+  ])("finds the sample %s", (_, samples, target, expected) => {
+    expect(nearestSampleIndex(samples, target)).toBe(expected);
   });
 });
 

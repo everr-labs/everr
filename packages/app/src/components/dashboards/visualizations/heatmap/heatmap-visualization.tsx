@@ -96,6 +96,7 @@ export function HeatmapVisualization({
 
   const track = useTimeTrack({
     chartElementRef,
+    size: mounted,
     grid,
     domain: gridRange,
     onTimeRangeChange,

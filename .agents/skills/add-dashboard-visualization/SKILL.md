@@ -134,7 +134,7 @@ component is the only one that re-renders on every pointer move, so never
 read the cursor at the top of the visualization. Panels with a time x-axis
 (the time series, heatmap and lane charts) get all of this, plus drag-to-zoom
 and the hovered item, from `useTimeTrack` in `visualizations/time-track.tsx`:
-give it the chart element, the grid insets and an `itemAt` lookup, spread its
+give it the chart element, its size from `useEChart`, the grid insets and an `itemAt` lookup, spread its
 `handlers` on the chart area, and render `TimeTrackOverlay` over the plot. Add the new panel to
 `everr/demo/all-panels.dashboard.yaml` to check it against the others.
 

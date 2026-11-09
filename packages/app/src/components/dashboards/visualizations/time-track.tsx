@@ -26,6 +26,7 @@ export interface PlotPointer {
  */
 export function useTimeTrack<T>({
   chartElementRef,
+  size,
   grid,
   domain,
   onTimeRangeChange,
@@ -34,6 +35,9 @@ export function useTimeTrack<T>({
   ignore,
 }: {
   chartElementRef: RefObject<HTMLElement | null>;
+  /** The chart's size: a resize drops the hover, whose tooltip sits where
+   * the pointer was over the old layout. */
+  size: { width: number; height: number } | null;
   grid: GridInsets | null;
   domain: [number, number];
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
@@ -46,7 +50,12 @@ export function useTimeTrack<T>({
   const [drag, setDrag] = useState<{ plot: PlotRect; from: number; to: number | null } | null>(
     null,
   );
-  const [hover, setHover] = useState<{ target: T; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{
+    target: T;
+    x: number;
+    y: number;
+    size: { width: number; height: number } | null;
+  } | null>(null);
   const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
   const timeAt = (clientX: number, plot: PlotRect) =>
     domain[0] + ratioWithin(clientX, plot.left, plot.width) * (domain[1] - domain[0]);
@@ -87,7 +96,7 @@ export function useTimeTrack<T>({
       if (!plot || x < 0 || x > 1 || y < 0 || y > 1) return clearHover();
       const time = domain[0] + x * (domain[1] - domain[0]);
       const target = itemAt({ x, y, time, plot, clientY: e.clientY });
-      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY });
+      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY, size });
       setCursor(target !== null && cursorTime ? cursorTime(target) : time);
     },
     onMouseLeave: clearHover,
@@ -95,7 +104,9 @@ export function useTimeTrack<T>({
 
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { handlers, hover, clearHover, brush };
+  const current =
+    hover?.size?.width === size?.width && hover?.size?.height === size?.height ? hover : null;
+  return { handlers, hover: current, clearHover, brush };
 }
 
 /** The drag selection and the shared cursor, laid over `plot` (in the chart

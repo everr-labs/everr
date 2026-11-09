@@ -188,6 +188,7 @@ export function TimeSeriesChartVisualization({
   // Hover snaps to the nearest sample, and so does the dashboard's cursor.
   const track = useTimeTrack({
     chartElementRef,
+    size: mounted,
     grid,
     domain,
     onTimeRangeChange,
