@@ -100,7 +100,7 @@ describe("BarChartVisualization", () => {
     });
     const onTimeRangeChange = vi.fn();
     const hour = (h: number) => Date.UTC(2026, 5, 7, h);
-    const { container } = render(
+    const { container, rerender } = render(
       <BarChartVisualization
         {...props}
         onTimeRangeChange={onTimeRangeChange}
@@ -111,9 +111,29 @@ describe("BarChartVisualization", () => {
     const area = container.firstElementChild!;
 
     // The last quarter of the plot is the last bucket, so a drag from the
-    // second one to the panel's edge covers buckets 1 to 3.
+    // second one past the panel's edge covers buckets 1 to 3.
     fireEvent.pointerDown(area, { button: 0, clientX: 200, clientY: 100 });
-    fireEvent.pointerMove(area, { clientX: 399, clientY: 100 });
+    fireEvent.pointerMove(area, { clientX: 450, clientY: 100 });
+    fireEvent.pointerUp(area);
+
+    expect(onTimeRangeChange).toHaveBeenCalledWith({
+      from: new Date(hour(1)),
+      to: new Date(hour(4)),
+    });
+
+    // Bars a query fixes outside the dashboard's range zoom to their own times.
+    onTimeRangeChange.mockClear();
+    rerender(
+      <BarChartVisualization
+        {...props}
+        timeRange={{ from: new Date(2026, 9, 1), to: new Date(2026, 9, 31) }}
+        onTimeRangeChange={onTimeRangeChange}
+        spec={barChartSpec.parse({})}
+        data={[[0, 1, 2, 3].map((h) => ({ ts: new Date(hour(h)).toISOString(), count: h + 1 }))]}
+      />,
+    );
+    fireEvent.pointerDown(area, { button: 0, clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(area, { clientX: 450, clientY: 100 });
     fireEvent.pointerUp(area);
 
     expect(onTimeRangeChange).toHaveBeenCalledWith({

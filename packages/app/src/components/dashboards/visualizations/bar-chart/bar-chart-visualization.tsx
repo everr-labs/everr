@@ -106,10 +106,12 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
 function bucketScale(starts: readonly number[], step: number): TimeScale {
   const count = starts.length;
   return {
+    // The plot's far edge is the last instant in the last bucket: its end is
+    // the next bucket's start, which no bar holds.
     timeAt: (ratio) => {
       const along = ratio * count;
       const index = Math.min(count - 1, Math.floor(along));
-      return (starts[index] ?? 0) + (along - index) * step;
+      return (starts[index] ?? 0) + Math.min((along - index) * step, Math.max(0, step - 1));
     },
     ratioAt: (time) => {
       const index = bucketIndexAt(starts, step, time);
@@ -410,16 +412,24 @@ export function BarChartVisualization({
   ]);
 
   // Zooms snap out to whole buckets, but never past the time range: buckets
-  // start on round times, so the outer ones can reach beyond it.
+  // start on round times, so the outer ones can reach beyond it. Bars a query
+  // fixes outside the range zoom to their own times.
   const zoomToBuckets = ({ from, to }: { from: Date; to: Date }) => {
     if (!bucketTimes) return;
     const startOf = (time: number) => {
       const index = bucketIndexAt(bucketTimes, bucketWidth, time);
       return index === null ? time : (bucketTimes[index] ?? time);
     };
-    const start = Math.max(startOf(from.getTime()), timeRange.from.getTime());
-    const end = Math.min(startOf(to.getTime()) + bucketWidth, timeRange.to.getTime());
-    if (end > start) onTimeRangeChange({ from: new Date(start), to: new Date(end) });
+    const first = startOf(from.getTime());
+    const end = startOf(to.getTime()) + bucketWidth;
+    const clamped = {
+      from: Math.max(first, timeRange.from.getTime()),
+      to: Math.min(end, timeRange.to.getTime()),
+    };
+    const zoom = clamped.to > clamped.from ? clamped : { from: first, to: end };
+    if (zoom.to > zoom.from) {
+      onTimeRangeChange({ from: new Date(zoom.from), to: new Date(zoom.to) });
+    }
   };
 
   const track = useTimeTrack({
