@@ -15,6 +15,7 @@ type Params = Readonly<Record<string, string | undefined>>;
 
 const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
+const MIGRATION_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** A migration as this build bundles it, with the hash the journal records. */
 export interface HashedClickHouseMigration extends ClickHouseMigration {
@@ -112,7 +113,19 @@ export async function migrateClickHouse(
     ...productParams,
   };
 
-  const client = createClient({ url: env.CLICKHOUSE_URL, username, password });
+  // A statement can outlast the client's 30 s default, and a timed-out file runs
+  // again on the next start. A `request_timeout` in CLICKHOUSE_URL still wins.
+  const client = createClient({
+    url: env.CLICKHOUSE_URL,
+    username,
+    password,
+    request_timeout: MIGRATION_REQUEST_TIMEOUT_MS,
+    // Progress headers keep an idle connection open through a load balancer.
+    clickhouse_settings: {
+      send_progress_in_http_headers: 1,
+      http_headers_progress_interval_ms: "30000",
+    },
+  });
   const run = <T>(operation: string, call: () => Promise<T>) =>
     instrumentClickhouseOperation({ client: "migration", operation }, call);
   try {
