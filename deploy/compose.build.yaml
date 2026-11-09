@@ -7,12 +7,6 @@ services:
       context: ..
       dockerfile: packages/app/Dockerfile
 
-  clickhouse:
-    image: everr-clickhouse:local
-    build:
-      context: ../clickhouse
-      target: self-hosted
-
   collector:
     image: everr-collector:local
     build:

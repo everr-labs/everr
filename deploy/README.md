@@ -1,8 +1,9 @@
 # Run Everr with Docker Compose
 
 This stack runs the Everr app, collector, PostgreSQL, and ClickHouse on one
-machine. It pulls the `everr-app`, `everr-collector`, and `everr-clickhouse`
-images from `ghcr.io/everr-labs`, pinned to the release this file ships with. Docker with Compose and OpenSSL are required.
+machine. It pulls the `everr-app` and `everr-collector` images from
+`ghcr.io/everr-labs`, pinned to the release this file ships with, and the stock
+`clickhouse/clickhouse-server` image. Docker with Compose and OpenSSL are required.
 
 From the repository root:
 

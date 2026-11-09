@@ -13,8 +13,8 @@ const { version } = JSON.parse(
 const compose = fs.readFileSync(composePath, "utf8");
 const pattern = /\$\{EVERR_VERSION:-[^}]+\}/g;
 const matches = compose.match(pattern) ?? [];
-if (matches.length !== 3) {
-  console.error(`Expected 3 EVERR_VERSION image tags in ${composePath}, found ${matches.length}.`);
+if (matches.length !== 2) {
+  console.error(`Expected 2 EVERR_VERSION image tags in ${composePath}, found ${matches.length}.`);
   process.exit(1);
 }
 

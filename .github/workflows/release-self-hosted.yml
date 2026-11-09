@@ -33,11 +33,6 @@ jobs:
             file: collector/Dockerfile
             target: ""
             build-args: EVERR_BUILD_TARGET=self-hosted
-          - name: everr-clickhouse
-            context: ./clickhouse
-            file: clickhouse/Dockerfile
-            target: self-hosted
-            build-args: ""
         platform:
           - arch: amd64
             runner: blacksmith-2vcpu-ubuntu-2404
@@ -119,7 +114,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        image: [everr-app, everr-collector, everr-clickhouse]
+        image: [everr-app, everr-collector]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
