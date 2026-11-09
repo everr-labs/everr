@@ -11,3 +11,8 @@ it.each([
   render(<PanelEmptyState icon={Hash} data={data} unusable="Needs a number." />);
   expect(screen.getByText(title)).toBeInTheDocument();
 });
+
+it("says what the panel needed from rows it cannot use", () => {
+  render(<PanelEmptyState icon={Hash} data={[[{ name: "a" }]]} unusable="Needs a number." />);
+  expect(screen.getByText("Needs a number.")).toBeInTheDocument();
+});

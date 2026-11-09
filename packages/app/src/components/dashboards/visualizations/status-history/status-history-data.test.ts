@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vite-plus/test";
-import { SERIES_COLORS } from "../data-utils";
 import { statusHistorySpec } from "./spec";
 import { buildStatusHistoryModel } from "./status-history-data";
 
@@ -13,6 +12,8 @@ function specWith(overrides: Record<string, unknown> = {}) {
 // rows use second-precision epochs (domain ms = ts × 1000).
 const ts = (seconds: number) => seconds;
 
+// Reading lanes, states and colors from the rows is shared with the state
+// timeline and tested there.
 describe("buildStatusHistoryModel", () => {
   it("builds one lane per non-time column with one cell per sample (wide format)", () => {
     const model = buildStatusHistoryModel(
@@ -134,84 +135,6 @@ describe("buildStatusHistoryModel", () => {
     expect(model.lanes[1]!.cells[0]).toMatchObject({
       start: 15_000,
       end: 25_000,
-    });
-  });
-
-  it("pivots long-format rows into one lane per seriesColumn value", () => {
-    const model = buildStatusHistoryModel(
-      [
-        [
-          { ts: ts(10), service: "api", state: "ok" },
-          { ts: ts(10), service: "db", state: "warn" },
-          { ts: ts(20), service: "api", state: "error" },
-        ],
-      ],
-      specWith({ seriesColumn: "service" }),
-      DOMAIN,
-    );
-    expect(model.lanes.map((l) => l.label)).toEqual(["api", "db"]);
-    expect(model.lanes[0]!.cells.map((c) => c.state)).toEqual(["ok", "error"]);
-    expect(model.lanes[1]!.cells.map((c) => c.state)).toEqual(["warn"]);
-  });
-
-  it("reads the long-format status from an explicit stateColumn", () => {
-    const model = buildStatusHistoryModel(
-      [
-        [
-          { ts: ts(10), service: "api", ignored: "x", status: "ok" },
-          { ts: ts(20), service: "api", ignored: "y", status: "down" },
-        ],
-      ],
-      specWith({ seriesColumn: "service", stateColumn: "status" }),
-      DOMAIN,
-    );
-    expect(model.lanes[0]!.cells.map((c) => c.state)).toEqual(["ok", "down"]);
-  });
-
-  it("stringifies numeric and boolean statuses", () => {
-    const model = buildStatusHistoryModel(
-      [
-        [
-          { ts: ts(10), code: 0, healthy: true },
-          { ts: ts(20), code: 2, healthy: false },
-        ],
-      ],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.states).toEqual(["0", "2", "true", "false"]);
-  });
-
-  it("accumulates lanes across multiple query frames", () => {
-    const model = buildStatusHistoryModel(
-      [[{ ts: ts(10), api: "up" }], [{ ts: ts(10), worker: "idle" }]],
-      specWith(),
-      DOMAIN,
-    );
-    expect(model.lanes.map((l) => l.label)).toEqual(["api", "worker"]);
-  });
-
-  it("skips frames without a time column", () => {
-    const model = buildStatusHistoryModel([[{ name: "api", state: "up" }]], specWith(), DOMAIN);
-    expect(model.lanes).toEqual([]);
-  });
-
-  it("colors statuses from spec.colors without consuming palette slots", () => {
-    const model = buildStatusHistoryModel(
-      [
-        [
-          { ts: ts(10), api: "up" },
-          { ts: ts(20), api: "down" },
-          { ts: ts(30), api: "degraded" },
-        ],
-      ],
-      specWith({ colors: { down: "#ef4444" } }),
-      DOMAIN,
-    );
-    expect(model.colorByState).toEqual({
-      up: SERIES_COLORS[0],
-      down: "#ef4444",
-      degraded: SERIES_COLORS[1],
     });
   });
 });

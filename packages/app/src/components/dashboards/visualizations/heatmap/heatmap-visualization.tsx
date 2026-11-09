@@ -1,6 +1,7 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useEChart } from "@everr/ui/hooks/use-echart";
+import { readableForeground } from "@everr/ui/lib/contrast";
 import { HeatmapChart, type HeatmapSeriesOption } from "echarts/charts";
 import {
   type GridComponentOption,
@@ -14,20 +15,18 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { normalizeValue } from "../color-scale";
 import { generateTimeTicks } from "../data-utils";
 import {
-  AXIS_LABEL_MARGIN,
-  axisLabelsWidth,
   createTextMeasurer,
   plainAxisOption,
+  rowLabelAxis,
   timeLabelFormatter,
-  VALUE_AXIS_EDGE_INSET,
 } from "../echarts/axis";
-import { type GridInsets, getPlotRect, plotWithin, ratioWithin } from "../echarts/plot-rect";
+import { gridOption, plotWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
 import { PanelEmptyState } from "../panel-empty-state";
 import { TimeTrackOverlay, useTimeTrack } from "../time-track";
 import { createValueFormatter } from "../value-format";
-import { heatmapColor, heatmapColorRgb, heatmapSchemeColors, isDarkColor } from "./heatmap-colors";
-import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
+import { heatmapColor, heatmapSchemeColors } from "./heatmap-colors";
+import { buildHeatmapModel } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
 
 echarts.use([HeatmapChart, VisualMapContinuousComponent]);
@@ -36,10 +35,6 @@ type ChartOption = ComposeOption<
   HeatmapSeriesOption | GridComponentOption | VisualMapComponentOption
 >;
 
-/** Bucket labels wider than this truncate. */
-const MAX_BUCKET_LABEL_WIDTH = 120;
-/** Room under the plot for the time labels. */
-const TIME_AXIS_HEIGHT = 22;
 const TIME_LABELS = 6;
 /** Columns narrower than this many gaps get no gap between them: it would
  * cover most of the cell. */
@@ -51,9 +46,6 @@ const VALUE_MIN_HEIGHT = 12;
 const VALUE_PADDING = 6;
 
 const LEGEND_STOPS = Array.from({ length: 9 }, (_, i) => i / 8);
-
-/** Nothing to do on resize: the hovered cell is looked up again on the next move. */
-const ignoreResize = () => {};
 
 export function HeatmapVisualization({
   spec,
@@ -81,11 +73,7 @@ export function HeatmapVisualization({
     () => (columns ? [columns.start, columns.start + columns.count * columns.step] : domain),
     [columns, domain],
   );
-  const track = useTimeTrack<{ bucket: string; cell: HeatmapCell }>(gridRange, onTimeRangeChange);
-  const { hover, hoverAt } = track;
-
-  const mounted = useEChart(chartElementRef, hasChart, ignoreResize);
-  const chart = mounted?.chart ?? null;
+  const mounted = useEChart(chartElementRef, hasChart);
   const theme = mounted?.theme ?? null;
 
   /** Where a value sits on the color scale, 0..1. */
@@ -100,24 +88,34 @@ export function HeatmapVisualization({
     [model],
   );
 
-  const grid = useMemo<GridInsets | null>(() => {
-    if (!theme || !model) return null;
-    const measure = createTextMeasurer(theme.fontFamily);
-    return {
-      left: Math.min(MAX_BUCKET_LABEL_WIDTH, axisLabelsWidth(model.yBuckets, measure)),
-      right: 0,
-      top: 0,
-      bottom: TIME_AXIS_HEIGHT,
-    };
-  }, [theme, model]);
+  const yAxis = useMemo(
+    () => (theme && model ? rowLabelAxis(theme, model.yBuckets) : null),
+    [theme, model],
+  );
+  const grid = yAxis?.grid ?? null;
+
+  const track = useTimeTrack({
+    chartElementRef,
+    size: mounted,
+    grid,
+    domain: gridRange,
+    onTimeRangeChange,
+    itemAt: (at) => {
+      if (!model) return null;
+      const { count } = model.columns;
+      const rows = model.yBuckets.length;
+      const bucket = Math.min(rows - 1, Math.floor(at.y * rows));
+      const cell = cellAt.get(`${Math.min(count - 1, Math.floor(at.x * count))}:${bucket}`);
+      return cell ? { bucket: model.yBuckets[bucket] ?? "", cell } : null;
+    },
+  });
+  const { hover } = track;
 
   useEffect(() => {
-    if (!mounted || !grid || !model) return;
+    if (!mounted || !grid || !yAxis || !model) return;
     const { chart, theme } = mounted;
-    // After a hot reload this effect can still hold the replaced instance.
-    if (chart.isDisposed()) return;
     const { start, step, count } = model.columns;
-    const plot = plotWithin(chart, grid);
+    const plot = plotWithin(mounted, grid);
     const columnWidth = plot.width / count;
     // A value shows only where it fits its cell whole: clipped digits would
     // misread as a different number.
@@ -147,10 +145,7 @@ export function HeatmapVisualization({
     const plain = plainAxisOption(theme);
     const option: ChartOption = {
       animation: false,
-      // The insets already leave room for the labels; with ECharts fitting
-      // them as well, the plot would drift from where hover and the cursor
-      // place it.
-      grid: { ...grid, outerBoundsMode: "none" },
+      grid: gridOption(grid),
       xAxis: {
         type: "category",
         data: Array.from({ length: count }, (_, k) => String(k)),
@@ -167,22 +162,7 @@ export function HeatmapVisualization({
           },
         },
       },
-      yAxis: {
-        type: "category",
-        data: model.yBuckets,
-        inverse: true,
-        ...plain,
-        ...gap(true),
-        axisLabel: {
-          ...plain.axisLabel,
-          // Only labels wider than the most the inset grows to truncate, and
-          // at the room it leaves.
-          ...(grid.left >= MAX_BUCKET_LABEL_WIDTH && {
-            width: grid.left - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET,
-            overflow: "truncate" as const,
-          }),
-        },
-      },
+      yAxis: { ...yAxis.axis, ...gap(true) },
       // Colors come from our own scale: each cell carries its position on it
       // (after linear, sqrt or log), and the map spreads the scheme over 0..1.
       visualMap: {
@@ -198,17 +178,22 @@ export function HeatmapVisualization({
           type: "heatmap",
           silent: true,
           progressive: 0,
+          label: { show: false, fontSize: VALUE_FONT_SIZE, fontFamily: theme.fontFamily },
+          // Only cells that show a value need their own label options: plain
+          // values keep ECharts on its fast path.
           data: model.cells.map((cell) => {
             const position = scalePosition(cell.value);
-            const dark = isDarkColor(heatmapColorRgb(spec.colorScheme, position));
+            const value = [cell.column, cell.bucket, position, cell.value];
+            const text = valueRoom > 0 ? formatter.format(cell.value) : "";
+            if (!text || measureValue(text) > valueRoom) return value;
+            // Cells are opaque, so a value reads on the cell color alone.
+            const fill = heatmapColor(spec.colorScheme, position);
             return {
-              value: [cell.column, cell.bucket, position, cell.value],
+              value,
               label: {
-                show: valueRoom > 0 && measureValue(formatter.format(cell.value)) <= valueRoom,
-                color: dark ? "#fff" : "#000",
-                fontSize: VALUE_FONT_SIZE,
-                fontFamily: theme.fontFamily,
-                formatter: () => formatter.format(cell.value),
+                show: true,
+                color: readableForeground(fill)?.color ?? theme.foregroundColor,
+                formatter: () => text,
               },
             };
           }),
@@ -226,6 +211,7 @@ export function HeatmapVisualization({
     spec.cellGap,
     spec.colorScheme,
     spec.showValues,
+    yAxis,
   ]);
 
   if (!hasChart || !model) {
@@ -238,56 +224,15 @@ export function HeatmapVisualization({
     );
   }
 
-  // The cell under the pointer: a canvas has no element per cell to hover.
-  const hoverCell = (e: React.MouseEvent) => {
-    const element = chartElementRef.current;
-    const plot = element && grid ? getPlotRect(element, grid) : null;
-    if (
-      !plot ||
-      e.clientX < plot.left ||
-      e.clientX > plot.left + plot.width ||
-      e.clientY < plot.top ||
-      e.clientY > plot.top + plot.height
-    )
-      return hoverAt(null, e);
-    const { count } = model.columns;
-    const column = Math.min(
-      count - 1,
-      Math.floor(ratioWithin(e.clientX, plot.left, plot.width) * count),
-    );
-    const rows = model.yBuckets.length;
-    const bucket = Math.min(
-      rows - 1,
-      Math.floor(ratioWithin(e.clientY, plot.top, plot.height) * rows),
-    );
-    const cell = cellAt.get(`${column}:${bucket}`);
-    hoverAt(cell ? { bucket: model.yBuckets[bucket] ?? "", cell } : null, e);
-  };
-
-  const plot = chart && grid ? plotWithin(chart, grid) : null;
+  const plot = mounted && grid ? plotWithin(mounted, grid) : null;
   const [d0, d1] = model.domain;
 
   return (
     <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
-      <div
-        className="relative min-h-0 flex-1"
-        {...track.handlers}
-        onMouseMove={(e) => {
-          track.handlers.onMouseMove(e);
-          hoverCell(e);
-        }}
-      >
+      <div className="relative min-h-0 flex-1" {...track.handlers}>
         {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
         <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
-        {plot && (
-          <div
-            ref={track.trackRef}
-            className="pointer-events-none absolute"
-            style={{ left: plot.left, top: plot.top, width: plot.width, height: plot.height }}
-          >
-            <TimeTrackOverlay domain={gridRange} brush={track.brush} style={{ inset: 0 }} />
-          </div>
-        )}
+        {plot && <TimeTrackOverlay domain={gridRange} brush={track.brush} plot={plot} />}
       </div>
 
       {spec.showLegend && (

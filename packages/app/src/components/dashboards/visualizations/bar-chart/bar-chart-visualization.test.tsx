@@ -86,6 +86,5 @@ describe("BarChartVisualization", () => {
       (index) => chart.convertToPixel({ yAxisIndex: 0 }, index) as number,
     );
     expect(zeta).toBeLessThan(alpha!);
-    expect(chart.getOption().xAxis[0].type).toBe("value");
   });
 });

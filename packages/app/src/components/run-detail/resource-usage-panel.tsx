@@ -1,7 +1,7 @@
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { cn } from "@everr/ui/lib/utils";
 import { useMemo } from "react";
-import { niceValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
+import { seriesValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
 import { createValueFormatter } from "#app/components/dashboards/visualizations/value-format.ts";
 import type { JobResourceUsage, ResourceUsagePoint } from "#app/data/resource-usage.ts";
 import { formatBytes, formatPercent, formatTimeOfDay } from "#app/lib/formatting.ts";
@@ -31,11 +31,8 @@ const PERCENT_AXES = {
 };
 const SPEED = createValueFormatter({ unit: "By/s", scale: "binary" });
 
-/** A rate axis whose ticks round in the displayed unit (2 MiB/s, not 1.9 MB/s). */
 function speedAxes(max: number) {
-  const { scale, format } = niceValueAxis(SPEED, 0, max, { min: 0 });
-  const [min, top] = scale.domain;
-  return { left: { format: SPEED.format, min, max: top, ticks: scale.ticks, tickFormat: format } };
+  return { left: seriesValueAxis(SPEED, max) };
 }
 
 function computeRates(points: ResourceUsagePoint[]) {
