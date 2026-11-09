@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import * as echarts from "echarts/core";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { BarChartVisualization } from "./bar-chart-visualization";
@@ -86,5 +86,34 @@ describe("BarChartVisualization", () => {
       (index) => chart.convertToPixel({ yAxisIndex: 0 }, index) as number,
     );
     expect(zeta).toBeLessThan(alpha!);
+  });
+
+  it("zooms to the whole buckets a drag runs across", () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ x: 0, y: 0, width: 400, height: 200 }),
+    );
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    const onTimeRangeChange = vi.fn();
+    const hour = (h: number) => Date.UTC(2026, 5, 7, h);
+    const { container } = render(
+      <BarChartVisualization
+        {...props}
+        onTimeRangeChange={onTimeRangeChange}
+        spec={barChartSpec.parse({})}
+        data={[[0, 1, 2, 3].map((h) => ({ ts: new Date(hour(h)).toISOString(), count: h + 1 }))]}
+      />,
+    );
+    const area = container.firstElementChild!;
+
+    // The last quarter of the plot is the last bucket, so a drag from the
+    // second one to the panel's edge covers buckets 1 to 3.
+    fireEvent.pointerDown(area, { button: 0, clientX: 200, clientY: 100 });
+    fireEvent.mouseMove(area, { clientX: 399, clientY: 100 });
+    fireEvent.pointerUp(area);
+
+    expect(onTimeRangeChange).toHaveBeenCalledWith({
+      from: new Date(hour(1)),
+      to: new Date(hour(4)),
+    });
   });
 });

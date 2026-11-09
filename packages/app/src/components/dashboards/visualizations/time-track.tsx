@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useState } from "react";
+import { type CSSProperties, type RefObject, useCallback, useState } from "react";
 import { SERIES_COLORS } from "./data-utils";
 import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
@@ -133,17 +133,36 @@ export function TimeTrackOverlay({
         <CursorLine style={{ left: `${pct(cursor)}%`, top: 0, height: "100%" }} />
       )}
       {brush && (
-        <div
-          className="absolute inset-y-0 border-x"
+        <Brush
           style={{
             left: `${pct(brush[0])}%`,
             width: `${pct(brush[1]) - pct(brush[0])}%`,
-            backgroundColor: BRUSH_COLOR,
-            opacity: 0.15,
-            borderColor: BRUSH_COLOR,
+            top: 0,
+            bottom: 0,
           }}
         />
       )}
     </div>
+  );
+}
+
+/** The shading of a drag-to-zoom selection, placed by `style`. Edged along
+ * the time axis: across it unless `horizontal`. */
+export function Brush({
+  style,
+  horizontal = false,
+}: {
+  style: CSSProperties;
+  horizontal?: boolean;
+}) {
+  return (
+    <div
+      className={
+        horizontal
+          ? "pointer-events-none absolute border-y"
+          : "pointer-events-none absolute border-x"
+      }
+      style={{ ...style, backgroundColor: BRUSH_COLOR, opacity: 0.15, borderColor: BRUSH_COLOR }}
+    />
   );
 }

@@ -35,6 +35,7 @@ import {
 } from "@everr/ui/components/series-legend";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
+import { Brush } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
@@ -133,7 +134,43 @@ function BucketCursor({
   );
 }
 
-export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
+/** The drag-to-zoom selection, over whole buckets `from` to `to`. */
+function BucketBrush({
+  from,
+  to,
+  count,
+  size,
+  grid,
+  horizontal,
+}: {
+  from: number;
+  to: number;
+  count: number;
+  size: { width: number; height: number };
+  grid: GridInsets;
+  horizontal: boolean;
+}) {
+  const plot = plotWithin(size, grid);
+  const band = (horizontal ? plot.height : plot.width) / count;
+  const start = from * band;
+  const length = (to - from + 1) * band;
+  return (
+    <Brush
+      horizontal={horizontal}
+      style={
+        horizontal
+          ? { left: plot.left, width: plot.width, top: plot.top + start, height: length }
+          : { left: plot.left + start, width: length, top: plot.top, height: plot.height }
+      }
+    />
+  );
+}
+
+export function BarChartVisualization({
+  spec,
+  data,
+  onTimeRangeChange,
+}: VisualizationProps<BarChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, stacking, orientation, showValues, colors } = spec;
   const horizontal = orientation === "horizontal";
@@ -155,6 +192,8 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     clientY: number;
     index: number;
   } | null>(null);
+  /** Bucket indices a drag-to-zoom runs between. */
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
 
   const hasChart = !!data && chartData.length > 0 && series.length > 0;
@@ -371,32 +410,65 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     valueLabels,
   ]);
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      const element = chartElementRef.current;
-      const plot =
-        !isOnLegend(e.target) && element && layout ? getPlotRect(element, layout.grid) : null;
-      const inPlot =
-        plot &&
-        e.clientX >= plot.left &&
-        e.clientX <= plot.left + plot.width &&
-        e.clientY >= plot.top &&
-        e.clientY <= plot.top + plot.height;
-      if (!plot || !inPlot) {
-        setTooltipState(null);
-        clearCursor();
-        return;
-      }
-      const ratio = horizontal
-        ? ratioWithin(e.clientY, plot.top, plot.height)
-        : ratioWithin(e.clientX, plot.left, plot.width);
-      const index = Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
-      setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
-      const bucket = bucketTimes?.[index];
-      if (bucket !== undefined) setCursor(bucket);
-    },
-    [bucketTimes, chartData.length, clearCursor, horizontal, isOnLegend, layout, setCursor],
-  );
+  /** The bucket under the pointer: null outside the plot, or with `clamped`
+   * the nearest bucket at its edge (a drag running past it). */
+  const bucketAt = (e: React.MouseEvent, clamped = false): number | null => {
+    const element = chartElementRef.current;
+    const plot = element && layout ? getPlotRect(element, layout.grid) : null;
+    if (!plot) return null;
+    const inPlot =
+      e.clientX >= plot.left &&
+      e.clientX <= plot.left + plot.width &&
+      e.clientY >= plot.top &&
+      e.clientY <= plot.top + plot.height;
+    if (!inPlot && !clamped) return null;
+    const ratio = horizontal
+      ? ratioWithin(e.clientY, plot.top, plot.height)
+      : ratioWithin(e.clientX, plot.left, plot.width);
+    return Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
+  };
+
+  const clearHover = () => {
+    setTooltipState(null);
+    clearCursor();
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (drag) {
+      const to = bucketAt(e, true);
+      if (to !== null && to !== drag.to) setDrag({ ...drag, to });
+    }
+    const index = isOnLegend(e.target) ? null : bucketAt(e);
+    if (index === null) return clearHover();
+    setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
+    const bucket = bucketTimes?.[index];
+    if (bucket !== undefined) setCursor(bucket);
+  };
+
+  // Bars over time zoom like the time series: drag across buckets to show
+  // just those.
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!bucketTimes || e.button !== 0 || isOnLegend(e.target)) return;
+    const from = bucketAt(e);
+    if (from === null) return;
+    setDrag({ from, to: from });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerUp = () => {
+    setDrag(null);
+    if (!drag || !bucketTimes || drag.from === drag.to) return;
+    const first = Math.min(drag.from, drag.to);
+    const last = Math.max(drag.from, drag.to);
+    const start = bucketTimes[first];
+    const lastStart = bucketTimes[last];
+    if (start === undefined || lastStart === undefined) return;
+    // The last bucket runs to the next one's start.
+    const step = (lastStart - start) / (last - first);
+    const end = bucketTimes[last + 1] ?? lastStart + step;
+    clearHover();
+    onTimeRangeChange({ from: new Date(start), to: new Date(end) });
+  };
 
   if (!hasChart) {
     return (
@@ -415,16 +487,26 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     <div
       className="relative h-full w-full text-muted-foreground"
       onMouseMove={handleMouseMove}
-      onMouseLeave={() => {
-        setTooltipState(null);
-        clearCursor();
-      }}
+      onMouseLeave={clearHover}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => setDrag(null)}
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
       {bucketTimes && mounted && layout && (
         <BucketCursor
           bucketTimes={bucketTimes}
+          size={mounted}
+          grid={layout.grid}
+          horizontal={horizontal}
+        />
+      )}
+      {drag && mounted && layout && (
+        <BucketBrush
+          from={Math.min(drag.from, drag.to)}
+          to={Math.max(drag.from, drag.to)}
+          count={chartData.length}
           size={mounted}
           grid={layout.grid}
           horizontal={horizontal}
