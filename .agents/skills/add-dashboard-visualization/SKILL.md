@@ -124,13 +124,17 @@ const [hover, setHover] = useState<{ datum: D; x: number; y: number } | null>(nu
 The TimeSeriesChart, GeoMap, and Treemap visualizations all use it — match
 their tooltip content structure for visual consistency.
 
-**Time-based panels share one hover cursor.** A visualization drawn over time
-calls `useSharedTimeCursor()` from `visualizations/shared-time-cursor.tsx`:
-`set(timestamp)` while the pointer is over its plot, `clear()` when it leaves,
-and it marks `timestamp` (the instant hovered in any panel of the dashboard)
-with a dashed line. Panels laid out in percentages of the time range render
-`TimeCursorLine`. Add the new panel to `everr/demo/all-panels.dashboard.yaml`
-to check it against the others.
+**Time-based panels share one hover cursor.** From
+`visualizations/shared-time-cursor.tsx`, a visualization drawn over time
+calls `usePointTimeCursor()` and uses `set(timestamp)` while the pointer is
+over its plot and `clear()` when it leaves. It draws the cursor with
+`CursorLine` in a small component that calls `useTimeCursor()`. That
+component is the only one that re-renders on every pointer move, so never
+read the cursor at the top of the visualization. Panels drawn as labeled
+rows over the time range (like the heatmap and lane charts) get all of this,
+plus drag-to-zoom and the hovered item, from `useTimeTrack` in
+`visualizations/time-track.tsx`. Add the new panel to
+`everr/demo/all-panels.dashboard.yaml` to check it against the others.
 
 **Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:
 

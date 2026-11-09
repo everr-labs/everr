@@ -422,34 +422,31 @@ export function TimeSeriesChartVisualization({
             />
           )}
           <SeriesCursor plot={plot} domain={domain} />
-          {markerX !== null && (
-            <>
-              {hoverPoints
-                .filter((point) => point.value !== null)
-                .sort((a, b) => Number(nearestKeys.has(a.key)) - Number(nearestKeys.has(b.key)))
-                .map((point) => {
-                  if (point.value === null) return null;
-                  const radius = nearestKeys.has(point.key)
-                    ? ACTIVE_MARKER_RADIUS
-                    : PLAIN_MARKER_RADIUS;
-                  const y = chart?.convertToPixel({ yAxisIndex: 0 }, point.value);
-                  if (typeof y !== "number" || !Number.isFinite(y)) return null;
-                  return (
-                    <div
-                      key={point.key}
-                      className="absolute rounded-full border-2 border-card"
-                      style={{
-                        left: markerX - radius,
-                        top: y - radius,
-                        width: radius * 2,
-                        height: radius * 2,
-                        backgroundColor: point.color,
-                      }}
-                    />
-                  );
-                })}
-            </>
-          )}
+          {markerX !== null &&
+            hoverPoints
+              .filter((point) => point.value !== null)
+              .sort((a, b) => Number(nearestKeys.has(a.key)) - Number(nearestKeys.has(b.key)))
+              .map((point) => {
+                if (point.value === null) return null;
+                const radius = nearestKeys.has(point.key)
+                  ? ACTIVE_MARKER_RADIUS
+                  : PLAIN_MARKER_RADIUS;
+                const y = chart?.convertToPixel({ yAxisIndex: 0 }, point.value);
+                if (typeof y !== "number" || !Number.isFinite(y)) return null;
+                return (
+                  <div
+                    key={point.key}
+                    className="absolute rounded-full border-2 border-card"
+                    style={{
+                      left: markerX - radius,
+                      top: y - radius,
+                      width: radius * 2,
+                      height: radius * 2,
+                      backgroundColor: point.color,
+                    }}
+                  />
+                );
+              })}
         </div>
       )}
       {tooltipRow && tooltipState && tooltipTs !== undefined && (

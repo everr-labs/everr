@@ -2,14 +2,8 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
-import {
-  TimeTrackAxis,
-  TimeTrackOverlay,
-  TRACK_LABEL_WIDTH,
-  useTimeTrack,
-  leftForSibling,
-} from "./time-track";
+import { type ReactNode, useCallback, useMemo } from "react";
+import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "./time-track";
 import type { ResolvedTimeRange } from "./index";
 
 export interface LaneTimelineItem {
@@ -26,13 +20,6 @@ export interface LaneTimelineItem {
 export interface LaneTimelineLane {
   label: string;
   items: LaneTimelineItem[];
-}
-
-interface HoverState {
-  lane: string;
-  item: LaneTimelineItem;
-  x: number;
-  y: number;
 }
 
 /**
@@ -67,8 +54,8 @@ export function LaneTimelineChart({
   empty: ReactNode;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }) {
-  const [hover, setHover] = useState<HoverState | null>(null);
-  const track = useTimeTrack(domain, onTimeRangeChange);
+  const track = useTimeTrack<{ lane: string; item: LaneTimelineItem }>(domain, onTimeRangeChange);
+  const { itemProps, hover } = track;
 
   const span = domain[1] - domain[0];
 
@@ -92,7 +79,6 @@ export function LaneTimelineChart({
               {lane.items.map((item) => (
                 <div
                   key={item.key}
-                  data-slot="lane-item"
                   className={cn(
                     "absolute flex items-center justify-center overflow-hidden px-1",
                     rounded && "rounded-[2px]",
@@ -105,17 +91,7 @@ export function LaneTimelineChart({
                     height: `${rowHeight * 100}%`,
                     backgroundColor: colorByState[item.state],
                   }}
-                  onMouseEnter={(e) =>
-                    setHover({
-                      lane: lane.label,
-                      item,
-                      x: e.clientX,
-                      y: e.clientY,
-                    })
-                  }
-                  onMouseLeave={(e) => {
-                    if (!leftForSibling(e)) setHover(null);
-                  }}
+                  {...itemProps({ lane: lane.label, item })}
                 >
                   {showValues && (
                     <span className="truncate text-[10px] font-medium text-white">
@@ -129,7 +105,7 @@ export function LaneTimelineChart({
         ))}
       </div>
     ),
-    [lanes, colorByState, rowHeight, showValues, rounded, toPct],
+    [lanes, colorByState, rowHeight, showValues, rounded, toPct, itemProps],
   );
 
   if (span <= 0 || !lanes.some((l) => l.items.length > 0)) {
@@ -140,18 +116,7 @@ export function LaneTimelineChart({
     <div className="flex h-full select-none flex-col overflow-hidden">
       {/* chart area — pointer interactions and the brush overlay cover the
           lanes + axis but not the legend */}
-      <div
-        className="relative flex min-h-0 flex-1 flex-col"
-        {...track.handlers}
-        onMouseMove={(e) => {
-          track.handlers.onMouseMove(e);
-          setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
-        }}
-        onMouseLeave={() => {
-          track.handlers.onMouseLeave();
-          setHover(null);
-        }}
-      >
+      <div className="relative flex min-h-0 flex-1 flex-col" {...track.handlers}>
         {/* No overscroll-none here: lanes usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
@@ -178,13 +143,13 @@ export function LaneTimelineChart({
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
-            title={hover.item.title}
+            title={hover.target.item.title}
             rows={[
               {
-                key: hover.lane,
-                color: colorByState[hover.item.state],
-                label: hover.lane,
-                value: hover.item.state,
+                key: hover.target.lane,
+                color: colorByState[hover.target.item.state],
+                label: hover.target.lane,
+                value: hover.target.item.state,
               },
             ]}
           />

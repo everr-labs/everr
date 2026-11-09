@@ -2,28 +2,15 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { Grid3x3 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { normalizeValue } from "../color-scale";
-import {
-  TimeTrackAxis,
-  TimeTrackOverlay,
-  TRACK_LABEL_WIDTH,
-  useTimeTrack,
-  leftForSibling,
-} from "../time-track";
+import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "../time-track";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
-
-interface HoverState {
-  bucket: string;
-  cell: HeatmapCell;
-  x: number;
-  y: number;
-}
 
 export function HeatmapVisualization({
   spec,
@@ -32,13 +19,13 @@ export function HeatmapVisualization({
   onTimeRangeChange,
 }: VisualizationProps<HeatmapSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
-  const [hover, setHover] = useState<HoverState | null>(null);
 
   const domain = useMemo<[number, number]>(
     () => [timeRange.from.getTime(), timeRange.to.getTime()],
     [timeRange],
   );
-  const track = useTimeTrack(domain, onTimeRangeChange);
+  const track = useTimeTrack<{ bucket: string; cell: HeatmapCell }>(domain, onTimeRangeChange);
+  const { itemProps, hover } = track;
   const span = domain[1] - domain[0];
 
   const model = useMemo(
@@ -87,7 +74,6 @@ export function HeatmapVisualization({
                 return (
                   <div
                     key={cell.start}
-                    data-slot="heatmap-cell"
                     className="absolute @container flex items-center justify-center overflow-hidden"
                     style={{
                       left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
@@ -97,10 +83,7 @@ export function HeatmapVisualization({
                       height: `calc(100% - ${gap}px)`,
                       backgroundColor: fill,
                     }}
-                    onMouseEnter={(e) => setHover({ bucket, cell, x: e.clientX, y: e.clientY })}
-                    onMouseLeave={(e) => {
-                      if (!leftForSibling(e)) setHover(null);
-                    }}
+                    {...itemProps({ bucket, cell })}
                   >
                     {spec.showValues && (
                       // Container query: the value only renders once the
@@ -121,7 +104,7 @@ export function HeatmapVisualization({
         ))}
       </div>
     );
-  }, [model, spec.cellGap, spec.showValues, cellAppearance, toPct, formatter]);
+  }, [model, spec.cellGap, spec.showValues, cellAppearance, toPct, formatter, itemProps]);
 
   if (!model || span <= 0 || model.cells.length === 0) {
     return (
@@ -139,18 +122,7 @@ export function HeatmapVisualization({
     <div className="flex h-full select-none flex-col overflow-hidden">
       {/* chart area — pointer interactions and the brush overlay cover the
           rows + axis but not the legend */}
-      <div
-        className="relative flex min-h-0 flex-1 flex-col"
-        {...track.handlers}
-        onMouseMove={(e) => {
-          track.handlers.onMouseMove(e);
-          setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
-        }}
-        onMouseLeave={() => {
-          track.handlers.onMouseLeave();
-          setHover(null);
-        }}
-      >
+      <div className="relative flex min-h-0 flex-1 flex-col" {...track.handlers}>
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
@@ -188,13 +160,13 @@ export function HeatmapVisualization({
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
-            title={`${new Date(hover.cell.start).toLocaleString()} – ${new Date(hover.cell.end).toLocaleString()}`}
+            title={`${new Date(hover.target.cell.start).toLocaleString()} – ${new Date(hover.target.cell.end).toLocaleString()}`}
             rows={[
               {
-                key: hover.bucket,
-                color: cellAppearance(hover.cell.value).fill,
-                label: hover.bucket,
-                value: formatter.format(hover.cell.value),
+                key: hover.target.bucket,
+                color: cellAppearance(hover.target.cell.value).fill,
+                label: hover.target.bucket,
+                value: formatter.format(hover.target.cell.value),
               },
             ]}
           />

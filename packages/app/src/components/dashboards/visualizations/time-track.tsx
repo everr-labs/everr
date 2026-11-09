@@ -1,4 +1,4 @@
-import { memo, type RefObject, useMemo, useRef, useState } from "react";
+import { memo, type RefObject, useCallback, useMemo, useRef, useState } from "react";
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
 import { ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
@@ -10,19 +10,22 @@ export const TRACK_LABEL_WIDTH = 96;
 const MAX_X_TICKS = 6;
 const BRUSH_COLOR = SERIES_COLORS[0];
 
+const ITEM_SLOT = "time-track-item";
+
 /**
  * The pointer behavior of panels drawn as labeled rows over the time range
  * (heatmap, state timeline, status history): drag across the tracks to zoom,
- * and point the dashboard's shared cursor while hovering them. Spread
- * `handlers` on the chart area and render `TimeTrackAxis` and
- * `TimeTrackOverlay` inside it.
+ * point the dashboard's shared cursor, and track the hovered item for its
+ * tooltip. Spread `handlers` on the chart area and `itemProps(target)` on each
+ * item, and render `TimeTrackAxis` and `TimeTrackOverlay` in the chart area.
  */
-export function useTimeTrack(
+export function useTimeTrack<T>(
   domain: [number, number],
   onTimeRangeChange: (range: ResolvedTimeRange) => void,
 ) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ rect: DOMRect; from: number; to: number | null } | null>(null);
+  const [hover, setHover] = useState<{ target: T; x: number; y: number } | null>(null);
   const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
   const timeAt = (clientX: number, rect: DOMRect) =>
     domain[0] + ratioWithin(clientX, rect.left, rect.width) * (domain[1] - domain[0]);
@@ -46,6 +49,7 @@ export function useTimeTrack(
       setDrag(null);
     },
     onMouseMove: (e: React.MouseEvent) => {
+      setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
       const rect = trackRef.current?.getBoundingClientRect();
       if (rect && rect.width > 0 && e.clientX >= rect.left && e.clientX <= rect.right) {
         setCursor(timeAt(e.clientX, rect));
@@ -53,23 +57,32 @@ export function useTimeTrack(
         clearCursor();
       }
     },
-    onMouseLeave: clearCursor,
+    onMouseLeave: () => {
+      setHover(null);
+      clearCursor();
+    },
   };
+
+  // Stable, so panels can memoize the items they spread it on.
+  const itemProps = useCallback(
+    (target: T) => ({
+      "data-slot": ITEM_SLOT,
+      onMouseEnter: (e: React.MouseEvent) => setHover({ target, x: e.clientX, y: e.clientY }),
+      onMouseLeave: (e: React.MouseEvent) => {
+        // Straight into the next item: keep the tooltip mounted, the next
+        // item's enter retargets it.
+        const next = e.relatedTarget;
+        if (!(next instanceof Element && next.closest(`[data-slot="${ITEM_SLOT}"]`))) {
+          setHover(null);
+        }
+      },
+    }),
+    [],
+  );
 
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { trackRef, handlers, brush };
-}
-
-/**
- * Whether the pointer left this element straight into another one with the
- * same `data-slot`. A hover moving from cell to cell then changes its target
- * without being cleared, which would unmount and remount its tooltip.
- */
-export function leftForSibling(e: React.MouseEvent<HTMLElement>): boolean {
-  const slot = e.currentTarget.dataset.slot;
-  const next = e.relatedTarget;
-  return !!slot && next instanceof Element && !!next.closest(`[data-slot="${slot}"]`);
+  return { trackRef, handlers, itemProps, hover, brush };
 }
 
 /** Time labels under the tracks. `trackRef` measures the track width.
