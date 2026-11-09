@@ -82,5 +82,8 @@ export function useEChart(
     };
   }, [elementRef, enabled, onResize]);
 
-  return mounted;
+  // Between disposing an instance and mounting the next (a hot reload, or the
+  // element changing), a render can still see the old one: hand out nothing
+  // rather than an instance whose methods throw.
+  return mounted && !mounted.chart.isDisposed() ? mounted : null;
 }
