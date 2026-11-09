@@ -7,6 +7,7 @@ import { queryLabel } from "../data-utils";
 import type { QueryResultRow, VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { TableSpec } from "./spec";
+import { PanelEmptyState } from "../panel-empty-state";
 
 function buildColumns(rows: QueryResultRow[], spec: TableSpec): Column<QueryResultRow>[] {
   const first = rows[0];
@@ -39,12 +40,7 @@ export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>
   // With multiple queries we keep the selector so the user can still switch
   // frames, and an empty frame shows "No rows" inside the bordered container.
   if (!hasSelector && rows.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <TableIcon className="size-8" />
-        <p className="text-sm">No data — run a query to see results</p>
-      </div>
-    );
+    return <PanelEmptyState icon={TableIcon} data={data} />;
   }
 
   const columns = buildColumns(rows, spec);
@@ -76,9 +72,7 @@ export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>
           above this panel. */}
       <ScrollArea className="min-h-0 flex-1" orientation="both">
         {rows.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            No rows
-          </div>
+          <PanelEmptyState icon={TableIcon} data={[rows]} />
         ) : (
           <DataTable
             data={rows}

@@ -36,6 +36,7 @@ describe("valueAxisOption", () => {
     textColor: "#000",
     foregroundColor: "#000",
     gridColor: "#ccc",
+    cardColor: "#fff",
     fontFamily: "sans-serif",
   };
 

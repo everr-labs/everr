@@ -21,6 +21,7 @@ import {
 } from "./geo-data";
 import type { GeoColorScheme, GeoMapSpec, GeoProjection } from "./spec";
 import { getWorldCountries } from "./world-geometry";
+import { PanelEmptyState } from "../panel-empty-state";
 
 const VW = 980;
 const VH = 500;
@@ -67,15 +68,6 @@ interface Hover {
 }
 
 type SizedMarker = GeoMarker & { r: number };
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-      <MapIcon className="size-8" />
-      <p className="text-sm">No mappable data in this result</p>
-    </div>
-  );
-}
 
 export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpec>) {
   const formatter = createValueFormatter(spec.valueFormat);
@@ -194,10 +186,24 @@ export function GeoMapVisualization({ spec, data }: VisualizationProps<GeoMapSpe
     });
   }, [content, projection, spec.colorScheme]);
 
-  if (!content) return <EmptyState />;
+  if (!content)
+    return (
+      <PanelEmptyState
+        icon={MapIcon}
+        data={data}
+        unusable="No row has a location the map can place."
+      />
+    );
   const hasData =
     content.kind === "choropleth" ? content.values.size > 0 : content.markers.length > 0;
-  if (!hasData) return <EmptyState />;
+  if (!hasData)
+    return (
+      <PanelEmptyState
+        icon={MapIcon}
+        data={data}
+        unusable="No row has a location the map can place."
+      />
+    );
 
   const [d0, d1] = content.domain;
   const frameCount = data?.length ?? 0;

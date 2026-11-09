@@ -49,16 +49,16 @@ export function markerTolerance(plotHeightPx: number, valueSpan: number) {
 }
 
 /**
- * A cursor height, as a value on a linear y axis. Null when the geometry or
- * the pointer position is unknown, which reads downstream as "highlight
- * nothing" rather than as a wrong guess.
+ * A cursor height, as a value on a linear y axis. Null while the plot has no
+ * height, which reads downstream as "highlight nothing" rather than as a
+ * wrong guess.
  */
 export function valueAtCursorY(
-  cursorY: number | null | undefined,
+  cursorY: number,
   plot: { top: number; height: number },
   domain: readonly [number, number],
 ): number | null {
-  if (typeof cursorY !== "number" || plot.height <= 0) return null;
+  if (plot.height <= 0) return null;
   const [min, max] = domain;
   return max - ((cursorY - plot.top) / plot.height) * (max - min);
 }

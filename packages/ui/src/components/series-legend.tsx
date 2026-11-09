@@ -1,7 +1,7 @@
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import type { SeriesTooltipRow } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { memo, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 export interface LegendSeries {
   /** Render key, unique within one model. */
@@ -60,7 +60,8 @@ export function seriesTooltipRows(
  * The legend overlaid along the chart's bottom edge. Reports its rendered
  * height so the chart can reserve room for it as it wraps or scrolls.
  */
-export function SeriesLegend({
+// Memoized: the chart around it re-renders on every pointer move.
+export const SeriesLegend = memo(function SeriesLegend({
   series,
   activeSeries,
   onToggle,
@@ -111,4 +112,4 @@ export function SeriesLegend({
       </ScrollArea>
     </section>
   );
-}
+});
