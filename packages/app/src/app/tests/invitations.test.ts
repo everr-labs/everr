@@ -58,7 +58,7 @@ it.each([
   { role: "member", visibleRoles: [] },
   { role: "admin", visibleRoles: ["admin", "member", "owner"] },
   { role: "owner", visibleRoles: ["admin", "member", "owner"] },
-])("limits invitation visibility for $role", async ({ role, visibleRoles }) => {
+] as const)("limits invitation visibility for $role", async ({ role, visibleRoles }) => {
   const auth = createAuth();
   const { organizationId } = await setupWorkspace(input, database);
   const owner = await auth.api.signInEmail({ body: input, asResponse: true });
@@ -85,7 +85,7 @@ it.each([
     headers,
     body: { invitationId: memberInvite.id },
   });
-  for (const invitedRole of ["member", "admin", "owner"]) {
+  for (const invitedRole of ["member", "admin", "owner"] as const) {
     await auth.api.createInvitation({
       headers: ownerHeaders,
       body: {
@@ -143,7 +143,7 @@ it.each([false, true])(
       email: "recipient@example.test",
       password: "recipient-test-password",
     };
-    const body = { email: recipient.email, role: "member", organizationId };
+    const body = { email: recipient.email, role: "member" as const, organizationId };
     const first = await auth.api.createInvitation({ headers, body });
     const replacement = await auth.api.createInvitation({ headers, body });
     await expect(

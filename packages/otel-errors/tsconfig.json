@@ -1,6 +1,5 @@
 {
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "src/test-utils.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",

@@ -31,6 +31,7 @@ beforeAll(async () => {
   });
   auth = createApplicationAuth(createInstallationIdentity(database, requests), {
     database,
+    events: { async publish() {} },
     baseURL: "http://localhost:3000",
     secret: "oauth-resource-test-secret-long-enough",
     email: {
