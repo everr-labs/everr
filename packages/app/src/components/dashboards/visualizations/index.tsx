@@ -82,6 +82,7 @@ const registry: Record<string, VisualizationEntry> = {
   Heatmap: defineVisualization({
     schema: heatmapSpec,
     component: HeatmapVisualization,
+    inset: "flush-content",
   }),
   NodeGraph: defineVisualization({
     schema: nodeGraphSpec,

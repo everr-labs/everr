@@ -14,10 +14,12 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { normalizeValue } from "../color-scale";
 import { generateTimeTicks } from "../data-utils";
 import {
+  AXIS_LABEL_MARGIN,
   axisLabelsWidth,
   createTextMeasurer,
   plainAxisOption,
   timeLabelFormatter,
+  VALUE_AXIS_EDGE_INSET,
 } from "../echarts/axis";
 import { type GridInsets, plotWithin, ratioWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
@@ -151,7 +153,10 @@ export function HeatmapVisualization({
     const plain = plainAxisOption(theme);
     const option: ChartOption = {
       animation: false,
-      grid,
+      // The insets already leave room for the labels; with ECharts fitting
+      // them as well, the plot would drift from where hover and the cursor
+      // place it.
+      grid: { ...grid, outerBoundsMode: "none" },
       xAxis: {
         type: "category",
         data: Array.from({ length: count }, (_, k) => String(k)),
@@ -176,8 +181,12 @@ export function HeatmapVisualization({
         ...gap(true),
         axisLabel: {
           ...plain.axisLabel,
-          width: MAX_BUCKET_LABEL_WIDTH - 16,
-          overflow: "truncate",
+          // Only labels wider than the most the inset grows to truncate, and
+          // at the room it leaves.
+          ...(grid.left >= MAX_BUCKET_LABEL_WIDTH && {
+            width: grid.left - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET,
+            overflow: "truncate" as const,
+          }),
         },
       },
       // Colors come from our own scale: each cell carries its position on it
@@ -281,7 +290,7 @@ export function HeatmapVisualization({
       </div>
 
       {spec.showLegend && (
-        <div className="flex shrink-0 items-center justify-center gap-2 pt-1.5 text-xs">
+        <div className="flex shrink-0 items-center justify-center gap-2 pt-1.5 pb-3 text-xs">
           <span className="text-muted-foreground tabular-nums">{formatter.format(d0)}</span>
           <span className="inline-block h-2.5 w-28 rounded-sm bg-muted align-middle">
             <span
