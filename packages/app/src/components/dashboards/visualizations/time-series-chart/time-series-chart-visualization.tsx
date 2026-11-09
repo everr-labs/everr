@@ -31,7 +31,8 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { CursorLine, usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
+import { CursorLine } from "@everr/ui/components/cursor-line";
+import { usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";

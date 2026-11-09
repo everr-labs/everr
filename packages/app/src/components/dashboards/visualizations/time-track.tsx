@@ -2,7 +2,8 @@ import { memo, type RefObject, useCallback, useMemo, useRef, useState } from "re
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
 import { ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
-import { CursorLine, usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
+import { CursorLine } from "@everr/ui/components/cursor-line";
+import { usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
 
 /** The row label gutter. The axis and the overlay start after it so they line
  * up with the tracks. */

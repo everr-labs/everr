@@ -31,7 +31,8 @@ import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
-import { CursorLine, usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
+import { CursorLine } from "@everr/ui/components/cursor-line";
+import { usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
