@@ -117,7 +117,7 @@ export function HeatmapVisualization({
       <PanelEmptyState
         icon={Grid3x3}
         data={data}
-        unusable="The result needs time, bucket and numeric value columns."
+        unusable="No row has a time inside this time range, a bucket and a numeric value."
       />
     );
   }

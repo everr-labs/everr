@@ -326,7 +326,7 @@ export function TimeSeriesChartVisualization({
       <PanelEmptyState
         icon={LineChartIcon}
         data={data}
-        unusable="The result needs a time column and at least one numeric column."
+        unusable="No row has a time inside this time range and a numeric value."
       />
     );
   }
