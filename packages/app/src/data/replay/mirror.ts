@@ -22,16 +22,23 @@ type Mutation = {
   attributes?: { id: number; attributes: Record<string, unknown> }[];
 };
 
-// rrweb NodeType and IncrementalSource values that the mirror reads.
+// rrweb NodeType values that the mirror reads.
 const DOCUMENT = 0;
 const DOCTYPE = 1;
 const ELEMENT = 2;
 const TEXT = 3;
 const COMMENT = 5;
+
+/** rrweb EventType values. */
 const FULL_SNAPSHOT = 2;
-const INCREMENTAL = 3;
+export const INCREMENTAL = 3;
+export const META = 4;
+export const CUSTOM = 5;
+
+/** rrweb IncrementalSource values. */
 const MUTATION = 0;
-const INPUT = 5;
+export const MOUSE_INTERACTION = 2;
+export const INPUT = 5;
 
 const VOID_TAGS = new Set([
   "area",
@@ -109,17 +116,18 @@ export function createMirror() {
     for (const child of node.childNodes ?? []) forget(child);
   };
 
+  /** Takes a node out of the tree. False when the mirror does not have it in the tree. */
+  const detach = (id: number) => {
+    const node = nodes.get(id);
+    const parent = parents.get(id);
+    if (!node || !parent?.childNodes) return false;
+    parent.childNodes = parent.childNodes.filter((child) => child !== node);
+    forget(node);
+    return true;
+  };
+
   const mutate = (m: Mutation) => {
-    for (const { parentId, id } of m.removes ?? []) {
-      const node = nodes.get(id);
-      const parent = nodes.get(parentId) ?? (node ? parents.get(id) : undefined);
-      if (!node || !parent?.childNodes) {
-        lost = true;
-        continue;
-      }
-      parent.childNodes = parent.childNodes.filter((child) => child !== node);
-      forget(node);
-    }
+    for (const { id } of m.removes ?? []) if (!detach(id)) lost = true;
     // An add can name a parent or a next sibling that a later add in the same
     // event creates. Retry until a pass makes no progress, as rrweb does.
     let pending = [...(m.adds ?? [])];
@@ -133,13 +141,7 @@ export function createMirror() {
           continue;
         }
         // A node that is already in the tree moves.
-        const movedId = add.node.id;
-        const existing = typeof movedId === "number" ? nodes.get(movedId) : undefined;
-        if (existing && typeof movedId === "number") {
-          const from = parents.get(movedId);
-          if (from?.childNodes) from.childNodes = from.childNodes.filter((c) => c !== existing);
-          forget(existing);
-        }
+        if (typeof add.node.id === "number") detach(add.node.id);
         const node: SnapNode = { ...add.node, childNodes: [...(add.node.childNodes ?? [])] };
         const children = (parent.childNodes ??= []);
         const at = next ? children.indexOf(next) : -1;
@@ -204,8 +206,20 @@ export function createMirror() {
     }
   };
 
-  const textOf = (node: SnapNode): string =>
-    node.type === TEXT ? (node.textContent ?? "") : (node.childNodes ?? []).map(textOf).join(" ");
+  // The start of the text of a node, its whitespace collapsed. It stops past
+  // what describe() keeps, so a click on a large container does not walk the page.
+  const textOf = (node: SnapNode): string => {
+    let out = "";
+    const walk = (n: SnapNode) => {
+      if (out.length > 40) return;
+      if (n.type === TEXT) {
+        const text = (n.textContent ?? "").replace(/\s+/g, " ").trim();
+        if (text) out = out ? `${out} ${text}` : text;
+      } else for (const child of n.childNodes ?? []) walk(child);
+    };
+    walk(node);
+    return out;
+  };
 
   /**
    * A short name for the element of a node: its tag, id, test id, role or
@@ -223,7 +237,7 @@ export function createMirror() {
     for (const name of ["data-testid", "name", "role", "type", "aria-label"]) {
       if (str(name) && !/^\**$/.test(str(name))) label += `[${name}="${str(name)}"]`;
     }
-    const text = textOf(node).replace(/\s+/g, " ").trim();
+    const text = textOf(node);
     // Masked text is all asterisks: it names nothing.
     if (text && /[^*\s]/.test(text))
       label += ` "${text.length > 40 ? `${text.slice(0, 40)}…` : text}"`;
