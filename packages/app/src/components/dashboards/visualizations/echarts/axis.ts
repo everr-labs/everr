@@ -104,6 +104,11 @@ export function timeLabelFormatter(domain: [number, number]): (value: number) =>
   return (value) => format.format(value);
 }
 
+/** The round times every time axis over `domain` labels. */
+export function timeTicks(domain: [number, number]): number[] {
+  return generateTimeTicks(domain, TIME_TICKS);
+}
+
 /**
  * Round times across `domain` to label on a plot `plotWidth` wide. Labels are
  * centered on their ticks and the plot runs to the panel's right edge, so a
@@ -113,7 +118,7 @@ export function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotW
   const format = timeLabelFormatter(domain);
   const measure = createTextMeasurer(theme.fontFamily);
   const span = domain[1] - domain[0];
-  return generateTimeTicks(domain, TIME_TICKS).filter(
+  return timeTicks(domain).filter(
     (tick) => ((domain[1] - tick) / span) * plotWidth >= measure(format(tick)) / 2,
   );
 }

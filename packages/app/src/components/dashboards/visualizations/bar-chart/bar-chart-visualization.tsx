@@ -17,6 +17,7 @@ import {
   niceValueAxis,
   plainAxisOption,
   timeLabelFormatter,
+  timeTicks,
   VALUE_AXIS_EDGE_INSET,
   VALUE_LABEL_OVERHANG,
   valueAxisOption,
@@ -169,6 +170,7 @@ function BucketBrush({
 export function BarChartVisualization({
   spec,
   data,
+  timeRange,
   onTimeRangeChange,
 }: VisualizationProps<BarChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
@@ -209,13 +211,19 @@ export function BarChartVisualization({
     [chartData, isTimeAxis],
   );
 
+  // Labelled like every other time axis on the dashboard: the same round
+  // times, each on the bar whose bucket holds it.
   const categoryLabels = useMemo(() => {
-    if (!isTimeAxis) return chartData.map((row) => String(row[X_KEY]));
-    const first = chartData[0]?.[X_KEY];
-    const last = chartData.at(-1)?.[X_KEY];
-    const format = timeLabelFormatter([Number(first), Number(last)]);
-    return chartData.map((row) => format(Number(row[X_KEY])));
-  }, [chartData, isTimeAxis]);
+    if (!bucketTimes) return chartData.map((row) => String(row[X_KEY]));
+    const domain: [number, number] = [timeRange.from.getTime(), timeRange.to.getTime()];
+    const format = timeLabelFormatter(domain);
+    const labels = bucketTimes.map(() => "");
+    for (const tick of timeTicks(domain)) {
+      const index = bucketIndexAt(bucketTimes, tick);
+      if (index !== null) labels[index] = format(tick);
+    }
+    return labels;
+  }, [chartData, bucketTimes, timeRange]);
 
   const ids = useMemo(() => series.map(({ id }) => id), [series]);
   const drawn = useMemo(
@@ -292,7 +300,10 @@ export function BarChartVisualization({
     };
   }, [theme, scale, formatValueTick, valueLabels, stacked, horizontal, categoryLabels]);
 
-  const tickInterval = Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
+  // Time labels already sit only on the bars that hold a round time.
+  const tickInterval = bucketTimes
+    ? 0
+    : Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
 
   const layout = useMemo(() => {
     if (!measured) return null;
@@ -326,13 +337,22 @@ export function BarChartVisualization({
     // Each category label owns its band (vertical) or the axis width
     // (horizontal); long ones are cut in the middle to fit it. Only the
     // labels ECharts shows at this tick interval are fitted.
-    const visibleTicks = Math.max(1, Math.ceil(chartData.length / (tickInterval + 1)));
+    const shown = categoryLabels.filter(
+      (label, index) => label && index % (tickInterval + 1) === 0,
+    ).length;
+    const plotWidth = width - grid.left - grid.right;
+    const band = plotWidth / chartData.length;
     const labelPx = horizontal
       ? categoryAxisWidth - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET
-      : (width - grid.left - grid.right) / visibleTicks - 8;
-    const fittedLabels = categoryLabels.map((label, index) =>
-      index % (tickInterval + 1) === 0 ? fitMiddle(label, labelPx, measure) : "",
-    );
+      : plotWidth / Math.max(1, shown) - 8;
+    const fittedLabels = categoryLabels.map((label, index) => {
+      if (index % (tickInterval + 1) !== 0) return "";
+      const fitted = fitMiddle(label, labelPx, measure);
+      // A label centered on one of the last bars could run past the panel's
+      // right edge: it goes unlabelled rather than cut off.
+      const room = (chartData.length - index - 0.5) * band;
+      return !horizontal && room < measure(fitted) / 2 ? "" : fitted;
+    });
     return { grid, fittedLabels };
   }, [measured, width, horizontal, gridBottom, chartData.length, tickInterval, categoryLabels]);
 
