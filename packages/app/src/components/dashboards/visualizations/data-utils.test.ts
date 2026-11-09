@@ -4,6 +4,7 @@ import {
   detectTimeKey,
   getValueKeys,
   nearestSampleIndex,
+  bucketIndexAt,
   niceLinearDomain,
   toNumber,
   toTimestamp,
@@ -206,5 +207,17 @@ describe("nearestSampleIndex", () => {
     ["further out", 360, null],
   ])("finds the sample %s", (_, target, expected) => {
     expect(nearestSampleIndex([0, 100, 200, 300], target)).toBe(expected);
+  });
+});
+
+describe("bucketIndexAt", () => {
+  it.each([
+    ["late in a bucket", 190, 1],
+    ["at a bucket's start", 200, 2],
+    ["inside the last bucket", 399, 3],
+    ["past the last bucket", 400, null],
+    ["before the first bucket", -1, null],
+  ])("finds the bucket %s", (_, target, expected) => {
+    expect(bucketIndexAt([0, 100, 200, 300], target)).toBe(expected);
   });
 });

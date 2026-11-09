@@ -310,3 +310,22 @@ export function nearestSampleIndex(samples: readonly number[], target: number): 
   }
   return nearest;
 }
+
+/**
+ * The index of the bucket containing `target`, where `starts` are the
+ * ascending start times of evenly spaced buckets, each running to the next
+ * start (the last one for a step more). Null outside them all; a lone bucket
+ * has no step to measure and only contains its own start.
+ */
+export function bucketIndexAt(starts: readonly number[], target: number): number | null {
+  const first = starts[0];
+  const last = starts.at(-1);
+  if (first === undefined || last === undefined || target < first) return null;
+  const step = starts.length > 1 ? (last - first) / (starts.length - 1) : 0;
+  if (step > 0 ? target >= last + step : target > last) return null;
+  let index = 0;
+  starts.forEach((bucketStart, i) => {
+    if (bucketStart <= target) index = i;
+  });
+  return index;
+}

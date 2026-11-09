@@ -9,7 +9,7 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTimeTickFormatter, nearestSampleIndex } from "../data-utils";
+import { bucketIndexAt, createTimeTickFormatter } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
   axisLabelsWidth,
@@ -109,7 +109,7 @@ function BucketCursor({
   horizontal: boolean;
 }) {
   const cursor = useTimeCursor();
-  const index = cursor === null ? null : nearestSampleIndex(bucketTimes, cursor);
+  const index = cursor === null ? null : bucketIndexAt(bucketTimes, cursor);
   if (index === null) return null;
   const plot = plotWithin(chart, grid);
   const along = (index + 0.5) / bucketTimes.length;
