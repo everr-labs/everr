@@ -1,5 +1,5 @@
 import type { YAXisComponentOption } from "echarts";
-import { niceLinearDomain } from "../data-utils";
+import { createTimeTickFormatter, niceLinearDomain } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
 
@@ -47,6 +47,34 @@ export function plainAxisOption(theme: ChartTheme) {
     axisTick: { show: false },
     splitLine: { show: false },
     axisLabel: { ...axisLabelStyle(theme), hideOverlap: true },
+  };
+}
+
+const DAY = 86_400_000;
+
+/** Time labels for an axis over `domain`: dates for multi-day ranges, hours
+ * and minutes otherwise. */
+export function timeLabelFormatter(domain: [number, number]): (value: number) => string {
+  if (domain[1] - domain[0] > DAY) return createTimeTickFormatter(domain);
+  const time = new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return (value) => time.format(value);
+}
+
+/** A label-only time axis over `domain`, one tick per day at most. */
+export function timeAxisOption(theme: ChartTheme, domain: [number, number]) {
+  const plain = plainAxisOption(theme);
+  return {
+    type: "time" as const,
+    min: domain[0],
+    max: domain[1],
+    splitNumber: 6,
+    minInterval: domain[1] - domain[0] > DAY ? DAY : undefined,
+    ...plain,
+    axisLabel: { ...plain.axisLabel, formatter: timeLabelFormatter(domain) },
   };
 }
 

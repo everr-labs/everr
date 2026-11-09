@@ -33,6 +33,8 @@ describe("buildHeatmapModel", () => {
       { start: 50_000, end: 90_000, bucket: 0, value: 7 },
     ]);
     expect(model.domain).toEqual([0, 7]);
+    // Columns on the samples' 40s grid, extended to cover the whole range.
+    expect(model.columns).toEqual({ start: -30_000, step: 40_000, count: 4 });
   });
 
   it("sorts all-numeric buckets descending (largest at the top)", () => {

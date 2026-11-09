@@ -18,6 +18,9 @@ export interface HeatmapModel {
   cells: HeatmapCell[];
   /** Color domain [min, max]. */
   domain: [number, number];
+  /** The column grid the cells sit on, covering the whole time range:
+   * column k spans `start + k * step` to `start + (k + 1) * step`. */
+  columns: { start: number; step: number; count: number };
 }
 
 // Separator for the (ts, bucket) accumulator key — a control char no real
@@ -113,7 +116,13 @@ export function buildHeatmapModel(
     }
   }
 
+  // Columns are anchored on the samples and extended to cover the range, so
+  // empty stretches keep their place on the axis.
+  const anchor = times[0] ?? domain[0];
+  const start = anchor + Math.floor((domain[0] - anchor) / step) * step;
+  const count = Math.max(1, Math.ceil((domain[1] - start) / step));
+
   const min = spec.min ?? (cells.length ? Math.min(0, lo) : 0);
   const max = spec.max ?? (cells.length ? hi : 1);
-  return { yBuckets, cells, domain: [min, max] };
+  return { yBuckets, cells, domain: [min, max], columns: { start, step, count } };
 }

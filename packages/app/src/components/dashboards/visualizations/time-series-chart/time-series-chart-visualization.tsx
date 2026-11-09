@@ -8,12 +8,12 @@ import * as echarts from "echarts/core";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { markerTolerance, nearestSeriesKeys, valueAtCursorY } from "../chart-hover";
-import { createTimeTickFormatter, SERIES_COLORS } from "../data-utils";
+import { SERIES_COLORS } from "../data-utils";
 import {
   axisLabelsWidth,
   createTextMeasurer,
   niceValueAxis,
-  plainAxisOption,
+  timeAxisOption,
   valueAxisOption,
 } from "../echarts/axis";
 import {
@@ -173,12 +173,6 @@ export function TimeSeriesChartVisualization({
 
   useEffect(() => {
     if (!chart || !theme || !grid) return;
-    const timeFormat = createTimeTickFormatter(domain);
-    const compactTimeFormat = new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
     const series: LineSeriesOption[] = modelSeries.map((item, index) => {
       const { id, color } = item;
       const points = stackedData?.[index] ?? item.data;
@@ -200,25 +194,10 @@ export function TimeSeriesChartVisualization({
         ...curveOptions(curveType),
       };
     });
-    const plain = plainAxisOption(theme);
     const option: ChartOption = {
       animation: false,
       grid,
-      xAxis: {
-        type: "time",
-        min: domain[0],
-        max: domain[1],
-        splitNumber: 6,
-        minInterval: domain[1] - domain[0] > 86_400_000 ? 86_400_000 : undefined,
-        ...plain,
-        axisLabel: {
-          ...plain.axisLabel,
-          formatter: (value: number) =>
-            domain[1] - domain[0] > 86_400_000
-              ? timeFormat(value)
-              : compactTimeFormat.format(value),
-        },
-      },
+      xAxis: timeAxisOption(theme, domain),
       yAxis: valueAxisOption({
         theme,
         scale: yAxis,

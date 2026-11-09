@@ -1,4 +1,12 @@
-import { memo, type RefObject, useCallback, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  memo,
+  type RefObject,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
 import { ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
@@ -18,7 +26,8 @@ const ITEM_SLOT = "time-track-item";
  * (heatmap, state timeline, status history): drag across the tracks to zoom,
  * point the dashboard's shared cursor, and track the hovered item for its
  * tooltip. Spread `handlers` on the chart area and `itemProps(target)` on each
- * item, and render `TimeTrackAxis` and `TimeTrackOverlay` in the chart area.
+ * item (or call `hoverAt` with the item under the pointer), and render
+ * `TimeTrackAxis` and `TimeTrackOverlay` in the chart area.
  */
 export function useTimeTrack<T>(
   domain: [number, number],
@@ -64,6 +73,14 @@ export function useTimeTrack<T>(
     },
   };
 
+  // For panels drawn on a canvas, which find the item under the pointer
+  // themselves instead of spreading `itemProps` on elements.
+  const hoverAt = useCallback(
+    (target: T | null, e: React.MouseEvent) =>
+      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY }),
+    [],
+  );
+
   // Stable, so panels can memoize the items they spread it on.
   const itemProps = useCallback(
     (target: T) => ({
@@ -83,7 +100,7 @@ export function useTimeTrack<T>(
 
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { trackRef, handlers, itemProps, hover, brush };
+  return { trackRef, handlers, itemProps, hoverAt, hover, brush };
 }
 
 /** Time labels under the tracks. `trackRef` measures the track width.
@@ -121,18 +138,18 @@ export const TimeTrackAxis = memo(function TimeTrackAxis({
 export function TimeTrackOverlay({
   domain,
   brush,
+  style = { left: TRACK_LABEL_WIDTH, top: 0, bottom: 0, right: 0 },
 }: {
   domain: [number, number];
   brush: [number, number] | null;
+  /** Where the tracks are; by default right of the label gutter. */
+  style?: CSSProperties;
 }) {
   const cursor = useTimeCursor();
   const [start, end] = domain;
   const pct = (ts: number) => ((ts - start) / (end - start)) * 100;
   return (
-    <div
-      className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
-      style={{ left: TRACK_LABEL_WIDTH }}
-    >
+    <div className="pointer-events-none absolute overflow-hidden" style={style}>
       {cursor !== null && cursor >= start && cursor <= end && (
         <CursorLine style={{ left: `${pct(cursor)}%`, top: 0, height: "100%" }} />
       )}
