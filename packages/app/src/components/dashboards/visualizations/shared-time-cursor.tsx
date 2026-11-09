@@ -61,22 +61,28 @@ export function SharedTimeCursorProvider({ children }: { children: ReactNode }) 
 }
 
 /**
- * A panel's hold on its dashboard's shared time cursor: the instant every
- * time-based panel marks, and setters that point it from this panel. The
- * panel's claim is released when it unmounts.
+ * The instant hovered in any panel of the dashboard, or null. Read it only
+ * in the component that draws the cursor: every reader re-renders on each
+ * pointer move.
  */
-export function useSharedTimeCursor() {
+export function useTimeCursor(): number | null {
   const store = useContext(TimeCursorContext);
-  const cursor = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    inactiveStore.getSnapshot,
-  );
+  const timestamp = useCallback(() => store.getSnapshot()?.timestamp ?? null, [store]);
+  return useSyncExternalStore(store.subscribe, timestamp, () => null);
+}
+
+/**
+ * Points the dashboard's time cursor from this panel, without re-rendering
+ * the panel when the cursor moves. The panel's claim is released when it
+ * unmounts.
+ */
+export function usePointTimeCursor() {
+  const store = useContext(TimeCursorContext);
   const [source] = useState(() => Symbol("panel"));
   useEffect(() => () => store.clear(source), [store, source]);
   const set = useCallback((timestamp: number) => store.set(source, timestamp), [store, source]);
   const clear = useCallback(() => store.clear(source), [store, source]);
-  return { timestamp: cursor?.timestamp ?? null, set, clear };
+  return { set, clear };
 }
 
 /**

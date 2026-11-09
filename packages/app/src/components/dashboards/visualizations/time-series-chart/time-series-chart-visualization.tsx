@@ -25,7 +25,7 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { CursorLine, useSharedTimeCursor } from "../shared-time-cursor";
+import { CursorLine, usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
@@ -70,7 +70,8 @@ export function TimeSeriesChartVisualization({
   const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
 
   const chartElementRef = useRef<HTMLDivElement>(null);
-  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
+  const cursorTs = useTimeCursor();
+  const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
   const plotRectRef = useRef<PlotRect | null>(null);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);

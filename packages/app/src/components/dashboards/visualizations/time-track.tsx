@@ -1,8 +1,8 @@
-import { type RefObject, useMemo, useRef, useState } from "react";
+import { memo, type RefObject, useMemo, useRef, useState } from "react";
 import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
 import { ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
-import { CursorLine, useSharedTimeCursor } from "./shared-time-cursor";
+import { CursorLine, usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
 
 /** The row label gutter. The axis and the overlay start after it so they line
  * up with the tracks. */
@@ -23,7 +23,7 @@ export function useTimeTrack(
 ) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ rect: DOMRect; from: number; to: number | null } | null>(null);
-  const { timestamp: cursor, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
+  const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
   const timeAt = (clientX: number, rect: DOMRect) =>
     domain[0] + ratioWithin(clientX, rect.left, rect.width) * (domain[1] - domain[0]);
 
@@ -58,11 +58,12 @@ export function useTimeTrack(
 
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { trackRef, handlers, brush, cursor };
+  return { trackRef, handlers, brush };
 }
 
-/** Time labels under the tracks. `trackRef` measures the track width. */
-export function TimeTrackAxis({
+/** Time labels under the tracks. `trackRef` measures the track width.
+ * Memoized: the panel re-renders as its tooltip follows the pointer. */
+export const TimeTrackAxis = memo(function TimeTrackAxis({
   domain,
   trackRef,
 }: {
@@ -88,18 +89,18 @@ export function TimeTrackAxis({
       </div>
     </div>
   );
-}
+});
 
-/** The drag selection and the shared cursor, over the tracks and the axis. */
+/** The drag selection and the shared cursor, over the tracks and the axis.
+ * It reads the cursor itself, so a move redraws the line and not the rows. */
 export function TimeTrackOverlay({
   domain,
   brush,
-  cursor,
 }: {
   domain: [number, number];
   brush: [number, number] | null;
-  cursor: number | null;
 }) {
+  const cursor = useTimeCursor();
   const [start, end] = domain;
   const pct = (ts: number) => ((ts - start) / (end - start)) * 100;
   return (

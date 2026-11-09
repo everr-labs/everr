@@ -8,7 +8,7 @@ import type { ComposeOption } from "echarts/core";
 import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTimeTickFormatter, nearestSampleIndex } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
@@ -31,7 +31,7 @@ import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 import { PanelEmptyState } from "../panel-empty-state";
-import { CursorLine, useSharedTimeCursor } from "../shared-time-cursor";
+import { CursorLine, usePointTimeCursor, useTimeCursor } from "../shared-time-cursor";
 
 echarts.use([BarChart, LabelLayout]);
 
@@ -92,6 +92,42 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
   });
 }
 
+/**
+ * The shared cursor through the middle of the bar for its bucket. It reads the
+ * cursor itself, so a move redraws the line and not the chart.
+ */
+function BucketCursor({
+  bucketTimes,
+  chartElementRef,
+  grid,
+  horizontal,
+}: {
+  bucketTimes: number[];
+  chartElementRef: RefObject<HTMLDivElement | null>;
+  grid: GridInsets;
+  horizontal: boolean;
+}) {
+  const cursor = useTimeCursor();
+  const index = cursor === null ? null : nearestSampleIndex(bucketTimes, cursor);
+  const element = chartElementRef.current;
+  const plot = element ? getPlotRect(element, grid) : null;
+  if (index === null || !element || !plot) return null;
+  const bounds = element.getBoundingClientRect();
+  const along = (index + 0.5) / bucketTimes.length;
+  const left = plot.left - bounds.left;
+  const top = plot.top - bounds.top;
+  return (
+    <CursorLine
+      horizontal={horizontal}
+      style={
+        horizontal
+          ? { left, top: top + along * plot.height, width: plot.width }
+          : { left: left + along * plot.width, top, height: plot.height }
+      }
+    />
+  );
+}
+
 export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, stacking, orientation, showValues, colors } = spec;
@@ -114,7 +150,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     clientY: number;
     index: number;
   } | null>(null);
-  const { timestamp: cursorTs, set: setCursor, clear: clearCursor } = useSharedTimeCursor();
+  const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
 
   const hasChart = !!data && chartData.length > 0 && series.length > 0;
   const clearTooltip = useCallback(() => setTooltipState(null), []);
@@ -360,27 +396,6 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
   const tooltipX = tooltipRow?.[X_KEY];
 
-  // The cursor runs through the middle of its bucket's band.
-  const cursorIndex =
-    bucketTimes && cursorTs !== null ? nearestSampleIndex(bucketTimes, cursorTs) : null;
-  const element = chartElementRef.current;
-  const plot = element && layout ? getPlotRect(element, layout.grid) : null;
-  const bounds = element?.getBoundingClientRect();
-  const cursorLine =
-    cursorIndex !== null && plot && bounds
-      ? horizontal
-        ? {
-            left: plot.left - bounds.left,
-            top: plot.top - bounds.top + ((cursorIndex + 0.5) / chartData.length) * plot.height,
-            width: plot.width,
-          }
-        : {
-            left: plot.left - bounds.left + ((cursorIndex + 0.5) / chartData.length) * plot.width,
-            top: plot.top - bounds.top,
-            height: plot.height,
-          }
-      : null;
-
   return (
     <div
       className="relative h-full w-full text-muted-foreground"
@@ -391,7 +406,14 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       }}
     >
       <div ref={chartElementRef} className="h-full w-full" />
-      {cursorLine && <CursorLine horizontal={horizontal} style={cursorLine} />}
+      {bucketTimes && layout && (
+        <BucketCursor
+          bucketTimes={bucketTimes}
+          chartElementRef={chartElementRef}
+          grid={layout.grid}
+          horizontal={horizontal}
+        />
+      )}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>

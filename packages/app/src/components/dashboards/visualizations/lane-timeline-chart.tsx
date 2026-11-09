@@ -2,7 +2,7 @@ import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "./time-track";
 import type { ResolvedTimeRange } from "./index";
 
@@ -68,6 +68,61 @@ export function LaneTimelineChart({
 
   const toPct = useCallback((ts: number) => ((ts - domain[0]) / span) * 100, [domain, span]);
 
+  // The blocks follow the data, not the pointer: hovering only moves the
+  // tooltip, so the blocks are built once per result.
+  const rows = useMemo(
+    () => (
+      <div className="flex h-full min-h-fit flex-col gap-1 py-1">
+        {lanes.map((lane) => (
+          <div key={lane.label} className="flex min-h-5 flex-1 items-stretch">
+            <div
+              className="shrink-0 self-center truncate pr-2 text-xs text-muted-foreground"
+              style={{ width: TRACK_LABEL_WIDTH }}
+              title={lane.label}
+            >
+              {lane.label}
+            </div>
+            <div className="relative min-w-0 flex-1 overflow-hidden">
+              {lane.items.map((item) => (
+                <div
+                  key={item.key}
+                  className={cn(
+                    "absolute flex items-center justify-center overflow-hidden px-1",
+                    rounded && "rounded-[2px]",
+                  )}
+                  style={{
+                    left: `${toPct(item.start)}%`,
+                    width: `${toPct(item.end) - toPct(item.start)}%`,
+                    minWidth: 2,
+                    top: `${((1 - rowHeight) / 2) * 100}%`,
+                    height: `${rowHeight * 100}%`,
+                    backgroundColor: colorByState[item.state],
+                  }}
+                  onMouseEnter={(e) =>
+                    setHover({
+                      lane: lane.label,
+                      item,
+                      x: e.clientX,
+                      y: e.clientY,
+                    })
+                  }
+                  onMouseLeave={() => setHover(null)}
+                >
+                  {showValues && (
+                    <span className="truncate text-[10px] font-medium text-white">
+                      {item.state}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+    [lanes, colorByState, rowHeight, showValues, rounded, toPct],
+  );
+
   if (span <= 0 || !lanes.some((l) => l.items.length > 0)) {
     return empty;
   }
@@ -91,58 +146,10 @@ export function LaneTimelineChart({
         {/* No overscroll-none here: lanes usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex h-full min-h-fit flex-col gap-1 py-1">
-            {lanes.map((lane) => (
-              <div key={lane.label} className="flex min-h-5 flex-1 items-stretch">
-                <div
-                  className="shrink-0 self-center truncate pr-2 text-xs text-muted-foreground"
-                  style={{ width: TRACK_LABEL_WIDTH }}
-                  title={lane.label}
-                >
-                  {lane.label}
-                </div>
-                <div className="relative min-w-0 flex-1 overflow-hidden">
-                  {lane.items.map((item) => (
-                    <div
-                      key={item.key}
-                      className={cn(
-                        "absolute flex items-center justify-center overflow-hidden px-1",
-                        rounded && "rounded-[2px]",
-                      )}
-                      style={{
-                        left: `${toPct(item.start)}%`,
-                        width: `${toPct(item.end) - toPct(item.start)}%`,
-                        minWidth: 2,
-                        top: `${((1 - rowHeight) / 2) * 100}%`,
-                        height: `${rowHeight * 100}%`,
-                        backgroundColor: colorByState[item.state],
-                      }}
-                      onMouseEnter={(e) =>
-                        setHover({
-                          lane: lane.label,
-                          item,
-                          x: e.clientX,
-                          y: e.clientY,
-                        })
-                      }
-                      onMouseLeave={() => setHover(null)}
-                    >
-                      {showValues && (
-                        <span className="truncate text-[10px] font-medium text-white">
-                          {item.state}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+        <ScrollArea className="min-h-0 flex-1">{rows}</ScrollArea>
 
         <TimeTrackAxis domain={domain} trackRef={track.trackRef} />
-        <TimeTrackOverlay domain={domain} brush={track.brush} cursor={track.cursor} />
+        <TimeTrackOverlay domain={domain} brush={track.brush} />
       </div>
 
       {showLegend && states.length > 0 && (

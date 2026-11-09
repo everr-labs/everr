@@ -25,7 +25,7 @@ export function HeatmapVisualization({
   timeRange,
   onTimeRangeChange,
 }: VisualizationProps<HeatmapSpec>) {
-  const formatter = createValueFormatter(spec.valueFormat);
+  const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const [hover, setHover] = useState<HoverState | null>(null);
 
   const domain = useMemo<[number, number]>(
@@ -58,6 +58,62 @@ export function HeatmapVisualization({
     [spec.colorScheme, spec.scaleType, model?.domain],
   );
 
+  // The cells follow the data, not the pointer: hovering only moves the
+  // tooltip, so the cells are built once per result.
+  const rows = useMemo(() => {
+    if (!model) return null;
+    const gap = spec.cellGap;
+    const cellsByBucket = model.yBuckets.map((_, b) => model.cells.filter((c) => c.bucket === b));
+    return (
+      <div className="flex h-full min-h-fit flex-col">
+        {model.yBuckets.map((bucket, b) => (
+          <div key={bucket} className="flex min-h-4 flex-1 items-stretch">
+            <div
+              className="shrink-0 self-center truncate pr-2 text-right text-xs text-muted-foreground tabular-nums"
+              style={{ width: TRACK_LABEL_WIDTH }}
+              title={bucket}
+            >
+              {bucket}
+            </div>
+            <div className="relative min-w-0 flex-1 overflow-hidden">
+              {cellsByBucket[b].map((cell) => {
+                const { fill, dark } = cellAppearance(cell.value);
+                return (
+                  <div
+                    key={cell.start}
+                    className="absolute @container flex items-center justify-center overflow-hidden"
+                    style={{
+                      left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
+                      width: `calc(${toPct(cell.end) - toPct(cell.start)}% - ${gap}px)`,
+                      minWidth: 1,
+                      top: gap / 2,
+                      height: `calc(100% - ${gap}px)`,
+                      backgroundColor: fill,
+                    }}
+                    onMouseEnter={(e) => setHover({ bucket, cell, x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => setHover(null)}
+                  >
+                    {spec.showValues && (
+                      // Container query: the value only renders once the
+                      // cell is wide enough to fit a short number — narrow
+                      // cells would otherwise show ellipsis specks.
+                      <span
+                        className="hidden @[2rem]:block truncate text-[10px] font-medium tabular-nums"
+                        style={{ color: dark ? "white" : "black" }}
+                      >
+                        {formatter.format(cell.value)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }, [model, spec.cellGap, spec.showValues, cellAppearance, toPct, formatter]);
+
   if (!model || span <= 0 || model.cells.length === 0) {
     return (
       <PanelEmptyState
@@ -68,10 +124,7 @@ export function HeatmapVisualization({
     );
   }
 
-  const { yBuckets, cells } = model;
   const [d0, d1] = model.domain;
-  const gap = spec.cellGap;
-  const cellsByBucket = yBuckets.map((_, b) => cells.filter((c) => c.bucket === b));
 
   return (
     <div className="flex h-full select-none flex-col overflow-hidden">
@@ -92,57 +145,10 @@ export function HeatmapVisualization({
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex h-full min-h-fit flex-col">
-            {yBuckets.map((bucket, b) => (
-              <div key={bucket} className="flex min-h-4 flex-1 items-stretch">
-                <div
-                  className="shrink-0 self-center truncate pr-2 text-right text-xs text-muted-foreground tabular-nums"
-                  style={{ width: TRACK_LABEL_WIDTH }}
-                  title={bucket}
-                >
-                  {bucket}
-                </div>
-                <div className="relative min-w-0 flex-1 overflow-hidden">
-                  {cellsByBucket[b].map((cell) => {
-                    const { fill, dark } = cellAppearance(cell.value);
-                    return (
-                      <div
-                        key={cell.start}
-                        className="absolute @container flex items-center justify-center overflow-hidden"
-                        style={{
-                          left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
-                          width: `calc(${toPct(cell.end) - toPct(cell.start)}% - ${gap}px)`,
-                          minWidth: 1,
-                          top: gap / 2,
-                          height: `calc(100% - ${gap}px)`,
-                          backgroundColor: fill,
-                        }}
-                        onMouseEnter={(e) => setHover({ bucket, cell, x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHover(null)}
-                      >
-                        {spec.showValues && (
-                          // Container query: the value only renders once the
-                          // cell is wide enough to fit a short number — narrow
-                          // cells would otherwise show ellipsis specks.
-                          <span
-                            className="hidden @[2rem]:block truncate text-[10px] font-medium tabular-nums"
-                            style={{ color: dark ? "white" : "black" }}
-                          >
-                            {formatter.format(cell.value)}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+        <ScrollArea className="min-h-0 flex-1">{rows}</ScrollArea>
 
         <TimeTrackAxis domain={domain} trackRef={track.trackRef} />
-        <TimeTrackOverlay domain={domain} brush={track.brush} cursor={track.cursor} />
+        <TimeTrackOverlay domain={domain} brush={track.brush} />
       </div>
 
       {spec.showLegend && (
