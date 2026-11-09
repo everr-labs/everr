@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
@@ -15,16 +16,64 @@ type Params = Readonly<Record<string, string | undefined>>;
 const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
 
-/** Every migration not yet applied, in file-name order across directories. */
-export function pendingClickHouseMigrations(
+/** A migration as this build bundles it, with the hash the journal records. */
+export interface HashedClickHouseMigration extends ClickHouseMigration {
+  readonly hash: string;
+}
+
+export interface ClickHouseMigrationPlan {
+  /** Files to run, in file-name order across directories. */
+  readonly run: HashedClickHouseMigration[];
+  /** Applied files the journal recorded without a hash: record it, run nothing. */
+  readonly record: HashedClickHouseMigration[];
+  /** Journal entries this build does not bundle, as after a downgrade. */
+  readonly unknown: string[];
+}
+
+/**
+ * The hash of a file's statements. Comments and whitespace around statements
+ * do not count, so fixing a comment in an applied file is safe.
+ */
+export function clickHouseMigrationHash(sql: string): string {
+  return createHash("sha256").update(sqlStatements(sql).join(";\n")).digest("hex");
+}
+
+/**
+ * What to do with each migration, given the journal's latest hash per file
+ * (`""` for rows written before the journal stored hashes). Throws, before
+ * anything runs, when an applied versioned file changed: the journal would
+ * otherwise skip the change.
+ */
+export function clickHouseMigrationPlan(
   migrations: readonly ClickHouseMigration[],
-  applied: ReadonlySet<string>,
-): ClickHouseMigration[] {
+  applied: ReadonlyMap<string, string>,
+): ClickHouseMigrationPlan {
   const sorted = [...migrations].sort((a, b) => (a.name < b.name ? -1 : 1));
-  for (const [i, { name }] of sorted.entries()) {
-    if (name === sorted[i + 1]?.name) throw new Error(`Duplicate ClickHouse migration ${name}`);
+  const run: HashedClickHouseMigration[] = [];
+  const record: HashedClickHouseMigration[] = [];
+  const changed: string[] = [];
+  for (const [i, migration] of sorted.entries()) {
+    if (migration.name === sorted[i + 1]?.name) {
+      throw new Error(`Duplicate ClickHouse migration ${migration.name}`);
+    }
+    const hashed = { ...migration, hash: clickHouseMigrationHash(migration.sql) };
+    const recorded = applied.get(migration.name);
+    if (recorded === undefined) run.push(hashed);
+    else if (recorded === hashed.hash) continue;
+    else if (migration.kind === "repeatable") run.push(hashed);
+    else if (recorded === "") record.push(hashed);
+    else changed.push(migration.name);
   }
-  return sorted.filter(({ name }) => !applied.has(name));
+  if (changed.length > 0) {
+    throw new Error(
+      `ClickHouse migrations changed after they were applied: ${changed.join(", ")}. ` +
+        "Put the change in a new file, or move a file whose statements all replace " +
+        "what they create into a repeatable/ directory.",
+    );
+  }
+  const bundled = new Set(sorted.map(({ name }) => name));
+  const unknown = [...applied.keys()].filter((name) => !bundled.has(name));
+  return { run, record, unknown };
 }
 
 /** The values a statement's `{name:Type}` placeholders need. */
@@ -46,9 +95,11 @@ export function statementParams(
 
 /**
  * Apply the shared files plus a product's own `productFiles` (an eager raw
- * glob) that the journal does not list. Statements must be safe to repeat: a
- * migration that fails partway runs again from its first statement. Run it
- * under the PostgreSQL migration lock so replicas apply it once.
+ * glob): versioned files the journal does not list, and repeatable files whose
+ * statements changed. ClickHouse DDL is not transactional, so statements must
+ * be safe to repeat: a migration that fails partway runs again from its first
+ * statement. Run it under the PostgreSQL migration lock so replicas apply it
+ * once.
  */
 export async function migrateClickHouse(
   productFiles: Record<string, string>,
@@ -78,36 +129,58 @@ export async function migrateClickHouse(
       client.command({
         query: `CREATE TABLE IF NOT EXISTS ${JOURNAL} (
           name String,
+          hash String DEFAULT '',
           applied_at DateTime64(3) DEFAULT now64(3)
         ) ENGINE = MergeTree ORDER BY name`,
       }),
     );
+    // Journals created before it stored hashes.
+    await run("ALTER", () =>
+      client.command({
+        query: `ALTER TABLE ${JOURNAL} ADD COLUMN IF NOT EXISTS hash String DEFAULT '' AFTER name`,
+      }),
+    );
     const applied = await run("SELECT", async () => {
       const rows = await client.query({
-        query: `SELECT name FROM ${JOURNAL}`,
+        query: `SELECT name, argMax(hash, applied_at) AS hash FROM ${JOURNAL} GROUP BY name`,
         format: "JSONEachRow",
       });
-      return new Set((await rows.json<{ name: string }>()).map(({ name }) => name));
+      return new Map(
+        (await rows.json<{ name: string; hash: string }>()).map(({ name, hash }) => [name, hash]),
+      );
     });
 
-    for (const migration of pendingClickHouseMigrations(migrations, applied)) {
+    const plan = clickHouseMigrationPlan(migrations, applied);
+    if (plan.unknown.length > 0) {
+      serverLogger.warn("clickhouse.migration.unknown", {
+        "everr.clickhouse.migration.names": plan.unknown,
+      });
+    }
+    const journal = (migration: HashedClickHouseMigration) =>
+      run("INSERT", () =>
+        client.insert({
+          table: JOURNAL,
+          values: [{ name: migration.name, hash: migration.hash }],
+          format: "JSONEachRow",
+        }),
+      );
+
+    for (const migration of plan.record) await journal(migration);
+    for (const migration of plan.run) {
       for (const statement of sqlStatements(migration.sql)) {
         await run("QUERY", () =>
           client.command({
             query: statement,
             query_params: statementParams(migration.name, statement, params),
+            // Wait for the rewrite an ALTER starts, so a failure fails startup.
+            clickhouse_settings: { mutations_sync: "2" },
           }),
         );
       }
-      await run("INSERT", () =>
-        client.insert({
-          table: JOURNAL,
-          values: [{ name: migration.name }],
-          format: "JSONEachRow",
-        }),
-      );
+      await journal(migration);
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
+        "everr.clickhouse.migration.kind": migration.kind,
       });
     }
   } finally {

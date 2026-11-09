@@ -1,4 +1,5 @@
 -- Views read and strip the retention stamp through these shared functions.
+-- Repeatable: edit it in place and App and Cloud apply it again on startup.
 -- Reject parsed zero so a missing or invalid stamp cannot expire rows silently.
 -- Keep throwIf dependent on the row; a constant throwIf can fire during folding.
 CREATE OR REPLACE FUNCTION everrRetentionDays AS (resourceAttributes) ->

@@ -19,8 +19,8 @@ const DefaultDatabase = "default"
 // CreateErrorFingerprintFunction registers the errorFingerprint UDF (idempotent)
 // so `everr local query` and the local browser UI group Errors the same way the cloud
 // does. Route it through Query, not Exec: chDB only persists CREATE FUNCTION when
-// the statement runs with a real output format, and Exec uses an empty one. Keep
-// the DDL in step with packages/app/clickhouse/shared/04-create-error-fingerprint-function.sql.
+// the statement runs with a real output format, and Exec uses an empty one. The
+// DDL must match packages/app/clickhouse/shared/repeatable/04-create-error-fingerprint-function.sql.
 func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
 	rows, err := db.Query(ctx, sqltemplates.CreateErrorFingerprintFunction)
 	if err != nil {

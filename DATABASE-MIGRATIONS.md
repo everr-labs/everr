@@ -39,9 +39,28 @@ baselines.
 Each application applies its files in file-name order across its directories,
 after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
-file name. Add a change as a new file with the next number; do not edit an
-applied file. A file that fails partway runs again from its first statement, so
-every statement must be safe to repeat (`IF NOT EXISTS`, `OR REPLACE`).
+file name with a SHA-256 of its statements (comments do not count).
+
+| File                           | Holds                                               | When its statements change             |
+| ------------------------------ | --------------------------------------------------- | -------------------------------------- |
+| `<dir>/NN-name.sql`            | Tables, views, columns, users                       | Startup fails. Add a new file instead. |
+| `<dir>/repeatable/NN-name.sql` | Functions, row policies, other `OR REPLACE` objects | Applied again on the next startup.     |
+
+A repeatable file keeps its number, so it runs in order with the others: a
+function that a view uses must sort before the view. Put a file in
+`repeatable/` only when every statement replaces what it creates
+(`CREATE OR REPLACE`).
+
+ClickHouse DDL is not transactional. A file that fails partway runs again from
+its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
+`OR REPLACE`). Statements run with `mutations_sync = 2`, so an `ALTER` that
+rewrites data finishes, or fails startup, before the app serves requests.
+
+The collector and an App of another version can read the same tables, so
+change `otel.*` and `app.*` in two releases: add the new column or table first,
+and drop or rename the old one in a later release. When the journal lists files
+this build does not bundle (after a downgrade), startup logs
+`clickhouse.migration.unknown` and continues.
 
 Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
 as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`). Statements bind the other

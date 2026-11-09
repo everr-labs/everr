@@ -3,9 +3,10 @@
 -- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
 -- resource attributes and write the row into app.*. Column lists follow the
 -- upstream clickhouseexporter schema for the version pinned in
--- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,
--- so keep them in step when that pin moves. The exporter's DDL is the
--- reference: internal/sqltemplates/*.sql in that module.
+-- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here.
+-- When that pin moves, add a new file that ALTERs these tables and app.*:
+-- this file is applied, so editing it stops App and Cloud startup. The
+-- exporter's DDL is the reference: internal/sqltemplates/*.sql in that module.
 --
 -- Logs and traces carry the JSON column set the exporter writes with
 -- `json: true`, typed values and one keys array per attribute column; the

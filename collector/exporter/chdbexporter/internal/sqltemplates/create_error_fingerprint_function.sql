@@ -2,8 +2,10 @@
 -- init so `everr local query` and the local browser UI group Errors the same way the
 -- cloud does.
 --
--- Keep in step with packages/app/clickhouse/shared/04-create-error-fingerprint-function.sql
--- (the body below must stay identical, or local and cloud fingerprints diverge).
+-- The statement must stay identical to
+-- packages/app/clickhouse/shared/repeatable/04-create-error-fingerprint-function.sql,
+-- or local and cloud fingerprints diverge. packages/app/src/db/clickhouse-migrations.test.ts
+-- compares them.
 --
 -- Callers pass the three attributes as text: `` toString(LogAttributes.`error.fingerprint`) ``
 -- and the two exception paths. A query built this way reads three
