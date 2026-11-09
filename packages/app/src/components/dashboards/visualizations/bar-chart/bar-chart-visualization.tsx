@@ -8,7 +8,7 @@ import type { ComposeOption } from "echarts/core";
 import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTimeTickFormatter, nearestSampleIndex } from "../data-utils";
 import {
   AXIS_LABEL_MARGIN,
@@ -19,7 +19,7 @@ import {
   VALUE_AXIS_EDGE_INSET,
   valueAxisOption,
 } from "../echarts/axis";
-import { type GridInsets, getPlotRect, ratioWithin } from "../echarts/plot-rect";
+import { type GridInsets, getPlotRect, plotWithin, ratioWithin } from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -98,31 +98,27 @@ function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
  */
 function BucketCursor({
   bucketTimes,
-  chartElementRef,
+  chart,
   grid,
   horizontal,
 }: {
   bucketTimes: number[];
-  chartElementRef: RefObject<HTMLDivElement | null>;
+  chart: { getWidth(): number; getHeight(): number };
   grid: GridInsets;
   horizontal: boolean;
 }) {
   const cursor = useTimeCursor();
   const index = cursor === null ? null : nearestSampleIndex(bucketTimes, cursor);
-  const element = chartElementRef.current;
-  const plot = element ? getPlotRect(element, grid) : null;
-  if (index === null || !element || !plot) return null;
-  const bounds = element.getBoundingClientRect();
+  if (index === null) return null;
+  const plot = plotWithin(chart, grid);
   const along = (index + 0.5) / bucketTimes.length;
-  const left = plot.left - bounds.left;
-  const top = plot.top - bounds.top;
   return (
     <CursorLine
       horizontal={horizontal}
       style={
         horizontal
-          ? { left, top: top + along * plot.height, width: plot.width }
-          : { left: left + along * plot.width, top, height: plot.height }
+          ? { left: plot.left, top: plot.top + along * plot.height, width: plot.width }
+          : { left: plot.left + along * plot.width, top: plot.top, height: plot.height }
       }
     />
   );
@@ -406,10 +402,10 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       }}
     >
       <div ref={chartElementRef} className="h-full w-full" />
-      {bucketTimes && layout && (
+      {bucketTimes && chart && layout && (
         <BucketCursor
           bucketTimes={bucketTimes}
-          chartElementRef={chartElementRef}
+          chart={chart}
           grid={layout.grid}
           horizontal={horizontal}
         />

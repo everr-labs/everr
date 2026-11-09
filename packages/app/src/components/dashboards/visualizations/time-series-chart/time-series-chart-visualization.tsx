@@ -16,7 +16,13 @@ import {
   plainAxisOption,
   valueAxisOption,
 } from "../echarts/axis";
-import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "../echarts/plot-rect";
+import {
+  type GridInsets,
+  getPlotRect,
+  type PlotRect,
+  plotWithin,
+  ratioWithin,
+} from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -40,6 +46,17 @@ type ChartOption = ComposeOption<LineSeriesOption | GridComponentOption>;
 
 function pxToTimestamp(clientX: number, plotRect: PlotRect, domain: [number, number]): number {
   return domain[0] + ratioWithin(clientX, plotRect.left, plotRect.width) * (domain[1] - domain[0]);
+}
+
+/**
+ * The dashboard's shared cursor across the plot. It reads the cursor itself,
+ * so a hover in another panel redraws this line and not the chart.
+ */
+function SeriesCursor({ plot, domain }: { plot: PlotRect; domain: [number, number] }) {
+  const cursor = useTimeCursor();
+  if (cursor === null || cursor < domain[0] || cursor > domain[1]) return null;
+  const left = plot.left + ((cursor - domain[0]) / (domain[1] - domain[0])) * plot.width;
+  return <CursorLine style={{ left, top: plot.top, height: plot.height }} />;
 }
 
 function curveOptions(
@@ -70,7 +87,6 @@ export function TimeSeriesChartVisualization({
   const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
 
   const chartElementRef = useRef<HTMLDivElement>(null);
-  const cursorTs = useTimeCursor();
   const { set: setCursor, clear: clearCursor } = usePointTimeCursor();
   const plotRectRef = useRef<PlotRect | null>(null);
   const [brushStart, setBrushStart] = useState<number | null>(null);
@@ -360,15 +376,12 @@ export function TimeSeriesChartVisualization({
     tooltipState?.cursorValue ?? null,
     tooltipState?.tolerance ?? 0,
   );
-  const element = chartElementRef.current;
-  const plot = element && grid ? getPlotRect(element, grid) : null;
-  const bounds = element?.getBoundingClientRect();
+  // The plot inside the chart element, from the size ECharts already knows:
+  // reading it from the DOM here would force a layout on every pointer move.
+  const plot = chart && grid ? plotWithin(chart, grid) : null;
   const localX = (timestamp: number) =>
-    plot && bounds
-      ? plot.left - bounds.left + ((timestamp - domain[0]) / (domain[1] - domain[0])) * plot.width
-      : 0;
-  const crosshairTs = cursorTs ?? tooltipTs;
-  const crosshairX = crosshairTs === undefined ? null : localX(crosshairTs);
+    plot ? plot.left + ((timestamp - domain[0]) / (domain[1] - domain[0])) * plot.width : 0;
+  const markerX = tooltipTs === undefined ? null : localX(tooltipTs);
 
   return (
     <div
@@ -391,14 +404,14 @@ export function TimeSeriesChartVisualization({
           }}
         />
       )}
-      {plot && bounds && (
+      {plot && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {brushStart != null && brushEnd != null && (
             <div
               className="absolute"
               style={{
                 left: localX(Math.min(brushStart, brushEnd)),
-                top: plot.top - bounds.top,
+                top: plot.top,
                 width: Math.abs(localX(brushEnd) - localX(brushStart)),
                 height: plot.height,
                 backgroundColor: BRUSH_COLOR,
@@ -407,11 +420,9 @@ export function TimeSeriesChartVisualization({
               }}
             />
           )}
-          {crosshairX !== null && (
+          <SeriesCursor plot={plot} domain={domain} />
+          {markerX !== null && (
             <>
-              <CursorLine
-                style={{ left: crosshairX, top: plot.top - bounds.top, height: plot.height }}
-              />
               {hoverPoints
                 .filter((point) => point.value !== null)
                 .sort((a, b) => Number(nearestKeys.has(a.key)) - Number(nearestKeys.has(b.key)))
@@ -427,7 +438,7 @@ export function TimeSeriesChartVisualization({
                       key={point.key}
                       className="absolute rounded-full border-2 border-card"
                       style={{
-                        left: crosshairX - radius,
+                        left: markerX - radius,
                         top: y - radius,
                         width: radius * 2,
                         height: radius * 2,

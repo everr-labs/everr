@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 const OFFSET = 12;
@@ -17,21 +17,46 @@ const MARGIN = 4;
  */
 export function CursorTooltip({ x, y, children }: { x: number; y: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const pointer = useRef({ x, y });
+  pointer.current = { x, y };
+  // Measured once, then kept current by a ResizeObserver: reading the size on
+  // every move would force a synchronous layout of the page each time.
+  const size = useRef<{ width: number; height: number } | null>(null);
+
+  const place = useCallback(() => {
+    const el = ref.current;
+    const box = size.current;
+    if (!el || !box) return;
+    const { x, y } = pointer.current;
+    const left =
+      x + OFFSET + box.width > window.innerWidth - MARGIN
+        ? Math.max(MARGIN, x - OFFSET - box.width)
+        : x + OFFSET;
+    const top =
+      y + OFFSET + box.height > window.innerHeight - MARGIN
+        ? Math.max(MARGIN, y - OFFSET - box.height)
+        : y + OFFSET;
+    el.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+  }, []);
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    const { offsetWidth: width, offsetHeight: height } = el;
-    const left =
-      x + OFFSET + width > window.innerWidth - MARGIN
-        ? Math.max(MARGIN, x - OFFSET - width)
-        : x + OFFSET;
-    const top =
-      y + OFFSET + height > window.innerHeight - MARGIN
-        ? Math.max(MARGIN, y - OFFSET - height)
-        : y + OFFSET;
-    el.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+    if (el && !size.current) size.current = { width: el.offsetWidth, height: el.offsetHeight };
+    place();
   });
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry?.borderBoxSize[0];
+      if (!box) return;
+      size.current = { width: box.inlineSize, height: box.blockSize };
+      place();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [place]);
 
   return createPortal(
     <div
