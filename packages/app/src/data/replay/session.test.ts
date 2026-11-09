@@ -213,15 +213,27 @@ function plan(rows?: {
   sizes?: SizeRow[];
 }): void {
   mockedQuery.mockImplementation(async (sql: string, _org, params) => {
-    if (/FROM\s+traces/.test(sql)) return (rows?.traces ?? []) as never;
+    if (/FROM\s+traces/.test(sql)) {
+      const traces = rows?.traces ?? [];
+      if (!sql.includes("LIMIT 1 BY clipId, streamId")) return traces as never;
+      // As ClickHouse does: one row per clip and stream.
+      const seen = new Set<string>();
+      return traces.filter((t) => {
+        const key = JSON.stringify([
+          (t as { clipId?: string }).clipId,
+          (t as { streamId?: string }).streamId,
+        ]);
+        return !seen.has(key) && seen.add(key);
+      }) as never;
+    }
     if (/FROM\s+recordings/.test(sql)) {
-      const streams = (params as { streams?: string[] } | undefined)?.streams;
+      const { streams, withoutPieces = [] } =
+        (params as { streams?: string[]; withoutPieces?: string[] } | undefined) ?? {};
       const recordings = (rows?.recordings ?? []).filter(
         (r) => !streams || streams.includes(r.stream_id),
       );
       if (sql.includes("GROUP BY stream_id")) return (rows?.sizes ?? sizesOf(recordings)) as never;
-      if (sql.includes("AND NOT (")) return recordings.filter((r) => !r.pieces) as never;
-      return recordings as never;
+      return recordings.filter((r) => !(r.pieces && withoutPieces.includes(r.stream_id))) as never;
     }
     throw new Error(`unexpected query: ${sql}`);
   });
@@ -342,7 +354,11 @@ describe("sessionJourney", () => {
 
   it("skips spans with a missing id or an unknown trigger as clip gaps", async () => {
     plan({
-      traces: [spanRow({ clipId: "" }), spanRow({ trigger: "everr.automatic" }), spanRow()],
+      traces: [
+        spanRow({ clipId: "" }),
+        spanRow({ clipId: "clip-bad-trigger", trigger: "everr.automatic" }),
+        spanRow(),
+      ],
       recordings: [segRow(eventBody([metaEvent(T0 + 10)]))],
     });
     const journey = await sessionJourney(ORG, SESSION);
@@ -459,9 +475,8 @@ describe("sessionJourney", () => {
     ]);
     expect(new Set(journey.steps.map((s) => s.streamId))).toEqual(new Set(["newest", "middle"]));
     const reads = callsFor("recordings").filter((c) => !c.sql.includes("GROUP BY"));
-    expect(reads.map((c) => [c.params.streams, c.sql.includes("AND NOT (")])).toEqual([
-      [["newest"], false],
-      [["middle"], true],
+    expect(reads.map((c) => [c.params.streams, c.params.withoutPieces])).toEqual([
+      [["newest", "middle"], ["middle"]],
     ]);
   });
 
