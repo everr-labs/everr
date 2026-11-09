@@ -393,7 +393,8 @@ export function TimeSeriesChartVisualization({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
     >
-      <div ref={chartElementRef} className="h-full w-full" />
+      {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+      <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
       {showLegend && (
         <SeriesLegend
           {...legend}

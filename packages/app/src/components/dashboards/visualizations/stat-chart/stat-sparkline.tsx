@@ -31,5 +31,5 @@ export function StatSparkline({ points, color }: { points: StatTile["points"]; c
     });
   }, [chart, points, color]);
 
-  return <div ref={elementRef} className="h-full w-full" aria-hidden="true" />;
+  return <div ref={elementRef} className="pointer-events-none h-full w-full" aria-hidden="true" />;
 }

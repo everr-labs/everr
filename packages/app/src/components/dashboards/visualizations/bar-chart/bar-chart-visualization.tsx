@@ -401,7 +401,8 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
         clearCursor();
       }}
     >
-      <div ref={chartElementRef} className="h-full w-full" />
+      {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+      <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
       {bucketTimes && chart && layout && (
         <BucketCursor
           bucketTimes={bucketTimes}

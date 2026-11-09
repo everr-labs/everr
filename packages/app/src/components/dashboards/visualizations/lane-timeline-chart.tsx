@@ -3,7 +3,13 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
-import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "./time-track";
+import {
+  TimeTrackAxis,
+  TimeTrackOverlay,
+  TRACK_LABEL_WIDTH,
+  useTimeTrack,
+  leftForSibling,
+} from "./time-track";
 import type { ResolvedTimeRange } from "./index";
 
 export interface LaneTimelineItem {
@@ -86,6 +92,7 @@ export function LaneTimelineChart({
               {lane.items.map((item) => (
                 <div
                   key={item.key}
+                  data-slot="lane-item"
                   className={cn(
                     "absolute flex items-center justify-center overflow-hidden px-1",
                     rounded && "rounded-[2px]",
@@ -106,7 +113,9 @@ export function LaneTimelineChart({
                       y: e.clientY,
                     })
                   }
-                  onMouseLeave={() => setHover(null)}
+                  onMouseLeave={(e) => {
+                    if (!leftForSibling(e)) setHover(null);
+                  }}
                 >
                   {showValues && (
                     <span className="truncate text-[10px] font-medium text-white">

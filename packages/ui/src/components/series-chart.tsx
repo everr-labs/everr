@@ -279,7 +279,8 @@ export function SeriesChart({
         setDrag(null);
       }}
     >
-      <div ref={elementRef} className="h-full w-full" />
+      {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+      <div ref={elementRef} className="pointer-events-none h-full w-full" />
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {pointer && rows.length > 0 && (
         <CursorTooltip x={pointer.x} y={pointer.y}>

@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useCallback, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 const OFFSET = 12;
@@ -19,33 +19,31 @@ export function CursorTooltip({ x, y, children }: { x: number; y: number; childr
   const ref = useRef<HTMLDivElement>(null);
   const pointer = useRef({ x, y });
   pointer.current = { x, y };
-  // Measured once, then kept current by a ResizeObserver: reading the size on
-  // every move would force a synchronous layout of the page each time.
-  const size = useRef<{ width: number; height: number } | null>(null);
+  // Sized by a ResizeObserver, never by reading layout: a read would force a
+  // synchronous layout of the page on every move. The observer reports after
+  // layout and before paint, so the first frame is already placed right.
+  const size = useRef({ width: 0, height: 0 });
 
   const place = useCallback(() => {
     const el = ref.current;
-    const box = size.current;
-    if (!el || !box) return;
+    if (!el) return;
     const { x, y } = pointer.current;
+    const { width, height } = size.current;
     const left =
-      x + OFFSET + box.width > window.innerWidth - MARGIN
-        ? Math.max(MARGIN, x - OFFSET - box.width)
+      x + OFFSET + width > window.innerWidth - MARGIN
+        ? Math.max(MARGIN, x - OFFSET - width)
         : x + OFFSET;
     const top =
-      y + OFFSET + box.height > window.innerHeight - MARGIN
-        ? Math.max(MARGIN, y - OFFSET - box.height)
+      y + OFFSET + height > window.innerHeight - MARGIN
+        ? Math.max(MARGIN, y - OFFSET - height)
         : y + OFFSET;
     el.style.transform = `translate3d(${left}px, ${top}px, 0)`;
   }, []);
 
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (el && !size.current) size.current = { width: el.offsetWidth, height: el.offsetHeight };
-    place();
-  });
+  useLayoutEffect(place);
 
-  useEffect(() => {
+  // A layout effect, so the first report lands before the first paint.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {

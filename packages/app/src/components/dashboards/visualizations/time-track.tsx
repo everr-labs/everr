@@ -61,6 +61,17 @@ export function useTimeTrack(
   return { trackRef, handlers, brush };
 }
 
+/**
+ * Whether the pointer left this element straight into another one with the
+ * same `data-slot`. A hover moving from cell to cell then changes its target
+ * without being cleared, which would unmount and remount its tooltip.
+ */
+export function leftForSibling(e: React.MouseEvent<HTMLElement>): boolean {
+  const slot = e.currentTarget.dataset.slot;
+  const next = e.relatedTarget;
+  return !!slot && next instanceof Element && !!next.closest(`[data-slot="${slot}"]`);
+}
+
 /** Time labels under the tracks. `trackRef` measures the track width.
  * Memoized: the panel re-renders as its tooltip follows the pointer. */
 export const TimeTrackAxis = memo(function TimeTrackAxis({

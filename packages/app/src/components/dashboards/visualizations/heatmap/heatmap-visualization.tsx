@@ -4,7 +4,13 @@ import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { Grid3x3 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { normalizeValue } from "../color-scale";
-import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "../time-track";
+import {
+  TimeTrackAxis,
+  TimeTrackOverlay,
+  TRACK_LABEL_WIDTH,
+  useTimeTrack,
+  leftForSibling,
+} from "../time-track";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
@@ -81,6 +87,7 @@ export function HeatmapVisualization({
                 return (
                   <div
                     key={cell.start}
+                    data-slot="heatmap-cell"
                     className="absolute @container flex items-center justify-center overflow-hidden"
                     style={{
                       left: `calc(${toPct(cell.start)}% + ${gap / 2}px)`,
@@ -91,7 +98,9 @@ export function HeatmapVisualization({
                       backgroundColor: fill,
                     }}
                     onMouseEnter={(e) => setHover({ bucket, cell, x: e.clientX, y: e.clientY })}
-                    onMouseLeave={() => setHover(null)}
+                    onMouseLeave={(e) => {
+                      if (!leftForSibling(e)) setHover(null);
+                    }}
                   >
                     {spec.showValues && (
                       // Container query: the value only renders once the
