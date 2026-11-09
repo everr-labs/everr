@@ -133,7 +133,7 @@ export function TimeTrackOverlay({
       style={{ left: TRACK_LABEL_WIDTH }}
     >
       {cursor !== null && cursor >= start && cursor <= end && (
-        <CursorLine style={{ left: `${pct(cursor)}%`, top: 0, bottom: 0 }} />
+        <CursorLine style={{ left: `${pct(cursor)}%`, top: 0, height: "100%" }} />
       )}
       {brush && (
         <div
