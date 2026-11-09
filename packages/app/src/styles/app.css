@@ -120,3 +120,346 @@
 .ansi-white-bg {
   background-color: white;
 }
+
+/* Runbook markdown, on top of the typography plugin's prose-invert. */
+.runbook-prose {
+  --tw-prose-links: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-hr: var(--border);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
+.runbook-prose a {
+  font-weight: 500;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.runbook-prose a:hover {
+  text-decoration-color: var(--foreground);
+}
+
+/* Inline code as a chip, not wrapped in literal backticks. */
+.runbook-prose :not(pre) > code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  font-weight: 400;
+  font-size: 0.85em;
+}
+
+.runbook-prose :not(pre) > code::before,
+.runbook-prose :not(pre) > code::after {
+  content: none;
+}
+
+/* A code block: the language and a copy button above the code, in one card. */
+.runbook-prose .runbook-code-block {
+  margin: 1.5rem 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+}
+
+.runbook-prose .runbook-code-block figcaption {
+  margin: 0;
+}
+
+.runbook-prose .runbook-code-block pre {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  /* Marked lines reach out to these edges. */
+  padding: 0.875rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* Quotes keep the body's voice: no italics, no added quote marks. */
+.runbook-prose blockquote {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+
+.runbook-prose blockquote p::before,
+.runbook-prose blockquote p::after {
+  content: none;
+}
+
+.runbook-prose img {
+  max-height: 20rem;
+  width: auto;
+  border-radius: 0.375rem;
+}
+
+/* Tasks show their checkbox in place of the bullet. */
+.runbook-prose .contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.runbook-prose .contains-task-list .contains-task-list {
+  padding-left: 1.625em;
+}
+
+.runbook-prose .task-list-item {
+  padding-left: 0;
+}
+
+.runbook-prose .task-list-item input {
+  margin: 0 0.5em 0 0;
+  accent-color: var(--primary);
+  vertical-align: -0.125em;
+}
+
+/* Tables look like a table panel's grid (DataTable, bordered), in a card
+   like a code block's. */
+.runbook-prose .runbook-table {
+  margin: 1.5rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+}
+
+.runbook-prose table {
+  margin: 0;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.runbook-prose thead {
+  border-bottom: 0;
+}
+
+/* Cells keep their values on one line; a wide table scrolls instead. */
+.runbook-prose th,
+.runbook-prose td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.runbook-prose th:last-child,
+.runbook-prose td:last-child {
+  border-right: 0;
+}
+
+.runbook-prose th {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.runbook-prose th:not([style*="text-align"]) {
+  text-align: left;
+}
+
+.runbook-prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.runbook-prose tbody tr:hover {
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
+}
+
+.runbook-prose .footnotes {
+  margin-top: 3rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+/* Syntax highlighting (highlight.js classes), muted to sit with the theme. */
+.runbook-prose pre code {
+  --code-keyword: oklch(0.74 0.14 300);
+  --code-string: oklch(0.8 0.13 150);
+  --code-number: oklch(0.82 0.13 75);
+  --code-name: oklch(0.78 0.11 240);
+  --code-attr: oklch(0.8 0.09 200);
+  --code-comment: var(--muted-foreground);
+}
+
+.runbook-prose .hljs-keyword,
+.runbook-prose .hljs-built_in,
+.runbook-prose .hljs-literal,
+.runbook-prose .hljs-type,
+.runbook-prose .hljs-meta {
+  color: var(--code-keyword);
+}
+
+.runbook-prose .hljs-string,
+.runbook-prose .hljs-regexp,
+.runbook-prose .hljs-symbol {
+  color: var(--code-string);
+}
+
+.runbook-prose .hljs-number {
+  color: var(--code-number);
+}
+
+.runbook-prose .hljs-title,
+.runbook-prose .hljs-function,
+.runbook-prose .hljs-variable,
+.runbook-prose .hljs-template-variable {
+  color: var(--code-name);
+}
+
+.runbook-prose .hljs-attr,
+.runbook-prose .hljs-attribute,
+.runbook-prose .hljs-property,
+.runbook-prose .hljs-params {
+  color: var(--code-attr);
+}
+
+.runbook-prose .hljs-comment,
+.runbook-prose .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+/* Headings: a body `#` sits a step below the page title, and the deepest
+   levels stay distinct from body text. Anchored ones clear the pane's edge. */
+.runbook-prose :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 1rem;
+}
+
+.runbook-prose h1 {
+  font-size: 1.875em;
+}
+
+.runbook-prose h5,
+.runbook-prose h6 {
+  font-size: 0.875em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+.runbook-prose .runbook-external-icon {
+  display: inline;
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 0.1em;
+  vertical-align: -0.05em;
+  color: var(--muted-foreground);
+}
+
+/* Callouts: GitHub's alert syntax, each with its own accent. */
+.runbook-prose .runbook-callout {
+  --callout: var(--muted-foreground);
+  margin: 1.5rem 0;
+  border: 1px solid color-mix(in oklab, var(--callout) 35%, transparent);
+  border-left-width: 3px;
+  border-radius: 0.375rem;
+  background: color-mix(in oklab, var(--callout) 7%, transparent);
+  padding: 0.75rem 1rem;
+}
+
+.runbook-prose .runbook-callout[data-callout="note"] {
+  --callout: oklch(0.72 0.12 240);
+}
+
+.runbook-prose .runbook-callout[data-callout="tip"] {
+  --callout: oklch(0.75 0.14 150);
+}
+
+.runbook-prose .runbook-callout[data-callout="important"] {
+  --callout: oklch(0.72 0.14 300);
+}
+
+.runbook-prose .runbook-callout[data-callout="warning"] {
+  --callout: oklch(0.8 0.14 75);
+}
+
+.runbook-prose .runbook-callout[data-callout="caution"] {
+  --callout: oklch(0.68 0.19 25);
+}
+
+.runbook-prose .runbook-callout > * {
+  margin: 0.5rem 0 0;
+}
+
+.runbook-prose .runbook-callout > .runbook-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 600;
+  color: var(--callout);
+}
+
+/* Images open full size on click. */
+/* Full width: a button shrinks to its content, and an SVG without its own
+   size then shrinks to nothing. */
+.runbook-prose .runbook-image-zoom {
+  display: block;
+  width: 100%;
+  text-align: start;
+  border-radius: 0.375rem;
+}
+
+.runbook-prose .runbook-image-zoom img {
+  display: inline-block;
+  margin: 0;
+  cursor: zoom-in;
+}
+
+/* Code: lines a fence marks with {…}, and wrapping long lines on demand. */
+.runbook-prose pre .code-line {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.runbook-prose pre .code-line[data-marked] {
+  margin: 0 -1rem;
+  border-left: 2px solid var(--primary);
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
+  padding: 0 1rem 0 calc(1rem - 2px);
+  min-width: calc(100% + 2rem);
+}
+
+.runbook-prose pre[data-wrap] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The bare HTML a runbook may use. */
+.runbook-prose details {
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.runbook-prose details > summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.runbook-prose details[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.runbook-prose kbd {
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.05rem 0.375rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8em;
+}
+
+.runbook-prose mark {
+  border-radius: 0.2rem;
+  background: color-mix(in oklab, var(--primary) 25%, transparent);
+  color: var(--foreground);
+  padding: 0 0.2rem;
+}

@@ -1,4 +1,6 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Link } from "@tanstack/react-router";
+import { ArrowUpRight } from "lucide-react";
 import {
   Children,
   type ComponentPropsWithoutRef,
@@ -11,29 +13,42 @@ import {
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { hrefHash } from "#app/data/runbooks/pages.ts";
+import { nodeText, RunbookCodeBlock } from "./runbook-code-block";
+import { HEADING_COMPONENTS, RunbookBlockquote, RunbookImage } from "./runbook-markdown-blocks";
+import {
+  remarkAllowedHtml,
+  remarkCallouts,
+  remarkCodeMeta,
+  remarkHeadingIds,
+  remarkImagesInLinks,
+} from "./runbook-markdown-plugins";
 import { PanelEmbedBlock } from "./runbook-panel-embed";
 
-/** Flatten react-markdown code children to the raw fence text. */
-function codeText(children: ReactNode): string {
-  return Children.toArray(children)
-    .map((c) => (typeof c === "string" ? c : ""))
-    .join("");
-}
-
 /**
- * ```panel fences arrive as <pre><code className="language-panel">. Intercept
- * at the <pre> level so the embed replaces the whole block (a Card inside a
- * <pre> would be invalid markup); every other block renders as normal code.
+ * Fences arrive as <pre><code className="language-…">. Intercept at the <pre>
+ * level so a ```panel embed replaces the whole block (a Card inside a <pre>
+ * would be invalid markup); every other block renders as a code block.
  */
-function PreBlock({ node: _node, children, ...props }: AnchorOrBlockProps<"pre">) {
+function PreBlock({ children }: AnchorOrBlockProps<"pre">) {
   const only = Children.toArray(children)[0];
-  if (isValidElement<{ className?: string; children?: ReactNode }>(only)) {
-    const { className, children: code } = only.props;
-    if (className?.split(" ").includes("language-panel")) {
-      return <PanelEmbedBlock source={codeText(code)} />;
-    }
-  }
-  return <pre {...props}>{children}</pre>;
+  const {
+    className,
+    children: code,
+    "data-meta": meta,
+  } = isValidElement<{
+    className?: string;
+    children?: ReactNode;
+    // The fence's info string after its language (see remarkCodeMeta).
+    "data-meta"?: string;
+  }>(only)
+    ? only.props
+    : {};
+  const language = className
+    ?.split(" ")
+    .find((name) => name.startsWith("language-"))
+    ?.slice("language-".length);
+  if (language === "panel") return <PanelEmbedBlock source={nodeText(code)} />;
+  return <RunbookCodeBlock language={language} meta={meta} code={nodeText(code)} />;
 }
 
 /**
@@ -98,6 +113,10 @@ function RunbookAnchor({ node: _node, href, children, ...props }: AnchorOrBlockP
   // External links open in a new tab (rel guards against tab-nabbing) so a click
   // doesn't navigate the whole app away; hash/app-relative links stay in place.
   const external = typeof href === "string" && isExternalHref(href);
+  // A linked image needs no arrow beside it.
+  const onlyImage = Children.toArray(children).every(
+    (child) => isValidElement(child) && child.type === RunbookImage,
+  );
   return (
     <a
       href={href}
@@ -105,14 +124,43 @@ function RunbookAnchor({ node: _node, href, children, ...props }: AnchorOrBlockP
       {...props}
     >
       {children}
+      {external && /^(https?:)?\/\//i.test(href) && !onlyImage && (
+        <ArrowUpRight aria-label="(opens in a new tab)" className="runbook-external-icon" />
+      )}
     </a>
+  );
+}
+
+/** A wide table scrolls on its own rather than squeezing its columns. */
+function ScrollingTable({
+  node: _node,
+  ...props
+}: ComponentPropsWithoutRef<"table"> & { node?: unknown }) {
+  return (
+    <ScrollArea className="runbook-table" orientation="horizontal">
+      <table {...props} />
+    </ScrollArea>
   );
 }
 
 // Stable references: react-markdown re-parses/re-renders when these change
 // identity, so they live at module scope rather than inline.
-const MARKDOWN_COMPONENTS: Components = { pre: PreBlock, a: RunbookAnchor };
-const REMARK_PLUGINS = [remarkGfm];
+const MARKDOWN_COMPONENTS: Components = {
+  ...HEADING_COMPONENTS,
+  pre: PreBlock,
+  a: RunbookAnchor,
+  table: ScrollingTable,
+  blockquote: RunbookBlockquote,
+  img: RunbookImage,
+};
+const REMARK_PLUGINS = [
+  remarkGfm,
+  remarkAllowedHtml,
+  remarkCallouts,
+  remarkHeadingIds,
+  remarkCodeMeta,
+  remarkImagesInLinks,
+];
 
 interface RunbookMarkdownProps {
   markdown: string;
@@ -131,8 +179,7 @@ export function RunbookMarkdown({ markdown, resolveLink, project, slug }: Runboo
   // so prose-invert is applied unconditionally for readable text.
   return (
     <RunbookLinkContext.Provider value={linkContext}>
-      {/* `scroll-mt` keeps an anchored heading off the top edge of the pane. */}
-      <div className="prose prose-invert max-w-none [&_h2]:scroll-mt-4 [&_h3]:scroll-mt-4">
+      <div className="runbook-prose prose prose-invert max-w-none">
         <Markdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
           {markdown}
         </Markdown>
