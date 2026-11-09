@@ -25,7 +25,7 @@ import {
   seriesTooltipRows,
   useSeriesLegend,
 } from "@everr/ui/components/series-legend";
-import { useEChart } from "@everr/ui/hooks/use-echart";
+import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
@@ -245,7 +245,8 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   }, [measured, width, horizontal, gridBottom, chartData.length, tickInterval, categoryLabels]);
 
   useEffect(() => {
-    if (!chart || !theme || !layout) return;
+    const element = chartElementRef.current;
+    if (!chart || !theme || !layout || !element) return;
     const plain = plainAxisOption(theme);
     const categoryAxis = {
       type: "category" as const,
@@ -265,7 +266,9 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       grid: layout.grid,
       xAxis: horizontal ? valueAxis : categoryAxis,
       yAxis: horizontal ? categoryAxis : valueAxis,
-      series: series.map(({ id, color }): BarSeriesOption => {
+      series: series.map(({ id, color: cssColor }): BarSeriesOption => {
+        // The canvas can't read CSS variables, so a themed color resolves here.
+        const color = resolveCssColor(element, cssColor);
         const dimmed = activeSeries !== null && activeSeries !== id;
         const labels = valueLabels?.get(id);
         return {
