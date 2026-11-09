@@ -9,6 +9,8 @@ export interface HeatmapCell {
   end: number;
   /** Index into `yBuckets`. */
   bucket: number;
+  /** Index into the column grid. */
+  column: number;
   value: number;
 }
 
@@ -100,6 +102,12 @@ export function buildHeatmapModel(
     if (gap > 0 && gap < step) step = gap;
   }
 
+  // Columns are anchored on the samples and extended to cover the range, so
+  // empty stretches keep their place on the axis.
+  const anchor = times[0] ?? domain[0];
+  const start = anchor + Math.floor((domain[0] - anchor) / step) * step;
+  const count = Math.max(1, Math.ceil((domain[1] - start) / step));
+
   const cells: HeatmapCell[] = [];
   let lo = Number.POSITIVE_INFINITY;
   let hi = Number.NEGATIVE_INFINITY;
@@ -107,20 +115,17 @@ export function buildHeatmapModel(
     for (let b = 0; b < yBuckets.length; b++) {
       const value = sums.get(`${ts}${SEP}${yBuckets[b]}`);
       if (value === undefined) continue;
-      const start = Math.max(ts, domain[0]);
-      const end = Math.min(ts + step, domain[1]);
-      if (end <= start) continue;
-      cells.push({ start, end, bucket: b, value });
+      const cellStart = Math.max(ts, domain[0]);
+      const cellEnd = Math.min(ts + step, domain[1]);
+      if (cellEnd <= cellStart) continue;
+      // Irregular samples need not sit on the grid: a cell goes in the
+      // column its start falls in.
+      const column = Math.min(count - 1, Math.max(0, Math.floor((cellStart - start) / step)));
+      cells.push({ start: cellStart, end: cellEnd, bucket: b, column, value });
       if (value < lo) lo = value;
       if (value > hi) hi = value;
     }
   }
-
-  // Columns are anchored on the samples and extended to cover the range, so
-  // empty stretches keep their place on the axis.
-  const anchor = times[0] ?? domain[0];
-  const start = anchor + Math.floor((domain[0] - anchor) / step) * step;
-  const count = Math.max(1, Math.ceil((domain[1] - start) / step));
 
   const min = spec.min ?? (cells.length ? Math.min(0, lo) : 0);
   const max = spec.max ?? (cells.length ? hi : 1);

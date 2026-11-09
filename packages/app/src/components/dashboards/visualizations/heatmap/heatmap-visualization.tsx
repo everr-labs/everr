@@ -21,7 +21,7 @@ import {
   timeLabelFormatter,
   VALUE_AXIS_EDGE_INSET,
 } from "../echarts/axis";
-import { type GridInsets, plotWithin, ratioWithin } from "../echarts/plot-rect";
+import { type GridInsets, getPlotRect, plotWithin, ratioWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
 import { PanelEmptyState } from "../panel-empty-state";
 import { TimeTrackOverlay, useTimeTrack } from "../time-track";
@@ -49,6 +49,8 @@ const VALUE_FONT_SIZE = 10;
 const VALUE_MIN_HEIGHT = 12;
 /** Room kept clear on either side of a value inside its cell. */
 const VALUE_PADDING = 6;
+
+const LEGEND_STOPS = Array.from({ length: 9 }, (_, i) => i / 8);
 
 /** Nothing to do on resize: the hovered cell is looked up again on the next move. */
 const ignoreResize = () => {};
@@ -86,25 +88,17 @@ export function HeatmapVisualization({
   const chart = mounted?.chart ?? null;
   const theme = mounted?.theme ?? null;
 
-  const cellAppearance = useCallback(
-    (value: number) => {
-      const position = normalizeValue(value, model?.domain ?? [0, 1], spec.scaleType);
-      const rgb = heatmapColorRgb(spec.colorScheme, position);
-      return { position, fill: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`, dark: isDarkColor(rgb) };
-    },
-    [spec.colorScheme, spec.scaleType, model?.domain],
+  /** Where a value sits on the color scale, 0..1. */
+  const scalePosition = useCallback(
+    (value: number) => normalizeValue(value, model?.domain ?? [0, 1], spec.scaleType),
+    [spec.scaleType, model?.domain],
   );
 
-  // Each cell's column and row, keyed for the hover lookup.
-  const cellAt = useMemo(() => {
-    const byKey = new Map<string, HeatmapCell>();
-    if (!model) return { byKey, column: () => 0 };
-    const { start, step, count } = model.columns;
-    const column = (cell: HeatmapCell) =>
-      Math.min(count - 1, Math.max(0, Math.floor((cell.start - start) / step)));
-    for (const cell of model.cells) byKey.set(`${column(cell)}:${cell.bucket}`, cell);
-    return { byKey, column };
-  }, [model]);
+  // Keyed by column and row, for the hover lookup.
+  const cellAt = useMemo(
+    () => new Map(model?.cells.map((cell) => [`${cell.column}:${cell.bucket}`, cell])),
+    [model],
+  );
 
   const grid = useMemo<GridInsets | null>(() => {
     if (!theme || !model) return null;
@@ -205,9 +199,10 @@ export function HeatmapVisualization({
           silent: true,
           progressive: 0,
           data: model.cells.map((cell) => {
-            const { position, dark } = cellAppearance(cell.value);
+            const position = scalePosition(cell.value);
+            const dark = isDarkColor(heatmapColorRgb(spec.colorScheme, position));
             return {
-              value: [cellAt.column(cell), cell.bucket, position, cell.value],
+              value: [cell.column, cell.bucket, position, cell.value],
               label: {
                 show: valueRoom > 0 && measureValue(formatter.format(cell.value)) <= valueRoom,
                 color: dark ? "#fff" : "#000",
@@ -222,13 +217,12 @@ export function HeatmapVisualization({
     };
     chart.setOption(option, { notMerge: true });
   }, [
-    cellAppearance,
-    cellAt,
     domain,
     formatter,
     grid,
     model,
     mounted,
+    scalePosition,
     spec.cellGap,
     spec.colorScheme,
     spec.showValues,
@@ -247,19 +241,26 @@ export function HeatmapVisualization({
   // The cell under the pointer: a canvas has no element per cell to hover.
   const hoverCell = (e: React.MouseEvent) => {
     const element = chartElementRef.current;
-    if (!element || !grid) return hoverAt(null, e);
-    const box = element.getBoundingClientRect();
-    const left = box.left + grid.left;
-    const top = box.top + grid.top;
-    const width = box.width - grid.left - grid.right;
-    const height = box.height - grid.top - grid.bottom;
-    if (e.clientX < left || e.clientX > left + width || e.clientY < top || e.clientY > top + height)
+    const plot = element && grid ? getPlotRect(element, grid) : null;
+    if (
+      !plot ||
+      e.clientX < plot.left ||
+      e.clientX > plot.left + plot.width ||
+      e.clientY < plot.top ||
+      e.clientY > plot.top + plot.height
+    )
       return hoverAt(null, e);
     const { count } = model.columns;
-    const column = Math.min(count - 1, Math.floor(ratioWithin(e.clientX, left, width) * count));
+    const column = Math.min(
+      count - 1,
+      Math.floor(ratioWithin(e.clientX, plot.left, plot.width) * count),
+    );
     const rows = model.yBuckets.length;
-    const bucket = Math.min(rows - 1, Math.floor(ratioWithin(e.clientY, top, height) * rows));
-    const cell = cellAt.byKey.get(`${column}:${bucket}`);
+    const bucket = Math.min(
+      rows - 1,
+      Math.floor(ratioWithin(e.clientY, plot.top, plot.height) * rows),
+    );
+    const cell = cellAt.get(`${column}:${bucket}`);
     hoverAt(cell ? { bucket: model.yBuckets[bucket] ?? "", cell } : null, e);
   };
 
@@ -298,15 +299,10 @@ export function HeatmapVisualization({
               style={{
                 // Sampled through the scale curve so the ramp matches the
                 // actual cell fills under sqrt/log scales too.
-                background: `linear-gradient(to right, ${[
-                  0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1,
-                ]
-                  .map((p) => {
-                    const v = d0 + p * (d1 - d0);
-                    const t = normalizeValue(v, [d0, d1], spec.scaleType);
-                    return `${heatmapColor(spec.colorScheme, t)} ${p * 100}%`;
-                  })
-                  .join(", ")})`,
+                background: `linear-gradient(to right, ${LEGEND_STOPS.map(
+                  (p) =>
+                    `${heatmapColor(spec.colorScheme, scalePosition(d0 + p * (d1 - d0)))} ${p * 100}%`,
+                ).join(", ")})`,
               }}
             />
           </span>
@@ -321,7 +317,7 @@ export function HeatmapVisualization({
             rows={[
               {
                 key: hover.target.bucket,
-                color: cellAppearance(hover.target.cell.value).fill,
+                color: heatmapColor(spec.colorScheme, scalePosition(hover.target.cell.value)),
                 label: hover.target.bucket,
                 value: formatter.format(hover.target.cell.value),
               },

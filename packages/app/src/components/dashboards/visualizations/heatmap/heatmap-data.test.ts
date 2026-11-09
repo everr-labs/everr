@@ -28,9 +28,9 @@ describe("buildHeatmapModel", () => {
     expect(model.yBuckets).toEqual(["/api", "/web"]);
     // step = 40s gap between the two distinct timestamps
     expect(model.cells).toEqual([
-      { start: 10_000, end: 50_000, bucket: 0, value: 3 },
-      { start: 10_000, end: 50_000, bucket: 1, value: 1 },
-      { start: 50_000, end: 90_000, bucket: 0, value: 7 },
+      { start: 10_000, end: 50_000, bucket: 0, column: 1, value: 3 },
+      { start: 10_000, end: 50_000, bucket: 1, column: 1, value: 1 },
+      { start: 50_000, end: 90_000, bucket: 0, column: 2, value: 7 },
     ]);
     expect(model.domain).toEqual([0, 7]);
     // Columns on the samples' 40s grid, extended to cover the whole range.
@@ -93,7 +93,7 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toEqual([{ start: 10_000, end: 100_000, bucket: 0, value: 10 }]);
+    expect(model.cells).toMatchObject([{ start: 10_000, end: 100_000, bucket: 0, value: 10 }]);
   });
 
   it("clamps cells to the domain and drops fully outside ones", () => {
@@ -108,7 +108,7 @@ describe("buildHeatmapModel", () => {
       DOMAIN,
     );
     // step = 30s; the 90s cell clamps to the domain end, the 120s one is out
-    expect(model.cells).toEqual([{ start: 90_000, end: 100_000, bucket: 0, value: 1 }]);
+    expect(model.cells).toMatchObject([{ start: 90_000, end: 100_000, bucket: 0, value: 1 }]);
   });
 
   it("floors the default color domain at 0 and honors explicit min/max", () => {
@@ -131,7 +131,7 @@ describe("buildHeatmapModel", () => {
       specWith(),
       DOMAIN,
     );
-    expect(model.cells).toEqual([{ start: 10_000, end: 100_000, bucket: 0, value: 4 }]);
+    expect(model.cells).toMatchObject([{ start: 10_000, end: 100_000, bucket: 0, value: 4 }]);
   });
 
   it("returns an empty model without a time column", () => {
