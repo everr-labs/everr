@@ -104,7 +104,7 @@ export function LaneTimelineChart({
 
   // The item under the pointer: a canvas has no element per item to hover.
   const track = useTimeTrack(domain, onTimeRangeChange, (e) => {
-    const at = chart && grid ? pointerInPlot(chartElementRef.current, grid, e) : null;
+    const at = pointerInPlot(chartElementRef.current, grid, e);
     if (!at || !chart || !grid) return null;
     const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
     if (!lane) return null;
@@ -143,7 +143,6 @@ export function LaneTimelineChart({
         {
           type: "custom",
           silent: true,
-          clip: true,
           encode: { x: [1, 2], y: 0 },
           data: lanes.flatMap((lane, index) =>
             lane.items.map((item) => [index, item.start, item.end, states.indexOf(item.state)]),
