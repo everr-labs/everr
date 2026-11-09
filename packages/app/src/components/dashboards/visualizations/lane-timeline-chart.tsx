@@ -1,6 +1,7 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
+import { readableForeground } from "@everr/ui/lib/contrast";
 import { CustomChart, type CustomSeriesOption } from "echarts/charts";
 import type { GridComponentOption } from "echarts/components";
 import * as echarts from "echarts/core";
@@ -123,6 +124,8 @@ export function LaneTimelineChart({
       const color = colorByState[state] ?? theme.textColor;
       return element ? resolveCssColor(element, color) : color;
     });
+    // Blocks are opaque, so a value reads on the block color alone.
+    const textFills = fills.map((fill) => readableForeground(fill)?.color ?? theme.foregroundColor);
     // A value shows only where it fits its item whole.
     const measure = createTextMeasurer(theme.fontFamily, VALUE_FONT_SIZE);
     const valueWidths = states.map((state) => measure(state) + VALUE_PADDING);
@@ -170,7 +173,7 @@ export function LaneTimelineChart({
                     type: "text" as const,
                     style: {
                       text: states[state],
-                      fill: "#fff",
+                      fill: textFills[state],
                       fontSize: VALUE_FONT_SIZE,
                       fontWeight: 500,
                       fontFamily: theme.fontFamily,
