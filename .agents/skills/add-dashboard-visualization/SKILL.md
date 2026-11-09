@@ -128,7 +128,8 @@ their tooltip content structure for visual consistency.
 `visualizations/shared-time-cursor.tsx`, a visualization drawn over time
 calls `usePointTimeCursor()` and uses `set(timestamp)` while the pointer is
 over its plot and `clear()` when it leaves. It draws the cursor with
-`CursorLine` in a small component that calls `useTimeCursor()`. That
+`CursorLine` (`@everr/ui/components/cursor-line`) in a small component
+that calls `useTimeCursor()`. That
 component is the only one that re-renders on every pointer move, so never
 read the cursor at the top of the visualization. Panels drawn as labeled
 rows over the time range (like the heatmap and lane charts) get all of this,
