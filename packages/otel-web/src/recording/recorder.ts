@@ -4,7 +4,7 @@
 import { setAttributes } from "@everr/otel-web";
 import { record } from "@rrweb/record";
 import type { InstrumentationContext } from "../instrumentations/runtime.js";
-import type { SendEvent } from "../pipeline/emitter.js";
+import type { SegmentRequest, SendEvent } from "../pipeline/emitter.js";
 import type { RecordingClip, RecordingOptions, StartClipOptions } from "../recording.js";
 import { randomHex } from "../state/session.js";
 import { privacy } from "./privacy.js";
@@ -91,7 +91,7 @@ const compress = (text: string) =>
 // network error tries plain. A lost Segment leaves a hole in each Clip that
 // needs it, and a lost snapshot piece leaves the Clip blank.
 const deliver = (
-  request: NonNullable<ReturnType<InstrumentationContext["emitNow"]>>,
+  request: SegmentRequest,
   retries = 2,
   // null sends plain.
   zipped = gzip && request[2] ? compress(request[0]) : null,
