@@ -109,8 +109,8 @@ export function HeatmapVisualization({
     const measure = createTextMeasurer(theme.fontFamily);
     return {
       left: Math.min(MAX_BUCKET_LABEL_WIDTH, axisLabelsWidth(model.yBuckets, measure)),
-      right: 8,
-      top: 4,
+      right: 0,
+      top: 0,
       bottom: TIME_AXIS_HEIGHT,
     };
   }, [theme, model]);
@@ -258,7 +258,7 @@ export function HeatmapVisualization({
   const [d0, d1] = model.domain;
 
   return (
-    <div className="flex h-full select-none flex-col overflow-hidden">
+    <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
       <div
         className="relative min-h-0 flex-1"
         {...track.handlers}
