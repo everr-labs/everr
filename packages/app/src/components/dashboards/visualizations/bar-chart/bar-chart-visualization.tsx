@@ -18,9 +18,16 @@ import {
   plainAxisOption,
   timeLabelFormatter,
   VALUE_AXIS_EDGE_INSET,
+  VALUE_LABEL_OVERHANG,
   valueAxisOption,
 } from "../echarts/axis";
-import { type GridInsets, getPlotRect, plotWithin, ratioWithin } from "../echarts/plot-rect";
+import {
+  type GridInsets,
+  getPlotRect,
+  gridOption,
+  plotWithin,
+  ratioWithin,
+} from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -258,8 +265,12 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     const grid: GridInsets = {
       // Snug to the panel like the time series: room only for value labels
       // above or beside the bars, and for the last value tick, centered on
-      // the right edge of a horizontal chart.
-      top: !horizontal && widestValueLabel > 0 ? VALUE_LABEL_FONT_SIZE + 12 : 0,
+      // the top or right edge.
+      top: horizontal
+        ? 0
+        : widestValueLabel > 0
+          ? VALUE_LABEL_FONT_SIZE + 12
+          : VALUE_LABEL_OVERHANG,
       bottom: gridBottom,
       ...(horizontal
         ? {
@@ -305,7 +316,7 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
     const valueAxis = valueAxisOption({ theme, scale, format: formatValueTick });
     const option: ChartOption = {
       animation: false,
-      grid: layout.grid,
+      grid: gridOption(layout.grid),
       xAxis: horizontal ? valueAxis : categoryAxis,
       yAxis: horizontal ? categoryAxis : valueAxis,
       series: series.map(({ id, color: cssColor }): BarSeriesOption => {
@@ -363,13 +374,19 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const element = chartElementRef.current;
-      if (isOnLegend(e.target) || !element || !layout) {
+      const plot =
+        !isOnLegend(e.target) && element && layout ? getPlotRect(element, layout.grid) : null;
+      const inPlot =
+        plot &&
+        e.clientX >= plot.left &&
+        e.clientX <= plot.left + plot.width &&
+        e.clientY >= plot.top &&
+        e.clientY <= plot.top + plot.height;
+      if (!plot || !inPlot) {
         setTooltipState(null);
         clearCursor();
         return;
       }
-      const plot = getPlotRect(element, layout.grid);
-      if (!plot) return;
       const ratio = horizontal
         ? ratioWithin(e.clientY, plot.top, plot.height)
         : ratioWithin(e.clientX, plot.left, plot.width);

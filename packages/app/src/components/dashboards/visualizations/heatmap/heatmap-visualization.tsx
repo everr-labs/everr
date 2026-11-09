@@ -13,11 +13,11 @@ import type { ComposeOption } from "echarts/core";
 import { Grid3x3 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { normalizeValue } from "../color-scale";
-import { generateTimeTicks } from "../data-utils";
 import {
   createTextMeasurer,
   plainAxisOption,
   rowLabelAxis,
+  timeAxisTicks,
   timeLabelFormatter,
 } from "../echarts/axis";
 import { gridOption, plotWithin } from "../echarts/plot-rect";
@@ -35,7 +35,6 @@ type ChartOption = ComposeOption<
   HeatmapSeriesOption | GridComponentOption | VisualMapComponentOption
 >;
 
-const TIME_LABELS = 6;
 /** Columns narrower than this many gaps get no gap between them: it would
  * cover most of the cell. */
 const MIN_GAPPED_COLUMN = 4;
@@ -99,7 +98,12 @@ export function HeatmapVisualization({
     size: mounted,
     grid,
     domain: gridRange,
-    onTimeRangeChange,
+    // The column grid runs past the time range: a zoom never reaches outside it.
+    onTimeRangeChange: ({ from, to }) => {
+      const start = Math.max(from.getTime(), domain[0]);
+      const end = Math.min(to.getTime(), domain[1]);
+      if (end > start) onTimeRangeChange({ from: new Date(start), to: new Date(end) });
+    },
     itemAt: (at) => {
       if (!model) return null;
       const { count } = model.columns;
@@ -137,7 +141,7 @@ export function HeatmapVisualization({
     });
     const formatTime = timeLabelFormatter(domain);
     const tickByColumn = new Map(
-      generateTimeTicks(domain, TIME_LABELS).map((tick) => [
+      timeAxisTicks(theme, domain, plot.width).map((tick) => [
         Math.floor((tick - start) / step),
         tick,
       ]),

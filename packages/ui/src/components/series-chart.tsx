@@ -175,7 +175,10 @@ export function SeriesChart({
           data: labels.map((_, index) => String(index)),
           boundaryGap: hasBars,
           axisLine: { show: false },
-          axisTick: { show: false },
+          // Every category gets a tick, though none is drawn: the shaded
+          // range snaps to ticks, and only labelled ones would leave it
+          // spanning more bars than selected.
+          axisTick: { show: false, interval: 0 },
           axisLabel: {
             ...text,
             hideOverlap: true,
@@ -236,12 +239,14 @@ export function SeriesChart({
     );
   }, [activeSeries, axes, chart, compact, grid, labels, series, shadeFrom, shadeTo, theme]);
 
-  const pointAt = (event: PointerEvent): Pointer | null => {
+  /** The point under the pointer; outside the plot, null, or with
+   * `clamped` the nearest point at its edge (a drag running past it). */
+  const pointAt = (event: PointerEvent, clamped = false): Pointer | null => {
     const element = elementRef.current;
     if (!chart || !element || labels.length === 0) return null;
     const bounds = element.getBoundingClientRect();
     const pixel = [event.clientX - bounds.left, event.clientY - bounds.top];
-    if (!chart.containPixel({ gridIndex: 0 }, pixel)) return null;
+    if (!clamped && !chart.containPixel({ gridIndex: 0 }, pixel)) return null;
     const raw = chart.convertFromPixel({ xAxisIndex: 0 }, pixel[0]);
     if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
     const index = Math.max(0, Math.min(labels.length - 1, Math.round(raw)));
@@ -249,13 +254,11 @@ export function SeriesChart({
   };
 
   const handlePointerMove = (event: PointerEvent) => {
-    if (isOnLegend(event.target)) {
-      setPointer(null);
-      return;
+    if (drag) {
+      const point = pointAt(event, true);
+      if (point) setDrag({ ...drag, to: point.index });
     }
-    const point = pointAt(event);
-    setPointer(point);
-    if (point && drag) setDrag({ ...drag, to: point.index });
+    setPointer(isOnLegend(event.target) ? null : pointAt(event));
   };
 
   const handlePointerDown = (event: PointerEvent) => {
@@ -263,6 +266,8 @@ export function SeriesChart({
     const point = pointAt(event);
     if (!point) return;
     setDrag({ from: point.index, to: point.index });
+    // Keep the drag when it runs past the chart's edge.
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerUp = () => {
@@ -287,10 +292,7 @@ export function SeriesChart({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
-      onPointerLeave={() => {
-        setPointer(null);
-        setDrag(null);
-      }}
+      onPointerLeave={() => setPointer(null)}
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       <div ref={elementRef} className="pointer-events-none h-full w-full" />

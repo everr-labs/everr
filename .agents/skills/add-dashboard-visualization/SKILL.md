@@ -134,8 +134,13 @@ component is the only one that re-renders on every pointer move, so never
 read the cursor at the top of the visualization. Panels with a time x-axis
 (the time series, heatmap and lane charts) get all of this, plus drag-to-zoom
 and the hovered item, from `useTimeTrack` in `visualizations/time-track.tsx`:
-give it the chart element, its size from `useEChart`, the grid insets and an `itemAt` lookup, spread its
-`handlers` on the chart area, and render `TimeTrackOverlay` over the plot. Add the new panel to
+give it the chart element, its size from `useEChart`, the grid insets, the
+time `domain` the plot spans, `onTimeRangeChange` for zooms and an `itemAt`
+lookup. Spread its `handlers` on the chart area, and render `TimeTrackOverlay`
+with the same `domain`, its `brush` and the plot rect from `plotWithin`. Pass
+the grid to ECharts through `gridOption`, so ECharts draws the plot exactly
+where the overlay and hover expect it, and label a time x-axis with
+`timeAxisOption`, whose labels never run past the panel edge. Add the new panel to
 `everr/demo/all-panels.dashboard.yaml` to check it against the others.
 
 **Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:

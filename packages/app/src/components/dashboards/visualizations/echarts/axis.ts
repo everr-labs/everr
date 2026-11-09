@@ -1,10 +1,15 @@
 import type { YAXisComponentOption } from "echarts";
-import { niceLinearDomain } from "../data-utils";
+import { generateTimeTicks, niceLinearDomain } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
 import type { ChartValueAxis } from "@everr/ui/components/series-chart";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
 
 const AXIS_FONT_SIZE = 12;
+/** How far the top value label reaches above the plot: labels are centered
+ * on their ticks, and the top tick is the plot's top edge. */
+export const VALUE_LABEL_OVERHANG = AXIS_FONT_SIZE / 2;
+/** Time labels per axis, at most. */
+const TIME_TICKS = 6;
 export const AXIS_LABEL_MARGIN = 8;
 /** Breathing room between the value labels and the panel edge. */
 export const VALUE_AXIS_EDGE_INSET = 8;
@@ -99,17 +104,33 @@ export function timeLabelFormatter(domain: [number, number]): (value: number) =>
   return (value) => format.format(value);
 }
 
-/** A label-only time axis over `domain`, one tick per day at most. */
-export function timeAxisOption(theme: ChartTheme, domain: [number, number]) {
+/**
+ * Round times across `domain` to label on a plot `plotWidth` wide. Labels are
+ * centered on their ticks and the plot runs to the panel's right edge, so a
+ * tick closer to it than half its label goes unlabelled rather than cut off.
+ */
+export function timeAxisTicks(theme: ChartTheme, domain: [number, number], plotWidth: number) {
+  const format = timeLabelFormatter(domain);
+  const measure = createTextMeasurer(theme.fontFamily);
+  const span = domain[1] - domain[0];
+  return generateTimeTicks(domain, TIME_TICKS).filter(
+    (tick) => ((domain[1] - tick) / span) * plotWidth >= measure(format(tick)) / 2,
+  );
+}
+
+/** A label-only time axis over `domain`, on a plot `plotWidth` wide. */
+export function timeAxisOption(theme: ChartTheme, domain: [number, number], plotWidth: number) {
   const plain = plainAxisOption(theme);
   return {
     type: "time" as const,
     min: domain[0],
     max: domain[1],
-    splitNumber: 6,
-    minInterval: domain[1] - domain[0] > DAY ? DAY : undefined,
     ...plain,
-    axisLabel: { ...plain.axisLabel, formatter: timeLabelFormatter(domain) },
+    axisLabel: {
+      ...plain.axisLabel,
+      customValues: timeAxisTicks(theme, domain, plotWidth),
+      formatter: timeLabelFormatter(domain),
+    },
   };
 }
 

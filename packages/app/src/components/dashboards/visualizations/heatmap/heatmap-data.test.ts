@@ -98,13 +98,24 @@ describe("buildHeatmapModel", () => {
     expect(model.columns).toEqual({ start: 0, step: 100_000, count: 1 });
   });
 
-  it("keeps the grid coarse when a stray sample sits close to another", () => {
-    // 10s samples plus one 1ms off: without a floor that is 100,000 columns.
+  it("sizes columns on the regular interval despite a stray sample", () => {
     const rows = [0, 10, 20, 20.001, 30].map((s) => ({ ts: ts(s), route: "/api", count: 1 }));
     const model = buildHeatmapModel([rows], specWith(), DOMAIN);
-    expect(model.columns.count).toBeLessThanOrEqual(1000);
-    // The two samples sharing a column sum into one cell.
+    expect(model.columns.step).toBe(10_000);
+    // The stray sample shares its neighbor's column, and they sum.
     expect(model.cells.map((cell) => cell.value)).toEqual([1, 1, 2, 1]);
+  });
+
+  it("merges the same number of samples into every column past the column cap", () => {
+    // A day of minute samples is more columns than any panel is wide.
+    const day: [number, number] = [0, 86_400_000];
+    const rows = Array.from({ length: 1440 }, (_, m) => ({
+      ts: ts(m * 60),
+      route: "/api",
+      count: 1,
+    }));
+    const model = buildHeatmapModel([rows], specWith(), day);
+    expect(new Set(model.cells.map((cell) => cell.value))).toEqual(new Set([2]));
   });
 
   it("clamps cells to the domain and drops fully outside ones", () => {

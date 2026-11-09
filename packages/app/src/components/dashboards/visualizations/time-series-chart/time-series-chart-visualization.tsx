@@ -14,9 +14,10 @@ import {
   createTextMeasurer,
   niceValueAxis,
   timeAxisOption,
+  VALUE_LABEL_OVERHANG,
   valueAxisOption,
 } from "../echarts/axis";
-import { type GridInsets, plotWithin } from "../echarts/plot-rect";
+import { type GridInsets, gridOption, plotWithin } from "../echarts/plot-rect";
 import {
   SeriesLegend,
   seriesTooltipRows,
@@ -128,13 +129,14 @@ export function TimeSeriesChartVisualization({
     return {
       left: axisLabelsWidth(yAxis.ticks.map(formatAxisValue), measure),
       right: 0,
-      top: 0,
+      top: VALUE_LABEL_OVERHANG,
       bottom: gridBottom,
     };
   }, [theme, yAxis, formatAxisValue, gridBottom]);
 
   useEffect(() => {
-    if (!chart || !theme || !grid) return;
+    if (!mounted || !grid) return;
+    const { chart, theme } = mounted;
     const series: LineSeriesOption[] = modelSeries.map((item, index) => {
       const { id, color } = item;
       const points = stackedData?.[index] ?? item.data;
@@ -158,8 +160,8 @@ export function TimeSeriesChartVisualization({
     });
     const option: ChartOption = {
       animation: false,
-      grid,
-      xAxis: timeAxisOption(theme, domain),
+      grid: gridOption(grid),
+      xAxis: timeAxisOption(theme, domain, plotWithin(mounted, grid).width),
       yAxis: valueAxisOption({
         theme,
         scale: yAxis,
@@ -170,7 +172,6 @@ export function TimeSeriesChartVisualization({
     chart.setOption(option, { notMerge: true });
   }, [
     activeSeries,
-    chart,
     connectNulls,
     curveType,
     domain,
@@ -178,9 +179,9 @@ export function TimeSeriesChartVisualization({
     grid,
     lineWidth,
     modelSeries,
+    mounted,
     stacked,
     stackedData,
-    theme,
     yAxis,
   ]);
 

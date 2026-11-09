@@ -16,7 +16,7 @@ export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
   const chart = useMemo(() => {
     const p50 = data.map((point) => point.p50Duration);
     const p95 = data.map((point) => point.p95Duration);
-    // Ticks round in the displayed unit (whole minutes), not in milliseconds.
+    // Ticks round in the displayed unit (e.g. 0.5 min), not in milliseconds.
     const max = Math.max(0, ...p50, ...p95);
     return {
       labels: data.map((point) => formatChartDate(point.date)),

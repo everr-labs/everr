@@ -129,7 +129,7 @@ export function LaneTimelineChart({
     const option: ChartOption = {
       animation: false,
       grid: gridOption(grid),
-      xAxis: timeAxisOption(theme, domain),
+      xAxis: timeAxisOption(theme, domain, plot.width),
       yAxis: yAxis.axis,
       series: [
         {

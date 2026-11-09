@@ -35,7 +35,7 @@ const MAX_COLUMNS = 1000;
 /**
  * A time × bucket grid of summed values from every frame's long-format rows
  * (time column, y-bucket column, numeric value column), on a grid of columns
- * as wide as the smallest gap between samples. Each cell spans its column,
+ * as wide as the typical gap between samples. Each cell spans its column,
  * clamped to the domain. Rows landing on the same column and bucket, within
  * a frame or across frames, sum.
  *
@@ -96,18 +96,19 @@ export function buildHeatmapModel(
     ? [...bucketsSeen].sort((a, b) => (toNumber(b) ?? 0) - (toNumber(a) ?? 0))
     : bucketsSeen;
 
-  // Column width: the smallest gap between distinct samples, but never so
-  // narrow that the range needs more than MAX_COLUMNS of them (one stray
-  // timestamp would otherwise split the grid into thousands). A single
-  // timestamp has no gap to measure: its cell spans the whole range.
+  // Column width: the typical gap between samples, so one stray timestamp
+  // doesn't split the grid into slivers. Past MAX_COLUMNS it widens by whole
+  // gaps, so every column merges the same number of samples and regular
+  // data doesn't stripe. A single timestamp has no gap to measure: its cell
+  // spans the whole range.
   const times = [...timesSeen].sort((a, b) => a - b);
   const span = domain[1] - domain[0];
-  let step = span;
-  for (let i = 1; i < times.length; i++) {
-    const gap = times[i] - times[i - 1];
-    if (gap > 0 && gap < step) step = gap;
-  }
-  step = Math.max(step, span / MAX_COLUMNS);
+  const gaps = times
+    .slice(1)
+    .map((time, i) => time - (times[i] ?? time))
+    .sort((a, b) => a - b);
+  const gap = gaps[Math.floor(gaps.length / 2)] ?? span;
+  const step = gap * Math.max(1, Math.ceil(span / MAX_COLUMNS / gap));
 
   // Columns are anchored on the samples and extended to cover the range, so
   // empty stretches keep their place on the axis. A lone sample anchors

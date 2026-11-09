@@ -43,7 +43,8 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
+/** Tick positions across a time domain on the local clock (whole hours,
+ * local midnights), at most maxTicks of them. */
 export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
   const span = domain[1] - domain[0];
   if (span <= 0) return [];
@@ -51,7 +52,10 @@ export function generateTimeTicks(domain: [number, number], maxTicks: number): n
   const ideal = span / maxTicks;
   const interval = TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
 
-  const first = Math.ceil(domain[0] / interval) * interval;
+  // Local time is UTC shifted by the zone offset: align in local time, so a
+  // day tick lands on local midnight, not UTC's.
+  const offset = -new Date(domain[0]).getTimezoneOffset() * 60_000;
+  const first = Math.ceil((domain[0] + offset) / interval) * interval - offset;
   const ticks: number[] = [];
   for (let t = first; t <= domain[1]; t += interval) {
     ticks.push(t);
