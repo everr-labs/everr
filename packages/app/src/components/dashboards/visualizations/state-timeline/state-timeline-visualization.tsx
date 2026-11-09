@@ -4,6 +4,7 @@ import type { VisualizationProps } from "../index";
 import { LaneTimelineChart } from "../lane-timeline-chart";
 import type { StateTimelineSpec } from "./spec";
 import { buildStateTimelineModel } from "./state-timeline-data";
+import { PanelEmptyState } from "../panel-empty-state";
 
 export function StateTimelineVisualization({
   spec,
@@ -28,7 +29,6 @@ export function StateTimelineVisualization({
       (model?.lanes ?? []).map((lane) => ({
         label: lane.label,
         items: lane.segments.map((s) => ({
-          key: s.start,
           start: s.start,
           end: s.end,
           state: s.state,
@@ -48,8 +48,13 @@ export function StateTimelineVisualization({
       showValues={spec.showValues}
       showLegend={spec.showLegend}
       onTimeRangeChange={onTimeRangeChange}
-      emptyIcon={<ChartGantt className="size-8" />}
-      emptyMessage={data ? "No state data in this time range" : "Configure a query to see results"}
+      empty={
+        <PanelEmptyState
+          icon={ChartGantt}
+          data={data}
+          unusable="No row has a time and a state inside this time range."
+        />
+      }
     />
   );
 }

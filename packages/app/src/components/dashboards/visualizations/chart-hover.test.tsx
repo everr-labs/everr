@@ -54,9 +54,7 @@ describe("valueAtCursorY", () => {
     expect(valueAtCursorY(109, plot, [200, 400])).toBeCloseTo(300);
   });
 
-  it("gives up rather than guessing when the pointer height is missing", () => {
-    // Recharts omits chartY on some events.
-    expect(valueAtCursorY(undefined, plot, [0, 100])).toBeNull();
+  it("gives up rather than guessing while the plot has no height", () => {
     expect(valueAtCursorY(50, { top: 0, height: 0 }, [0, 100])).toBeNull();
   });
 });

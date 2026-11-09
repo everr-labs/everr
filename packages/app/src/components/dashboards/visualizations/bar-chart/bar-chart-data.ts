@@ -9,7 +9,7 @@ import {
   toNumber,
   toTimestamp,
 } from "../data-utils";
-import type { LegendSeries } from "../echarts/series-legend";
+import type { LegendSeries } from "@everr/ui/components/series-legend";
 import type { QueryResultRow } from "../index";
 
 export const X_KEY = "__x";

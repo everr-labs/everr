@@ -7,26 +7,18 @@ import type { ECElementEvent } from "echarts/core";
 import * as echarts from "echarts/core";
 import { LayoutGrid } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useEChart } from "../echarts/use-echart";
+import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import type { TreemapSpec } from "./spec";
 import { buildTreemapTiles, type TreemapTile } from "./treemap-data";
+import { PanelEmptyState } from "../panel-empty-state";
 
 echarts.use([TreemapChart]);
 
 const NO_TILES: TreemapTile[] = [];
 const TILE_GAP = 2;
 const LABEL_PADDING = 6;
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-      <LayoutGrid className="size-8" />
-      <p className="text-sm">No data to tile in this result</p>
-    </div>
-  );
-}
 
 export function TreemapVisualization({ spec, data }: VisualizationProps<TreemapSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
@@ -103,7 +95,14 @@ export function TreemapVisualization({ spec, data }: VisualizationProps<TreemapS
     };
   }, [chart, clearHover]);
 
-  if (!model || tiles.length === 0) return <EmptyState />;
+  if (!model || tiles.length === 0)
+    return (
+      <PanelEmptyState
+        icon={LayoutGrid}
+        data={data}
+        unusable="No row has a name and a positive value."
+      />
+    );
   const { groups, dropped } = model;
 
   // Legend swatches come from a surviving tile per group. A group whose only

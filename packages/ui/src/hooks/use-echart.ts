@@ -29,10 +29,25 @@ function readChartTheme(element: HTMLElement): ChartTheme {
   };
 }
 
+/**
+ * A CSS color as the canvas needs it: `var(--x)` and other CSS-only syntax
+ * resolve against `element`, so themed colors follow light and dark mode.
+ */
+export function resolveCssColor(element: HTMLElement, color: string): string {
+  if (!color.includes("var(")) return color;
+  const probe = document.createElement("span");
+  probe.style.color = color;
+  element.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  return resolved || color;
+}
+
 interface MountedChart {
   chart: EChartsType;
   theme: ChartTheme;
   width: number;
+  height: number;
 }
 
 /**
@@ -54,10 +69,23 @@ export function useEChart(
     if (!enabled || !element) return;
     const instance = echarts.init(element, undefined, { renderer: "canvas" });
     const theme = readChartTheme(element);
-    setMounted({ chart: instance, theme, width: instance.getWidth() });
+    const measure = () => ({
+      chart: instance,
+      theme,
+      width: instance.getWidth(),
+      height: instance.getHeight(),
+    });
+    setMounted(measure());
     const observer = new ResizeObserver(() => {
+      // The first report arrives right after observing, at the size the
+      // chart was just created with: a resize then would lay it all out again.
+      if (
+        element.clientWidth === instance.getWidth() &&
+        element.clientHeight === instance.getHeight()
+      )
+        return;
       instance.resize();
-      setMounted({ chart: instance, theme, width: instance.getWidth() });
+      setMounted(measure());
       onResize?.();
     });
     observer.observe(element);
@@ -68,5 +96,8 @@ export function useEChart(
     };
   }, [elementRef, enabled, onResize]);
 
-  return mounted;
+  // Between disposing an instance and mounting the next (a hot reload, or the
+  // element changing), a render can still see the old one: hand out nothing
+  // rather than an instance whose methods throw.
+  return mounted && !mounted.chart.isDisposed() ? mounted : null;
 }

@@ -1,47 +1,6 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import type { JobResourceUsage } from "#app/data/resource-usage.ts";
-import { ResourceUsagePanel } from "./resource-usage-panel";
-
-vi.mock("@everr/ui/components/chart", () => ({
-  ChartContainer: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="chart-container">{children}</div>
-  ),
-  ChartTooltip: () => null,
-  ChartTooltipContent: () => null,
-}));
-
-vi.mock("recharts", async () => {
-  const React = await import("react");
-
-  const Area = ({ dataKey }: { dataKey: string }) => <g data-key={dataKey} data-kind="area" />;
-  const CartesianGrid = () => <g data-kind="grid" />;
-  const ReferenceArea = () => <g data-kind="reference-area" />;
-
-  const supportedTypes = new Set<unknown>([Area, CartesianGrid, ReferenceArea]);
-
-  const AreaChart = ({ children }: { children: React.ReactNode }) => {
-    const supportedChildren = React.Children.toArray(children).filter((child) =>
-      React.isValidElement(child) ? supportedTypes.has(child.type) : false,
-    );
-
-    return (
-      <svg data-testid="area-chart">
-        <title>Area chart</title>
-        {supportedChildren}
-      </svg>
-    );
-  };
-
-  return {
-    Area,
-    AreaChart,
-    CartesianGrid,
-    ReferenceArea,
-    XAxis: () => null,
-    YAxis: () => null,
-  };
-});
+import { stepSampleRange } from "./resource-usage-panel";
 
 const usage: JobResourceUsage = {
   points: [
@@ -85,18 +44,29 @@ const usage: JobResourceUsage = {
   sampleIntervalSeconds: 5,
 };
 
-describe("ResourceUsagePanel", () => {
-  it("renders overlays after the chart areas so they stay visible", () => {
-    const { getAllByTestId } = render(
-      <ResourceUsagePanel data={usage} stepWindow={{ startTime: 1_200, endTime: 1_400 }} />,
-    );
+describe("stepSampleRange", () => {
+  const [first, second] = usage.points;
+  const at = (timestamp: number) => ({ ...first!, timestamp });
+  const points = [first!, second!, at(3_000), at(4_000)];
 
-    const firstChart = getAllByTestId("area-chart")[0];
-    const layers = Array.from(firstChart.querySelectorAll("[data-kind]")).map((node) =>
-      node.getAttribute("data-kind"),
-    );
-
-    expect(layers.indexOf("area")).toBeLessThan(layers.indexOf("reference-area"));
-    expect(layers.includes("reference-line")).toBe(false);
+  it.each([
+    [
+      "a step between two samples shades both",
+      { startTime: 1_200, endTime: 1_400 },
+      { from: 0, to: 1 },
+    ],
+    [
+      "a step on sample times shades exactly those",
+      { startTime: 2_000, endTime: 3_000 },
+      { from: 1, to: 2 },
+    ],
+    [
+      "a step past the samples is clamped",
+      { startTime: 3_500, endTime: 9_000 },
+      { from: 2, to: 3 },
+    ],
+    ["a step outside the samples shades nothing", { startTime: 5_000, endTime: 6_000 }, null],
+  ])("%s", (_, window, expected) => {
+    expect(stepSampleRange(points, window)).toEqual(expected);
   });
 });

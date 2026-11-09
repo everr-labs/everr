@@ -1,21 +1,30 @@
-/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
-import { cn } from "@everr/ui/lib/utils";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
+import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
+import { readableForeground } from "@everr/ui/lib/contrast";
+import { CustomChart, type CustomSeriesOption } from "echarts/charts";
+import type { GridComponentOption } from "echarts/components";
+import * as echarts from "echarts/core";
+import type { ComposeOption } from "echarts/core";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { createTextMeasurer, rowLabelAxis, TIME_AXIS_HEIGHT, timeAxisOption } from "./echarts/axis";
+import { gridOption, plotWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
+import { TimeTrackOverlay, useTimeTrack } from "./time-track";
 
-const BRUSH_COLOR = SERIES_COLORS[0];
-const MAX_X_TICKS = 6;
-/** Lane label gutter width — the axis row and brush overlay offset by the same
- * amount so they stay aligned with the segment tracks. */
-const LABEL_WIDTH = 96;
+echarts.use([CustomChart]);
+
+type ChartOption = ComposeOption<CustomSeriesOption | GridComponentOption>;
+
+/** Lanes never get shorter than this: past it, the lanes scroll. */
+const MIN_LANE_HEIGHT = 24;
+/** Items narrower than this still show, at this width. */
+const MIN_ITEM_WIDTH = 2;
+const VALUE_FONT_SIZE = 10;
+/** Room kept clear on either side of a value inside its item. */
+const VALUE_PADDING = 8;
 
 export interface LaneTimelineItem {
-  /** Stable React key, unique within the lane. */
-  key: string | number;
   /** Item bounds in ms, already clamped to the domain. */
   start: number;
   end: number;
@@ -26,14 +35,21 @@ export interface LaneTimelineItem {
 
 export interface LaneTimelineLane {
   label: string;
+  /** In time order. */
   items: LaneTimelineItem[];
 }
 
-interface HoverState {
-  lane: string;
-  item: LaneTimelineItem;
-  x: number;
-  y: number;
+/** The item of `items` at `time`, or within `tolerance` ms of it. */
+function laneItemAt(
+  items: LaneTimelineItem[],
+  time: number,
+  tolerance: number,
+): LaneTimelineItem | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item && item.start - tolerance <= time) return item.end + tolerance >= time ? item : null;
+  }
+  return null;
 }
 
 /**
@@ -52,8 +68,7 @@ export function LaneTimelineChart({
   showValues,
   showLegend,
   rounded = false,
-  emptyIcon,
-  emptyMessage,
+  empty,
   onTimeRangeChange,
 }: {
   lanes: LaneTimelineLane[];
@@ -65,174 +80,132 @@ export function LaneTimelineChart({
   showLegend: boolean;
   /** Round item corners (StatusHistory cells). */
   rounded?: boolean;
-  emptyIcon: ReactNode;
-  emptyMessage: string;
+  /** Shown instead of the chart when no lane has an item in the domain. */
+  empty: ReactNode;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const trackRectRef = useRef<DOMRect | null>(null);
-  const [brushStart, setBrushStart] = useState<number | null>(null);
-  const [brushEnd, setBrushEnd] = useState<number | null>(null);
-  const [hover, setHover] = useState<HoverState | null>(null);
-
+  const chartElementRef = useRef<HTMLDivElement>(null);
   const span = domain[1] - domain[0];
-  const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
-  const formatTick = useMemo(() => createTimeTickFormatter(domain), [domain]);
+  const hasChart = span > 0 && lanes.some((l) => l.items.length > 0);
 
-  const toPct = useCallback((ts: number) => ((ts - domain[0]) / span) * 100, [domain, span]);
+  const mounted = useEChart(chartElementRef, hasChart);
+  const theme = mounted?.theme ?? null;
 
-  const pxToTimestamp = useCallback(
-    (clientX: number, rect: DOMRect) => {
-      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      return domain[0] + ratio * span;
+  const labels = useMemo(() => lanes.map((lane) => lane.label), [lanes]);
+  const yAxis = useMemo(() => (theme ? rowLabelAxis(theme, labels) : null), [theme, labels]);
+  const grid = yAxis?.grid ?? null;
+
+  const track = useTimeTrack({
+    chartElementRef,
+    size: mounted,
+    grid,
+    domain,
+    onTimeRangeChange,
+    itemAt: (at) => {
+      const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
+      if (!lane) return null;
+      const msPerPixel = span / at.plot.width;
+      const item = laneItemAt(lane.items, at.time, msPerPixel * (MIN_ITEM_WIDTH / 2));
+      return item ? { lane: lane.label, item } : null;
     },
-    [domain, span],
-  );
+  });
+  const { hover } = track;
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      const rect = trackRef.current?.getBoundingClientRect();
-      if (!rect || rect.width === 0) return;
-      trackRectRef.current = rect;
-      setBrushStart(pxToTimestamp(e.clientX, rect));
-      setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    },
-    [pxToTimestamp],
-  );
+  useEffect(() => {
+    if (!mounted || !grid || !yAxis) return;
+    const { chart, theme } = mounted;
+    const element = chartElementRef.current;
+    const fills = states.map((state) => {
+      const color = colorByState[state] ?? theme.textColor;
+      return element ? resolveCssColor(element, color) : color;
+    });
+    // Blocks are opaque, so a value reads on the block color alone.
+    const textFills = fills.map((fill) => readableForeground(fill)?.color ?? theme.foregroundColor);
+    // A value shows only where it fits its item whole.
+    const measure = createTextMeasurer(theme.fontFamily, VALUE_FONT_SIZE);
+    const valueWidths = states.map((state) => measure(state) + VALUE_PADDING);
+    const plot = plotWithin(mounted, grid);
+    const laneHeight = (plot.height / lanes.length) * rowHeight;
+    const option: ChartOption = {
+      animation: false,
+      grid: gridOption(grid),
+      xAxis: timeAxisOption(theme, domain),
+      yAxis: yAxis.axis,
+      series: [
+        {
+          type: "custom",
+          silent: true,
+          encode: { x: [1, 2], y: 0 },
+          data: lanes.flatMap((lane, index) =>
+            lane.items.map((item) => [index, item.start, item.end, states.indexOf(item.state)]),
+          ),
+          renderItem: (_, api) => {
+            const lane = Number(api.value(0));
+            const state = Number(api.value(3));
+            const [x0 = 0, y = 0] = api.coord([api.value(1), lane]);
+            const [x1 = 0] = api.coord([api.value(2), lane]);
+            const rect = echarts.graphic.clipRectByRect(
+              {
+                x: x0,
+                y: y - laneHeight / 2,
+                width: Math.max(MIN_ITEM_WIDTH, x1 - x0),
+                height: laneHeight,
+              },
+              { x: plot.left, y: plot.top, width: plot.width, height: plot.height },
+            );
+            if (!rect) return null;
+            const fits = showValues && (valueWidths[state] ?? Infinity) <= rect.width;
+            return {
+              type: "rect",
+              shape: { ...rect, r: rounded ? 2 : 0 },
+              style: { fill: fills[state] },
+              textContent: fits
+                ? {
+                    type: "text" as const,
+                    style: {
+                      text: states[state],
+                      fill: textFills[state],
+                      fontSize: VALUE_FONT_SIZE,
+                      fontWeight: 500,
+                      fontFamily: theme.fontFamily,
+                    },
+                  }
+                : undefined,
+              textConfig: { position: "inside" },
+            };
+          },
+        },
+      ],
+    };
+    chart.setOption(option, { notMerge: true });
+  }, [colorByState, domain, grid, lanes, mounted, rounded, rowHeight, showValues, states, yAxis]);
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (brushStart == null || !trackRectRef.current) return;
-      setBrushEnd(pxToTimestamp(e.clientX, trackRectRef.current));
-    },
-    [brushStart, pxToTimestamp],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    if (brushStart != null && brushEnd != null) {
-      const from = Math.min(brushStart, brushEnd);
-      const to = Math.max(brushStart, brushEnd);
-      if (to - from > 1000) {
-        onTimeRangeChange({ from: new Date(from), to: new Date(to) });
-      }
-    }
-    setBrushStart(null);
-    setBrushEnd(null);
-    trackRectRef.current = null;
-  }, [brushStart, brushEnd, onTimeRangeChange]);
-
-  if (span <= 0 || !lanes.some((l) => l.items.length > 0)) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        {emptyIcon}
-        <p className="text-sm">{emptyMessage}</p>
-      </div>
-    );
+  if (!hasChart) {
+    return empty;
   }
 
+  const plot = mounted && grid ? plotWithin(mounted, grid) : null;
+
   return (
-    <div className="flex h-full select-none flex-col overflow-hidden">
-      {/* chart area — pointer interactions and the brush overlay cover the
-          lanes + axis but not the legend */}
-      <div
-        className="relative flex min-h-0 flex-1 flex-col"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onMouseMove={(e) => setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h))}
-        onMouseLeave={() => setHover(null)}
-      >
-        {/* No overscroll-none here: lanes usually fit, and a non-scrollable
-            scroll container with overscroll-behavior:none swallows wheel
-            events instead of letting the page scroll. */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex h-full min-h-fit flex-col gap-1 py-1">
-            {lanes.map((lane) => (
-              <div key={lane.label} className="flex min-h-5 flex-1 items-stretch">
-                <div
-                  className="shrink-0 self-center truncate pr-2 text-xs text-muted-foreground"
-                  style={{ width: LABEL_WIDTH }}
-                  title={lane.label}
-                >
-                  {lane.label}
-                </div>
-                <div className="relative min-w-0 flex-1 overflow-hidden">
-                  {lane.items.map((item) => (
-                    <div
-                      key={item.key}
-                      className={cn(
-                        "absolute flex items-center justify-center overflow-hidden px-1",
-                        rounded && "rounded-[2px]",
-                      )}
-                      style={{
-                        left: `${toPct(item.start)}%`,
-                        width: `${toPct(item.end) - toPct(item.start)}%`,
-                        minWidth: 2,
-                        top: `${((1 - rowHeight) / 2) * 100}%`,
-                        height: `${rowHeight * 100}%`,
-                        backgroundColor: colorByState[item.state],
-                      }}
-                      onMouseEnter={(e) =>
-                        setHover({
-                          lane: lane.label,
-                          item,
-                          x: e.clientX,
-                          y: e.clientY,
-                        })
-                      }
-                      onMouseLeave={() => setHover(null)}
-                    >
-                      {showValues && (
-                        <span className="truncate text-[10px] font-medium text-white">
-                          {item.state}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
-
-        {/* time axis, aligned with the item tracks */}
-        <div className="flex h-5 shrink-0 items-start overflow-hidden">
-          <div className="shrink-0" style={{ width: LABEL_WIDTH }} />
-          <div ref={trackRef} className="relative min-w-0 flex-1">
-            {ticks.map((tick) => (
-              <span
-                key={tick}
-                className="-translate-x-1/2 absolute top-1 text-[10px] text-muted-foreground tabular-nums"
-                style={{ left: `${toPct(tick)}%` }}
-              >
-                {formatTick(tick)}
-              </span>
-            ))}
-          </div>
+    <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
+      {/* No overscroll-none here: lanes usually fit, and a non-scrollable
+          scroll container with overscroll-behavior:none swallows wheel
+          events instead of letting the page scroll. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          data-slot="time-track"
+          className="relative h-full"
+          style={{ minHeight: lanes.length * MIN_LANE_HEIGHT + TIME_AXIS_HEIGHT }}
+          {...track.handlers}
+        >
+          {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+          <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+          {plot && <TimeTrackOverlay domain={domain} brush={track.brush} plot={plot} />}
         </div>
-
-        {brushStart != null && brushEnd != null && (
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 overflow-hidden"
-            style={{ left: LABEL_WIDTH }}
-          >
-            <div
-              className="absolute inset-y-0 border-x"
-              style={{
-                left: `${toPct(Math.min(brushStart, brushEnd))}%`,
-                width: `${Math.abs(toPct(brushEnd) - toPct(brushStart))}%`,
-                backgroundColor: BRUSH_COLOR,
-                opacity: 0.15,
-                borderColor: BRUSH_COLOR,
-              }}
-            />
-          </div>
-        )}
       </div>
 
       {showLegend && states.length > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5 pb-3">
           {states.map((state) => (
             <div key={state} className="flex items-center gap-1.5 text-xs">
               <span
@@ -248,13 +221,13 @@ export function LaneTimelineChart({
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
-            title={hover.item.title}
+            title={hover.target.item.title}
             rows={[
               {
-                key: hover.lane,
-                color: colorByState[hover.item.state],
-                label: hover.lane,
-                value: hover.item.state,
+                key: hover.target.lane,
+                color: colorByState[hover.target.item.state],
+                label: hover.target.lane,
+                value: hover.target.item.state,
               },
             ]}
           />
