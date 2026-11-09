@@ -3,17 +3,9 @@ import * as echarts from "echarts/core";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { StatSparkline } from "./stat-sparkline";
 
-vi.mock("echarts/core", async (importOriginal) => {
-  const core = await importOriginal<typeof echarts>();
-  const { SVGRenderer } = await import("echarts/renderers");
-  core.use([SVGRenderer]);
-  return {
-    ...core,
-    init: vi.fn(() =>
-      core.init(null, undefined, { renderer: "svg", ssr: true, width: 600, height: 100 }),
-    ),
-  };
-});
+vi.mock("echarts/core", async (importOriginal) =>
+  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal, 100),
+);
 
 describe("StatSparkline", () => {
   it("preserves sample spacing, updates the chart, and disposes it on unmount", () => {

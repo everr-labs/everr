@@ -4,18 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { BarChartVisualization } from "./bar-chart-visualization";
 import { barChartSpec } from "./spec";
 
-// Exercise the real ECharts layout without requiring a browser canvas.
-vi.mock("echarts/core", async (importOriginal) => {
-  const core = await importOriginal<typeof echarts>();
-  const { SVGRenderer } = await import("echarts/renderers");
-  core.use([SVGRenderer]);
-  return {
-    ...core,
-    init: vi.fn(() =>
-      core.init(null, undefined, { renderer: "svg", ssr: true, width: 600, height: 300 }),
-    ),
-  };
-});
+vi.mock("echarts/core", async (importOriginal) =>
+  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal),
+);
 
 const props = {
   timeRange: { from: new Date("2026-06-07T00:00:00Z"), to: new Date("2026-06-08T00:00:00Z") },
