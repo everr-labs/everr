@@ -30,16 +30,17 @@ baselines.
 
 ## ClickHouse
 
-| Location                              | Owns                                           | Applied by |
-| ------------------------------------- | ---------------------------------------------- | ---------- |
-| `packages/app/clickhouse/shared`      | `otel` landing tables, `app` tables, functions | App, Cloud |
-| `packages/app/clickhouse/self-hosted` | Installation-wide users and SQL API user       | App        |
-| `packages/cloud/clickhouse`           | Tenant row policies, provisioning grants       | Cloud      |
+| Location                              | Owns                                     | Applied by |
+| ------------------------------------- | ---------------------------------------- | ---------- |
+| `packages/app/clickhouse/shared`      | Databases, base users, tables, functions | App, Cloud |
+| `packages/app/clickhouse/self-hosted` | Installation-wide SQL API role and user  | App        |
+| `packages/cloud/clickhouse`           | Tenant row policies, provisioning grants | Cloud      |
 
 Each application applies its files in file-name order across its directories,
 after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
-file name with a SHA-256 of its statements (comments do not count).
+file name with a SHA-256 of its statements. Comments, blank lines, and trailing
+whitespace do not count.
 
 Applied files are immutable. If an applied file's statements change, startup
 fails before running anything. Put every change in a new file with the next
@@ -47,11 +48,12 @@ number, including a new version of a function (`CREATE OR REPLACE FUNCTION`).
 
 ClickHouse DDL is not transactional. A file that fails partway runs again from
 its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
-`OR REPLACE`).
+`OR REPLACE`). Use `OR REPLACE` for a row policy, not `DROP` then `CREATE`: the
+table has no tenant filter between the two statements.
 
 Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
-as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`). Statements bind the other
-users' passwords as `{name:String}` parameters. `GRANT` does not accept
+as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10 minute request
+timeout. Statements bind the other users' passwords as `{name:String}` parameters. `GRANT` does not accept
 parameters, so a parameterized user gets its role through `DEFAULT ROLE`.
 `pnpm db:migrate` applies only the PostgreSQL histories.
 

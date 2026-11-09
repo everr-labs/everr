@@ -5,6 +5,7 @@ import { createClient } from "#app/lib/clickhouse-client.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
 import {
+  byMigrationName,
   type ClickHouseMigration,
   clickHouseMigrationsFrom,
   sharedClickHouseMigrations,
@@ -22,33 +23,25 @@ export interface HashedClickHouseMigration extends ClickHouseMigration {
   readonly hash: string;
 }
 
-export interface ClickHouseMigrationPlan {
-  /** Files to run, in file-name order across directories. */
-  readonly run: HashedClickHouseMigration[];
-  /** Applied files the journal recorded without a hash: record it, run nothing. */
-  readonly record: HashedClickHouseMigration[];
-}
-
 /**
- * The hash of a file's statements. Comments and whitespace around statements
- * do not count, so fixing a comment in an applied file is safe.
+ * The hash of a file's statements. Comments, blank lines, and trailing
+ * whitespace do not count, so editing a comment in an applied file is safe.
  */
 export function clickHouseMigrationHash(sql: string): string {
   return createHash("sha256").update(sqlStatements(sql).join(";\n")).digest("hex");
 }
 
 /**
- * What to do with each migration, given the journal's hash per file (`""` for
- * rows written before the journal stored hashes). Applied files are immutable:
- * throws, before anything runs, when one changed.
+ * The files to run, in file-name order across directories, given the journal's
+ * hash per applied file. Applied files are immutable: throws, before anything
+ * runs, when one changed.
  */
-export function clickHouseMigrationPlan(
+export function pendingClickHouseMigrations(
   migrations: readonly ClickHouseMigration[],
   applied: ReadonlyMap<string, string>,
-): ClickHouseMigrationPlan {
-  const sorted = [...migrations].sort((a, b) => (a.name < b.name ? -1 : 1));
-  const run: HashedClickHouseMigration[] = [];
-  const record: HashedClickHouseMigration[] = [];
+): HashedClickHouseMigration[] {
+  const sorted = [...migrations].sort(byMigrationName);
+  const pending: HashedClickHouseMigration[] = [];
   const changed: string[] = [];
   for (const [i, migration] of sorted.entries()) {
     if (migration.name === sorted[i + 1]?.name) {
@@ -56,8 +49,7 @@ export function clickHouseMigrationPlan(
     }
     const hashed = { ...migration, hash: clickHouseMigrationHash(migration.sql) };
     const recorded = applied.get(migration.name);
-    if (recorded === undefined) run.push(hashed);
-    else if (recorded === "") record.push(hashed);
+    if (recorded === undefined) pending.push(hashed);
     else if (recorded !== hashed.hash) changed.push(migration.name);
   }
   if (changed.length > 0) {
@@ -66,7 +58,7 @@ export function clickHouseMigrationPlan(
         "Applied migrations are immutable: restore them and put the change in a new file.",
     );
   }
-  return { run, record };
+  return pending;
 }
 
 /** The values a statement's `{name:Type}` placeholders need. */
@@ -88,10 +80,12 @@ export function statementParams(
 
 /**
  * Apply the shared files plus a product's own `productFiles` (an eager raw
- * glob) that the journal does not list. ClickHouse DDL is not transactional, so statements must
- * be safe to repeat: a migration that fails partway runs again from its first
- * statement. Run it under the PostgreSQL migration lock so replicas apply it
- * once.
+ * glob) that the journal does not list. The shared setup file takes the base
+ * users' passwords from the environment; `productParams` are the parameters
+ * the product's own files name. ClickHouse DDL is not transactional, so
+ * statements must be safe to repeat: a migration that fails partway runs again
+ * from its first statement. Run it under the PostgreSQL migration lock so
+ * replicas apply it once.
  */
 export async function migrateClickHouse(
   productFiles: Record<string, string>,
@@ -126,25 +120,19 @@ export async function migrateClickHouse(
       http_headers_progress_interval_ms: "30000",
     },
   });
-  const run = <T>(operation: string, call: () => Promise<T>) =>
+  const instrumented = <T>(operation: string, call: () => Promise<T>) =>
     instrumentClickhouseOperation({ client: "migration", operation }, call);
   try {
-    await run("CREATE", () =>
+    await instrumented("CREATE", () =>
       client.command({
         query: `CREATE TABLE IF NOT EXISTS ${JOURNAL} (
           name String,
-          hash String DEFAULT '',
+          hash String,
           applied_at DateTime64(3) DEFAULT now64(3)
         ) ENGINE = MergeTree ORDER BY name`,
       }),
     );
-    // Journals created before it stored hashes.
-    await run("ALTER", () =>
-      client.command({
-        query: `ALTER TABLE ${JOURNAL} ADD COLUMN IF NOT EXISTS hash String DEFAULT '' AFTER name`,
-      }),
-    );
-    const applied = await run("SELECT", async () => {
+    const applied = await instrumented("SELECT", async () => {
       const rows = await client.query({
         query: `SELECT name, argMax(hash, applied_at) AS hash FROM ${JOURNAL} GROUP BY name`,
         format: "JSONEachRow",
@@ -154,27 +142,22 @@ export async function migrateClickHouse(
       );
     });
 
-    const plan = clickHouseMigrationPlan(migrations, applied);
-    const journal = (migration: HashedClickHouseMigration) =>
-      run("INSERT", () =>
-        client.insert({
-          table: JOURNAL,
-          values: [{ name: migration.name, hash: migration.hash }],
-          format: "JSONEachRow",
-        }),
-      );
-
-    for (const migration of plan.record) await journal(migration);
-    for (const migration of plan.run) {
+    for (const migration of pendingClickHouseMigrations(migrations, applied)) {
       for (const statement of sqlStatements(migration.sql)) {
-        await run("QUERY", () =>
+        await instrumented("QUERY", () =>
           client.command({
             query: statement,
             query_params: statementParams(migration.name, statement, params),
           }),
         );
       }
-      await journal(migration);
+      await instrumented("INSERT", () =>
+        client.insert({
+          table: JOURNAL,
+          values: [{ name: migration.name, hash: migration.hash }],
+          format: "JSONEachRow",
+        }),
+      );
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
       });

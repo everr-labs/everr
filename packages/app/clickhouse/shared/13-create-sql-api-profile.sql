@@ -1,14 +1,12 @@
 -- Settings profile: hard caps for the /sql API. All READONLY so per-query
 -- SETTINGS ... clauses cannot loosen them.
 --
--- init/ runs only on a fresh server, and IF NOT EXISTS skips an existing
--- profile, so editing a value here does NOT reach a running cluster. Apply a
--- change there with ALTER, and pass EVERY setting: ALTER ... SETTINGS
--- replaces the profile's element list wholesale rather than merging, so a
--- partial statement silently drops readonly = 1 and every cap with it.
---   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --query \
---     "ALTER SETTINGS PROFILE sql_api_profile SETTINGS <all of the below>"
--- Then confirm nothing was lost:
+-- This file is immutable once applied, and IF NOT EXISTS skips an existing
+-- profile. To change a value, add a new migration file with
+--   ALTER SETTINGS PROFILE sql_api_profile SETTINGS <all of the below>
+-- and pass EVERY setting: ALTER ... SETTINGS replaces the profile's element
+-- list wholesale rather than merging, so a partial statement silently drops
+-- readonly = 1 and every cap with it. Then confirm nothing was lost:
 --   SELECT setting_name, value, writability
 --   FROM system.settings_profile_elements WHERE profile_name = 'sql_api_profile';
 CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS

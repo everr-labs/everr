@@ -3,10 +3,11 @@ import { describe, expect, it } from "vite-plus/test";
 import { readFileSync } from "node:fs";
 import {
   clickHouseMigrationHash,
-  clickHouseMigrationPlan,
+  pendingClickHouseMigrations,
   statementParams,
 } from "./clickhouse-migrations";
 import {
+  byMigrationName,
   type ClickHouseMigration,
   sharedClickHouseMigrations,
   sqlStatements,
@@ -19,23 +20,21 @@ const names = (list: readonly { name: string }[]) => list.map(({ name }) => name
 
 describe("ClickHouse migrations", () => {
   it("bundles the shared schema files", () => {
-    expect(sharedClickHouseMigrations.map(({ name }) => name)).toContain(
-      "12-create-alert-events.sql",
-    );
+    expect(names(sharedClickHouseMigrations)).toContain("12-create-alert-events.sql");
   });
 
   it("orders migrations from every directory by file name and skips applied ones", () => {
-    const plan = clickHouseMigrationPlan(
+    const pending = pendingClickHouseMigrations(
       [migration("03-tables.sql"), migration("15-role.sql"), migration("00-setup.sql")],
       applied(migration("03-tables.sql")),
     );
 
-    expect(names(plan.run)).toEqual(["00-setup.sql", "15-role.sql"]);
+    expect(names(pending)).toEqual(["00-setup.sql", "15-role.sql"]);
   });
 
   it("rejects two files with one name, because the journal records names", () => {
     expect(() =>
-      clickHouseMigrationPlan([migration("15-role.sql"), migration("15-role.sql")], new Map()),
+      pendingClickHouseMigrations([migration("15-role.sql"), migration("15-role.sql")], new Map()),
     ).toThrow("Duplicate ClickHouse migration 15-role.sql");
   });
 
@@ -44,7 +43,7 @@ describe("ClickHouse migrations", () => {
     const after = migration("03-tables.sql", "CREATE TABLE a (x UInt16)");
 
     expect(() =>
-      clickHouseMigrationPlan([after, migration("04-new.sql")], applied(before)),
+      pendingClickHouseMigrations([after, migration("04-new.sql")], applied(before)),
     ).toThrow("ClickHouse migrations changed after they were applied: 03-tables.sql.");
   });
 
@@ -52,17 +51,17 @@ describe("ClickHouse migrations", () => {
     const before = migration("03-tables.sql", "-- v1\nCREATE TABLE a (x UInt8);\n");
     const after = migration("03-tables.sql", "-- v1, typo fixed\n\nCREATE TABLE a (x UInt8);");
 
-    expect(clickHouseMigrationPlan([after], applied(before)).run).toEqual([]);
+    expect(pendingClickHouseMigrations([after], applied(before))).toEqual([]);
   });
 
-  it("records the hash of files applied before the journal stored hashes", () => {
-    const plan = clickHouseMigrationPlan(
-      [migration("03-tables.sql")],
-      new Map([["03-tables.sql", ""]]),
+  it("ignores comments added or removed inside a statement", () => {
+    const before = migration("03-tables.sql", "CREATE TABLE a (\n  x UInt8, -- old\n  y UInt8\n);");
+    const after = migration(
+      "03-tables.sql",
+      "CREATE TABLE a (\n  -- the key\n  x UInt8,\n\n  y UInt8\n);",
     );
 
-    expect(names(plan.record)).toEqual(["03-tables.sql"]);
-    expect(plan.run).toEqual([]);
+    expect(pendingClickHouseMigrations([after], applied(before))).toEqual([]);
   });
 
   it("gives the local collector's chDB the same errorFingerprint as App and Cloud", () => {
@@ -73,13 +72,18 @@ describe("ClickHouse migrations", () => {
       ),
       "utf8",
     );
-    // A change to the function lands in a new file, so compare the latest one.
-    const latest = sharedClickHouseMigrations
-      .filter(({ sql }) => sql.includes("FUNCTION errorFingerprint"))
-      .sort((a, b) => (a.name < b.name ? -1 : 1))
+    const definitions = (sql: string) =>
+      sqlStatements(sql).filter((statement) =>
+        /^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?errorFingerprint\b/.test(statement),
+      );
+    // A change to the function lands in a new file, so compare the latest definition.
+    const latest = [...sharedClickHouseMigrations]
+      .sort(byMigrationName)
+      .flatMap(({ sql }) => definitions(sql))
       .at(-1);
 
-    expect(sqlStatements(collectorCopy)).toEqual(sqlStatements(latest?.sql ?? ""));
+    expect(latest).toBeDefined();
+    expect(definitions(collectorCopy)).toEqual([latest]);
   });
 
   it("splits statements after removing comments that contain semicolons", () => {

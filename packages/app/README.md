@@ -198,8 +198,8 @@ in an unconfigured worktree, it copies each application's `.env` from the main
 worktree. The applications load those files for integration settings. See
 `.env.example` for available settings.
 
-Shared ClickHouse table definitions and SQL query limits live in
-`packages/app/clickhouse/shared/`. App's access rules live in
+Shared ClickHouse databases, base users, table definitions, and SQL query limits
+live in `packages/app/clickhouse/shared/`. App's SQL API access lives in
 `packages/app/clickhouse/self-hosted/`; Cloud's live in `packages/cloud/clickhouse/`.
 Each application applies them on startup to its own ClickHouse container, using the
 same `app` and `otel` database names. See `DATABASE-MIGRATIONS.md`.

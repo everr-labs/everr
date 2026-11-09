@@ -1,3 +1,15 @@
+# Each dev server applies its ClickHouse migrations on startup. Keep the image
+# at the version deploy/compose.yaml pins.
+x-clickhouse: &clickhouse
+  image: clickhouse/clickhouse-server:26.8.34.13
+  environment:
+    CLICKHOUSE_USER: default
+    CLICKHOUSE_PASSWORD: dev
+    CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+  ports:
+    - target: 8123
+      host_ip: 127.0.0.1
+
 services:
   mailpit:
     image: axllent/mailpit:v1.20.4
@@ -21,29 +33,13 @@ services:
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-app:
-    # The app dev server applies its ClickHouse migrations on startup.
-    image: clickhouse/clickhouse-server:26.8.34.13
-    environment:
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: dev
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    ports:
-      - target: 8123
-        host_ip: 127.0.0.1
+    <<: *clickhouse
     volumes:
       - clickhouse-app:/var/lib/clickhouse
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-cloud:
-    # The cloud dev server applies its ClickHouse migrations on startup.
-    image: clickhouse/clickhouse-server:26.8.34.13
-    environment:
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: dev
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
-    ports:
-      - target: 8123
-        host_ip: 127.0.0.1
+    <<: *clickhouse
     volumes:
       - clickhouse-cloud:/var/lib/clickhouse
     labels:

@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   delivery_dedup_key String DEFAULT '',
   -- Written by the app from the tenant's plan (packages/app/src/lib/retention.server.ts).
   -- The app.* views get the same guarantee from the retention functions in
-  -- init/05; this table is written directly, so the constraint stands in for
+  -- 05-create-retention-functions.sql; this table is written directly, so the constraint stands in for
   -- them. Without one, an insert that omits the field stamps 0 and the row is
   -- dropped at the next TTL pass with no error anywhere.
   retention_days UInt16,
