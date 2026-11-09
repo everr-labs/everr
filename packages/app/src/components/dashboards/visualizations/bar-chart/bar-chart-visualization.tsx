@@ -210,16 +210,22 @@ export function BarChartVisualization({ spec, data }: VisualizationProps<BarChar
       Math.max(MIN_CATEGORY_AXIS_WIDTH, width * 0.3),
     );
     const grid: GridInsets = {
-      top: !horizontal && widestValueLabel > 0 ? VALUE_LABEL_FONT_SIZE + 12 : 8,
+      // Snug to the panel like the time series: room only for value labels
+      // above or beside the bars, and for the last value tick, centered on
+      // the right edge of a horizontal chart.
+      top: !horizontal && widestValueLabel > 0 ? VALUE_LABEL_FONT_SIZE + 12 : 0,
       bottom: gridBottom,
       ...(horizontal
         ? {
             left: categoryAxisWidth,
             right: Math.ceil(
-              Math.max(PLOT_EDGE_INSET, widestTick / 2, widestValueLabel + PLOT_EDGE_INSET),
+              Math.max(
+                widestTick / 2,
+                widestValueLabel > 0 ? widestValueLabel + PLOT_EDGE_INSET : 0,
+              ),
             ),
           }
-        : { left: valueAxisWidth, right: PLOT_EDGE_INSET }),
+        : { left: valueAxisWidth, right: 0 }),
     };
     // Each category label owns its band (vertical) or the axis width
     // (horizontal); long ones are cut in the middle to fit it. Only the

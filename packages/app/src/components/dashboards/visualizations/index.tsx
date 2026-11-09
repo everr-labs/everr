@@ -68,6 +68,7 @@ const registry: Record<string, VisualizationEntry> = {
   BarChart: defineVisualization({
     schema: barChartSpec,
     component: BarChartVisualization,
+    inset: "flush-content",
   }),
   GaugeChart: defineVisualization({
     schema: gaugeChartSpec,
