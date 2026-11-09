@@ -1,26 +1,49 @@
-/* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import { ChartContainer, ChartLegend, ChartLegendContent } from "@everr/ui/components/chart";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
+import { readableForeground } from "@everr/ui/lib/contrast";
+import type { BarSeriesOption } from "echarts/charts";
+import { BarChart } from "echarts/charts";
+import type { GridComponentOption } from "echarts/components";
+import type { ComposeOption } from "echarts/core";
+import * as echarts from "echarts/core";
+import { LabelLayout } from "echarts/features";
 import { BarChart3 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Bar, BarChart, CartesianGrid, LabelList, Text, XAxis, YAxis } from "recharts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createTimeTickFormatter } from "../data-utils";
+import {
+  AXIS_LABEL_MARGIN,
+  axisLabelsWidth,
+  createTextMeasurer,
+  niceValueAxis,
+  plainAxisOption,
+  VALUE_AXIS_EDGE_INSET,
+  valueAxisOption,
+} from "../echarts/axis";
+import { type GridInsets, getPlotRect, ratioWithin } from "../echarts/plot-rect";
+import { SeriesLegend, seriesTooltipRows, useSeriesLegend } from "../echarts/series-legend";
+import { useEChart } from "../echarts/use-echart";
 import type { VisualizationProps } from "../index";
-import { MIN_VALUE_AXIS_WIDTH, valueAxisWidth } from "../value-axis";
+import { SeriesEmptyState } from "../series-empty-state";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
 
+echarts.use([BarChart, LabelLayout]);
+
+type ChartOption = ComposeOption<BarSeriesOption | GridComponentOption>;
+
 const MAX_CATEGORY_TICKS = 8;
-const TICK_FONT_SIZE = 12;
-// Rough advance width of a glyph at TICK_FONT_SIZE for the default UI font.
-// Only used to estimate how many characters fit in a tick's band.
-const TICK_CHAR_PX = TICK_FONT_SIZE * 0.55;
+const VALUE_LABEL_FONT_SIZE = 10;
+const PLOT_EDGE_INSET = 12;
+/** Narrowest the category axis gets on horizontal bars before labels truncate. */
+const MIN_CATEGORY_AXIS_WIDTH = 90;
+/** `percent` stacking draws shares of 1, labelled as percentages. */
+const SHARE_FORMAT = createValueFormatter({ unit: "1", scale: "none", display: "percent" });
 
 // Middle ellipsis: keeps both the head and tail of a label. Path-like
 // categories (e.g. "/[locale]/company/[companyUID]/people") share a long
 // common prefix and differ at the end, so plain end-truncation would collapse
-// them all to the same string — keeping both ends preserves what distinguishes
+// them all to the same string; keeping both ends preserves what distinguishes
 // them.
 function truncateMiddle(text: string, maxChars: number): string {
   if (maxChars < 1) return "";
@@ -34,252 +57,292 @@ function truncateMiddle(text: string, maxChars: number): string {
     : `${text.slice(0, head)}…`;
 }
 
-// Tick renderer for the (string) category axis. recharts passes the axis's
-// plotting `width`/`height` plus `visibleTicksCount`, which lets us size each
-// label to the pixel band it actually owns and truncate to fit instead of
-// letting long labels collide. The full value stays available on hover via
-// <title> (and in the bar tooltip).
-function CategoryTick({
-  axis,
-  formatter,
-  ...props
-}: {
-  axis: "x" | "y";
-  formatter: (value: string | number) => string;
-  // recharts injects these on the cloned tick element.
-  x?: number;
-  y?: number;
-  width?: number;
-  visibleTicksCount?: number;
-  payload?: { value: string | number };
-}) {
-  const { x = 0, y = 0, width = 0, payload } = props;
-  const label = formatter(payload?.value ?? "");
-  const visible = props.visibleTicksCount || 1;
-  // x-axis: each label owns one horizontal band; y-axis: the whole axis width.
-  const availablePx = axis === "x" ? width / visible : width;
-  const maxChars = Math.max(1, Math.floor((availablePx - 8) / TICK_CHAR_PX));
-  const display = truncateMiddle(label, maxChars);
-  return (
-    <g>
-      {display !== label && <title>{label}</title>}
-      <Text
-        x={x}
-        y={y}
-        textAnchor={axis === "x" ? "middle" : "end"}
-        verticalAnchor={axis === "x" ? "start" : "middle"}
-        fontSize={TICK_FONT_SIZE}
-        className="fill-muted-foreground"
-      >
-        {display}
-      </Text>
-    </g>
-  );
+/** The longest middle-truncation of `text` that fits `maxPx`. */
+function fitMiddle(text: string, maxPx: number, measure: (text: string) => number): string {
+  if (measure(text) <= maxPx) return text;
+  let lo = 1;
+  let hi = text.length - 1;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure(truncateMiddle(text, mid)) <= maxPx) lo = mid;
+    else hi = mid - 1;
+  }
+  return truncateMiddle(text, lo);
 }
 
-function getPlotArea(container: HTMLElement): DOMRect | null {
-  const grid = container.querySelector(".recharts-cartesian-grid");
-  return grid?.getBoundingClientRect() ?? null;
-}
-
-function createTimeTickFormatter(spanMs: number) {
-  return (x: string | number) => {
-    const d = new Date(Number(x));
-    if (spanMs > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
+/** Each bar as a share of its category's total magnitude, for `percent`. */
+function toShares(rows: Array<Record<string, unknown>>, ids: string[]) {
+  return rows.map((row) => {
+    let total = 0;
+    for (const id of ids) {
+      const value = row[id];
+      if (typeof value === "number") total += Math.abs(value);
     }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+    const shares: Record<string, number | null> = {};
+    for (const id of ids) {
+      const value = row[id];
+      shares[id] = typeof value === "number" && total > 0 ? value / total : null;
+    }
+    return shares;
+  });
 }
 
 export function BarChartVisualization({ spec, data }: VisualizationProps<BarChartSpec>) {
-  const formatter = createValueFormatter(spec.valueFormat);
+  const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, stacking, orientation, showValues, colors } = spec;
+  const horizontal = orientation === "horizontal";
+  const stacked = stacking !== "none";
+  const percent = stacking === "percent";
 
-  const { chartData, valueKeys, chartConfig, isTimeAxis } = useMemo(
+  const { chartData, series, isTimeAxis } = useMemo(
     () => buildBarChartModel(data ?? [], colors),
     [data, colors],
   );
+  const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
+    series,
+    showLegend,
+  );
 
-  // recharts naming: layout "vertical" = horizontal bars.
-  const horizontal = orientation === "horizontal";
-
-  const containerRef = useRef<HTMLDivElement>(null);
+  const chartElementRef = useRef<HTMLDivElement>(null);
   const [tooltipState, setTooltipState] = useState<{
     clientX: number;
     clientY: number;
     index: number;
   } | null>(null);
 
-  // Mirror the other visualizations' cursor-following tooltip instead of
-  // recharts' built-in one: map the pointer to the nearest category band and
-  // drive a portaled CursorTooltip from it.
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      const el = containerRef.current;
-      if (!el || chartData.length === 0) return;
-      const rect = getPlotArea(el);
-      if (!rect) return;
-      const ratio = horizontal
-        ? (e.clientY - rect.top) / rect.height
-        : (e.clientX - rect.left) / rect.width;
-      const index = Math.min(
-        chartData.length - 1,
-        Math.max(0, Math.floor(ratio * chartData.length)),
-      );
-      setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
-    },
-    [chartData, horizontal],
+  const hasChart = !!data && chartData.length > 0 && series.length > 0;
+  const clearTooltip = useCallback(() => setTooltipState(null), []);
+  const mounted = useEChart(chartElementRef, hasChart, clearTooltip);
+  const chart = mounted?.chart ?? null;
+  const theme = mounted?.theme ?? null;
+  const width = mounted?.width ?? 0;
+
+  const categoryLabels = useMemo(() => {
+    if (!isTimeAxis) return chartData.map((row) => String(row[X_KEY]));
+    const first = chartData[0]?.[X_KEY];
+    const last = chartData.at(-1)?.[X_KEY];
+    const format = createTimeTickFormatter([Number(first), Number(last)]);
+    return chartData.map((row) => format(Number(row[X_KEY])));
+  }, [chartData, isTimeAxis]);
+
+  const ids = useMemo(() => series.map(({ id }) => id), [series]);
+  const drawn = useMemo(
+    () => (percent ? toShares(chartData, ids) : chartData),
+    [percent, chartData, ids],
   );
 
-  const handleMouseLeave = useCallback(() => setTooltipState(null), []);
-
-  // `valueKeys.length === 0` means rows came back but none had a numeric
-  // column to plot — guard on it explicitly instead of rendering an axis-only,
-  // bar-less chart.
-  if (!data || chartData.length === 0 || valueKeys.length === 0) {
-    const message = !data
-      ? "Configure a query to see results"
-      : chartData.length === 0
-        ? "No data in this time range"
-        : "No numeric data to plot";
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <BarChart3 className="size-8" />
-        <p className="text-sm">{message}</p>
-      </div>
-    );
-  }
-
-  const stacked = stacking !== "none";
-
-  const first = chartData[0];
-  const last = chartData.at(-1);
-  const spanMs =
-    isTimeAxis && first && last && chartData.length > 1
-      ? (last[X_KEY] as number) - (first[X_KEY] as number)
-      : 0;
-  const formatXTick = isTimeAxis
-    ? createTimeTickFormatter(spanMs)
-    : (x: string | number) => String(x);
-  let axisMagnitude = 0;
-  for (const row of chartData) {
-    let positive = 0;
-    let negative = 0;
-    for (const key of valueKeys) {
-      const value = row[key];
-      if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      if (stacked) {
-        positive += Math.max(0, value);
-        negative += Math.min(0, value);
-      } else axisMagnitude = Math.max(axisMagnitude, Math.abs(value));
+  // Fit the value axis to what is drawn: each bar alone, or each stack's
+  // positive and negative piles (ECharts stacks by sign). Bars grow from zero,
+  // so zero is always in range.
+  const { scale, format: formatValueTick } = useMemo(() => {
+    let lo = 0;
+    let hi = 0;
+    for (const row of drawn) {
+      let positive = 0;
+      let negative = 0;
+      for (const id of ids) {
+        const value = row[id];
+        if (typeof value !== "number" || !Number.isFinite(value)) continue;
+        if (stacked) {
+          if (value >= 0) positive += value;
+          else negative += value;
+        } else {
+          lo = Math.min(lo, value);
+          hi = Math.max(hi, value);
+        }
+      }
+      lo = Math.min(lo, negative);
+      hi = Math.max(hi, positive);
     }
-    if (stacked) axisMagnitude = Math.max(axisMagnitude, positive, -negative);
-  }
-  const formatAxisValue = formatter.axis(axisMagnitude);
-  // With percent stacking the value axis runs 0..1 (stackOffset="expand").
-  const formatValueTick = (v: number) =>
-    stacking === "percent" ? `${Math.round(v * 100)}%` : formatAxisValue(v);
-  const formatBarValue = formatter.format;
+    return percent
+      ? niceValueAxis(SHARE_FORMAT, lo, hi, { min: lo < 0 ? -1 : 0, max: hi > 0 ? 1 : 0 })
+      : niceValueAxis(formatter, lo, hi);
+  }, [drawn, formatter, ids, stacked, percent]);
 
-  // Dense (time-bucketed) data produces one category per bucket — thin the
-  // tick labels instead of letting them overlap.
+  // Value labels show the raw value, also under percent stacking.
+  const valueLabels = useMemo(
+    () =>
+      showValues
+        ? new Map(
+            ids.map((id) => [
+              id,
+              chartData.map((row) => {
+                const value = row[id];
+                return typeof value === "number" ? formatter.format(value) : "";
+              }),
+            ]),
+          )
+        : null,
+    [showValues, ids, chartData, formatter],
+  );
+
+  // Text widths that depend on the data alone, kept apart from the geometry
+  // below so resizing does not measure every label again.
+  const measured = useMemo(() => {
+    if (!theme) return null;
+    const measure = createTextMeasurer(theme.fontFamily);
+    const tickLabels = scale.ticks.map(formatValueTick);
+    let widestValueLabel = 0;
+    // Only labels drawn past the bar end need room inside the canvas.
+    if (valueLabels && !stacked) {
+      const measureValue = createTextMeasurer(theme.fontFamily, VALUE_LABEL_FONT_SIZE);
+      for (const labels of valueLabels.values()) {
+        for (const label of labels)
+          widestValueLabel = Math.max(widestValueLabel, measureValue(label));
+      }
+    }
+    return {
+      measure,
+      valueAxisWidth: axisLabelsWidth(tickLabels, measure),
+      widestTick: Math.max(0, ...tickLabels.map(measure)),
+      widestValueLabel,
+      categoryAxisWidth: horizontal ? axisLabelsWidth(categoryLabels, measure) : 0,
+    };
+  }, [theme, scale, formatValueTick, valueLabels, stacked, horizontal, categoryLabels]);
+
   const tickInterval = Math.max(0, Math.ceil(chartData.length / MAX_CATEGORY_TICKS) - 1);
 
-  const categoryAxisProps = {
-    dataKey: X_KEY,
-    type: "category" as const,
-    interval: tickInterval,
-    // Custom tick truncates long category labels to their available band so
-    // they stop overlapping; it receives the raw value, so format here.
-    tick: (tickProps: object) => (
-      <CategoryTick axis={horizontal ? "y" : "x"} formatter={formatXTick} {...tickProps} />
-    ),
-  };
-  const valueAxisProps = {
-    type: "number" as const,
-    tickFormatter: formatValueTick,
-  };
+  const layout = useMemo(() => {
+    if (!measured) return null;
+    const { measure, valueAxisWidth, widestTick, widestValueLabel } = measured;
+    const categoryAxisWidth = Math.min(
+      measured.categoryAxisWidth,
+      Math.max(MIN_CATEGORY_AXIS_WIDTH, width * 0.3),
+    );
+    const grid: GridInsets = {
+      top: !horizontal && widestValueLabel > 0 ? VALUE_LABEL_FONT_SIZE + 12 : 8,
+      bottom: gridBottom,
+      ...(horizontal
+        ? {
+            left: categoryAxisWidth,
+            right: Math.ceil(
+              Math.max(PLOT_EDGE_INSET, widestTick / 2, widestValueLabel + PLOT_EDGE_INSET),
+            ),
+          }
+        : { left: valueAxisWidth, right: PLOT_EDGE_INSET }),
+    };
+    // Each category label owns its band (vertical) or the axis width
+    // (horizontal); long ones are cut in the middle to fit it. Only the
+    // labels ECharts shows at this tick interval are fitted.
+    const visibleTicks = Math.max(1, Math.ceil(chartData.length / (tickInterval + 1)));
+    const labelPx = horizontal
+      ? categoryAxisWidth - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET
+      : (width - grid.left - grid.right) / visibleTicks - 8;
+    const fittedLabels = categoryLabels.map((label, index) =>
+      index % (tickInterval + 1) === 0 ? fitMiddle(label, labelPx, measure) : "",
+    );
+    return { grid, fittedLabels };
+  }, [measured, width, horizontal, gridBottom, chartData.length, tickInterval, categoryLabels]);
+
+  useEffect(() => {
+    if (!chart || !theme || !layout) return;
+    const plain = plainAxisOption(theme);
+    const categoryAxis = {
+      type: "category" as const,
+      // Index keys: two time buckets can share a display label.
+      data: layout.fittedLabels.map((_, index) => String(index)),
+      inverse: horizontal,
+      ...plain,
+      axisLabel: {
+        ...plain.axisLabel,
+        interval: tickInterval,
+        formatter: (_: string, index: number) => layout.fittedLabels[index] ?? "",
+      },
+    };
+    const valueAxis = valueAxisOption({ theme, scale, format: formatValueTick });
+    const option: ChartOption = {
+      animation: false,
+      grid: layout.grid,
+      xAxis: horizontal ? valueAxis : categoryAxis,
+      yAxis: horizontal ? categoryAxis : valueAxis,
+      series: series.map(({ id, color }): BarSeriesOption => {
+        const dimmed = activeSeries !== null && activeSeries !== id;
+        const labels = valueLabels?.get(id);
+        return {
+          id,
+          name: id,
+          type: "bar",
+          data: drawn.map((row) => {
+            const value = row[id];
+            return typeof value === "number" ? value : null;
+          }),
+          stack: stacked ? "stack" : undefined,
+          barMaxWidth: 64,
+          barCategoryGap: "10%",
+          silent: true,
+          itemStyle: { color, opacity: dimmed ? 0.25 : 1 },
+          // Dense bars would print their values over each other.
+          labelLayout: { hideOverlap: true },
+          label: {
+            show: !!labels,
+            position: stacked ? "inside" : horizontal ? "right" : "top",
+            // Inside a stacked bar the label sits on the bar's own color;
+            // elsewhere it sits on the panel.
+            color: stacked
+              ? (readableForeground(color)?.color ?? theme.foregroundColor)
+              : theme.foregroundColor,
+            fontFamily: theme.fontFamily,
+            fontSize: VALUE_LABEL_FONT_SIZE,
+            opacity: dimmed ? 0.25 : 1,
+            formatter: ({ dataIndex }: { dataIndex: number }) => labels?.[dataIndex] ?? "",
+          },
+        };
+      }),
+    };
+    chart.setOption(option, { notMerge: true });
+  }, [
+    activeSeries,
+    chart,
+    drawn,
+    formatValueTick,
+    horizontal,
+    layout,
+    scale,
+    series,
+    stacked,
+    theme,
+    tickInterval,
+    valueLabels,
+  ]);
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      const element = chartElementRef.current;
+      if (isOnLegend(e.target) || !element || !layout) {
+        setTooltipState(null);
+        return;
+      }
+      const plot = getPlotRect(element, layout.grid);
+      if (!plot) return;
+      const ratio = horizontal
+        ? ratioWithin(e.clientY, plot.top, plot.height)
+        : ratioWithin(e.clientX, plot.left, plot.width);
+      const index = Math.min(chartData.length - 1, Math.floor(ratio * chartData.length));
+      setTooltipState({ clientX: e.clientX, clientY: e.clientY, index });
+    },
+    [chartData.length, horizontal, isOnLegend, layout],
+  );
+
+  if (!hasChart) {
+    return <SeriesEmptyState icon={BarChart3} hasQuery={!!data} hasRows={chartData.length > 0} />;
+  }
 
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipX = tooltipRow ? tooltipRow[X_KEY] : undefined;
+  const tooltipX = tooltipRow?.[X_KEY];
 
   return (
     <div
-      ref={containerRef}
-      className="relative h-full w-full"
+      className="relative h-full w-full text-muted-foreground"
       onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={() => setTooltipState(null)}
     >
-      <ChartContainer config={chartConfig} className="h-full w-full">
-        <BarChart
-          data={chartData}
-          // recharts naming: layout "vertical" = horizontal bars.
-          layout={horizontal ? "vertical" : "horizontal"}
-          margin={{ left: 12, right: 12, top: 8 }}
-          stackOffset={stacking === "percent" ? "expand" : undefined}
-        >
-          <CartesianGrid horizontal={!horizontal} vertical={horizontal} />
-          <XAxis
-            {...(horizontal ? valueAxisProps : categoryAxisProps)}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-          />
-          <YAxis
-            {...(horizontal ? categoryAxisProps : valueAxisProps)}
-            width={
-              horizontal
-                ? 90
-                : spec.valueFormat && stacking !== "percent"
-                  ? valueAxisWidth([-axisMagnitude], formatAxisValue)
-                  : MIN_VALUE_AXIS_WIDTH
-            }
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-          />
-          {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-          {valueKeys.map((key) => (
-            <Bar
-              key={key}
-              dataKey={key}
-              stackId={stacked ? "stack" : undefined}
-              fill={`var(--color-${key})`}
-              maxBarSize={64}
-              isAnimationActive={false}
-            >
-              {showValues && (
-                <LabelList
-                  dataKey={key}
-                  position={stacked ? "center" : horizontal ? "right" : "top"}
-                  className="fill-foreground"
-                  fontSize={10}
-                  formatter={(v: unknown) => (typeof v === "number" ? formatBarValue(v) : "")}
-                />
-              )}
-            </Bar>
-          ))}
-        </BarChart>
-      </ChartContainer>
+      <div ref={chartElementRef} className="h-full w-full" />
+      {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {tooltipState && tooltipRow && (
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
             title={isTimeAxis ? new Date(Number(tooltipX)).toLocaleString() : String(tooltipX)}
-            rows={valueKeys
-              .filter((key) => typeof tooltipRow[key] === "number")
-              .map((key) => ({
-                key,
-                color: chartConfig[key]?.color,
-                label: chartConfig[key]?.label ?? key,
-                value: formatBarValue(tooltipRow[key] as number),
-              }))}
+            rows={seriesTooltipRows(series, tooltipRow, activeSeries, formatter.format)}
           />
         </CursorTooltip>
       )}

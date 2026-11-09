@@ -182,6 +182,13 @@ describe("value formatting", () => {
     expect(formatter("s", "duration").axis(90)(30)).toBe("0.5 min");
   });
 
+  it("reports the divisor its axis labels use", () => {
+    expect(formatter("Hz", "decimal").axisFor(3.2e9).divisor).toBe(1e9);
+    expect(formatter("s", "duration").axisFor(90).divisor).toBe(60);
+    expect(formatter("ms", "duration").axisFor(90_000).divisor).toBe(60_000);
+    expect(formatter("connections", "none").axisFor(8200).divisor).toBe(1);
+  });
+
   it("returns separate number and unit parts for tiles", () => {
     expect(formatter("By", "binary").parts(5 * 1024 ** 3)).toEqual({
       value: "5",

@@ -1,0 +1,69 @@
+import { GridComponent } from "echarts/components";
+import type { EChartsType } from "echarts/core";
+import * as echarts from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { type RefObject, useEffect, useState } from "react";
+
+echarts.use([GridComponent, CanvasRenderer]);
+
+export interface ChartTheme {
+  /** Axis text: the chart element's own (muted) color. */
+  textColor: string;
+  /** Text drawn on the plot itself, e.g. bar value labels. */
+  foregroundColor: string;
+  gridColor: string;
+  fontFamily: string;
+}
+
+/** ECharts draws on a canvas, so it needs resolved colors instead of CSS vars. */
+function readChartTheme(element: HTMLElement): ChartTheme {
+  const style = getComputedStyle(element);
+  return {
+    textColor: style.color,
+    foregroundColor: style.getPropertyValue("--foreground").trim(),
+    gridColor: style.getPropertyValue("--border").trim(),
+    fontFamily: style.fontFamily,
+  };
+}
+
+interface MountedChart {
+  chart: EChartsType;
+  theme: ChartTheme;
+  width: number;
+}
+
+/**
+ * Owns an ECharts instance mounted on `elementRef` while `enabled`: creates it,
+ * keeps it sized to the element, and disposes it. The instance is state, so
+ * option effects that depend on it run once it exists, together with the
+ * element's resolved theme and the chart's current width. `onResize` must be
+ * stable; it runs after every resize, e.g. to drop a now-misplaced tooltip.
+ */
+export function useEChart(
+  elementRef: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  onResize?: () => void,
+): MountedChart | null {
+  const [mounted, setMounted] = useState<MountedChart | null>(null);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!enabled || !element) return;
+    const instance = echarts.init(element, undefined, { renderer: "canvas" });
+    const theme = readChartTheme(element);
+    setMounted({ chart: instance, theme, width: instance.getWidth() });
+    const observer = new ResizeObserver(() => {
+      instance.resize();
+      setMounted({ chart: instance, theme, width: instance.getWidth() });
+      onResize?.();
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      instance.dispose();
+      setMounted(null);
+    };
+  }, [elementRef, enabled, onResize]);
+
+  return mounted;
+}

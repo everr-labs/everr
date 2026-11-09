@@ -7,8 +7,8 @@ describe("buildBarChartModel", () => {
   it("uses the time column as the x-axis and assigns opaque render keys", () => {
     const model = buildBarChartModel([[{ time: "2026-06-07T00:00:00", value: 5 }]]);
     expect(model.isTimeAxis).toBe(true);
-    expect(model.valueKeys).toEqual(["s0"]);
-    expect(model.chartConfig.s0?.label).toBe("value");
+    expect(model.series.map((s) => s.id)).toEqual(["s0"]);
+    expect(model.series[0]?.label).toBe("value");
     expect(model.chartData[0]?.[X_KEY]).toBeTypeOf("number");
     expect(model.chartData[0]?.s0).toBe(5);
   });
@@ -64,16 +64,27 @@ describe("buildBarChartModel", () => {
         { ts: "2026-06-07T00:01:00", status: "ok", count: 9 },
       ],
     ]);
-    expect(model.valueKeys).toEqual(["s0", "s1"]);
+    expect(model.series.map((s) => s.id)).toEqual(["s0", "s1"]);
     // Pivoted series keep the order the rows arrived in, so a query's
     // ORDER BY decides which series stacks at the bottom.
-    expect(model.chartConfig.s0?.label).toBe("ok");
-    expect(model.chartConfig.s1?.label).toBe("error");
+    expect(model.series[0]?.label).toBe("ok");
+    expect(model.series[1]?.label).toBe("error");
     expect(model.chartData).toHaveLength(2);
     expect(model.chartData[0]?.s0).toBe(8);
     expect(model.chartData[0]?.s1).toBe(2);
     // "no bar here" stays absent, not 0.
     expect(model.chartData[1]?.s1).toBeUndefined();
+    // Identities, unlike render keys, follow the series when rows reorder.
+    const reordered = buildBarChartModel([
+      [
+        { ts: "2026-06-07T00:00:00", status: "error", count: 2 },
+        { ts: "2026-06-07T00:00:00", status: "ok", count: 8 },
+      ],
+    ]);
+    const identityOf = (m: typeof model, label: string) =>
+      m.series.find((s) => s.label === label)?.identity;
+    expect(identityOf(reordered, "ok")).toBe(identityOf(model, "ok"));
+    expect(reordered.series[0]?.identity).not.toBe(model.series[0]?.identity);
   });
 
   it("pivots remaining string columns on a category axis", () => {
@@ -84,8 +95,8 @@ describe("buildBarChartModel", () => {
         { endpoint: "/orders", method: "GET", requests: 7 },
       ],
     ]);
-    expect(model.chartConfig.s0?.label).toBe("GET");
-    expect(model.chartConfig.s1?.label).toBe("POST");
+    expect(model.series[0]?.label).toBe("GET");
+    expect(model.series[1]?.label).toBe("POST");
     expect(model.chartData).toHaveLength(2);
     expect(model.chartData[0]?.s0).toBe(10);
     expect(model.chartData[0]?.s1).toBe(3);
@@ -96,11 +107,11 @@ describe("buildBarChartModel", () => {
       [{ service: "api", errors: 4 }],
       [{ service: "api", warnings: 9 }],
     ]);
-    expect(model.valueKeys).toEqual(["s0", "s1"]);
+    expect(model.series.map((s) => s.id)).toEqual(["s0", "s1"]);
     expect(model.chartData).toHaveLength(1);
     expect(model.chartData[0]?.s0).toBe(4);
     expect(model.chartData[0]?.s1).toBe(9);
-    expect(model.chartConfig.s0?.color).not.toBe(model.chartConfig.s1?.color);
+    expect(model.series[0]?.color).not.toBe(model.series[1]?.color);
   });
 
   it("coerces quoted ClickHouse aggregates to numbers", () => {
@@ -111,6 +122,6 @@ describe("buildBarChartModel", () => {
   it("returns an empty model for empty frames", () => {
     const model = buildBarChartModel([[]]);
     expect(model.chartData).toEqual([]);
-    expect(model.valueKeys).toEqual([]);
+    expect(model.series).toEqual([]);
   });
 });

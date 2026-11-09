@@ -1,19 +1,26 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
-import { cn } from "@everr/ui/lib/utils";
 import type { LineSeriesOption } from "echarts/charts";
 import { LineChart } from "echarts/charts";
 import type { GridComponentOption } from "echarts/components";
-import { GridComponent } from "echarts/components";
-import type { ComposeOption, EChartsType } from "echarts/core";
+import type { ComposeOption } from "echarts/core";
 import * as echarts from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { markerTolerance, nearestSeriesKeys, valueAtCursorY } from "../chart-hover";
-import { createTimeTickFormatter, niceLinearDomain, SERIES_COLORS } from "../data-utils";
+import { createTimeTickFormatter, SERIES_COLORS } from "../data-utils";
+import {
+  axisLabelsWidth,
+  createTextMeasurer,
+  niceValueAxis,
+  plainAxisOption,
+  valueAxisOption,
+} from "../echarts/axis";
+import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "../echarts/plot-rect";
+import { SeriesLegend, seriesTooltipRows, useSeriesLegend } from "../echarts/series-legend";
+import { useEChart } from "../echarts/use-echart";
 import type { VisualizationProps } from "../index";
+import { SeriesEmptyState } from "../series-empty-state";
 import { createValueFormatter } from "../value-format";
 import { useSharedTimeCursor } from "./shared-time-cursor";
 import type { TimeSeriesChartSpec } from "./spec";
@@ -22,47 +29,13 @@ import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 const BRUSH_COLOR = SERIES_COLORS[0] ?? "hsl(263, 90%, 65%)";
 const PLAIN_MARKER_RADIUS = 4;
 const ACTIVE_MARKER_RADIUS = 6;
-const AXIS_LABEL_MARGIN = 8;
-const VALUE_AXIS_EDGE_INSET = 8;
 
-echarts.use([LineChart, GridComponent, CanvasRenderer]);
+echarts.use([LineChart]);
 
 type ChartOption = ComposeOption<LineSeriesOption | GridComponentOption>;
-type PlotRect = { left: number; top: number; width: number; height: number };
-
-function getPlotArea(
-  chart: EChartsType,
-  container: HTMLElement,
-  domain: [number, number],
-  valueDomain: [number, number],
-): PlotRect | null {
-  const left = chart.convertToPixel({ xAxisIndex: 0 }, domain[0]);
-  const right = chart.convertToPixel({ xAxisIndex: 0 }, domain[1]);
-  const top = chart.convertToPixel({ yAxisIndex: 0 }, valueDomain[1]);
-  const bottom = chart.convertToPixel({ yAxisIndex: 0 }, valueDomain[0]);
-  if (
-    typeof left !== "number" ||
-    typeof right !== "number" ||
-    typeof top !== "number" ||
-    typeof bottom !== "number" ||
-    ![left, right, top, bottom].every(Number.isFinite) ||
-    right <= left ||
-    bottom <= top
-  ) {
-    return null;
-  }
-  const bounds = container.getBoundingClientRect();
-  return {
-    left: bounds.left + left,
-    top: bounds.top + top,
-    width: right - left,
-    height: bottom - top,
-  };
-}
 
 function pxToTimestamp(clientX: number, plotRect: PlotRect, domain: [number, number]): number {
-  const ratio = Math.max(0, Math.min(1, (clientX - plotRect.left) / plotRect.width));
-  return domain[0] + ratio * (domain[1] - domain[0]);
+  return domain[0] + ratioWithin(clientX, plotRect.left, plotRect.width) * (domain[1] - domain[0]);
 }
 
 function curveOptions(
@@ -92,16 +65,12 @@ export function TimeSeriesChartVisualization({
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const chartElementRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLElement>(null);
-  const chartRef = useRef<EChartsType | null>(null);
   const cursorSourceRef = useRef(Symbol("time-series-chart"));
   const { cursor, store: cursorStore } = useSharedTimeCursor();
   const plotRectRef = useRef<PlotRect | null>(null);
   const [brushStart, setBrushStart] = useState<number | null>(null);
   const [brushEnd, setBrushEnd] = useState<number | null>(null);
-  const [focusedSeries, setFocusedSeries] = useState<string | null>(null);
   const [tooltipState, setTooltipState] = useState<{
     clientX: number;
     clientY: number;
@@ -122,7 +91,10 @@ export function TimeSeriesChartVisualization({
     () => buildChartModel(data ?? [], domain),
     [data, domain],
   );
-  const activeSeries = modelSeries.find(({ identity }) => identity === focusedSeries)?.id ?? null;
+  const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
+    modelSeries,
+    showLegend,
+  );
 
   const stackedData = useMemo(
     () => (stacked ? buildStackedData(chartData, modelSeries) : null),
@@ -132,7 +104,7 @@ export function TimeSeriesChartVisualization({
   // Measure over what is actually drawn: the stacked
   // tops when stacking, otherwise each line's own samples (which can reach one
   // bucket left of the x domain).
-  const yAxis = useMemo(() => {
+  const { scale: yAxis, format: formatAxisValue } = useMemo(() => {
     let lo = stackedData ? 0 : Number.POSITIVE_INFINITY;
     let hi = stackedData ? 0 : Number.NEGATIVE_INFINITY;
     if (stackedData) {
@@ -155,75 +127,39 @@ export function TimeSeriesChartVisualization({
         }
       }
     }
-    return niceLinearDomain(lo, hi, 5, {
+    return niceValueAxis(formatter, lo, hi, {
       min: typeof yAxisSpec?.min === "number" ? yAxisSpec.min : undefined,
       max: typeof yAxisSpec?.max === "number" ? yAxisSpec.max : undefined,
     });
-  }, [chartData.length, stackedData, modelSeries, yAxisSpec]);
-  const formatAxisValue = useMemo(
-    () => formatter.axis(Math.max(...yAxis.domain.map(Math.abs))),
-    [formatter, yAxis],
-  );
+  }, [chartData.length, formatter, stackedData, modelSeries, yAxisSpec]);
   const hasChart = !!data && chartData.length > 0 && modelSeries.length > 0;
 
-  useEffect(() => {
-    const element = chartElementRef.current;
-    if (!hasChart || !element) return;
-    const chart = echarts.init(element, undefined, { renderer: "canvas" });
-    chartRef.current = chart;
-    const observer = new ResizeObserver(() => {
-      chart.resize();
-      setTooltipState(null);
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, [hasChart]);
+  const clearTooltip = useCallback(() => setTooltipState(null), []);
+  const mounted = useEChart(chartElementRef, hasChart, clearTooltip);
+  const chart = mounted?.chart ?? null;
+  const theme = mounted?.theme ?? null;
 
   useEffect(() => () => cursorStore.clear(cursorSourceRef.current), [cursorStore]);
 
-  useEffect(() => {
-    const legend = legendRef.current;
-    if (!legend) return;
-    const observer = new ResizeObserver(() => {
-      chartRef.current?.setOption({
-        grid: { bottom: Math.max(58, legend.offsetHeight + 30) },
-      });
-    });
-    observer.observe(legend);
-    return () => observer.disconnect();
-  }, [hasChart, showLegend]);
+  const grid = useMemo<GridInsets | null>(() => {
+    if (!theme) return null;
+    const measure = createTextMeasurer(theme.fontFamily);
+    return {
+      left: axisLabelsWidth(yAxis.ticks.map(formatAxisValue), measure),
+      right: 0,
+      top: 0,
+      bottom: gridBottom,
+    };
+  }, [theme, yAxis, formatAxisValue, gridBottom]);
 
   useEffect(() => {
-    const chart = chartRef.current;
-    const element = chartElementRef.current;
-    if (!chart || !element) return;
-    const style = getComputedStyle(element);
-    const textColor = style.color;
-    const gridColor = style.getPropertyValue("--border").trim();
+    if (!chart || !theme || !grid) return;
     const timeFormat = createTimeTickFormatter(domain);
     const compactTimeFormat = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
-    const axisFont = `12px ${style.fontFamily}`;
-    const measureContext = document.createElement("canvas").getContext("2d");
-    if (measureContext) measureContext.font = axisFont;
-    const axisWidth = Math.ceil(
-      Math.max(
-        0,
-        ...yAxis.ticks.map((tick) => {
-          const label = formatAxisValue(tick);
-          return measureContext ? measureContext.measureText(label).width : label.length * 7;
-        }),
-      ) +
-        AXIS_LABEL_MARGIN +
-        VALUE_AXIS_EDGE_INSET,
-    );
     const series: LineSeriesOption[] = modelSeries.map((item, index) => {
       const { id, color } = item;
       const points = stackedData?.[index] ?? item.data;
@@ -245,84 +181,59 @@ export function TimeSeriesChartVisualization({
         ...curveOptions(curveType),
       };
     });
+    const plain = plainAxisOption(theme);
     const option: ChartOption = {
       animation: false,
-      grid: {
-        left: axisWidth,
-        right: 0,
-        top: 0,
-        bottom: showLegend ? Math.max(58, (legendRef.current?.offsetHeight ?? 0) + 30) : 32,
-      },
+      grid,
       xAxis: {
         type: "time",
         min: domain[0],
         max: domain[1],
         splitNumber: 6,
         minInterval: domain[1] - domain[0] > 86_400_000 ? 86_400_000 : undefined,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { show: false },
+        ...plain,
         axisLabel: {
-          color: textColor,
-          fontFamily: style.fontFamily,
-          fontSize: 12,
-          margin: AXIS_LABEL_MARGIN,
-          hideOverlap: true,
+          ...plain.axisLabel,
           formatter: (value: number) =>
             domain[1] - domain[0] > 86_400_000
               ? timeFormat(value)
               : compactTimeFormat.format(value),
         },
       },
-      yAxis: {
-        type: "value",
-        min: yAxis.domain[0],
-        max: yAxis.domain[1],
-        interval:
-          typeof yAxisSpec?.min === "number" || typeof yAxisSpec?.max === "number"
-            ? undefined
-            : (yAxis.ticks[1] ?? yAxis.domain[1]) - (yAxis.ticks[0] ?? yAxis.domain[0]),
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { lineStyle: { color: gridColor, opacity: 0.5 } },
-        axisLabel: {
-          color: textColor,
-          fontFamily: style.fontFamily,
-          fontSize: 12,
-          margin: AXIS_LABEL_MARGIN,
-          formatter: (value: number) => formatAxisValue(value),
-        },
-      },
+      yAxis: valueAxisOption({
+        theme,
+        scale: yAxis,
+        format: formatAxisValue,
+      }),
       series,
     };
     chart.setOption(option, { notMerge: true });
   }, [
     activeSeries,
-    modelSeries,
+    chart,
     connectNulls,
     curveType,
     domain,
     formatAxisValue,
-    hasChart,
+    grid,
     lineWidth,
-    showLegend,
+    modelSeries,
     stacked,
     stackedData,
+    theme,
     yAxis,
-    yAxisSpec,
   ]);
 
   const handleChartMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target instanceof Node && legendRef.current?.contains(e.target)) {
+      if (isOnLegend(e.target)) {
         setTooltipState(null);
         cursorStore.clear(cursorSourceRef.current);
         return;
       }
-      const chart = chartRef.current;
-      const container = containerRef.current;
-      if (!chart || !container || chartData.length === 0) return;
-      const plotRect = getPlotArea(chart, container, domain, yAxis.domain);
+      const element = chartElementRef.current;
+      if (!element || !grid || chartData.length === 0) return;
+      const plotRect = getPlotRect(element, grid);
       if (!plotRect) return;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       const first = chartData[0];
@@ -354,7 +265,7 @@ export function TimeSeriesChartVisualization({
         tolerance: markerTolerance(plotRect.height, yAxis.domain[1] - yAxis.domain[0]),
       });
     },
-    [domain, chartData, cursorStore, yAxis],
+    [domain, chartData, cursorStore, grid, isOnLegend, yAxis],
   );
 
   const handleChartMouseLeave = useCallback(() => {
@@ -364,19 +275,18 @@ export function TimeSeriesChartVisualization({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (e.target instanceof Node && legendRef.current?.contains(e.target)) return;
-      const chart = chartRef.current;
-      const container = containerRef.current;
-      if (!chart || !container) return;
-      const plotRect = getPlotArea(chart, container, domain, yAxis.domain);
+      if (isOnLegend(e.target)) return;
+      const element = chartElementRef.current;
+      if (!element || !grid) return;
+      const plotRect = getPlotRect(element, grid);
       if (!plotRect) return;
       plotRectRef.current = plotRect;
       const ts = pxToTimestamp(e.clientX, plotRect, domain);
       setBrushStart(ts);
       setBrushEnd(null);
-      container.setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
     },
-    [domain, yAxis],
+    [domain, grid, isOnLegend],
   );
 
   const handlePointerMove = useCallback(
@@ -412,16 +322,8 @@ export function TimeSeriesChartVisualization({
   // to plot — buildChartModel still emits timestamp-only entries, so guard on it
   // explicitly instead of letting an axis-only, line-less chart render.
   if (!hasChart) {
-    const message = !data
-      ? "Configure a query to see results"
-      : chartData.length === 0
-        ? "No data in this time range"
-        : "No numeric data to plot";
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-        <LineChartIcon className="size-8" />
-        <p className="text-sm">{message}</p>
-      </div>
+      <SeriesEmptyState icon={LineChartIcon} hasQuery={!!data} hasRows={chartData.length > 0} />
     );
   }
 
@@ -452,10 +354,9 @@ export function TimeSeriesChartVisualization({
     tooltipState?.cursorValue ?? null,
     tooltipState?.tolerance ?? 0,
   );
-  const chart = chartRef.current;
-  const container = containerRef.current;
-  const plot = chart && container ? getPlotArea(chart, container, domain, yAxis.domain) : null;
-  const bounds = container?.getBoundingClientRect();
+  const element = chartElementRef.current;
+  const plot = element && grid ? getPlotRect(element, grid) : null;
+  const bounds = element?.getBoundingClientRect();
   const localX = (timestamp: number) =>
     plot && bounds
       ? plot.left - bounds.left + ((timestamp - domain[0]) / (domain[1] - domain[0])) * plot.width
@@ -465,7 +366,6 @@ export function TimeSeriesChartVisualization({
 
   return (
     <div
-      ref={containerRef}
       className="relative h-full w-full select-none text-muted-foreground"
       onMouseMove={handleChartMouseMove}
       onMouseLeave={handleChartMouseLeave}
@@ -476,41 +376,14 @@ export function TimeSeriesChartVisualization({
     >
       <div ref={chartElementRef} className="h-full w-full" />
       {showLegend && (
-        <section
-          ref={legendRef}
-          className="pointer-events-auto absolute inset-x-0 bottom-0 text-xs text-foreground"
-          aria-label="Series legend"
-        >
-          <ScrollArea
-            orientation="horizontal"
-            viewportProps={{ tabIndex: 0, "aria-label": "Series legend" }}
-          >
-            <div className="flex w-max min-w-full items-center justify-center gap-4 p-3">
-              {modelSeries.map(({ id, identity, label, color }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={activeSeries === id}
-                  className={cn(
-                    "flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2",
-                    activeSeries !== null && activeSeries !== id && "opacity-40",
-                  )}
-                  onClick={() => {
-                    setFocusedSeries((current) => (current === identity ? null : identity));
-                    setTooltipState(null);
-                    cursorStore.clear(cursorSourceRef.current);
-                  }}
-                >
-                  <div
-                    className="h-2 w-2 shrink-0 rounded-[2px]"
-                    style={{ backgroundColor: color }}
-                  />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
-        </section>
+        <SeriesLegend
+          {...legend}
+          onToggle={(identity) => {
+            toggleSeries(identity);
+            setTooltipState(null);
+            cursorStore.clear(cursorSourceRef.current);
+          }}
+        />
       )}
       {plot && bounds && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -570,23 +443,15 @@ export function TimeSeriesChartVisualization({
         <CursorTooltip x={tooltipState.clientX} y={tooltipState.clientY}>
           <SeriesTooltipContent
             title={new Date(tooltipTs).toLocaleString()}
-            rows={modelSeries
-              .filter(
-                ({ id }) =>
-                  tooltipRow[id] != null && (activeSeries === null || id === activeSeries),
-              )
-              .map(({ id, label, color }) => {
-                const val = tooltipRow[id];
-                return {
-                  key: id,
-                  color,
-                  label,
-                  value: formatter.format(typeof val === "number" ? val : 0),
-                  // Calls out the row the pointer is on, so overlapping series
-                  // can be told apart by aiming at one of them.
-                  active: nearestKeys.has(id),
-                };
-              })}
+            // `nearestKeys` calls out the row the pointer is on, so overlapping
+            // series can be told apart by aiming at one of them.
+            rows={seriesTooltipRows(
+              modelSeries,
+              tooltipRow,
+              activeSeries,
+              formatter.format,
+              nearestKeys,
+            )}
           />
         </CursorTooltip>
       )}

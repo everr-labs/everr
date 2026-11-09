@@ -93,13 +93,17 @@ function niceStep(raw: number): number {
  * Round steps stay at 1, 2, 2.5 and 5 times a power of ten. An automatic
  * range leaves room around the data. Explicit bounds stay exact and may clip
  * data outside the configured range.
+ *
+ * `divisor` is what the axis labels divide values by (1024³ for GiB): steps
+ * are chosen round in that displayed unit, not in the raw values.
  */
 export function niceLinearDomain(
   min: number,
   max: number,
   tickCount = 5,
-  bounds: { min?: number; max?: number } = {},
+  options: { min?: number; max?: number; divisor?: number } = {},
 ): { domain: [number, number]; ticks: number[] } {
+  const { divisor = 1, ...bounds } = options;
   const dataMin = Number.isFinite(min) ? min : 0;
   const dataMax = Number.isFinite(max) ? max : 0;
   const span = Math.max(0, dataMax - dataMin);
@@ -131,7 +135,7 @@ export function niceLinearDomain(
     else lo0 = hi0 - fallbackSpan;
   }
   // A flat series still needs an axis with height, or it plots on the edge.
-  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1));
+  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1) / divisor) * divisor;
   const lo = bounds.min ?? Math.floor(lo0 / step) * step;
   const hi = bounds.max ?? Math.ceil(hi0 / step) * step;
   const ticks: number[] = [];
