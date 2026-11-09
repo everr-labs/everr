@@ -12,10 +12,10 @@
 -- subcolumns of the JSON document and never the whole column. `toString` of
 -- a missing path gives '', the same empty value the map form gave.
 --
--- Repeatable: edit it in place and App and Cloud apply it again on startup.
--- The local collector's chDB registers its own copy at
+-- Applied migrations are immutable: change the function with a new
+-- CREATE OR REPLACE file. The local collector's chDB registers its own copy at
 -- collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql;
--- change both, clickhouse-migrations.test.ts fails while their statements differ.
+-- clickhouse-migrations.test.ts fails while it differs from the latest file.
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
     fingerprint != '',

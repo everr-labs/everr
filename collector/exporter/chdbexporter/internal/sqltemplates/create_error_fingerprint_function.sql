@@ -3,7 +3,7 @@
 -- cloud does.
 --
 -- The statement must stay identical to
--- packages/app/clickhouse/shared/repeatable/04-create-error-fingerprint-function.sql,
+-- the latest packages/app/clickhouse/shared migration that defines errorFingerprint,
 -- or local and cloud fingerprints diverge. packages/app/src/db/clickhouse-migrations.test.ts
 -- compares them.
 --

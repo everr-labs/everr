@@ -26,8 +26,6 @@ export interface ClickHouseMigrationPlan {
   readonly run: HashedClickHouseMigration[];
   /** Applied files the journal recorded without a hash: record it, run nothing. */
   readonly record: HashedClickHouseMigration[];
-  /** Journal entries this build does not bundle, as after a downgrade. */
-  readonly unknown: string[];
 }
 
 /**
@@ -39,10 +37,9 @@ export function clickHouseMigrationHash(sql: string): string {
 }
 
 /**
- * What to do with each migration, given the journal's latest hash per file
- * (`""` for rows written before the journal stored hashes). Throws, before
- * anything runs, when an applied versioned file changed: the journal would
- * otherwise skip the change.
+ * What to do with each migration, given the journal's hash per file (`""` for
+ * rows written before the journal stored hashes). Applied files are immutable:
+ * throws, before anything runs, when one changed.
  */
 export function clickHouseMigrationPlan(
   migrations: readonly ClickHouseMigration[],
@@ -59,21 +56,16 @@ export function clickHouseMigrationPlan(
     const hashed = { ...migration, hash: clickHouseMigrationHash(migration.sql) };
     const recorded = applied.get(migration.name);
     if (recorded === undefined) run.push(hashed);
-    else if (recorded === hashed.hash) continue;
-    else if (migration.kind === "repeatable") run.push(hashed);
     else if (recorded === "") record.push(hashed);
-    else changed.push(migration.name);
+    else if (recorded !== hashed.hash) changed.push(migration.name);
   }
   if (changed.length > 0) {
     throw new Error(
       `ClickHouse migrations changed after they were applied: ${changed.join(", ")}. ` +
-        "Put the change in a new file, or move a file whose statements all replace " +
-        "what they create into a repeatable/ directory.",
+        "Applied migrations are immutable: restore them and put the change in a new file.",
     );
   }
-  const bundled = new Set(sorted.map(({ name }) => name));
-  const unknown = [...applied.keys()].filter((name) => !bundled.has(name));
-  return { run, record, unknown };
+  return { run, record };
 }
 
 /** The values a statement's `{name:Type}` placeholders need. */
@@ -95,8 +87,7 @@ export function statementParams(
 
 /**
  * Apply the shared files plus a product's own `productFiles` (an eager raw
- * glob): versioned files the journal does not list, and repeatable files whose
- * statements changed. ClickHouse DDL is not transactional, so statements must
+ * glob) that the journal does not list. ClickHouse DDL is not transactional, so statements must
  * be safe to repeat: a migration that fails partway runs again from its first
  * statement. Run it under the PostgreSQL migration lock so replicas apply it
  * once.
@@ -151,11 +142,6 @@ export async function migrateClickHouse(
     });
 
     const plan = clickHouseMigrationPlan(migrations, applied);
-    if (plan.unknown.length > 0) {
-      serverLogger.warn("clickhouse.migration.unknown", {
-        "everr.clickhouse.migration.names": plan.unknown,
-      });
-    }
     const journal = (migration: HashedClickHouseMigration) =>
       run("INSERT", () =>
         client.insert({
@@ -172,15 +158,12 @@ export async function migrateClickHouse(
           client.command({
             query: statement,
             query_params: statementParams(migration.name, statement, params),
-            // Wait for the rewrite an ALTER starts, so a failure fails startup.
-            clickhouse_settings: { mutations_sync: "2" },
           }),
         );
       }
       await journal(migration);
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
-        "everr.clickhouse.migration.kind": migration.kind,
       });
     }
   } finally {

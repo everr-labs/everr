@@ -20,7 +20,7 @@ const DefaultDatabase = "default"
 // so `everr local query` and the local browser UI group Errors the same way the cloud
 // does. Route it through Query, not Exec: chDB only persists CREATE FUNCTION when
 // the statement runs with a real output format, and Exec uses an empty one. The
-// DDL must match packages/app/clickhouse/shared/repeatable/04-create-error-fingerprint-function.sql.
+// DDL must match the latest packages/app/clickhouse/shared migration that defines errorFingerprint.
 func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
 	rows, err := db.Query(ctx, sqltemplates.CreateErrorFingerprintFunction)
 	if err != nil {
