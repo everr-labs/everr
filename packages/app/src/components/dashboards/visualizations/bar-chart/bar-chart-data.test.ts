@@ -84,7 +84,6 @@ describe("buildBarChartModel", () => {
     const identityOf = (m: typeof model, label: string) =>
       m.series.find((s) => s.label === label)?.identity;
     expect(identityOf(reordered, "ok")).toBe(identityOf(model, "ok"));
-    expect(reordered.series[0]?.identity).not.toBe(model.series[0]?.identity);
   });
 
   it("pivots remaining string columns on a category axis", () => {

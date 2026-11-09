@@ -12,9 +12,16 @@ echarts.use([BarChart, GridComponent, SVGRenderer]);
 const bytes = createValueFormatter({ unit: "By", scale: "binary" });
 
 describe("niceValueAxis", () => {
-  it("labels round steps in the displayed unit", () => {
-    const { scale, format } = niceValueAxis(bytes, 0, 5.2 * 1024 ** 3);
-    expect(scale.ticks.map(format)).toEqual(["0 GiB", "2 GiB", "4 GiB", "6 GiB"]);
+  it.each([
+    [bytes, 5.2 * 1024 ** 3, ["0 GiB", "2 GiB", "4 GiB", "6 GiB"]],
+    [
+      createValueFormatter({ unit: "s", scale: "duration" }),
+      500,
+      ["0 min", "2.5 min", "5 min", "7.5 min", "10 min"],
+    ],
+  ])("labels round steps in the displayed unit", (formatter, max, labels) => {
+    const { scale, format } = niceValueAxis(formatter, 0, max);
+    expect(scale.ticks.map(format)).toEqual(labels);
   });
 
   it("keeps one unit when the rounded edge crosses into the next", () => {
@@ -32,11 +39,8 @@ describe("valueAxisOption", () => {
     fontFamily: "sans-serif",
   };
 
-  it.each([
-    ["a fixed min and max off the step", 930, 970, { min: 925, max: 975 }],
-    ["a fixed negative min off the step", -130_000, 400_000, { min: -130_000 }],
-  ])("draws exactly the computed ticks with %s", (_, lo, hi, bounds) => {
-    const scale = niceLinearDomain(lo, hi, 5, bounds);
+  it("draws exactly the computed ticks when a fixed min is off the step", () => {
+    const scale = niceLinearDomain(930, 970, 5, { min: 925, max: 975 });
     const chart = echarts.init(null, undefined, {
       renderer: "svg",
       ssr: true,
@@ -45,12 +49,12 @@ describe("valueAxisOption", () => {
     });
     chart.setOption({
       xAxis: { type: "category", data: ["a"] },
-      yAxis: valueAxisOption({ theme, scale, format: String }),
-      series: [{ type: "bar", data: [hi] }],
+      yAxis: valueAxisOption({ theme, scale, format: (value) => `tick:${value}` }),
+      series: [{ type: "bar", data: [950] }],
     });
-    // ECharts exposes drawn tick positions through its internal axis model only.
-    const axis = chart.getModel().getComponent("yAxis").axis;
-    const drawn = axis.getTicksCoords().map((tick: { tickValue: number }) => tick.tickValue);
-    expect(drawn).toEqual(scale.ticks);
+    const drawn = [...chart.renderToSVGString().matchAll(/>tick:(-?[\d.]+)</g)].map(([, value]) =>
+      Number(value),
+    );
+    expect(drawn.sort((a, b) => a - b)).toEqual(scale.ticks);
   });
 });

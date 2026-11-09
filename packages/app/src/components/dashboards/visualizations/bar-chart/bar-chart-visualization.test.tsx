@@ -54,21 +54,7 @@ describe("BarChartVisualization", () => {
     expect([yAxis[0].min, yAxis[0].max]).toEqual([0, 1]);
   });
 
-  it("fits positive and negative stacks on either side of zero", () => {
-    render(
-      <BarChartVisualization
-        {...props}
-        spec={barChartSpec.parse({ stacking: "stacked" })}
-        data={[[{ service: "api", gained: 60, kept: 50, lost: -80 }]]}
-      />,
-    );
-
-    const [axis] = renderedChart().getOption().yAxis;
-    expect(axis.min).toBeLessThanOrEqual(-80);
-    expect(axis.max).toBeGreaterThanOrEqual(110);
-  });
-
-  it("picks a readable label color against each stacked bar", () => {
+  it("stacks by sign and labels each bar readably against its color", () => {
     render(
       <BarChartVisualization
         {...props}
@@ -77,12 +63,14 @@ describe("BarChartVisualization", () => {
           showValues: true,
           colors: { light: "#ffeb3b", dark: "#1a237e" },
         })}
-        data={[[{ service: "api", light: 60, dark: 50 }]]}
+        data={[[{ service: "api", light: 60, dark: 50, lost: -80 }]]}
       />,
     );
 
-    const { series } = renderedChart().getOption();
-    expect(series.map((s: { label: { color: string } }) => s.label.color)).toEqual([
+    const { series, yAxis } = renderedChart().getOption();
+    expect(yAxis[0].min).toBeLessThanOrEqual(-80);
+    expect(yAxis[0].max).toBeGreaterThanOrEqual(110);
+    expect(series.slice(0, 2).map((s: { label: { color: string } }) => s.label.color)).toEqual([
       "#000",
       "#fff",
     ]);

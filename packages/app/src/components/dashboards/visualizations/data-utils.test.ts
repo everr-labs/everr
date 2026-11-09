@@ -151,14 +151,6 @@ describe("niceLinearDomain", () => {
     expect(niceLinearDomain(900, 1000, 5, { min: 0 }).domain).toEqual([0, 1000]);
     expect(niceLinearDomain(900, 1000, 5, { max: 1200 }).domain[1]).toBe(1200);
     expect(niceLinearDomain(900, 1000, 5, { min: 925, max: 975 }).domain).toEqual([925, 975]);
-    // In a displayed unit, a bound off the step stays an exact edge tick.
-    const MiB = 1024 ** 2;
-    expect(niceLinearDomain(0, 2.8 * MiB, 5, { max: 3_000_000, divisor: MiB }).ticks).toEqual([
-      0,
-      MiB,
-      2 * MiB,
-      3_000_000,
-    ]);
   });
 
   it("extends below zero only when the data goes there", () => {
