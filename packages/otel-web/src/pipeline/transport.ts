@@ -22,9 +22,9 @@ export type Signal = "logs" | "traces";
 
 /**
  * One OTLP/JSON payload for one signal. The `keepalive` value is for the exit
- * path of the browser, and `gzipped`, the body already compressed, is for the
- * fetch sender. Both have no function in a custom sender. Thus the public
- * option does not contain them.
+ * path of the browser. `gzipped` is `body` already compressed: when it is
+ * given, the fetch sender sends it in place of `body`. Both have no function
+ * in a custom sender. Thus the public option does not contain them.
  */
 export type Send = (
   signal: Signal,
