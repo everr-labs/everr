@@ -1,37 +1,24 @@
-import {
-  type CSSProperties,
-  memo,
-  type RefObject,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { createTimeTickFormatter, generateTimeTicks, SERIES_COLORS } from "./data-utils";
-import { ratioWithin } from "./echarts/plot-rect";
+import { type RefObject, useRef, useState } from "react";
+import { SERIES_COLORS } from "./data-utils";
+import { type PlotRect, ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
 import { CursorLine } from "@everr/ui/components/cursor-line";
 import { usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
 
-/** The row label gutter. The axis and the overlay start after it so they line
- * up with the tracks. */
-export const TRACK_LABEL_WIDTH = 96;
-const MAX_X_TICKS = 6;
 const BRUSH_COLOR = SERIES_COLORS[0];
 
-const ITEM_SLOT = "time-track-item";
-
 /**
- * The pointer behavior of panels drawn as labeled rows over the time range
- * (heatmap, state timeline, status history): drag across the tracks to zoom,
+ * The pointer behavior of canvas panels drawn as rows over the time range
+ * (heatmap, state timeline, status history): drag across the plot to zoom,
  * point the dashboard's shared cursor, and track the hovered item for its
- * tooltip. Spread `handlers` on the chart area and `itemProps(target)` on each
- * item (or call `hoverAt` with the item under the pointer), and render
- * `TimeTrackAxis` and `TimeTrackOverlay` in the chart area.
+ * tooltip. `itemAt` finds the item under the pointer: a canvas has no element
+ * per item to hover. Spread `handlers` on the chart area and render
+ * `TimeTrackOverlay` over the plot.
  */
 export function useTimeTrack<T>(
   domain: [number, number],
   onTimeRangeChange: (range: ResolvedTimeRange) => void,
+  itemAt: (e: React.MouseEvent) => T | null,
 ) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<{ rect: DOMRect; from: number; to: number | null } | null>(null);
@@ -59,7 +46,8 @@ export function useTimeTrack<T>(
       setDrag(null);
     },
     onMouseMove: (e: React.MouseEvent) => {
-      setHover((h) => (h ? { ...h, x: e.clientX, y: e.clientY } : h));
+      const target = itemAt(e);
+      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY });
       const rect = trackRef.current?.getBoundingClientRect();
       if (rect && rect.width > 0 && e.clientX >= rect.left && e.clientX <= rect.right) {
         setCursor(timeAt(e.clientX, rect));
@@ -73,83 +61,34 @@ export function useTimeTrack<T>(
     },
   };
 
-  // For panels drawn on a canvas, which find the item under the pointer
-  // themselves instead of spreading `itemProps` on elements.
-  const hoverAt = useCallback(
-    (target: T | null, e: React.MouseEvent) =>
-      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY }),
-    [],
-  );
-
-  // Stable, so panels can memoize the items they spread it on.
-  const itemProps = useCallback(
-    (target: T) => ({
-      "data-slot": ITEM_SLOT,
-      onMouseEnter: (e: React.MouseEvent) => setHover({ target, x: e.clientX, y: e.clientY }),
-      onMouseLeave: (e: React.MouseEvent) => {
-        // Straight into the next item: keep the tooltip mounted, the next
-        // item's enter retargets it.
-        const next = e.relatedTarget;
-        if (!(next instanceof Element && next.closest(`[data-slot="${ITEM_SLOT}"]`))) {
-          setHover(null);
-        }
-      },
-    }),
-    [],
-  );
-
   const brush: [number, number] | null =
     drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
-  return { trackRef, handlers, itemProps, hoverAt, hover, brush };
+  return { trackRef, handlers, hover, brush };
 }
 
-/** Time labels under the tracks. `trackRef` measures the track width.
- * Memoized: the panel re-renders as its tooltip follows the pointer. */
-export const TimeTrackAxis = memo(function TimeTrackAxis({
-  domain,
-  trackRef,
-}: {
-  domain: [number, number];
-  trackRef: RefObject<HTMLDivElement | null>;
-}) {
-  const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
-  const format = useMemo(() => createTimeTickFormatter(domain), [domain]);
-  const span = domain[1] - domain[0];
-  return (
-    <div className="flex h-5 shrink-0 items-start overflow-hidden">
-      <div className="shrink-0" style={{ width: TRACK_LABEL_WIDTH }} />
-      <div ref={trackRef} className="relative min-w-0 flex-1">
-        {ticks.map((tick) => (
-          <span
-            key={tick}
-            className="-translate-x-1/2 absolute top-1 text-[10px] text-muted-foreground tabular-nums"
-            style={{ left: `${((tick - domain[0]) / span) * 100}%` }}
-          >
-            {format(tick)}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-});
-
-/** The drag selection and the shared cursor, over the tracks and the axis.
- * It reads the cursor itself, so a move redraws the line and not the rows. */
+/** The drag selection and the shared cursor, laid over `plot`. `trackRef`
+ * measures the plot for the pointer. It reads the cursor itself, so a move
+ * redraws the line and not the chart. */
 export function TimeTrackOverlay({
   domain,
   brush,
-  style = { left: TRACK_LABEL_WIDTH, top: 0, bottom: 0, right: 0 },
+  plot,
+  trackRef,
 }: {
   domain: [number, number];
   brush: [number, number] | null;
-  /** Where the tracks are; by default right of the label gutter. */
-  style?: CSSProperties;
+  plot: PlotRect;
+  trackRef: RefObject<HTMLDivElement | null>;
 }) {
   const cursor = useTimeCursor();
   const [start, end] = domain;
   const pct = (ts: number) => ((ts - start) / (end - start)) * 100;
   return (
-    <div className="pointer-events-none absolute overflow-hidden" style={style}>
+    <div
+      ref={trackRef}
+      className="pointer-events-none absolute overflow-hidden"
+      style={{ left: plot.left, top: plot.top, width: plot.width, height: plot.height }}
+    >
       {cursor !== null && cursor >= start && cursor <= end && (
         <CursorLine style={{ left: `${pct(cursor)}%`, top: 0, height: "100%" }} />
       )}

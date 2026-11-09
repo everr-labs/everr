@@ -97,10 +97,12 @@ const registry: Record<string, VisualizationEntry> = {
   StateTimeline: defineVisualization({
     schema: stateTimelineSpec,
     component: StateTimelineVisualization,
+    inset: "flush-content",
   }),
   StatusHistory: defineVisualization({
     schema: statusHistorySpec,
     component: StatusHistoryVisualization,
+    inset: "flush-content",
   }),
   Table: defineVisualization({
     schema: tableSpec,

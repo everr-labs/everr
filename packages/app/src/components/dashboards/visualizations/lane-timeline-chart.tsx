@@ -1,14 +1,32 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
-import { cn } from "@everr/ui/lib/utils";
-import { type ReactNode, useCallback, useMemo } from "react";
-import { TimeTrackAxis, TimeTrackOverlay, TRACK_LABEL_WIDTH, useTimeTrack } from "./time-track";
+import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
+import { CustomChart, type CustomSeriesOption } from "echarts/charts";
+import type { GridComponentOption } from "echarts/components";
+import * as echarts from "echarts/core";
+import type { ComposeOption } from "echarts/core";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { createTextMeasurer, rowLabelAxis, TIME_AXIS_HEIGHT, timeAxisOption } from "./echarts/axis";
+import { type GridInsets, plotWithin, pointerInPlot } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
+import { TimeTrackOverlay, useTimeTrack } from "./time-track";
+
+echarts.use([CustomChart]);
+
+type ChartOption = ComposeOption<CustomSeriesOption | GridComponentOption>;
+
+/** Lanes never get shorter than this: past it, the lanes scroll. */
+const MIN_LANE_HEIGHT = 24;
+/** Items narrower than this still show, at this width. */
+const MIN_ITEM_WIDTH = 2;
+const VALUE_FONT_SIZE = 10;
+/** Room kept clear on either side of a value inside its item. */
+const VALUE_PADDING = 8;
+
+/** Nothing to do on resize: the hovered item is looked up again on the next move. */
+const ignoreResize = () => {};
 
 export interface LaneTimelineItem {
-  /** Stable React key, unique within the lane. */
-  key: string | number;
   /** Item bounds in ms, already clamped to the domain. */
   start: number;
   end: number;
@@ -19,7 +37,21 @@ export interface LaneTimelineItem {
 
 export interface LaneTimelineLane {
   label: string;
+  /** In time order. */
   items: LaneTimelineItem[];
+}
+
+/** The item of `items` at `time`, or within `tolerance` ms of it. */
+export function laneItemAt(
+  items: LaneTimelineItem[],
+  time: number,
+  tolerance: number,
+): LaneTimelineItem | null {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (item && item.start - tolerance <= time) return item.end + tolerance >= time ? item : null;
+  }
+  return null;
 }
 
 /**
@@ -54,80 +86,139 @@ export function LaneTimelineChart({
   empty: ReactNode;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
 }) {
-  const track = useTimeTrack<{ lane: string; item: LaneTimelineItem }>(domain, onTimeRangeChange);
-  const { itemProps, hover } = track;
-
+  const chartElementRef = useRef<HTMLDivElement>(null);
   const span = domain[1] - domain[0];
+  const hasChart = span > 0 && lanes.some((l) => l.items.length > 0);
 
-  const toPct = useCallback((ts: number) => ((ts - domain[0]) / span) * 100, [domain, span]);
+  const mounted = useEChart(chartElementRef, hasChart, ignoreResize);
+  const chart = mounted?.chart ?? null;
+  const theme = mounted?.theme ?? null;
 
-  // The blocks follow the data, not the pointer: hovering only moves the
-  // tooltip, so the blocks are built once per result.
-  const rows = useMemo(
-    () => (
-      <div className="flex h-full min-h-fit flex-col gap-1 py-1">
-        {lanes.map((lane) => (
-          <div key={lane.label} className="flex min-h-5 flex-1 items-stretch">
-            <div
-              className="shrink-0 self-center truncate pr-2 text-xs text-muted-foreground"
-              style={{ width: TRACK_LABEL_WIDTH }}
-              title={lane.label}
-            >
-              {lane.label}
-            </div>
-            <div className="relative min-w-0 flex-1 overflow-hidden">
-              {lane.items.map((item) => (
-                <div
-                  key={item.key}
-                  className={cn(
-                    "absolute flex items-center justify-center overflow-hidden px-1",
-                    rounded && "rounded-[2px]",
-                  )}
-                  style={{
-                    left: `${toPct(item.start)}%`,
-                    width: `${toPct(item.end) - toPct(item.start)}%`,
-                    minWidth: 2,
-                    top: `${((1 - rowHeight) / 2) * 100}%`,
-                    height: `${rowHeight * 100}%`,
-                    backgroundColor: colorByState[item.state],
-                  }}
-                  {...itemProps({ lane: lane.label, item })}
-                >
-                  {showValues && (
-                    <span className="truncate text-[10px] font-medium text-white">
-                      {item.state}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    ),
-    [lanes, colorByState, rowHeight, showValues, rounded, toPct, itemProps],
+  const labels = useMemo(() => lanes.map((lane) => lane.label), [lanes]);
+  const yAxis = useMemo(() => (theme ? rowLabelAxis(theme, labels) : null), [theme, labels]);
+  const grid = useMemo<GridInsets | null>(
+    () => (yAxis ? { left: yAxis.width, right: 0, top: 0, bottom: TIME_AXIS_HEIGHT } : null),
+    [yAxis],
   );
 
-  if (span <= 0 || !lanes.some((l) => l.items.length > 0)) {
+  // The item under the pointer: a canvas has no element per item to hover.
+  const track = useTimeTrack(domain, onTimeRangeChange, (e) => {
+    const at = chart && grid ? pointerInPlot(chartElementRef.current, grid, e) : null;
+    if (!at || !chart || !grid) return null;
+    const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
+    if (!lane) return null;
+    const msPerPixel = span / plotWithin(chart, grid).width;
+    const item = laneItemAt(lane.items, domain[0] + at.x * span, msPerPixel * (MIN_ITEM_WIDTH / 2));
+    return item ? { lane: lane.label, item } : null;
+  });
+  const { hover } = track;
+
+  useEffect(() => {
+    if (!mounted || !grid || !yAxis) return;
+    const { chart, theme } = mounted;
+    // After a hot reload this effect can still hold the replaced instance.
+    if (chart.isDisposed()) return;
+    const element = chartElementRef.current;
+    const fills = states.map((state) => {
+      const color = colorByState[state] ?? theme.textColor;
+      return element ? resolveCssColor(element, color) : color;
+    });
+    // A value shows only where it fits its item whole.
+    const measure = createTextMeasurer(theme.fontFamily, VALUE_FONT_SIZE);
+    const valueWidths = states.map((state) => measure(state) + VALUE_PADDING);
+    const plot = plotWithin(chart, grid);
+    const laneHeight = (plot.height / lanes.length) * rowHeight;
+    const option: ChartOption = {
+      animation: false,
+      // The insets already leave room for the labels; with ECharts fitting
+      // them as well, the plot would drift from where hover and the cursor
+      // place it.
+      grid: { ...grid, outerBoundsMode: "none" },
+      xAxis: timeAxisOption(theme, domain),
+      yAxis: yAxis.axis,
+      series: [
+        {
+          type: "custom",
+          silent: true,
+          clip: true,
+          encode: { x: [1, 2], y: 0 },
+          data: lanes.flatMap((lane, index) =>
+            lane.items.map((item) => [index, item.start, item.end, states.indexOf(item.state)]),
+          ),
+          renderItem: (_, api) => {
+            const lane = Number(api.value(0));
+            const state = Number(api.value(3));
+            const [x0 = 0, y = 0] = api.coord([api.value(1), lane]);
+            const [x1 = 0] = api.coord([api.value(2), lane]);
+            const rect = echarts.graphic.clipRectByRect(
+              {
+                x: x0,
+                y: y - laneHeight / 2,
+                width: Math.max(MIN_ITEM_WIDTH, x1 - x0),
+                height: laneHeight,
+              },
+              { x: plot.left, y: plot.top, width: plot.width, height: plot.height },
+            );
+            if (!rect) return null;
+            const fits = showValues && (valueWidths[state] ?? Infinity) <= rect.width;
+            return {
+              type: "rect",
+              shape: { ...rect, r: rounded ? 2 : 0 },
+              style: { fill: fills[state] },
+              textContent: fits
+                ? {
+                    type: "text" as const,
+                    style: {
+                      text: states[state],
+                      fill: "#fff",
+                      fontSize: VALUE_FONT_SIZE,
+                      fontWeight: 500,
+                      fontFamily: theme.fontFamily,
+                    },
+                  }
+                : undefined,
+              textConfig: { position: "inside" },
+            };
+          },
+        },
+      ],
+    };
+    chart.setOption(option, { notMerge: true });
+  }, [colorByState, domain, grid, lanes, mounted, rounded, rowHeight, showValues, states, yAxis]);
+
+  if (!hasChart) {
     return empty;
   }
 
-  return (
-    <div className="flex h-full select-none flex-col overflow-hidden">
-      {/* chart area — pointer interactions and the brush overlay cover the
-          lanes + axis but not the legend */}
-      <div className="relative flex min-h-0 flex-1 flex-col" {...track.handlers}>
-        {/* No overscroll-none here: lanes usually fit, and a non-scrollable
-            scroll container with overscroll-behavior:none swallows wheel
-            events instead of letting the page scroll. */}
-        <ScrollArea className="min-h-0 flex-1">{rows}</ScrollArea>
+  const plot = chart && grid ? plotWithin(chart, grid) : null;
 
-        <TimeTrackAxis domain={domain} trackRef={track.trackRef} />
-        <TimeTrackOverlay domain={domain} brush={track.brush} />
+  return (
+    <div className="flex h-full select-none flex-col overflow-hidden text-muted-foreground">
+      {/* No overscroll-none here: lanes usually fit, and a non-scrollable
+          scroll container with overscroll-behavior:none swallows wheel
+          events instead of letting the page scroll. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          data-slot="time-track"
+          className="relative h-full"
+          style={{ minHeight: lanes.length * MIN_LANE_HEIGHT + TIME_AXIS_HEIGHT }}
+          {...track.handlers}
+        >
+          {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
+          <div ref={chartElementRef} className="pointer-events-none h-full w-full" />
+          {plot && (
+            <TimeTrackOverlay
+              domain={domain}
+              brush={track.brush}
+              plot={plot}
+              trackRef={track.trackRef}
+            />
+          )}
+        </div>
       </div>
 
       {showLegend && states.length > 0 && (
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1.5 pb-3">
           {states.map((state) => (
             <div key={state} className="flex items-center gap-1.5 text-xs">
               <span

@@ -50,6 +50,40 @@ export function plainAxisOption(theme: ChartTheme) {
   };
 }
 
+/** Row labels (heatmap buckets, timeline lanes) wider than this truncate. */
+const MAX_ROW_LABEL_WIDTH = 120;
+/** Room under a chart of rows for its time labels. */
+export const TIME_AXIS_HEIGHT = 22;
+
+/**
+ * The category axis of a chart drawn as rows over time, top row first, and
+ * the inset it needs: as wide as the widest label up to a cap. Only labels
+ * wider than the cap truncate, at the room it leaves.
+ */
+export function rowLabelAxis(theme: ChartTheme, labels: string[]) {
+  const width = Math.min(
+    MAX_ROW_LABEL_WIDTH,
+    axisLabelsWidth(labels, createTextMeasurer(theme.fontFamily)),
+  );
+  const plain = plainAxisOption(theme);
+  return {
+    width,
+    axis: {
+      type: "category" as const,
+      data: labels,
+      inverse: true,
+      ...plain,
+      axisLabel: {
+        ...plain.axisLabel,
+        ...(width >= MAX_ROW_LABEL_WIDTH && {
+          width: width - AXIS_LABEL_MARGIN - VALUE_AXIS_EDGE_INSET,
+          overflow: "truncate" as const,
+        }),
+      },
+    },
+  };
+}
+
 const DAY = 86_400_000;
 
 /** Time labels for an axis over `domain`: dates for multi-day ranges, hours

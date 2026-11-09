@@ -28,7 +28,6 @@ export function StatusHistoryVisualization({
       (model?.lanes ?? []).map((lane) => ({
         label: lane.label,
         items: lane.cells.map((c) => ({
-          key: c.ts,
           start: c.start,
           end: c.end,
           state: c.state,

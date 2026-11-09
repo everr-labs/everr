@@ -45,3 +45,16 @@ export function plotWithin(
 export function ratioWithin(client: number, start: number, length: number): number {
   return Math.max(0, Math.min(1, (client - start) / length));
 }
+
+/** Where the pointer is across the plot, each axis 0..1, or null outside it. */
+export function pointerInPlot(
+  element: HTMLElement | null,
+  grid: GridInsets | null,
+  e: { clientX: number; clientY: number },
+): { x: number; y: number } | null {
+  const plot = element && grid ? getPlotRect(element, grid) : null;
+  if (!plot) return null;
+  const x = (e.clientX - plot.left) / plot.width;
+  const y = (e.clientY - plot.top) / plot.height;
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
+}
