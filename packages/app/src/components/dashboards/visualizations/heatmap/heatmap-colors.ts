@@ -58,6 +58,12 @@ const SCHEME_STOPS: Record<HeatmapColorScheme, Rgb[]> = {
   ],
 };
 
+/** The scheme's stops as CSS colors, low → high, for gradients that
+ * interpolate between them the same way `heatmapColorRgb` does. */
+export function heatmapSchemeColors(scheme: HeatmapColorScheme): string[] {
+  return SCHEME_STOPS[scheme].map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`);
+}
+
 /** RGB at position t in [0,1], linearly interpolated between the stops. */
 export function heatmapColorRgb(scheme: HeatmapColorScheme, t: number): Rgb {
   const stops = SCHEME_STOPS[scheme];
@@ -78,9 +84,4 @@ export function heatmapColorRgb(scheme: HeatmapColorScheme, t: number): Rgb {
 export function heatmapColor(scheme: HeatmapColorScheme, t: number): string {
   const [r, g, b] = heatmapColorRgb(scheme, t);
   return `rgb(${r}, ${g}, ${b})`;
-}
-
-/** Whether white text is readable on the color (perceived luminance). */
-export function isDarkColor([r, g, b]: Rgb): boolean {
-  return 0.299 * r + 0.587 * g + 0.114 * b < 150;
 }

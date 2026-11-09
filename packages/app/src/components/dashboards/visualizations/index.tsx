@@ -47,6 +47,7 @@ export interface VisualizationProps<TSpec = unknown> {
 interface VisualizationEntry {
   schema: z.ZodType;
   component: ComponentType<VisualizationProps>;
+  /** Charts run to the panel's edges; "default" pads the content instead. */
   inset?: "default" | "flush-content";
 }
 
@@ -68,16 +69,15 @@ const registry: Record<string, VisualizationEntry> = {
   BarChart: defineVisualization({
     schema: barChartSpec,
     component: BarChartVisualization,
-    inset: "flush-content",
   }),
   GaugeChart: defineVisualization({
     schema: gaugeChartSpec,
     component: GaugeChartVisualization,
+    inset: "default",
   }),
   GeoMap: defineVisualization({
     schema: geoMapSpec,
     component: GeoMapVisualization,
-    inset: "flush-content",
   }),
   Heatmap: defineVisualization({
     schema: heatmapSpec,
@@ -86,12 +86,10 @@ const registry: Record<string, VisualizationEntry> = {
   NodeGraph: defineVisualization({
     schema: nodeGraphSpec,
     component: NodeGraphVisualization,
-    inset: "flush-content",
   }),
   StatChart: defineVisualization({
     schema: statChartSpec,
     component: StatChartVisualization,
-    inset: "flush-content",
   }),
   StateTimeline: defineVisualization({
     schema: stateTimelineSpec,
@@ -104,22 +102,21 @@ const registry: Record<string, VisualizationEntry> = {
   Table: defineVisualization({
     schema: tableSpec,
     component: TableVisualization,
-    inset: "flush-content",
   }),
   TimeSeriesChart: defineVisualization({
     schema: timeSeriesChartSpec,
     component: TimeSeriesChartVisualization,
-    inset: "flush-content",
   }),
   Treemap: defineVisualization({
     schema: treemapSpec,
     component: TreemapVisualization,
-    inset: "flush-content",
   }),
 };
 
 export function getVisualizationInset(kind: string): "default" | "flush-content" {
-  return registry[kind]?.inset ?? "default";
+  const entry = registry[kind];
+  // An unknown kind renders a padded notice, not a chart.
+  return entry ? (entry.inset ?? "flush-content") : "default";
 }
 
 /**

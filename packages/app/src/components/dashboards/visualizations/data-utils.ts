@@ -43,24 +43,6 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Tick label formatter for a time axis: date for multi-day spans, time otherwise. */
-export function createTimeTickFormatter(domain: [number, number]) {
-  const span = domain[1] - domain[0];
-  return (ms: number) => {
-    const d = new Date(ms);
-    if (span > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-}
-
 /** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
 export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
   const span = domain[1] - domain[0];
@@ -290,24 +272,17 @@ export function toTimestamp(value: unknown): number | null {
   return null;
 }
 
-/**
- * The index of the sample nearest `target` in ascending `samples`, or null
- * when `target` is more than half a step outside them. Used to place another
- * panel's time cursor on this panel's own samples.
- */
+/** The index of the sample nearest `target` in ascending `samples`; null
+ * only when there are none. */
 export function nearestSampleIndex(samples: readonly number[], target: number): number | null {
-  const first = samples[0];
-  const last = samples.at(-1);
-  if (first === undefined || last === undefined) return null;
-  const halfStep = samples.length > 1 ? (last - first) / (samples.length - 1) / 2 : 0;
-  if (target < first - halfStep || target > last + halfStep) return null;
-  let nearest = 0;
-  for (let i = 1; i < samples.length; i++) {
-    const sample = samples[i];
-    const best = samples[nearest];
-    if (sample === undefined || best === undefined) continue;
-    if (Math.abs(sample - target) < Math.abs(best - target)) nearest = i;
-  }
+  let nearest: number | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  samples.forEach((sample, index) => {
+    if (Math.abs(sample - target) < distance) {
+      distance = Math.abs(sample - target);
+      nearest = index;
+    }
+  });
   return nearest;
 }
 

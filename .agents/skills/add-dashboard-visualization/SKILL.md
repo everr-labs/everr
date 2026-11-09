@@ -131,10 +131,11 @@ over its plot and `clear()` when it leaves. It draws the cursor with
 `CursorLine` (`@everr/ui/components/cursor-line`) in a small component
 that calls `useTimeCursor()`. That
 component is the only one that re-renders on every pointer move, so never
-read the cursor at the top of the visualization. Panels drawn as labeled
-rows over the time range (like the heatmap and lane charts) get all of this,
-plus drag-to-zoom and the hovered item, from `useTimeTrack` in
-`visualizations/time-track.tsx`. Add the new panel to
+read the cursor at the top of the visualization. Panels with a time x-axis
+(the time series, heatmap and lane charts) get all of this, plus drag-to-zoom
+and the hovered item, from `useTimeTrack` in `visualizations/time-track.tsx`:
+give it the chart element, its size from `useEChart`, the grid insets and an `itemAt` lookup, spread its
+`handlers` on the chart area, and render `TimeTrackOverlay` over the plot. Add the new panel to
 `everr/demo/all-panels.dashboard.yaml` to check it against the others.
 
 **Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:
@@ -172,14 +173,14 @@ const registry: Record<string, VisualizationEntry> = {
   <Kind>: defineVisualization({
     schema: <kind>Spec,
     component: <Kind>Visualization,
-    inset: "default",               // or "flush-content" for edge-to-edge content like tables
+    // inset: "default",            // only to pad the content (the gauge); charts run edge to edge
   }),
 };
 ```
 
 The `inset` option controls padding inside the panel card:
-- `"default"` — standard padding (use for charts, stats)
-- `"flush-content"` — no horizontal padding or bottom padding (use for tables, maps)
+- `"flush-content"` (the default): no horizontal or bottom padding. Charts, tables and maps run to the panel's edges.
+- `"default"`: standard padding, for content that is not a chart drawn to the edges (the gauge).
 
 ### 5. Register the schema for apply-time validation
 
@@ -253,4 +254,4 @@ The Table visualization is a complete example:
 
 - **Spec schema:** `visualizations/table/spec.ts` — `stickyHeader` boolean, defaulted
 - **Visualization:** `visualizations/table/table-visualization.tsx` — uses `DataTable` from `@everr/ui`, renders the `data` frames, reads `spec.stickyHeader`
-- **Registry:** `inset: "flush-content"` so the table sits edge-to-edge in the panel
+- **Registry:** no `inset`, so the table sits edge to edge in the panel
