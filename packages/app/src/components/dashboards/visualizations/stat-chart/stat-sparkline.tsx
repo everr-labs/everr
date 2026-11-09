@@ -1,7 +1,7 @@
 import { LineChart } from "echarts/charts";
 import * as echarts from "echarts/core";
 import { useEffect, useRef } from "react";
-import { useEChart } from "../echarts/use-echart";
+import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { StatTile } from "./stat-series";
 
 echarts.use([LineChart]);
@@ -31,5 +31,5 @@ export function StatSparkline({ points, color }: { points: StatTile["points"]; c
     });
   }, [chart, points, color]);
 
-  return <div ref={elementRef} className="h-full w-full" aria-hidden="true" />;
+  return <div ref={elementRef} className="pointer-events-none h-full w-full" aria-hidden="true" />;
 }

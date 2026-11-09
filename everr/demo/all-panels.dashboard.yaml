@@ -1,0 +1,420 @@
+kind: Dashboard
+metadata:
+  name: demo-all-panels
+  project: demo
+spec:
+  display:
+    name: All panels
+    description:
+      One panel of every type on one time range, to check them side by side. The time-based
+      panels (time series, bars over time, heatmap, state timeline, status history) share one hover
+      cursor.
+  timeRange:
+    from: now-7d
+    to: now
+  refreshInterval: 1m
+  panels:
+    time-series:
+      kind: Panel
+      spec:
+        display:
+          name: Time series
+          description: "Hover any time-based panel: the dashed cursor follows in every one of them."
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+            valueFormat:
+              unit: ""
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 11
+                  labelColumn: status
+                  series:
+                    - name: Ok
+                      start: 800
+                      noise: 60
+                      min: 0
+                    - name: Error
+                      start: 40
+                      noise: 12
+                      min: 0
+                    - name: Unset
+                      start: 120
+                      noise: 20
+                      min: 0
+    bar-chart:
+      kind: Panel
+      spec:
+        display:
+          name: Bar chart over time
+          description: Bars over time mark the bucket nearest the cursor.
+        plugin:
+          kind: BarChart
+          spec:
+            stacking: none
+            showLegend: true
+            valueFormat:
+              unit: ms
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 22
+                  rows: 12
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: p50_ms
+                      walk:
+                        start: 40
+                        noise: 5
+                        min: 0
+                        round: 0
+                    - name: p95_ms
+                      walk:
+                        start: 120
+                        noise: 12
+                        min: 0
+                        round: 0
+    time-series-stacked:
+      kind: Panel
+      spec:
+        display:
+          name: Time series, stacked
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+            connectNulls: false
+            stacked: true
+            valueFormat:
+              unit: ""
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 11
+                  labelColumn: status
+                  series:
+                    - name: Ok
+                      start: 800
+                      noise: 60
+                      min: 0
+                    - name: Error
+                      start: 40
+                      noise: 12
+                      min: 0
+                    - name: Unset
+                      start: 120
+                      noise: 20
+                      min: 0
+    heatmap:
+      kind: Panel
+      spec:
+        display:
+          name: Heatmap
+        plugin:
+          kind: Heatmap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 110
+                  labelColumn: route
+                  series:
+                    - name: /checkout
+                      start: 60
+                      noise: 20
+                      min: 0
+                    - name: /search
+                      start: 40
+                      noise: 15
+                      min: 0
+                    - name: /api
+                      start: 80
+                      noise: 25
+                      min: 0
+                    - name: /static
+                      start: 20
+                      noise: 10
+                      min: 0
+    state-timeline:
+      kind: Panel
+      spec:
+        display:
+          name: State timeline
+        plugin:
+          kind: StateTimeline
+          spec:
+            colors:
+              up: "#22c55e"
+              degraded: "#f59e0b"
+              down: "#ef4444"
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 91
+                  rows: 40
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: checkout
+                      values: [up, up, degraded, degraded, up, up, up, down, down, up]
+                    - name: payments
+                      values: [up, up, up, up, degraded, up, up, up, up, up]
+    status-history:
+      kind: Panel
+      spec:
+        display:
+          name: Status history
+        plugin:
+          kind: StatusHistory
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 110
+                  rows: 30
+                  columns:
+                    - name: ts
+                      time: true
+                    - name: api
+                      values: [pass, pass, pass, fail, pass, pass, fail, pass, pass, pass]
+                    - name: db
+                      values: [pass, pass, pass, pass, pass, pass, pass, pass, fail, pass]
+                    - name: worker
+                      values: [pass, fail, pass, pass, pass, fail, fail, pass, pass, pass]
+    stat:
+      kind: Panel
+      spec:
+        display:
+          name: Stat
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            sparkline: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - value: 10000
+                  color: "#f59e0b"
+                - value: 60000
+                  color: "#ef4444"
+            valueFormat:
+              unit: ms
+              decimals: 1
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 21
+                  series:
+                    - name: p95_ms
+                      start: 120
+                      noise: 18
+                      min: 0
+    gauge:
+      kind: Panel
+      spec:
+        display:
+          name: Gauge
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - value: 70
+                  color: "#f59e0b"
+                - value: 90
+                  color: "#ef4444"
+            valueFormat:
+              unit: "%"
+              decimals: 1
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 70
+                  series:
+                    - name: cpu_pct
+                      start: 75
+                      noise: 6
+                      min: 0
+    table:
+      kind: Panel
+      spec:
+        display:
+          name: Table
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 41
+                  rows: 100
+                  columns:
+                    - name: Timestamp
+                      time: true
+                    - name: SpanName
+                      values: [GET /users, POST /orders, GET /health, POST /login, GET /metrics]
+                    - name: SpanKind
+                      values: [Server, Client, Internal]
+                    - name: StatusCode
+                      values: [Ok, Error, Unset]
+                    - name: duration_ms
+                      walk:
+                        start: 50
+                        noise: 30
+                        min: 0
+                        round: 1
+    treemap:
+      kind: Panel
+      spec:
+        display:
+          name: Treemap
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: Treemap
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [name, value]
+                  rows:
+                    - [checkout, 420]
+                    - [search, 260]
+                    - [cart, 180]
+                    - [login, 120]
+                    - [profile, 75]
+                    - [settings, 40]
+                    - [help, 18]
+    geo-map:
+      kind: Panel
+      spec:
+        display:
+          name: Geo map
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: GeoMap
+          spec:
+            mode: points
+            colorScheme: blue
+            showLegend: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: geo
+                  shape: points
+                  seed: 11
+                  points: 24
+    node-graph:
+      kind: Panel
+      spec:
+        display:
+          name: Node graph
+          description: "Not time-based: no cursor."
+        plugin:
+          kind: NodeGraph
+          spec: {}
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [web, api, 420]
+                    - [web, auth, 90]
+                    - [api, db, 310]
+                    - [api, cache, 260]
+                    - [api, auth, 70]
+                    - [auth, db, 60]
+                    - [worker, db, 120]
+                    - [worker, queue, 200]
+                    - [api, queue, 80]
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0, y: 0, width: 12, height: 7, content: { $ref: "#/spec/panels/time-series" } }
+          - { x: 12, y: 0, width: 12, height: 7, content: { $ref: "#/spec/panels/bar-chart" } }
+          - {
+              x: 0,
+              y: 7,
+              width: 12,
+              height: 7,
+              content: { $ref: "#/spec/panels/time-series-stacked" },
+            }
+          - { x: 12, y: 7, width: 12, height: 7, content: { $ref: "#/spec/panels/heatmap" } }
+          - { x: 0, y: 14, width: 12, height: 6, content: { $ref: "#/spec/panels/state-timeline" } }
+          - {
+              x: 12,
+              y: 14,
+              width: 12,
+              height: 6,
+              content: { $ref: "#/spec/panels/status-history" },
+            }
+          - { x: 0, y: 20, width: 6, height: 4, content: { $ref: "#/spec/panels/stat" } }
+          - { x: 6, y: 20, width: 6, height: 4, content: { $ref: "#/spec/panels/gauge" } }
+          - { x: 12, y: 20, width: 12, height: 8, content: { $ref: "#/spec/panels/treemap" } }
+          - { x: 0, y: 24, width: 12, height: 8, content: { $ref: "#/spec/panels/table" } }
+          - { x: 0, y: 32, width: 12, height: 8, content: { $ref: "#/spec/panels/geo-map" } }
+          - { x: 12, y: 28, width: 12, height: 12, content: { $ref: "#/spec/panels/node-graph" } }

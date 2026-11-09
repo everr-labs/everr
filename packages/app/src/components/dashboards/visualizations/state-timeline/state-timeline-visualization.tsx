@@ -29,7 +29,6 @@ export function StateTimelineVisualization({
       (model?.lanes ?? []).map((lane) => ({
         label: lane.label,
         items: lane.segments.map((s) => ({
-          key: s.start,
           start: s.start,
           end: s.end,
           state: s.state,

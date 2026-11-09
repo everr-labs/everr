@@ -140,18 +140,17 @@ describe("buildStateTimelineModel", () => {
     expect(model.states).toEqual(["0", "2", "true", "false"]);
   });
 
-  it("accumulates lanes across multiple query frames", () => {
+  it("accumulates lanes across query frames, skipping frames without a time column", () => {
     const model = buildStateTimelineModel(
-      [[{ ts: ts(10), api: "up" }], [{ ts: ts(10), worker: "idle" }]],
+      [
+        [{ ts: ts(10), api: "up" }],
+        [{ name: "db", state: "up" }],
+        [{ ts: ts(10), worker: "idle" }],
+      ],
       specWith(),
       DOMAIN,
     );
     expect(model.lanes.map((l) => l.label)).toEqual(["api", "worker"]);
-  });
-
-  it("skips frames without a time column", () => {
-    const model = buildStateTimelineModel([[{ name: "api", state: "up" }]], specWith(), DOMAIN);
-    expect(model.lanes).toEqual([]);
   });
 
   it("colors states from spec.colors without consuming palette slots", () => {

@@ -5,7 +5,7 @@ import { treemapSpec } from "./spec";
 import { TreemapVisualization } from "./treemap-visualization";
 
 vi.mock("echarts/core", async (importOriginal) =>
-  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal),
+  (await import("@everr/ui/testing/echarts")).ssrEChartsCore(importOriginal),
 );
 
 beforeEach(() => {

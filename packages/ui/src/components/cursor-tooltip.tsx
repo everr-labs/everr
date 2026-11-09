@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useCallback, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 const OFFSET = 12;
@@ -17,11 +17,18 @@ const MARGIN = 4;
  */
 export function CursorTooltip({ x, y, children }: { x: number; y: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const pointer = useRef({ x, y });
+  pointer.current = { x, y };
+  // Sized by a ResizeObserver, never by reading layout: a read would force a
+  // synchronous layout of the page on every move. The observer reports after
+  // layout and before paint, so the first frame is already placed right.
+  const size = useRef({ width: 0, height: 0 });
 
-  useLayoutEffect(() => {
+  const place = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    const { offsetWidth: width, offsetHeight: height } = el;
+    const { x, y } = pointer.current;
+    const { width, height } = size.current;
     const left =
       x + OFFSET + width > window.innerWidth - MARGIN
         ? Math.max(MARGIN, x - OFFSET - width)
@@ -31,7 +38,23 @@ export function CursorTooltip({ x, y, children }: { x: number; y: number; childr
         ? Math.max(MARGIN, y - OFFSET - height)
         : y + OFFSET;
     el.style.transform = `translate3d(${left}px, ${top}px, 0)`;
-  });
+  }, []);
+
+  useLayoutEffect(place);
+
+  // A layout effect, so the first report lands before the first paint.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry?.borderBoxSize[0];
+      if (!box) return;
+      size.current = { width: box.inlineSize, height: box.blockSize };
+      place();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [place]);
 
   return createPortal(
     <div

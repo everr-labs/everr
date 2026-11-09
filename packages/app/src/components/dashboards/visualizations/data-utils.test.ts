@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import { isNumericValue } from "#app/lib/numeric.ts";
-import { detectTimeKey, getValueKeys, niceLinearDomain, toNumber, toTimestamp } from "./data-utils";
+import {
+  detectTimeKey,
+  getValueKeys,
+  nearestSampleIndex,
+  bucketIndexAt,
+  niceLinearDomain,
+  toNumber,
+  toTimestamp,
+} from "./data-utils";
 
 describe("detectTimeKey", () => {
   it("matches ts, time, and timestamp exactly, case-insensitively", () => {
@@ -172,8 +180,8 @@ describe("niceLinearDomain", () => {
   });
 
   it("labels fractional ticks cleanly, without binary-addition dust", () => {
-    // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which recharts
-    // would print verbatim on the axis.
+    // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which an axis
+    // would print verbatim.
     expect(niceLinearDomain(0, 1, 5, { min: 0 }).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
   });
 
@@ -189,5 +197,27 @@ describe("niceLinearDomain", () => {
   it("survives data that carries no usable numbers", () => {
     const { domain } = niceLinearDomain(Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY);
     expect(domain.every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe("nearestSampleIndex", () => {
+  it.each([
+    ["between samples", [0, 100, 200, 300], 140, 1],
+    ["past the last one", [0, 100, 200, 300], 900, 3],
+    ["when there is only one", [500], 0, 0],
+  ])("finds the sample %s", (_, samples, target, expected) => {
+    expect(nearestSampleIndex(samples, target)).toBe(expected);
+  });
+});
+
+describe("bucketIndexAt", () => {
+  it.each([
+    ["late in a bucket", 190, 1],
+    ["at a bucket's start", 200, 2],
+    ["inside the last bucket", 399, 3],
+    ["past the last bucket", 400, null],
+    ["before the first bucket", -1, null],
+  ])("finds the bucket %s", (_, target, expected) => {
+    expect(bucketIndexAt([0, 100, 200, 300], target)).toBe(expected);
   });
 });

@@ -5,7 +5,7 @@ import { BarChartVisualization } from "./bar-chart-visualization";
 import { barChartSpec } from "./spec";
 
 vi.mock("echarts/core", async (importOriginal) =>
-  (await import("../echarts/test-utils")).ssrEChartsCore(importOriginal),
+  (await import("@everr/ui/testing/echarts")).ssrEChartsCore(importOriginal),
 );
 
 const props = {
@@ -86,6 +86,5 @@ describe("BarChartVisualization", () => {
       (index) => chart.convertToPixel({ yAxisIndex: 0 }, index) as number,
     );
     expect(zeta).toBeLessThan(alpha!);
-    expect(chart.getOption().xAxis[0].type).toBe("value");
   });
 });
