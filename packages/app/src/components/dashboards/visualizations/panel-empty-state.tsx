@@ -32,7 +32,10 @@ export function PanelEmptyState({
       : ["Nothing to draw", unusable];
 
   return (
-    <Empty className="relative h-full min-h-24 gap-3 overflow-hidden p-4 [container-type:size]">
+    // No minimum height: it would keep a short panel from dropping the text.
+    // A caller whose height isn't set gives it one, since a size container
+    // has no height of its own.
+    <Empty className="relative h-full gap-3 overflow-hidden p-4 [container-type:size]">
       {/* A faint dot grid, like an empty plot area, fading out from the middle. */}
       <div
         aria-hidden

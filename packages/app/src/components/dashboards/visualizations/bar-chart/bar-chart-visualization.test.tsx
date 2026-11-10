@@ -46,6 +46,18 @@ describe("BarChartVisualization", () => {
     expect([yAxis[0].min, yAxis[0].max]).toEqual([0, 1]);
   });
 
+  it("runs a percent stack of only zeros from 0 to 100%", () => {
+    render(
+      <BarChartVisualization
+        {...props}
+        spec={barChartSpec.parse({ stacking: "percent" })}
+        data={[[{ service: "api", ok: 0, error: 0 }]]}
+      />,
+    );
+    const { yAxis } = renderedChart().getOption();
+    expect([yAxis[0].min, yAxis[0].max]).toEqual([0, 1]);
+  });
+
   it("stacks by sign and labels each bar readably against its color", () => {
     render(
       <BarChartVisualization

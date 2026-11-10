@@ -12,6 +12,8 @@ export interface HeatmapCell {
   /** Index into the column grid. */
   column: number;
   value: number;
+  /** How many sample times the value sums: more than one once columns merge. */
+  samples: number;
 }
 
 export interface HeatmapModel {
@@ -111,7 +113,8 @@ export function buildHeatmapModel(
     [...timesByBucket.values()].map((set) => [...set].sort((a, b) => a - b)),
   );
   const gap = sampled || span;
-  const step = gap * Math.max(1, Math.ceil(span / MAX_COLUMNS / gap));
+  const merged = Math.max(1, Math.ceil(span / MAX_COLUMNS / gap));
+  const step = gap * merged;
 
   // Columns are anchored on the samples and extended to cover the range, so
   // empty stretches keep their place on the axis. Without a gap there is
@@ -120,15 +123,14 @@ export function buildHeatmapModel(
   const start = anchor + Math.floor((domain[0] - anchor) / step) * step;
   const count = Math.max(1, Math.ceil((domain[1] - start) / step));
 
-  // Irregular samples need not sit on the grid: each goes in the column its
-  // start falls in, and samples sharing a column and bucket sum.
+  // Irregular samples need not sit on the grid: each goes to the nearest
+  // sample slot (so jitter up to half a gap stays in its own column), in the
+  // column holding that slot, and samples sharing a column and bucket sum.
   const byCell = new Map<string, HeatmapCell>();
   for (const ts of times) {
     if (ts >= domain[1]) continue;
-    const column = Math.min(
-      count - 1,
-      Math.max(0, Math.floor((Math.max(ts, domain[0]) - start) / step)),
-    );
+    const slot = Math.round((Math.max(ts, domain[0]) - start) / gap);
+    const column = Math.min(count - 1, Math.max(0, Math.floor(slot / merged)));
     if (ts + step <= domain[0]) continue;
     const cellStart = Math.max(start + column * step, domain[0]);
     const cellEnd = Math.min(start + (column + 1) * step, domain[1]);
@@ -137,8 +139,12 @@ export function buildHeatmapModel(
       if (value === undefined) continue;
       const key = `${column}:${b}`;
       const cell = byCell.get(key);
-      if (cell) cell.value += value;
-      else byCell.set(key, { start: cellStart, end: cellEnd, bucket: b, column, value });
+      if (cell) {
+        cell.value += value;
+        cell.samples += 1;
+      } else {
+        byCell.set(key, { start: cellStart, end: cellEnd, bucket: b, column, value, samples: 1 });
+      }
     }
   }
   const cells = [...byCell.values()];

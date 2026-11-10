@@ -201,7 +201,9 @@ describe("generateTimeTicks", () => {
     process.env.TZ = "America/New_York";
   });
   afterAll(() => {
-    process.env.TZ = zone;
+    // Assigning undefined would set the string "undefined".
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
   });
 
   it.each([

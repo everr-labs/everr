@@ -72,7 +72,9 @@ export function TableVisualization({ spec, data }: VisualizationProps<TableSpec>
           above this panel. */}
       <ScrollArea className="min-h-0 flex-1" orientation="both">
         {rows.length === 0 ? (
-          <PanelEmptyState icon={TableIcon} data={[rows]} />
+          <div className="h-full min-h-24">
+            <PanelEmptyState icon={TableIcon} data={[rows]} />
+          </div>
         ) : (
           <DataTable
             data={rows}

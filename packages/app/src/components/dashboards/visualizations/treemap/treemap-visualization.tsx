@@ -89,9 +89,12 @@ export function TreemapVisualization({ spec, data }: VisualizationProps<TreemapS
       });
     };
     chart.on("mouseover", onOver);
+    // Leaving a tile for the gap between tiles, as well as the chart.
+    chart.on("mouseout", clearHover);
     chart.on("globalout", clearHover);
     return () => {
       chart.off("mouseover", onOver);
+      chart.off("mouseout", clearHover);
       chart.off("globalout", clearHover);
     };
   }, [chart, clearHover]);

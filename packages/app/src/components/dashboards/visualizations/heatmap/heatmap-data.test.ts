@@ -28,9 +28,9 @@ describe("buildHeatmapModel", () => {
     expect(model.yBuckets).toEqual(["/api", "/web"]);
     // step = 40s gap between the two distinct timestamps
     expect(model.cells).toEqual([
-      { start: 10_000, end: 50_000, bucket: 0, column: 1, value: 3 },
-      { start: 10_000, end: 50_000, bucket: 1, column: 1, value: 1 },
-      { start: 50_000, end: 90_000, bucket: 0, column: 2, value: 7 },
+      { start: 10_000, end: 50_000, bucket: 0, column: 1, value: 3, samples: 1 },
+      { start: 10_000, end: 50_000, bucket: 1, column: 1, value: 1, samples: 1 },
+      { start: 50_000, end: 90_000, bucket: 0, column: 2, value: 7, samples: 1 },
     ]);
     expect(model.domain).toEqual([0, 7]);
     // Columns on the samples' 40s grid, extended to cover the whole range.
@@ -89,6 +89,19 @@ describe("buildHeatmapModel", () => {
     expect(model.cells.map((cell) => cell.value)).toEqual([1, 1, 2, 1]);
   });
 
+  it("keeps jittered samples in their own columns", () => {
+    // Every ~58s: 2s and 59s in one column would leave the next one empty.
+    const rows = [2, 59, 121, 179].map((s) => ({ ts: ts(s), route: "/api", count: 1 }));
+    const model = buildHeatmapModel([rows], specWith(), [0, 240_000]);
+    // Column 0 is the stretch before the first sample, to the range's start.
+    expect(model.cells.map((cell) => [cell.column, cell.value])).toEqual([
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+    ]);
+  });
+
   it("lets buckets sampled at offset times share columns", () => {
     // Each route every 10s, /web a second after /api.
     const rows = [0, 10, 20].flatMap((s) => [
@@ -116,7 +129,9 @@ describe("buildHeatmapModel", () => {
       count: 1,
     }));
     const model = buildHeatmapModel([rows], specWith(), day);
-    expect(new Set(model.cells.map((cell) => cell.value))).toEqual(new Set([2]));
+    expect(new Set(model.cells.map(({ value, samples }) => [value, samples].join()))).toEqual(
+      new Set(["2,2"]),
+    );
   });
 
   it("clamps cells to the domain and drops fully outside ones", () => {

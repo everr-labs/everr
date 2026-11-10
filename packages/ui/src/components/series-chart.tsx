@@ -288,7 +288,12 @@ export function SeriesChart({
   return (
     <div
       data-slot="series-chart"
-      className={cn("relative text-muted-foreground", onSelect && "select-none", className)}
+      // The resize cursor says the chart can be dragged to pick a range.
+      className={cn(
+        "relative text-muted-foreground",
+        onSelect && "cursor-ew-resize select-none",
+        className,
+      )}
       onPointerMove={handlePointerMove}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}

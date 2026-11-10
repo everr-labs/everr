@@ -76,8 +76,9 @@ export function useEChart(
   onResize?: () => void,
 ): MountedChart | null {
   const [mounted, setMounted] = useState<MountedChart | null>(null);
-  // Bumped to create the chart again, at a lower pixel ratio, once the
-  // element outgrows the canvas budget: ECharts fixes the ratio at creation.
+  // Bumped to create the chart again at another pixel ratio, once the element
+  // outgrows the canvas budget or shrinks back: ECharts fixes the ratio at
+  // creation.
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
@@ -103,7 +104,15 @@ export function useEChart(
         element.clientHeight === instance.getHeight()
       )
         return;
-      if (pixelRatioFor(element.clientWidth, element.clientHeight) < devicePixelRatio) {
+      // Too sharp for the canvas budget now, or sharper than it could be once
+      // a chart that outgrew it has shrunk to half the area, or enough for the
+      // screen's own ratio (a little shrinking wouldn't be worth a new chart).
+      const fresh = pixelRatioFor(element.clientWidth, element.clientHeight, 2);
+      const tooSharp = pixelRatioFor(element.clientWidth, element.clientHeight) < devicePixelRatio;
+      const tooBlurry =
+        fresh > devicePixelRatio &&
+        fresh >= Math.min(window.devicePixelRatio || 1, devicePixelRatio * Math.SQRT2);
+      if (tooSharp || tooBlurry) {
         setGeneration((g) => g + 1);
         return;
       }

@@ -107,8 +107,11 @@ export function LaneTimelineChart({
     scale,
     onTimeRangeChange,
     itemAt: (at) => {
-      const lane = lanes[Math.min(lanes.length - 1, Math.floor(at.y * lanes.length))];
-      if (!lane) return null;
+      const position = at.y * lanes.length;
+      const lane = lanes[Math.min(lanes.length - 1, Math.floor(position))];
+      // Each bar fills `rowHeight` of its lane, centred: the rest is the gap
+      // between lanes, where nothing is hovered.
+      if (!lane || Math.abs((position % 1) - 0.5) > rowHeight / 2) return null;
       const msPerPixel = span / at.plot.width;
       const item = laneItemAt(lane.items, at.time, msPerPixel * (MIN_ITEM_WIDTH / 2));
       return item ? { lane: lane.label, item } : null;

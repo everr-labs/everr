@@ -222,7 +222,11 @@ export function BarChartVisualization({
       hi = Math.max(hi, positive);
     }
     return percent
-      ? niceValueAxis(SHARE_FORMAT, lo, hi, { min: lo < 0 ? -1 : 0, max: hi > 0 ? 1 : 0 })
+      ? // Shares run to ±100%; with no share at all (only zeros), 0 to 100%.
+        niceValueAxis(SHARE_FORMAT, lo, hi, {
+          min: lo < 0 ? -1 : 0,
+          max: hi > 0 || lo >= 0 ? 1 : 0,
+        })
       : niceValueAxis(formatter, lo, hi);
   }, [drawn, formatter, ids, stacked, percent]);
 
