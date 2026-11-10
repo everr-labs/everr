@@ -8,7 +8,7 @@ import path from "node:path";
 const BASE_URL = process.env.APP_URL ?? "http://127.0.0.1:3000";
 const ITERATIONS = Number(process.env.ITERATIONS ?? "3");
 // Playwright is not a workspace dependency, so it is installed next to the
-// job (see .github/workflows/trace-diff.yml).
+// job (see .github/workflows/trace-diff.yml.disabled).
 const PLAYWRIGHT_DIR = process.env.PLAYWRIGHT_DIR;
 const CHROME = process.env.CHROME_PATH;
 

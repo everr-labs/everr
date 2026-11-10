@@ -6,6 +6,9 @@ name: Trace Diff
 # the diff to the job summary and does not fail the build.
 #
 # Unlike ci.yml this also runs on draft pull requests.
+#
+# Disabled: GitHub only runs .yml and .yaml files. Rename this file to
+# trace-diff.yml to turn it on (the references to that name below assume it).
 
 on:
   pull_request:

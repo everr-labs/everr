@@ -70,7 +70,7 @@
     "@stryker-mutator/vitest-runner",
     // Vite resolves the ESM entry with createRequire in packages/app/vite.config.ts.
     "tslib",
-    // Installed outside the workspace by .github/workflows/trace-diff.yml and
+    // Installed outside the workspace by .github/workflows/trace-diff.yml.disabled and
     // loaded from PLAYWRIGHT_DIR by scripts/trace-diff/workload.ts.
     "playwright-core",
   ],

@@ -6,6 +6,10 @@ new or removed calls, more calls per request, new errors. The first
 version is on PR #582 (draft). It is informational: it writes the diff to
 the job summary and never fails the build.
 
+The workflow is disabled: it lives at
+`.github/workflows/trace-diff.yml.disabled`, which GitHub does not run.
+Rename it back to `trace-diff.yml` to turn it on.
+
 ## What exists
 
 - `everr ci trace-snapshot --out run.parquet [--from --to]` saves the
@@ -27,7 +31,7 @@ the job summary and never fails the build.
   `--fail-on <kinds>` exits non-zero, and `--ignore-span <name>` drops
   spans whose count depends on timing.
 
-- `.github/workflows/trace-diff.yml` builds the CLI and the self-hosted
+- `.github/workflows/trace-diff.yml.disabled` builds the CLI and the self-hosted
   app, then runs `scripts/trace-diff/run.sh`. The script starts fresh
   Postgres and ClickHouse from `scripts/dev/compose.yaml`, migrates, runs
   the built app with its telemetry going to the local collector, and drives
