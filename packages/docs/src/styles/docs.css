@@ -5,6 +5,7 @@
 @source "../../../ui/src/**/*.{ts,tsx}";
 
 @theme inline {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
 
@@ -33,17 +34,26 @@
   }
 }
 
-@media (width < 64rem) {
-  #nd-nav div:has(> div > [data-nav-actions]) {
-    margin-inline-start: 0;
+@layer utilities {
+  /* Headlines: Instrument Sans, set large and tight */
+  .display {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+    text-wrap: balance;
   }
+}
 
-  #nd-nav div:has(> div > [data-nav-actions]) > [role="separator"] {
-    display: none;
+/* The mascot blinks: a quick close and open, then a long look */
+@keyframes mascot-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
   }
-
-  #nd-nav div:has(> [data-nav-actions]) {
-    flex: 1;
+  97% {
+    transform: scaleY(0.08);
   }
 }
 

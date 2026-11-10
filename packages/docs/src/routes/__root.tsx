@@ -22,7 +22,12 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "Everr - Observability made simple",
+        title: "Everr: know before your customers do",
+      },
+      {
+        name: "description",
+        content:
+          "Everr keeps watch over your app. When a page slows down or something breaks, it tells you what happened, where, and why. No specialist team required.",
       },
     ],
     links: [

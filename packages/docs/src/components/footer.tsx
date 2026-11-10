@@ -6,26 +6,21 @@ import { DISCORD_URL } from "@/constants";
 
 export function Footer() {
   return (
-    <footer className="border-t border-fd-border">
+    <footer className="border-t border-fd-border bg-background">
       <div className="w-full">
-        <section className="relative overflow-hidden bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
-          <SiDiscord
-            className="pointer-events-none absolute top-[-70px] right-[8%] size-[280px] opacity-[0.08] max-[760px]:-right-[60px]"
-            aria-hidden="true"
-          />
-          <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-6 px-6 py-10 min-[761px]:flex-row min-[761px]:items-center min-[761px]:justify-between min-[761px]:gap-12">
+        <section className="border-b border-fd-border">
+          <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-4 py-12 sm:px-6 md:flex-row md:items-center md:justify-between md:gap-12">
             <div>
-              <h2 className="text-[clamp(30px,8vw,40px)] font-medium leading-[1.08] tracking-[-0.03em] min-[761px]:text-[40px]">
-                Help shape Everr
-                <span className="block font-semibold">Join us on Discord.</span>
+              <h2 className="text-2xl font-medium leading-[1.15] tracking-[-0.02em] sm:text-[28px]">
+                Help shape Everr. Join us on Discord.
               </h2>
-              <p className="mt-3.5 max-w-[48ch] text-base leading-[1.6]">
+              <p className="mt-3 max-w-[58ch] text-base leading-[1.6] text-fd-muted-foreground">
                 Drop your feature requests, share feedback, and help us decide what to build next.
                 We’ll throw in a discount code as a thank you for helping us out.
               </p>
             </div>
             <a
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full bg-primary-foreground px-5 py-3 font-semibold text-foreground transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary-foreground [&>svg]:size-5 [&>svg]:shrink-0 motion-reduce:transition-none"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full border border-foreground/25 px-5 py-3 font-semibold text-foreground transition-colors duration-200 hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary [&>svg]:size-5 [&>svg]:shrink-0 motion-reduce:transition-none"
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
@@ -49,7 +44,7 @@ function FooterDirectory() {
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
           <EverrLogo size="lg" className="flex w-full justify-center sm:justify-start" />
-          <p className="mt-4 text-sm text-fd-muted-foreground">Observability made simple.</p>
+          <p className="mt-4 text-sm text-fd-muted-foreground">Know before your customers do.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
               href="https://x.com/everrlabs"
@@ -92,20 +87,10 @@ function FooterDirectory() {
             </a>
           </div>
           <div className="mt-6 flex justify-center sm:justify-start">
-            <div className="inline-flex items-center gap-1 rounded-full border border-primary/50 bg-primary/5 py-2 pr-5 pl-2">
-              <span
-                className="flex size-8 items-center justify-center rounded-full text-primary text-xl"
-                aria-hidden="true"
-              >
-                🇪🇺
-              </span>
-              <span className="text-left leading-tight font-heading">
-                <span className="block font-mono text-xs font-semibold uppercase tracking-widest text-primary">
-                  Proudly
-                </span>
-                <span className="block text-sm font-bold text-fd-foreground">Made in Europe</span>
-              </span>
-            </div>
+            <p className="inline-flex items-center gap-2 text-sm text-fd-muted-foreground">
+              <span aria-hidden="true">🇪🇺</span>
+              Proudly made in Europe
+            </p>
           </div>
           <p className="mt-4 text-sm text-fd-muted-foreground">
             &copy; {new Date().getFullYear()} Everr
