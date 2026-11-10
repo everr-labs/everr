@@ -174,6 +174,11 @@ pub struct TraceDiffArgs {
     #[arg(long)]
     pub ignore_span: Vec<String>,
 
+    /// How far, relative to the baseline range, a non-zero rate must move to
+    /// count as changed. Spans appearing or disappearing always count.
+    #[arg(long, default_value_t = crate::trace_diff::DEFAULT_TOLERANCE)]
+    pub tolerance: f64,
+
     /// Exit non-zero when the diff contains any of these change kinds
     #[arg(long, value_enum, value_delimiter = ',')]
     pub fail_on: Vec<crate::trace_diff::ChangeKind>,

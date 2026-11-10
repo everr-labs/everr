@@ -16,6 +16,7 @@ use crate::telemetry::commands::query_local;
 const MAX_RENDERED_CHANGES: usize = 100;
 // Rates are ratios of small integers, so anything closer than this is equal.
 const EPSILON: f64 = 1e-9;
+pub const DEFAULT_TOLERANCE: f64 = 0.05;
 
 /// Columns a snapshot file keeps. The diff reads only the trace structure
 /// today. Durations and attributes are kept so later comparisons (latency,
@@ -100,6 +101,21 @@ impl Range {
     fn contains(&self, value: f64) -> bool {
         value >= self.min - EPSILON && value <= self.max + EPSILON
     }
+
+    /// Appearing or disappearing is always a change. Otherwise the value has
+    /// to leave the range by more than `tolerance` of the nearest bound: an
+    /// entry point that mixes traces with and without a span drifts slightly
+    /// with the number of requests, which is not a change in the code.
+    fn is_change(&self, value: f64, tolerance: f64) -> bool {
+        if self.contains(value) {
+            return false;
+        }
+        if value <= EPSILON || self.max <= EPSILON {
+            return true;
+        }
+        let bound = if value > self.max { self.max } else { self.min };
+        (value - bound).abs() / bound > tolerance
+    }
 }
 
 #[derive(clap::ValueEnum, Serialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -163,9 +179,10 @@ impl Report {
 }
 
 /// Compare one run against baseline runs. A per-trace rate counts as changed
-/// only when it falls outside the range the baselines showed, so baselines
-/// from several runs absorb ordinary run-to-run variation.
-pub fn diff(baselines: &[RunStats], head: &RunStats) -> Report {
+/// only when it falls outside the range the baselines showed (by more than
+/// `tolerance`, relative), so baselines from several runs absorb ordinary
+/// run-to-run variation.
+pub fn diff(baselines: &[RunStats], head: &RunStats, tolerance: f64) -> Report {
     // Without a baseline there is nothing to compare, not a run where every
     // entry point is new.
     if baselines.is_empty() {
@@ -209,7 +226,7 @@ pub fn diff(baselines: &[RunStats], head: &RunStats) -> Report {
                     base: None,
                     head: None,
                 }],
-                Some(head_entry) => diff_spans(&in_base, head_entry),
+                Some(head_entry) => diff_spans(&in_base, head_entry, tolerance),
             };
             (!changes.is_empty()).then(|| EntryChanges {
                 entry: signature.clone(),
@@ -227,7 +244,7 @@ pub fn diff(baselines: &[RunStats], head: &RunStats) -> Report {
     }
 }
 
-fn diff_spans(base: &[&EntryPoint], head: &EntryPoint) -> Vec<Change> {
+fn diff_spans(base: &[&EntryPoint], head: &EntryPoint, tolerance: f64) -> Vec<Change> {
     let spans: BTreeSet<&Signature> = base
         .iter()
         .copied()
@@ -245,7 +262,7 @@ fn diff_spans(base: &[&EntryPoint], head: &EntryPoint) -> Vec<Change> {
         let errors = Range::of(rates.iter().map(|(_, errors)| *errors));
         let (head_count, head_errors) = head.per_trace(signature);
 
-        if !counts.contains(head_count) {
+        if counts.is_change(head_count, tolerance) {
             let kind = if counts.max <= EPSILON {
                 ChangeKind::NewSpan
             } else if head_count <= EPSILON {
@@ -263,7 +280,7 @@ fn diff_spans(base: &[&EntryPoint], head: &EntryPoint) -> Vec<Change> {
 
         // A span that stopped appearing also stops erroring, which is already
         // reported as the removal.
-        if head_count > EPSILON && !errors.contains(head_errors) {
+        if head_count > EPSILON && errors.is_change(head_errors, tolerance) {
             let kind = if head_errors > errors.max {
                 ChangeKind::ErrorsIncreased
             } else {
@@ -348,8 +365,7 @@ pub fn render_markdown(report: &Report) -> String {
                 .as_ref()
                 .map(signature_label)
                 .unwrap_or_default();
-            let base = change.base.map(format_range).unwrap_or_default();
-            let head = change.head.map(format_rate).unwrap_or_default();
+            let (base, head) = format_values(change.base, change.head);
             let _ = writeln!(
                 out,
                 "| {} | {span} | {base} | {head} |",
@@ -376,19 +392,44 @@ fn signature_label(signature: &Signature) -> String {
     )
 }
 
-fn format_range(range: Range) -> String {
+/// Base and head as text, with the fewest decimals (2 to 4) that keep values
+/// that differ from printing the same.
+fn format_values(base: Option<Range>, head: Option<f64>) -> (String, String) {
+    let distinct = |decimals: usize| {
+        let (Some(range), Some(head)) = (base, head) else {
+            return true;
+        };
+        [range.min, range.max].into_iter().all(|bound| {
+            (bound - head).abs() <= EPSILON
+                || format_rate(bound, decimals) != format_rate(head, decimals)
+        })
+    };
+    let decimals = (2..=4).find(|&decimals| distinct(decimals)).unwrap_or(4);
+    (
+        base.map(|range| format_range(range, decimals))
+            .unwrap_or_default(),
+        head.map(|head| format_rate(head, decimals))
+            .unwrap_or_default(),
+    )
+}
+
+fn format_range(range: Range, decimals: usize) -> String {
     if (range.max - range.min).abs() <= EPSILON {
-        format_rate(range.min)
+        format_rate(range.min, decimals)
     } else {
-        format!("{} to {}", format_rate(range.min), format_rate(range.max))
+        format!(
+            "{} to {}",
+            format_rate(range.min, decimals),
+            format_rate(range.max, decimals)
+        )
     }
 }
 
-fn format_rate(value: f64) -> String {
-    if (value - value.round()).abs() < 0.005 {
+fn format_rate(value: f64, decimals: usize) -> String {
+    if (value - value.round()).abs() < 0.5 * 10f64.powi(-(decimals as i32)) {
         format!("{}", value.round() as i64)
     } else {
-        format!("{value:.2}")
+        format!("{value:.decimals$}")
     }
 }
 
@@ -685,7 +726,7 @@ pub async fn run_diff(args: TraceDiffArgs) -> Result<()> {
 
     let mut runs = collect_runs(&sources, &args.ignore_span).await?;
     let head = runs.remove(0);
-    let report = diff(&runs, &head);
+    let report = diff(&runs, &head, args.tolerance);
 
     let markdown = render_markdown(&report);
     match args.format {
@@ -719,6 +760,28 @@ pub async fn run_diff(args: TraceDiffArgs) -> Result<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn diff(baselines: &[RunStats], head: &RunStats) -> Report {
+        super::diff(baselines, head, DEFAULT_TOLERANCE)
+    }
+
+    #[test]
+    fn drift_from_a_varying_number_of_requests_is_not_a_change() {
+        // One trace of the entry point has no session lookup, so the rate is
+        // (n - 1) / n and moves with the number of requests.
+        let base = stats(vec![entry("GET /root", 31, &[("SELECT session", 30, 0)])]);
+        let head = stats(vec![entry("GET /root", 30, &[("SELECT session", 29, 0)])]);
+        assert!(diff(&[base], &head).entries.is_empty());
+    }
+
+    #[test]
+    fn a_zero_tolerance_reports_any_drift_with_enough_decimals_to_see_it() {
+        let base = stats(vec![entry("GET /root", 31, &[("SELECT session", 30, 0)])]);
+        let head = stats(vec![entry("GET /root", 30, &[("SELECT session", 29, 0)])]);
+        let markdown = render_markdown(&super::diff(&[base], &head, 0.0));
+
+        assert!(markdown.contains("| 0.968 | 0.967 |"), "{markdown}");
+    }
 
     fn sig(service: &str, name: &str) -> Signature {
         Signature {
