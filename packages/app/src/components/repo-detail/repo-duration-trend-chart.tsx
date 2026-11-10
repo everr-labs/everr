@@ -1,86 +1,50 @@
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@everr/ui/components/chart";
-import {
-  ChartEmptyState,
-  chartTooltipLabelFormatter,
-  createChartTooltipFormatter,
-  createLegendFormatter,
-  formatChartDate,
-} from "@everr/ui/components/chart-helpers";
+import { ChartEmptyState, formatChartDate } from "@everr/ui/components/chart-helpers";
+import { SeriesChart } from "@everr/ui/components/series-chart";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
-import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+import { seriesValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
+import { createValueFormatter } from "#app/components/dashboards/visualizations/value-format.ts";
 import type { RepoDurationPoint } from "#app/data/repo-detail/schemas.ts";
 
 interface RepoDurationTrendChartProps {
   data: RepoDurationPoint[];
 }
 
-const chartConfig = {
-  p50Duration: {
-    label: "P50",
-    color: "hsl(217, 91%, 60%)",
-  },
-  p95Duration: {
-    label: "P95",
-    color: "hsl(0, 84%, 60%)",
-  },
-} satisfies ChartConfig;
-
-const tooltipFormatter = createChartTooltipFormatter(chartConfig, (v) => formatDurationCompact(v));
-const legendFormatter = createLegendFormatter(chartConfig);
+const DURATION = createValueFormatter({ unit: "ms", scale: "duration" });
 
 export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
+  const chart = useMemo(() => {
+    const p50 = data.map((point) => point.p50Duration);
+    const p95 = data.map((point) => point.p95Duration);
+    // Ticks round in the displayed unit (e.g. 0.5 min), not in milliseconds.
+    const max = Math.max(0, ...p50, ...p95);
+    return {
+      labels: data.map((point) => formatChartDate(point.date)),
+      titles: data.map((point) => new Date(point.date).toLocaleDateString()),
+      axes: {
+        left: seriesValueAxis(DURATION, max, formatDurationCompact),
+      },
+      series: [
+        {
+          id: "p50Duration",
+          label: "P50",
+          color: "hsl(217, 91%, 60%)",
+          kind: "line" as const,
+          values: p50,
+        },
+        {
+          id: "p95Duration",
+          label: "P95",
+          color: "hsl(0, 84%, 60%)",
+          kind: "line" as const,
+          values: p95,
+        },
+      ],
+    };
+  }, [data]);
+
   if (data.length === 0) {
     return <ChartEmptyState message="No data available" />;
   }
-
-  return (
-    <ChartContainer config={chartConfig} className="h-[300px] w-full">
-      <LineChart data={data} margin={{ left: 12, right: 12 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickFormatter={formatChartDate}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-          tickFormatter={(v) => formatDurationCompact(v)}
-        />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              labelFormatter={chartTooltipLabelFormatter}
-              formatter={tooltipFormatter}
-            />
-          }
-        />
-        <Legend formatter={legendFormatter} />
-        <Line
-          dataKey="p50Duration"
-          type="monotone"
-          stroke="var(--color-p50Duration)"
-          strokeWidth={2}
-          dot={false}
-          isAnimationActive={false}
-        />
-        <Line
-          dataKey="p95Duration"
-          type="monotone"
-          stroke="var(--color-p95Duration)"
-          strokeWidth={2}
-          dot={false}
-          isAnimationActive={false}
-        />
-      </LineChart>
-    </ChartContainer>
-  );
+  return <SeriesChart {...chart} showLegend className="h-75 w-full" />;
 }

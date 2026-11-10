@@ -1,6 +1,5 @@
 /* oxlint-disable typescript/consistent-type-assertions -- Chart model timestamps are numeric; erased assertions preserve the existing arithmetic without coercing other values. */
 /* oxlint-disable typescript/no-non-null-assertion -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
   getGroupKeys,
@@ -10,6 +9,7 @@ import {
   toNumber,
   toTimestamp,
 } from "../data-utils";
+import type { LegendSeries } from "@everr/ui/components/series-legend";
 import type { QueryResultRow } from "../index";
 
 export const X_KEY = "__x";
@@ -17,8 +17,8 @@ export const X_KEY = "__x";
 export interface BarChartModel {
   /** One entry per x value (timestamp or category), merged across queries. */
   chartData: Array<Record<string, unknown>>;
-  valueKeys: string[];
-  chartConfig: ChartConfig;
+  /** Series in draw order; each `id` keys its values in `chartData`. */
+  series: LegendSeries[];
   /** True when every contributing frame had a time column — x values are
    * epoch ms and the axis labels format as times. */
   isTimeAxis: boolean;
@@ -43,14 +43,13 @@ export function buildBarChartModel(
   dataSets: QueryResultRow[][],
   colors: Record<string, string> = {},
 ): BarChartModel {
-  const chartConfig: ChartConfig = {};
-  const valueKeys: string[] = [];
+  const series: LegendSeries[] = [];
   const byX = new Map<string | number, Record<string, unknown>>();
   let seriesIndex = 0;
   let sawTime = false;
   let sawCategory = false;
 
-  dataSets.forEach((data) => {
+  dataSets.forEach((data, queryIndex) => {
     if (!data || data.length === 0) return;
 
     const timeKey = detectTimeKey(data);
@@ -87,18 +86,18 @@ export function buildBarChartModel(
       seriesNames = rawValueKeys;
     }
 
-    // Render keys are opaque, sequential ids (`s0`, `s1`, …) — never derived
-    // from the name — so distinct names that would mangle to the same CSS-var
-    // identifier can't collide. The original name stays as the label.
+    // Render keys are opaque, sequential ids (`s0`, `s1`, …) so they can never
+    // collide with each other or with X_KEY. The original name stays as the label.
     const renderKeyByName = new Map<string, string>();
     for (const name of seriesNames) {
-      const renderKey = `s${seriesIndex}`;
-      renderKeyByName.set(name, renderKey);
-      valueKeys.push(renderKey);
-      chartConfig[renderKey] = {
+      const id = `s${seriesIndex}`;
+      renderKeyByName.set(name, id);
+      series.push({
+        id,
+        identity: JSON.stringify([queryIndex, name]),
         label: name,
-        color: colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
-      };
+        color: colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length]!,
+      });
       seriesIndex++;
     }
 
@@ -125,5 +124,5 @@ export function buildBarChartModel(
     chartData.sort((a, b) => (a[X_KEY] as number) - (b[X_KEY] as number));
   }
 
-  return { chartData, valueKeys, chartConfig, isTimeAxis };
+  return { chartData, series, isTimeAxis };
 }

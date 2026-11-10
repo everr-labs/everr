@@ -18,5 +18,11 @@
       "@composition/deployment": ["./src/app/composition/deployment.ts"]
     }
   },
-  "exclude": ["node_modules/@everr/app/src/app", "node_modules/@everr/app/src/routeTree.gen.ts"]
+  // App tests run under app's own config, which also typechecks them.
+  "exclude": [
+    "node_modules/@everr/app/src/app",
+    "node_modules/@everr/app/src/routeTree.gen.ts",
+    "node_modules/@everr/app/src/**/*.test.ts",
+    "node_modules/@everr/app/src/**/*.test.tsx"
+  ]
 }

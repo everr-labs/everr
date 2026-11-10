@@ -7,36 +7,25 @@ const TOL = markerTolerance(202, 100);
 const at = (...values: (number | null)[]) => values.map((value, i) => ({ key: `s${i}`, value }));
 
 describe("nearestSeriesKeys", () => {
-  it("returns every series tied at the same value, not an arbitrary one", () => {
-    const keys = nearestSeriesKeys(at(0, 0, 100, 100), 4, TOL);
-    expect([...keys]).toEqual(["s0", "s1"]);
-  });
-
-  it("counts a series as tied when its marker would overlap the nearest", () => {
-    expect([...nearestSeriesKeys(at(50, 52), 50, TOL)]).toEqual(["s0", "s1"]);
-    expect([...nearestSeriesKeys(at(50, 60), 50, TOL)]).toEqual(["s0"]);
-  });
-
-  it("never picks a series that has no measurement at this instant", () => {
-    expect([...nearestSeriesKeys(at(null, 80), 10, TOL)]).toEqual(["s1"]);
-    expect(nearestSeriesKeys(at(null, null), 10, TOL).size).toBe(0);
-  });
-
-  it("highlights nothing when the cursor height is unknown", () => {
-    expect(nearestSeriesKeys(at(0, 100), null, TOL).size).toBe(0);
-  });
-
-  it("highlights the only series there is, so a single line still reads", () => {
-    expect([...nearestSeriesKeys(at(58), 12, TOL)]).toEqual(["s0"]);
+  it.each([
+    // Every tied series, not an arbitrary one.
+    ["the series tied nearest", at(0, 0, 100, 100), 4, ["s0", "s1"]],
+    ["a series whose marker would overlap the nearest", at(50, 52), 50, ["s0", "s1"]],
+    ["only the nearest when the next is clear of it", at(50, 60), 50, ["s0"]],
+    ["never a series with no measurement here", at(null, 80), 10, ["s1"]],
+    ["nothing when no series has a measurement", at(null, null), 10, []],
+    ["nothing while the cursor height is unknown", at(0, 100), null, []],
+    // So a single line still reads.
+    ["the only series there is, however far", at(58), 12, ["s0"]],
+  ])("picks %s", (_, series, cursor, expected) => {
+    expect([...nearestSeriesKeys(series, cursor, TOL)]).toEqual(expected);
   });
 });
 
 describe("markerTolerance", () => {
   it("scales with the axis, so the tie stays the same distance on screen", () => {
     expect(markerTolerance(202, 1000)).toBeCloseTo(markerTolerance(202, 100) * 10);
-  });
-
-  it("is zero for a plot with no height, rather than infinite", () => {
+    // Zero rather than infinite while the plot has no height.
     expect(markerTolerance(0, 100)).toBe(0);
   });
 });
@@ -44,19 +33,16 @@ describe("markerTolerance", () => {
 describe("valueAtCursorY", () => {
   const plot = { top: 8, height: 202 };
 
-  it("maps the plot boundaries to the domain boundaries", () => {
-    expect(valueAtCursorY(8, plot, [0, 100])).toBe(100);
-    expect(valueAtCursorY(210, plot, [0, 100])).toBe(0);
+  it.each([
+    ["the plot's top to the domain's top", 8, [0, 100], 100],
+    ["the plot's bottom to the domain's bottom", 210, [0, 100], 0],
+    ["linearly in between", 109, [0, 100], 50],
+    ["onto a domain that is not 0-based", 109, [200, 400], 300],
+  ] as const)("maps %s", (_, y, domain, expected) => {
+    expect(valueAtCursorY(y, plot, [...domain])).toBeCloseTo(expected);
   });
 
-  it("is linear in between, and handles a domain that is not 0-based", () => {
-    expect(valueAtCursorY(109, plot, [0, 100])).toBeCloseTo(50);
-    expect(valueAtCursorY(109, plot, [200, 400])).toBeCloseTo(300);
-  });
-
-  it("gives up rather than guessing when the pointer height is missing", () => {
-    // Recharts omits chartY on some events.
-    expect(valueAtCursorY(undefined, plot, [0, 100])).toBeNull();
+  it("gives up rather than guessing while the plot has no height", () => {
     expect(valueAtCursorY(50, { top: 0, height: 0 }, [0, 100])).toBeNull();
   });
 });

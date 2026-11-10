@@ -14,7 +14,6 @@
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "recharts": "catalog:",
     "sonner": "^2.0.7"
   },
   "devDependencies": {

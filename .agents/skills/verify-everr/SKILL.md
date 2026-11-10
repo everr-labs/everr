@@ -69,8 +69,9 @@ Setup, checked by `$V web-preflight` (and again at the start of `web-launch`, wh
 - `docker compose` working (a root-owned `~/.docker` hides the Compose plugin)
 - `packages/app/.env` and `packages/cloud/.env`, here or in the main worktree
 - `certutil` on Linux (`libnss3-tools`), so agent-browser can trust the Portless CA
+- on macOS, the Portless CA trusted by the keychain (`pnpm exec portless trust`), which agent-browser's Chrome relies on
 
-`web-browser-env` and the helper's own browser commands set `AGENT_BROWSER_CA_CERT` to the Portless CA unless it is already set.
+On Linux, `web-browser-env` and the helper's own browser commands set `AGENT_BROWSER_CA_CERT` to the Portless CA unless it is already set. On macOS they leave it unset: agent-browser rejects it there, and Chrome trusts the CA through the keychain. Never work around a certificate error with `--ignore-https-errors`; it hides real TLS problems.
 
 ```bash
 $V web-preflight                     # "preflight ok", or one line per missing piece

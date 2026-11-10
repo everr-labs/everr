@@ -178,10 +178,10 @@ describe("ErrorsInstrumentation capture", () => {
   });
 
   it("captures unhandledRejection as error by default, and as fatal in strict mode", () => {
-    enable();
+    const enabled = enable();
     process.emit("unhandledRejection", new Error("warn"), Promise.resolve());
     expect(otel.records()[0].severityText).toBe("ERROR");
-    instrumentation.setConfig({
+    enabled.setConfig({
       onFatal: "continue",
       onUnhandledRejection: "strict",
     });

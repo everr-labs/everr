@@ -8,6 +8,7 @@ import { createValueFormatter } from "../value-format";
 import { layoutGraph } from "./force-layout";
 import { buildNodeGraph, type GraphEdge, type GraphNode } from "./node-graph-data";
 import type { NodeGraphSpec } from "./spec";
+import { PanelEmptyState } from "../panel-empty-state";
 
 const MIN_RADIUS = 10;
 const MAX_RADIUS = 26;
@@ -54,15 +55,6 @@ function useContainerSize() {
   return { ref, size };
 }
 
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-      <Share2 className="size-8" />
-      <p className="text-sm">No edges to graph in this result</p>
-    </div>
-  );
-}
-
 export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGraphSpec>) {
   const formatter = createValueFormatter(spec.valueFormat);
   const model = useMemo(() => (data ? buildNodeGraph(data, spec) : null), [data, spec]);
@@ -85,7 +77,14 @@ export function NodeGraphVisualization({ spec, data }: VisualizationProps<NodeGr
   );
   const [hover, setHover] = useState<Hover | null>(null);
 
-  if (!model || model.nodes.length === 0) return <EmptyState />;
+  if (!model || model.nodes.length === 0)
+    return (
+      <PanelEmptyState
+        icon={Share2}
+        data={data}
+        unusable="No row has both a source and a different target node."
+      />
+    );
   const { nodes, edges, droppedRows, hiddenNodes } = model;
 
   // Node sizes shrink a bit with the panel so circles don't crowd small

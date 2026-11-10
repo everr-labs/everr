@@ -43,36 +43,83 @@ const TICK_INTERVALS = [
   365 * 86_400_000,
 ];
 
-/** Tick label formatter for a time axis: date for multi-day spans, time otherwise. */
-export function createTimeTickFormatter(domain: [number, number]) {
-  const span = domain[1] - domain[0];
-  return (ms: number) => {
-    const d = new Date(ms);
-    if (span > 86_400_000) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      });
-    }
-    return d.toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
+/** More round steps, still on the local clock, for ticks to fall a whole
+ * number of buckets apart: e.g. every 8 hours over 4-hour buckets. */
+const ALIGNABLE_INTERVALS = [
+  ...TICK_INTERVALS,
+  2 * 60_000,
+  15 * 60_000,
+  2 * HOUR,
+  4 * HOUR,
+  8 * HOUR,
+].sort((a, b) => a - b);
+
+/** The interval `generateTimeTicks` ticks `domain` at: a whole number of
+ * `multipleOf` when one is round enough, so ticks over buckets of that width
+ * fall the same number of buckets apart. */
+export function timeTickInterval(
+  domain: [number, number],
+  maxTicks: number,
+  multipleOf = 1,
+): number {
+  const ideal = (domain[1] - domain[0]) / maxTicks;
+  const aligned = multipleOf > 1 ? ALIGNABLE_INTERVALS : TICK_INTERVALS;
+  return (
+    aligned.find((i) => i >= ideal && i % multipleOf === 0) ??
+    TICK_INTERVALS.find((i) => i >= ideal) ??
+    TICK_INTERVALS.at(-1) ??
+    1_000
+  );
 }
 
-/** Clock-aligned tick positions across a time domain, at most maxTicks of them. */
-export function generateTimeTicks(domain: [number, number], maxTicks: number): number[] {
-  const span = domain[1] - domain[0];
-  if (span <= 0) return [];
-
-  const ideal = span / maxTicks;
-  const interval = TICK_INTERVALS.find((i) => i >= ideal) ?? TICK_INTERVALS.at(-1) ?? 1_000;
-
-  const first = Math.ceil(domain[0] / interval) * interval;
+/**
+ * Tick positions across a time domain, at most about maxTicks of them, on
+ * the local clock: whole local hours, local midnights, first days of months.
+ * Ticks of an hour or more step through the local calendar rather than by a
+ * fixed number of milliseconds, so they stay on the clock across a DST change.
+ */
+export function generateTimeTicks(
+  domain: [number, number],
+  maxTicks: number,
+  multipleOf?: number,
+): number[] {
+  const [start, end] = domain;
+  if (end <= start) return [];
+  const interval = timeTickInterval(domain, maxTicks, multipleOf);
   const ticks: number[] = [];
-  for (let t = first; t <= domain[1]; t += interval) {
-    ticks.push(t);
+
+  if (interval < HOUR) {
+    // Every zone offset is a whole number of these, give or take 45-minute
+    // zones, so UTC multiples are local ones too.
+    for (let t = Math.ceil(start / interval) * interval; t <= end; t += interval) ticks.push(t);
+    return ticks;
+  }
+
+  const at = new Date(start);
+  if (interval < DAY) {
+    const hours = interval / HOUR;
+    at.setMinutes(0, 0, 0);
+    if (at.getTime() < start) at.setHours(at.getHours() + 1);
+    for (; at.getTime() <= end; at.setHours(at.getHours() + 1)) {
+      if (at.getHours() % hours === 0) ticks.push(at.getTime());
+    }
+    return ticks;
+  }
+
+  at.setHours(0, 0, 0, 0);
+  if (at.getTime() < start) at.setDate(at.getDate() + 1);
+  const days = interval / DAY;
+  const months = days >= 365 ? 12 : days >= 90 ? 3 : days >= 30 ? 1 : 0;
+  for (; at.getTime() <= end; at.setDate(at.getDate() + 1)) {
+    const keep = months
+      ? at.getDate() === 1 && at.getMonth() % months === 0
+      : // Days since the epoch in local time, so the step does not drift
+        // with where the range starts.
+        Math.round(Date.UTC(at.getFullYear(), at.getMonth(), at.getDate()) / DAY) % days === 0;
+    if (keep) ticks.push(at.getTime());
   }
   return ticks;
 }
@@ -93,13 +140,17 @@ function niceStep(raw: number): number {
  * Round steps stay at 1, 2, 2.5 and 5 times a power of ten. An automatic
  * range leaves room around the data. Explicit bounds stay exact and may clip
  * data outside the configured range.
+ *
+ * `divisor` is what the axis labels divide values by (1024³ for GiB): steps
+ * are chosen round in that displayed unit, not in the raw values.
  */
 export function niceLinearDomain(
   min: number,
   max: number,
   tickCount = 5,
-  bounds: { min?: number; max?: number } = {},
+  options: { min?: number; max?: number; divisor?: number } = {},
 ): { domain: [number, number]; ticks: number[] } {
+  const { divisor = 1, ...bounds } = options;
   const dataMin = Number.isFinite(min) ? min : 0;
   const dataMax = Number.isFinite(max) ? max : 0;
   const span = Math.max(0, dataMax - dataMin);
@@ -131,7 +182,7 @@ export function niceLinearDomain(
     else lo0 = hi0 - fallbackSpan;
   }
   // A flat series still needs an axis with height, or it plots on the edge.
-  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1));
+  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1) / divisor) * divisor;
   const lo = bounds.min ?? Math.floor(lo0 / step) * step;
   const hi = bounds.max ?? Math.ceil(hi0 / step) * step;
   const ticks: number[] = [];
@@ -284,4 +335,56 @@ export function toTimestamp(value: unknown): number | null {
     if (parsed) return parsed.getTime();
   }
   return null;
+}
+
+/** The index of the sample nearest `target` in ascending `samples`; null
+ * only when there are none. */
+export function nearestSampleIndex(samples: readonly number[], target: number): number | null {
+  let nearest: number | null = null;
+  let distance = Number.POSITIVE_INFINITY;
+  samples.forEach((sample, index) => {
+    if (Math.abs(sample - target) < distance) {
+      distance = Math.abs(sample - target);
+      nearest = index;
+    }
+  });
+  return nearest;
+}
+
+/**
+ * How often series are sampled: the median gap between consecutive times
+ * within each of `series` (each ascending). Gaps are measured per series, so
+ * series sampled at offset times (a at :00, b at :01) still read as a minute
+ * apart, and the median shrugs off a skipped bucket or a stray sample. 0 when
+ * no series has two times.
+ */
+export function samplingStep(series: Iterable<readonly number[]>): number {
+  const gaps: number[] = [];
+  for (const times of series) {
+    times.forEach((time, i) => {
+      const gap = time - (times[i - 1] ?? time);
+      if (gap > 0) gaps.push(gap);
+    });
+  }
+  gaps.sort((a, b) => a - b);
+  return gaps[Math.floor(gaps.length / 2)] ?? 0;
+}
+
+/**
+ * The index of the bucket containing `target`, where `starts` are ascending
+ * bucket starts and each bucket is `step` wide. Null outside them all,
+ * including in a skipped one; with no step, a bucket only contains its start.
+ */
+export function bucketIndexAt(
+  starts: readonly number[],
+  step: number,
+  target: number,
+): number | null {
+  let index: number | null = null;
+  starts.forEach((start, i) => {
+    if (start <= target) index = i;
+  });
+  if (index === null) return null;
+  const start = starts[index] ?? target;
+  return target < start + step || target === start ? index : null;
 }

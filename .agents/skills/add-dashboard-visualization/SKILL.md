@@ -96,14 +96,14 @@ export function <Kind>Visualization({
 }
 ```
 
-- Render the query results passed in `data`; handle the `!data` / empty cases
-- Available chart library: **Recharts** (Bar, Line, Area, ComposedChart, ScatterChart, etc.)
-- Available chart wrapper: `ChartContainer` from `@everr/ui/components/chart`
+- Render the query results passed in `data`; for the `!data` / empty cases render `PanelEmptyState` (`visualizations/panel-empty-state.tsx`) with what the panel needed from the rows
+- Available chart library: **ECharts**, imported modularly (`echarts/core`, `echarts/charts`) and registered with `echarts.use`. Mount it with `useEChart` from `@everr/ui/hooks/use-echart`, and reuse the axis helpers in `visualizations/echarts/axis.ts` and the legend in `@everr/ui/components/series-legend`
+- Plain bar, line or area series over a category axis: `SeriesChart` from `@everr/ui/components/series-chart`
 - Available table: `DataTable` from `@everr/ui/components/data-table`
 
-**Hover tooltips use the shared `CursorTooltip`** (`@/components/cursor-tooltip`) —
-do not hand-roll positioning or use recharts' `<Tooltip>` (it anchors at the
-shape's center, not the cursor). `CursorTooltip` is a portaled card that follows
+**Hover tooltips use the shared `CursorTooltip`** (`@everr/ui/components/cursor-tooltip`).
+Do not hand-roll positioning or use the ECharts tooltip component, which is
+styled apart from the app. `CursorTooltip` is a portaled card that follows
 the pointer and flips at viewport edges instead of clipping; you provide the
 content, it provides the card chrome and positioning. Track hover yourself and
 render it conditionally:
@@ -123,6 +123,27 @@ const [hover, setHover] = useState<{ datum: D; x: number; y: number } | null>(nu
 
 The TimeSeriesChart, GeoMap, and Treemap visualizations all use it — match
 their tooltip content structure for visual consistency.
+
+**Time-based panels share one hover cursor.** From
+`visualizations/shared-time-cursor.tsx`, a visualization drawn over time
+calls `usePointTimeCursor()` and uses `set(timestamp)` while the pointer is
+over its plot and `clear()` when it leaves. It draws the cursor with
+`CursorLine` (`@everr/ui/components/cursor-line`) in a small component
+that calls `useTimeCursor()`. That
+component is the only one that re-renders on every pointer move, so never
+read the cursor at the top of the visualization. Panels over time (the time
+series, bar chart, heatmap and lane charts) get all of this, plus drag-to-zoom
+and the hovered item, from `useTimeTrack` in `visualizations/time-track.tsx`:
+give it the chart element, its size from `useEChart`, the grid insets, a time
+`scale` for where instants fall on the plot (`linearTimeScale(domain)` for a
+plot spread evenly over time), `onTimeRangeChange` for zooms and an `itemAt`
+lookup. Spread its `handlers` on the chart area, and render `TimeTrackOverlay`
+with the same `scale`, its `brush` and the plot rect from `plotWithin`. Pass
+the grid to ECharts through `gridOption`, so ECharts draws the plot exactly
+where the overlay and hover expect it, and label a time x-axis with
+`timeAxisOption` (or `TimeAxis` under rows that scroll), whose labels match
+every other panel's and never run past the panel edge. Add the new panel to
+`everr/demo/all-panels.dashboard.yaml` to check it against the others.
 
 **Scrolling and overflow are visualization concerns.** `PanelShell` provides `min-h-0 flex-1` on its content area but no `overflow`. Each visualization must manage its own scroll container. For example, the table visualization wraps itself in a flex column with a scrollable inner div:
 
@@ -159,14 +180,14 @@ const registry: Record<string, VisualizationEntry> = {
   <Kind>: defineVisualization({
     schema: <kind>Spec,
     component: <Kind>Visualization,
-    inset: "default",               // or "flush-content" for edge-to-edge content like tables
+    // inset: "default",            // only to pad the content (the gauge); charts run edge to edge
   }),
 };
 ```
 
 The `inset` option controls padding inside the panel card:
-- `"default"` — standard padding (use for charts, stats)
-- `"flush-content"` — no horizontal padding or bottom padding (use for tables, maps)
+- `"flush-content"` (the default): no horizontal or bottom padding. Charts, tables and maps run to the panel's edges.
+- `"default"`: standard padding, for content that is not a chart drawn to the edges (the gauge).
 
 ### 5. Register the schema for apply-time validation
 
@@ -240,4 +261,4 @@ The Table visualization is a complete example:
 
 - **Spec schema:** `visualizations/table/spec.ts` — `stickyHeader` boolean, defaulted
 - **Visualization:** `visualizations/table/table-visualization.tsx` — uses `DataTable` from `@everr/ui`, renders the `data` frames, reads `spec.stickyHeader`
-- **Registry:** `inset: "flush-content"` so the table sits edge-to-edge in the panel
+- **Registry:** no `inset`, so the table sits edge to edge in the panel
