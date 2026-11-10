@@ -65,6 +65,8 @@ function RunbookAnchor({
   ...props
 }: ComponentPropsWithoutRef<"a"> & ExtraProps) {
   const { resolveLink, project, slug } = useContext(RunbookLinkContext);
+  // Images in a link follow it rather than open full size.
+  const content = <InLinkContext.Provider value>{children}</InLinkContext.Provider>;
 
   if (resolveLink && project !== undefined && slug !== undefined && typeof href === "string") {
     const resolved = resolveLink(href);
@@ -77,7 +79,7 @@ function RunbookAnchor({
       // external ones.
       return resolved === "" ? (
         <Link to="/runbooks/$project/$slug" params={{ project, slug }} hash={hash} {...props}>
-          {children}
+          {content}
         </Link>
       ) : (
         <Link
@@ -86,7 +88,7 @@ function RunbookAnchor({
           hash={hash}
           {...props}
         >
-          {children}
+          {content}
         </Link>
       );
     }
@@ -105,7 +107,7 @@ function RunbookAnchor({
       {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       {...props}
     >
-      <InLinkContext.Provider value>{children}</InLinkContext.Provider>
+      {content}
       {external && !onlyImage && (
         <ArrowUpRight
           aria-label="(opens in a new tab)"

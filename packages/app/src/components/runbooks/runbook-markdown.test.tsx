@@ -180,12 +180,14 @@ describe("RunbookMarkdown blocks", () => {
   });
 
   it("loads images lazily, zooming them unless linked", () => {
-    const { container } = renderRunbook("![chart](/a.png) [![logo](/b.png)](https://example.com)");
+    const { container } = renderRunbook(
+      "![chart](/a.png) [![logo](/b.png)](https://example.com) [![map](/c.png)](./traffic.md)",
+    );
     // A linked image needs no new-tab arrow beside it.
     expect(screen.queryByLabelText("(opens in a new tab)")).toBeNull();
     expect(
       [...container.querySelectorAll("img")].map((img) => img.getAttribute("loading")),
-    ).toEqual(["lazy", "lazy"]);
+    ).toEqual(["lazy", "lazy", "lazy"]);
     expect(screen.getAllByRole("button", { name: /full size/ })).toHaveLength(1);
   });
 });
