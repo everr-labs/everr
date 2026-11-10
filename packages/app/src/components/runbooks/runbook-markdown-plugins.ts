@@ -68,19 +68,16 @@ interface Tag {
 }
 type HtmlPiece = MdNode | Tag;
 
-/** An html node's tags and the text between them, or null when it holds
- * anything but allowed tags. */
-function splitHtml(value: string): HtmlPiece[] | null {
+/** An html node's allowed tags and the text between them. Anything else in
+ * it, other tags included, stays text, which React escapes. */
+function splitHtml(value: string): HtmlPiece[] {
   const pieces: HtmlPiece[] = [];
-  // False when the text holds a tag that isn't allowed.
   const pushText = (text: string) => {
-    if (/[<>]/.test(text)) return false;
     if (text.trim()) pieces.push({ type: "text", value: text });
-    return true;
   };
   let last = 0;
   for (const match of value.matchAll(ALLOWED_TAG)) {
-    if (!pushText(value.slice(last, match.index))) return null;
+    pushText(value.slice(last, match.index));
     pieces.push({
       tag: (match[2] ?? "").toLowerCase(),
       close: match[1] === "/",
@@ -89,7 +86,8 @@ function splitHtml(value: string): HtmlPiece[] | null {
     });
     last = (match.index ?? 0) + match[0].length;
   }
-  return pushText(value.slice(last)) ? pieces : null;
+  pushText(value.slice(last));
+  return pieces;
 }
 
 /** Pairs each opening tag with its closing one among `pieces`, wrapping what
@@ -130,10 +128,9 @@ export function remarkAllowedHtml() {
       if (!node.children) return;
       for (const child of node.children) visit(child);
       if (!node.children.some((child) => child.type === "html")) return;
-      const pieces = node.children.flatMap((child): HtmlPiece[] => {
-        if (child.type !== "html") return [child];
-        return splitHtml(child.value ?? "") ?? [child];
-      });
+      const pieces = node.children.flatMap((child): HtmlPiece[] =>
+        child.type === "html" ? splitHtml(child.value ?? "") : [child],
+      );
       node.children = pairTags(pieces);
     };
     visit(tree);

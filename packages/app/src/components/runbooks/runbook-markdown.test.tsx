@@ -170,12 +170,12 @@ describe("RunbookMarkdown blocks", () => {
 
   it("renders the allowed bare tags and shows any other HTML as text", () => {
     const { container } = renderRunbook(
-      "Press <kbd>Ctrl</kbd>, <script>alert(1)</script> <b>bold</b>\n\n<details>\n<summary>More</summary>\n\nHidden.\n\n</details>",
+      "Press <kbd>Ctrl</kbd>, <script>alert(1)</script> <b>bold</b>\n\n<details>\n<summary>a -> <i>b</i></summary>\n\nHidden.\n\n</details>",
     );
     expect(container.querySelector("kbd")).toHaveTextContent("Ctrl");
-    expect(container.querySelector("script, b")).toBeNull();
+    expect(container.querySelector("script, b, i")).toBeNull();
     expect(container).toHaveTextContent("<script>alert(1)</script>");
-    expect(container.querySelector("details > summary")).toHaveTextContent("More");
+    expect(container.querySelector("details > summary")).toHaveTextContent("a -> <i>b</i>");
     expect(container.querySelector("details")).toHaveTextContent("Hidden.");
   });
 

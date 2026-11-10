@@ -38,9 +38,15 @@ register({ bash, go, javascript, json, python, sql, typescript, yaml });
 /** Fences that name no language worth loading grammars for. */
 const PLAIN = new Set(["text", "txt", "plain", "plaintext"]);
 
+// If the chunk fails to load (a deploy replaced it, the network dropped), the
+// blocks waiting on it stay plain rather than failing the page. It isn't
+// retried: `use` would ask again on every render, retrying in a loop.
 let everyLanguage: Promise<void> | undefined;
 function loadEveryLanguage(): Promise<void> {
-  everyLanguage ??= import("./every-language").then((grammars) => register(grammars.everyLanguage));
+  everyLanguage ??= import("./every-language").then(
+    (grammars) => register(grammars.everyLanguage),
+    () => {},
+  );
   return everyLanguage;
 }
 
