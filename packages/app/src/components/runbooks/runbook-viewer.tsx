@@ -48,12 +48,13 @@ export function RunbookViewer({
     () => toDashboardDocument(runbook, project, slug),
     [runbook, project, slug],
   );
-  // Bind the resolver to the current page's source file once, so RunbookMarkdown
-  // gets a stable callback (a fresh closure each render would re-render anchors).
+  // Bind the resolver to the current page (its source file, for file links,
+  // and its path, for "../" links) once, so RunbookMarkdown gets a stable
+  // callback (a fresh closure each render would re-render anchors).
   const pageFile = page?.file;
   const resolvePageLink = useMemo(
-    () => (href: string) => resolveLink(href, pageFile),
-    [resolveLink, pageFile],
+    () => (href: string) => resolveLink(href, pageFile, pagePath),
+    [resolveLink, pageFile, pagePath],
   );
 
   return (

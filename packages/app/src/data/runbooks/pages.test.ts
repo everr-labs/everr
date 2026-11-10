@@ -3,8 +3,8 @@ import {
   buildFileToPageMap,
   findPage,
   hrefHash,
+  makeRunbookLinkResolver,
   pageNavTree,
-  resolveRunbookLink,
   toDashboardDocument,
 } from "./pages";
 import type { RunbookSpec } from "./schema";
@@ -119,46 +119,36 @@ describe("buildFileToPageMap", () => {
   });
 });
 
-describe("resolveRunbookLink", () => {
-  it("returns null for external / absolute / hash links", () => {
-    expect(resolveRunbookLink("http://x", undefined, fileSpec)).toBeNull();
-    expect(resolveRunbookLink("https://x", undefined, fileSpec)).toBeNull();
-    expect(resolveRunbookLink("mailto:a@b", undefined, fileSpec)).toBeNull();
-    expect(resolveRunbookLink("#anchor", undefined, fileSpec)).toBeNull();
-    expect(resolveRunbookLink("/dashboards/x", undefined, fileSpec)).toBeNull();
-  });
+describe("makeRunbookLinkResolver", () => {
+  const resolve = makeRunbookLinkResolver(fileSpec);
 
-  it("resolves direct page paths", () => {
-    expect(resolveRunbookLink("traffic", undefined, fileSpec)).toBe("traffic");
-    expect(resolveRunbookLink("timeline/deploys", undefined, fileSpec)).toBe("timeline/deploys");
-  });
-
-  it("returns null for unknown direct paths with no file context", () => {
-    expect(resolveRunbookLink("unknown", undefined, fileSpec)).toBeNull();
-  });
-
-  it("resolves a relative file link from the index", () => {
-    expect(resolveRunbookLink("./traffic.md", "./book/index.md", fileSpec)).toBe("traffic");
-  });
-
-  it("resolves a relative file link from a nested page", () => {
-    expect(resolveRunbookLink("./timeline-deploys.md", "./book/timeline.md", fileSpec)).toBe(
-      "timeline/deploys",
-    );
-  });
-
-  it("resolves `..` traversal back to the index", () => {
-    expect(resolveRunbookLink("../index.md", "./book/sub/page.md", fileSpec)).toBe("");
-  });
-
-  it("returns null for a .md link with no file context", () => {
-    // No currentFile → no file-map lookup; "traffic.md" is not a page path.
-    expect(resolveRunbookLink("traffic.md", undefined, fileSpec)).toBeNull();
-  });
-
-  it("ignores fragment and query suffixes when matching page paths", () => {
-    expect(resolveRunbookLink("traffic#section", undefined, fileSpec)).toBe("traffic");
-    expect(resolveRunbookLink("traffic?x=1", undefined, fileSpec)).toBe("traffic");
+  it.each([
+    // External, app-absolute and hash-only links aren't runbook pages.
+    ["https://x", undefined, "", null],
+    ["mailto:a@b", undefined, "", null],
+    ["#anchor", undefined, "", null],
+    ["/dashboards/x", undefined, "", null],
+    // A page path, from the top of the runbook, ignoring fragment and query.
+    ["timeline/deploys", undefined, "", "timeline/deploys"],
+    ["traffic#section", undefined, "", "traffic"],
+    ["traffic?x=1", undefined, "", "traffic"],
+    ["unknown", undefined, "", null],
+    // A markdown file, relative to the current page's file.
+    ["./traffic.md", "./book/index.md", "", "traffic"],
+    ["./timeline-deploys.md", "./book/timeline.md", "timeline", "timeline/deploys"],
+    ["../index.md", "./book/sub/page.md", "", ""],
+    ["traffic.md", undefined, "", null],
+    // Relative to the current page, read as a folder of its child pages.
+    ["..", undefined, "timeline/deploys", "timeline"],
+    ["../..", undefined, "timeline/deploys", ""],
+    [".", undefined, "timeline/deploys", "timeline/deploys"],
+    ["../../traffic#errors", undefined, "timeline/deploys", "traffic"],
+    ["./deploys", undefined, "timeline", "timeline/deploys"],
+    ["../rollback", undefined, "traffic", "rollback"],
+    ["..", undefined, "", null],
+    ["../missing", undefined, "timeline/deploys", null],
+  ])("resolves %s (file %s, page %o) to %o", (href, file, page, expected) => {
+    expect(resolve(href, file, page)).toBe(expected);
   });
 });
 
