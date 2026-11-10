@@ -212,6 +212,19 @@ export default {
                 message: "The package import must resolve through its public exports.",
               },
               {
+                from: {
+                  file: {
+                    path: "packages/app/**",
+                  },
+                },
+                disallow: {
+                  dependency: {
+                    source: "@everr/app-cloud{,/**}",
+                  },
+                },
+                message: "Self-hosted code must not depend on the cloud package.",
+              },
+              {
                 allow: {
                   dependency: {
                     source: "+([.]/|[.][.]/)**/*.md\\?raw",
