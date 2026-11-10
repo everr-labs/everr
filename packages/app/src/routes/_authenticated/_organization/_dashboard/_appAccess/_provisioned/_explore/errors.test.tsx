@@ -75,6 +75,7 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
         <div data-testid="errors-search">{JSON.stringify(search)}</div>
         {renderIssueLink({
           fingerprint: "fp-1",
+          className: "",
           children: "Open error fp-1",
         })}
       </div>
