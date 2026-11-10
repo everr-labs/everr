@@ -158,12 +158,253 @@ spec:
                     - [a, b]
                     - [b, c]
                     - [c, d]
+    node-graph-top-to-bottom:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: top to bottom"
+          description: "direction: TB → callers on top, the services they call below"
+        plugin:
+          kind: NodeGraph
+          spec: { direction: TB }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value]
+                  rows:
+                    - [web, api, 420]
+                    - [api, db, 310]
+                    - [api, cache, 260]
+                    - [worker, db, 120]
+    node-graph-health:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: health"
+          description: "stats: errors (reduce: rate, thresholds: [0.01, 0.05]) and p90_ms (mean, no thresholds) · linkToTraces"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat: { unit: "{request}" }
+            stats:
+              - column: errors
+                reduce: rate
+                format: { unit: "1", display: percent }
+                thresholds: [0.01, 0.05]
+              - column: p90_ms
+                format: { unit: ms, scale: duration }
+            linkToTraces: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value, errors, p90_ms]
+                  rows:
+                    - [frontend, checkout, 1200, 4, 180]
+                    - [frontend, search, 800, 0, 95]
+                    - [checkout, payments, 950, 76, 640]
+                    - [checkout, inventory, 400, 6, 40]
+                    - [search, inventory, 300, 1, 35]
+                    - [payments, postgres, 900, 2, 12]
+                    - [inventory, postgres, 700, 0, 8]
+    node-graph-health-levels:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: health levels"
+          description: "errors as a rate with thresholds [0.01, 0.05] · healthy (green), degraded (amber) and failing (red) services side by side"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat: { unit: "{request}" }
+            stats:
+              - column: errors
+                reduce: rate
+                format: { unit: "1", display: percent }
+                thresholds: [0.01, 0.05]
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value, errors]
+                  rows:
+                    - [gateway, healthy-api, 1000, 2]
+                    - [gateway, degraded-api, 1000, 25]
+                    - [gateway, failing-api, 1000, 120]
+                    - [healthy-api, cache, 900, 0]
+                    - [degraded-api, cache, 800, 12]
+                    - [failing-api, database, 700, 90]
+    node-graph-health-latency:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: latency thresholds"
+          description: "one stat: p99 (mean) with thresholds [0.5, 2] in seconds, the column's unit · latency alone sets each level"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat: { unit: "{request}" }
+            stats:
+              - column: p99
+                format: { unit: s, scale: duration, decimals: 1 }
+                thresholds: [0.5, 2]
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value, p99]
+                  rows:
+                    - [web, search, 500, 0.9]
+                    - [web, recommendations, 300, 2.8]
+                    - [search, index, 500, 0.31]
+                    - [recommendations, feature-store, 300, 2.4]
+                    - [recommendations, index, 120, 0.35]
+    node-graph-health-strict:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: strict thresholds"
+          description: "errors as a rate with strict thresholds [0.001, 0.005] · 0.3% shows as degraded here"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat: { unit: "{request}" }
+            stats:
+              - column: errors
+                reduce: rate
+                format: { unit: "1", display: percent }
+                thresholds: [0.001, 0.005]
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value, errors]
+                  rows:
+                    - [checkout, payments, 10000, 30]
+                    - [checkout, fraud-check, 10000, 80]
+                    - [checkout, tax, 10000, 2]
+    node-graph-health-large:
+      kind: Panel
+      spec:
+        display:
+          name: "NodeGraph: large service map"
+          description: "26 services, 72 edges · stats: errors (rate, [0.01, 0.05]) and p90_ms (mean, [250, 600]) · linkToTraces"
+        plugin:
+          kind: NodeGraph
+          spec:
+            valueFormat: { unit: "{request}" }
+            stats:
+              - column: errors
+                reduce: rate
+                format: { unit: "1", display: percent }
+                thresholds: [0.01, 0.05]
+              - column: p90_ms
+                format: { unit: ms, scale: duration }
+                thresholds: [250, 600]
+            linkToTraces: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [source, target, value, errors, p90_ms]
+                  rows:
+                    - [web, checkout, 1093, 1, 224.2]
+                    - [web, catalog, 669, 3, 294.4]
+                    - [web, orders, 321, 1, 137.1]
+                    - [web, pricing, 1630, 2, 62.6]
+                    - [web, auth, 1081, 2, 31.0]
+                    - [mobile-bff, users, 1448, 0, 234.1]
+                    - [mobile-bff, recommendations, 1253, 15, 460.8]
+                    - [mobile-bff, shipping, 797, 3, 159.1]
+                    - [mobile-bff, notifications, 1712, 3, 39.3]
+                    - [mobile-bff, checkout, 271, 0, 152.7]
+                    - [partner-api, inventory, 1440, 0, 37.0]
+                    - [partner-api, auth, 1516, 2, 201.2]
+                    - [partner-api, shipping, 1475, 3, 99.7]
+                    - [partner-api, search, 870, 17, 26.3]
+                    - [partner-api, recommendations, 1025, 12, 268.4]
+                    - [auth, catalog, 319, 1, 36.5]
+                    - [auth, payments, 1653, 149, 56.2]
+                    - [auth, email-provider, 587, 1, 17.5]
+                    - [auth, postgres, 1864, 4, 6.0]
+                    - [users, checkout, 999, 2, 173.8]
+                    - [users, search, 1889, 38, 249.4]
+                    - [users, email-provider, 1849, 7, 13.3]
+                    - [users, postgres, 930, 1, 28.3]
+                    - [catalog, reviews, 859, 0, 62.3]
+                    - [catalog, cart, 440, 0, 84.9]
+                    - [catalog, elasticsearch, 557, 17, 20.9]
+                    - [catalog, stripe, 1286, 90, 50.8]
+                    - [search, notifications, 88, 0, 137.3]
+                    - [search, recommendations, 836, 10, 714.4]
+                    - [search, postgres, 337, 1, 38.2]
+                    - [search, s3, 1421, 0, 19.9]
+                    - [cart, notifications, 1863, 7, 129.9]
+                    - [cart, promotions, 897, 2, 49.0]
+                    - [cart, postgres, 1379, 3, 5.3]
+                    - [cart, redis, 217, 0, 19.3]
+                    - [checkout, orders, 305, 0, 188.2]
+                    - [checkout, shipping, 289, 0, 178.7]
+                    - [checkout, s3, 1178, 0, 38.1]
+                    - [checkout, elasticsearch, 1336, 40, 5.6]
+                    - [orders, inventory, 505, 2, 125.3]
+                    - [orders, promotions, 1379, 1, 287.5]
+                    - [orders, redis, 1313, 1, 20.5]
+                    - [orders, s3, 316, 1, 39.7]
+                    - [payments, pricing, 1034, 2, 155.5]
+                    - [payments, reviews, 255, 0, 48.6]
+                    - [payments, kafka, 781, 1, 20.7]
+                    - [payments, postgres, 1497, 0, 22.1]
+                    - [shipping, recommendations, 500, 6, 485.2]
+                    - [shipping, notifications, 1493, 6, 276.0]
+                    - [shipping, elasticsearch, 1632, 49, 14.0]
+                    - [shipping, kafka, 1396, 0, 28.8]
+                    - [inventory, pricing, 614, 2, 122.7]
+                    - [inventory, notifications, 422, 0, 236.1]
+                    - [inventory, postgres, 1170, 5, 31.8]
+                    - [inventory, s3, 755, 0, 25.7]
+                    - [pricing, reviews, 1694, 0, 245.7]
+                    - [pricing, notifications, 1755, 4, 227.2]
+                    - [pricing, email-provider, 544, 0, 22.2]
+                    - [pricing, feature-store, 808, 0, 39.6]
+                    - [promotions, recommendations, 1698, 20, 608.8]
+                    - [promotions, notifications, 476, 2, 287.8]
+                    - [promotions, feature-store, 995, 1, 38.3]
+                    - [promotions, kafka, 826, 0, 11.2]
+                    - [reviews, notifications, 544, 1, 75.1]
+                    - [reviews, recommendations, 498, 6, 778.8]
+                    - [reviews, kafka, 1923, 8, 34.1]
+                    - [reviews, stripe, 1061, 74, 130.4]
+                    - [recommendations, notifications, 253, 0, 274.7]
+                    - [recommendations, redis, 1682, 0, 20.7]
+                    - [recommendations, s3, 445, 1, 32.2]
+                    - [notifications, s3, 760, 0, 32.6]
+                    - [notifications, feature-store, 1558, 3, 20.1]
     node-graph-bidirectional:
       kind: Panel
       spec:
         display:
           name: "NodeGraph: bidirectional edges"
-          description: "a→b and b→a are distinct edges, drawn offset so both stay visible"
+          description: "a→b and b→a are distinct edges, each with its own route"
         plugin:
           kind: NodeGraph
           spec: { valueFormat: { unit: "{message}" } }
@@ -528,3 +769,45 @@ spec:
             }
           - { x: 0, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 75, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }
+          - {
+              x: 0,
+              y: 83,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/node-graph-top-to-bottom" },
+            }
+          - {
+              x: 0,
+              y: 95,
+              width: 24,
+              height: 12,
+              content: { $ref: "#/spec/panels/node-graph-health" },
+            }
+          - {
+              x: 0,
+              y: 107,
+              width: 12,
+              height: 10,
+              content: { $ref: "#/spec/panels/node-graph-health-levels" },
+            }
+          - {
+              x: 12,
+              y: 107,
+              width: 12,
+              height: 10,
+              content: { $ref: "#/spec/panels/node-graph-health-latency" },
+            }
+          - {
+              x: 0,
+              y: 117,
+              width: 24,
+              height: 9,
+              content: { $ref: "#/spec/panels/node-graph-health-strict" },
+            }
+          - {
+              x: 0,
+              y: 126,
+              width: 24,
+              height: 22,
+              content: { $ref: "#/spec/panels/node-graph-health-large" },
+            }

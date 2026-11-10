@@ -20,8 +20,12 @@ const measurers = new Map<string, (text: string) => number>();
 
 /** Pixel width of `text` in the chart's font, one canvas per font. Falls back
  * to an estimate where there is no canvas (tests). */
-export function createTextMeasurer(fontFamily: string, fontSize = AXIS_FONT_SIZE) {
-  const font = `${fontSize}px ${fontFamily}`;
+export function createTextMeasurer(
+  fontFamily: string,
+  fontSize = AXIS_FONT_SIZE,
+  fontWeight: number | "normal" = "normal",
+) {
+  const font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   let measure = measurers.get(font);
   if (!measure) {
     const context = document.createElement("canvas").getContext("2d");
