@@ -197,19 +197,6 @@ export function makeRunbookLinkResolver(spec: RunbookSpec): RunbookLinkResolver 
 }
 
 /**
- * Convenience wrapper around {@link makeRunbookLinkResolver} for a single href
- * — builds a throwaway resolver, so prefer the factory when resolving many.
- */
-export function resolveRunbookLink(
-  href: string,
-  currentFile: string | undefined,
-  spec: RunbookSpec,
-  currentPage?: string,
-): string | null {
-  return makeRunbookLinkResolver(spec)(href, currentFile, currentPage);
-}
-
-/**
  * Adapt a runbook into a Dashboard-shaped document so the existing dashboard
  * machinery (DashboardProvider → useDashboardPanelData → VariableBar) works
  * unchanged. `spec.panels` carries the runbook's shared

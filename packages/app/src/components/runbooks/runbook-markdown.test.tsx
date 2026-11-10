@@ -112,23 +112,41 @@ describe("RunbookMarkdown code blocks", () => {
     expect(container.querySelector("figcaption span")?.textContent).toBe("Rust");
   });
 
+  it("heads each block with its title or language, marks lines and copies the code", async () => {
+    const writeText = stubClipboard();
+    renderRunbook(
+      '```sql\nSELECT 1\n```\n\n    plain\n\n```console title="deploy.sh" {2}\n$ kubectl apply -f app.yaml\ndeployment configured\n$ kubectl rollout status deploy/app\n```',
+    );
+
+    const figures = screen.getAllByRole("figure");
+    expect(figures.map((f) => f.querySelector("figcaption span")?.textContent)).toEqual([
+      "SQL",
+      "Text",
+      "deploy.sh",
+    ]);
+    expect(
+      [...(figures[2]?.querySelectorAll("pre code > span") ?? [])].map((line) =>
+        line.hasAttribute("data-marked"),
+      ),
+    ).toEqual([false, true, false]);
+
+    const [sql, , session] = screen.getAllByRole("button", { name: "Copy code" });
+    // Without the fence's trailing newline.
+    fireEvent.click(sql!);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("SELECT 1"));
+    expect(screen.getAllByRole("button", { name: "Copied" })).toHaveLength(1);
+    // A shell session's commands alone, without prompts or output.
+    fireEvent.click(session!);
+    await waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(
+        "kubectl apply -f app.yaml\nkubectl rollout status deploy/app",
+      ),
+    );
+  });
+
   it("hands a panel fence to the embed as its raw source", () => {
     const { container } = renderRunbook("```panel\nref: errors\n```");
     expect(container.querySelector("output")?.textContent).toBe("ref: errors\n");
-  });
-});
-
-describe("RunbookMarkdown code block header", () => {
-  it("names the language and copies the code without its trailing newline", async () => {
-    const writeText = stubClipboard();
-    renderRunbook("```sql\nSELECT 1\n```\n\n    plain");
-
-    expect(
-      screen.getAllByRole("figure").map((f) => f.querySelector("figcaption span")?.textContent),
-    ).toEqual(["SQL", "Text"]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Copy code" })[0]!);
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("SELECT 1"));
-    expect(screen.getAllByRole("button", { name: "Copied" })).toHaveLength(1);
   });
 });
 
@@ -169,25 +187,5 @@ describe("RunbookMarkdown blocks", () => {
       [...container.querySelectorAll("img")].map((img) => img.getAttribute("loading")),
     ).toEqual(["lazy", "lazy"]);
     expect(screen.getAllByRole("button", { name: /full size/ })).toHaveLength(1);
-  });
-
-  it("titles a block, marks its lines and copies a shell session's commands alone", async () => {
-    const writeText = stubClipboard();
-    const { container } = renderRunbook(
-      '```console title="deploy.sh" {2}\n$ kubectl apply -f app.yaml\ndeployment configured\n$ kubectl rollout status deploy/app\n```',
-    );
-
-    expect(container.querySelector("figcaption span")).toHaveTextContent("deploy.sh");
-    expect(
-      [...container.querySelectorAll("pre code > span")].map((line) =>
-        line.hasAttribute("data-marked"),
-      ),
-    ).toEqual([false, true, false]);
-    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        "kubectl apply -f app.yaml\nkubectl rollout status deploy/app",
-      ),
-    );
   });
 });
