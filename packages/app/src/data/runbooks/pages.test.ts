@@ -156,6 +156,20 @@ describe("resolveRunbookLink", () => {
     expect(resolveRunbookLink("traffic.md", undefined, fileSpec)).toBeNull();
   });
 
+  it.each([
+    ["..", "timeline/deploys", "timeline"],
+    ["../..", "timeline/deploys", ""],
+    [".", "timeline/deploys", "timeline/deploys"],
+    ["../../traffic#errors", "timeline/deploys", "traffic"],
+    ["./deploys", "timeline", "timeline/deploys"],
+    ["../rollback", "traffic", "rollback"],
+    ["./rollback", "", "rollback"],
+    ["..", "", null],
+    ["../missing", "timeline/deploys", null],
+  ])("resolves %s from page %o relative to it", (href, page, expected) => {
+    expect(resolveRunbookLink(href, undefined, fileSpec, page)).toBe(expected);
+  });
+
   it("ignores fragment and query suffixes when matching page paths", () => {
     expect(resolveRunbookLink("traffic#section", undefined, fileSpec)).toBe("traffic");
     expect(resolveRunbookLink("traffic?x=1", undefined, fileSpec)).toBe("traffic");

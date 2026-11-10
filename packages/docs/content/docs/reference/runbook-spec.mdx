@@ -57,11 +57,13 @@ markdown:
 
 ## Linking between pages
 
-Link by relative markdown path or by page path; the viewer rewrites both into in-app navigation.
+Link by relative markdown path, by page path, or relative to the current page; the viewer rewrites all three into in-app navigation.
 
 ```md
 See [Triage](./triage/index.runbook.md) first, then [Network](triage/network).
 ```
+
+A link starting with `./` or `../` that names no markdown file resolves against the current page, read as a folder of its child pages. On the page `triage/network`, `..` links to `triage`, `../dns` to `triage/dns` and `../..` to the index.
 
 Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
 
