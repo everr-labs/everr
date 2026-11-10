@@ -66,18 +66,23 @@ fn report_unavailable(status: &LocalStatus) -> ! {
     command_telemetry::exit(2);
 }
 
-async fn run_query(args: TelemetryQueryArgs) -> Result<()> {
+/// Query the local collector, exiting with status 2 when it is not reachable.
+pub(crate) async fn query_local(sql: &str) -> Result<Rows> {
     let client = QueryClient::new(crate::build::sql_http_origin());
-    let rows = match client.query(&args.sql, &Default::default()).await {
-        Ok(rows) => rows,
+    match client.query(sql, &Default::default()).await {
+        Ok(rows) => Ok(rows),
         Err(err) => {
             if is_connect_error(&err) {
                 eprintln!("{}", connection_failure_message(&err));
                 command_telemetry::exit(2);
             }
-            return Err(err).context("query failed");
+            Err(err).context("query failed")
         }
-    };
+    }
+}
+
+async fn run_query(args: TelemetryQueryArgs) -> Result<()> {
+    let rows = query_local(&args.sql).await?;
 
     let format = args.format.unwrap_or_else(|| {
         if io::stdout().is_terminal() {

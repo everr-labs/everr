@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[cfg(debug_assertions)]
@@ -114,18 +116,80 @@ pub enum CiSubcommand {
     Show(ShowRunArgs),
     /// Show step logs for a CI run
     Logs(GetLogsArgs),
+    /// Save the local collector's spans to a Parquet snapshot for trace-diff
+    TraceSnapshot(TraceSnapshotArgs),
+    /// Compare the local collector's traces against baseline snapshots
+    TraceDiff(TraceDiffArgs),
 }
 
 impl CiSubcommand {
     fn prints_human_stdout(&self, _stdout_is_terminal: bool) -> bool {
         match self {
             CiSubcommand::Watch(_) => true,
+            CiSubcommand::TraceDiff(args) => matches!(args.format, TraceDiffFormat::Markdown),
             CiSubcommand::Status(_)
             | CiSubcommand::Runs(_)
             | CiSubcommand::Show(_)
-            | CiSubcommand::Logs(_) => false,
+            | CiSubcommand::Logs(_)
+            | CiSubcommand::TraceSnapshot(_) => false,
         }
     }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TraceWindowArgs {
+    /// Earliest span time to include (date math, for example: now-1h)
+    #[arg(long, default_value = "now-6h")]
+    pub from: String,
+
+    /// Latest span time to include (date math)
+    #[arg(long, default_value = "now")]
+    pub to: String,
+}
+
+#[derive(Args, Debug)]
+pub struct TraceSnapshotArgs {
+    /// Parquet file to write. Replaced if it exists.
+    #[arg(long)]
+    pub out: PathBuf,
+
+    #[command(flatten)]
+    pub window: TraceWindowArgs,
+}
+
+#[derive(Args, Debug)]
+pub struct TraceDiffArgs {
+    /// Baseline snapshot file from trace-snapshot. Repeat to pass several
+    /// runs; their range is treated as normal variation.
+    #[arg(long)]
+    pub base: Vec<PathBuf>,
+
+    /// Head snapshot file. Default: a snapshot of the local collector.
+    #[arg(long)]
+    pub head: Option<PathBuf>,
+
+    /// Leave spans with this exact name out of the comparison, for spans whose
+    /// count depends on timing rather than code (for example tcp.connect,
+    /// which depends on connection reuse). Repeatable.
+    #[arg(long)]
+    pub ignore_span: Vec<String>,
+
+    /// Exit non-zero when the diff contains any of these change kinds
+    #[arg(long, value_enum, value_delimiter = ',')]
+    pub fail_on: Vec<crate::trace_diff::ChangeKind>,
+
+    /// Output format
+    #[arg(long, value_enum, default_value = "markdown")]
+    pub format: TraceDiffFormat,
+
+    #[command(flatten)]
+    pub window: TraceWindowArgs,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+pub enum TraceDiffFormat {
+    Markdown,
+    Json,
 }
 
 #[derive(Args, Debug)]

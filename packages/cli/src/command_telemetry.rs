@@ -276,6 +276,8 @@ impl CommandTelemetry {
                     CiSubcommand::Runs(_) => "runs",
                     CiSubcommand::Show(_) => "show",
                     CiSubcommand::Logs(_) => "logs",
+                    CiSubcommand::TraceSnapshot(_) => "trace-snapshot",
+                    CiSubcommand::TraceDiff(_) => "trace-diff",
                 }),
             ),
             Commands::Local(args) => (

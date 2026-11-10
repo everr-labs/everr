@@ -22,6 +22,7 @@
     // CI scripts invoked directly by GitHub Actions workflows.
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",
+    "scripts/trace-diff/workload.ts",
     // Nitro scans these folders as file-based server entry points for docs.
     "packages/docs/middleware/**/*.{ts,tsx}",
     "packages/docs/routes/**/*.{ts,tsx}",
@@ -69,6 +70,9 @@
     "@stryker-mutator/vitest-runner",
     // Vite resolves the ESM entry with createRequire in packages/app/vite.config.ts.
     "tslib",
+    // Installed outside the workspace by .github/workflows/trace-diff.yml and
+    // loaded from PLAYWRIGHT_DIR by scripts/trace-diff/workload.ts.
+    "playwright-core",
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
