@@ -66,7 +66,7 @@ const formatterOptions: Intl.NumberFormatOptions = {
 
 const defaultFormatter = new Intl.NumberFormat(undefined, formatterOptions);
 
-const promises: Record<string, Promise<RepositoryInfo>> = {};
+const promises: Record<string, Promise<RepositoryInfo | null>> = {};
 
 export function GithubInfo({
   repo,
@@ -85,8 +85,13 @@ export function GithubInfo({
     fetchOptions,
   };
   const cacheKey = JSON.stringify(options);
-  promises[cacheKey] ??= fetchRepositoryInfo(options);
-  const { stars } = use(promises[cacheKey]);
+  // GitHub rate-limits anonymous requests: without a count, the link still stands.
+  // A failure is not kept, so the next render asks again.
+  promises[cacheKey] ??= fetchRepositoryInfo(options).catch(() => {
+    delete promises[cacheKey];
+    return null;
+  });
+  const info = use(promises[cacheKey]);
   const formatter = locale ? new Intl.NumberFormat(locale, formatterOptions) : defaultFormatter;
 
   return (
@@ -104,10 +109,12 @@ export function GithubInfo({
         <SiGithub className="text-foreground size-5" />
         {props.children}
       </p>
-      <div className="flex text-xs items-center gap-1 text-fd-muted-foreground">
-        <Star className="size-3 fill-primary stroke-primary" />
-        <span>{formatter.format(stars)}</span>
-      </div>
+      {info && (
+        <div className="flex text-xs items-center gap-1 text-fd-muted-foreground">
+          <Star className="size-3 fill-primary stroke-primary" />
+          <span>{formatter.format(info.stars)}</span>
+        </div>
+      )}
     </a>
   );
 }
