@@ -14,6 +14,11 @@ export type ErrorIssueSummary = {
   latestTraceId: string;
   latestSpanId: string;
   latestTimestamp: string;
+  /**
+   * Occurrences per bucket over the queried range, oldest first. The range is
+   * cut into ERROR_TREND_BUCKETS buckets of the same width.
+   */
+  trend: number[];
 };
 
 export type ErrorIssuesResult = {

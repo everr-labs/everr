@@ -62,12 +62,12 @@ function ErrorsPage() {
           search: (prev) => ({ ...prev, ...patch }),
         })
       }
-      renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
+      renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
         <Link
           to="/errors/$fingerprint/modal"
           params={{ fingerprint: issueFingerprint }}
           search={{ ...search, occurrence: "" }}
-          className="block text-foreground no-underline"
+          className={className}
         >
           {children}
         </Link>

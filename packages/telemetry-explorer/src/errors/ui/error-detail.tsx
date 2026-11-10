@@ -15,11 +15,11 @@ import type { ReactNode } from "react";
 import { errorIssueOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
+import { ErrorAttributes } from "./error-attributes";
 import { ErrorDetailHeader } from "./error-detail-header";
 import { ErrorHandoffButton } from "./error-handoff-button";
-import { ErrorLatestOccurrence } from "./error-latest-occurrence";
-import { findErrorOccurrenceByKey, getErrorOccurrenceKey } from "./error-occurrence-key";
-import { ErrorOccurrencesList, type RenderOccurrenceLink } from "./error-occurrences-list";
+import { ErrorOccurrenceBar, type RenderOccurrenceLink } from "./error-occurrence-bar";
+import { findErrorOccurrenceByKey } from "./error-occurrence-key";
 import { ErrorStacktrace } from "./error-stacktrace";
 
 const OCCURRENCE_LIMIT = 50;
@@ -30,7 +30,7 @@ export type ErrorDetailProps = {
   timeRange: TimeRange;
   refresh: string;
   service: string[];
-  /** Selected occurrence key (timestamp|traceId|spanId), or "" for the latest. */
+  /** Selected occurrence key (timestamp|rank), or "" for the latest. */
   occurrence: string;
   onBack?: () => void;
   onClose?: () => void;
@@ -61,16 +61,7 @@ export function ErrorDetail({
     }),
   );
 
-  if (issueQuery.isPending) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b px-4 py-3">
-          <Skeleton className="h-5 w-64 max-w-full" />
-          <Skeleton className="mt-2 h-3 w-96 max-w-full" />
-        </div>
-      </div>
-    );
-  }
+  if (issueQuery.isPending) return <ErrorDetailSkeleton />;
 
   if (issueQuery.isError || !issueQuery.data) {
     return (
@@ -105,36 +96,60 @@ export function ErrorDetail({
 
   const detail = issueQuery.data;
   const selected = findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
-  const selectedOccurrenceKey = getErrorOccurrenceKey(selected);
+  const message = selected.exceptionMessage || selected.body;
+  const componentStack = selected.logAttributes["everr.react.component_stack"] ?? "";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ErrorDetailHeader
         issue={detail.summary}
+        message={message}
         onBack={onBack}
         onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
+      />
+      <ErrorOccurrenceBar
+        occurrences={detail.occurrences}
+        selected={selected}
+        totalCount={detail.summary.occurrenceCount}
+        renderOccurrenceLink={renderOccurrenceLink}
       />
       <ScrollArea render={<main />} className="min-h-0 flex-1">
         {/* The column is centred inside a full-width scroller, so its width
             bound belongs to a child: on the viewport it would narrow the
             scrolling box itself and pull the scrollbar in with it. */}
-        <div className="mx-auto grid max-w-7xl gap-3 p-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}
             message={selected.exceptionMessage}
+            emptyText="This occurrence has no stack trace."
           />
+          <ErrorStacktrace title="Component stack" stacktrace={componentStack} />
           {renderTracePanel?.({ occurrence: selected })}
-          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
-            <ErrorLatestOccurrence occurrence={selected} />
-            <ErrorOccurrencesList
-              occurrences={detail.occurrences}
-              selectedOccurrenceKey={selectedOccurrenceKey}
-              renderOccurrenceLink={renderOccurrenceLink}
-            />
-          </div>
+          <ErrorAttributes occurrence={selected} />
         </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+// The shape of the loaded page: the header, the occurrence bar, then the stack
+// trace. The content does not move when the data arrives.
+function ErrorDetailSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b px-4 py-3">
+        <Skeleton className="h-5 w-64 max-w-full" />
+        <Skeleton className="mt-2 h-4 w-96 max-w-full" />
+        <Skeleton className="mt-4 h-3 w-[32rem] max-w-full" />
+      </div>
+      <div className="border-b px-4 py-2">
+        <Skeleton className="h-5 w-72 max-w-full" />
+      </div>
+      <div className="mx-auto w-full max-w-6xl px-4 pt-5">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-3 h-48 w-full" />
+      </div>
     </div>
   );
 }

@@ -26,9 +26,10 @@ import type {
   ErrorOccurrence,
 } from "./types";
 
-type ErrorIssueSummaryRow = Omit<ErrorIssueSummary, "occurrenceCount" | "traceCount"> & {
+type ErrorIssueSummaryRow = Omit<ErrorIssueSummary, "occurrenceCount" | "traceCount" | "trend"> & {
   occurrenceCount: string | number;
   traceCount: string | number;
+  trend?: (string | number)[];
 };
 
 type ErrorOccurrenceRow = Omit<
@@ -48,6 +49,7 @@ function mapSummary(row: ErrorIssueSummaryRow): ErrorIssueSummary {
     ...row,
     occurrenceCount: Number(row.occurrenceCount),
     traceCount: Number(row.traceCount),
+    trend: (row.trend ?? []).map(Number),
   };
 }
 

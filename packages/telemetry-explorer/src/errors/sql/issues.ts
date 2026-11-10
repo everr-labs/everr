@@ -6,6 +6,20 @@ import { validateTableName } from "./table";
 
 export type BuiltQuery = { sql: string; params: Record<string, unknown> };
 
+// How many buckets the trend of an Error has. The list draws one bar for each
+// bucket, so the number is set by the width of that column.
+export const ERROR_TREND_BUCKETS = 24;
+
+// The index of the trend bucket that holds a row: the position of Timestamp in
+// the queried range, from 0 to ERROR_TREND_BUCKETS - 1. The arithmetic is in
+// milliseconds, because nanoseconds multiplied by the bucket count go past
+// Int64 for a range of some years.
+function trendBucketSql(): string {
+  const fromMs = "toUnixTimestamp64Milli(parseDateTime64BestEffort({fromTs:String}, 9))";
+  const toMs = "toUnixTimestamp64Milli(parseDateTime64BestEffort({toTs:String}, 9))";
+  return `least(${ERROR_TREND_BUCKETS - 1}, toUInt32(intDiv((toUnixTimestamp64Milli(Timestamp) - ${fromMs}) * ${ERROR_TREND_BUCKETS}, greatest(1, ${toMs} - ${fromMs}))))`;
+}
+
 function timePredicateSql(): string {
   return `
     Timestamp >= parseDateTime64BestEffort({fromTs:String}, 9)
@@ -104,7 +118,8 @@ export function buildSummaryQuery(input: SearchErrorIssuesInput, tableName: stri
         toString(max(Timestamp)) AS lastSeen,
         argMax(TraceId, Timestamp) AS latestTraceId,
         argMax(SpanId, Timestamp) AS latestSpanId,
-        argMax(toString(Timestamp), Timestamp) AS latestTimestamp
+        argMax(toString(Timestamp), Timestamp) AS latestTimestamp,
+        sumResample(0, ${ERROR_TREND_BUCKETS}, 1)(1, ${trendBucketSql()}) AS trend
       FROM exception_logs
       ${fingerprintFilter}
       GROUP BY fingerprint

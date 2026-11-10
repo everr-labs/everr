@@ -1,19 +1,43 @@
 import { CodeBlock } from "@everr/ui/components/code-block";
 import { CopyValueButton } from "@everr/ui/components/detail-panel";
+import { ErrorDetailSection } from "./error-detail-section";
 
-export function ErrorStacktrace({ stacktrace, message }: { stacktrace: string; message?: string }) {
-  if (stacktrace.trim().length === 0) return null;
+/**
+ * A stack trace as the runtime wrote it. The text is free-form and each
+ * runtime has its own format, so the page shows it unchanged.
+ */
+export function ErrorStacktrace({
+  stacktrace,
+  message,
+  title = "Stack trace",
+  emptyText,
+}: {
+  stacktrace: string;
+  /** The exception message. The copy control puts it before the stack trace. */
+  message?: string;
+  title?: string;
+  /** Shown when there is no stack trace. Without it the section is absent. */
+  emptyText?: string;
+}) {
+  if (stacktrace.trim().length === 0) {
+    if (!emptyText) return null;
+    return (
+      <ErrorDetailSection title={title}>
+        <p className="text-muted-foreground text-xs">{emptyText}</p>
+      </ErrorDetailSection>
+    );
+  }
+
   const copyValue = message ? `${message}\n\n${stacktrace}` : stacktrace;
 
   return (
-    <section className="group min-w-0 rounded-md border bg-background p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium">Stacktrace</h2>
-        <CopyValueButton value={copyValue} className="opacity-100 focus-visible:opacity-100" />
-      </div>
-      <CodeBlock className="max-h-[28rem] rounded-md bg-muted/40">
+    <ErrorDetailSection
+      title={title}
+      actions={<CopyValueButton value={copyValue} className="opacity-100" />}
+    >
+      <CodeBlock className="bg-muted/20 max-h-[32rem] rounded-md border">
         <code className="font-mono">{stacktrace}</code>
       </CodeBlock>
-    </section>
+    </ErrorDetailSection>
   );
 }
