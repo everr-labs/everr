@@ -51,8 +51,8 @@ export function Hero() {
   const notice = NOTICES[index];
 
   return (
-    <section className="relative -mt-14 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-14 text-foreground">
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(2rem,5vh,4.5rem)]">
+    <section className="relative -mt-16 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-16 text-foreground md:-mt-24 md:pt-24">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(1rem,3vh,3rem)]">
         <h1 className="display text-[clamp(2.375rem,min(9vw,14.5vh),9rem)]">
           {LINES.map((line, i) => (
             // The clip is taller than the line box, so descenders survive the reveal

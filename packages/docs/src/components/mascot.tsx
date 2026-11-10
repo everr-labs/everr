@@ -2,9 +2,6 @@ import { everrLogoPaths } from "@everr/ui/components/everr-logo-paths";
 import { cn } from "@everr/ui/lib/utils";
 import { type ComponentProps, useEffect, useRef } from "react";
 
-// How far the eyes travel toward the pointer, in the logo's own units (it is 657 wide)
-const REACH = 16;
-
 type MascotProps = ComponentProps<"svg"> & {
   /** Fills the face, which is otherwise a hole in the body */
   faceClassName?: string;
@@ -12,6 +9,8 @@ type MascotProps = ComponentProps<"svg"> & {
   raysClassName?: string;
   /** The eyes give off light */
   glow?: boolean;
+  /** How far the eyes travel toward the pointer, in the logo's own units (it is 657 wide) */
+  reach?: number;
 };
 
 /** The Everr mark, looking at the pointer. One color unless the parts are styled. */
@@ -20,6 +19,7 @@ export function Mascot({
   eyesClassName,
   raysClassName,
   glow = false,
+  reach = 16,
   ...props
 }: MascotProps) {
   const svg = useRef<SVGSVGElement>(null);
@@ -33,13 +33,13 @@ export function Mascot({
       const dx = e.clientX - (box.left + box.width * 0.55);
       const dy = e.clientY - (box.top + box.height * 0.67);
       // Eases toward the limit, so the eyes keep moving a little however far the pointer is
-      const pull = Math.tanh(Math.hypot(dx, dy) / 400) * REACH;
+      const pull = Math.tanh(Math.hypot(dx, dy) / 400) * reach;
       const angle = Math.atan2(dy, dx);
       eyes.current.style.transform = `translate(${Math.cos(angle) * pull}px, ${Math.sin(angle) * pull}px)`;
     };
     window.addEventListener("pointermove", look, { passive: true });
     return () => window.removeEventListener("pointermove", look);
-  }, []);
+  }, [reach]);
 
   const eyePaths = everrLogoPaths.rightEye + everrLogoPaths.leftEye;
   const blink =

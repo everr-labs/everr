@@ -6,9 +6,10 @@ import { Link, useLocation } from "@tanstack/react-router";
 import FumaLink from "fumadocs-core/link";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import { ArrowUpRight, Search } from "lucide-react";
-import { animate, motion } from "motion/react";
-import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
+import { type ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GithubInfo } from "@/components/github-info";
+import { Mascot } from "@/components/mascot";
 import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
 
 export const NAV_LINKS = [
@@ -20,10 +21,16 @@ export const NAV_LINKS = [
 const focusRing =
   "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
+// The header condenses a little way down the page and opens again only near
+// the very top. The gap between the two keeps it from flipping back and forth
+// when the page rests around one line.
+const CONDENSE_AT = 96;
+const EXPAND_AT = 32;
+
 function useScrolled() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const update = () => setScrolled(window.scrollY > 8);
+    const update = () => setScrolled((was) => window.scrollY > (was ? EXPAND_AT : CONDENSE_AT));
     update();
     window.addEventListener("scroll", update, { passive: true });
     return () => window.removeEventListener("scroll", update);
@@ -31,56 +38,124 @@ function useScrolled() {
   return scrolled;
 }
 
+// A label that folds away sideways when the header condenses
+function Folding({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "grid transition-[grid-template-columns,opacity] duration-500 ease-out-expo",
+        open ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+      )}
+    >
+      <span className="overflow-hidden whitespace-nowrap">{children}</span>
+    </span>
+  );
+}
+
 export function SiteHeader() {
   const { pathname } = useLocation();
   const scrolled = useScrolled();
-  const inDocs = pathname.startsWith("/docs");
-  // Over the homepage hero the bar has no surface of its own until the page moves under it
-  const solid = scrolled || pathname !== "/";
 
+  // The docs keep a plain bar: their sidebar and page layout hang off its full width
+  if (pathname.startsWith("/docs")) {
+    return (
+      <header id="nd-nav" className="sticky top-0 z-40 h-14">
+        <div className="border-b border-border bg-background/90 backdrop-blur-xl">
+          <nav aria-label="Main" className="flex h-14 items-center gap-2 px-4">
+            <Link to="/" aria-label="Everr home" className={cn("mr-4 rounded-md", focusRing)}>
+              <EverrLogo size="lg" className="text-[26px] [&>svg]:size-7" />
+            </Link>
+            <DesktopLinks pathname={pathname} />
+            <Actions pathname={pathname} compact={false} />
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
+  // Everywhere else the header is part of the page at the top, tall, with the
+  // logo at size. Once the page moves it gathers into an island that floats
+  // over it. The header keeps its tall box either way, so nothing below shifts.
   return (
-    <header id="nd-nav" className="sticky top-0 z-40 h-14">
+    <header id="nd-nav" className="pointer-events-none sticky top-0 z-40 h-16 md:h-24">
       <div
         className={cn(
-          "border-b transition-[background-color,border-color] duration-300",
-          solid ? "border-border bg-background/90 backdrop-blur-xl" : "border-transparent",
+          "mx-auto transition-[max-width,padding] duration-500 ease-out-expo",
+          scrolled ? "max-w-[43rem] px-3 pt-2" : "max-w-7xl px-0 pt-0",
         )}
       >
         <nav
           aria-label="Main"
           className={cn(
-            "mx-auto flex h-14 items-center gap-2",
-            inDocs ? "px-4" : "max-w-7xl px-4 sm:px-6",
+            "pointer-events-auto flex items-center gap-2 rounded-full border transition-[height,padding,background-color,border-color,box-shadow] duration-500 ease-out-expo",
+            scrolled
+              ? "h-12 border-white/12 bg-card/80 pr-1.5 pl-3.5 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] backdrop-blur-xl"
+              : "h-16 border-transparent px-4 sm:px-6 md:h-24",
           )}
         >
-          <Link to="/" aria-label="Everr home" className={cn("mr-4 rounded-md", focusRing)}>
-            <EverrLogo size="lg" className="text-[26px] [&>svg]:size-7" />
-          </Link>
-          <DesktopLinks pathname={pathname} />
-          <div className="ml-auto flex items-center gap-1">
-            <SearchButton />
-            <Suspense fallback={null}>
-              <GithubInfo
-                aria-label="Everr on GitHub"
-                owner="everr-labs"
-                repo="everr"
-                className={cn("items-center max-md:hidden", focusRing)}
-              />
-            </Suspense>
-            <a
-              href={SIGN_UP_URL}
+          <Link
+            to="/"
+            aria-label="Everr home"
+            className={cn(
+              "flex items-center rounded-md font-heading font-semibold transition-[margin,font-size] duration-500 ease-out-expo",
+              scrolled ? "mr-1 text-[26px]" : "mr-5 text-[30px] md:mr-8 md:text-[40px]",
+              focusRing,
+            )}
+          >
+            {/* The mark keeps an eye on the pointer */}
+            <Mascot
+              reach={30}
+              eyesClassName="fill-primary"
+              raysClassName="fill-primary"
               className={cn(
-                "ml-2 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform duration-200 ease-out-expo hover:scale-[1.04] active:scale-[0.98] max-[380px]:hidden",
-                focusRing,
+                "shrink-0 transition-[width,height] duration-500 ease-out-expo",
+                scrolled ? "size-7" : "size-8 md:size-11",
               )}
-            >
-              Get started
-            </a>
-            <MobileMenu pathname={pathname} />
+            />
+            <Folding open={!scrolled}>
+              <span className="pl-0.5">everr</span>
+            </Folding>
+          </Link>
+          {/* Beside the big wordmark, the bar's middle is not where the eye puts it: the letters
+              sit below it, and so does the body of the mark. The items drop to meet them. */}
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 transition-[translate] duration-500 ease-out-expo",
+              !scrolled && "translate-y-px md:translate-y-[3px]",
+            )}
+          >
+            <DesktopLinks pathname={pathname} />
+            <Actions pathname={pathname} compact={scrolled} />
           </div>
         </nav>
       </div>
     </header>
+  );
+}
+
+function Actions({ pathname, compact }: { pathname: string; compact: boolean }) {
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      <SearchButton compact={compact} />
+      <Suspense fallback={null}>
+        <GithubInfo
+          aria-label="Everr on GitHub"
+          owner="everr-labs"
+          repo="everr"
+          className={cn("items-center max-md:hidden", focusRing)}
+        />
+      </Suspense>
+      <a
+        href={SIGN_UP_URL}
+        className={cn(
+          "ml-2 inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform duration-200 ease-out-expo hover:scale-[1.04] active:scale-[0.98] max-[380px]:hidden",
+          focusRing,
+        )}
+      >
+        Get started
+      </a>
+      <MobileMenu pathname={pathname} />
+    </div>
   );
 }
 
@@ -91,7 +166,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
   const [hovered, setHovered] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
-  const placed = useRef(false);
+  const fresh = useRef(true);
   const current = NAV_LINKS.find(({ url }) => pathname.startsWith(url))?.url ?? null;
   const lit = hovered ?? current;
 
@@ -99,24 +174,42 @@ function DesktopLinks({ pathname }: { pathname: string }) {
     const ul = list.current;
     const el = pill.current;
     if (!ul || !el) return;
+    // Written straight to the element, so it is in place before the browser paints
+    const set = (styles: Partial<CSSStyleDeclaration>, instant: boolean) => {
+      if (!instant) {
+        Object.assign(el.style, styles);
+        return;
+      }
+      el.style.transition = "none";
+      Object.assign(el.style, styles);
+      // Reading layout applies the styles before the transition comes back
+      void el.offsetWidth;
+      el.style.transition = "";
+    };
     const place = (glide: boolean) => {
       const target = lit ? ul.querySelector<HTMLElement>(`[data-url="${lit}"]`) : null;
       if (!target) {
-        placed.current = false;
-        animate(el, { opacity: 0 }, { duration: 0.2 });
+        el.style.opacity = "0";
         return;
       }
-      const box = { x: target.offsetLeft, width: target.offsetWidth };
-      // Arriving from nowhere it fades in on the spot: only a pill already on screen glides
-      if (placed.current && glide) {
-        animate(el, box, { type: "spring", stiffness: 500, damping: 40 });
+      const box = {
+        transform: `translateX(${target.offsetLeft}px)`,
+        width: `${target.offsetWidth}px`,
+      };
+      if (el.style.opacity === "1" && glide) {
+        set(box, false);
+      } else if (fresh.current) {
+        // The docs and the other pages draw this list in different bars. Coming up in a new
+        // one, the pill is simply there: fading in would read as a flicker between pages.
+        set({ ...box, opacity: "1" }, true);
       } else {
-        animate(el, box, { duration: 0 });
+        // Arriving from nowhere it fades in on the spot: only a pill already on screen glides
+        set(box, true);
+        el.style.opacity = "1";
       }
-      animate(el, { opacity: 1 }, { duration: 0.2 });
-      placed.current = true;
     };
     place(true);
+    fresh.current = false;
     // Link widths change when the font arrives. Observing reports once straight away: skip that one
     let first = true;
     const ro = new ResizeObserver(() => {
@@ -134,7 +227,10 @@ function DesktopLinks({ pathname }: { pathname: string }) {
       onPointerLeave={() => setHovered(null)}
     >
       <li aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0">
-        <span ref={pill} className="block h-full w-0 rounded-full bg-foreground/10 opacity-0" />
+        <span
+          ref={pill}
+          className="block h-full w-0 rounded-full bg-foreground/10 opacity-0 transition-[transform,width,opacity] duration-300 ease-out-expo"
+        />
       </li>
       {NAV_LINKS.map(({ text, url }) => {
         const active = url === current;
@@ -161,7 +257,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
   );
 }
 
-function SearchButton() {
+function SearchButton({ compact }: { compact: boolean }) {
   const { enabled, setOpenSearch } = useSearchContext();
   if (!enabled) return null;
 
@@ -171,15 +267,21 @@ function SearchButton() {
       onClick={() => setOpenSearch(true)}
       aria-label="Search the docs"
       className={cn(
-        "flex h-9 cursor-pointer items-center gap-2 rounded-full px-2.5 text-sm text-foreground/65 transition-colors hover:bg-foreground/10 hover:text-foreground",
+        "flex h-9 cursor-pointer items-center rounded-full px-2.5 text-sm text-foreground/65 transition-colors hover:bg-foreground/10 hover:text-foreground",
         focusRing,
       )}
     >
-      <Search className="size-4" aria-hidden="true" />
-      <span className="max-lg:hidden">Search</span>
-      <kbd className="rounded-md border border-border px-1.5 py-0.5 font-sans text-[11px] leading-none text-foreground/50 max-lg:hidden">
-        ⌘K
-      </kbd>
+      <Search className="size-4 shrink-0" aria-hidden="true" />
+      <span className="max-lg:hidden">
+        <Folding open={!compact}>
+          <span className="flex items-center gap-2 pl-2">
+            Search
+            <kbd className="rounded-md border border-border px-1.5 py-0.5 font-sans text-[11px] leading-none text-foreground/50">
+              ⌘K
+            </kbd>
+          </span>
+        </Folding>
+      </span>
     </button>
   );
 }
