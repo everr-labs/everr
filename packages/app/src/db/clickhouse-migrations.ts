@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
@@ -11,12 +10,16 @@ import {
   sharedClickHouseMigrations,
   sqlStatements,
 } from "./clickhouse-sql";
+import { clickHouseMigrationHash } from "./clickhouse-statements.ts";
+
+export { clickHouseMigrationHash } from "./clickhouse-statements.ts";
 
 type Params = Readonly<Record<string, string | undefined>>;
 
 const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
 const MIGRATION_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+const QUERY_ID_SAFE = /[^0-9A-Za-z_-]/g;
 
 /** A migration as this build bundles it, with the hash the journal records. */
 export interface HashedClickHouseMigration extends ClickHouseMigration {
@@ -24,11 +27,12 @@ export interface HashedClickHouseMigration extends ClickHouseMigration {
 }
 
 /**
- * The hash of a file's statements. Comments, blank lines, and trailing
- * whitespace do not count, so editing a comment in an applied file is safe.
+ * Stable id for one statement. A retry sends it again with
+ * `replace_running_query`, which cancels the previous attempt if ClickHouse
+ * is still running it after the client timed out.
  */
-export function clickHouseMigrationHash(sql: string): string {
-  return createHash("sha256").update(sqlStatements(sql).join(";\n")).digest("hex");
+export function clickHouseMigrationQueryId(name: string, index: number): string {
+  return `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-${index}`;
 }
 
 /**
@@ -107,8 +111,10 @@ export async function migrateClickHouse(
     ...productParams,
   };
 
-  // A statement can outlast the client's 30 s default, and a timed-out file runs
-  // again on the next start. A `request_timeout` in CLICKHOUSE_URL still wins.
+  // A statement can outlast the client's 30 s default. A `request_timeout` in
+  // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps
+  // running a statement after the client gives up, so each statement repeats
+  // its query id and the next start cancels that run before trying again.
   const client = createClient({
     url: env.CLICKHOUSE_URL,
     username,
@@ -143,10 +149,12 @@ export async function migrateClickHouse(
     });
 
     for (const migration of pendingClickHouseMigrations(migrations, applied)) {
-      for (const statement of sqlStatements(migration.sql)) {
+      for (const [index, statement] of sqlStatements(migration.sql).entries()) {
         await instrumented("QUERY", () =>
           client.command({
             query: statement,
+            query_id: clickHouseMigrationQueryId(migration.name, index),
+            clickhouse_settings: { replace_running_query: 1 },
             query_params: statementParams(migration.name, statement, params),
           }),
         );

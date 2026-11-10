@@ -3,9 +3,14 @@ import { describe, expect, it } from "vite-plus/test";
 import { readFileSync } from "node:fs";
 import {
   clickHouseMigrationHash,
+  clickHouseMigrationQueryId,
   pendingClickHouseMigrations,
   statementParams,
 } from "./clickhouse-migrations";
+import {
+  changedClickHouseMigrationFiles,
+  isClickHouseMigrationPath,
+} from "./clickhouse-statements";
 import {
   byMigrationName,
   type ClickHouseMigration,
@@ -91,6 +96,51 @@ describe("ClickHouse migrations", () => {
       "CREATE ROLE a",
       "GRANT b TO a",
     ]);
+  });
+
+  it("keeps semicolons and line comments that sit inside quotes", () => {
+    expect(sqlStatements("SELECT 'a; b -- c';\nSELECT 1; -- trailing;\n")).toEqual([
+      "SELECT 'a; b -- c'",
+      "SELECT 1",
+    ]);
+    expect(sqlStatements("SELECT 'it''s; fine';\nSELECT 'a\\';b';")).toEqual([
+      "SELECT 'it''s; fine'",
+      "SELECT 'a\\';b'",
+    ]);
+    expect(sqlStatements("ALTER TABLE t MODIFY COLUMN `a; b` UInt8; SELECT 1;")).toEqual([
+      "ALTER TABLE t MODIFY COLUMN `a; b` UInt8",
+      "SELECT 1",
+    ]);
+    expect(sqlStatements('SELECT "a; b"; SELECT 2;')).toEqual(['SELECT "a; b"', "SELECT 2"]);
+  });
+
+  it("gives a statement a stable query id so a retry cancels the previous run", () => {
+    expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 0)).toBe(
+      "everr-ch-12-create-alert-events_sql-0",
+    );
+    expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 1)).toBe(
+      "everr-ch-12-create-alert-events_sql-1",
+    );
+  });
+
+  it("treats an existing migration file as immutable and a new file as pending", () => {
+    const path = "packages/app/clickhouse/shared/01-setup.sql";
+    const base = new Map([[path, "-- old\nSELECT 1;"]]);
+    const commented = new Map([
+      [path, "-- new\nSELECT 1;"],
+      ["packages/app/clickhouse/shared/02-next.sql", "SELECT 2;"],
+    ]);
+    const edited = new Map([[path, "SELECT 3;"]]);
+    const deleted = new Map<string, string>();
+
+    expect(changedClickHouseMigrationFiles(base, commented)).toEqual([]);
+    expect(changedClickHouseMigrationFiles(base, edited)).toEqual([path]);
+    expect(changedClickHouseMigrationFiles(base, deleted)).toEqual([path]);
+    expect(isClickHouseMigrationPath(path)).toBe(true);
+    expect(isClickHouseMigrationPath("packages/app/clickhouse/shared/repeatable/01.sql")).toBe(
+      false,
+    );
+    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/20-apply-rls.sql")).toBe(true);
   });
 
   it("binds only the parameters a statement names", () => {

@@ -24,21 +24,8 @@ export const sharedClickHouseMigrations = clickHouseMigrationsFrom(
   }),
 );
 
+export { sqlStatements } from "./clickhouse-statements.ts";
+
 /** File-name order, the order migrations apply in across directories. */
 export const byMigrationName = (a: ClickHouseMigration, b: ClickHouseMigration) =>
   a.name < b.name ? -1 : 1;
-
-/**
- * A file's statements without line comments, blank lines, or trailing
- * whitespace. Comments go before the split because they can contain semicolons.
- */
-export function sqlStatements(sql: string): string[] {
-  return sql
-    .split("\n")
-    .map((line) => line.replace(/--.*$/, "").trimEnd())
-    .filter(Boolean)
-    .join("\n")
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter(Boolean);
-}

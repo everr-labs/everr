@@ -40,11 +40,13 @@ Each application applies its files in file-name order across its directories,
 after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
 file name with a SHA-256 of its statements. Comments, blank lines, and trailing
-whitespace do not count.
+whitespace do not count. A semicolon or `--` inside a quoted string does.
 
 Applied files are immutable. If an applied file's statements change, startup
-fails before running anything. Put every change in a new file with the next
-number, including a new version of a function (`CREATE OR REPLACE FUNCTION`).
+fails before running anything. A pull request fails the same check against the
+base branch, so a changed or deleted migration cannot merge. Put every change
+in a new file with the next number, including a new version of a function
+(`CREATE OR REPLACE FUNCTION`).
 
 ClickHouse DDL is not transactional. A file that fails partway runs again from
 its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
@@ -52,9 +54,12 @@ its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
 table has no tenant filter between the two statements.
 
 Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
-as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10 minute request
-timeout. Statements bind the other users' passwords as `{name:String}` parameters. `GRANT` does not accept
-parameters, so a parameterized user gets its role through `DEFAULT ROLE`.
+as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10-minute request
+timeout. A timed-out statement can still be running on the server. The retry
+sends the same query id with `replace_running_query`, so ClickHouse cancels
+that run before starting it again. Statements bind the other users' passwords
+as `{name:String}` parameters. `GRANT` does not accept parameters, so a
+parameterized user gets its role through `DEFAULT ROLE`.
 `pnpm db:migrate` applies only the PostgreSQL histories.
 
 ## Verification
