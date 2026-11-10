@@ -1,28 +1,9 @@
 import { Button } from "@everr/ui/components/button";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
-import { Check, Copy, WrapText } from "lucide-react";
-import {
-  Children,
-  isValidElement,
-  type ReactNode,
-  Suspense,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Check, Copy } from "lucide-react";
+import { Suspense, useMemo, useRef } from "react";
 import { HighlightedCode, LanguageName } from "./highlighted-code";
-
-/** The text a code element renders, highlighted spans and all. */
-export function nodeText(node: ReactNode): string {
-  return Children.toArray(node)
-    .map((child) => {
-      if (typeof child === "string" || typeof child === "number") return String(child);
-      if (isValidElement<{ children?: ReactNode }>(child)) return nodeText(child.props.children);
-      return "";
-    })
-    .join("");
-}
 
 /** The options a fence's info string carries after its language. */
 function parseFenceMeta(meta: string | undefined): {
@@ -55,8 +36,8 @@ function copyableText(language: string | undefined, code: string): string {
 }
 
 /**
- * A fenced code block: its title or language above it, with buttons to wrap
- * long lines and to copy it. `language` is the fence's language, `meta` the
+ * A fenced code block: its title or language above it, with a button to copy
+ * it. Long lines scroll. `language` is the fence's language, `meta` the
  * rest of its info string (`title="…"`, lines to mark as `{2,4-6}`).
  */
 export function RunbookCodeBlock({
@@ -69,7 +50,6 @@ export function RunbookCodeBlock({
   code: string;
 }) {
   const preRef = useRef<HTMLPreElement>(null);
-  const [wrap, setWrap] = useState(false);
   // Fences end with a newline that isn't part of the code.
   const text = code.replace(/\n$/, "");
   const { title, marked } = useMemo(() => parseFenceMeta(meta), [meta]);
@@ -79,19 +59,18 @@ export function RunbookCodeBlock({
   const copied = state === "copied";
 
   return (
-    <figure className="runbook-code-block group">
+    <figure className="group not-prose my-6 overflow-hidden rounded-lg border border-border bg-card">
       <figcaption className="flex h-9 items-center justify-between gap-2 border-b border-border pr-1.5 pl-4 text-xs text-muted-foreground">
         <span className={cn("truncate font-medium", title && "text-foreground")}>
-          {title ? (
-            title
-          ) : language ? (
-            // As written until a grammar outside the common set has loaded.
-            <Suspense fallback={language}>
-              <LanguageName language={language} />
-            </Suspense>
-          ) : (
-            "Text"
-          )}
+          {title ??
+            (language ? (
+              // As written until a grammar outside the common set has loaded.
+              <Suspense fallback={language}>
+                <LanguageName language={language} />
+              </Suspense>
+            ) : (
+              "Text"
+            ))}
         </span>
         <span className="flex items-center gap-1.5">
           <output
@@ -105,19 +84,6 @@ export function RunbookCodeBlock({
             {/* Kept while fading out, so the label doesn't vanish before it does. */}
             {state === "failed" ? "Clipboard blocked: code selected" : "Copied"}
           </output>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Wrap long lines"
-            aria-pressed={wrap}
-            onClick={() => setWrap(!wrap)}
-            className={cn(
-              "text-muted-foreground group-hover:text-foreground",
-              wrap && "bg-muted text-foreground",
-            )}
-          >
-            <WrapText />
-          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -140,7 +106,11 @@ export function RunbookCodeBlock({
           </Button>
         </span>
       </figcaption>
-      <pre ref={preRef} data-wrap={wrap || undefined}>
+      <pre
+        ref={preRef}
+        // Marked lines reach out to this padding's edges.
+        className="overflow-x-auto px-4 py-3.5 font-mono text-[0.8125rem] leading-[1.6]"
+      >
         {/* Plain until a grammar outside the common set has loaded. */}
         <Suspense fallback={<code>{text}</code>}>
           <HighlightedCode language={language} code={text} marked={marked} />

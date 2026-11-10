@@ -9,7 +9,7 @@ import yaml from "highlight.js/lib/languages/yaml";
 import type { LanguageFn } from "highlight.js";
 import hljs from "highlight.js/lib/core";
 import { createLowlight } from "lowlight";
-import { createElement, type ReactNode, use } from "react";
+import { createElement, type ReactNode, use, useMemo } from "react";
 
 /** The parts of lowlight's syntax tree a token renders from. */
 interface TokenNode {
@@ -100,7 +100,12 @@ function splitLines(nodes: TokenNode[]): TokenNode[][] {
 function Line({ tokens, marked }: { tokens: TokenNode[]; marked: boolean }) {
   return createElement(
     "span",
-    { className: "code-line", "data-marked": marked || undefined },
+    {
+      className: marked
+        ? "-mx-4 inline-block min-w-[calc(100%+2rem)] border-l-2 border-primary bg-primary/9 pr-4 pl-[calc(1rem-2px)]"
+        : "inline-block min-w-full",
+      "data-marked": marked || undefined,
+    },
     ...tokens.map(renderNode),
   );
 }
@@ -121,10 +126,12 @@ export function HighlightedCode({
   marked: ReadonlySet<number>;
 }) {
   const key = useGrammarKey(language);
-  const tokens: TokenNode[] = key
-    ? lowlight.highlight(key, code).children
-    : [{ type: "text", value: code }];
-  const lines = splitLines(tokens);
+  // Not again on a copy or a wrap toggle, which re-render the block.
+  const lines = useMemo(
+    () =>
+      splitLines(key ? lowlight.highlight(key, code).children : [{ type: "text", value: code }]),
+    [key, code],
+  );
   return createElement(
     "code",
     { className: key ? "hljs" : undefined },

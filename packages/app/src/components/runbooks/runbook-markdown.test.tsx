@@ -47,42 +47,45 @@ function renderRunbook(markdown: string) {
   );
 }
 
+function stubClipboard() {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  onTestFinished(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+  return writeText;
+}
+
 describe("RunbookMarkdown anchors", () => {
-  it("opens external links in a new tab with a safe rel and keeps the title", () => {
+  it("opens external links in a new tab, marked, with a safe rel and the title", () => {
     const { container } = renderRunbook('[ext](https://example.com "Ext")');
-    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
-    expect(a.getAttribute("href")).toBe("https://example.com");
-    expect(a.getAttribute("target")).toBe("_blank");
-    expect(a.getAttribute("rel")).toBe("noopener noreferrer");
-    expect(a.getAttribute("title")).toBe("Ext");
+    const a = container.querySelector("a:not([data-link])");
+    expect(a?.getAttribute("href")).toBe("https://example.com");
+    expect(a?.getAttribute("target")).toBe("_blank");
+    expect(a?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(a?.getAttribute("title")).toBe("Ext");
+    expect(a?.hasAttribute("node")).toBe(false);
+    expect(screen.getByLabelText("(opens in a new tab)")).toBeInTheDocument();
   });
 
-  it("renders a resolved in-runbook link as a router Link and forwards the title", () => {
-    const { container } = renderRunbook('[Traffic](./traffic.md "Go")');
+  it("renders a resolved in-runbook link as a router Link, keeping its title and fragment", () => {
+    const { container } = renderRunbook('[Traffic](./traffic.md#errors "Go")');
     const link = container.querySelector('[data-link="internal"]');
     expect(link?.getAttribute("data-to")).toBe("/runbooks/$project/$slug/$");
     expect(link?.getAttribute("data-splat")).toBe("traffic");
-    // title from `[text](url "title")` must survive on internal links too.
+    expect(link?.getAttribute("data-hash")).toBe("errors");
     expect(link?.getAttribute("title")).toBe("Go");
   });
 
-  it("keeps the fragment on a resolved internal link", () => {
-    const { container } = renderRunbook("[Errors](./traffic.md#errors)");
-    const link = container.querySelector('[data-link="internal"]');
-    expect(link?.getAttribute("data-hash")).toBe("errors");
-  });
-
-  it("leaves hash-only links as in-place anchors (no new tab)", () => {
-    const { container } = renderRunbook("[Top](#section)");
-    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
-    expect(a.getAttribute("href")).toBe("#section");
-    expect(a.getAttribute("target")).toBeNull();
-  });
-
-  it("does not leak react-markdown's `node` prop onto the DOM", () => {
-    const { container } = renderRunbook("[ext](https://example.com)");
-    const a = container.querySelector("a:not([data-link])") as HTMLAnchorElement;
-    expect(a.getAttribute("node")).toBeNull();
+  it("leaves hash-only and mailto links in place, unmarked", () => {
+    const { container } = renderRunbook("[Top](#section) <oncall@example.com>");
+    const anchors = [...container.querySelectorAll("a")];
+    expect(anchors.map((a) => a.getAttribute("href"))).toEqual([
+      "#section",
+      "mailto:oncall@example.com",
+    ]);
+    expect(anchors.map((a) => a.getAttribute("target"))).toEqual([null, null]);
+    expect(screen.queryByLabelText("(opens in a new tab)")).toBeNull();
   });
 });
 
@@ -117,11 +120,7 @@ describe("RunbookMarkdown code blocks", () => {
 
 describe("RunbookMarkdown code block header", () => {
   it("names the language and copies the code without its trailing newline", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    onTestFinished(() => {
-      Reflect.deleteProperty(navigator, "clipboard");
-    });
+    const writeText = stubClipboard();
     renderRunbook("```sql\nSELECT 1\n```\n\n    plain");
 
     expect(
@@ -162,11 +161,10 @@ describe("RunbookMarkdown blocks", () => {
     expect(container.querySelector("details")).toHaveTextContent("Hidden.");
   });
 
-  it("marks external links and loads images lazily, zooming them unless linked", () => {
-    const { container } = renderRunbook(
-      "[docs](https://example.com) ![chart](/a.png) [![logo](/b.png)](https://example.com)",
-    );
-    expect(screen.getAllByLabelText("(opens in a new tab)")).toHaveLength(1);
+  it("loads images lazily, zooming them unless linked", () => {
+    const { container } = renderRunbook("![chart](/a.png) [![logo](/b.png)](https://example.com)");
+    // A linked image needs no new-tab arrow beside it.
+    expect(screen.queryByLabelText("(opens in a new tab)")).toBeNull();
     expect(
       [...container.querySelectorAll("img")].map((img) => img.getAttribute("loading")),
     ).toEqual(["lazy", "lazy"]);
@@ -174,18 +172,16 @@ describe("RunbookMarkdown blocks", () => {
   });
 
   it("titles a block, marks its lines and copies a shell session's commands alone", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    onTestFinished(() => {
-      Reflect.deleteProperty(navigator, "clipboard");
-    });
+    const writeText = stubClipboard();
     const { container } = renderRunbook(
       '```console title="deploy.sh" {2}\n$ kubectl apply -f app.yaml\ndeployment configured\n$ kubectl rollout status deploy/app\n```',
     );
 
     expect(container.querySelector("figcaption span")).toHaveTextContent("deploy.sh");
     expect(
-      [...container.querySelectorAll(".code-line")].map((line) => line.hasAttribute("data-marked")),
+      [...container.querySelectorAll("pre code > span")].map((line) =>
+        line.hasAttribute("data-marked"),
+      ),
     ).toEqual([false, true, false]);
     fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
     await waitFor(() =>
