@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorIssueDetail, ErrorOccurrence } from "../data/types";
+import { ErrorAttributes } from "./error-attributes";
 import { ErrorDetail } from "./error-detail";
 import { getErrorOccurrenceKey } from "./error-occurrence-key";
 
@@ -148,5 +150,21 @@ describe("ErrorDetail", () => {
       within(screen.getByRole("region", { name: "Resource attributes" })).getByText("1.4.2"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Scope attributes" })).not.toBeInTheDocument();
+  });
+
+  it("ignores an attribute filter that the next occurrence has no field for", async () => {
+    const many = occurrence({
+      resourceAttributes: Object.fromEntries(
+        Array.from({ length: 8 }, (_, index) => [`resource.key.${index}`, `value-${index}`]),
+      ),
+    });
+    const { rerender } = render(<ErrorAttributes occurrence={many} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "Filter attributes" }), "nothing");
+    expect(screen.getByText("No attribute matches “nothing”.")).toBeInTheDocument();
+
+    // The pager keeps the component mounted, so the typed value stays in state.
+    rerender(<ErrorAttributes occurrence={older} />);
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(screen.getByText("/orders/:id")).toBeInTheDocument();
   });
 });

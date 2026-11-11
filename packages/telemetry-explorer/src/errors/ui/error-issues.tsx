@@ -87,10 +87,13 @@ export function ErrorIssues({
               isFetchingNextPage={issuesQuery.isFetchingNextPage}
               // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               onLoadMore={() => issuesQuery.fetchNextPage()}
-              onClearFilters={() =>
-                // The same effect as "Clear page filters" in the rail. The
-                // sort order, Service and Environment keep their values.
-                onSearchChange({ q: "", attributes: [] })
+              // The same effect as "Clear page filters" in the rail. The sort
+              // order, Service and Environment keep their values, so with no
+              // page filter set the button would change nothing.
+              onClearFilters={
+                search.q || search.attributes.length > 0
+                  ? () => onSearchChange({ q: "", attributes: [] })
+                  : undefined
               }
               renderIssueLink={renderIssueLink}
             />

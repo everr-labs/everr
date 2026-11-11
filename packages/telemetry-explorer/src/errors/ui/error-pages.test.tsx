@@ -117,6 +117,13 @@ describe("ErrorIssueList", () => {
     expect(props.onClearFilters).toHaveBeenCalledTimes(1);
   });
 
+  it("offers no clear when no page filter is set", () => {
+    render(<ErrorIssueList {...listProps()} onClearFilters={undefined} issues={[]} />);
+
+    expect(screen.getByText("No errors")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+  });
+
   it("shows the query error with a retry", async () => {
     const props = listProps();
     render(

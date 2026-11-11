@@ -32,7 +32,8 @@ export function ErrorIssueList({
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
-  onClearFilters: () => void;
+  /** Absent when there is no page filter to clear. */
+  onClearFilters?: () => void;
   renderIssueLink: RenderErrorIssueLink;
 }) {
   const endReached = useCallback(() => {
@@ -86,9 +87,11 @@ export function ErrorIssueList({
           <EmptyTitle>No errors</EmptyTitle>
           <EmptyDescription>No errors match the current filters.</EmptyDescription>
         </EmptyHeader>
-        <Button variant="outline" size="sm" onClick={onClearFilters}>
-          Clear filters
-        </Button>
+        {onClearFilters ? (
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        ) : null}
       </Empty>
     );
   }

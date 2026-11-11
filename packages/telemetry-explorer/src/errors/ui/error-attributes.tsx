@@ -36,7 +36,11 @@ export function ErrorAttributes({ occurrence }: { occurrence: ErrorOccurrence })
   const total = groups.reduce((count, group) => count + group.entries.length, 0);
   if (total === 0) return null;
 
-  const needle = filter.trim().toLowerCase();
+  // The filter stays in state when the pager moves to an occurrence with fewer
+  // attributes. That occurrence shows no filter field, so it ignores the
+  // filter: a value that the user cannot see or clear must not hide rows.
+  const showFilter = total >= FILTER_MIN_ATTRIBUTES;
+  const needle = showFilter ? filter.trim().toLowerCase() : "";
   const visible = needle
     ? groups
         .map((group) => ({
@@ -54,7 +58,7 @@ export function ErrorAttributes({ occurrence }: { occurrence: ErrorOccurrence })
       title="Attributes"
       description={<span className="tabular-nums">{total}</span>}
       actions={
-        total >= FILTER_MIN_ATTRIBUTES ? (
+        showFilter ? (
           <Input
             type="search"
             value={filter}
