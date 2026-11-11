@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
