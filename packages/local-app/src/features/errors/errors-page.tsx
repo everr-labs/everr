@@ -101,12 +101,12 @@ function ErrorsListView() {
               replace: true,
             })
           }
-          renderIssueLink={({ fingerprint: issueFingerprint, children }) => (
+          renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
             <Link
               to="/errors/$fingerprint"
               params={{ fingerprint: issueFingerprint }}
               search={{ ...search, occurrence: "" }}
-              className="block text-foreground no-underline"
+              className={className}
             >
               {children}
             </Link>
@@ -139,7 +139,7 @@ export function ErrorDetailPage() {
             search: { ...search, occurrence: "" },
           });
         }}
-        renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
+        renderOccurrenceLink={({ occurrence: linkedOccurrence, label, className, children }) => (
           <Link
             to="/errors/$fingerprint"
             params={{ fingerprint }}
@@ -147,11 +147,12 @@ export function ErrorDetailPage() {
               ...search,
               occurrence: getErrorOccurrenceKey(linkedOccurrence),
             }}
-            aria-current={isSelected ? "page" : undefined}
-            className={buttonVariants({
-              variant: isSelected ? "secondary" : "outline",
-              size: "sm",
-            })}
+            // A step of the pager replaces the history entry, so that Back
+            // leaves the Error and does not go through each occurrence again.
+            replace
+            aria-label={label}
+            title={label}
+            className={className}
           >
             {children}
           </Link>

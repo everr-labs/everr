@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/cmd/everr-local-collector
 
-go 1.26.0
+go 1.26.11
 
 require (
 	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000

@@ -38,7 +38,8 @@ const walkColumn = z.looseObject({
 
 const columnSpec = z.looseObject({
   name: z.string(),
-  /** Timestamp spread evenly across [from,to]. */
+  /** The starts of `rows` equal buckets across [from,to), like a query's
+   * `toStartOfInterval`: the last bucket holds `to`. */
   time: z.boolean().optional(),
   /** Ascending integer (1-based). */
   seq: z.boolean().optional(),

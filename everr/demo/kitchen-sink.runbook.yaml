@@ -1,0 +1,57 @@
+kind: Runbook
+metadata:
+  name: demo-kitchen-sink
+  project: demo
+spec:
+  display:
+    name: Kitchen sink runbook
+    description: Every markdown feature a runbook renders, on one runbook, to check how each one looks.
+  duration: 24h
+  variables:
+    - kind: ListVariable
+      spec:
+        name: status
+        display: { name: Status }
+        allowMultiple: true
+        defaultValue: [Ok, Error]
+        plugin:
+          kind: StaticListVariable
+          spec:
+            values: [Ok, Error, Unset]
+  panels:
+    requests:
+      kind: Panel
+      spec:
+        display: { name: Requests by status, description: "A shared panel, embedded with ref:" }
+        plugin:
+          kind: TimeSeriesChart
+          spec: { showLegend: true }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: random_walk
+                  seed: 11
+                  labelColumn: status
+                  series:
+                    - { name: Ok, start: 800, noise: 60, min: 0 }
+                    - { name: Error, start: 40, noise: 12, min: 0 }
+                    - { name: Unset, start: 120, noise: 20, min: 0 }
+  markdown:
+    file: ./kitchen-sink.runbook.md
+  pages:
+    - name: text
+      display: { name: Text and lists, description: Inline formatting, lists, quotes and tables. }
+      markdown:
+        file: ./kitchen-sink-text.runbook.md
+    - name: panels
+      display: { name: Panels, description: Every way to embed a panel. }
+      markdown:
+        file: ./kitchen-sink-panels.runbook.md
+      pages:
+        - name: nested
+          display: { name: A nested page }
+          markdown:
+            file: ./kitchen-sink-nested.runbook.md

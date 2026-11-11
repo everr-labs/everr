@@ -145,10 +145,6 @@
   }
 }
 
-.recharts-wrapper *:focus {
-  outline: none;
-}
-
 ::view-transition-old(command-bar),
 ::view-transition-new(command-bar) {
   animation-duration: 200ms;

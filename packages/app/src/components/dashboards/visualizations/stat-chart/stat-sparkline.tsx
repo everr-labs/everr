@@ -1,32 +1,17 @@
 import { LineChart } from "echarts/charts";
-import { GridComponent } from "echarts/components";
 import * as echarts from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
+import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { StatTile } from "./stat-series";
 
-echarts.use([LineChart, GridComponent, CanvasRenderer]);
+echarts.use([LineChart]);
 
 export function StatSparkline({ points, color }: { points: StatTile["points"]; color: string }) {
   const elementRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.EChartsType | null>(null);
+  const chart = useEChart(elementRef, true)?.chart;
 
   useEffect(() => {
-    const element = elementRef.current;
-    if (!element) return;
-    const chart = echarts.init(element, undefined, { renderer: "canvas" });
-    chartRef.current = chart;
-    const observer = new ResizeObserver(() => chart.resize());
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      chart.dispose();
-      chartRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    chartRef.current?.setOption({
+    chart?.setOption({
       animation: false,
       grid: { top: 2, right: 0, bottom: 0, left: 0 },
       xAxis: { type: "value", min: "dataMin", max: "dataMax", show: false },
@@ -44,7 +29,7 @@ export function StatSparkline({ points, color }: { points: StatTile["points"]; c
         },
       ],
     });
-  }, [points, color]);
+  }, [chart, points, color]);
 
-  return <div ref={elementRef} className="h-full w-full" aria-hidden="true" />;
+  return <div ref={elementRef} className="pointer-events-none h-full w-full" aria-hidden="true" />;
 }

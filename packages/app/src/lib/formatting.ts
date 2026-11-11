@@ -46,15 +46,6 @@ export function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
 }
 
-export function formatSpeed(bytesPerSecond: number): string {
-  if (bytesPerSecond === 0) return "0 B/s";
-  const units = ["B/s", "KB/s", "MB/s", "GB/s"];
-  const k = 1024;
-  const i = Math.min(Math.floor(Math.log(bytesPerSecond) / Math.log(k)), units.length - 1);
-  const value = bytesPerSecond / k ** i;
-  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
-}
-
 export function formatPercent(value: number): string {
   if (value >= 10) return `${Math.round(value)}%`;
   return `${value.toFixed(1)}%`;

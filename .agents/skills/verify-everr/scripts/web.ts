@@ -524,6 +524,11 @@ async function preflight(): Promise<string[]> {
   }
   // agent-browser imports the Portless CA into Chromium's NSS store with certutil on Linux.
   if (process.platform === "linux" && !which("certutil")) miss("certutil (agent-browser needs it to trust the Portless CA)", "sudo apt-get install -y libnss3-tools");
+  // On macOS agent-browser cannot load a CA; its Chrome trusts what the keychain trusts.
+  // Same SSL-policy check as `portless trust`, which trusts the CA for SSL only.
+  if (process.platform === "darwin" && existsSync(portlessCa()) && run("security", ["verify-cert", "-c", portlessCa(), "-L", "-p", "ssl"]).status !== 0) {
+    miss("Portless CA trusted by the macOS keychain (agent-browser's Chrome relies on it)", `cd ${REPO} && pnpm exec portless trust`);
+  }
   return missing;
 }
 
@@ -535,8 +540,14 @@ async function cmdWebPreflight(): Promise<number> {
   return 0;
 }
 
-/** The CA agent-browser must trust for the run's https://*.localhost origins, unless one is set. */
-function browserCa(w: WebRun): Record<string, string> {
+/**
+ * The CA agent-browser must trust for the run's https://*.localhost origins, unless one is set.
+ * Linux only: agent-browser refuses `--ca-cert` for local Chrome elsewhere, and on macOS
+ * Chrome already trusts the CA through the keychain (checked by preflight). Elsewhere the
+ * variable is unset, since a shell may still export it from an earlier `web-browser-env`.
+ */
+function browserCa(w: WebRun): Record<string, string | undefined> {
+  if (process.platform !== "linux") return { AGENT_BROWSER_CA_CERT: undefined };
   if (process.env.AGENT_BROWSER_CA_CERT) return {};
   const ca = [w.vars.PORTLESS_CA, portlessCa()].find((f) => f && existsSync(f));
   return ca ? { AGENT_BROWSER_CA_CERT: ca } : {};

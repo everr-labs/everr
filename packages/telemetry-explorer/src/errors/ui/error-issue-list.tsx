@@ -1,48 +1,58 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
+import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { RefreshCw } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
+
+const SKELETON_DELAY_MS = 1000;
+const VIRTUOSO_OVERSCAN = 600;
 
 export function ErrorIssueList({
   issues,
   isPending,
   isError,
+  error,
   onRetry,
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  onClearFilters,
   renderIssueLink,
 }: {
   issues: ErrorIssueSummary[];
   isPending: boolean;
   isError: boolean;
+  error: Error | null;
   onRetry: () => void;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  /** Absent when there is no page filter to clear. */
+  onClearFilters?: () => void;
   renderIssueLink: RenderErrorIssueLink;
 }) {
   const endReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) onLoadMore();
   }, [hasNextPage, isFetchingNextPage, onLoadMore]);
 
+  const itemContent = useCallback(
+    (_index: number, issue: ErrorIssueSummary) => (
+      <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />
+    ),
+    [renderIssueLink],
+  );
+
   const components = useMemo(
     () => ({
       ...virtuosoScrollAreaComponents,
       // oxlint-disable-next-line react/no-unstable-nested-components -- Preserve the existing footer component lifetime when pagination values change.
       Footer: () => (
-        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+        <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
             <span className="flex items-center gap-2">
               <Skeleton className="size-2 rounded-full" />
@@ -59,62 +69,74 @@ export function ErrorIssueList({
     [isFetchingNextPage, hasNextPage, issues.length],
   );
 
-  if (isPending) {
-    return (
-      <div className="flex flex-col">
-        {Array.from({ length: 8 }).map((_, index) => (
-          // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
-          <div key={index} className="border-b px-3 py-2.5">
-            <div className="flex items-start gap-3">
-              <Skeleton className="size-7" />
-              <div className="min-w-0 flex-1">
-                <Skeleton className="h-4 w-56" />
-                <Skeleton className="mt-2 h-3 w-96 max-w-full" />
-                <Skeleton className="mt-3 h-5 w-64 max-w-full" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
+  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
+  if (isPending) return showSkeleton ? <ListSkeleton /> : null;
   if (isError) {
     return (
-      <Empty className="min-h-60 border-0">
-        <EmptyHeader>
-          <EmptyTitle>Failed to load errors</EmptyTitle>
-          <EmptyDescription>Refresh the list and try again.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button type="button" variant="outline" onClick={onRetry}>
-            <RefreshCw data-icon="inline-start" />
-            Retry
-          </Button>
-        </EmptyContent>
-      </Empty>
+      <RetryError
+        title="Failed to load errors"
+        message={error?.message ?? "Unknown error"}
+        onRetry={onRetry}
+      />
     );
   }
-
   if (issues.length === 0) {
     return (
-      <Empty className="min-h-60 border-0">
+      <Empty>
         <EmptyHeader>
-          <EmptyTitle>No exception logs found</EmptyTitle>
-          <EmptyDescription>No grouped error issues match the selected filters.</EmptyDescription>
+          <EmptyTitle>No errors</EmptyTitle>
+          <EmptyDescription>No errors match the current filters.</EmptyDescription>
         </EmptyHeader>
+        {onClearFilters ? (
+          <Button variant="outline" size="sm" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        ) : null}
       </Empty>
     );
   }
 
   return (
-    <Virtuoso
-      className="min-h-0 min-w-0 flex-1"
-      data={issues}
-      endReached={endReached}
-      components={components}
-      computeItemKey={(_, issue) => issue.fingerprint}
-      itemContent={(_, issue) => <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />}
-    />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <ListHeader />
+      <Virtuoso
+        className="min-h-0 min-w-0 flex-1"
+        data={issues}
+        increaseViewportBy={VIRTUOSO_OVERSCAN}
+        endReached={endReached}
+        components={components}
+        computeItemKey={(_, issue) => issue.fingerprint}
+        itemContent={itemContent}
+      />
+    </div>
+  );
+}
+
+function ListHeader() {
+  return (
+    <div className="text-muted-foreground bg-background flex items-center gap-2 border-b px-3 py-1.5 text-xs font-medium">
+      <span className="min-w-0 flex-1">Error</span>
+      <span className="hidden w-28 shrink-0 md:inline">Service</span>
+      <span className="hidden w-24 shrink-0 lg:inline">Trend</span>
+      <span className="w-24 shrink-0 text-right">Occurrences</span>
+      <span className="hidden w-20 shrink-0 text-right lg:inline">Last seen</span>
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {Array.from({ length: 12 }).map((_, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- Fixed-length placeholder rows with no data identity; the list is static.
+        <div key={index} className="flex items-center gap-2 border-b px-3 py-1.5">
+          <Skeleton className="h-4 min-w-0 flex-1" />
+          <Skeleton className="hidden h-3 w-28 md:block" />
+          <Skeleton className="hidden h-3 w-24 lg:block" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="hidden h-3 w-16 lg:block" />
+        </div>
+      ))}
+    </div>
   );
 }

@@ -17,6 +17,7 @@ function summary(overrides: Partial<ErrorIssueSummary>): ErrorIssueSummary {
     latestTraceId: "trace-1",
     latestSpanId: "span-1",
     latestTimestamp: "2026-07-09 14:03:11",
+    trend: [],
     ...overrides,
   };
 }

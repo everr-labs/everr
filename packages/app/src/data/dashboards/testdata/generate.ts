@@ -141,8 +141,7 @@ function generateTable(spec: TableScenarioSpec, params: TestDataParams): QueryRe
     spec.columns.forEach((c, ci) => {
       const stream = walkStreams[ci];
       if (c.time) {
-        const ms =
-          spec.rows <= 1 ? fromMs : fromMs + Math.round(((toMs - fromMs) * r) / (spec.rows - 1));
+        const ms = fromMs + Math.round(((toMs - fromMs) * r) / spec.rows);
         row[c.name] = toClickHouseDateTime(new Date(ms));
       } else if (c.seq) {
         row[c.name] = r + 1;

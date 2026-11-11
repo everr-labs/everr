@@ -47,6 +47,8 @@ function numberFormatter(decimals?: number, useGrouping = true) {
   });
 }
 
+export type ValueFormatter = ReturnType<typeof createValueFormatter>;
+
 /** Resolves presentation once; all geometry and thresholds keep raw query values. */
 export function createValueFormatter(format: ValueFormat = { unit: "", scale: "none" }) {
   const { unit, decimals } = format;
@@ -56,25 +58,23 @@ export function createValueFormatter(format: ValueFormat = { unit: "", scale: "n
   const axisNumbers = numberFormatter(decimals, false);
   const separator = label === "%" ? "" : " ";
 
-  function rawParts(value: number, reference = value, axis = false): RawFormattedValueParts {
-    const formatter = axis ? axisNumbers : numbers;
-    if (percent) return { value: formatter.format(value * 100), unit: label };
-    if (!Number.isFinite(value)) return { value: formatter.format(value), unit: label };
-    const magnitude = Number.isFinite(reference) ? Math.abs(reference) : Math.abs(value);
+  /**
+   * The display scale for values around `magnitude`: what a value is divided
+   * by to be shown, the unit label, and a prefix written after the number when
+   * the unit cannot carry it (`1.5k widgets`).
+   */
+  function scaleFor(magnitude: number): { divisor: number; unit: string; suffix: string } {
     if (
       format.scale === "duration" ||
       (format.scale === "decimal" && Object.hasOwn(durationUnits, unit))
     ) {
       const inputFactor = durationUnits[unit] ?? 1;
       const steps = format.scale === "duration" ? DURATION_STEPS : DECIMAL_DURATION_STEPS;
-      const [factor, label] =
+      const [factor, stepUnit] =
         magnitude === 0
           ? [inputFactor, unit]
           : (steps.find(([factor]) => magnitude * inputFactor >= factor) ?? [1e-9, "ns"]);
-      return {
-        value: formatter.format(value * (inputFactor / factor)),
-        unit: unitLabel(label),
-      };
+      return { divisor: factor / inputFactor, unit: unitLabel(stepUnit), suffix: "" };
     }
     if (format.scale === "decimal" || format.scale === "binary") {
       const base = format.scale === "binary" ? 1024 : 1000;
@@ -87,16 +87,19 @@ export function createValueFormatter(format: ValueFormat = { unit: "", scale: "n
         /^(By|bit)(\/.*)?$/.test(unit) ||
         (format.scale === "decimal" && /^(Hz|W|J|V|A)$/.test(unit));
       return prefixOnUnit
-        ? {
-            value: formatter.format(value / base ** index),
-            unit: prefix + label,
-          }
-        : {
-            value: formatter.format(value / base ** index) + prefix,
-            unit: label,
-          };
+        ? { divisor: base ** index, unit: prefix + label, suffix: "" }
+        : { divisor: base ** index, unit: label, suffix: prefix };
     }
-    return { value: formatter.format(value), unit: label };
+    return { divisor: 1, unit: label, suffix: "" };
+  }
+
+  function rawParts(value: number, reference = value, axis = false): RawFormattedValueParts {
+    const formatter = axis ? axisNumbers : numbers;
+    if (percent) return { value: formatter.format(value * 100), unit: label };
+    if (!Number.isFinite(value)) return { value: formatter.format(value), unit: label };
+    const magnitude = Number.isFinite(reference) ? Math.abs(reference) : Math.abs(value);
+    const scale = scaleFor(magnitude);
+    return { value: formatter.format(value / scale.divisor) + scale.suffix, unit: scale.unit };
   }
 
   function parts(value: number, reference = value, axis = false): FormattedValueParts {
@@ -113,10 +116,20 @@ export function createValueFormatter(format: ValueFormat = { unit: "", scale: "n
       : formatted.value;
   }
 
+  /** Fix one scale for the entire axis, selected from its largest magnitude. */
+  const axis = (reference: number) => (value: number) => join(parts(value, reference, true));
+
   return {
     parts: (value: number) => parts(value),
     format: (value: number) => join(parts(value)),
-    /** Fix one scale for the entire axis, selected from its largest magnitude. */
-    axis: (reference: number) => (value: number) => join(parts(value, reference, true)),
+    axis,
+    /**
+     * The axis labels for `reference`, plus what they divide values by, so tick
+     * steps can be chosen round in the unit shown (2 GiB rather than 2e9 bytes).
+     */
+    axisFor: (reference: number) => ({
+      divisor: percent || !Number.isFinite(reference) ? 1 : scaleFor(Math.abs(reference)).divisor,
+      format: axis(reference),
+    }),
   };
 }

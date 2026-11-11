@@ -6,6 +6,8 @@ edition = "2024"
 [[bin]]
 name = "everr"
 path = "src/main.rs"
+# main.rs only wires up the library; its test harness had no tests but still linked the full CLI.
+test = false
 
 [dependencies]
 anyhow = "1.0.98"

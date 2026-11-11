@@ -126,7 +126,11 @@ export function hrefHash(href: string): string | undefined {
 }
 
 /** Resolve one markdown href against a runbook to a page path, or null. */
-export type RunbookLinkResolver = (href: string, currentFile: string | undefined) => string | null;
+export type RunbookLinkResolver = (
+  href: string,
+  currentFile: string | undefined,
+  currentPage?: string,
+) => string | null;
 
 /**
  * Build a resolver that maps a markdown href to a runbook page path, or null
@@ -140,7 +144,10 @@ export type RunbookLinkResolver = (href: string, currentFile: string | undefined
  *     page path in the nav tree (or "" for the index) → that page path
  *  3. href resolved relative to the directory of currentFile (the current
  *     page's markdown.file) matches an entry in buildFileToPageMap → that page
- *  4. otherwise null
+ *  4. a "./" or "../" href (or "." / "..") resolved against currentPage, the
+ *     current page's path, read as a folder of its child pages: on
+ *     "panels/nested", ".." is "panels" and "../sibling" is "panels/sibling"
+ *  5. otherwise null
  */
 export function makeRunbookLinkResolver(spec: RunbookSpec): RunbookLinkResolver {
   const pagePaths = new Set<string>([""]);
@@ -153,7 +160,7 @@ export function makeRunbookLinkResolver(spec: RunbookSpec): RunbookLinkResolver 
   collect(pageNavTree(spec));
   const fileMap = buildFileToPageMap(spec);
 
-  return (href, currentFile) => {
+  return (href, currentFile, currentPage = "") => {
     // 1. external / absolute / hash-only links are not runbook navigation.
     if (
       href === "" ||
@@ -179,20 +186,14 @@ export function makeRunbookLinkResolver(spec: RunbookSpec): RunbookLinkResolver 
       if (page !== undefined) return page;
     }
 
+    // 4. relative to the current page.
+    if (target === "." || target === ".." || /^\.\.?\//.test(target)) {
+      const page = normalizePath(`${currentPage}/${target}`);
+      if (pagePaths.has(page)) return page;
+    }
+
     return null;
   };
-}
-
-/**
- * Convenience wrapper around {@link makeRunbookLinkResolver} for a single href
- * — builds a throwaway resolver, so prefer the factory when resolving many.
- */
-export function resolveRunbookLink(
-  href: string,
-  currentFile: string | undefined,
-  spec: RunbookSpec,
-): string | null {
-  return makeRunbookLinkResolver(spec)(href, currentFile);
 }
 
 /**

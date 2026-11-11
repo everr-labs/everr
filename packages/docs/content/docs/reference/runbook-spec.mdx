@@ -57,13 +57,42 @@ markdown:
 
 ## Linking between pages
 
-Link by relative markdown path or by page path; the viewer rewrites both into in-app navigation.
+Link by relative markdown path, by page path, or relative to the current page; the viewer rewrites all three into in-app navigation.
 
 ```md
 See [Triage](./triage/index.runbook.md) first, then [Network](triage/network).
 ```
 
+A link starting with `./` or `../` that names no markdown file resolves against the current page, read as a folder of its child pages. On the page `triage/network`, `..` links to `triage`, `../dns` to `triage/dns` and `../..` to the index.
+
 Absolute (`/...`) and external (`http(s):`, `mailto:`) URLs are left untouched.
+
+## Markdown
+
+Pages render GitHub Flavored Markdown (tables, task lists, footnotes, strikethrough and autolinks), plus:
+
+- **Callouts.** A quote opening with `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]` renders as that callout.
+- **Code blocks.** Any language highlight.js knows is highlighted. After the language, a fence takes a `title="…"`, shown in place of the language, and lines to mark, as `{2,5-7}`. Copying a shell block (`console`, `bash`, `sh`, …) whose lines start with `$ ` copies the commands alone.
+- **Heading anchors.** Headings get GitHub's anchor ids, so `[Roll back](#roll-back)` links to `## Roll back` on the same page.
+- **Raw HTML.** Only `<details>`, `<summary>`, `<kbd>`, `<mark>`, `<sub>` and `<sup>` render, with no attributes except `open` on `<details>`. Any other HTML shows as the text it was written as.
+
+````md
+> [!WARNING]
+> Drain the node before restarting it.
+
+```yaml title="values.yaml" {3}
+replicaCount: 3
+image:
+  tag: "1.42.0"
+```
+
+<details>
+<summary>Rollback script</summary>
+
+Markdown again after a blank line.
+
+</details>
+````
 
 ## Panel blocks
 

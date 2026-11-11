@@ -70,7 +70,9 @@ export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
       onClick={handleCopy}
     >
       {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
-      {copied ? "Copied" : "Copy agent prompt"}
+      {/* On a narrow screen the label leaves the row to the title of the Error.
+          It stays in the accessible name of the button. */}
+      <span className="max-sm:sr-only">{copied ? "Copied" : "Copy agent prompt"}</span>
     </Button>
   );
 }
