@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/receiver/githubactionsreceiver
 
-go 1.26.0
+go 1.26.11
 
 replace github.com/everr-labs/everr/collector/internal/sharedcomponent => ../../internal/sharedcomponent
 
