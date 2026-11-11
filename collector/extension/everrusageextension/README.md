@@ -162,7 +162,7 @@ Both exporters can share file storage because their distinct IDs namespace the
 queue files. This isolates capacity, not the underlying disk or database.
 
 Convert once, before exporter retries. Do not replay a delta through the
-converter; retries belong after conversion. The pinned v0.160.0
+converter; retries belong after conversion. The pinned v0.165.1
 cumulative processor is alpha and keeps its state in memory. Its `max_streams`
 limit drops new streams rather than evicting active ones; size it for active
 customer/signal/month/generation combinations, including rollover overlap and
