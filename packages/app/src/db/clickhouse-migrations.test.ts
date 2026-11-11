@@ -27,67 +27,77 @@ const names = (list: readonly { name: string }[]) => list.map(({ name }) => name
 
 describe("ClickHouse migrations", () => {
   it("bundles the migration files", () => {
-    expect(names(clickHouseMigrations)).toContain("12-create-alert-events.sql");
+    expect(names(clickHouseMigrations)).toContain("0007-create-alert-events.sql");
+  });
+
+  it("gives every bundled file its own four-digit number", () => {
+    const numbers = names(clickHouseMigrations).map((name) => /^(\d{4})-/.exec(name)?.[1]);
+
+    expect(numbers).not.toContain(undefined);
+    expect(new Set(numbers).size).toBe(numbers.length);
   });
 
   it("gives a product the untagged files and the ones tagged for it", () => {
     const files = [
-      migration("00-setup.sql"),
-      migration("15-cloud-role.sql"),
-      migration("15-self-hosted-role.sql"),
-      migration("20-cloud-apply-rls.sql"),
+      migration("0001-setup.sql"),
+      migration("0015-cloud-role.sql"),
+      migration("0015-self-hosted-role.sql"),
+      migration("0012-cloud-apply-rls.sql"),
     ];
 
     expect(names(clickHouseMigrationsFor("self-hosted", files))).toEqual([
-      "00-setup.sql",
-      "15-self-hosted-role.sql",
+      "0001-setup.sql",
+      "0015-self-hosted-role.sql",
     ]);
     expect(names(clickHouseMigrationsFor("cloud", files))).toEqual([
-      "00-setup.sql",
-      "15-cloud-role.sql",
-      "20-cloud-apply-rls.sql",
+      "0001-setup.sql",
+      "0015-cloud-role.sql",
+      "0012-cloud-apply-rls.sql",
     ]);
     // The tag sits right after the number. The word elsewhere is not a tag.
-    expect(clickHouseMigrationTarget("30-create-cloud-usage.sql")).toBeUndefined();
+    expect(clickHouseMigrationTarget("0030-create-cloud-usage.sql")).toBeUndefined();
   });
 
   it("keeps tenant row policies out of the self-hosted files", () => {
     const selfHosted = clickHouseMigrationsFor("self-hosted");
 
     expect(names(selfHosted.filter(({ sql }) => /^CREATE ROW POLICY/m.test(sql)))).toEqual([]);
-    expect(names(clickHouseMigrationsFor("cloud"))).toContain("20-cloud-apply-rls.sql");
+    expect(names(clickHouseMigrationsFor("cloud"))).toContain("0012-cloud-apply-rls.sql");
   });
 
   it("orders migrations by file name and skips applied ones", () => {
     const pending = pendingClickHouseMigrations(
-      [migration("03-tables.sql"), migration("15-role.sql"), migration("00-setup.sql")],
-      applied(migration("03-tables.sql")),
+      [migration("0003-tables.sql"), migration("0015-role.sql"), migration("0001-setup.sql")],
+      applied(migration("0003-tables.sql")),
     );
 
-    expect(names(pending)).toEqual(["00-setup.sql", "15-role.sql"]);
+    expect(names(pending)).toEqual(["0001-setup.sql", "0015-role.sql"]);
   });
 
   it("rejects two files with one name, because the journal records names", () => {
     expect(() =>
-      pendingClickHouseMigrations([migration("15-role.sql"), migration("15-role.sql")], new Map()),
-    ).toThrow("Duplicate ClickHouse migration 15-role.sql");
+      pendingClickHouseMigrations(
+        [migration("0015-role.sql"), migration("0015-role.sql")],
+        new Map(),
+      ),
+    ).toThrow("Duplicate ClickHouse migration 0015-role.sql");
   });
 
   it("stops before running anything when an applied file changed", () => {
-    const before = migration("03-tables.sql", "CREATE TABLE a (x UInt8)");
-    const after = migration("03-tables.sql", "CREATE TABLE a (x UInt16)");
+    const before = migration("0003-tables.sql", "CREATE TABLE a (x UInt8)");
+    const after = migration("0003-tables.sql", "CREATE TABLE a (x UInt16)");
 
     expect(() =>
-      pendingClickHouseMigrations([after, migration("04-new.sql")], applied(before)),
-    ).toThrow("ClickHouse migrations changed after they were applied: 03-tables.sql.");
+      pendingClickHouseMigrations([after, migration("0004-new.sql")], applied(before)),
+    ).toThrow("ClickHouse migrations changed after they were applied: 0003-tables.sql.");
   });
 
   it("treats a comment edit in an applied file as a change", () => {
-    const before = migration("03-tables.sql", "-- v1\nCREATE TABLE a (x UInt8);\n");
-    const after = migration("03-tables.sql", "-- v1, typo fixed\nCREATE TABLE a (x UInt8);\n");
+    const before = migration("0003-tables.sql", "-- v1\nCREATE TABLE a (x UInt8);\n");
+    const after = migration("0003-tables.sql", "-- v1, typo fixed\nCREATE TABLE a (x UInt8);\n");
 
     expect(() => pendingClickHouseMigrations([after], applied(before))).toThrow(
-      "ClickHouse migrations changed after they were applied: 03-tables.sql.",
+      "ClickHouse migrations changed after they were applied: 0003-tables.sql.",
     );
   });
 
@@ -121,18 +131,18 @@ describe("ClickHouse migrations", () => {
   });
 
   it("gives a statement a stable query id so a retry cancels the previous run", () => {
-    expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 0)).toBe(
-      "everr-ch-12-create-alert-events_sql-0",
+    expect(clickHouseMigrationQueryId("0007-create-alert-events.sql", 0)).toBe(
+      "everr-ch-0007-create-alert-events_sql-0",
     );
-    expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 1)).toBe(
-      "everr-ch-12-create-alert-events_sql-1",
+    expect(clickHouseMigrationQueryId("0007-create-alert-events.sql", 1)).toBe(
+      "everr-ch-0007-create-alert-events_sql-1",
     );
   });
 
   it("treats an existing migration file as immutable and a new file as pending", () => {
-    const path = "packages/app/clickhouse/01-setup.sql";
+    const path = "packages/app/clickhouse/0001-setup.sql";
     const base = new Map([[path, "-- old\nSELECT 1;"]]);
-    const added = new Map([...base, ["packages/app/clickhouse/02-next.sql", "SELECT 2;"]]);
+    const added = new Map([...base, ["packages/app/clickhouse/0002-next.sql", "SELECT 2;"]]);
     const commented = new Map([[path, "-- new\nSELECT 1;"]]);
     const edited = new Map([[path, "SELECT 3;"]]);
     const deleted = new Map<string, string>();
@@ -143,12 +153,12 @@ describe("ClickHouse migrations", () => {
     expect(changedClickHouseMigrationFiles(base, deleted)).toEqual([path]);
     expect(isClickHouseMigrationPath(path)).toBe(true);
     expect(isClickHouseMigrationPath("packages/app/clickhouse/repeatable/01.sql")).toBe(false);
-    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/20-apply-rls.sql")).toBe(false);
+    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/0020-apply-rls.sql")).toBe(false);
   });
 
   it("binds only the parameters a statement names", () => {
     expect(
-      statementParams("00-setup.sql", "CREATE USER {name:Identifier} BY {password:String}", {
+      statementParams("0001-setup.sql", "CREATE USER {name:Identifier} BY {password:String}", {
         name: "sql_api",
         password: "secret",
         unused: "x",
@@ -157,8 +167,8 @@ describe("ClickHouse migrations", () => {
   });
 
   it("names the migration and parameter a statement is missing", () => {
-    expect(() => statementParams("00-setup.sql", "CREATE USER a BY {password:String}", {})).toThrow(
-      "ClickHouse migration 00-setup.sql needs the password parameter",
-    );
+    expect(() =>
+      statementParams("0001-setup.sql", "CREATE USER a BY {password:String}", {}),
+    ).toThrow("ClickHouse migration 0001-setup.sql needs the password parameter");
   });
 });

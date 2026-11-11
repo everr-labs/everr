@@ -10,7 +10,7 @@ import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 const HISTORY_TABLE = "app.alert_events";
 
 const alertEventsSql = clickHouseMigrations.find(
-  ({ name }) => name === "12-create-alert-events.sql",
+  ({ name }) => name === "0007-create-alert-events.sql",
 )?.sql;
 
 // Embedded chDB has no access management. Skip grants and policies;
@@ -125,7 +125,7 @@ export function createChdbDatabase(): ChdbDatabase {
 
   run("CREATE DATABASE IF NOT EXISTS app");
   run("USE app");
-  if (alertEventsSql === undefined) throw new Error("12-create-alert-events.sql is not bundled");
+  if (alertEventsSql === undefined) throw new Error("0007-create-alert-events.sql is not bundled");
   for (const statement of sqlStatements(alertEventsSql)) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));

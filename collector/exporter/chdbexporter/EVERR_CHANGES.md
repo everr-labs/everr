@@ -54,7 +54,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   logs table on every ClickHouse version. Upstream switches them to
   `TYPE text(...)` on 26.2 and later, and the local store runs chDB 26.7.3, so
   upstream's server-version gate gave the local logs table text indexes.
-  Measured on the cloud schema (the note in `packages/app/clickhouse/10-create-mvs.sql`
+  Measured on the cloud schema (the note in `packages/app/clickhouse/0006-create-mvs.sql`
   carries the numbers), both types read the same rows for the two predicates
   the app emits, `mapContains(map, key)` and `map[key] IN (...)`, and the text
   indexes cost 500 times the storage. The gate and its server-version check are
@@ -74,7 +74,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   with `DateTime` time columns and a `minmax` index on `TimeUnix`. This was a
   local backport of upstream's `v0.160.0` key; upstream now carries it, so it is
   no longer a local difference. Kept here because it explains the cloud schema
-  (`packages/app/clickhouse/10-create-mvs.sql`), which the shared explorer queries read
+  (`packages/app/clickhouse/0006-create-mvs.sql`), which the shared explorer queries read
   the same way.
 - With the attributes ahead of the time column, every granule of a metric held
   points from the whole day, so a time filter pruned nothing and a 15-minute
@@ -121,7 +121,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   by `(toStartOfFiveMinutes(Timestamp), ServiceName, Timestamp)`. `traces` and
   `traces_json` order by `(ServiceName, Timestamp)`; upstream orders by
   `(ServiceName, SpanName, toDateTime(Timestamp))`. These are the cloud keys in
-  `packages/app/clickhouse/10-create-mvs.sql` without the `tenant_id` prefix, which the
+  `packages/app/clickhouse/0006-create-mvs.sql` without the `tenant_id` prefix, which the
   local store does not have.
 - ClickHouse binds a `Timestamp >= x` predicate to the key column that is
   `Timestamp`, never to a function of it that sits earlier, and can only skip a

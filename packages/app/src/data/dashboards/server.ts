@@ -260,7 +260,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
   });
 
 // Hard-capped by the SQL API profile's `max_result_rows` (packages/app/clickhouse/
-// 13-create-sql-api-profile.sql). That profile uses result_overflow_mode='throw',
+// 0008-create-sql-api-profile.sql). That profile uses result_overflow_mode='throw',
 // so a query returning more than this ERRORS rather than truncating — the cap
 // must be enforced in SQL (see withRowLimit), not after the fetch.
 const VARIABLE_OPTIONS_LIMIT = 1000;

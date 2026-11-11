@@ -200,7 +200,7 @@ worktree. The applications load those files for integration settings. See
 
 Shared ClickHouse databases, base users, table definitions, and SQL query limits
 live in `packages/app/clickhouse`. A file tagged `self-hosted` or `cloud` after its
-number (`20-cloud-apply-rls.sql`) applies to that product only.
+number (`0012-cloud-apply-rls.sql`) applies to that product only.
 Each application applies them on startup to its own ClickHouse container, using the
 same `app` and `otel` database names. See `DATABASE-MIGRATIONS.md`.
 Each worktree has its own database volumes and Portless URLs. Ctrl+C stops the

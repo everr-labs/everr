@@ -4,7 +4,7 @@ How alerting history becomes queryable through `everr cloud query`.
 
 This is a design overview, not a specification. The code is the source of
 truth: for the table's exact shape read
-`packages/app/clickhouse/12-create-alert-events.sql`, and for the caller-facing
+`packages/app/clickhouse/0007-create-alert-events.sql`, and for the caller-facing
 reference (every column, the event-type table, worked queries) read the
 shipped skill file
 `skills/everr-use-telemetry/rules/alert-history.md`.
@@ -333,7 +333,7 @@ the whole alerting stack, with plain commits rather than a cascade.
 
 | Concern                           | File                                                               |
 | --------------------------------- | ------------------------------------------------------------------ |
-| Table DDL                         | `packages/app/clickhouse/12-create-alert-events.sql`               |
+| Table DDL                         | `packages/app/clickhouse/0007-create-alert-events.sql`             |
 | Caller-facing reference           | `skills/everr-use-telemetry/rules/alert-history.md`                |
 | Row builders and the insert       | `server/alerting/history/clickhouse.ts`                            |
 | Deterministic history ids         | `data/alerting/history/ids.ts`                                     |

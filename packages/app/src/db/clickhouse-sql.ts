@@ -14,7 +14,7 @@ export type ClickHouseMigrationTarget = (typeof TARGETS)[number];
 
 /**
  * The one product a file applies to, from the tag after its number
- * (`20-cloud-apply-rls.sql`). A file without a tag applies to both.
+ * (`0012-cloud-apply-rls.sql`). A file without a tag applies to both.
  */
 export function clickHouseMigrationTarget(name: string): ClickHouseMigrationTarget | undefined {
   const afterNumber = name.replace(/^\d+-/, "");

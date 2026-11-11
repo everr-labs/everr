@@ -33,11 +33,14 @@ baselines.
 Every migration is a file in `packages/app/clickhouse`. The tag after the number
 selects the product that applies it. A file without a tag applies to both.
 
-| File name                   | Owns                                     | Applied by |
-| --------------------------- | ---------------------------------------- | ---------- |
-| `NN-<name>.sql`             | Databases, base users, tables, functions | App, Cloud |
-| `NN-self-hosted-<name>.sql` | Installation-wide SQL API role and user  | App        |
-| `NN-cloud-<name>.sql`       | Tenant row policies, provisioning grants | Cloud      |
+| File name                     | Owns                                     | Applied by |
+| ----------------------------- | ---------------------------------------- | ---------- |
+| `NNNN-<name>.sql`             | Databases, base users, tables, functions | App, Cloud |
+| `NNNN-self-hosted-<name>.sql` | Installation-wide SQL API role and user  | App        |
+| `NNNN-cloud-<name>.sql`       | Tenant row policies, provisioning grants | Cloud      |
+
+The four-digit number is one sequence for all files, tagged or not. A number is
+used once. A new file takes the next number.
 
 Each application applies its files in file-name order, after its PostgreSQL
 migrations and under the same lock. Vite bundles the SQL
