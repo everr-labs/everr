@@ -118,7 +118,7 @@ services:
       - ./collector.yaml:/etc/everr-collector/config.yaml:ro
       - collector-queue:/var/lib/everr/queue
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:13133/"]
+      test: ["CMD", "/usr/bin/everr-healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 12
