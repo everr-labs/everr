@@ -16,3 +16,8 @@ node_modules
 .tanstack
 
 .source
+
+# inlang keeps its cache and generated notes here; only the settings are ours
+project.inlang/*
+!project.inlang/settings.json
+!project.inlang/paraglide.config.ts

@@ -10,12 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AiAssistedRouteImport } from './routes/ai-assisted'
 import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as WhyObservabilityRouteImport } from './routes/why-observability'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
-import { Route as BlogIndexRouteImport } from './routes/blog/index'
-import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
@@ -27,34 +23,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AiAssistedRoute = AiAssistedRouteImport.update({
-  id: '/ai-assisted',
-  path: '/ai-assisted',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WhyObservabilityRoute = WhyObservabilityRouteImport.update({
-  id: '/why-observability',
-  path: '/why-observability',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
   id: '/api/search',
   path: '/api/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BlogIndexRoute = BlogIndexRouteImport.update({
-  id: '/blog/',
-  path: '/blog/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BlogSlugRoute = BlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevlogIndexRoute = DevlogIndexRouteImport.update({
@@ -85,44 +61,32 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ai-assisted': typeof AiAssistedRoute
   '/pricing': typeof PricingRoute
-  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
-  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
-  '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ai-assisted': typeof AiAssistedRoute
   '/pricing': typeof PricingRoute
-  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
-  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
-  '/blog': typeof BlogIndexRoute
   '/devlog': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/ai-assisted': typeof AiAssistedRoute
   '/pricing': typeof PricingRoute
-  '/why-observability': typeof WhyObservabilityRoute
   '/api/search': typeof ApiSearchRoute
-  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
-  '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
@@ -130,58 +94,42 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/ai-assisted'
     | '/pricing'
-    | '/why-observability'
     | '/api/search'
-    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
-    | '/blog/'
     | '/devlog/'
     | '/api/og/devlog/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/ai-assisted'
     | '/pricing'
-    | '/why-observability'
     | '/api/search'
-    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
-    | '/blog'
     | '/devlog'
     | '/api/og/devlog/$slug'
   id:
     | '__root__'
     | '/'
-    | '/ai-assisted'
     | '/pricing'
-    | '/why-observability'
     | '/api/search'
-    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
-    | '/blog/'
     | '/devlog/'
     | '/api/og/devlog/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AiAssistedRoute: typeof AiAssistedRoute
   PricingRoute: typeof PricingRoute
-  WhyObservabilityRoute: typeof WhyObservabilityRoute
   ApiSearchRoute: typeof ApiSearchRoute
-  BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
   EverrAppSplatRoute: typeof EverrAppSplatRoute
-  BlogIndexRoute: typeof BlogIndexRoute
   DevlogIndexRoute: typeof DevlogIndexRoute
   ApiOgDevlogSlugRoute: typeof ApiOgDevlogSlugRoute
 }
@@ -195,13 +143,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/ai-assisted': {
-      id: '/ai-assisted'
-      path: '/ai-assisted'
-      fullPath: '/ai-assisted'
-      preLoaderRoute: typeof AiAssistedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
@@ -209,32 +150,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/why-observability': {
-      id: '/why-observability'
-      path: '/why-observability'
-      fullPath: '/why-observability'
-      preLoaderRoute: typeof WhyObservabilityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/search': {
       id: '/api/search'
       path: '/api/search'
       fullPath: '/api/search'
       preLoaderRoute: typeof ApiSearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/blog/': {
-      id: '/blog/'
-      path: '/blog'
-      fullPath: '/blog/'
-      preLoaderRoute: typeof BlogIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/blog/$slug': {
-      id: '/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devlog/': {
@@ -277,15 +197,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AiAssistedRoute: AiAssistedRoute,
   PricingRoute: PricingRoute,
-  WhyObservabilityRoute: WhyObservabilityRoute,
   ApiSearchRoute: ApiSearchRoute,
-  BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
   EverrAppSplatRoute: EverrAppSplatRoute,
-  BlogIndexRoute: BlogIndexRoute,
   DevlogIndexRoute: DevlogIndexRoute,
   ApiOgDevlogSlugRoute: ApiOgDevlogSlugRoute,
 }

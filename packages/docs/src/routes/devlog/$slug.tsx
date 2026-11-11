@@ -4,6 +4,8 @@ import { createServerFn } from "@tanstack/react-start";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { ArrowLeft, GitCommitHorizontal, GitPullRequest, Minus, Plus } from "lucide-react";
 import { Suspense } from "react";
+import { Footer } from "@/components/footer";
+import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
 import { getBaseUrl } from "@/lib/url";
 
@@ -78,122 +80,112 @@ const clientLoader = browserCollections.devlog.createClientLoader({
   },
 });
 
+const STAT_VALUE = "text-2xl font-medium tracking-[-0.02em] tabular-nums";
+const STAT_LABEL = "text-sm text-muted-foreground";
+
 function DevlogPost() {
   const data = Route.useLoaderData();
 
   return (
-    <main className="flex-1">
-      <div className="mx-auto w-full max-w-7xl px-6">
-        <article className="mx-auto max-w-3xl pb-20 pt-12 md:pb-32 md:pt-16">
-          {/* Back link */}
-          <Link
-            to="/devlog"
-            className="group mb-10 inline-flex items-center gap-2 font-heading text-[11px] font-bold uppercase tracking-[0.2em] text-fd-muted-foreground/60 transition-colors hover:text-primary md:mb-14"
-            viewTransition
-          >
-            <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-            All devlogs
-          </Link>
+    <>
+      <main className="flex-1 text-foreground">
+        <div className={sectionWrap}>
+          <article className="mx-auto max-w-3xl pt-10 pb-20 md:pt-14 md:pb-32">
+            <Link
+              to="/devlog"
+              className="group mb-10 inline-flex items-center gap-2 text-[15px] text-muted-foreground transition-colors hover:text-primary md:mb-14"
+              viewTransition
+            >
+              <ArrowLeft className="size-4 transition-[translate] duration-300 ease-out-expo group-hover:-translate-x-1" />
+              All devlogs
+            </Link>
 
-          {/* Post header */}
-          <header className="mb-10 border-b-2 border-fd-border pb-10 md:mb-14 md:pb-14">
-            <div className="mb-4 flex items-center gap-3">
-              <time
-                className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground/60"
-                style={{ viewTransitionName: `devlog-date-${data.slug}` }}
-              >
-                {new Date(data.date).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </time>
-              {data.author && (
-                <>
-                  <span className="text-fd-border">&middot;</span>
-                  <span
-                    className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground/60"
-                    style={{ viewTransitionName: `devlog-author-${data.slug}` }}
-                  >
-                    {data.author}
-                  </span>
-                </>
-              )}
-            </div>
-            <h1
-              className="font-heading text-2xl font-bold leading-[0.95] sm:text-3xl md:text-4xl everr-decoration everr-decoration-primary"
-              style={{ viewTransitionName: `devlog-title-${data.slug}` }}
-            >
-              {data.title}
-            </h1>
-            <p
-              className="mt-4 text-lg leading-relaxed text-fd-muted-foreground"
-              style={{ viewTransitionName: `devlog-desc-${data.slug}` }}
-            >
-              {data.description}
-            </p>
-            {(data.commits || data.prs || data.additions || data.deletions) && (
-              <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {data.commits != null && (
-                  <div className="flex items-center gap-2.5">
-                    <GitCommitHorizontal className="size-5 text-primary" />
-                    <div>
-                      <p className="font-heading text-xl font-bold">
-                        {data.commits.toLocaleString()}
-                      </p>
-                      <p className="font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/50">
-                        Commits
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {data.prs != null && (
-                  <div className="flex items-center gap-2.5">
-                    <GitPullRequest className="size-5 text-purple-500/70" />
-                    <div>
-                      <p className="font-heading text-xl font-bold">{data.prs.toLocaleString()}</p>
-                      <p className="font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/50">
-                        PRs merged
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {data.additions != null && (
-                  <div className="flex items-center gap-2.5">
-                    <Plus className="size-5 text-green-500/70" />
-                    <div>
-                      <p className="font-heading text-xl font-bold text-green-500">
-                        {data.additions.toLocaleString()}
-                      </p>
-                      <p className="font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/50">
-                        Additions
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {data.deletions != null && (
-                  <div className="flex items-center gap-2.5">
-                    <Minus className="size-5 text-red-500/70" />
-                    <div>
-                      <p className="font-heading text-xl font-bold text-red-500">
-                        {data.deletions.toLocaleString()}
-                      </p>
-                      <p className="font-heading text-[10px] uppercase tracking-wider text-fd-muted-foreground/50">
-                        Deletions
-                      </p>
-                    </div>
-                  </div>
+            <header className="mb-10 border-b border-border pb-10 md:mb-14 md:pb-14">
+              <div className="mb-5 flex items-center gap-2 text-[15px] text-muted-foreground">
+                <time
+                  className="tabular-nums"
+                  style={{ viewTransitionName: `devlog-date-${data.slug}` }}
+                >
+                  {new Date(data.date).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </time>
+                {data.author && (
+                  <>
+                    <span aria-hidden>&middot;</span>
+                    <span style={{ viewTransitionName: `devlog-author-${data.slug}` }}>
+                      {data.author}
+                    </span>
+                  </>
                 )}
               </div>
-            )}
-          </header>
+              <h1
+                className={sectionHeading}
+                style={{ viewTransitionName: `devlog-title-${data.slug}` }}
+              >
+                {data.title}
+              </h1>
+              <p
+                className={`${sectionLead} mt-6`}
+                style={{ viewTransitionName: `devlog-desc-${data.slug}` }}
+              >
+                {data.description}
+              </p>
+              {(data.commits || data.prs || data.additions || data.deletions) && (
+                <dl className="mt-10 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+                  {data.commits != null && (
+                    <div className="flex items-center gap-3">
+                      <GitCommitHorizontal className="size-5 text-primary" aria-hidden />
+                      <div className="flex flex-col-reverse">
+                        <dt className={STAT_LABEL}>Commits</dt>
+                        <dd className={STAT_VALUE}>{data.commits.toLocaleString()}</dd>
+                      </div>
+                    </div>
+                  )}
+                  {data.prs != null && (
+                    <div className="flex items-center gap-3">
+                      <GitPullRequest className="size-5 text-purple-400" aria-hidden />
+                      <div className="flex flex-col-reverse">
+                        <dt className={STAT_LABEL}>PRs merged</dt>
+                        <dd className={STAT_VALUE}>{data.prs.toLocaleString()}</dd>
+                      </div>
+                    </div>
+                  )}
+                  {data.additions != null && (
+                    <div className="flex items-center gap-3">
+                      <Plus className="size-5 text-green-500" aria-hidden />
+                      <div className="flex flex-col-reverse">
+                        <dt className={STAT_LABEL}>Additions</dt>
+                        <dd className={`${STAT_VALUE} text-green-500`}>
+                          {data.additions.toLocaleString()}
+                        </dd>
+                      </div>
+                    </div>
+                  )}
+                  {data.deletions != null && (
+                    <div className="flex items-center gap-3">
+                      <Minus className="size-5 text-red-500" aria-hidden />
+                      <div className="flex flex-col-reverse">
+                        <dt className={STAT_LABEL}>Deletions</dt>
+                        <dd className={`${STAT_VALUE} text-red-500`}>
+                          {data.deletions.toLocaleString()}
+                        </dd>
+                      </div>
+                    </div>
+                  )}
+                </dl>
+              )}
+            </header>
 
-          {/* Post body */}
-          <div className="prose prose-invert prose-lg max-w-none prose-headings:font-heading prose-headings:font-bold [&_:not(h1,h2,h3,h4,h5,h6)>a]:text-primary [&_:not(h1,h2,h3,h4,h5,h6)>a]:no-underline [&_:not(h1,h2,h3,h4,h5,h6)>a:hover]:underline prose-headings:text-fd-foreground prose-strong:text-fd-foreground prose-p:text-fd-muted-foreground prose-li:text-fd-muted-foreground">
-            <Suspense>{clientLoader.useContent(data.path)}</Suspense>
-          </div>
-        </article>
-      </div>
-    </main>
+            <div className="prose prose-invert prose-lg max-w-none prose-headings:font-heading prose-headings:font-semibold prose-headings:tracking-[-0.03em] [&_:not(h1,h2,h3,h4,h5,h6)>a]:text-primary [&_:not(h1,h2,h3,h4,h5,h6)>a]:no-underline [&_:not(h1,h2,h3,h4,h5,h6)>a:hover]:underline prose-headings:text-fd-foreground prose-strong:text-fd-foreground prose-p:text-fd-muted-foreground prose-li:text-fd-muted-foreground">
+              <Suspense>{clientLoader.useContent(data.path)}</Suspense>
+            </div>
+          </article>
+        </div>
+      </main>
+      <Footer />
+    </>
   );
 }

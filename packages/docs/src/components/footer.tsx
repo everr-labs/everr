@@ -1,37 +1,33 @@
-import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
+import { LanguageMenu } from "@/components/language-switch";
+import { Mascot } from "@/components/mascot";
 import { DISCORD_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 export function Footer() {
   return (
-    <footer className="border-t border-fd-border">
+    <footer className="border-t border-fd-border bg-background">
       <div className="w-full">
-        <section className="relative overflow-hidden bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
-          <SiDiscord
-            className="pointer-events-none absolute top-[-70px] right-[8%] size-[280px] opacity-[0.08] max-[760px]:-right-[60px]"
-            aria-hidden="true"
-          />
-          <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-6 px-6 py-10 min-[761px]:flex-row min-[761px]:items-center min-[761px]:justify-between min-[761px]:gap-12">
+        <section className="border-b border-fd-border">
+          <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-4 py-12 sm:px-6 md:flex-row md:items-center md:justify-between md:gap-12">
             <div>
-              <h2 className="text-[clamp(30px,8vw,40px)] font-medium leading-[1.08] tracking-[-0.03em] min-[761px]:text-[40px]">
-                Help shape Everr
-                <span className="block font-semibold">Join us on Discord.</span>
+              <h2 className="text-2xl font-medium leading-[1.15] tracking-[-0.02em] sm:text-[28px]">
+                {m.footer_discord_heading()}
               </h2>
-              <p className="mt-3.5 max-w-[48ch] text-base leading-[1.6]">
-                Drop your feature requests, share feedback, and help us decide what to build next.
-                We’ll throw in a discount code as a thank you for helping us out.
+              <p className="mt-3 max-w-[58ch] text-base leading-[1.6] text-fd-muted-foreground">
+                {m.footer_discord_body()}
               </p>
             </div>
             <a
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full bg-primary-foreground px-5 py-3 font-semibold text-foreground transition-colors duration-200 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary-foreground [&>svg]:size-5 [&>svg]:shrink-0 motion-reduce:transition-none"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2.5 rounded-full border border-foreground/25 px-5 py-3 font-semibold text-foreground transition-colors duration-200 hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-primary [&>svg]:size-5 [&>svg]:shrink-0 motion-reduce:transition-none"
               href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
             >
               <SiDiscord aria-hidden="true" />
-              Join us on Discord
+              {m.footer_discord_cta()}
               <ArrowUpRight aria-hidden="true" />
             </a>
           </div>
@@ -48,7 +44,15 @@ function FooterDirectory() {
       <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
-          <EverrLogo size="lg" className="flex w-full justify-center sm:justify-start" />
+          <span className="flex w-full items-center justify-center gap-0.5 font-heading text-3xl font-semibold sm:justify-start">
+            <Mascot
+              reach={30}
+              eyesClassName="fill-primary"
+              raysClassName="fill-primary"
+              className="size-8 shrink-0"
+            />
+            everr
+          </span>
           <p className="mt-4 text-sm text-fd-muted-foreground">Observability made simple.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
@@ -92,29 +96,23 @@ function FooterDirectory() {
             </a>
           </div>
           <div className="mt-6 flex justify-center sm:justify-start">
-            <div className="inline-flex items-center gap-1 rounded-full border border-primary/50 bg-primary/5 py-2 pr-5 pl-2">
-              <span
-                className="flex size-8 items-center justify-center rounded-full text-primary text-xl"
-                aria-hidden="true"
-              >
-                🇪🇺
-              </span>
-              <span className="text-left leading-tight font-heading">
-                <span className="block font-mono text-xs font-semibold uppercase tracking-widest text-primary">
-                  Proudly
-                </span>
-                <span className="block text-sm font-bold text-fd-foreground">Made in Europe</span>
-              </span>
-            </div>
+            <p className="inline-flex items-center gap-2 text-sm text-fd-muted-foreground">
+              <span aria-hidden="true">🇪🇺</span>
+              {m.footer_made_in()}
+            </p>
           </div>
-          <p className="mt-4 text-sm text-fd-muted-foreground">
+          <p className="mt-4 flex items-center justify-center gap-3 text-sm text-fd-muted-foreground sm:justify-start">
             &copy; {new Date().getFullYear()} Everr
+            <LanguageMenu
+              side="top"
+              className="rounded-full border border-border px-3 py-1.5 transition-colors hover:text-fd-foreground data-[popup-open]:text-fd-foreground"
+            />
           </p>
         </div>
 
         {/* Product */}
         <div>
-          <h3 className="mb-4 text-sm font-medium font-heading">Product</h3>
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_product()}</h3>
           <ul className="space-y-3">
             <li>
               <Link
@@ -122,7 +120,7 @@ function FooterDirectory() {
                 params={{ _splat: "" }}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Documentation
+                {m.footer_documentation()}
               </Link>
             </li>
             <li>
@@ -130,7 +128,7 @@ function FooterDirectory() {
                 to="/pricing"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Pricing
+                {m.nav_pricing()}
               </Link>
             </li>
             <li>
@@ -138,7 +136,7 @@ function FooterDirectory() {
                 href="https://app.everr.dev/auth/sign-up"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Get started
+                {m.get_started()}
               </a>
             </li>
           </ul>
@@ -146,7 +144,7 @@ function FooterDirectory() {
 
         {/* Resources */}
         <div>
-          <h3 className="mb-4 text-sm font-medium font-heading">Resources</h3>
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_resources()}</h3>
           <ul className="space-y-3">
             <li>
               <Link
@@ -154,7 +152,7 @@ function FooterDirectory() {
                 params={{ _splat: "cli" }}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                CLI Docs
+                {m.footer_cli_docs()}
               </Link>
             </li>
             <li>

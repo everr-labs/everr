@@ -1,68 +1,80 @@
-import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
+import type { CSSProperties } from "react";
+import { HeroWatch } from "@/components/hero-watch/HeroWatch";
 import { Button } from "@/components/ui/button";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { SIGN_UP_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
+
+const ease = [0.16, 1, 0.3, 1] as const;
+
+// How many letters one line of the headline holds at full size. A longer line, as some
+// languages need, sets the headline smaller so it still takes one line.
+const LINE_FITS = 19;
 
 export function Hero() {
+  const lines = [m.hero_line_1(), m.hero_line_2()];
+  const fit: CSSProperties & Record<"--fit", number> = {
+    "--fit": Math.min(1, LINE_FITS / Math.max(...lines.map((line) => line.length))),
+  };
   return (
-    <section className="relative isolate overflow-hidden bg-background text-foreground">
-      <div className="mx-auto max-w-7xl px-6 py-12 min-[701px]:py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+    <section className="relative -mt-16 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-16 text-foreground md:-mt-24 md:pt-24">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(1rem,3vh,3rem)]">
+        <h1
+          className="display text-[clamp(2.375rem,min(9vw,14.5vh),9rem)] md:text-[calc(clamp(2.375rem,min(9vw,14.5vh),9rem)*var(--fit))]"
+          style={fit}
         >
-          <Eyebrow className="mb-7">Observability made simple</Eyebrow>
-          <h1 className="max-w-[1200px] text-balance text-[clamp(40px,9vw,58px)] font-[550] leading-[1.02] tracking-[-0.04em] min-[701px]:text-[clamp(42px,6.5vw,88px)]">
-            Understand what your app is doing{" "}
-            <span className="mt-3 block text-primary">
-              in minutes, not months
-              <span className="ml-[0.04em] inline-block align-super text-[0.62em] leading-none">
-                *
-              </span>
+          {lines.map((line, i) => (
+            // The clip is taller than the line box, so descenders survive the reveal
+            <span key={line} className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
+              <motion.span
+                className="block"
+                initial={{ y: "110%" }}
+                animate={{ y: 0 }}
+                transition={{ duration: 0.9, delay: 0.05 + i * 0.09, ease }}
+              >
+                {line}
+              </motion.span>
             </span>
-          </h1>
-          <p className="mt-[18px] flex items-center gap-3 text-base leading-[1.35] text-muted-foreground min-[701px]:text-base">
-            <span
-              className="translate-y-1.5 text-[28px] leading-[0.7] text-primary"
-              aria-hidden="true"
-            >
-              *
-            </span>
-            No observability team required
-          </p>
-        </motion.div>
+          ))}
+        </h1>
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-8 flex flex-col items-start gap-6 border-t border-border py-6 min-[701px]:flex-row min-[701px]:items-center min-[701px]:justify-between min-[701px]:gap-8"
+          transition={{ duration: 0.8, delay: 0.35, ease }}
+          className="mt-7 max-w-[30rem] md:mt-10"
         >
-          <p className="max-w-[65ch] flex-1 text-[17px] leading-[1.6] text-muted-foreground">
-            Everr turns established observability practices into guided workflows, from AI-assisted
-            setup to everyday monitoring and investigation.
-            <br />
-            Focus shipping features, not hunting down issues.
+          <p className="text-lg leading-[1.5] text-pretty text-foreground/75 md:text-xl">
+            {m.hero_lead()}
           </p>
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 min-[701px]:gap-3 [&_[data-slot=button]]:h-[50px] [&_[data-slot=button]]:px-[18px] [&_[data-slot=button]]:text-base min-[701px]:[&_[data-slot=button]]:px-6 [&_[data-slot=button]]:focus-visible:outline-2 [&_[data-slot=button]]:focus-visible:outline-offset-[5px]">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
-              variant="default"
               nativeButton={false}
               // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
-              render={<a href="https://app.everr.dev/auth/sign-up" />}
+              render={<a href={SIGN_UP_URL} />}
             >
-              Get started
+              {m.get_started()}
             </Button>
             <Button
               variant="secondary"
               nativeButton={false}
-              render={<Link to="/docs/$" params={{ _splat: "" }} />}
+              // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
+              render={<a href="#tour" />}
             >
-              See how Everr works
+              {m.hero_secondary()}
             </Button>
           </div>
         </motion.div>
       </div>
+
+      {/* Pieces of an app with Everr keeping watch over them, running off the page's corner */}
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 1.3, delay: 0.4, ease }}
+        className="relative mt-8 ml-auto w-[min(100vw,30rem)] md:absolute md:right-0 md:bottom-0 md:mt-0 md:w-[clamp(30rem,min(53vw,(72svh-9.5rem)*1.41),95rem)]"
+      >
+        <HeroWatch />
+      </motion.div>
     </section>
   );
 }

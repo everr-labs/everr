@@ -1,53 +1,33 @@
-import { motion, useInView } from "motion/react";
-import { useRef } from "react";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { sectionWrap } from "@/components/ui/type";
+import { m } from "@/paraglide/messages";
+
 import skillvueLogo from "../assets/logos/skillvue.svg?url";
 import marcelloPhoto from "../assets/testimonials/marcello.jpeg?url";
-import { GravityStarsBackground } from "./animate-ui/components/backgrounds/gravity-stars";
 
 export function FeaturedTestimonial() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-15% 0px" });
-
   return (
-    <section
-      ref={ref}
-      className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background"
-    >
-      <GravityStarsBackground className="absolute inset-0" starsCount={300} />
-      <div className="relative z-10 mx-auto max-w-5xl px-6 py-24 md:py-36">
-        <motion.figure
-          initial={{ opacity: 0, y: 24 }}
-          animate={inView ? { opacity: 1, y: 0 } : undefined}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <Eyebrow>Why teams switch</Eyebrow>
-
-          <img src={skillvueLogo} alt="SkillVue" className="mt-6 h-8 w-auto" />
-
-          <blockquote className="mt-6 font-heading text-2xl leading-[1.45] tracking-tight text-fd-foreground sm:text-3xl md:text-4xl">
-            “The first tool we tried took a whole team just to keep running. We moved to something
-            cheaper and still ended up paying <span className="text-primary">$700 a month</span> for
-            data I couldn’t really explain. Everr is the first one the whole team actually uses. And
-            it’s not a watered-down version, it does everything we need without anyone babysitting
-            it.
-            <br />
-            <span className="text-primary">It’s how we work now</span>.”
-          </blockquote>
-
-          <figcaption className="mt-8 flex items-center gap-4">
-            <img
-              src={marcelloPhoto}
-              alt="Marcello Roherssen"
-              className="size-12 rounded-full object-cover"
-            />
-            <div className="text-sm">
-              <div className="font-heading font-bold text-fd-foreground">Marcello Roherssen</div>
-              <div className="text-fd-muted-foreground">CTO · SkillVue</div>
-            </div>
-          </figcaption>
-        </motion.figure>
-      </div>
+    <section className="border-t border-border bg-fd-background text-foreground">
+      <figure
+        className={`${sectionWrap} grid gap-10 py-20 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-16 md:py-36`}
+      >
+        <figcaption className="flex items-center gap-4 md:flex-col md:items-start md:gap-5 md:pt-3">
+          <img
+            src={marcelloPhoto}
+            alt=""
+            className="size-16 rounded-full object-cover md:size-20"
+          />
+          <div>
+            <div className="text-base font-semibold">Marcello Roherssen</div>
+            <div className="mt-0.5 text-sm text-muted-foreground">{m.testimonial_role()}</div>
+            <img src={skillvueLogo} alt="" className="mt-4 h-6 w-auto max-md:hidden" />
+          </div>
+        </figcaption>
+        <blockquote className="max-w-[34ch] text-[clamp(1.5rem,2.9vw,2.625rem)] leading-[1.22] font-medium tracking-[-0.03em] text-pretty">
+          <p>{m.testimonial_p1()}</p>
+          <p className="mt-[0.6em]">{m.testimonial_p2()}</p>
+          <p className="mt-[0.6em] text-primary">{m.testimonial_closing()}</p>
+        </blockquote>
+      </figure>
     </section>
   );
 }

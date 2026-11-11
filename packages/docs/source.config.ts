@@ -29,17 +29,4 @@ export const devlog = defineCollections({
 });
 
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
-export const blog = defineCollections({
-  type: "doc",
-  dir: "content/blog",
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    date: z.string().date(),
-    author: z.string().optional(),
-    draft: z.boolean().optional(),
-  }),
-});
-
-/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export default defineConfig();

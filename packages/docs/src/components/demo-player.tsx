@@ -3,6 +3,7 @@ import { Pause, Play } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { Playhead } from "@/components/monitoring-demo/kit";
+import { m } from "@/paraglide/messages";
 
 // A demo told in chapters, with its player: pause, the chapters as colored
 // segments to jump between, a bar at the play position with the chapter's
@@ -12,6 +13,10 @@ import { Playhead } from "@/components/monitoring-demo/kit";
 export type PlayerChapter<C extends number> = {
   chapter: C;
   label: string;
+  /** The chapter in a visitor's own words, for the index beside the demo. Falls back to the label */
+  question?: string;
+  /** One line on what the chapter shows */
+  detail?: string;
   /** One color per chapter; neighbours differ in lightness as well as hue */
   color: string;
   /** How long the chapter plays */
@@ -169,7 +174,7 @@ function Timeline<C extends number>({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={paused ? "Play demo" : "Pause demo"}
+        aria-label={paused ? m.player_play() : m.player_pause()}
         className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&>svg]:size-3.5 [&>svg]:fill-current"
       >
         {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
@@ -201,7 +206,7 @@ function Timeline<C extends number>({
             }}
             type="button"
             onClick={() => onJump(chapter)}
-            aria-label={`Play: ${label}`}
+            aria-label={m.player_play_chapter({ label })}
             style={{ flexGrow: chapters[i].ms }}
             className="group h-5 basis-0 cursor-pointer"
           >
@@ -230,7 +235,7 @@ function Timeline<C extends number>({
           aria-live="polite"
           style={{ backgroundColor: color }}
           className={cn(
-            "pointer-events-none absolute left-0 rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wider whitespace-nowrap text-black uppercase transition-opacity duration-150",
+            "pointer-events-none absolute left-0 rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-black transition-opacity duration-150",
             side === "top" ? "bottom-full mb-4" : "top-full mt-4",
             hover !== null && hover !== current && "opacity-0",
           )}
@@ -245,7 +250,7 @@ function Timeline<C extends number>({
           aria-hidden="true"
           style={{ backgroundColor: hover === null ? undefined : chapters[hover].color }}
           className={cn(
-            "pointer-events-none absolute left-0 rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wider whitespace-nowrap text-black uppercase transition-opacity duration-150",
+            "pointer-events-none absolute left-0 rounded-md px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-black transition-opacity duration-150",
             side === "top" ? "bottom-full mb-4" : "top-full mt-4",
             hover === null || hover === current ? "opacity-0" : "opacity-100",
           )}
@@ -257,7 +262,7 @@ function Timeline<C extends number>({
         ref={(el) => {
           view.time = el;
         }}
-        className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground"
+        className="shrink-0 text-xs tabular-nums text-muted-foreground"
       >
         {`0:00 / ${clockTime(chapters.reduce((sum, c) => sum + c.ms, 0))}`}
       </span>
@@ -266,8 +271,8 @@ function Timeline<C extends number>({
 }
 
 // The chapters as a list beside the demo, on screens wide enough to have room
-// for it. Narrower, the timeline's segments do the same job. Level with the
-// card, not the bar above it.
+// for it: each one the question it answers, with a line on how once it plays.
+// Level with the card, not the bar above it.
 function ChapterIndex<C extends number>({
   chapters,
   current,
@@ -279,38 +284,82 @@ function ChapterIndex<C extends number>({
 }) {
   return (
     <nav
-      aria-label="Demo chapters"
-      className="hidden w-[200px] shrink-0 pt-[5.125rem] motion-reduce:pt-0 xl:block"
+      aria-label={m.player_chapters()}
+      className="hidden w-[290px] shrink-0 pt-[5.125rem] motion-reduce:pt-0 xl:block"
     >
-      <ul className="grid gap-1">
-        {chapters.map(({ chapter, label, color }) => {
+      <ul>
+        {chapters.map(({ chapter, label, question, detail, color }) => {
           const active = chapter === current;
           return (
-            <li key={chapter}>
+            <li key={chapter} className="border-t border-border last:border-b">
               <button
                 type="button"
                 onClick={() => onJump(chapter)}
                 aria-current={active ? "step" : undefined}
-                className={cn(
-                  "flex w-full cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-left text-sm leading-snug transition-colors duration-200 hover:bg-muted hover:text-foreground",
-                  active ? "font-medium text-foreground" : "text-muted-foreground",
-                )}
+                className="group relative w-full cursor-pointer py-4 pl-4 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 <span
                   aria-hidden="true"
                   style={{ backgroundColor: color }}
                   className={cn(
-                    "mt-[0.45em] size-2 shrink-0 rounded-full transition-opacity duration-200",
-                    active ? "opacity-100" : "opacity-40",
+                    "absolute inset-y-4 left-0 w-[3px] origin-top rounded-full transition-[scale,opacity] duration-500 ease-out-expo",
+                    active ? "scale-y-100 opacity-100" : "scale-y-0 opacity-0",
                   )}
                 />
-                {label}
+                <span
+                  className={cn(
+                    "block text-xl leading-[1.2] font-medium tracking-[-0.02em] text-pretty transition-colors duration-200",
+                    active
+                      ? "text-foreground"
+                      : "text-foreground/45 group-hover:text-foreground/80",
+                  )}
+                >
+                  {question ?? label}
+                </span>
+                {detail && (
+                  <span
+                    className={cn(
+                      "grid transition-[grid-template-rows,opacity] duration-500 ease-out-expo",
+                      active ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                    )}
+                  >
+                    <span className="overflow-hidden">
+                      <span className="block pt-2 text-sm leading-[1.5] text-muted-foreground">
+                        {detail}
+                      </span>
+                    </span>
+                  </span>
+                )}
               </button>
             </li>
           );
         })}
       </ul>
     </nav>
+  );
+}
+
+// Without room for the index, the playing chapter's question sits above the demo
+function ChapterCaption<C extends number>({ chapter }: { chapter: PlayerChapter<C> }) {
+  return (
+    <div className="grid min-h-[6.5rem] content-end xl:hidden">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={chapter.chapter}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.25 }}
+        >
+          <p className="text-[22px] leading-[1.2] font-medium tracking-[-0.02em] text-pretty">
+            {chapter.question ?? chapter.label}
+          </p>
+          {chapter.detail && (
+            <p className="mt-1.5 text-sm leading-[1.5] text-muted-foreground">{chapter.detail}</p>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -376,7 +425,8 @@ export function DemoPlayer<C extends number>({
   };
 
   return (
-    <div className="flex items-start gap-8">
+    <div className="xl:flex xl:items-start xl:gap-10">
+      <ChapterCaption chapter={chapters.find((c) => c.chapter === screen) ?? chapters[0]} />
       <div className="relative min-w-0 max-w-[1000px] flex-1 pt-[5.125rem] motion-reduce:pt-0">
         <div ref={sentinel} className="absolute inset-x-0 top-[5.125rem] h-px" />
         {/* One clip per side, with room for the flag: the controls slide out of

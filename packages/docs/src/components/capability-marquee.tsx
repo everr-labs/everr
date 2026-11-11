@@ -1,4 +1,5 @@
 import { Marquee } from "@/components/ui/marquee";
+import { m } from "@/paraglide/messages";
 
 type Capability = { label: string; planned: boolean };
 
@@ -25,7 +26,7 @@ export function CapabilityMarquee({ features }: { features: Capability[] }) {
                 <span className={planned ? "text-muted-foreground/85" : undefined}>{label}</span>
                 {planned && (
                   <small className="inline-flex shrink-0 items-center rounded-full border border-border bg-card px-2 py-[3px] text-xs font-medium leading-[1.4] tracking-[0.01em] text-muted-foreground">
-                    Planned
+                    {m.capability_planned()}
                   </small>
                 )}
               </li>

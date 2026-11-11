@@ -1,31 +1,52 @@
-import { motion } from "motion/react";
 import { DemoPlayer, type PlayerChapter } from "@/components/demo-player";
 import {
   CHAPTER_MS,
   type Chapter,
   MonitoringDemo,
 } from "@/components/monitoring-demo/MonitoringDemo";
+import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
+import { m } from "@/paraglide/messages";
 
 // One color per chapter. Neighbours differ in lightness as well as hue (blue,
 // amber, red, green, pink), so they stay distinct under color-vision deficiency.
-const CHAPTERS: PlayerChapter<Chapter>[] = [
+const chapters = (): PlayerChapter<Chapter>[] => [
   {
     chapter: 0,
-    label: "Catch performance bottlenecks",
+    label: m.tour_1_label(),
+    question: m.tour_1_question(),
+    detail: m.tour_1_detail(),
     color: "oklch(0.7 0.15 255)",
     ms: CHAPTER_MS[0],
   },
-  { chapter: 1, label: "Monitor traffic spikes", color: "oklch(0.83 0.15 80)", ms: CHAPTER_MS[1] },
-  { chapter: 2, label: "Inspect errors", color: "oklch(0.66 0.2 22)", ms: CHAPTER_MS[2] },
+  {
+    chapter: 1,
+    label: m.tour_2_label(),
+    question: m.tour_2_question(),
+    detail: m.tour_2_detail(),
+    color: "oklch(0.83 0.15 80)",
+    ms: CHAPTER_MS[1],
+  },
+  {
+    chapter: 2,
+    label: m.tour_3_label(),
+    question: m.tour_3_question(),
+    detail: m.tour_3_detail(),
+    color: "oklch(0.66 0.2 22)",
+    ms: CHAPTER_MS[2],
+  },
   {
     chapter: 3,
-    label: "Detect incidents before your users",
+    label: m.tour_4_label(),
+    question: m.tour_4_question(),
+    detail: m.tour_4_detail(),
     color: "oklch(0.86 0.19 135)",
     ms: CHAPTER_MS[3],
   },
   {
     chapter: 4,
-    label: "Respond the way your team planned",
+    label: m.tour_5_label(),
+    question: m.tour_5_question(),
+    detail: m.tour_5_detail(),
     color: "oklch(0.78 0.17 340)",
     ms: CHAPTER_MS[4],
   },
@@ -33,30 +54,13 @@ const CHAPTERS: PlayerChapter<Chapter>[] = [
 
 export function MonitoringSection() {
   return (
-    <section className="relative overflow-hidden border-y-2 border-fd-border bg-fd-background">
-      <div className="mx-auto max-w-7xl px-6 pt-10 pb-24 text-foreground sm:pt-[72px]">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-8 grid gap-5"
-        >
-          <h2 className="max-w-[18ch] text-balance text-[clamp(30px,3.5vw,44px)] leading-[1.12] tracking-[-0.025em]">
-            An app can be up and still let users down
-          </h2>
-          <p className="max-w-[62ch] text-base leading-[1.65] text-muted-foreground">
-            Monitoring goes beyond error reporting. See where your app slows down, how it responds
-            to demand, and what led to a failure.
-          </p>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full"
-        >
-          <DemoPlayer chapters={CHAPTERS}>{(player) => <MonitoringDemo {...player} />}</DemoPlayer>
-        </motion.div>
+    <section id="tour" className="scroll-mt-14 border-t border-border bg-fd-background">
+      <div className={`${sectionWrap} pt-20 pb-24 text-foreground md:pt-32 md:pb-36`}>
+        <div className="mb-6 grid gap-6 md:mb-4 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] md:items-end md:gap-16">
+          <h2 className={`${sectionHeading} max-w-[14ch]`}>{m.tour_heading()}</h2>
+          <p className={`${sectionLead} max-w-[38ch] md:pb-2`}>{m.tour_lead()}</p>
+        </div>
+        <DemoPlayer chapters={chapters()}>{(player) => <MonitoringDemo {...player} />}</DemoPlayer>
       </div>
     </section>
   );

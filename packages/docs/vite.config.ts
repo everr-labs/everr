@@ -1,3 +1,4 @@
+import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -32,6 +33,8 @@ export default defineConfig({
     docsMarkdownDevRequests(),
     mdx(await import("./source.config")),
     tailwindcss(),
+    // Options live in project.inlang/paraglide.config.ts, shared with the CLI
+    paraglideVitePlugin({ project: "./project.inlang" }),
     tanstackStart(),
     react(),
     nitro({
