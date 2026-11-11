@@ -53,7 +53,7 @@ function FooterDirectory() {
             />
             everr
           </span>
-          <p className="mt-4 text-sm text-fd-muted-foreground">{m.footer_tagline()}</p>
+          <p className="mt-4 text-sm text-fd-muted-foreground">Observability made simple.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
               href="https://x.com/everrlabs"

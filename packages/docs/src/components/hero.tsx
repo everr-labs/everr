@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import type { CSSProperties } from "react";
 import { HeroWatch } from "@/components/hero-watch/HeroWatch";
 import { Button } from "@/components/ui/button";
 import { SIGN_UP_URL } from "@/constants";
@@ -6,12 +7,23 @@ import { m } from "@/paraglide/messages";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
+// How many letters one line of the headline holds at full size. A longer line, as some
+// languages need, sets the headline smaller so it still takes one line.
+const LINE_FITS = 19;
+
 export function Hero() {
+  const lines = [m.hero_line_1(), m.hero_line_2()];
+  const fit: CSSProperties & Record<"--fit", number> = {
+    "--fit": Math.min(1, LINE_FITS / Math.max(...lines.map((line) => line.length))),
+  };
   return (
     <section className="relative -mt-16 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-16 text-foreground md:-mt-24 md:pt-24">
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(1rem,3vh,3rem)]">
-        <h1 className="display text-[clamp(2.375rem,min(9vw,14.5vh),9rem)]">
-          {[m.hero_line_1(), m.hero_line_2()].map((line, i) => (
+        <h1
+          className="display text-[clamp(2.375rem,min(9vw,14.5vh),9rem)] md:text-[calc(clamp(2.375rem,min(9vw,14.5vh),9rem)*var(--fit))]"
+          style={fit}
+        >
+          {lines.map((line, i) => (
             // The clip is taller than the line box, so descenders survive the reveal
             <span key={line} className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
               <motion.span

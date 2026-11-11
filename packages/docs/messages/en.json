@@ -1,6 +1,5 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "meta_home_title": "Everr: know before your customers do",
   "meta_pricing_title": "Pricing - Everr",
   "get_started": "Get started",
   "nav_main": "Main",
@@ -100,7 +99,6 @@
   "footer_discord_heading": "Help shape Everr. Join us on Discord.",
   "footer_discord_body": "Drop your feature requests, share feedback, and help us decide what to build next. We’ll throw in a discount code as a thank you for helping us out.",
   "footer_discord_cta": "Join us on Discord",
-  "footer_tagline": "Know before your customers do.",
   "footer_made_in": "Proudly made in Europe",
   "footer_product": "Product",
   "footer_documentation": "Documentation",

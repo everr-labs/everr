@@ -13,7 +13,7 @@ import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
-  head: () => pageHead("/", m.meta_home_title(), m.hero_lead()),
+  head: () => pageHead("/", "Everr - Observability made simple", m.hero_lead()),
 });
 
 function RouteComponent() {

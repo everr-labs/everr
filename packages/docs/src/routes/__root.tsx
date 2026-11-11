@@ -23,7 +23,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "Everr: know before your customers do",
+        title: "Everr - Observability made simple",
       },
       {
         name: "description",
