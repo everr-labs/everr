@@ -6,16 +6,17 @@ import { ErrorIssueSearchSchema } from "../errors";
 import { ExploreSearchSchema, ExploreSearchShape } from "../filters";
 import { LogsSearchSchema } from "../logs";
 import { MetricsSearchSchema } from "../metrics";
+import { ProfilesSearchParamsSchema } from "../profiles";
 import { getTraceOptions, TraceDetailParamsSchema, TraceSearchParamsSchema } from "../traces";
 import type { AnyRouter } from "@tanstack/react-router";
-import { Bug, ChartSpline, ScrollText, Waypoints } from "lucide-react";
+import { Bug, ChartSpline, Cpu, ScrollText, Waypoints } from "lucide-react";
 import type { NavGroup } from "../shell/nav";
 import { stripDefaults } from "../shell/search-middleware";
 import type { ShellRouterContext } from "./backend";
 
 export type { ExploreBackend, ShellRouterContext } from "./backend";
 
-type ExploreSectionPath = "/metrics" | "/logs" | "/traces" | "/errors";
+type ExploreSectionPath = "/metrics" | "/logs" | "/traces" | "/errors" | "/profiles";
 
 /** The Explore group of the sidebar. */
 export const exploreNavGroup: NavGroup<ExploreSectionPath> = {
@@ -26,6 +27,7 @@ export const exploreNavGroup: NavGroup<ExploreSectionPath> = {
     { title: "Logs", url: "/logs", icon: ScrollText },
     { title: "Traces", url: "/traces", icon: Waypoints },
     { title: "Errors", url: "/errors", icon: Bug },
+    { title: "Profiles", url: "/profiles", icon: Cpu },
   ],
 };
 
@@ -76,6 +78,7 @@ export const metricsRoute = {
 // leaf schemas so the leaf route's validateSearch doesn't strip them.
 const TracesSearchSchema = TraceSearchParamsSchema.extend(ExploreSearchShape);
 const ErrorsSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
+const ProfilesSearchSchema = ProfilesSearchParamsSchema.extend(ExploreSearchShape);
 
 export const tracesRoute = {
   validateSearch: TracesSearchSchema,
@@ -119,4 +122,11 @@ export const errorDetailRoute = {
   search: { middlewares: [stripDefaults(ErrorIssueSearchSchema.parse({}))] },
   staticData: { breadcrumb: "Detail" },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
+};
+
+export const profilesRoute = {
+  validateSearch: ProfilesSearchSchema,
+  search: { middlewares: [stripDefaults(ProfilesSearchSchema.parse({}))] },
+  staticData: { breadcrumb: "Profiles" },
+  head: () => ({ meta: [{ title: "Everr - Profiles" }] }),
 };

@@ -83,6 +83,10 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 					"receivers": []any{"otlp"},
 					"exporters": []any{"chdb"},
 				},
+				"profiles": map[string]any{
+					"receivers": []any{"otlp"},
+					"exporters": []any{"chdb"},
+				},
 			},
 			"telemetry": map[string]any{
 				"metrics": map[string]any{"level": "none"},

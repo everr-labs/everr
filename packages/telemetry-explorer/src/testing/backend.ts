@@ -27,6 +27,8 @@ export function fakeExploreBackend(
       traces: { ...repos?.traces } as Repos["traces"],
       metrics: { ...repos?.metrics } as Repos["metrics"],
       errors: { ...repos?.errors } as Repos["errors"],
+      profiles: { ...repos?.profiles } as Repos["profiles"],
+      runtimeMetrics: { ...repos?.runtimeMetrics } as Repos["runtimeMetrics"],
     },
   };
 }

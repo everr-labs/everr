@@ -1,6 +1,7 @@
 import type { ErrorsRepositoryLike, RelatedSpan } from "../errors";
 import type { LogsExplorerProps, LogsRepositoryLike } from "../logs";
 import type { MetricsRepositoryLike } from "../metrics";
+import type { ProfilesRepositoryLike, RuntimeMetricsRepositoryLike } from "../profiles";
 import type { TracesRepositoryLike } from "../traces";
 import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -27,6 +28,9 @@ export interface ExploreBackend {
     traces: TracesRepositoryLike;
     metrics: MetricsRepositoryLike;
     errors: ErrorsRepositoryLike;
+    profiles: ProfilesRepositoryLike;
+    /** The runtime metrics the Profiles page charts above the flame graph. */
+    runtimeMetrics: RuntimeMetricsRepositoryLike;
   };
   /** Wraps every Explore page, in place of the page while the data source is not ready. */
   Gate?: ComponentType<{ children: ReactNode }>;

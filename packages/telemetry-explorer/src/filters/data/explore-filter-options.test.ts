@@ -25,6 +25,7 @@ function tracesRepo(serviceNames: string[], environments: string[]) {
 }
 
 const noMetrics = { services: async () => [], environments: async () => [] };
+const noProfiles = { listServices: async () => [], attributeValues: async () => [] };
 
 describe("unionServiceOptions", () => {
   it("unions logs + traces services, deduped and sorted", async () => {
@@ -33,6 +34,7 @@ describe("unionServiceOptions", () => {
       tracesRepo(["api", "worker"], []),
       { timeRange, selected: [] },
       noMetrics,
+      noProfiles,
     );
     const fetched = await options.queryFn();
     expect(options.select(fetched)).toEqual(["api", "web", "worker"]);
@@ -47,6 +49,7 @@ describe("unionServiceOptions", () => {
         selected: [],
       },
       noMetrics,
+      noProfiles,
     );
     expect(options.select(await options.queryFn())).toEqual(["api", "web"]);
   });
@@ -60,6 +63,7 @@ describe("unionServiceOptions", () => {
         selected: ["aged-out"],
       },
       noMetrics,
+      noProfiles,
     );
     expect(options.select(await options.queryFn())).toEqual(["aged-out", "api", "web"]);
   });
@@ -77,6 +81,7 @@ describe("with metrics", () => {
       tracesRepo(["api"], []),
       { timeRange, selected: [] },
       metricsRepo,
+      noProfiles,
     );
     expect(options.select(await options.queryFn())).toEqual(["api", "collector", "web"]);
   });
@@ -87,6 +92,7 @@ describe("with metrics", () => {
       tracesRepo([], ["staging"]),
       { timeRange, selected: [] },
       metricsRepo,
+      noProfiles,
     );
     expect(options.select(await options.queryFn())).toEqual(["canary", "production", "staging"]);
   });
@@ -99,7 +105,37 @@ describe("unionEnvironmentOptions", () => {
       tracesRepo([], ["staging", "dev"]),
       { timeRange, selected: [] },
       noMetrics,
+      noProfiles,
     );
     expect(options.select(await options.queryFn())).toEqual(["dev", "production", "staging"]);
+  });
+});
+
+describe("profiles in the shared options", () => {
+  const profilesRepo = {
+    listServices: async () => ["profiler-only"],
+    attributeValues: async () => ["perf"],
+  };
+
+  it("lists a service that only sends profiles", async () => {
+    const options = unionServiceOptions(
+      logsRepo(["web"], []),
+      tracesRepo(["api"], []),
+      { timeRange, selected: [] },
+      noMetrics,
+      profilesRepo,
+    );
+    expect(options.select(await options.queryFn())).toEqual(["api", "profiler-only", "web"]);
+  });
+
+  it("lists an environment that only profiles carry", async () => {
+    const options = unionEnvironmentOptions(
+      logsRepo([], ["prod"]),
+      tracesRepo([], []),
+      { timeRange, selected: [] },
+      noMetrics,
+      profilesRepo,
+    );
+    expect(options.select(await options.queryFn())).toEqual(["perf", "prod"]);
   });
 });

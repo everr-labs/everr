@@ -4,6 +4,7 @@ import {
   TracesSearch,
   toTraceListSearch,
 } from "../../traces";
+import { profiledSpansForTrace, profilesSearchForTrace, SpanProfile } from "../../profiles";
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { withTimeRange } from "@everr/ui/lib/time-range";
@@ -14,6 +15,7 @@ import {
   useParams,
   useSearch,
 } from "@tanstack/react-router";
+import { Cpu } from "lucide-react";
 import { useRouteParam, useRouteSearch, useSearchPatch } from "../../shell/search-io";
 import { useLastOpened } from "../../shell/use-last-opened";
 import { useExploreBackend } from "../backend";
@@ -89,6 +91,23 @@ export function TraceDetailRoute() {
           resetScroll: false,
         })
       }
+      profiles={{
+        profiledSpans: profiledSpansForTrace(repos.profiles),
+        renderLink: (traceWindow, spanId) => (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={
+              <Link to="/profiles" search={profilesSearchForTrace(traceId, traceWindow, spanId)} />
+            }
+          >
+            <Cpu data-icon="inline-start" />
+            {spanId ? "Span profile" : "Profiles"}
+          </Button>
+        ),
+        renderSpanProfile: (target) => <SpanProfile repo={repos.profiles} {...target} />,
+      }}
     />
   );
 }

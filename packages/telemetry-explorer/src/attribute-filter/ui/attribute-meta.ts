@@ -27,6 +27,7 @@ export const ATTRIBUTE_SOURCE_LABELS: Record<AttributeSource, string> = {
   scope: "Scope",
   span: "Span",
   metric: "Metric",
+  sample: "Sample",
 };
 
 // Friendly display names for well-known OTel attribute keys, keyed by raw key.
@@ -51,6 +52,7 @@ const KNOWN_ATTRIBUTE_LABELS: Record<string, string> = {
   "k8s.node.name": "Node",
   "container.name": "Container",
   "http.route": "Route",
+  "everr.root_span.name": "Root span",
   "http.request.method": "HTTP method",
   "db.system": "DB system",
   "rpc.method": "RPC method",

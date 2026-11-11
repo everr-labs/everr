@@ -15,6 +15,7 @@ import { Route as ShellExploreRouteImport } from './routes/_shell._explore'
 import { Route as ShellExploreErrorsRouteImport } from './routes/_shell._explore.errors'
 import { Route as ShellExploreLogsRouteImport } from './routes/_shell._explore.logs'
 import { Route as ShellExploreMetricsRouteImport } from './routes/_shell._explore.metrics'
+import { Route as ShellExploreProfilesRouteImport } from './routes/_shell._explore.profiles'
 import { Route as ShellExploreTracesRouteImport } from './routes/_shell._explore.traces'
 import { Route as ShellExploreErrorsFingerprintRouteImport } from './routes/_shell._explore.errors.$fingerprint'
 import { Route as ShellExploreTracesTraceIdRouteImport } from './routes/_shell._explore.traces.$traceId'
@@ -47,6 +48,11 @@ const ShellExploreMetricsRoute = ShellExploreMetricsRouteImport.update({
   path: '/metrics',
   getParentRoute: () => ShellExploreRoute,
 } as any)
+const ShellExploreProfilesRoute = ShellExploreProfilesRouteImport.update({
+  id: '/profiles',
+  path: '/profiles',
+  getParentRoute: () => ShellExploreRoute,
+} as any)
 const ShellExploreTracesRoute = ShellExploreTracesRouteImport.update({
   id: '/traces',
   path: '/traces',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/errors': typeof ShellExploreErrorsRouteWithChildren
   '/logs': typeof ShellExploreLogsRoute
   '/metrics': typeof ShellExploreMetricsRoute
+  '/profiles': typeof ShellExploreProfilesRoute
   '/traces': typeof ShellExploreTracesRouteWithChildren
   '/errors/$fingerprint': typeof ShellExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof ShellExploreTracesTraceIdRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   '/errors': typeof ShellExploreErrorsRouteWithChildren
   '/logs': typeof ShellExploreLogsRoute
   '/metrics': typeof ShellExploreMetricsRoute
+  '/profiles': typeof ShellExploreProfilesRoute
   '/traces': typeof ShellExploreTracesRouteWithChildren
   '/errors/$fingerprint': typeof ShellExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof ShellExploreTracesTraceIdRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/_shell/_explore/errors': typeof ShellExploreErrorsRouteWithChildren
   '/_shell/_explore/logs': typeof ShellExploreLogsRoute
   '/_shell/_explore/metrics': typeof ShellExploreMetricsRoute
+  '/_shell/_explore/profiles': typeof ShellExploreProfilesRoute
   '/_shell/_explore/traces': typeof ShellExploreTracesRouteWithChildren
   '/_shell/_explore/errors/$fingerprint': typeof ShellExploreErrorsFingerprintRoute
   '/_shell/_explore/traces/$traceId': typeof ShellExploreTracesTraceIdRoute
@@ -102,6 +111,7 @@ export interface FileRouteTypes {
     | '/errors'
     | '/logs'
     | '/metrics'
+    | '/profiles'
     | '/traces'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/errors'
     | '/logs'
     | '/metrics'
+    | '/profiles'
     | '/traces'
     | '/errors/$fingerprint'
     | '/traces/$traceId'
@@ -122,6 +133,7 @@ export interface FileRouteTypes {
     | '/_shell/_explore/errors'
     | '/_shell/_explore/logs'
     | '/_shell/_explore/metrics'
+    | '/_shell/_explore/profiles'
     | '/_shell/_explore/traces'
     | '/_shell/_explore/errors/$fingerprint'
     | '/_shell/_explore/traces/$traceId'
@@ -175,6 +187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellExploreMetricsRouteImport
       parentRoute: typeof ShellExploreRoute
     }
+    '/_shell/_explore/profiles': {
+      id: '/_shell/_explore/profiles'
+      path: '/profiles'
+      fullPath: '/profiles'
+      preLoaderRoute: typeof ShellExploreProfilesRouteImport
+      parentRoute: typeof ShellExploreRoute
+    }
     '/_shell/_explore/traces': {
       id: '/_shell/_explore/traces'
       path: '/traces'
@@ -225,6 +244,7 @@ interface ShellExploreRouteChildren {
   ShellExploreErrorsRoute: typeof ShellExploreErrorsRouteWithChildren
   ShellExploreLogsRoute: typeof ShellExploreLogsRoute
   ShellExploreMetricsRoute: typeof ShellExploreMetricsRoute
+  ShellExploreProfilesRoute: typeof ShellExploreProfilesRoute
   ShellExploreTracesRoute: typeof ShellExploreTracesRouteWithChildren
 }
 
@@ -232,6 +252,7 @@ const ShellExploreRouteChildren: ShellExploreRouteChildren = {
   ShellExploreErrorsRoute: ShellExploreErrorsRouteWithChildren,
   ShellExploreLogsRoute: ShellExploreLogsRoute,
   ShellExploreMetricsRoute: ShellExploreMetricsRoute,
+  ShellExploreProfilesRoute: ShellExploreProfilesRoute,
   ShellExploreTracesRoute: ShellExploreTracesRouteWithChildren,
 }
 

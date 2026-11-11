@@ -9,6 +9,7 @@ const columnFor = (s: AttributeSource) =>
     scope: "ScopeAttributes",
     span: "SpanAttributes",
     metric: "Attributes",
+    sample: "SampleAttributes",
   })[s];
 
 describe("buildAttributeClauses", () => {
