@@ -6,8 +6,8 @@ import { serverLogger } from "#app/telemetry/logger.ts";
 import {
   byMigrationName,
   type ClickHouseMigration,
-  clickHouseMigrationsFrom,
-  sharedClickHouseMigrations,
+  type ClickHouseMigrationTarget,
+  clickHouseMigrationsFor,
   sqlStatements,
 } from "./clickhouse-sql";
 import { clickHouseMigrationHash } from "./clickhouse-statements.ts";
@@ -36,7 +36,7 @@ export function clickHouseMigrationQueryId(name: string, index: number): string 
 }
 
 /**
- * The files to run, in file-name order across directories, given the journal's
+ * The files to run, in file-name order, given the journal's
  * hash per applied file. Applied files are immutable: throws, before anything
  * runs, when one changed.
  */
@@ -83,8 +83,8 @@ export function statementParams(
 }
 
 /**
- * Apply the shared files plus a product's own `productFiles` (an eager raw
- * glob) that the journal does not list. The shared setup file takes the base
+ * Apply the files for `target` that the journal does not list: the untagged
+ * files and the ones tagged for that product. The setup file takes the base
  * users' passwords from the environment; `productParams` are the parameters
  * the product's own files name. ClickHouse DDL is not transactional, so
  * statements must be safe to repeat: a migration that fails partway runs again
@@ -92,7 +92,7 @@ export function statementParams(
  * replicas apply it once.
  */
 export async function migrateClickHouse(
-  productFiles: Record<string, string>,
+  target: ClickHouseMigrationTarget,
   productParams: Params = {},
 ): Promise<void> {
   const { CLICKHOUSE_MIGRATION_USERNAME: username, CLICKHOUSE_MIGRATION_PASSWORD: password } =
@@ -103,7 +103,7 @@ export async function migrateClickHouse(
     });
     return;
   }
-  const migrations = [...sharedClickHouseMigrations, ...clickHouseMigrationsFrom(productFiles)];
+  const migrations = clickHouseMigrationsFor(target);
   const params: Params = {
     collector_rw_password: clickhouseMigrationEnv.CLICKHOUSE_COLLECTOR_PASSWORD,
     app_ro_password: env.CLICKHOUSE_PASSWORD,

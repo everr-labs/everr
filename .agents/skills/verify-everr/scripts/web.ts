@@ -273,9 +273,10 @@ const rowPolicies = async (clickhouse: string) =>
 
 function expectedRowPolicies(product: string): string {
   if (product === "app") return "0";
-  const dir = path.join(REPO, "packages/cloud/clickhouse");
+  const dir = path.join(REPO, "packages/app/clickhouse");
   let n = 0;
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
+  // Cloud applies the untagged files and its own. Only the self-hosted files are left out.
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql") && !/^\d+-self-hosted-/.test(f))) {
     n += readFileSync(path.join(dir, f), "utf8").split("\n").filter((l) => l.startsWith("CREATE ROW POLICY")).length;
   }
   return String(n);

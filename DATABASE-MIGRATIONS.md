@@ -30,14 +30,17 @@ baselines.
 
 ## ClickHouse
 
-| Location                              | Owns                                     | Applied by |
-| ------------------------------------- | ---------------------------------------- | ---------- |
-| `packages/app/clickhouse/shared`      | Databases, base users, tables, functions | App, Cloud |
-| `packages/app/clickhouse/self-hosted` | Installation-wide SQL API role and user  | App        |
-| `packages/cloud/clickhouse`           | Tenant row policies, provisioning grants | Cloud      |
+Every migration is a file in `packages/app/clickhouse`. The tag after the number
+selects the product that applies it. A file without a tag applies to both.
 
-Each application applies its files in file-name order across its directories,
-after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
+| File name                   | Owns                                     | Applied by |
+| --------------------------- | ---------------------------------------- | ---------- |
+| `NN-<name>.sql`             | Databases, base users, tables, functions | App, Cloud |
+| `NN-self-hosted-<name>.sql` | Installation-wide SQL API role and user  | App        |
+| `NN-cloud-<name>.sql`       | Tenant row policies, provisioning grants | Cloud      |
+
+Each application applies its files in file-name order, after its PostgreSQL
+migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
 file name with a SHA-256 of the file as written.
 

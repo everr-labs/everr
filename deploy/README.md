@@ -42,8 +42,7 @@ startup, so an upgrade only needs newer app and collector images, both at the
 same version. ClickHouse runs the stock
 `clickhouse/clickhouse-server` image. The app connects as `default` and applies the
 databases, base users, table definitions, and SQL query limits from
-`packages/app/clickhouse/shared/` and the SQL API access from
-`packages/app/clickhouse/self-hosted/`. It creates `otel`
+`packages/app/clickhouse`, without the files tagged `cloud`. It creates `otel`
 landing tables, `app` read tables, and installation-wide users, without Cloud
 tenant policies or per-organization provisioning privileges.
 The collector starts after the app is healthy, because it reads the landing table

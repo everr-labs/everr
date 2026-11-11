@@ -14,7 +14,9 @@ import {
 import {
   byMigrationName,
   type ClickHouseMigration,
-  sharedClickHouseMigrations,
+  clickHouseMigrations,
+  clickHouseMigrationsFor,
+  clickHouseMigrationTarget,
   sqlStatements,
 } from "./clickhouse-sql";
 
@@ -24,11 +26,39 @@ const applied = (...migrations: ClickHouseMigration[]) =>
 const names = (list: readonly { name: string }[]) => list.map(({ name }) => name);
 
 describe("ClickHouse migrations", () => {
-  it("bundles the shared schema files", () => {
-    expect(names(sharedClickHouseMigrations)).toContain("12-create-alert-events.sql");
+  it("bundles the migration files", () => {
+    expect(names(clickHouseMigrations)).toContain("12-create-alert-events.sql");
   });
 
-  it("orders migrations from every directory by file name and skips applied ones", () => {
+  it("gives a product the untagged files and the ones tagged for it", () => {
+    const files = [
+      migration("00-setup.sql"),
+      migration("15-cloud-role.sql"),
+      migration("15-self-hosted-role.sql"),
+      migration("20-cloud-apply-rls.sql"),
+    ];
+
+    expect(names(clickHouseMigrationsFor("self-hosted", files))).toEqual([
+      "00-setup.sql",
+      "15-self-hosted-role.sql",
+    ]);
+    expect(names(clickHouseMigrationsFor("cloud", files))).toEqual([
+      "00-setup.sql",
+      "15-cloud-role.sql",
+      "20-cloud-apply-rls.sql",
+    ]);
+    // The tag sits right after the number. The word elsewhere is not a tag.
+    expect(clickHouseMigrationTarget("30-create-cloud-usage.sql")).toBeUndefined();
+  });
+
+  it("keeps tenant row policies out of the self-hosted files", () => {
+    const selfHosted = clickHouseMigrationsFor("self-hosted");
+
+    expect(names(selfHosted.filter(({ sql }) => /^CREATE ROW POLICY/m.test(sql)))).toEqual([]);
+    expect(names(clickHouseMigrationsFor("cloud"))).toContain("20-cloud-apply-rls.sql");
+  });
+
+  it("orders migrations by file name and skips applied ones", () => {
     const pending = pendingClickHouseMigrations(
       [migration("03-tables.sql"), migration("15-role.sql"), migration("00-setup.sql")],
       applied(migration("03-tables.sql")),
@@ -74,7 +104,7 @@ describe("ClickHouse migrations", () => {
         /^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?errorFingerprint\b/.test(statement),
       );
     // A change to the function lands in a new file, so compare the latest definition.
-    const latest = [...sharedClickHouseMigrations]
+    const latest = [...clickHouseMigrations]
       .sort(byMigrationName)
       .flatMap(({ sql }) => definitions(sql))
       .at(-1);
@@ -100,9 +130,9 @@ describe("ClickHouse migrations", () => {
   });
 
   it("treats an existing migration file as immutable and a new file as pending", () => {
-    const path = "packages/app/clickhouse/shared/01-setup.sql";
+    const path = "packages/app/clickhouse/01-setup.sql";
     const base = new Map([[path, "-- old\nSELECT 1;"]]);
-    const added = new Map([...base, ["packages/app/clickhouse/shared/02-next.sql", "SELECT 2;"]]);
+    const added = new Map([...base, ["packages/app/clickhouse/02-next.sql", "SELECT 2;"]]);
     const commented = new Map([[path, "-- new\nSELECT 1;"]]);
     const edited = new Map([[path, "SELECT 3;"]]);
     const deleted = new Map<string, string>();
@@ -112,10 +142,8 @@ describe("ClickHouse migrations", () => {
     expect(changedClickHouseMigrationFiles(base, edited)).toEqual([path]);
     expect(changedClickHouseMigrationFiles(base, deleted)).toEqual([path]);
     expect(isClickHouseMigrationPath(path)).toBe(true);
-    expect(isClickHouseMigrationPath("packages/app/clickhouse/shared/repeatable/01.sql")).toBe(
-      false,
-    );
-    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/20-apply-rls.sql")).toBe(true);
+    expect(isClickHouseMigrationPath("packages/app/clickhouse/repeatable/01.sql")).toBe(false);
+    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/20-apply-rls.sql")).toBe(false);
   });
 
   it("binds only the parameters a statement names", () => {

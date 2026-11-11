@@ -1,19 +1,13 @@
 import { createHash } from "node:crypto";
 
-/** Directories whose top-level `*.sql` files are ClickHouse migrations. */
-export const CLICKHOUSE_MIGRATION_DIRS = [
-  "packages/app/clickhouse/shared",
-  "packages/app/clickhouse/self-hosted",
-  "packages/cloud/clickhouse",
-] as const;
+/** The one directory whose top-level `*.sql` files are ClickHouse migrations. */
+export const CLICKHOUSE_MIGRATION_DIR = "packages/app/clickhouse";
 
-/** A path the migration runner loads. Nested files, including `repeatable/`, are not. */
+/** A path the migration runner loads. Nested files are not. */
 export function isClickHouseMigrationPath(path: string): boolean {
-  return CLICKHOUSE_MIGRATION_DIRS.some((dir) => {
-    if (!path.startsWith(`${dir}/`)) return false;
-    const name = path.slice(dir.length + 1);
-    return name.endsWith(".sql") && !name.includes("/");
-  });
+  if (!path.startsWith(`${CLICKHOUSE_MIGRATION_DIR}/`)) return false;
+  const name = path.slice(CLICKHOUSE_MIGRATION_DIR.length + 1);
+  return name.endsWith(".sql") && !name.includes("/");
 }
 
 /**

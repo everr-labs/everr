@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   changedClickHouseMigrationFiles,
-  CLICKHOUSE_MIGRATION_DIRS,
+  CLICKHOUSE_MIGRATION_DIR,
   isClickHouseMigrationPath,
 } from "../src/db/clickhouse-statements.ts";
 
@@ -22,7 +22,7 @@ function git(args: readonly string[]): string {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" });
 }
 
-const listed = git(["ls-tree", "-r", "--name-only", ref, "--", ...CLICKHOUSE_MIGRATION_DIRS]);
+const listed = git(["ls-tree", "-r", "--name-only", ref, "--", CLICKHOUSE_MIGRATION_DIR]);
 const base = new Map<string, string>();
 for (const path of listed.split("\n")) {
   if (!isClickHouseMigrationPath(path)) continue;

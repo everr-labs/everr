@@ -25,7 +25,7 @@ func newTemplate(name, text string) *template.Template {
 // FUNCTIONS
 
 // CreateErrorFingerprintFunction is the DDL registering the errorFingerprint
-// UDF. Must match the latest packages/app/clickhouse/shared migration that defines errorFingerprint
+// UDF. Must match the latest packages/app/clickhouse migration that defines errorFingerprint
 // (packages/app/src/db/clickhouse-migrations.test.ts compares them).
 //
 //go:embed create_error_fingerprint_function.sql

@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Session } from "chdb";
 
-import { sharedClickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
+import { clickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 
 const HISTORY_TABLE = "app.alert_events";
 
-const alertEventsSql = sharedClickHouseMigrations.find(
+const alertEventsSql = clickHouseMigrations.find(
   ({ name }) => name === "12-create-alert-events.sql",
 )?.sql;
 

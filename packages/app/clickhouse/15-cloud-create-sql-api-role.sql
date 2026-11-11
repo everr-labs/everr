@@ -57,7 +57,7 @@ REVOKE SELECT ON system.tables FROM sql_api_role;
 REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 
 -- web_app_admin needs ADMIN OPTION on sql_api_role to grant it to the per-org
--- users it provisions. Granted here (not in 01-grant-provisioning.sql) because the
+-- users it provisions. Granted here (not in 01-cloud-grant-provisioning.sql) because the
 -- role doesn't exist yet at that point in the file order.
 GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
 
