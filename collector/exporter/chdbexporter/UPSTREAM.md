@@ -2,10 +2,10 @@
 
 Source repository: `open-telemetry/opentelemetry-collector-contrib`
 Source package: `exporter/clickhouseexporter`
-Source tag: `v0.160.0`
+Source tag: `v0.165.1`
 
 This package started as a copy of upstream ClickHouse exporter `v0.152.0` and was
-brought up to `v0.160.0`, the version `collector/config/manifest.cloud.yaml` pins for the
+brought up to `v0.160.0` and then `v0.165.1`, the version `collector/config/manifest.cloud.yaml` pins for the
 cloud collector. Keep the two in step: the local store and the cloud read model
 share the explorer queries, so a schema that drifts here shows up as a query that
 works in one place and not the other.

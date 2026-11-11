@@ -154,3 +154,25 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   the map, so a query reads three subcolumns and not the whole column.
 - `localSchemaVersion` is 2. A store built at version 1 holds Map `logs` and
   `traces` tables under the same names, and the rebuild replaces them.
+
+## Merge to v0.165.1
+
+- Took upstream's `database_engine` option, the `tableClusterString` split
+  (no `ON CLUSTER` on table DDL inside a `Replicated` database), the
+  `EventName` bloom filter index on the logs tables, `ZSTD(3)` as the column
+  codec on every table, the connection pool sizing in `buildClickHouseOptions`,
+  the semconv `v1.43.0` import and the generated `documentation.md`. None of it
+  changes what the local store does except the codec and the index.
+- The metrics exporter does not scale a connection pool on start: it writes
+  through the chDB handle, which has no pool. Upstream's
+  `TestMetricsExporterConnectionPoolSize` starts a network client, so it is not
+  carried; `TestBuildClickHouseOptions_ConnectionPoolSize` still covers the
+  shared config code.
+- Upstream's full text search variant of the logs test is not carried, as the
+  logs table keeps bloom filter indexes on every version (see above).
+- `traces_trace_id_ts` still has no `TraceId` skip index; the merge took only
+  the codec change there.
+- The `database_engine` test configs are named `chdb/...` like the rest of
+  `testdata/config.yaml`.
+- `example/docker-compose.yml` keeps its ClickHouse image pin.
+- `localSchemaVersion` is 3: the codec and index change every table's DDL.
