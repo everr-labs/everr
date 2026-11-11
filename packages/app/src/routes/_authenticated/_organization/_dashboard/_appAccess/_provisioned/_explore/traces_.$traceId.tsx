@@ -7,6 +7,13 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { createFileRoute, type ErrorComponentProps, Link } from "@tanstack/react-router";
+import { Cpu } from "lucide-react";
+import {
+  profiledSpansForTrace,
+  profilesSearchForTrace,
+  SpanProfile,
+} from "@everr/telemetry-explorer/profiles";
+import { remoteProfilesRepo } from "#app/data/profiles/remote-repo.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export const Route = createFileRoute(
@@ -57,6 +64,23 @@ function TraceDetailRoute() {
           resetScroll: false,
         })
       }
+      profiles={{
+        profiledSpans: profiledSpansForTrace(remoteProfilesRepo),
+        renderLink: (traceWindow, spanId) => (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={
+              <Link to="/profiles" search={profilesSearchForTrace(traceId, traceWindow, spanId)} />
+            }
+          >
+            <Cpu data-icon="inline-start" />
+            {spanId ? "Span profile" : "Profiles"}
+          </Button>
+        ),
+        renderSpanProfile: (target) => <SpanProfile repo={remoteProfilesRepo} {...target} />,
+      }}
     />
   );
 }

@@ -126,6 +126,7 @@ describe("/api/internal/verify-key", () => {
         tracesDays: 14,
         logsDays: 7,
         metricsDays: 90,
+        profilesDays: 90,
       });
       expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 

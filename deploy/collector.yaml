@@ -75,6 +75,11 @@ processors:
       - action: upsert
         key: everr.retention.days
         from_context: auth.retention_metrics_days
+  resource/public_retention_profiles:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_profiles_days
 
 exporters:
   # Writes into otel.* landing tables (ENGINE = Null). Nothing is stored there;
@@ -132,4 +137,11 @@ service:
       receivers: [otlp/public]
       processors:
         [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_logs]
+      exporters: [clickhouse]
+    # Profiles are an alpha OTLP signal, enabled by the image's
+    # --feature-gates=service.profilesSupport. attributesprocessor cannot
+    # process them; the views read the tenant from the resource only.
+    profiles/public:
+      receivers: [otlp/public]
+      processors: [resource/strip_user_tenant, resource/public_retention_profiles]
       exporters: [clickhouse]

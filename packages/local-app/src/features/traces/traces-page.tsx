@@ -9,8 +9,16 @@ import {
   TracesSearch,
   toTraceListSearch,
 } from "@everr/telemetry-explorer/traces";
+import { Button } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Cpu } from "lucide-react";
+import {
+  ProfilesRepository,
+  profiledSpansForTrace,
+  profilesSearchForTrace,
+  SpanProfile,
+} from "@everr/telemetry-explorer/profiles";
 import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
@@ -24,6 +32,7 @@ export const TracesListSearchSchema = TraceSearchParamsSchema.extend(ExploreSear
 export const TraceDetailSearchSchema = TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
+const localProfilesRepo = new ProfilesRepository(localSqlClient);
 
 export function TracesPage() {
   const search: TraceSearchParams & {
@@ -105,6 +114,26 @@ export function TraceDetailPage() {
               resetScroll: false,
             })
           }
+          profiles={{
+            profiledSpans: profiledSpansForTrace(localProfilesRepo),
+            renderLink: (traceWindow, spanId) => (
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={
+                  <Link
+                    to="/profiles"
+                    search={profilesSearchForTrace(traceId, traceWindow, spanId)}
+                  />
+                }
+              >
+                <Cpu data-icon="inline-start" />
+                {spanId ? "Span profile" : "Profiles"}
+              </Button>
+            ),
+            renderSpanProfile: (target) => <SpanProfile repo={localProfilesRepo} {...target} />,
+          }}
         />
       </LocalTelemetryGate>
     </>

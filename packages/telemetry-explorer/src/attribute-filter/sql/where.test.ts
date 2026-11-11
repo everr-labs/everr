@@ -8,6 +8,7 @@ const columnFor = (s: AttributeSource) =>
     log: "LogAttributes",
     scope: "ScopeAttributes",
     span: "SpanAttributes",
+    sample: "SampleAttributes",
   })[s];
 
 describe("buildAttributeClauses", () => {

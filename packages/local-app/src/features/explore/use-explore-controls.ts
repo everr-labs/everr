@@ -1,7 +1,7 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate } from "@tanstack/react-router";
 
-export function useExploreControls(to: "/logs" | "/errors" | "/traces") {
+export function useExploreControls(to: "/logs" | "/errors" | "/traces" | "/profiles") {
   const navigate = useNavigate();
 
   return {

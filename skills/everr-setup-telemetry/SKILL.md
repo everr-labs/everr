@@ -78,6 +78,7 @@ Read the rules matching the change. Use the contents links in long references to
 | Instrumenting Tauri v2 with Rust and a frontend using IPC                                                   | [Tauri](rules/tauri.md), plus Rust for backend instrumentation                                      |
 | Instrumenting Electron main and renderer processes using IPC                                                | [Electron](rules/electron.md), plus Node.js for main-process instrumentation                        |
 | Instrumenting a Rust service or backend                                                                     | [Rust](rules/rust.md)                                                                               |
+| Adding continuous profiling (CPU, heap) to a service                                                        | [Profiles](rules/profiles.md)                                                                       |
 | Exporting to the selected remote installation or documenting how to activate it in production               | [Remote setup](references/remote-setup.md)                                                          |
 | Verifying any instrumentation change                                                                        | [Validation](rules/validation.md)                                                                   |
 

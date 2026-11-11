@@ -15,7 +15,7 @@ import (
 
 // Bump localSchemaVersion when a table shape changes, alongside the template
 // digest. A version mismatch discards cached local telemetry and rebuilds it.
-const localSchemaVersion = 2
+const localSchemaVersion = 3
 
 // Keep the version marker inside the store so deleting the data also resets it.
 // A missing or empty marker reads as version 0.

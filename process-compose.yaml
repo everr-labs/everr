@@ -106,7 +106,7 @@ processes:
     shutdown: { timeout_seconds: 15 }
 
   collector-app:
-    command: portless run --name ${DEV_APP_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app node "${DEV_ROOT}/scripts/dev/collector.mjs" app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml"
+    command: portless run --name ${DEV_APP_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector app node "${DEV_ROOT}/scripts/dev/collector.mjs" app "${DEV_ROOT}/collector/build/self-hosted/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-app.yaml" --feature-gates=service.profilesSupport
     environment:
       - CLICKHOUSE_DATABASE=otel
       - CLICKHOUSE_USERNAME=collector_rw
@@ -130,7 +130,7 @@ processes:
     shutdown: { timeout_seconds: 15 }
 
   collector-cloud:
-    command: portless run --name ${DEV_CLOUD_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud node "${DEV_ROOT}/scripts/dev/collector.mjs" cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml"
+    command: portless run --name ${DEV_CLOUD_INGEST_NAME} "${DEV_ROOT}/scripts/dev/exec.sh" collector cloud node "${DEV_ROOT}/scripts/dev/collector.mjs" cloud "${DEV_ROOT}/collector/build/cloud/everr-collector" --config "${DEV_ROOT}/scripts/dev/collector-cloud.yaml" --feature-gates=service.profilesSupport
     environment:
       - CLICKHOUSE_DATABASE=otel
       - CLICKHOUSE_USERNAME=collector_rw

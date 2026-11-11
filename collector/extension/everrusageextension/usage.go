@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pipeline"
+	"go.opentelemetry.io/collector/pipeline/xpipeline"
 	"go.uber.org/zap"
 )
 
@@ -108,7 +109,7 @@ func (m *Meter) recordAt(signal pipeline.Signal, bytesByTenant map[string]int64,
 
 func (m *Meter) record(signal pipeline.Signal, bytesByTenant map[string]int64, now func() time.Time) {
 	switch signal {
-	case pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics:
+	case pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics, xpipeline.SignalProfiles:
 	default:
 		m.logger.Error("Unsupported usage signal", zap.String("signal", signal.String()))
 		return

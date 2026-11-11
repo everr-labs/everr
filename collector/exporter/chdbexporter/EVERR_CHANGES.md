@@ -180,3 +180,13 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   `testdata/config.yaml`.
 - `example/docker-compose.yml` keeps its ClickHouse image pin.
 - `localSchemaVersion` stays 2: the table DDL is unchanged.
+
+## Profiles table
+
+- `profiles` orders by `(ServiceName, SampleType, Timestamp)`; upstream orders
+  by `(ServiceName, SampleType, toDateTime(Timestamp))`. It is the cloud key in
+  `packages/app/clickhouse/0013-create-profiles.sql` without `tenant_id`, for the
+  reason given under "Logs and traces sort keys".
+- Its skip indexes are `bloom_filter`, not upstream's `text` indexes, as on the
+  logs table.
+- `localSchemaVersion` is 3: the sort key and indexes change the profiles DDL.
