@@ -1,5 +1,4 @@
 import { Dialog } from "@base-ui/react/dialog";
-import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { cn } from "@everr/ui/lib/utils";
 import { SiDiscord } from "@icons-pack/react-simple-icons";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -41,18 +40,32 @@ function useScrolled() {
 }
 
 // A label that folds away sideways when the header condenses
-function Folding({ open, children }: { open: boolean; children: ReactNode }) {
+function Folding({
+  open,
+  className,
+  children,
+}: {
+  open: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <span
       className={cn(
         "grid transition-[grid-template-columns,opacity] duration-500 ease-out-expo",
         open ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+        className,
       )}
     >
       <span className="overflow-hidden whitespace-nowrap">{children}</span>
     </span>
   );
 }
+
+const ISLAND =
+  "h-12 border-white/12 bg-card/80 pr-1.5 pl-3.5 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] backdrop-blur-xl";
+const ISLAND_ON_PHONES =
+  "max-md:h-12 max-md:border-white/12 max-md:bg-card/80 max-md:pr-1.5 max-md:pl-3.5 max-md:shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] max-md:backdrop-blur-xl";
 
 export function SiteHeader() {
   const { pathname } = useLocation();
@@ -64,8 +77,21 @@ export function SiteHeader() {
       <header id="nd-nav" className="sticky top-0 z-40 h-14">
         <div className="border-b border-border bg-background/90 backdrop-blur-xl">
           <nav aria-label={m.nav_main()} className="flex h-14 items-center gap-2 px-4">
-            <Link to="/" aria-label={m.nav_home()} className={cn("mr-4 rounded-md", focusRing)}>
-              <EverrLogo size="lg" className="text-[26px] [&>svg]:size-7" />
+            <Link
+              to="/"
+              aria-label={m.nav_home()}
+              className={cn(
+                "mr-4 flex items-center rounded-md font-heading text-[26px] font-semibold",
+                focusRing,
+              )}
+            >
+              <Mascot
+                reach={30}
+                eyesClassName="fill-primary"
+                raysClassName="fill-primary"
+                className="size-7 shrink-0"
+              />
+              <span className="pl-0.5">everr</span>
             </Link>
             <DesktopLinks pathname={pathname} />
             <Actions pathname={pathname} compact={false} />
@@ -78,21 +104,21 @@ export function SiteHeader() {
   // Everywhere else the header is part of the page at the top, tall, with the
   // logo at size. Once the page moves it gathers into an island that floats
   // over it. The header keeps its tall box either way, so nothing below shifts.
+  // A phone has no room for the tall one: there it is the island from the start,
+  // and the island keeps the wordmark.
   return (
     <header id="nd-nav" className="pointer-events-none sticky top-0 z-40 h-16 md:h-24">
       <div
         className={cn(
           "mx-auto transition-[max-width,padding] duration-500 ease-out-expo",
-          scrolled ? "max-w-[43rem] px-3 pt-2" : "max-w-7xl px-0 pt-0",
+          scrolled ? "max-w-[43rem] px-3 pt-2" : "max-w-7xl max-md:px-3 max-md:pt-2",
         )}
       >
         <nav
           aria-label={m.nav_main()}
           className={cn(
             "pointer-events-auto flex items-center gap-2 rounded-full border transition-[height,padding,background-color,border-color,box-shadow] duration-500 ease-out-expo",
-            scrolled
-              ? "h-12 border-white/12 bg-card/80 pr-1.5 pl-3.5 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] backdrop-blur-xl"
-              : "h-16 border-transparent px-4 sm:px-6 md:h-24",
+            scrolled ? ISLAND : `md:h-24 md:border-transparent md:px-6 ${ISLAND_ON_PHONES}`,
           )}
         >
           <Link
@@ -100,7 +126,9 @@ export function SiteHeader() {
             aria-label={m.nav_home()}
             className={cn(
               "flex items-center rounded-md font-heading font-semibold transition-[margin,font-size] duration-500 ease-out-expo",
-              scrolled ? "mr-1 text-[26px]" : "mr-5 text-[30px] md:mr-8 md:text-[40px]",
+              scrolled
+                ? "mr-1 text-[26px]"
+                : "max-md:mr-1 max-md:text-[26px] md:mr-8 md:text-[40px]",
               focusRing,
             )}
           >
@@ -111,10 +139,10 @@ export function SiteHeader() {
               raysClassName="fill-primary"
               className={cn(
                 "shrink-0 transition-[width,height] duration-500 ease-out-expo",
-                scrolled ? "size-7" : "size-8 md:size-11",
+                scrolled ? "size-7" : "size-7 md:size-11",
               )}
             />
-            <Folding open={!scrolled}>
+            <Folding open={!scrolled} className="max-md:grid-cols-[1fr] max-md:opacity-100">
               <span className="pl-0.5">everr</span>
             </Folding>
           </Link>
@@ -123,7 +151,7 @@ export function SiteHeader() {
           <div
             className={cn(
               "flex min-w-0 flex-1 items-center gap-2 transition-[translate] duration-500 ease-out-expo",
-              !scrolled && "translate-y-px md:translate-y-[3px]",
+              !scrolled && "md:translate-y-[3px]",
             )}
           >
             <DesktopLinks pathname={pathname} />
