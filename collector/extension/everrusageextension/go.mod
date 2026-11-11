@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/extension/everrusageextension
 
-go 1.26.0
+go 1.26.11
 
 require (
 	github.com/google/uuid v1.6.0

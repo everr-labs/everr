@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/extension/everrapikeyauth
 
-go 1.26.0
+go 1.26.11
 
 require (
 	go.opentelemetry.io/collector/client v1.66.0

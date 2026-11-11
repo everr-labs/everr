@@ -1,6 +1,6 @@
 module github.com/everr-labs/everr/collector/internal/sharedcomponent
 
-go 1.26.0
+go 1.26.11
 
 require (
 	github.com/stretchr/testify v1.12.1
