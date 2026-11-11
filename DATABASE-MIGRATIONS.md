@@ -39,14 +39,17 @@ baselines.
 Each application applies its files in file-name order across its directories,
 after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
-file name with a SHA-256 of its statements. Comments, blank lines, and trailing
-whitespace do not count. Everything inside a quoted string does.
+file name with a SHA-256 of the file as written.
 
-Applied files are immutable. If an applied file's statements change, startup
-fails before running anything. A pull request fails the same check against the
+Applied files are immutable. If an applied file changes at all, a comment
+included, startup fails before running anything. A pull request fails the same check against the
 base branch, so a changed or deleted migration cannot merge. Put every change
 in a new file with the next number, including a new version of a function
 (`CREATE OR REPLACE FUNCTION`).
+
+The runner sends a file one statement at a time: it drops `--` line comments
+and splits on `;`. Do not put `;` or `--` inside a quoted string, and do not
+use block comments.
 
 ClickHouse DDL is not transactional. A file that fails partway runs again from
 its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,

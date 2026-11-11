@@ -8,8 +8,8 @@ import {
 } from "../src/db/clickhouse-statements.ts";
 
 // Fails the pull request when a ClickHouse migration that already exists on
-// the base branch changes its statements or disappears. Comment-only edits
-// pass. New files pass. Startup repeats the check against the journal.
+// the base branch changes or disappears. A comment edit is a change. New
+// files pass. Startup repeats the check against the journal.
 const ref = process.argv[2];
 if (!ref) {
   console.error("Usage: check-clickhouse-migrations.ts <git-ref>");

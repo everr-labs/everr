@@ -52,21 +52,13 @@ describe("ClickHouse migrations", () => {
     ).toThrow("ClickHouse migrations changed after they were applied: 03-tables.sql.");
   });
 
-  it("ignores comment and whitespace changes in an applied file", () => {
+  it("treats a comment edit in an applied file as a change", () => {
     const before = migration("03-tables.sql", "-- v1\nCREATE TABLE a (x UInt8);\n");
-    const after = migration("03-tables.sql", "-- v1, typo fixed\n\nCREATE TABLE a (x UInt8);");
+    const after = migration("03-tables.sql", "-- v1, typo fixed\nCREATE TABLE a (x UInt8);\n");
 
-    expect(pendingClickHouseMigrations([after], applied(before))).toEqual([]);
-  });
-
-  it("ignores comments added or removed inside a statement", () => {
-    const before = migration("03-tables.sql", "CREATE TABLE a (\n  x UInt8, -- old\n  y UInt8\n);");
-    const after = migration(
-      "03-tables.sql",
-      "CREATE TABLE a (\n  -- the key\n  x UInt8,\n\n  y UInt8\n);",
+    expect(() => pendingClickHouseMigrations([after], applied(before))).toThrow(
+      "ClickHouse migrations changed after they were applied: 03-tables.sql.",
     );
-
-    expect(pendingClickHouseMigrations([after], applied(before))).toEqual([]);
   });
 
   it("gives the local collector's chDB the same errorFingerprint as App and Cloud", () => {
@@ -98,31 +90,6 @@ describe("ClickHouse migrations", () => {
     ]);
   });
 
-  it("keeps semicolons and line comments that sit inside quotes", () => {
-    expect(sqlStatements("SELECT 'a; b -- c';\nSELECT 1; -- trailing;\n")).toEqual([
-      "SELECT 'a; b -- c'",
-      "SELECT 1",
-    ]);
-    expect(sqlStatements("SELECT 'it''s; fine';\nSELECT 'a\\';b';")).toEqual([
-      "SELECT 'it''s; fine'",
-      "SELECT 'a\\';b'",
-    ]);
-    expect(sqlStatements("ALTER TABLE t MODIFY COLUMN `a; b` UInt8; SELECT 1;")).toEqual([
-      "ALTER TABLE t MODIFY COLUMN `a; b` UInt8",
-      "SELECT 1",
-    ]);
-    expect(sqlStatements('SELECT "a; b"; SELECT 2;')).toEqual(['SELECT "a; b"', "SELECT 2"]);
-  });
-
-  it("keeps blank lines and trailing whitespace that sit inside quotes", () => {
-    const sql = "SELECT 'a  \n\n  b';  \n\nSELECT 1;";
-
-    expect(sqlStatements(sql)).toEqual(["SELECT 'a  \n\n  b'", "SELECT 1"]);
-    expect(clickHouseMigrationHash(sql)).not.toBe(
-      clickHouseMigrationHash("SELECT 'a\n  b';\nSELECT 1;"),
-    );
-  });
-
   it("gives a statement a stable query id so a retry cancels the previous run", () => {
     expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 0)).toBe(
       "everr-ch-12-create-alert-events_sql-0",
@@ -135,14 +102,13 @@ describe("ClickHouse migrations", () => {
   it("treats an existing migration file as immutable and a new file as pending", () => {
     const path = "packages/app/clickhouse/shared/01-setup.sql";
     const base = new Map([[path, "-- old\nSELECT 1;"]]);
-    const commented = new Map([
-      [path, "-- new\nSELECT 1;"],
-      ["packages/app/clickhouse/shared/02-next.sql", "SELECT 2;"],
-    ]);
+    const added = new Map([...base, ["packages/app/clickhouse/shared/02-next.sql", "SELECT 2;"]]);
+    const commented = new Map([[path, "-- new\nSELECT 1;"]]);
     const edited = new Map([[path, "SELECT 3;"]]);
     const deleted = new Map<string, string>();
 
-    expect(changedClickHouseMigrationFiles(base, commented)).toEqual([]);
+    expect(changedClickHouseMigrationFiles(base, added)).toEqual([]);
+    expect(changedClickHouseMigrationFiles(base, commented)).toEqual([path]);
     expect(changedClickHouseMigrationFiles(base, edited)).toEqual([path]);
     expect(changedClickHouseMigrationFiles(base, deleted)).toEqual([path]);
     expect(isClickHouseMigrationPath(path)).toBe(true);
