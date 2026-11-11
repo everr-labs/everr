@@ -40,7 +40,7 @@ Each application applies its files in file-name order across its directories,
 after its PostgreSQL migrations and under the same lock. Vite bundles the SQL
 into the server, and `default.everr_clickhouse_migrations` records each applied
 file name with a SHA-256 of its statements. Comments, blank lines, and trailing
-whitespace do not count. A semicolon or `--` inside a quoted string does.
+whitespace do not count. Everything inside a quoted string does.
 
 Applied files are immutable. If an applied file's statements change, startup
 fails before running anything. A pull request fails the same check against the

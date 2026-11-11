@@ -45,18 +45,13 @@ export function clickHouseMigrationHash(sql: string): string {
 
 /**
  * A file's statements, without line comments, blank lines, or trailing
- * whitespace. Quotes keep their `;` and `--`: the hash is these statements,
- * so this split is part of an applied file's identity. Block comments are
- * not recognized.
+ * whitespace. A quoted string keeps its text as written, including `;`, `--`,
+ * blank lines, and trailing whitespace: the hash is these statements, so this
+ * split is part of an applied file's identity. Block comments are not
+ * recognized.
  */
 export function sqlStatements(sql: string): string[] {
-  return splitOnSemicolons(
-    stripLineComments(sql)
-      .split("\n")
-      .map((line) => line.trimEnd())
-      .filter(Boolean)
-      .join("\n"),
-  )
+  return splitOnSemicolons(stripCommentsAndBlankLines(sql))
     .map((statement) => statement.trim())
     .filter(Boolean);
 }
@@ -80,26 +75,38 @@ function endOfQuote(sql: string, i: number): number {
   return sql.length;
 }
 
-function stripLineComments(sql: string): string {
-  let out = "";
+/** Works on text outside quotes only. A quoted string can span lines. */
+function stripCommentsAndBlankLines(sql: string): string {
+  const lines: string[] = [];
+  let line = "";
+  const endLine = () => {
+    const kept = line.trimEnd();
+    if (kept) lines.push(kept);
+    line = "";
+  };
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
     if (c === "'" || c === '"' || c === "`") {
       const end = endOfQuote(sql, i);
-      out += sql.slice(i, end);
+      line += sql.slice(i, end);
       i = end - 1;
       continue;
     }
     if (c === "-" && sql[i + 1] === "-") {
       const newline = sql.indexOf("\n", i);
       if (newline === -1) break;
-      out += "\n";
+      endLine();
       i = newline;
       continue;
     }
-    out += c;
+    if (c === "\n") {
+      endLine();
+      continue;
+    }
+    line += c;
   }
-  return out;
+  endLine();
+  return lines.join("\n");
 }
 
 function splitOnSemicolons(sql: string): string[] {

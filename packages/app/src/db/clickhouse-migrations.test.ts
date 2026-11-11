@@ -114,6 +114,15 @@ describe("ClickHouse migrations", () => {
     expect(sqlStatements('SELECT "a; b"; SELECT 2;')).toEqual(['SELECT "a; b"', "SELECT 2"]);
   });
 
+  it("keeps blank lines and trailing whitespace that sit inside quotes", () => {
+    const sql = "SELECT 'a  \n\n  b';  \n\nSELECT 1;";
+
+    expect(sqlStatements(sql)).toEqual(["SELECT 'a  \n\n  b'", "SELECT 1"]);
+    expect(clickHouseMigrationHash(sql)).not.toBe(
+      clickHouseMigrationHash("SELECT 'a\n  b';\nSELECT 1;"),
+    );
+  });
+
   it("gives a statement a stable query id so a retry cancels the previous run", () => {
     expect(clickHouseMigrationQueryId("12-create-alert-events.sql", 0)).toBe(
       "everr-ch-12-create-alert-events_sql-0",
