@@ -2,11 +2,9 @@
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { ZoomOut } from "lucide-react";
 import { useMemo, useState } from "react";
-import { TraceFlamegraph, type ViewRange } from "../../traces/ui/viewer/flamegraph";
 import type { SpanProfileTarget } from "../../traces/ui/viewer/viewer";
 import {
   profileSampleTypesOptions,
@@ -17,21 +15,20 @@ import type { ProfilesRepositoryLike } from "../data/repository";
 import type { ProfileFilterInput } from "../data/schemas";
 import { profilesSearchForTrace } from "../data/trace-link";
 import type { ProfileStacks, SampleTypeOption } from "../data/types";
-import { FRAME_COLOR_KEY, frameId, frameRange, profileFlamegraph } from "../model/flame-layout";
-import {
-  buildFlameTree,
-  findNodeByPath,
-  functionStats,
-  nodePath,
-  stacksUnder,
-} from "../model/flame-tree";
+import { nodePath } from "../model/flame-tree";
 import { formatProfileValue } from "../model/format";
-import { pickSampleType } from "../model/selection";
-import { sourceLink } from "../model/source-link";
+import { pickSampleType, sampleTypeKey } from "../model/selection";
 import { buildSpanTimeline, type SpanTimeline, type TimelineBucket } from "../model/span-timeline";
 import { frameColor } from "./frame-color";
-import { FrameMenuItems, PinnedFunction, useFunctionHighlight } from "./function-highlight";
-import { displayUnit, FrameDetails } from "./profiles-explorer";
+import { PinnedFunction } from "./function-highlight";
+import {
+  displayUnit,
+  FrameDetails,
+  ProfileFlamegraphView,
+  ProfileLoading,
+  ScopedTableCaption,
+  useZoomableProfile,
+} from "./profile-flamegraph";
 import { TopFunctionsTable } from "./top-functions-table";
 
 export type SpanProfileProps = SpanProfileTarget & { repo: ProfilesRepositoryLike };
@@ -61,8 +58,7 @@ export function SpanProfile({
       repo,
       refresh: "off",
       filters,
-      sampleType: sampleType?.sampleType,
-      sampleUnit: sampleType?.sampleUnit,
+      sampleType,
     }),
   );
   const timelineQuery = useQuery(
@@ -90,7 +86,7 @@ export function SpanProfile({
     [timelineQuery.data, spanStartNs, spanDurationNs],
   );
 
-  if (sampleTypesQuery.isPending) return <LoadingState />;
+  if (sampleTypesQuery.isPending) return <ProfileLoading />;
   if (sampleTypesQuery.isError || stacksQuery.isError) {
     const error = sampleTypesQuery.error ?? stacksQuery.error;
     return (
@@ -119,7 +115,7 @@ export function SpanProfile({
               option.sampleUnit === sampleType.sampleUnit;
             return (
               <Button
-                key={`${option.sampleType}\u0000${option.sampleUnit}`}
+                key={sampleTypeKey(option)}
                 variant={active ? "secondary" : "ghost"}
                 size="sm"
                 aria-pressed={active}
@@ -139,12 +135,12 @@ export function SpanProfile({
         />
       ) : null}
       {stacksQuery.isPending ? (
-        <LoadingState />
+        <ProfileLoading />
       ) : stacksQuery.data.stacks.length === 0 ? (
         <NoSamples />
       ) : (
         <SpanFlamegraph
-          key={`${sampleType.sampleType}\u0000${sampleType.sampleUnit}`}
+          key={sampleTypeKey(sampleType)}
           data={stacksQuery.data}
           unit={displayUnit(sampleType)}
         />
@@ -154,34 +150,10 @@ export function SpanProfile({
 }
 
 function SpanFlamegraph({ data, unit }: { data: ProfileStacks; unit: string }) {
-  const tree = useMemo(() => buildFlameTree(data.stacks), [data.stacks]);
-  const flamegraph = useMemo(() => profileFlamegraph(tree), [tree]);
-  const stats = useMemo(() => functionStats(data.stacks), [data.stacks]);
-  const statsByKey = useMemo(() => new Map(stats.map((stat) => [stat.key, stat])), [stats]);
-  const highlight = useFunctionHighlight(flamegraph.nodes);
   const [zoomPath, setZoomPath] = useState<string[]>([]);
-  const [pannedRange, setPannedRange] = useState<ViewRange | null>(null);
-  const focus = findNodeByPath(tree.root, zoomPath);
-  const range = pannedRange ?? frameRange(focus);
+  const profile = useZoomableProfile(data, zoomPath, setZoomPath);
+  const { tree, highlight, focus, zoomTo, tablePath } = profile;
   const total = tree.root.total;
-  const zoomed = focus.parent !== undefined || pannedRange !== null;
-  // Zoomed into a frame, the table lists only the functions under it.
-  const tablePath = useMemo(() => (focus.parent ? nodePath(focus) : undefined), [focus]);
-  const tableStats = useMemo(
-    () => (tablePath ? functionStats(stacksUnder(data.stacks, tablePath)) : stats),
-    [data.stacks, stats, tablePath],
-  );
-
-  const zoomTo = (path: string[]) => {
-    setPannedRange(null);
-    setZoomPath(path);
-  };
-  const sourceUrlOf = (key: string) => {
-    const stat = statsByKey.get(key);
-    return stat && stat.source !== undefined
-      ? sourceLink(data.sources?.[stat.source], stat.file, stat.line)
-      : undefined;
-  };
 
   return (
     <>
@@ -193,7 +165,7 @@ function SpanFlamegraph({ data, unit }: { data: ProfileStacks; unit: string }) {
           {highlight.pinned ? (
             <PinnedFunction fn={highlight.pinned} onClear={highlight.clearPin} />
           ) : null}
-          {zoomed ? (
+          {profile.zoomed ? (
             <Button variant="outline" size="sm" onClick={() => zoomTo([])}>
               <ZoomOut data-icon="inline-start" />
               Reset zoom
@@ -202,57 +174,29 @@ function SpanFlamegraph({ data, unit }: { data: ProfileStacks; unit: string }) {
         </span>
       </div>
       <div className="min-h-40 flex-[3]">
-        <TraceFlamegraph
-          model={flamegraph}
-          layout={flamegraph.layout}
-          selectedSpanId={focus.parent ? frameId(focus) : undefined}
-          {...highlight.flamegraph}
-          colorBy={FRAME_COLOR_KEY}
-          range={range}
-          onRangeChange={setPannedRange}
-          onSelect={(id) => {
-            const node = flamegraph.nodes.get(id);
-            if (node) zoomTo(nodePath(node));
-          }}
-          renderContextMenu={(id) => {
-            const node = flamegraph.nodes.get(id);
-            if (!node) return null;
-            return (
-              <FrameMenuItems
-                node={node}
-                pinned={highlight.pinned?.key === node.key}
-                sourceUrl={sourceUrlOf(node.key)}
-                onZoom={() => zoomTo(nodePath(node))}
-                onResetZoom={() => zoomTo([])}
-                onTogglePin={() =>
-                  highlight.togglePin({ key: node.key, name: node.name, file: node.file })
-                }
-              />
-            );
-          }}
-          formatValue={(value) => formatProfileValue(value, unit)}
-          timeAxis={false}
-          renderHover={(span) => {
-            const node = flamegraph.nodes.get(span.spanId);
-            return node ? <FrameDetails node={node} unit={unit} total={total} /> : null;
-          }}
+        <ProfileFlamegraphView
+          flamegraph={profile.flamegraph}
+          unit={unit}
+          selected={focus}
+          highlight={highlight.flamegraph}
+          range={profile.range}
+          onRangeChange={profile.setPannedRange}
+          onSelect={(node) => zoomTo(nodePath(node))}
+          renderContextMenu={(node) => profile.renderFrameMenu(node)}
+          renderHover={(node) => <FrameDetails frame={node} unit={unit} total={total} />}
           ariaLabel="Span profile flame graph. Click a frame to zoom into it, pinch to zoom, drag to pan, double-click to reset."
         />
       </div>
       <div className="min-h-0 flex-[2] overflow-y-auto border-t">
-        {tablePath ? (
-          <p className="text-muted-foreground border-b px-3 py-1.5 text-xs">
-            Functions under <span className="text-foreground font-mono">{focus.name}</span>
-          </p>
-        ) : null}
+        {tablePath ? <ScopedTableCaption frame={focus} /> : null}
         <TopFunctionsTable
-          stats={tableStats}
+          stats={profile.tableStats}
           unit={unit}
-          total={tablePath ? focus.total : total}
+          total={profile.tableTotal}
           {...highlight.table}
           activateHint="Highlight in the flame graph"
           onActivate={highlight.togglePin}
-          sourceUrlOf={sourceUrlOf}
+          sourceUrlOf={profile.sourceUrlOf}
         />
       </div>
     </>
@@ -362,16 +306,6 @@ function TimelineHover({
           ) : null}
         </ol>
       ) : null}
-    </div>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="flex flex-col gap-1 p-3" aria-busy="true">
-      {[100, 88, 72, 52, 30].map((width) => (
-        <Skeleton key={width} className="h-4" style={{ width: `${width}%` }} />
-      ))}
     </div>
   );
 }

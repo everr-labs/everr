@@ -44,7 +44,7 @@ export const PROFILE_HISTOGRAM_BUCKETS = 60;
 
 export const PROFILE_EXAMPLE_TRACE_LIMIT = 20;
 
-export const AttributeFilterArraySchema = attributesField(PROFILES_ATTRIBUTE_SOURCES);
+const AttributeFilterArraySchema = attributesField(PROFILES_ATTRIBUTE_SOURCES);
 
 // Every query on the page narrows by the same filters, so a flame graph, its
 // sample types and its histogram always describe the same samples.

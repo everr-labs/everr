@@ -17,3 +17,8 @@ export function pickSampleType(
   }
   return options[0];
 }
+
+/** Tells sample types apart, for React keys and select values. */
+export function sampleTypeKey(option: SampleTypeOption): string {
+  return `${option.sampleType}\u0000${option.sampleUnit}`;
+}

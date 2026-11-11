@@ -1,7 +1,8 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, skipToken } from "@tanstack/react-query";
 import type { ProfilesRepositoryLike } from "./repository";
 import type { ProfileFilterInput, ProfileSpanTimelineInput } from "./schemas";
+import type { SampleTypeOption } from "./types";
 
 type FilterInput = {
   repo: ProfilesRepositoryLike;
@@ -10,11 +11,11 @@ type FilterInput = {
 };
 
 type SampleTypeInput = FilterInput & {
-  sampleType: string | undefined;
-  sampleUnit: string | undefined;
+  /** The queries wait while it is absent. */
+  sampleType: SampleTypeOption | undefined;
 };
 
-function refetchInterval(refresh: string) {
+export function refetchInterval(refresh: string) {
   const refreshMs = getRefreshIntervalMs(refresh);
   return refreshMs && refreshMs > 0 ? refreshMs : false;
 }
@@ -33,14 +34,11 @@ export function profileStacksOptions({
   refresh,
   filters,
   sampleType,
-  sampleUnit,
   enabled = true,
 }: SampleTypeInput & { enabled?: boolean }) {
   return queryOptions({
-    queryKey: ["profiles", "stacks", filters, sampleType, sampleUnit] as const,
-    queryFn: () =>
-      repo.stacks({ ...filters, sampleType: sampleType ?? "", sampleUnit: sampleUnit ?? "" }),
-    enabled: enabled && sampleType !== undefined && sampleUnit !== undefined,
+    queryKey: ["profiles", "stacks", filters, sampleType] as const,
+    queryFn: enabled && sampleType ? () => repo.stacks({ ...filters, ...sampleType }) : skipToken,
     refetchInterval: refetchInterval(refresh),
   });
 }
@@ -50,14 +48,12 @@ export function profileHistogramOptions({
   refresh,
   filters,
   sampleType,
-  sampleUnit,
   enabled,
 }: SampleTypeInput & { enabled: boolean }) {
   return queryOptions({
-    queryKey: ["profiles", "histogram", filters, sampleType, sampleUnit] as const,
-    queryFn: () =>
-      repo.histogram({ ...filters, sampleType: sampleType ?? "", sampleUnit: sampleUnit ?? "" }),
-    enabled: enabled && sampleType !== undefined && sampleUnit !== undefined,
+    queryKey: ["profiles", "histogram", filters, sampleType] as const,
+    queryFn:
+      enabled && sampleType ? () => repo.histogram({ ...filters, ...sampleType }) : skipToken,
     refetchInterval: refetchInterval(refresh),
     placeholderData: keepPreviousData,
   });
@@ -99,26 +95,14 @@ export function profileExampleTracesOptions({
   refresh,
   filters,
   sampleType,
-  sampleUnit,
   functionName,
 }: SampleTypeInput & { functionName: string | undefined }) {
   return queryOptions({
-    queryKey: [
-      "profiles",
-      "example-traces",
-      filters,
-      sampleType,
-      sampleUnit,
-      functionName,
-    ] as const,
-    queryFn: () =>
-      repo.exampleTraces({
-        ...filters,
-        sampleType: sampleType ?? "",
-        sampleUnit: sampleUnit ?? "",
-        functionName: functionName ?? "",
-      }),
-    enabled: sampleType !== undefined && sampleUnit !== undefined && functionName !== undefined,
+    queryKey: ["profiles", "example-traces", filters, sampleType, functionName] as const,
+    queryFn:
+      sampleType && functionName !== undefined
+        ? () => repo.exampleTraces({ ...filters, ...sampleType, functionName })
+        : skipToken,
     refetchInterval: refetchInterval(refresh),
   });
 }

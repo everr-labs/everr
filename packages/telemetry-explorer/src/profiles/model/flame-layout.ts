@@ -1,7 +1,6 @@
 import type { VisualLayout } from "../../traces/ui/viewer/rendering/compute-visual-layout";
 import type { FlamegraphSpan } from "../../traces/ui/viewer/rendering/types";
-import { framePackage } from "../ui/frame-color";
-import { type FlameNode, type FlameTree, nodePath } from "./flame-tree";
+import type { FlameNode, FlameTree } from "./flame-tree";
 
 /** The attribute the trace flame graph's `colorBy` reads to color a frame. */
 export const FRAME_COLOR_KEY = "everr.profile.frame.package";
@@ -13,9 +12,22 @@ export type ProfileFlamegraph = {
   nodes: ReadonlyMap<string, FlameNode>;
 };
 
-/** Ids are the frame path, so a selection survives a refetch of the same stacks. */
-export function frameId(node: FlameNode): string {
-  return ["frame", ...nodePath(node)].join("\u0001");
+/**
+ * The package or class part of a function name, so frames of one module share a
+ * color: `github.com/acme/api.(*Server).Serve` and `runtime.mallocgc` (Go),
+ * `com.acme.Server.serve` (JVM), `tokio::runtime::park` (Rust, C++).
+ */
+export function framePackage(name: string): string {
+  const base = name.split("(")[0] ?? name;
+  const slash = base.lastIndexOf("/");
+  if (slash >= 0) {
+    const dot = base.indexOf(".", slash);
+    return dot >= 0 ? base.slice(0, dot) : base;
+  }
+  const scope = base.lastIndexOf("::");
+  if (scope > 0) return base.slice(0, scope);
+  const dot = base.lastIndexOf(".");
+  return dot > 0 ? base.slice(0, dot) : base;
 }
 
 /**
@@ -36,7 +48,7 @@ export function profileFlamegraph(
   const nodes = new Map<string, FlameNode>();
 
   const visit = (node: FlameNode, parentId: string) => {
-    const id = frameId(node);
+    const { id } = node;
     nodes.set(id, node);
     const row = inverted ? tree.maxDepth - node.depth : node.depth;
     spanToVisualRow[id] = row;

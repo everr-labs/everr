@@ -22,7 +22,7 @@ export type Sandwich = {
  * and both roots weigh the function's total.
  */
 export function buildSandwich(stacks: readonly ProfileStack[], fn: FunctionRef): Sandwich {
-  const key = frameKey({ ...fn, line: 0 });
+  const key = frameKey(fn);
   const callerStacks: ProfileStack[] = [];
   const calleeStacks: ProfileStack[] = [];
   let line: number | undefined;

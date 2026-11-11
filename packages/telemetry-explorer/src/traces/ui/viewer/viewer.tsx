@@ -317,8 +317,8 @@ function TraceViewer({
             </span>
           </div>
         </div>
-        {profiles && profiledSpans?.size ? (
-          <div className="flex shrink-0 items-center gap-2">{profiles.renderLink(timeWindow)}</div>
+        {profiledSpans?.size ? (
+          <div className="flex shrink-0 items-center gap-2">{profiles?.renderLink(timeWindow)}</div>
         ) : null}
       </div>
       {model.missingParents > 0 && (
@@ -548,13 +548,11 @@ function TraceViewer({
                 node={selected}
                 durationMs={model.durationMs}
                 actions={
-                  profiles && selectedProfiled
-                    ? profiles.renderLink(timeWindow, selected.spanId)
-                    : undefined
+                  selectedProfiled ? profiles?.renderLink(timeWindow, selected.spanId) : undefined
                 }
                 profile={
-                  profiles && selectedProfiled
-                    ? profiles.renderSpanProfile({
+                  selectedProfiled
+                    ? profiles?.renderSpanProfile({
                         traceId,
                         spanId: selected.spanId,
                         window: timeWindow,

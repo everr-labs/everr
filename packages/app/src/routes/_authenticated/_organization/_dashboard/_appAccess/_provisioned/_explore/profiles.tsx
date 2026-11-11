@@ -38,22 +38,7 @@ function ProfilesPage() {
       runtimeRepo={remoteRuntimeMetricsRepo}
       timeRange={timeRange}
       refresh={search.refresh ?? "off"}
-      search={{
-        service,
-        q: search.q,
-        sampleType: search.sampleType,
-        sampleUnit: search.sampleUnit,
-        traceId: search.traceId,
-        spanId: search.spanId,
-        attributes: search.attributes,
-        showVolume: search.showVolume,
-        compare: search.compare,
-        baseFrom: search.baseFrom,
-        baseTo: search.baseTo,
-        version: search.version,
-        baseVersion: search.baseVersion,
-        fn: search.fn,
-      }}
+      search={{ ...search, service }}
       environment={environment}
       persistentFilters={<ExplorePersistentFilters />}
       onSearchChange={(patch) =>

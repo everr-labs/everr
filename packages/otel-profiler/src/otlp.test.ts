@@ -129,6 +129,65 @@ describe("pprofToOtlp", () => {
   });
 });
 
+describe("pprofToOtlp merging", () => {
+  const OTHER_SPAN = "2122232425262728";
+
+  // The wall profiler records each tick inside a span as its own sample.
+  function ticks() {
+    const strings = new StringTable();
+    const s = (value: string) => strings.dedup(value);
+    const tick = (spanId: string, at: bigint) => ({
+      locationId: [1],
+      value: [10_000_000],
+      label: [
+        { key: s(TRACE_ID_LABEL), str: s(TRACE_ID) },
+        { key: s(SPAN_ID_LABEL), str: s(spanId) },
+        { key: s(TIMESTAMP_LABEL), num: at / 1000n },
+      ],
+    });
+    return new Profile({
+      sampleType: [{ type: s("wall"), unit: s("nanoseconds") }],
+      function: [{ id: 1, name: s("main"), filename: s("/app/server.ts") }],
+      location: [{ id: 1, line: [{ functionId: 1, line: 3 }] }],
+      sample: [
+        tick(SPAN_ID, SAMPLED_AT),
+        tick(OTHER_SPAN, SAMPLED_AT + 5_000_000n),
+        tick(SPAN_ID, SAMPLED_AT + 10_000_000n),
+        { locationId: [1], value: [10_000_000] },
+        { locationId: [1], value: [10_000_000] },
+      ],
+      stringTable: strings,
+      timeNanos: 2_000_000_000n,
+      durationNanos: 1_000_000_000n,
+      period: 10_000_000,
+    });
+  }
+
+  const [wall] = ExportProfilesServiceRequest.decode(
+    pprofToOtlp([{ profile: ticks(), sampleTypes: ["wall"] }], {}).encode(),
+  ).resourceProfiles[0].scopeProfiles[0].profiles;
+  const summary = wall.samples.map((sample) => ({
+    link: sample.linkIndex,
+    values: sample.values.map(Number),
+    timestamps: sample.timestampsUnixNano.map(BigInt),
+  }));
+
+  it("folds repeated ticks of a stack in one span into one sample, one value per timestamp", () => {
+    expect(summary[0]).toEqual({
+      link: summary[0].link,
+      values: [10_000_000, 10_000_000],
+      timestamps: [SAMPLED_AT, SAMPLED_AT + 10_000_000n],
+    });
+  });
+
+  it("keeps each span's ticks apart and adds up untimed samples", () => {
+    expect(summary).toHaveLength(3);
+    expect(summary[1].link).not.toBe(summary[0].link);
+    expect(summary[1].timestamps).toEqual([SAMPLED_AT + 5_000_000n]);
+    expect(summary[2]).toEqual({ link: 0, values: [20_000_000], timestamps: [] });
+  });
+});
+
 describe("relativeFileName", () => {
   it("makes paths inside the source root relative to it", () => {
     expect(relativeFileName("/app/packages/app/src/router.tsx", "/app")).toBe(

@@ -2,14 +2,14 @@ import { Button } from "@everr/ui/components/button";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
-import { TraceFlamegraph, type ViewRange } from "../../traces/ui/viewer/flamegraph";
-import type { FlamegraphSpan } from "../../traces/ui/viewer/rendering/types";
+import type { ViewRange } from "../../traces/ui/viewer/flamegraph";
 import type { ProfileExampleTrace } from "../data/types";
-import { diffColor, diffFlameTrees, type FrameDiff, maxAbsDelta } from "../model/diff";
-import { FRAME_COLOR_KEY, frameRange, profileFlamegraph } from "../model/flame-layout";
+import { diffFlameTrees, type FrameDiff } from "../model/diff";
+import { frameRange, profileFlamegraph } from "../model/flame-layout";
 import type { FlameNode, FlameTree, FunctionStat } from "../model/flame-tree";
 import { formatPercent, formatProfileValue } from "../model/format";
 import type { FunctionRef, Sandwich } from "../model/sandwich";
+import { FrameDetails, ProfileFlamegraphView } from "./profile-flamegraph";
 
 /** Renders a link to a trace, opened on one of its spans; the host owns its routes. */
 export type RenderProfileTraceLink = (input: {
@@ -24,8 +24,6 @@ export type ExampleTracesState = {
   isPending: boolean;
   isError: boolean;
 };
-
-const NO_MATCHES: ReadonlySet<string> = new Set();
 
 /**
  * One function's callers above it and callees below it, both rooted at the
@@ -120,14 +118,6 @@ function SandwichPane({
     () => (baseline ? diffFlameTrees(tree, baseline) : undefined),
     [tree, baseline],
   );
-  const colorOf = useMemo(() => {
-    if (!diffs) return undefined;
-    const scale = maxAbsDelta(diffs);
-    return (span: FlamegraphSpan) => {
-      const diff = diffs.get(span.spanId);
-      return diff ? diffColor(diff.delta, scale) : undefined;
-    };
-  }, [diffs]);
   const [pannedRange, setPannedRange] = useState<ViewRange | null>(null);
 
   return (
@@ -141,25 +131,16 @@ function SandwichPane({
         </p>
       ) : (
         <div className="min-h-0 flex-1">
-          <TraceFlamegraph
-            model={flamegraph}
-            layout={flamegraph.layout}
-            matchingIds={NO_MATCHES}
-            filterActive={false}
-            colorBy={FRAME_COLOR_KEY}
+          <ProfileFlamegraphView
+            flamegraph={flamegraph}
+            unit={unit}
+            diffs={diffs}
             range={pannedRange ?? frameRange(tree.root)}
             onRangeChange={setPannedRange}
-            onSelect={(id) => {
-              const node = flamegraph.nodes.get(id);
-              if (node?.parent) onSelect({ name: node.name, file: node.file });
+            onSelect={(node) => {
+              if (node.parent) onSelect({ name: node.name, file: node.file });
             }}
-            formatValue={(value) => formatProfileValue(value, unit)}
-            colorOf={colorOf}
-            timeAxis={false}
-            renderHover={(span) => {
-              const node = flamegraph.nodes.get(span.spanId);
-              return node ? renderHover(node, diffs?.get(span.spanId)) : null;
-            }}
+            renderHover={renderHover}
             ariaLabel={`${label} of the function. Click a frame to show its callers and callees.`}
           />
         </div>
@@ -187,28 +168,19 @@ export function FunctionPanel({
   exampleTraces: ExampleTracesState;
   renderTraceLink: RenderProfileTraceLink | undefined;
 }) {
-  const line = stat?.line ?? 0;
-  const location = fn.file ? (line > 0 ? `${fn.file}:${line}` : fn.file) : "";
   return (
     <aside className="flex min-h-0 flex-col overflow-y-auto border-t text-xs lg:w-80 lg:shrink-0 lg:border-t-0 lg:border-l">
       <div className="border-b px-3 py-2">
-        <div className="font-mono font-medium break-all">{fn.name}</div>
-        {location ? (
-          <div className="text-muted-foreground mt-1 font-mono break-all">{location}</div>
-        ) : null}
         {stat ? (
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 tabular-nums">
-            <dt className="text-muted-foreground">Total</dt>
-            <dd>
-              {formatProfileValue(stat.total, unit)} ({formatPercent(stat.total, total)})
-            </dd>
-            <dt className="text-muted-foreground">Self</dt>
-            <dd>
-              {formatProfileValue(stat.self, unit)} ({formatPercent(stat.self, total)})
-            </dd>
-          </dl>
+          <FrameDetails frame={stat} unit={unit} total={total} />
         ) : (
-          <p className="text-muted-foreground mt-2">Not in the samples of this range.</p>
+          <>
+            <div className="font-mono font-medium break-all">{fn.name}</div>
+            {fn.file ? (
+              <div className="text-muted-foreground mt-1 font-mono break-all">{fn.file}</div>
+            ) : null}
+            <p className="text-muted-foreground mt-2">Not in the samples of this range.</p>
+          </>
         )}
         {sourceUrl ? (
           <a

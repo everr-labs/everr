@@ -19,16 +19,16 @@ function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-function time(date: Date) {
+export function bucketTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 // Tooltip heading: date + local time range, computed from the bucket's
 // timestamps so it always reflects the viewer's timezone.
-function bucketTitle(bucket: HistogramBucket) {
+export function bucketTitle(bucket: HistogramBucket) {
   const start = new Date(bucket.timestamp);
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;
+  return `${day} · ${bucketTime(start)} – ${bucketTime(new Date(bucket.endTimestamp))}`;
 }
 
 /**
@@ -65,7 +65,7 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   const axes = useMemo(() => ({ left: { format: formatValue, hidden: true } }), [formatValue]);
   const chart = useMemo(
     () => ({
-      labels: buckets.map((bucket) => time(new Date(bucket.timestamp))),
+      labels: buckets.map((bucket) => bucketTime(new Date(bucket.timestamp))),
       titles: buckets.map(bucketTitle),
       series: stack.map(({ key, label, color }): ChartSeries => ({
         id: key,

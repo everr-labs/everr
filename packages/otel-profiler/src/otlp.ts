@@ -144,8 +144,7 @@ class Dictionary {
               )
             : 0,
         attributeIndices,
-        // One sample per hit inside a span, so one timestamp per value.
-        timestampsUnixNano: timestamp ? [timestamp] : [],
+        timestamp,
         values: sample.value,
       };
     });
@@ -161,9 +160,7 @@ class Dictionary {
     return profile.sampleType.flatMap((valueType, column) => {
       const type = text(valueType.type);
       if (!sampleTypes.includes(type)) return [];
-      const typed = samples.flatMap(({ values, ...sample }) =>
-        Number(values[column]) > 0 ? [{ ...sample, values: [values[column]] }] : [],
-      );
+      const typed = mergeSamples(samples, column);
       if (typed.length === 0) return [];
       return [
         {
@@ -181,6 +178,48 @@ class Dictionary {
       ];
     });
   }
+}
+
+type ConvertedSample = {
+  stackIndex: number;
+  linkIndex: number;
+  attributeIndices: number[];
+  timestamp: bigint | undefined;
+  values: Profile["sample"][number]["value"];
+};
+
+type MergedSample = Omit<ConvertedSample, "timestamp" | "values"> & {
+  values: (number | bigint)[];
+  timestampsUnixNano: bigint[];
+};
+
+/**
+ * One OTLP sample per stack, span and labels. The wall profiler records each
+ * tick inside a span as its own pprof sample, so a stack that stays on CPU for
+ * a request repeats once per tick; folding them keeps one row per stack and
+ * span, with one value per timestamp. Untimed samples add up into one value.
+ */
+function mergeSamples(samples: readonly ConvertedSample[], column: number): MergedSample[] {
+  const merged = new Map<string, MergedSample>();
+  for (const { timestamp, values, ...sample } of samples) {
+    const value = values[column];
+    if (!(Number(value) > 0)) continue;
+    const key = `${sample.stackIndex}|${sample.linkIndex}|${sample.attributeIndices.join(",")}|${timestamp === undefined ? "u" : "t"}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        ...sample,
+        values: [value],
+        timestampsUnixNano: timestamp === undefined ? [] : [timestamp],
+      });
+    } else if (timestamp === undefined) {
+      existing.values[0] = BigInt(existing.values[0]) + BigInt(value);
+    } else {
+      existing.values.push(value);
+      existing.timestampsUnixNano.push(timestamp);
+    }
+  }
+  return [...merged.values()];
 }
 
 class Interner<T> {

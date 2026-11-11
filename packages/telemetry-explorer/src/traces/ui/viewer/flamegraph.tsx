@@ -116,9 +116,13 @@ export function TraceFlamegraph({
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    return [...spanRectsRef.current]
-      .reverse()
-      .find((s) => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height);
+    const rects = spanRectsRef.current;
+    // The last drawn bar is on top.
+    for (let i = rects.length - 1; i >= 0; i--) {
+      const s = rects[i];
+      if (x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height) return s;
+    }
+    return undefined;
   };
   const drawFlamegraph = useFlamegraphDraw({
     canvasRef,

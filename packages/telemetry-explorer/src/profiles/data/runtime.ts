@@ -1,13 +1,14 @@
-import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { attributesField } from "../../attribute-filter/schemas";
-import { normalizeTimestampToUtc } from "../../logs/util/timestamp";
 import { validateTableName } from "../../sql/table";
+import { bucketMs, bucketStarts } from "./buckets";
 import type { SqlClient } from "./client";
+import { refetchInterval } from "./options";
 import { PROFILE_HISTOGRAM_BUCKETS } from "./schemas";
+import { attributeClause } from "./where";
 
 /** The `v8js.gc.type` values semconv defines, in stack order. */
 export const GC_TYPES = ["minor", "major", "incremental", "weakcb"] as const;
@@ -52,8 +53,8 @@ const DELTA = 1;
  */
 const CUMULATIVE_LOOKBACK_SECONDS = 300;
 
-export type DelayRow = { bucket: string; p99: number | null; max: number | null };
-export type GcRow = { bucket: string; gcType: string; seconds: number };
+type DelayRow = { bucket: string; p99: number | null; max: number | null };
+type GcRow = { bucket: string; gcType: string; seconds: number };
 
 export class RuntimeMetricsRepository {
   private readonly gaugeTable: string;
@@ -144,6 +145,8 @@ export class RuntimeMetricsRepository {
 
 export type RuntimeMetricsRepositoryLike = Pick<RuntimeMetricsRepository, "runtime">;
 
+// Metrics carry the same `ResourceAttributes` map as profiles, and the input
+// accepts only resource filters.
 function resourceWhere(
   services: string[],
   attributes: NonNullable<RuntimeMetricsInput["attributes"]>,
@@ -155,24 +158,8 @@ function resourceWhere(
     params.services = services;
   }
   attributes.forEach((filter, index) => {
-    if (filter.source !== "resource") return;
-    const key = `attrKey${index}`;
-    const vals = `attrVals${index}`;
-    const exists = `mapContains(ResourceAttributes, {${key}:String})`;
-    const value = `ResourceAttributes[{${key}:String}]`;
-    const values = filter.values ?? [];
-    if ((filter.op === "in" || filter.op === "not_in") && values.length === 0) return;
-    params[key] = filter.key;
-    if (filter.op === "in" || filter.op === "not_in") params[vals] = values;
-    clauses.push(
-      filter.op === "in"
-        ? `${exists} AND ${value} IN {${vals}:Array(String)}`
-        : filter.op === "not_in"
-          ? `(${exists} AND ${value} NOT IN {${vals}:Array(String)})`
-          : filter.op === "exists"
-            ? exists
-            : `NOT ${exists}`,
-    );
+    const clause = attributeClause(filter, index, params);
+    if (clause) clauses.push(clause);
   });
   return {
     clause: clauses.map((clause) => `\n          AND ${clause}`).join(""),
@@ -187,17 +174,13 @@ function isGcType(value: string): value is GcType {
 }
 
 /** Every bucket of the range, aligned with the samples histogram, gaps kept. */
-export function fillRuntimeBuckets(
+function fillRuntimeBuckets(
   delayRows: DelayRow[],
   gcRows: GcRow[],
   fromDate: Date,
   toDate: Date,
   intervalSeconds: number,
 ): RuntimeMetrics {
-  const intervalMs = intervalSeconds * 1000;
-  const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
-  const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
-  const bucketMs = (bucket: string) => new Date(normalizeTimestampToUtc(bucket)).getTime();
   const nullableNumber = (value: number | string | null) => (value === null ? null : Number(value));
 
   const delays = new Map(delayRows.map((row) => [bucketMs(row.bucket), row]));
@@ -211,17 +194,18 @@ export function fillRuntimeBuckets(
     gc.set(ms, entry);
   }
 
-  const buckets: RuntimeMetricsBucket[] = [];
-  for (let ms = startMs; ms <= endMs; ms += intervalMs) {
-    const delay = delays.get(ms);
-    buckets.push({
-      timestamp: new Date(ms).toISOString(),
-      endTimestamp: new Date(ms + intervalMs).toISOString(),
-      eventLoopDelayP99: delay ? nullableNumber(delay.p99) : null,
-      eventLoopDelayMax: delay ? nullableNumber(delay.max) : null,
-      gc: gc.get(ms) ?? emptyGc(),
-    });
-  }
+  const buckets = bucketStarts(fromDate, toDate, intervalSeconds).map(
+    ({ ms, timestamp, endTimestamp }): RuntimeMetricsBucket => {
+      const delay = delays.get(ms);
+      return {
+        timestamp,
+        endTimestamp,
+        eventLoopDelayP99: delay ? nullableNumber(delay.p99) : null,
+        eventLoopDelayMax: delay ? nullableNumber(delay.max) : null,
+        gc: gc.get(ms) ?? emptyGc(),
+      };
+    },
+  );
   return {
     buckets,
     hasEventLoopDelay: buckets.some(
@@ -244,11 +228,10 @@ export function runtimeMetricsOptions({
   refresh: string;
   input: RuntimeMetricsInput;
 }) {
-  const refreshMs = getRefreshIntervalMs(refresh);
   return queryOptions({
     queryKey: ["profiles", "runtime", input] as const,
     queryFn: () => repo.runtime(input),
-    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
+    refetchInterval: refetchInterval(refresh),
     placeholderData: keepPreviousData,
   });
 }

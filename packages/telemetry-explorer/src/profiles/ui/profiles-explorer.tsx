@@ -7,16 +7,12 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { Skeleton } from "@everr/ui/components/skeleton";
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Layers, ZoomOut } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
-import type { AttributeFilter } from "../../attribute-filter/schemas";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
-import { TraceFlamegraph, type ViewRange } from "../../traces/ui/viewer/flamegraph";
-import type { FlamegraphSpan } from "../../traces/ui/viewer/rendering/types";
 import {
   profileExampleTracesOptions,
   profileHistogramOptions,
@@ -26,13 +22,11 @@ import {
 } from "../data/options";
 import type { ProfilesRepositoryLike } from "../data/repository";
 import type { RuntimeMetricsRepositoryLike } from "../data/runtime";
-import type { ProfileFilterInput } from "../data/schemas";
+import type { ProfileFilterInput, ProfilesSearchParams } from "../data/schemas";
 import type { ProfileStacks, SampleTypeOption } from "../data/types";
-import { FRAME_COLOR_KEY, frameId, frameRange, profileFlamegraph } from "../model/flame-layout";
 import {
   buildFlameTree,
   type FlameNode,
-  findNodeByPath,
   frameKey,
   functionStats,
   nodePath,
@@ -40,8 +34,7 @@ import {
 } from "../model/flame-tree";
 import { formatPercent, formatProfileValue } from "../model/format";
 import { buildSandwich, type FunctionRef } from "../model/sandwich";
-import { pickSampleType } from "../model/selection";
-import { sourceLink } from "../model/source-link";
+import { pickSampleType, sampleTypeKey } from "../model/selection";
 import {
   type ProfileVersion,
   pickVersions,
@@ -52,13 +45,11 @@ import {
 import {
   type Baseline,
   baselineRange,
-  diffColor,
   diffFlameTrees,
   diffFunctionStats,
   type FrameDiff,
   formatShareDelta,
   isPresetBaseline,
-  maxAbsDelta,
 } from "../model/diff";
 import { CompareMenu, CompareStatus, formatWindow, VersionMenu } from "./compare-controls";
 import {
@@ -76,28 +67,20 @@ import {
   SandwichView,
 } from "./sandwich-view";
 import { RuntimeStrip } from "./runtime-strip";
-import { FrameMenuItems, PinnedFunction, useFunctionHighlight } from "./function-highlight";
+import { PinnedFunction } from "./function-highlight";
+import {
+  displayUnit,
+  FrameDetails,
+  ProfileFlamegraphView,
+  ProfileLoading,
+  ScopedTableCaption,
+  useZoomableProfile,
+} from "./profile-flamegraph";
 import { DiffFunctionsTable, TopFunctionsTable } from "./top-functions-table";
 
-export type ProfilesExplorerSearch = {
+export type ProfilesExplorerSearch = Omit<ProfilesSearchParams, "from" | "to" | "refresh"> & {
   /** The shared Explore Service filter; empty means every service. */
   service: string[];
-  q: string;
-  sampleType?: string;
-  sampleUnit?: string;
-  traceId?: string;
-  spanId?: string;
-  attributes: AttributeFilter[];
-  showVolume: boolean;
-  compare?: Baseline;
-  /** The `custom` baseline window, ISO timestamps. */
-  baseFrom?: string;
-  baseTo?: string;
-  /** The `version` comparison's `service.version` values. */
-  version?: string;
-  baseVersion?: string;
-  /** The function the callers and callees view centers on. */
-  fn?: FunctionRef;
 };
 
 export type ProfilesExplorerPatch = Partial<Omit<ProfilesExplorerSearch, "service">>;
@@ -153,9 +136,14 @@ export function ProfilesExplorer({
   );
 
   const comparingVersions = search.compare === "version";
-  const versionLookupFilters = useMemo(
-    () => ({ ...pageFilters, timeRange: versionLookupRange(pageFilters.timeRange) }),
-    [pageFilters],
+  // The versions of the selected services, whatever else the page filters on.
+  const versionLookupFilters: ProfileFilterInput = useMemo(
+    () => ({
+      timeRange: versionLookupRange(timeRange),
+      services: search.service,
+      attributes: withEnvironment([], environment),
+    }),
+    [timeRange, search.service, environment],
   );
   const versionsQuery = useQuery(
     profileVersionsOptions({
@@ -184,8 +172,7 @@ export function ProfilesExplorer({
       repo,
       refresh,
       filters,
-      sampleType: sampleType?.sampleType,
-      sampleUnit: sampleType?.sampleUnit,
+      sampleType,
     }),
   );
   const baselineVersion = versionPair.baseline;
@@ -222,8 +209,7 @@ export function ProfilesExplorer({
       repo,
       refresh,
       filters: baselineFilters ?? filters,
-      sampleType: sampleType?.sampleType,
-      sampleUnit: sampleType?.sampleUnit,
+      sampleType,
       enabled: baselineFilters !== undefined,
     }),
   );
@@ -232,8 +218,7 @@ export function ProfilesExplorer({
       repo,
       refresh,
       filters,
-      sampleType: sampleType?.sampleType,
-      sampleUnit: sampleType?.sampleUnit,
+      sampleType,
       enabled: search.showVolume,
     }),
   );
@@ -242,8 +227,7 @@ export function ProfilesExplorer({
       repo,
       refresh,
       filters,
-      sampleType: sampleType?.sampleType,
-      sampleUnit: sampleType?.sampleUnit,
+      sampleType,
       functionName: search.fn?.name,
     }),
   );
@@ -259,7 +243,7 @@ export function ProfilesExplorer({
 
   let content: ReactNode;
   if (sampleTypesQuery.isPending) {
-    content = <LoadingState />;
+    content = <ProfileLoading />;
   } else if (sampleTypesQuery.isError || stacksQuery.isError) {
     const error = sampleTypesQuery.error ?? stacksQuery.error;
     content = (
@@ -275,7 +259,7 @@ export function ProfilesExplorer({
   } else if (!sampleType) {
     content = <NoProfiles />;
   } else if (stacksQuery.isPending) {
-    content = <LoadingState />;
+    content = <ProfileLoading />;
   } else if (stacksQuery.data.stacks.length === 0) {
     content = (
       <Empty>
@@ -301,7 +285,7 @@ export function ProfilesExplorer({
   } else {
     content = (
       <ProfileView
-        key={`${sampleType.sampleType}\u0000${sampleType.sampleUnit}`}
+        key={sampleTypeKey(sampleType)}
         data={stacksQuery.data}
         sampleType={sampleType}
         compareBar={
@@ -369,14 +353,7 @@ export function ProfilesExplorer({
           <ProfileFilters
             repo={repo}
             timeRange={timeRange}
-            value={{
-              q: search.q,
-              sampleType: search.sampleType,
-              sampleUnit: search.sampleUnit,
-              traceId: search.traceId,
-              spanId: search.spanId,
-              attributes: search.attributes,
-            }}
+            value={search}
             sampleTypes={sampleTypes}
             sampleType={sampleType}
             persistentFilters={persistentFilters}
@@ -452,11 +429,8 @@ function ProfileView({
   exampleTraces: ExampleTracesState;
   renderTraceLink: RenderProfileTraceLink | undefined;
 }) {
-  const tree = useMemo(() => buildFlameTree(data.stacks), [data.stacks]);
-  const flamegraph = useMemo(() => profileFlamegraph(tree), [tree]);
-  const stats = useMemo(() => functionStats(data.stacks), [data.stacks]);
-  const statsByKey = useMemo(() => new Map(stats.map((stat) => [stat.key, stat])), [stats]);
-  const highlight = useFunctionHighlight(flamegraph.nodes);
+  const profile = useZoomableProfile(data, zoomPath, onZoom, { scopeTable: !fn });
+  const { tree, focus, highlight, tablePath, tableStats, tableTotal } = profile;
   const baselineTree = useMemo(
     () => (baseline ? buildFlameTree(baseline.stacks) : undefined),
     [baseline],
@@ -465,28 +439,11 @@ function ProfileView({
     () => (baselineTree ? diffFlameTrees(tree, baselineTree) : undefined),
     [tree, baselineTree],
   );
-  const colorOf = useMemo(() => {
-    if (!diffs) return undefined;
-    const scale = maxAbsDelta(diffs);
-    return (span: FlamegraphSpan) => {
-      const diff = diffs.get(span.spanId);
-      return diff ? diffColor(diff.delta, scale) : undefined;
-    };
-  }, [diffs]);
   const sandwich = useMemo(() => (fn ? buildSandwich(data.stacks, fn) : undefined), [data, fn]);
   const baselineSandwich = useMemo(
     () => (fn && baseline ? buildSandwich(baseline.stacks, fn) : undefined),
     [baseline, fn],
   );
-  const focus = findNodeByPath(tree.root, zoomPath);
-  // Zoomed into a frame, the table lists only the functions under it, as
-  // shares of it, to match what the flame graph shows.
-  const tablePath = useMemo(() => (fn || !focus.parent ? undefined : nodePath(focus)), [fn, focus]);
-  const tableStats = useMemo(
-    () => (tablePath ? functionStats(stacksUnder(data.stacks, tablePath)) : stats),
-    [data.stacks, stats, tablePath],
-  );
-  const tableTotal = tablePath ? focus.total : tree.root.total;
   const functionDiffs = useMemo(() => {
     if (!baseline || !baselineTree) return undefined;
     const baselineStacks = tablePath ? stacksUnder(baseline.stacks, tablePath) : baseline.stacks;
@@ -498,26 +455,10 @@ function ProfileView({
       baselineTotal,
     };
   }, [baseline, baselineTree, tableStats, tableTotal, tablePath]);
-  // Wheel zoom and drag pan move the view off the zoomed frame until the next click.
-  const [pannedRange, setPannedRange] = useState<ViewRange | null>(null);
-  const range = pannedRange ?? frameRange(focus);
   const unit = displayUnit(sampleType);
   const total = tree.root.total;
   const truncated = data.stackCount > data.stacks.length;
-  const zoomed = focus.parent !== undefined || pannedRange !== null;
-  const fnKey = fn ? frameKey({ ...fn, line: 0 }) : undefined;
-
-  const sourceUrlOf = (key: string) => {
-    const stat = statsByKey.get(key);
-    if (!stat) return undefined;
-    const source = stat.source === undefined ? undefined : data.sources?.[stat.source];
-    return sourceLink(source, stat.file, stat.line);
-  };
-
-  const zoomTo = (path: string[]) => {
-    setPannedRange(null);
-    onZoom(path);
-  };
+  const fnKey = fn ? frameKey(fn) : undefined;
 
   // In callers and callees a row recenters the view; otherwise it highlights
   // the function's frames in the flame graph.
@@ -528,19 +469,19 @@ function ProfileView({
         onActivate: onFunctionSelect,
         onHover: () => {},
         onShowCallers: onFunctionSelect,
-        sourceUrlOf,
+        sourceUrlOf: profile.sourceUrlOf,
       }
     : {
         ...highlight.table,
         activateHint: "Highlight in the flame graph",
         onActivate: highlight.togglePin,
         onShowCallers: onFunctionSelect,
-        sourceUrlOf,
+        sourceUrlOf: profile.sourceUrlOf,
       };
 
   const renderFrameHover = (node: FlameNode, diff: FrameDiff | undefined) => (
     <>
-      <FrameDetails node={node} unit={unit} total={total} />
+      <FrameDetails frame={node} unit={unit} total={total} />
       {diff && baselineTree ? (
         <FrameDiffDetails diff={diff} unit={unit} baselineTotal={baselineTree.root.total} />
       ) : null}
@@ -583,8 +524,8 @@ function ProfileView({
                 Callers and callees
               </Button>
             ) : null}
-            {zoomed ? (
-              <Button variant="outline" size="sm" onClick={() => zoomTo([])}>
+            {profile.zoomed ? (
+              <Button variant="outline" size="sm" onClick={() => profile.zoomTo([])}>
                 <ZoomOut data-icon="inline-start" />
                 Reset zoom
               </Button>
@@ -611,65 +552,39 @@ function ProfileView({
               renderHover={renderFrameHover}
             />
             <FunctionPanel
-              stat={fnKey ? statsByKey.get(fnKey) : undefined}
+              stat={fnKey ? profile.statsByKey.get(fnKey) : undefined}
               fn={fn}
               unit={unit}
               total={total}
-              sourceUrl={fnKey ? sourceUrlOf(fnKey) : undefined}
+              sourceUrl={fnKey ? profile.sourceUrlOf(fnKey) : undefined}
               exampleTraces={exampleTraces}
               renderTraceLink={renderTraceLink}
             />
           </>
         ) : (
           <div className="min-h-0 min-w-0 flex-1">
-            <TraceFlamegraph
-              model={flamegraph}
-              layout={flamegraph.layout}
-              selectedSpanId={focus.parent ? frameId(focus) : undefined}
-              {...highlight.flamegraph}
-              colorBy={FRAME_COLOR_KEY}
-              range={range}
-              onRangeChange={setPannedRange}
-              onSelect={(id) => {
-                const node = flamegraph.nodes.get(id);
-                if (node) zoomTo(nodePath(node));
-              }}
-              renderContextMenu={(id) => {
-                const node = flamegraph.nodes.get(id);
-                if (!node) return null;
-                return (
-                  <FrameMenuItems
-                    node={node}
-                    pinned={highlight.pinned?.key === node.key}
-                    sourceUrl={sourceUrlOf(node.key)}
-                    onZoom={() => zoomTo(nodePath(node))}
-                    onResetZoom={() => zoomTo([])}
-                    onTogglePin={() =>
-                      highlight.togglePin({ key: node.key, name: node.name, file: node.file })
-                    }
-                    onShowCallers={() => onFunctionSelect({ name: node.name, file: node.file })}
-                  />
-                );
-              }}
-              formatValue={(value) => formatProfileValue(value, unit)}
-              colorOf={colorOf}
-              timeAxis={false}
-              renderHover={(span) => {
-                const node = flamegraph.nodes.get(span.spanId);
-                return node ? renderFrameHover(node, diffs?.get(span.spanId)) : null;
-              }}
+            <ProfileFlamegraphView
+              flamegraph={profile.flamegraph}
+              unit={unit}
+              diffs={diffs}
+              selected={focus}
+              highlight={highlight.flamegraph}
+              range={profile.range}
+              onRangeChange={profile.setPannedRange}
+              onSelect={(node) => profile.zoomTo(nodePath(node))}
+              renderHover={renderFrameHover}
+              renderContextMenu={(node) =>
+                profile.renderFrameMenu(node, () =>
+                  onFunctionSelect({ name: node.name, file: node.file }),
+                )
+              }
               ariaLabel="Profile flame graph. Click a frame to zoom into it, pinch to zoom, drag to pan, double-click to reset."
             />
           </div>
         )}
       </div>
       <div className="min-h-0 flex-[2] overflow-y-auto border-t">
-        {tablePath ? (
-          <p className="text-muted-foreground border-b px-3 py-1.5 text-xs">
-            Functions under <span className="text-foreground font-mono">{focus.name}</span>, as
-            shares of it
-          </p>
-        ) : null}
+        {tablePath ? <ScopedTableCaption frame={focus} /> : null}
         {functionDiffs ? (
           <DiffFunctionsTable
             rows={functionDiffs.rows}
@@ -721,19 +636,13 @@ function resolveComparison({
     description: "",
     missing,
   });
-  if (isPresetBaseline(compare)) {
-    const range = baselineRange(filters.timeRange, compare);
-    return {
-      filters: { ...filters, timeRange: range },
-      description: `This range compared with ${formatWindow(range)}`,
-      missing: undefined,
-    };
-  }
-  if (compare === "custom") {
-    if (!baseFrom || !baseTo) {
+  if (compare !== "version") {
+    if (compare === "custom" && (!baseFrom || !baseTo)) {
       return unavailable("Drag across the chart above to pick the baseline window");
     }
-    const range = { from: baseFrom, to: baseTo };
+    const range = isPresetBaseline(compare)
+      ? baselineRange(filters.timeRange, compare)
+      : { from: baseFrom ?? "", to: baseTo ?? "" };
     return {
       filters: { ...filters, timeRange: range },
       description: `This range compared with ${formatWindow(range)}`,
@@ -759,41 +668,6 @@ function resolveComparison({
   };
 }
 
-export function FrameDetails({
-  node,
-  unit,
-  total,
-}: {
-  node: FlameNode;
-  unit: string;
-  total: number;
-}) {
-  const location = node.file ? (node.line > 0 ? `${node.file}:${node.line}` : node.file) : "";
-  return (
-    <>
-      <div className="font-mono font-medium break-all">{node.name}</div>
-      {location ? (
-        <div className="text-muted-foreground mt-1 font-mono break-all">{location}</div>
-      ) : null}
-      <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 tabular-nums">
-        <dt className="text-muted-foreground">Total</dt>
-        <dd>
-          {formatProfileValue(node.total, unit)} ({formatPercent(node.total, total)})
-        </dd>
-        <dt className="text-muted-foreground">Self</dt>
-        <dd>
-          {formatProfileValue(node.self, unit)} ({formatPercent(node.self, total)})
-        </dd>
-      </dl>
-    </>
-  );
-}
-
-// `count` reads as samples, which suits CPU sample counts but not heap objects.
-export function displayUnit(option: SampleTypeOption): string {
-  return option.sampleType.endsWith("_objects") ? "objects" : option.sampleUnit;
-}
-
 function FrameDiffDetails({
   diff,
   unit,
@@ -812,16 +686,6 @@ function FrameDiffDetails({
       <dt className="text-muted-foreground">Change</dt>
       <dd>{formatShareDelta(diff.delta)}</dd>
     </dl>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="flex flex-col gap-1 p-3" aria-busy="true">
-      {[100, 92, 80, 64, 40, 24].map((width) => (
-        <Skeleton key={width} className="h-4" style={{ width: `${width}%` }} />
-      ))}
-    </div>
   );
 }
 
