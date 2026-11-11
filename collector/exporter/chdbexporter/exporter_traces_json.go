@@ -58,7 +58,7 @@ func (e *tracesJSONExporter) start(ctx context.Context, _ component.Host) error 
 	e.db = db
 
 	if e.cfg.shouldCreateSchema() {
-		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString()); createDBErr != nil {
+		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString(), e.cfg.databaseEngineString()); createDBErr != nil {
 			return createDBErr
 		}
 
@@ -299,7 +299,7 @@ func (e *tracesJSONExporter) renderInsertTracesJSONSQL() {
 func renderCreateTracesJSONTableSQL(cfg *Config) string {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	return fmt.Sprintf(sqltemplates.TracesJSONCreateTable,
-		cfg.database(), cfg.TracesTableName, cfg.clusterString(),
+		cfg.database(), cfg.TracesTableName, cfg.tableClusterString(),
 		cfg.tableEngineString(),
 		ttlExpr,
 	)

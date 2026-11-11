@@ -52,8 +52,7 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 
 	if e.cfg.shouldCreateSchema() {
 		database := e.cfg.database()
-		clusterStr := e.cfg.clusterString()
-		if err := internal.CreateDatabase(ctx, e.db, database, clusterStr); err != nil {
+		if err := internal.CreateDatabase(ctx, e.db, database, e.cfg.clusterString(), e.cfg.databaseEngineString()); err != nil {
 			return err
 		}
 
@@ -62,7 +61,7 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 		}
 
 		ttlExpr := internal.GenerateTTLExpr(e.cfg.TTL, "toDateTime(TimeUnix)")
-		err := metrics.NewMetricsTable(ctx, e.tablesConfig, database, clusterStr, e.cfg.tableEngineString(), ttlExpr, e.db)
+		err := metrics.NewMetricsTable(ctx, e.tablesConfig, database, e.cfg.tableClusterString(), e.cfg.tableEngineString(), ttlExpr, e.db)
 		if err != nil {
 			return err
 		}

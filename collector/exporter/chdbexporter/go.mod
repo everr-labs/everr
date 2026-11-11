@@ -4,7 +4,7 @@ go 1.26.11
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
-	github.com/cenkalti/backoff/v5 v5.0.3
+	github.com/cenkalti/backoff/v7 v7.0.3
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/stretchr/testify v1.12.1
@@ -21,6 +21,7 @@ require (
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.165.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.165.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.165.0
+	go.opentelemetry.io/collector/featuregate v1.71.0
 	go.opentelemetry.io/collector/pdata v1.71.0
 	go.opentelemetry.io/collector/pdata/pprofile v0.165.0
 	go.opentelemetry.io/otel v1.47.0
@@ -35,7 +36,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/cenkalti/backoff/v7 v7.0.3 // indirect
 	github.com/chdb-io/chdb-go v1.11.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
@@ -100,7 +100,6 @@ require (
 	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 // indirect
 	go.opentelemetry.io/collector/extension v1.71.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.165.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.71.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.165.0 // indirect

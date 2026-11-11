@@ -29,16 +29,18 @@ moved to, and what that meant for this repository. Use it to review the bump.
 - The chDB exporter fork (`collector/exporter/chdbexporter`) is merged up to
   upstream `exporter/clickhouseexporter` v0.165.1. Details are below and in
   `collector/exporter/chdbexporter/EVERR_CHANGES.md`.
-- The fork's `localSchemaVersion` goes from 2 to 3. Every local store rebuilds its tables on
-  first start, which drops its cached telemetry (bounded by the 7-day TTL).
+- The fork's table templates are unchanged: it does not take upstream's `ZSTD(3)`
+  codec or the `EventName` index, so `localSchemaVersion` stays 2 and existing
+  local stores keep their telemetry.
 - Version references in comments: `collector/extension/everrusageextension/README.md`,
   `collector/cmd/everr-local-collector/main.go`. The header of
   `packages/app/clickhouse/0003-create-otel-tables.sql` still names v0.160.0: that
   migration is applied, and any edit to it, a comment included, stops startup.
 
-Nothing changed in the cloud ClickHouse schema. Upstream changed no columns and no
-insert statements between these versions; the only DDL changes are codecs and one
-index, and we create our tables ourselves (`create_schema: false`).
+No ClickHouse schema changes, in the cloud or in the local store. Upstream changed no
+columns and no insert statements between these versions; its only DDL changes are
+codecs and one index, which apply only to tables the exporter creates. We create the
+cloud tables ourselves (`create_schema: false`), and the local fork keeps its templates.
 
 ## Verified
 
@@ -72,7 +74,8 @@ index, and we create our tables ourselves (`create_schema: false`).
 3. **`xhash` values changed (core v0.163.0, `pkg/xpdata`).** Anything that
    persisted hashes from `xhash` would see different values. We do not.
 4. **`ZSTD(3)` default codec (contrib v0.165.0).** Only affects tables the
-   exporter creates: the local chDB store after this bump, not cloud.
+   exporter creates. Neither cloud (`create_schema: false`) nor the local chDB
+   store (the fork keeps `ZSTD(1)`) is affected.
 5. **Removed settings.** `confighttp` dropped `IdleConnTimeout`, `MaxIdleConns`,
    `MaxIdleConnsPerHost`, `DisableKeepAlives` (core v0.165.0); OTTL dropped
    `Base64Decode` (contrib v0.161.0); the filter processor's
@@ -105,9 +108,9 @@ index, and we create our tables ourselves (`create_schema: false`).
 | Release  | Change                                                                                                      | Cloud and self-hosted (upstream exporter)             | Local app (chDB fork)                            |
 | -------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------ |
 | v0.163.0 | `database_engine` option for `CREATE DATABASE`; no `ON CLUSTER` on table DDL inside a `Replicated` database | No effect: the exporter does not create our databases | Merged; unused                                   |
-| v0.164.0 | `idx_event_name` bloom filter index on logs `EventName`                                                     | No effect: `create_schema: false`                     | Merged; part of the local rebuild                |
+| v0.164.0 | `idx_event_name` bloom filter index on logs `EventName`                                                     | No effect: `create_schema: false`                     | Not taken; local templates unchanged             |
 | v0.165.0 | Connection pool sized from `sending_queue.num_consumers`                                                    | **Applies**, see "Things to watch"                    | Config code merged; the chDB adapter has no pool |
-| v0.165.0 | Default column codec `ZSTD(1)` to `ZSTD(3)`                                                                 | No effect: `create_schema: false`                     | Merged; part of the local rebuild                |
+| v0.165.0 | Default column codec `ZSTD(1)` to `ZSTD(3)`                                                                 | No effect: `create_schema: false`                     | Not taken; local templates unchanged             |
 
 The fork keeps its documented differences: bloom filter indexes instead of text
 indexes, no `TraceId` skip index on `traces_trace_id_ts`, its own sort keys, and
