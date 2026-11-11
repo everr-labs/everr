@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Mascot } from "@/components/mascot";
 import { sectionWrap } from "@/components/ui/type";
 import { SIGN_UP_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 const action =
   "inline-flex h-14 items-center justify-center rounded-full px-7 text-base font-semibold transition-transform duration-200 ease-out-expo hover:scale-[1.03] active:scale-[0.98] outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-foreground";
@@ -14,22 +15,21 @@ export function FinalCTA() {
       >
         <div className="pb-4 md:pb-32">
           <h2 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
-            Stop finding out from your customers
+            {m.cta_heading()}
           </h2>
           <p className="mt-7 max-w-[40ch] text-lg leading-[1.5] text-pretty md:text-xl">
-            Set Everr up today. Your AI assistant does most of the work, and you can see it working
-            before anything ships.
+            {m.cta_lead()}
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <a href={SIGN_UP_URL} className={`${action} bg-primary-foreground text-primary`}>
-              Get started
+              {m.get_started()}
             </a>
             <Link
               to="/docs/$"
               params={{ _splat: "" }}
               className={`${action} border-2 border-primary-foreground/80`}
             >
-              Read the docs
+              {m.cta_docs()}
             </Link>
           </div>
         </div>

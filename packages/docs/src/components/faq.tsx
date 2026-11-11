@@ -3,89 +3,38 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@everr/ui/components/collapsible";
+import { ParaglideMessage } from "@inlang/paraglide-js-react";
 import { Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { sectionHeading, sectionWrap } from "@/components/ui/type";
+import { m } from "@/paraglide/messages";
 
 export type FaqItem = {
   q: string;
   a: ReactNode;
 };
 
-const FAQS: FaqItem[] = [
-  {
-    q: "Do I need to know anything about monitoring?",
-    a: (
-      <>
-        No. Setup, dashboards and alerts follow established practices, so the decisions an expert
-        would make are already made for you. You can change any of them later.
-      </>
-    ),
-  },
-  {
-    q: "How does setup work?",
-    a: (
-      <>
-        Everr comes with skills for coding assistants such as Claude Code and Codex. Your assistant
-        adds what is needed working straight from your repository, and a collector on your machine
-        lets you check that data arrives before you deploy. If your app already speaks
-        OpenTelemetry, you&apos;re most of the way there.
-      </>
-    ),
-  },
-  {
-    q: "Where does my data live?",
-    a: (
-      <>
-        While you develop, a collector runs on your machine and the data stays local. In production,
-        your services send it to the Everr cloud, into a workspace scoped to your organization.
-        Everr is also open source, so you can run it on your own infrastructure.
-      </>
-    ),
-  },
-  {
-    q: "What can I send to Everr?",
-    a: (
-      <>
-        Traces, logs, and metrics in one OpenTelemetry model, the same signal from your laptop to CI
-        to production. Business events ride the same pipeline, so product and engineering look at
-        the same data.
-      </>
-    ),
-  },
-  {
-    q: "How do coding assistants use Everr?",
-    a: (
-      <>
-        Through bundled skills plus plain SQL via the CLI:{" "}
-        <code className="font-mono text-[0.95em] text-fd-foreground">everr local query</code> and{" "}
-        <code className="font-mono text-[0.95em] text-fd-foreground">everr cloud query</code>. Your
-        assistant reads what your app actually did, no glue code.
-      </>
-    ),
-  },
-  {
-    q: "Am I locked in?",
-    a: (
-      <>
-        No. Everr uses OpenTelemetry for ingest, the Perses spec for dashboards, and a ClickHouse
-        SQL surface for queries, all open standards. Your data, dashboards, and alerts are portable
-        files, not trapped behind a proprietary agent or query language.
-      </>
-    ),
-  },
+const inlineCode = ({ children }: { children?: ReactNode }) => (
+  <code className="font-mono text-[0.95em] text-fd-foreground">{children}</code>
+);
+
+const homeFaqs = (): FaqItem[] => [
+  { q: m.faq_1_q(), a: m.faq_1_a() },
+  { q: m.faq_2_q(), a: m.faq_2_a() },
+  { q: m.faq_3_q(), a: m.faq_3_a() },
+  { q: m.faq_4_q(), a: m.faq_4_a() },
+  { q: m.faq_5_q(), a: <ParaglideMessage message={m.faq_5_a} markup={{ code: inlineCode }} /> },
+  { q: m.faq_6_q(), a: m.faq_6_a() },
 ];
 
 export function FAQ({
-  items = FAQS,
-  title,
-  contactPrompt = "Something we haven’t covered?",
-  contactLinkText = "Ask us on Discord",
+  items = homeFaqs(),
+  title = m.faq_heading(),
+  contactPrompt = m.faq_contact_prompt(),
 }: {
   items?: FaqItem[];
   title?: string;
   contactPrompt?: string;
-  contactLinkText?: string;
 }) {
   const [openQuestion, setOpenQuestion] = useState<string | null>(null);
 
@@ -94,14 +43,14 @@ export function FAQ({
       <div className={`${sectionWrap} py-20 md:py-32`}>
         <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] md:gap-20">
           <div>
-            <h2 className={sectionHeading}>{title ?? "Questions worth answering"}</h2>
+            <h2 className={sectionHeading}>{title}</h2>
             <p className="mt-6 max-w-sm text-base leading-relaxed text-fd-muted-foreground">
               {contactPrompt}{" "}
               <a
                 href="https://everr.dev/discord"
                 className="text-fd-foreground underline decoration-primary decoration-2 underline-offset-4 hover:text-primary"
               >
-                {contactLinkText}
+                {m.faq_contact_link()}
               </a>
               .
             </p>

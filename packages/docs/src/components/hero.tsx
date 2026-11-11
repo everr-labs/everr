@@ -4,27 +4,15 @@ import { useEffect, useState } from "react";
 import { Mascot } from "@/components/mascot";
 import { Button } from "@/components/ui/button";
 import { SIGN_UP_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 const ease = [0.16, 1, 0.3, 1] as const;
-const LINES = ["Know before", "your customers do"];
 
 // What Everr says when it notices something, one at a time
 const NOTICES = [
-  {
-    time: "09:41",
-    what: "Checkout is slow for 1 in 5 people",
-    why: "One database query, shipped yesterday.",
-  },
-  {
-    time: "14:02",
-    what: "Sign-ups stopped working on Safari",
-    why: "It started with the last release.",
-  },
-  {
-    time: "22:17",
-    what: "Large photo uploads are failing",
-    why: "The person on call has the steps to fix it.",
-  },
+  { time: "09:41", what: m.hero_notice_1_what, why: m.hero_notice_1_why },
+  { time: "14:02", what: m.hero_notice_2_what, why: m.hero_notice_2_why },
+  { time: "22:17", what: m.hero_notice_3_what, why: m.hero_notice_3_why },
 ];
 const SHOW_MS = 5200;
 const REST_MS = 2200;
@@ -54,7 +42,7 @@ export function Hero() {
     <section className="relative -mt-16 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-16 text-foreground md:-mt-24 md:pt-24">
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(1rem,3vh,3rem)]">
         <h1 className="display text-[clamp(2.375rem,min(9vw,14.5vh),9rem)]">
-          {LINES.map((line, i) => (
+          {[m.hero_line_1(), m.hero_line_2()].map((line, i) => (
             // The clip is taller than the line box, so descenders survive the reveal
             <span key={line} className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
               <motion.span
@@ -75,8 +63,7 @@ export function Hero() {
           className="mt-7 max-w-[30rem] md:mt-10"
         >
           <p className="text-lg leading-[1.5] text-pretty text-foreground/75 md:text-xl">
-            Everr keeps watch over your app. When a page slows down or something breaks, it tells
-            you what happened, where, and why. No specialist team required.
+            {m.hero_lead()}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
@@ -84,7 +71,7 @@ export function Hero() {
               // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
               render={<a href={SIGN_UP_URL} />}
             >
-              Get started
+              {m.get_started()}
             </Button>
             <Button
               variant="secondary"
@@ -92,7 +79,7 @@ export function Hero() {
               // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
               render={<a href="#tour" />}
             >
-              See it in action
+              {m.hero_secondary()}
             </Button>
           </div>
         </motion.div>
@@ -128,10 +115,10 @@ export function Hero() {
               >
                 <p className="text-xs text-muted-foreground tabular-nums">{notice.time}</p>
                 <p className="mt-1 text-[15px] leading-[1.3] font-semibold text-pretty md:text-base">
-                  {notice.what}
+                  {notice.what()}
                 </p>
                 <p className="mt-1 text-sm leading-[1.4] text-pretty text-muted-foreground">
-                  {notice.why}
+                  {notice.why()}
                 </p>
               </motion.div>
             )}

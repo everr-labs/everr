@@ -32,6 +32,7 @@ import pythonLogo from "@/assets/logos/python.svg?url";
 import { CapabilityMarquee } from "@/components/capability-marquee";
 import { TechnologyBackdrop } from "@/components/technology-backdrop";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
+import { m } from "@/paraglide/messages";
 
 const CAPABILITIES = [
   { label: "APM", planned: false },
@@ -96,14 +97,13 @@ export function UnderTheHood() {
         >
           <TechnologyBackdrop items={STACK} />
           <h2 className={`${sectionHeading} pointer-events-none relative z-10 max-w-[12ch]`}>
-            For the engineers in the room
+            {m.engineers_heading()}
           </h2>
           <p className={`${sectionLead} pointer-events-none relative z-10 mt-7 max-w-[40ch]`}>
-            Underneath the plain language, Everr is a complete, open source observability platform.
-            It works with the stack you already run.
+            {m.engineers_lead()}
           </p>
           <span className="sr-only">
-            Languages and frameworks: {STACK.map((item) => item.label).join(", ")}.
+            {m.engineers_stack({ list: STACK.map((item) => item.label).join(", ") })}
           </span>
         </div>
       </div>

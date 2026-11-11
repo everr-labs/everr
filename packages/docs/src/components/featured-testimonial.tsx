@@ -1,4 +1,6 @@
 import { sectionWrap } from "@/components/ui/type";
+import { m } from "@/paraglide/messages";
+
 import skillvueLogo from "../assets/logos/skillvue.svg?url";
 import marcelloPhoto from "../assets/testimonials/marcello.jpeg?url";
 
@@ -16,20 +18,14 @@ export function FeaturedTestimonial() {
           />
           <div>
             <div className="text-base font-semibold">Marcello Roherssen</div>
-            <div className="mt-0.5 text-sm text-muted-foreground">CTO at SkillVue</div>
+            <div className="mt-0.5 text-sm text-muted-foreground">{m.testimonial_role()}</div>
             <img src={skillvueLogo} alt="" className="mt-4 h-6 w-auto max-md:hidden" />
           </div>
         </figcaption>
         <blockquote className="max-w-[34ch] text-[clamp(1.5rem,2.9vw,2.625rem)] leading-[1.22] font-medium tracking-[-0.03em] text-pretty">
-          <p>
-            “The first tool we tried took a whole team just to keep running. We moved to something
-            cheaper and still ended up paying $700 a month for data I couldn’t really explain.
-          </p>
-          <p className="mt-[0.6em]">
-            Everr is the first one the whole team actually uses. And it’s not a watered-down
-            version, it does everything we need without anyone babysitting it.
-          </p>
-          <p className="mt-[0.6em] text-primary">It’s how we work now.”</p>
+          <p>{m.testimonial_p1()}</p>
+          <p className="mt-[0.6em]">{m.testimonial_p2()}</p>
+          <p className="mt-[0.6em] text-primary">{m.testimonial_closing()}</p>
         </blockquote>
       </figure>
     </section>

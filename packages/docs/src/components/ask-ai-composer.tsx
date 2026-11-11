@@ -1,11 +1,9 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-
-const defaultPrompt =
-  "Look into Everr at https://everr.dev. How can we benefit from it and how would it help us? Is it worth trying?";
+import { m } from "@/paraglide/messages";
 
 export function AskAiComposer() {
-  const [prompt, setPrompt] = useState(defaultPrompt);
+  const [prompt, setPrompt] = useState<string>(() => m.ask_prompt());
   const [status, setStatus] = useState<"idle" | "copied" | "error">("idle");
 
   async function copy() {
@@ -22,15 +20,15 @@ export function AskAiComposer() {
       <div className="p-4 min-[481px]:p-6">
         <div className="flex flex-col items-start justify-center px-2 pt-4 pb-7 text-left">
           <h3 className="text-[clamp(22px,2.4vw,28px)] font-medium leading-[1.2] tracking-[-0.025em]">
-            Is Everr right for you?
+            {m.ask_card_title()}
           </h3>
-          <p className="mt-3 text-sm text-muted-foreground">Ask your AI to take a look.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{m.ask_card_lead()}</p>
         </div>
         <div className="ml-6 rounded-[16px_16px_4px_16px] border border-border bg-background px-[18px] pt-[18px] pb-3 focus-within:border-primary">
           <textarea
             className="block min-h-[210px] w-full resize-none border-0 bg-transparent p-0 font-sans text-base leading-[1.6] text-foreground caret-primary outline-none placeholder:text-muted-foreground min-[481px]:min-h-[150px]"
-            aria-label="Prompt for your AI"
-            placeholder="Write your prompt…"
+            aria-label={m.ask_prompt_label()}
+            placeholder={m.ask_placeholder()}
             value={prompt}
             onChange={(event) => {
               setPrompt(event.target.value);
@@ -42,8 +40,8 @@ export function AskAiComposer() {
             <button
               className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-full bg-primary text-primary-foreground hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
               type="button"
-              aria-label={status === "copied" ? "Prompt copied" : "Copy prompt"}
-              title={status === "copied" ? "Copied" : "Copy prompt"}
+              aria-label={status === "copied" ? m.ask_copied_label() : m.ask_copy()}
+              title={status === "copied" ? m.ask_copied_title() : m.ask_copy()}
               disabled={!prompt.trim()}
               onClick={() => {
                 void copy();
@@ -63,10 +61,10 @@ export function AskAiComposer() {
           role="status"
         >
           {status === "error"
-            ? "Copy failed. Select the text above and copy it manually."
+            ? m.ask_status_error()
             : status === "copied"
-              ? "Copied. Paste into your AI to start the conversation."
-              : "Take this to ChatGPT, Claude, or your coding agent."}
+              ? m.ask_status_copied()
+              : m.ask_status_idle()}
         </p>
       </div>
     </div>

@@ -4,25 +4,26 @@ import { motion, useInView } from "motion/react";
 import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
+import { SIGN_UP_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+type Message = () => string;
+
 type DataRow = {
-  signal: string;
-  included: string;
-  overage?: string;
+  signal: Message;
+  included: Message | string;
+  overage?: Message;
 };
 
 type PlanCard = {
   id: "hobby" | "pro";
   name: string;
   price: string;
-  unit?: string;
-  tagline: string;
+  tagline: Message;
   data: DataRow[];
-  features: string[];
-  cta: string;
-  href: string;
+  features: Message[];
   recommended?: boolean;
 };
 
@@ -31,41 +32,29 @@ const CARDS: PlanCard[] = [
     id: "hobby",
     name: "Hobby",
     price: "€0",
-    unit: "/month",
-    tagline: "For personal projects and solo developers",
+    tagline: m.pricing_hobby_tagline,
     data: [
-      { signal: "Ingestion", included: "30 GB / month" },
-      { signal: "Query allowance", included: "5x", overage: "150 GB scanned" },
-      // { signal: "Uptime monitors", included: "1" },
-      { signal: "Users", included: "1" },
+      { signal: m.pricing_ingestion, included: m.pricing_hobby_ingestion },
+      { signal: m.pricing_query_allowance, included: "5x", overage: m.pricing_hobby_scanned },
+      { signal: m.pricing_users, included: "1" },
     ],
-    features: [
-      "14-day retention",
-      "5 alerts",
-      // "1 uptime monitor",
-    ],
-    cta: "Get started",
-    href: "https://app.everr.dev/auth/sign-up",
+    features: [m.pricing_hobby_retention, m.pricing_hobby_alerts],
   },
   {
     id: "pro",
     name: "Pro",
     price: "€39",
-    unit: "/month",
-    tagline: "More capacity and collaboration for growing teams",
+    tagline: m.pricing_pro_tagline,
     data: [
       {
-        signal: "Ingestion",
-        included: "300 GB / month",
-        overage: "then €0.10 per GB",
+        signal: m.pricing_ingestion,
+        included: m.pricing_pro_ingestion,
+        overage: m.pricing_pro_overage,
       },
-      { signal: "Query allowance", included: "20x", overage: "6 TB scanned" },
-      // { signal: "Uptime monitors", included: "10", overage: "then €1 each" },
-      { signal: "Users", included: "Unlimited" },
+      { signal: m.pricing_query_allowance, included: "20x", overage: m.pricing_pro_scanned },
+      { signal: m.pricing_users, included: m.pricing_pro_users },
     ],
-    features: ["12-month retention", "Unlimited alerts", "Organization management"],
-    cta: "Get started",
-    href: "https://app.everr.dev/auth/sign-up",
+    features: [m.pricing_pro_retention, m.pricing_pro_alerts, m.pricing_pro_org],
     recommended: true,
   },
 ];
@@ -107,12 +96,9 @@ export function PricingCards() {
     <section className="relative overflow-x-clip bg-background text-foreground">
       <div className={`${sectionWrap} pt-14 pb-20 md:pt-20 md:pb-28`}>
         <h1 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
-          Pricing that grows with you
+          {m.pricing_heading()}
         </h1>
-        <p className={`${sectionLead} mt-7 max-w-[52ch]`}>
-          Start with a solo project, scale with your team, or contact us for higher volumes and
-          dedicated instances.
-        </p>
+        <p className={`${sectionLead} mt-7 max-w-[52ch]`}>{m.pricing_lead()}</p>
 
         <div ref={ref} className="mt-14 grid gap-5 md:mt-20 lg:grid-cols-3">
           {CARDS.map((plan, i) => (
@@ -129,44 +115,46 @@ export function PricingCards() {
               <h2 className={planName}>{plan.name}</h2>
               <div className="mt-5 flex items-baseline gap-2">
                 <span className={price}>{plan.price}</span>
-                {plan.unit && <span className="text-base text-muted-foreground">{plan.unit}</span>}
+                <span className="text-base text-muted-foreground">{m.pricing_per_month()}</span>
               </div>
               <p className="mt-4 text-[15px] leading-[1.55] text-muted-foreground lg:min-h-[2lh]">
-                {plan.tagline}
+                {plan.tagline()}
               </p>
 
-              <p className={groupLabel}>Included</p>
+              <p className={groupLabel}>{m.pricing_included()}</p>
               <dl className="mt-4 space-y-3">
                 {plan.data.map((row) => (
-                  <div key={row.signal} className="flex items-baseline justify-between gap-4">
-                    <dt className="text-[15px]">{row.signal}</dt>
+                  <div key={row.signal()} className="flex items-baseline justify-between gap-4">
+                    <dt className="text-[15px]">{row.signal()}</dt>
                     <dd className="text-right text-[15px] tabular-nums">
-                      <span className="font-medium">{row.included}</span>
+                      <span className="font-medium">
+                        {typeof row.included === "string" ? row.included : row.included()}
+                      </span>
                       <span className="mt-0.5 block text-sm text-muted-foreground">
-                        {row.overage}&nbsp;
+                        {row.overage?.()}&nbsp;
                       </span>
                     </dd>
                   </div>
                 ))}
               </dl>
 
-              <p className={groupLabel}>Features</p>
+              <p className={groupLabel}>{m.pricing_features()}</p>
               <ul className="mt-4 flex-1 space-y-3">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-3 text-[15px]">
+                {plan.features.map((feature) => (
+                  <li key={feature()} className="flex items-start gap-3 text-[15px]">
                     <Check
                       className="mt-0.5 size-4 shrink-0 text-primary"
                       strokeWidth={2.5}
                       aria-hidden
                     />
-                    <span className="leading-snug">{f}</span>
+                    <span className="leading-snug">{feature()}</span>
                   </li>
                 ))}
               </ul>
 
               <div className="mt-9">
-                <PricingCta href={plan.href} primary={plan.recommended}>
-                  {plan.cta}
+                <PricingCta href={SIGN_UP_URL} primary={plan.recommended}>
+                  {m.get_started()}
                 </PricingCta>
               </div>
             </motion.article>
@@ -178,13 +166,13 @@ export function PricingCards() {
             className={cn(card, "border-border bg-card/40")}
           >
             <h2 className={planName}>Enterprise</h2>
-            <p className={cn(price, "mt-5")}>Custom</p>
+            <p className={cn(price, "mt-5")}>{m.pricing_enterprise_price()}</p>
             <p className="mt-4 max-w-xs text-[15px] leading-[1.55] text-muted-foreground">
-              Higher volumes or dedicated instances? Let us build a plan around your needs.
+              {m.pricing_enterprise_body()}
             </p>
             <div className="mt-auto pt-12">
               <PricingCta href="https://calendar.app.google/kgnoxBsk4QyoLywG8">
-                Let&apos;s talk
+                {m.pricing_enterprise_cta()}
               </PricingCta>
             </div>
           </motion.article>

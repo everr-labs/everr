@@ -8,9 +8,12 @@ import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
 import { MonitoringSection } from "@/components/monitoring-section";
 import { UnderTheHood } from "@/components/under-the-hood";
+import { pageHead } from "@/lib/page-head";
+import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
+  head: () => pageHead("/", m.meta_home_title(), m.hero_lead()),
 });
 
 function RouteComponent() {

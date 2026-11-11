@@ -8,8 +8,9 @@
     "build": "vp build",
     "start": "node .output/server/index.mjs",
     "preview": "vp preview",
-    "types:check": "fumadocs-mdx && tsc --noEmit",
-    "postinstall": "fumadocs-mdx"
+    "types:check": "fumadocs-mdx && pnpm i18n:compile && tsc --noEmit",
+    "i18n:compile": "paraglide-js compile --project ./project.inlang",
+    "postinstall": "fumadocs-mdx && pnpm i18n:compile"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -17,6 +18,7 @@
     "@everr/ui": "workspace:*",
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@icons-pack/react-simple-icons": "catalog:",
+    "@inlang/paraglide-js-react": "^1.0.4",
     "@posthog/react": "^1.9.0",
     "@t3-oss/env-core": "catalog:",
     "@takumi-rs/core": "^1.1.2",
@@ -35,6 +37,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@inlang/paraglide-js": "^3.2.1",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/devtools-vite": "^0.8.5",
     "@tanstack/react-devtools": "^0.10.13",

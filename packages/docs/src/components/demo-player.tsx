@@ -3,6 +3,7 @@ import { Pause, Play } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { Playhead } from "@/components/monitoring-demo/kit";
+import { m } from "@/paraglide/messages";
 
 // A demo told in chapters, with its player: pause, the chapters as colored
 // segments to jump between, a bar at the play position with the chapter's
@@ -173,7 +174,7 @@ function Timeline<C extends number>({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={paused ? "Play demo" : "Pause demo"}
+        aria-label={paused ? m.player_play() : m.player_pause()}
         className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&>svg]:size-3.5 [&>svg]:fill-current"
       >
         {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
@@ -205,7 +206,7 @@ function Timeline<C extends number>({
             }}
             type="button"
             onClick={() => onJump(chapter)}
-            aria-label={`Play: ${label}`}
+            aria-label={m.player_play_chapter({ label })}
             style={{ flexGrow: chapters[i].ms }}
             className="group h-5 basis-0 cursor-pointer"
           >
@@ -283,7 +284,7 @@ function ChapterIndex<C extends number>({
 }) {
   return (
     <nav
-      aria-label="Demo chapters"
+      aria-label={m.player_chapters()}
       className="hidden w-[290px] shrink-0 pt-[5.125rem] motion-reduce:pt-0 xl:block"
     >
       <ul>

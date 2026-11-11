@@ -1,13 +1,14 @@
 import favicon from "@everr/ui/assets/favicon.svg?url";
 import { PostHogProvider } from "@posthog/react";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts, useLocation } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
 import { baseOptions } from "@/lib/layout.shared";
 import { posthog } from "@/lib/posthog";
+import { getLocale } from "@/paraglide/runtime";
 import "@/lib/telemetry";
 import docsCss from "@/styles/docs.css?url";
 
@@ -48,8 +49,10 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // Redraws the document on navigation: going from /it to the docs changes the language
+  useLocation();
   return (
-    <html lang="en" className="dark">
+    <html lang={getLocale()} className="dark">
       <head>
         <HeadContent />
       </head>

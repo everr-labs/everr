@@ -1,8 +1,10 @@
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
+import { LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
 import { DISCORD_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 export function Footer() {
   return (
@@ -12,11 +14,10 @@ export function Footer() {
           <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-4 py-12 sm:px-6 md:flex-row md:items-center md:justify-between md:gap-12">
             <div>
               <h2 className="text-2xl font-medium leading-[1.15] tracking-[-0.02em] sm:text-[28px]">
-                Help shape Everr. Join us on Discord.
+                {m.footer_discord_heading()}
               </h2>
               <p className="mt-3 max-w-[58ch] text-base leading-[1.6] text-fd-muted-foreground">
-                Drop your feature requests, share feedback, and help us decide what to build next.
-                We’ll throw in a discount code as a thank you for helping us out.
+                {m.footer_discord_body()}
               </p>
             </div>
             <a
@@ -26,7 +27,7 @@ export function Footer() {
               rel="noopener noreferrer"
             >
               <SiDiscord aria-hidden="true" />
-              Join us on Discord
+              {m.footer_discord_cta()}
               <ArrowUpRight aria-hidden="true" />
             </a>
           </div>
@@ -52,7 +53,7 @@ function FooterDirectory() {
             />
             everr
           </span>
-          <p className="mt-4 text-sm text-fd-muted-foreground">Know before your customers do.</p>
+          <p className="mt-4 text-sm text-fd-muted-foreground">{m.footer_tagline()}</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
               href="https://x.com/everrlabs"
@@ -97,17 +98,21 @@ function FooterDirectory() {
           <div className="mt-6 flex justify-center sm:justify-start">
             <p className="inline-flex items-center gap-2 text-sm text-fd-muted-foreground">
               <span aria-hidden="true">🇪🇺</span>
-              Proudly made in Europe
+              {m.footer_made_in()}
             </p>
           </div>
-          <p className="mt-4 text-sm text-fd-muted-foreground">
+          <p className="mt-4 flex items-center justify-center gap-3 text-sm text-fd-muted-foreground sm:justify-start">
             &copy; {new Date().getFullYear()} Everr
+            <LanguageMenu
+              side="top"
+              className="rounded-full border border-border px-3 py-1.5 transition-colors hover:text-fd-foreground data-[popup-open]:text-fd-foreground"
+            />
           </p>
         </div>
 
         {/* Product */}
         <div>
-          <h3 className="mb-4 text-sm font-medium font-heading">Product</h3>
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_product()}</h3>
           <ul className="space-y-3">
             <li>
               <Link
@@ -115,7 +120,7 @@ function FooterDirectory() {
                 params={{ _splat: "" }}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Documentation
+                {m.footer_documentation()}
               </Link>
             </li>
             <li>
@@ -123,7 +128,7 @@ function FooterDirectory() {
                 to="/pricing"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Pricing
+                {m.nav_pricing()}
               </Link>
             </li>
             <li>
@@ -131,7 +136,7 @@ function FooterDirectory() {
                 href="https://app.everr.dev/auth/sign-up"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                Get started
+                {m.get_started()}
               </a>
             </li>
           </ul>
@@ -139,7 +144,7 @@ function FooterDirectory() {
 
         {/* Resources */}
         <div>
-          <h3 className="mb-4 text-sm font-medium font-heading">Resources</h3>
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_resources()}</h3>
           <ul className="space-y-3">
             <li>
               <Link
@@ -147,7 +152,7 @@ function FooterDirectory() {
                 params={{ _splat: "cli" }}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
-                CLI Docs
+                {m.footer_cli_docs()}
               </Link>
             </li>
             <li>

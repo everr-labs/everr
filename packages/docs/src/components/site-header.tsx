@@ -5,17 +5,19 @@ import { SiDiscord } from "@icons-pack/react-simple-icons";
 import { Link, useLocation } from "@tanstack/react-router";
 import FumaLink from "fumadocs-core/link";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, Globe, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { type ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GithubInfo } from "@/components/github-info";
+import { LanguageList, LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
 import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
+import { m } from "@/paraglide/messages";
 
 const NAV_LINKS = [
-  { text: "Docs", url: "/docs" },
-  { text: "Pricing", url: "/pricing" },
-  { text: "Devlog", url: "/devlog" },
+  { text: m.nav_docs, url: "/docs" },
+  { text: m.nav_pricing, url: "/pricing" },
+  { text: m.nav_devlog, url: "/devlog" },
 ] as const;
 
 const focusRing =
@@ -61,8 +63,8 @@ export function SiteHeader() {
     return (
       <header id="nd-nav" className="sticky top-0 z-40 h-14">
         <div className="border-b border-border bg-background/90 backdrop-blur-xl">
-          <nav aria-label="Main" className="flex h-14 items-center gap-2 px-4">
-            <Link to="/" aria-label="Everr home" className={cn("mr-4 rounded-md", focusRing)}>
+          <nav aria-label={m.nav_main()} className="flex h-14 items-center gap-2 px-4">
+            <Link to="/" aria-label={m.nav_home()} className={cn("mr-4 rounded-md", focusRing)}>
               <EverrLogo size="lg" className="text-[26px] [&>svg]:size-7" />
             </Link>
             <DesktopLinks pathname={pathname} />
@@ -85,7 +87,7 @@ export function SiteHeader() {
         )}
       >
         <nav
-          aria-label="Main"
+          aria-label={m.nav_main()}
           className={cn(
             "pointer-events-auto flex items-center gap-2 rounded-full border transition-[height,padding,background-color,border-color,box-shadow] duration-500 ease-out-expo",
             scrolled
@@ -95,7 +97,7 @@ export function SiteHeader() {
         >
           <Link
             to="/"
-            aria-label="Everr home"
+            aria-label={m.nav_home()}
             className={cn(
               "flex items-center rounded-md font-heading font-semibold transition-[margin,font-size] duration-500 ease-out-expo",
               scrolled ? "mr-1 text-[26px]" : "mr-5 text-[30px] md:mr-8 md:text-[40px]",
@@ -139,12 +141,19 @@ function Actions({ pathname, compact }: { pathname: string; compact: boolean }) 
       <SearchButton compact={compact} />
       <Suspense fallback={null}>
         <GithubInfo
-          aria-label="Everr on GitHub"
+          aria-label={m.nav_github_label()}
           owner="everr-labs"
           repo="everr"
           className={cn("items-center max-md:hidden", focusRing)}
         />
       </Suspense>
+      <LanguageMenu
+        short
+        className={cn(
+          "h-9 rounded-full px-2.5 text-sm text-foreground/65 transition-colors hover:bg-foreground/10 hover:text-foreground data-[popup-open]:bg-foreground/10 data-[popup-open]:text-foreground max-md:hidden",
+          focusRing,
+        )}
+      />
       <a
         href={SIGN_UP_URL}
         className={cn(
@@ -152,7 +161,7 @@ function Actions({ pathname, compact }: { pathname: string; compact: boolean }) 
           focusRing,
         )}
       >
-        Get started
+        {m.get_started()}
       </a>
       <MobileMenu pathname={pathname} />
     </div>
@@ -248,7 +257,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
                 focusRing,
               )}
             >
-              {text}
+              {text()}
             </FumaLink>
           </li>
         );
@@ -265,7 +274,7 @@ function SearchButton({ compact }: { compact: boolean }) {
     <button
       type="button"
       onClick={() => setOpenSearch(true)}
-      aria-label="Search the docs"
+      aria-label={m.nav_search_label()}
       className={cn(
         "flex h-9 cursor-pointer items-center rounded-full px-2.5 text-sm text-foreground/65 transition-colors hover:bg-foreground/10 hover:text-foreground",
         focusRing,
@@ -275,7 +284,7 @@ function SearchButton({ compact }: { compact: boolean }) {
       <span className="max-lg:hidden">
         <Folding open={!compact}>
           <span className="flex items-center gap-2 pl-2">
-            Search
+            {m.nav_search()}
             <kbd className="rounded-md border border-border px-1.5 py-0.5 font-sans text-[11px] leading-none text-foreground/50">
               ⌘K
             </kbd>
@@ -293,7 +302,7 @@ function MobileMenu({ pathname }: { pathname: string }) {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen} modal="trap-focus">
       <Dialog.Trigger
-        aria-label={open ? "Close menu" : "Open menu"}
+        aria-label={open ? m.nav_menu_close() : m.nav_menu_open()}
         className={cn(
           "relative z-50 grid size-9 cursor-pointer place-items-center rounded-full md:hidden",
           focusRing,
@@ -316,7 +325,7 @@ function MobileMenu({ pathname }: { pathname: string }) {
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Popup className="fixed inset-0 z-30 flex flex-col bg-background px-6 pt-20 pb-8 transition-opacity duration-300 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 md:hidden">
-          <Dialog.Title className="sr-only">Menu</Dialog.Title>
+          <Dialog.Title className="sr-only">{m.nav_menu()}</Dialog.Title>
           <ul className="grid">
             {NAV_LINKS.map(({ text, url }, i) => (
               <motion.li
@@ -332,7 +341,7 @@ function MobileMenu({ pathname }: { pathname: string }) {
                   aria-current={pathname.startsWith(url) ? "page" : undefined}
                   className="display flex items-center justify-between py-5 text-[44px] aria-[current=page]:text-primary"
                 >
-                  {text}
+                  {text()}
                 </FumaLink>
               </motion.li>
             ))}
@@ -355,11 +364,15 @@ function MobileMenu({ pathname }: { pathname: string }) {
               <SiDiscord className="size-4" aria-hidden="true" /> Discord
             </a>
           </div>
+          <div className="mt-6 flex items-center gap-3 border-t border-border pt-6 text-base">
+            <Globe className="size-4 shrink-0 text-foreground/55" aria-hidden="true" />
+            <LanguageList />
+          </div>
           <a
             href={SIGN_UP_URL}
             className="mt-auto inline-flex h-13 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground"
           >
-            Get started
+            {m.get_started()}
           </a>
         </Dialog.Popup>
       </Dialog.Portal>
