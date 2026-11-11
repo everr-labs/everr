@@ -20,10 +20,10 @@
   "hero_secondary": "See it in action",
   "hero_notice_1_what": "Checkout is slow for 1 in 5 people",
   "hero_notice_1_why": "One database query, shipped yesterday.",
-  "hero_notice_2_what": "Sign-ups stopped working on Safari",
-  "hero_notice_2_why": "It started with the last release.",
+  "hero_notice_2_what": "Sign-ups fail for emails with a +",
+  "hero_notice_2_why": "The new email check rejects them.",
   "hero_notice_3_what": "Large photo uploads are failing",
-  "hero_notice_3_why": "The person on call has the steps to fix it.",
+  "hero_notice_3_why": "Photos over 10 MB hit the upload limit.",
   "tour_heading": "An app can be up and still let people down",
   "tour_lead": "Working is not the same as working well. These are the questions that matter on a bad day. Pick one and watch Everr answer it.",
   "tour_1_label": "Slow pages",
@@ -157,5 +157,12 @@
   "pricing_faq_7_a": "Yes. Pro has a fixed monthly fee and a published rate for additional ingestion, so you can estimate your costs. Monthly budget limits will be available soon.",
   "language_label": "Language",
   "hero_ui_pay": "Pay now",
-  "hero_ui_signup": "Create account"
+  "hero_ui_signup": "Create account",
+  "hero_notice_1_step_1": "Checked 1,240 checkouts",
+  "hero_notice_1_step_2": "Traced the slow ones step by step",
+  "hero_notice_2_step_1": "Read 86 failed sign-ups",
+  "hero_notice_2_step_2": "Every one has a + in the email",
+  "hero_notice_3_step_1": "Looked at the failed uploads",
+  "hero_notice_3_step_2": "Compared their sizes",
+  "hero_fix_label": "Suggested fix"
 }

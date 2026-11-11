@@ -20,10 +20,10 @@
   "hero_secondary": "Guarda come funziona",
   "hero_notice_1_what": "Il checkout è lento per un utente su cinque",
   "hero_notice_1_why": "Colpa di una query al database, in produzione da ieri.",
-  "hero_notice_2_what": "Su Safari le registrazioni non funzionano più",
-  "hero_notice_2_why": "Il problema è nato con l’ultimo rilascio.",
+  "hero_notice_2_what": "Le registrazioni falliscono per le email con il +",
+  "hero_notice_2_why": "Il nuovo controllo sulle email le rifiuta.",
   "hero_notice_3_what": "Il caricamento delle foto più pesanti fallisce",
-  "hero_notice_3_why": "Chi è di turno sa già come risolvere.",
+  "hero_notice_3_why": "Le foto oltre i 10 MB superano il limite di upload.",
   "tour_heading": "Un’app può essere online e deludere lo stesso",
   "tour_lead": "Funzionare non significa funzionare bene. Queste sono le domande che contano nelle giornate no. Scegline una e guarda come risponde Everr.",
   "tour_1_label": "Pagine lente",
@@ -157,5 +157,12 @@
   "pricing_faq_7_a": "Sì. Pro ha un canone mensile fisso e una tariffa pubblica per l’ingestion extra, quindi puoi stimare quanto spenderai. A breve arriveranno anche i limiti di budget mensili.",
   "language_label": "Lingua",
   "hero_ui_pay": "Paga ora",
-  "hero_ui_signup": "Crea account"
+  "hero_ui_signup": "Crea account",
+  "hero_notice_1_step_1": "Controllati 1.240 checkout",
+  "hero_notice_1_step_2": "Seguiti passo per passo quelli lenti",
+  "hero_notice_2_step_1": "Lette 86 registrazioni fallite",
+  "hero_notice_2_step_2": "Tutte hanno un + nell'email",
+  "hero_notice_3_step_1": "Analizzati i caricamenti falliti",
+  "hero_notice_3_step_2": "Confrontate le dimensioni",
+  "hero_fix_label": "Fix proposto"
 }

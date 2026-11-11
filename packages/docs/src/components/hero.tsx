@@ -59,7 +59,7 @@ export function Hero() {
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 1.3, delay: 0.4, ease }}
-        className="relative mt-16 ml-auto w-[min(100vw,30rem)] md:absolute md:right-0 md:bottom-0 md:mt-0 md:w-[min(clamp(30rem,53vw,47.5rem),(72svh-9.5rem)*1.41)]"
+        className="relative mt-8 ml-auto w-[min(100vw,30rem)] md:absolute md:right-0 md:bottom-0 md:mt-0 md:w-[clamp(30rem,min(53vw,(72svh-9.5rem)*1.41),95rem)]"
       >
         <HeroWatch />
       </motion.div>

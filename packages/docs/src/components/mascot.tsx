@@ -11,6 +11,8 @@ type MascotProps = ComponentProps<"svg"> & {
   glow?: boolean;
   /** How far the eyes travel toward the pointer, in the logo's own units (it is 657 wide) */
   reach?: number;
+  /** Faces the other way */
+  mirrored?: boolean;
 };
 
 /** The Everr mark, looking at the pointer. One color unless the parts are styled. */
@@ -20,6 +22,7 @@ export function Mascot({
   raysClassName,
   glow = false,
   reach = 16,
+  mirrored = false,
   ...props
 }: MascotProps) {
   const svg = useRef<SVGSVGElement>(null);
@@ -30,16 +33,18 @@ export function Mascot({
     const look = (e: PointerEvent) => {
       const box = svg.current?.getBoundingClientRect();
       if (!box || !eyes.current) return;
-      const dx = e.clientX - (box.left + box.width * 0.55);
+      const dx = e.clientX - (box.left + box.width * (mirrored ? 0.45 : 0.55));
       const dy = e.clientY - (box.top + box.height * 0.67);
       // Eases toward the limit, so the eyes keep moving a little however far the pointer is
       const pull = Math.tanh(Math.hypot(dx, dy) / 400) * reach;
       const angle = Math.atan2(dy, dx);
-      eyes.current.style.transform = `translate(${Math.cos(angle) * pull}px, ${Math.sin(angle) * pull}px)`;
+      // The drawing is flipped, so the eyes travel the other way in its own units
+      const side = mirrored ? -1 : 1;
+      eyes.current.style.transform = `translate(${Math.cos(angle) * pull * side}px, ${Math.sin(angle) * pull}px)`;
     };
     window.addEventListener("pointermove", look, { passive: true });
     return () => window.removeEventListener("pointermove", look);
-  }, [reach]);
+  }, [reach, mirrored]);
 
   const eyePaths = everrLogoPaths.rightEye + everrLogoPaths.leftEye;
   const blink =
@@ -54,6 +59,7 @@ export function Mascot({
       clipRule="evenodd"
       aria-hidden="true"
       {...props}
+      style={mirrored ? { ...props.style, scale: "-1 1" } : props.style}
     >
       {/* The same outline without its hole, under the body: only the face shows through */}
       {faceClassName && (

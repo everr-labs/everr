@@ -10,6 +10,22 @@
     border-radius: 0;
   }
 
+  /* The pointer in Everr's own color, edged so it reads over the light button too */
+  & .ss-cursor__arrow {
+    --ss-cursor-ink: var(--lime);
+    filter: drop-shadow(0 0 0.75px oklch(0 0 0 / 90%)) drop-shadow(0 2px 3px oklch(0 0 0 / 55%));
+  }
+  & .ss-ripple {
+    border-color: var(--lime);
+    background: color-mix(in oklch, var(--lime) 14%, transparent);
+  }
+
+  /* The pieces that run off the side dissolve before the window's edge: sliced there, a
+     scrollbar beside them reads as a gap */
+  & .ss-stage[data-layout="wide"] {
+    mask-image: linear-gradient(to left, transparent, #000 72px);
+  }
+
   & .hw-scene {
     position: absolute;
     inset: 0;
@@ -112,9 +128,9 @@
 
   & .hw-form {
     display: grid;
-    grid-template-rows: 44px 44px 52px;
-    gap: 10px;
-    padding: 18px;
+    grid-template-rows: 36px 36px 46px;
+    gap: 8px;
+    padding: 16px;
   }
   & .hw-form .hw-action {
     border-radius: 12px;
@@ -127,10 +143,10 @@
     box-shadow: inset 0 0 0 1px var(--line);
   }
   & .hw-float {
-    top: 184px;
+    top: 64px;
     left: 16px;
-    width: 230px;
-    height: 60px;
+    width: 190px;
+    height: 44px;
     border-radius: 16px;
     box-shadow: inset 0 0 0 1px var(--line);
   }
@@ -219,20 +235,18 @@
     color: var(--fg);
   }
 
-  /* What Everr says, one at a time, each in the same place */
-  & .hw-notices {
+  /* Everr's investigation, one case at a time, each in the same place */
+  & .hw-cases {
     display: grid;
     grid-template-areas: "stack";
   }
-  & .hw-notice {
+  & .hw-case {
     display: grid;
     grid-area: stack;
-    gap: 6px;
     align-self: start;
-    justify-self: end;
-    max-width: 100%;
-    padding: 16px 20px 18px;
-    border-radius: 20px 20px 6px 20px;
+    position: relative;
+    padding: 18px 20px 8px;
+    border-radius: 20px;
     background: oklch(0.2 0 0);
     box-shadow:
       inset 0 0 0 1px oklch(1 0 0 / 12%),
@@ -244,18 +258,49 @@
       opacity 300ms ease,
       transform 300ms ease;
   }
-  & .hw-notice[data-on] {
+  & .hw-case[data-on] {
     opacity: 1;
     transform: none;
     transition:
       opacity 500ms ease,
       transform 800ms cubic-bezier(0.25, 0.8, 0.25, 1);
   }
-  & .hw-time {
-    font-size: 13px;
+  /* The tail of the speech bubble, toward Everr: beside it, or above it on a phone */
+  & .hw-case::after {
+    content: "";
+    position: absolute;
+    top: 22px;
+    right: -8px;
+    width: 18px;
+    height: 18px;
+    border-top: 1px solid oklch(1 0 0 / 12%);
+    border-right: 1px solid oklch(1 0 0 / 12%);
+    border-top-right-radius: 5px;
+    background: oklch(0.2 0 0);
+    rotate: 45deg;
+  }
+  & .ss-stage[data-layout="compact"] .hw-case::after {
+    top: -8px;
+    right: 61px;
+    rotate: -45deg;
+  }
+  & .hw-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    font-size: 15px;
     font-weight: 400;
-    font-variant-numeric: tabular-nums;
     color: var(--mfg);
+  }
+  & .hw-case .ss-check__ring {
+    stroke: oklch(1 0 0 / 22%);
+  }
+  & .hw-case .ss-check__fill {
+    fill: var(--lime);
+  }
+  & .hw-case .ss-check__tick {
+    stroke: var(--on-lime);
   }
   & .hw-what {
     font-size: 18px;
@@ -263,11 +308,102 @@
     letter-spacing: -0.01em;
     text-wrap: pretty;
   }
+  /* A window on the end of the investigation: earlier lines rise out under the title */
+  & .hw-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    max-height: 166px;
+    overflow: hidden;
+    mask-image: linear-gradient(transparent, #000 14px);
+  }
+  & .ss-stage[data-layout="compact"] .hw-body {
+    max-height: 178px;
+  }
+  /* On a phone the bubble lies over the scene, so everything the case is not about steps back */
+  & [data-aside] {
+    transition: opacity 400ms ease;
+  }
+  & .ss-stage[data-layout="compact"] .hw-scene[data-told] [data-aside] {
+    opacity: 0.28;
+  }
+  & .ss-stage[data-layout="compact"] .hw-thumb {
+    display: none;
+  }
+  & .ss-stage[data-layout="compact"] .hw-upload {
+    padding-left: 16px;
+  }
+  /* The fade lies over this strip of padding, so it only touches lines that have risen into it */
+  & .hw-flow {
+    display: grid;
+    flex: none;
+    padding-top: 14px;
+  }
   & .hw-why {
+    display: block;
+    padding-bottom: 12px;
     font-size: 15px;
-    font-weight: 400;
-    color: var(--mfg);
+    font-weight: 500;
     text-wrap: pretty;
+  }
+  /* The change behind it and the fix, as the patch Everr would open */
+  & .hw-patch {
+    display: grid;
+    margin-bottom: 10px;
+    padding: 0 0 8px;
+    border-radius: 10px;
+    background: oklch(0.15 0 0);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-family: var(--ss-mono);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+  & .hw-patch-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    margin-bottom: 6px;
+    padding: 0 12px 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  & .hw-patch-head svg {
+    flex: none;
+    color: var(--mfg);
+  }
+  & .hw-path {
+    color: var(--mfg);
+  }
+  & .hw-patch-head b {
+    margin-left: auto;
+    font-family: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--lime);
+  }
+  & .hw-patch code {
+    display: block;
+    padding: 0 12px 0 10px;
+    font-size: inherit;
+    white-space: pre;
+    color: oklch(0.75 0.12 20);
+    background: oklch(0.7 0.19 20 / 10%);
+  }
+  & .hw-patch code[data-add] {
+    color: oklch(0.86 0.16 150);
+    background: oklch(0.72 0.19 150 / 12%);
+  }
+  & .hw-patch code i {
+    display: inline-block;
+    width: 2ch;
+    height: auto;
+    border-radius: 0;
+    background: none;
+    font-style: normal;
+    opacity: 0.6;
+    white-space: pre;
   }
   & .ss-stage[data-layout="compact"] .hw-what {
     font-size: 16px;
