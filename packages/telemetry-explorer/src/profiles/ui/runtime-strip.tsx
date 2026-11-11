@@ -1,11 +1,11 @@
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { bucketTime, bucketTitle } from "../../histogram/volume-histogram";
 import type { ProfileFilterInput } from "../data/schemas";
 import {
   GC_TYPES,
   type GcType,
-  type RuntimeMetricsBucket,
   type RuntimeMetricsRepositoryLike,
   runtimeMetricsOptions,
 } from "../data/runtime";
@@ -30,16 +30,6 @@ function formatSeconds(value: number) {
 }
 
 const AXES = { left: { format: formatSeconds, hidden: true } };
-
-function time(date: Date) {
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function bucketTitle(bucket: RuntimeMetricsBucket) {
-  const start = new Date(bucket.timestamp);
-  const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;
-}
 
 /**
  * Node.js event-loop delay and GC time for the selected services, on the
@@ -72,7 +62,7 @@ export function RuntimeStrip({
     () =>
       buckets
         ? {
-            labels: buckets.map((bucket) => time(new Date(bucket.timestamp))),
+            labels: buckets.map((bucket) => bucketTime(new Date(bucket.timestamp))),
             titles: buckets.map(bucketTitle),
           }
         : undefined,

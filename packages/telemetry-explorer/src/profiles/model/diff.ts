@@ -1,9 +1,8 @@
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
-import { frameId } from "./flame-layout";
 import type { FlameNode, FlameTree, FunctionStat } from "./flame-tree";
 
 /** Windows at a fixed offset from the current range. */
-export const PRESET_BASELINES = ["previous", "day", "week"] as const;
+const PRESET_BASELINES = ["previous", "day", "week"] as const;
 export type PresetBaseline = (typeof PRESET_BASELINES)[number];
 
 /**
@@ -57,7 +56,7 @@ export type FrameDiff = {
   delta: number;
 };
 
-/** Diffs keyed by `frameId`, for every frame of the comparison tree. */
+/** Diffs keyed by frame id, for every frame of the comparison tree. */
 export function diffFlameTrees(
   comparison: FlameTree,
   baseline: FlameTree,
@@ -67,17 +66,13 @@ export function diffFlameTrees(
   const baselineTotal = baseline.root.total;
   const visit = (node: FlameNode, base: FlameNode | undefined) => {
     const baselineValue = base?.total ?? 0;
-    diffs.set(frameId(node), {
+    diffs.set(node.id, {
       baseline: baselineValue,
       comparison: node.total,
       delta: share(node.total, comparisonTotal) - share(baselineValue, baselineTotal),
     });
-    for (const child of node.children) {
-      visit(
-        child,
-        base?.children.find((c) => c.key === child.key),
-      );
-    }
+    const baseChildren = new Map(base?.children.map((c) => [c.key, c]));
+    for (const child of node.children) visit(child, baseChildren.get(child.key));
   };
   visit(comparison.root, baseline.root);
   return diffs;
@@ -141,7 +136,18 @@ export function diffColor(delta: number, scale: number): string {
   return delta > 0 ? `hsl(0 80% ${lightness}%)` : `hsl(145 55% ${lightness}%)`;
 }
 
-export function maxAbsDelta(diffs: ReadonlyMap<string, FrameDiff>): number {
+/** Colors each frame by its diff, scaled to the largest change. */
+export function diffColorOf(
+  diffs: ReadonlyMap<string, FrameDiff>,
+): (frame: { spanId: string }) => string | undefined {
+  const scale = maxAbsDelta(diffs);
+  return (frame) => {
+    const diff = diffs.get(frame.spanId);
+    return diff ? diffColor(diff.delta, scale) : undefined;
+  };
+}
+
+function maxAbsDelta(diffs: ReadonlyMap<string, FrameDiff>): number {
   let max = 0;
   for (const [, diff] of diffs) max = Math.max(max, Math.abs(diff.delta));
   return max;

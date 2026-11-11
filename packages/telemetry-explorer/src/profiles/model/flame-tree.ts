@@ -50,6 +50,11 @@ function hexAddress(hex: string | undefined): string {
 }
 
 export type FlameNode = {
+  /**
+   * The node's path of keys from the root, so a selection survives a refetch of
+   * the same stacks. Built from the parent's id, which shares its string.
+   */
+  id: string;
   /** Identifies the node among its siblings; frames merge on it. */
   key: string;
   name: string;
@@ -73,12 +78,13 @@ export type FlameTree = {
 
 const ROOT_FRAME_NAME = "total";
 
-export function frameKey(frame: ProfileFrame): string {
+export function frameKey(frame: Pick<ProfileFrame, "name" | "file">): string {
   return `${frame.name}\u0000${frame.file}`;
 }
 
 function createNode(key: string, frame: ProfileFrame, parent: FlameNode | undefined): FlameNode {
   return {
+    id: parent ? `${parent.id}\u0001${key}` : "frame",
     key,
     name: frame.name,
     file: frame.file,

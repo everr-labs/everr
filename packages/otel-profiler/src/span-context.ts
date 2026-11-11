@@ -51,7 +51,10 @@ export class ProfilingContextManager extends AsyncLocalStorageContextManager {
     thisArg?: ThisParameterType<F>,
     ...args: A
   ): ReturnType<F> {
-    if (!time.isStarted()) return super.with(context, fn, thisArg, ...args);
+    // Same span, same labels: the profiler context entered for it still applies.
+    if (!time.isStarted() || trace.getSpan(context) === trace.getSpan(this.active())) {
+      return super.with(context, fn, thisArg, ...args);
+    }
     return super.with(context, () =>
       time.runWithContext(sampleContext(context), () => fn.apply(thisArg, args)),
     );

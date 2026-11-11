@@ -9,17 +9,14 @@ import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filt
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
 import { ExploreFilterSelect } from "../../filters/ui/explore-filter-select";
 import type { ProfilesRepositoryLike } from "../data/repository";
-import { PROFILES_ATTRIBUTE_SOURCES } from "../data/schemas";
+import { PROFILES_ATTRIBUTE_SOURCES, type ProfilesSearchParams } from "../data/schemas";
 import type { SampleTypeOption } from "../data/types";
+import { sampleTypeKey } from "../model/selection";
 
-export type ProfileFilterValue = {
-  q: string;
-  sampleType: string | undefined;
-  sampleUnit: string | undefined;
-  traceId: string | undefined;
-  spanId: string | undefined;
-  attributes: AttributeFilter[];
-};
+export type ProfileFilterValue = Pick<
+  ProfilesSearchParams,
+  "q" | "sampleType" | "sampleUnit" | "traceId" | "spanId" | "attributes"
+>;
 
 export type ProfileFilterPatch = Partial<ProfileFilterValue>;
 
@@ -48,10 +45,6 @@ const PROFILES_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
 
 export function sampleTypeLabel(option: SampleTypeOption): string {
   return option.sampleUnit ? `${option.sampleType} (${option.sampleUnit})` : option.sampleType;
-}
-
-function sampleTypeKey(option: SampleTypeOption): string {
-  return `${option.sampleType}\u0000${option.sampleUnit}`;
 }
 
 /** The page zone counts every filter but the sample type, which always has a value. */

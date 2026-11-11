@@ -7,6 +7,7 @@ import type {
 } from "../../attribute-filter/schemas";
 import { normalizeTimestampToUtc } from "../../logs/util/timestamp";
 import { validateTableName } from "../../sql/table";
+import { bucketMs, bucketStarts } from "./buckets";
 import { type ProfileStackRow, rowToStack } from "../model/flame-tree";
 import type { ProfileSource } from "../model/source-link";
 import type { ProfileVersion } from "../model/versions";
@@ -39,14 +40,12 @@ import { buildProfileWhere, profileAttributeColumn } from "./where";
 const SAMPLE_WEIGHT_SQL =
   "if(empty(Values), toInt64(length(TimestampsUnixNano)), arraySum(Values))";
 
-const SAMPLE_TYPE_SQL = "SampleType = {sampleType:String} AND SampleUnit = {sampleUnit:String}";
-
 /**
  * Snapshot types describe what is live at one instant, not what happened over
  * the profile's window, so their weights average across profiles instead of
  * adding up. pprof names them `inuse_*`.
  */
-export function isSnapshotSampleType(sampleType: string): boolean {
+function isSnapshotSampleType(sampleType: string): boolean {
   return sampleType.startsWith("inuse_");
 }
 
@@ -116,8 +115,7 @@ export class ProfilesRepository {
           ? `(
         SELECT greatest(uniqExact(ProfileId), 1)
         FROM ${this.tableName}
-        WHERE ${SAMPLE_TYPE_SQL}
-          AND ${where.clause}
+        WHERE ${where.clause}
       )`
           : "1"
       } AS snapshots,
@@ -133,8 +131,7 @@ export class ProfilesRepository {
           any(ResourceAttributes['vcs.ref.head.revision'])   AS revision,
           sum(${SAMPLE_WEIGHT_SQL})        AS weight
         FROM ${this.tableName}
-        WHERE ${SAMPLE_TYPE_SQL}
-          AND ${where.clause}
+        WHERE ${where.clause}
         GROUP BY StackHash
         HAVING weight > 0
       )
@@ -156,8 +153,6 @@ export class ProfilesRepository {
     `,
       {
         ...where.params,
-        sampleType: input.sampleType,
-        sampleUnit: input.sampleUnit,
         limit: input.limit ?? PROFILE_STACK_LIMIT,
       },
     );
@@ -235,8 +230,7 @@ export class ProfilesRepository {
         any(SampleAttributes['everr.root_span.name']) AS rootSpanName,
         toString(sum(${SAMPLE_WEIGHT_SQL})) AS value
       FROM ${this.tableName}
-      WHERE ${SAMPLE_TYPE_SQL}
-        AND TraceId != ''
+      WHERE TraceId != ''
         AND has(FunctionNames, {functionName:String})
         AND ${where.clause}
       GROUP BY traceId, spanId
@@ -245,8 +239,6 @@ export class ProfilesRepository {
     `,
       {
         ...where.params,
-        sampleType: input.sampleType,
-        sampleUnit: input.sampleUnit,
         functionName: input.functionName,
         limit: input.limit ?? PROFILE_EXAMPLE_TRACE_LIMIT,
       },
@@ -273,21 +265,15 @@ export class ProfilesRepository {
             : `sum(${SAMPLE_WEIGHT_SQL})`
         }) AS value
       FROM ${this.tableName}
-      WHERE ${SAMPLE_TYPE_SQL}
-        AND ${where.clause}
+      WHERE ${where.clause}
       GROUP BY bucket
       ORDER BY bucket ASC
     `,
-      { ...where.params, sampleType: input.sampleType, sampleUnit: input.sampleUnit },
+      where.params,
     );
     return fillBuckets(rows, fromDate, toDate, intervalSeconds);
   }
 
-  /**
-   * The span's samples one timestamp at a time, grouped by stack, so the
-   * timeline can show what ran when. Rows without timestamps, from profilers
-   * that only aggregate, are left out.
-   */
   /** The ids of a trace's spans that have samples linked to them. */
   async profiledSpans(input: ProfiledSpansInput): Promise<string[]> {
     const where = buildProfileWhere({
@@ -307,11 +293,18 @@ export class ProfilesRepository {
     return rows.map((row) => row.spanId);
   }
 
+  /**
+   * The span's samples one timestamp at a time, grouped by stack, so the
+   * timeline can show what ran when. Rows without timestamps, from profilers
+   * that only aggregate, are left out.
+   */
   async spanTimeline(input: ProfileSpanTimelineInput): Promise<ProfileSpanTimeline> {
     const where = buildProfileWhere({
       timeRange: input.timeRange,
       traceId: input.traceId,
       spanId: input.spanId,
+      sampleType: input.sampleType,
+      sampleUnit: input.sampleUnit,
       attributes: [],
     });
     const limit = input.limit ?? PROFILE_TIMELINE_SAMPLE_LIMIT;
@@ -330,8 +323,7 @@ export class ProfilesRepository {
           if(PeriodUnit = 'nanoseconds', Period, 0) AS period,
           arrayJoin(TimestampsUnixNano) AS ts
         FROM ${this.tableName}
-        WHERE ${SAMPLE_TYPE_SQL}
-          AND ${where.clause}
+        WHERE ${where.clause}
           AND notEmpty(TimestampsUnixNano)
         ORDER BY ts
         LIMIT {limit:UInt32}
@@ -351,8 +343,6 @@ export class ProfilesRepository {
     `,
       {
         ...where.params,
-        sampleType: input.sampleType,
-        sampleUnit: input.sampleUnit,
         limit,
       },
     );
@@ -408,21 +398,12 @@ function fillBuckets(
   toDate: Date,
   intervalSeconds: number,
 ): ProfileHistogramBucket[] {
-  const intervalMs = intervalSeconds * 1000;
-  const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
-  const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
-  const values = new Map(
-    rows.map((row) => [new Date(normalizeTimestampToUtc(row.bucket)).getTime(), Number(row.value)]),
-  );
-  const buckets: ProfileHistogramBucket[] = [];
-  for (let bucketMs = startMs; bucketMs <= endMs; bucketMs += intervalMs) {
-    buckets.push({
-      timestamp: new Date(bucketMs).toISOString(),
-      endTimestamp: new Date(bucketMs + intervalMs).toISOString(),
-      value: values.get(bucketMs) ?? 0,
-    });
-  }
-  return buckets;
+  const values = new Map(rows.map((row) => [bucketMs(row.bucket), Number(row.value)]));
+  return bucketStarts(fromDate, toDate, intervalSeconds).map(({ ms, timestamp, endTimestamp }) => ({
+    timestamp,
+    endTimestamp,
+    value: values.get(ms) ?? 0,
+  }));
 }
 
 export interface ProfilesRepositoryOptions {

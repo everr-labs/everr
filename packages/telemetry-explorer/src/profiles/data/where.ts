@@ -21,15 +21,24 @@ export function profileAttributeColumn(source: AttributeSource): string {
 // Server-fn inputs arrive before zod fills `values` in.
 type ProfileAttributeFilter = NonNullable<ProfileFilterInput["attributes"]>[number];
 
-export type BuiltWhere = { clause: string; params: Record<string, unknown> };
+type BuiltWhere = { clause: string; params: Record<string, unknown> };
 
-export function buildProfileWhere(input: ProfileFilterInput): BuiltWhere {
+/** The filters every profiles query shares; with a sample type, only samples of it. */
+export function buildProfileWhere(
+  input: ProfileFilterInput & { sampleType?: string; sampleUnit?: string },
+): BuiltWhere {
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const clauses = [
     "Timestamp >= parseDateTime64BestEffort({fromTime:String}, 9)",
     "Timestamp <= parseDateTime64BestEffort({toTime:String}, 9)",
   ];
   const params: Record<string, unknown> = { fromTime: fromISO, toTime: toISO };
+
+  if (input.sampleType !== undefined && input.sampleUnit !== undefined) {
+    clauses.push("SampleType = {sampleType:String} AND SampleUnit = {sampleUnit:String}");
+    params.sampleType = input.sampleType;
+    params.sampleUnit = input.sampleUnit;
+  }
 
   const services = input.services ?? [];
   if (services.length > 0) {
@@ -64,7 +73,7 @@ export function buildProfileWhere(input: ProfileFilterInput): BuiltWhere {
   return { clause: clauses.join("\n        AND "), params };
 }
 
-function attributeClause(
+export function attributeClause(
   filter: ProfileAttributeFilter,
   index: number,
   params: Record<string, unknown>,

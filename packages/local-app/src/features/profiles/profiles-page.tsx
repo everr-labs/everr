@@ -8,6 +8,7 @@ import {
 } from "@everr/telemetry-explorer/profiles";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { useExploreControls } from "../explore/use-explore-controls";
@@ -30,6 +31,8 @@ export function ProfilesPage() {
   const refresh = search.refresh ?? "";
   const service = search.service ?? [];
   const environment = search.environment ?? [];
+  // The route validates the search; parsing again fills in the defaults its loose type hides.
+  const params = useMemo(() => ProfilesSearchParamsSchema.parse(search), [search]);
 
   return (
     <ExploreShell title="Profiles" timeRange={timeRange} refresh={refresh} {...controls}>
@@ -39,22 +42,7 @@ export function ProfilesPage() {
           runtimeRepo={localRuntimeMetricsRepo}
           timeRange={timeRange}
           refresh={refresh}
-          search={{
-            service,
-            q: search.q ?? "",
-            sampleType: search.sampleType,
-            sampleUnit: search.sampleUnit,
-            traceId: search.traceId,
-            spanId: search.spanId,
-            attributes: search.attributes ?? [],
-            showVolume: search.showVolume ?? true,
-            compare: search.compare,
-            baseFrom: search.baseFrom,
-            baseTo: search.baseTo,
-            version: search.version,
-            baseVersion: search.baseVersion,
-            fn: search.fn,
-          }}
+          search={{ ...params, service }}
           environment={environment}
           persistentFilters={
             <ExplorePersistentFilters

@@ -1,7 +1,7 @@
 import { dirname } from "node:path";
 import { heap, SourceMapper, time } from "@datadog/pprof";
 import { context } from "@opentelemetry/api";
-import { suppressTracing } from "@opentelemetry/core";
+import { parseKeyPairsIntoRecord, suppressTracing } from "@opentelemetry/core";
 import { pprofToOtlp } from "./otlp.js";
 import { findSourceRoot } from "./source-root.js";
 import { LOW_CARDINALITY_LABELS, sampleLabels } from "./span-context.js";
@@ -52,7 +52,7 @@ export type Profiler = { shutdown: () => Promise<void> };
 export async function startProfiler(options: ProfilerOptions = {}): Promise<Profiler> {
   const env = process.env;
   const url = options.url ?? profilesUrl(options.endpoint ?? env.OTEL_EXPORTER_OTLP_ENDPOINT);
-  const headers = options.headers ?? parseHeaders(env.OTEL_EXPORTER_OTLP_HEADERS);
+  const headers = options.headers ?? parseKeyPairsIntoRecord(env.OTEL_EXPORTER_OTLP_HEADERS);
   const resourceAttributes = {
     "service.name": env.OTEL_SERVICE_NAME || "unknown_service:node",
     ...options.resourceAttributes,
@@ -115,19 +115,6 @@ function profilesUrl(endpoint: string | undefined) {
     .replace(/\/+$/, "")
     .replace(/\/v1\/(traces|metrics|logs)$/, "");
   return `${base}/v1development/profiles`;
-}
-
-function parseHeaders(value: string | undefined) {
-  if (!value) return undefined;
-  const headers: Record<string, string> = {};
-  for (const pair of value.split(",")) {
-    const separator = pair.indexOf("=");
-    if (separator <= 0) continue;
-    headers[decodeURIComponent(pair.slice(0, separator).trim())] = decodeURIComponent(
-      pair.slice(separator + 1).trim(),
-    );
-  }
-  return headers;
 }
 
 // Bundled or compiled servers keep maps next to the entry script, and the maps
