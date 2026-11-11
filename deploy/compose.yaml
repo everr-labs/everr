@@ -117,11 +117,6 @@ services:
     volumes:
       - ./collector.yaml:/etc/everr-collector/config.yaml:ro
       - collector-queue:/var/lib/everr/queue
-    healthcheck:
-      test: ["CMD", "/usr/bin/everr-healthcheck"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
 
 volumes:
   postgres-data:
