@@ -18,7 +18,6 @@ export function ProfilesRoute() {
       repo={repos.profiles}
       runtimeRepo={repos.runtimeMetrics}
       timeRange={timeRange}
-      refresh={search.refresh ?? ""}
       search={{ ...search, service }}
       environment={environment}
       persistentFilters={<ExplorePersistentFilters />}

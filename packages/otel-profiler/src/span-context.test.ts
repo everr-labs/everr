@@ -102,4 +102,23 @@ describe("span labels", () => {
       .reduce((total, sample) => total + Number(sample.value[1]), 0);
     expect(unlinkedWallNanos).toBeGreaterThan(50_000_000);
   });
+
+  it("keeps charging a span when a context with the same span is entered", async () => {
+    time.start({ intervalMicros: 1_000, withContexts: true, useCPED: true });
+    const spanId = await tracer.startActiveSpan("GET", async (span) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      context.with(context.active(), () => busy(100));
+      span.end();
+      return span.spanContext().spanId;
+    });
+    const profile = time.stop(false, sampleLabels, LOW_CARDINALITY_LABELS);
+
+    const text = (index: unknown) => profile.stringTable.strings[Number(index)];
+    const linkedWallNanos = profile.sample
+      .filter((sample) =>
+        sample.label.some((label) => text(label.key) === "span_id" && text(label.str) === spanId),
+      )
+      .reduce((total, sample) => total + Number(sample.value[1]), 0);
+    expect(linkedWallNanos).toBeGreaterThan(50_000_000);
+  });
 });

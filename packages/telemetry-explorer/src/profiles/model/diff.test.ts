@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import { baselineRange, diffColor, diffFlameTrees, diffFunctionStats } from "./diff";
-import { frameId } from "./flame-layout";
 import { buildFlameTree, findNodeByPath, functionStats, type ProfileStack } from "./flame-tree";
 
 function stack(names: string[], value: number): ProfileStack {
@@ -19,7 +18,7 @@ describe("diffFlameTrees", () => {
       comparison.root,
       path.map((name) => `${name}\u0000`),
     );
-    return diffs.get(frameId(node));
+    return diffs.get(node.id);
   };
 
   it("compares each frame's share of its window, not its raw weight", () => {
@@ -31,7 +30,7 @@ describe("diffFlameTrees", () => {
   it("treats a frame missing from the baseline as new", () => {
     const grown = buildFlameTree([...comparisonStacks, stack(["main", "compress"], 200)]);
     const node = findNodeByPath(grown.root, ["main\u0000", "compress\u0000"]);
-    const diff = diffFlameTrees(grown, buildFlameTree(baselineStacks)).get(frameId(node));
+    const diff = diffFlameTrees(grown, buildFlameTree(baselineStacks)).get(node.id);
     expect(diff).toEqual({ baseline: 0, comparison: 200, delta: 0.5 });
   });
 });

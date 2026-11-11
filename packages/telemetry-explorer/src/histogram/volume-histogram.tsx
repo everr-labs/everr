@@ -24,7 +24,7 @@ function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-function time(date: Date) {
+export function bucketTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -33,7 +33,7 @@ function time(date: Date) {
 export function bucketTitle(bucket: HistogramBucket) {
   const start = new Date(bucket.timestamp);
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;
+  return `${day} · ${bucketTime(start)} – ${bucketTime(new Date(bucket.endTimestamp))}`;
 }
 
 // Tick spacings, in minutes: the first that puts at most MAX_TICKS on the
@@ -68,7 +68,7 @@ export function axisLabels(buckets: readonly HistogramBucket[]): string[] {
     const at = new Date(start - (minutes - period * step) * 60_000);
     return at.getHours() === 0 && at.getMinutes() === 0
       ? at.toLocaleDateString([], { month: "short", day: "numeric" })
-      : time(at);
+      : bucketTime(at);
   });
 }
 

@@ -1,4 +1,4 @@
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   type AttributeSource,
@@ -44,12 +44,12 @@ export const PROFILE_HISTOGRAM_BUCKETS = 60;
 
 export const PROFILE_EXAMPLE_TRACE_LIMIT = 20;
 
-export const AttributeFilterArraySchema = attributesField(PROFILES_ATTRIBUTE_SOURCES);
+const AttributeFilterArraySchema = attributesField(PROFILES_ATTRIBUTE_SOURCES);
 
 // Every query on the page narrows by the same filters, so a flame graph, its
 // sample types and its histogram always describe the same samples.
 const FilterShape = {
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   services: z.array(z.string()).default([]),
   /** `service.version` values. */
   versions: z.array(z.string()).default([]),
@@ -82,7 +82,7 @@ export type ProfileHistogramInput = z.input<typeof ProfileHistogramInputSchema>;
 export const PROFILE_TIMELINE_SAMPLE_LIMIT = 5_000;
 
 export const ProfileSpanTimelineInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   traceId: z.string().min(1),
   spanId: z.string().min(1),
   ...SampleTypeShape,
@@ -91,7 +91,7 @@ export const ProfileSpanTimelineInputSchema = z.object({
 export type ProfileSpanTimelineInput = z.input<typeof ProfileSpanTimelineInputSchema>;
 
 export const ProfiledSpansInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   traceId: z.string().min(1),
 });
 export type ProfiledSpansInput = z.input<typeof ProfiledSpansInputSchema>;
@@ -104,7 +104,7 @@ export const ProfileExampleTracesInputSchema = z.object({
 });
 export type ProfileExampleTracesInput = z.input<typeof ProfileExampleTracesInputSchema>;
 
-export const ProfileServicesInputSchema = z.object({ timeRange: TimeRangeSchema });
+export const ProfileServicesInputSchema = z.object({ timeRange: ExactTimeRangeSchema });
 export type ProfileServicesInput = z.infer<typeof ProfileServicesInputSchema>;
 
 export const ProfileAttributeValuesInputSchema = attributeValuesInputSchema(
