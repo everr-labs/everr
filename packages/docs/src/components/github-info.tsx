@@ -1,7 +1,8 @@
 import { cn } from "@everr/ui/lib/utils";
 import { SiGithub } from "@icons-pack/react-simple-icons";
 import { Star } from "lucide-react";
-import { type ComponentProps, use } from "react";
+import { ClientOnly } from "@tanstack/react-router";
+import { type ComponentProps, Suspense, use } from "react";
 
 export interface FetchRepositoryInfoOptions {
   owner: string;
@@ -66,7 +67,67 @@ const formatterOptions: Intl.NumberFormatOptions = {
 
 const defaultFormatter = new Intl.NumberFormat(undefined, formatterOptions);
 
-const promises: Record<string, Promise<RepositoryInfo | null>> = {};
+// GitHub allows 60 anonymous requests an hour from one address. One answer is asked for
+// at most every ten minutes, and a refusal is kept just as long: asking again on the
+// next render would send a request per render for as long as the limit lasts.
+const KEEP_MS = 10 * 60 * 1000;
+const STORED = "everr:github-stars:";
+
+const asked: Record<string, { at: number; info: Promise<RepositoryInfo | null> }> = {};
+
+/** What an earlier page load in this browser learned, while it is still fresh */
+function remembered(cacheKey: string): RepositoryInfo | null | undefined {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORED + cacheKey) ?? "null");
+    if (stored && Date.now() - stored.at < KEEP_MS) return stored.info;
+  } catch {
+    // Storage is blocked: ask GitHub
+  }
+  return undefined;
+}
+
+function remember(cacheKey: string, info: RepositoryInfo | null) {
+  try {
+    localStorage.setItem(STORED + cacheKey, JSON.stringify({ at: Date.now(), info }));
+  } catch {
+    // Kept for this page only
+  }
+}
+
+function repositoryInfo(options: FetchRepositoryInfoOptions) {
+  const cacheKey = JSON.stringify(options);
+  const kept = asked[cacheKey];
+  if (kept && Date.now() - kept.at < KEEP_MS) return kept.info;
+
+  const known = remembered(cacheKey);
+  const info =
+    known === undefined
+      ? fetchRepositoryInfo(options)
+          .catch(() => null)
+          .then((found) => {
+            remember(cacheKey, found);
+            return found;
+          })
+      : Promise.resolve(known);
+  asked[cacheKey] = { at: Date.now(), info };
+  return info;
+}
+
+function Stars({
+  locale,
+  ...options
+}: FetchRepositoryInfoOptions & Pick<GithubInfoProps, "locale">) {
+  const info = use(repositoryInfo(options));
+  if (!info) return null;
+  const formatter = locale ? new Intl.NumberFormat(locale, formatterOptions) : defaultFormatter;
+
+  return (
+    <div className="flex text-xs items-center gap-1 text-fd-muted-foreground">
+      <Star className="size-3 fill-primary stroke-primary" />
+      <span>{formatter.format(info.stars)}</span>
+    </div>
+  );
+}
 
 export function GithubInfo({
   repo,
@@ -77,23 +138,6 @@ export function GithubInfo({
   locale,
   ...props
 }: GithubInfoProps) {
-  const options: FetchRepositoryInfoOptions = {
-    repo,
-    owner,
-    token,
-    baseUrl,
-    fetchOptions,
-  };
-  const cacheKey = JSON.stringify(options);
-  // GitHub rate-limits anonymous requests: without a count, the link still stands.
-  // A failure is not kept, so the next render asks again.
-  promises[cacheKey] ??= fetchRepositoryInfo(options).catch(() => {
-    delete promises[cacheKey];
-    return null;
-  });
-  const info = use(promises[cacheKey]);
-  const formatter = locale ? new Intl.NumberFormat(locale, formatterOptions) : defaultFormatter;
-
   return (
     <a
       href={`https://github.com/${owner}/${repo}`}
@@ -109,12 +153,21 @@ export function GithubInfo({
         <SiGithub className="text-foreground size-5" />
         {props.children}
       </p>
-      {info && (
-        <div className="flex text-xs items-center gap-1 text-fd-muted-foreground">
-          <Star className="size-3 fill-primary stroke-primary" />
-          <span>{formatter.format(info.stars)}</span>
-        </div>
-      )}
+      {/* The count is the visitor's browser's to ask for: the server's address would spend one
+          allowance for everybody, and its answer need not match what the browser is told.
+          Without a count, the link still stands. */}
+      <ClientOnly>
+        <Suspense>
+          <Stars
+            repo={repo}
+            owner={owner}
+            token={token}
+            baseUrl={baseUrl}
+            fetchOptions={fetchOptions}
+            locale={locale}
+          />
+        </Suspense>
+      </ClientOnly>
     </a>
   );
 }

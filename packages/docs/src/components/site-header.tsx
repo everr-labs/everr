@@ -6,7 +6,7 @@ import FumaLink from "fumadocs-core/link";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import { ArrowUpRight, Globe, Search } from "lucide-react";
 import { motion } from "motion/react";
-import { type ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GithubInfo } from "@/components/github-info";
 import { LanguageList, LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
@@ -167,14 +167,12 @@ function Actions({ pathname, compact }: { pathname: string; compact: boolean }) 
   return (
     <div className="ml-auto flex items-center gap-1">
       <SearchButton compact={compact} />
-      <Suspense fallback={null}>
-        <GithubInfo
-          aria-label={m.nav_github_label()}
-          owner="everr-labs"
-          repo="everr"
-          className={cn("items-center max-md:hidden", focusRing)}
-        />
-      </Suspense>
+      <GithubInfo
+        aria-label={m.nav_github_label()}
+        owner="everr-labs"
+        repo="everr"
+        className={cn("items-center max-md:hidden", focusRing)}
+      />
       <LanguageMenu
         short
         className={cn(
