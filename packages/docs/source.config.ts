@@ -41,5 +41,16 @@ export const blog = defineCollections({
   }),
 });
 
+/** @expected-unused: read by the Fumadocs build pipeline. */
+export const legal = defineCollections({
+  type: "doc",
+  dir: "content/legal",
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
+    updated: z.string().date(),
+  }),
+});
+
 /** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
 export default defineConfig();
