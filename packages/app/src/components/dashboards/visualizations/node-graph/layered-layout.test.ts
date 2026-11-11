@@ -23,6 +23,21 @@ describe("layoutGraph", () => {
     expect(xs).toEqual([...xs].sort((a, b) => a - b));
     expect(new Set(xs).size).toBe(3);
     expect(nodes.get("worker")?.x).toBe(nodes.get("web")?.x);
+
+    // Even when an entry point shares many targets with a later node.
+    const targets = Array.from({ length: 20 }, (_, i) => `t${i}`);
+    const shared = layoutGraph(
+      ["web", "api", "worker", ...targets],
+      [
+        { source: "web", target: "api" },
+        ...targets.flatMap((t) => [
+          { source: "api", target: t },
+          { source: "worker", target: t },
+        ]),
+      ],
+      OPTIONS,
+    );
+    expect(shared.nodes.get("worker")?.x).toBe(shared.nodes.get("web")?.x);
   });
 
   it("sizes the layout to everything it draws", () => {

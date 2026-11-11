@@ -39,6 +39,7 @@ const MAX_NODE_WIDTH = 260;
 /** The card's two lines, measured and drawn with the same fonts. */
 const NAME_FONT = { size: 12, weight: 600 } as const;
 const STATS_FONT_SIZE = 11;
+const STATS_SEPARATOR = " · ";
 const CARD_INSET = 12;
 const CARD_RADIUS = 8;
 /** Where the name and value start, after the node's color dot. */
@@ -124,27 +125,36 @@ export function NodeGraphVisualization({
   const { ref: containerRef, size } = useContainerSize();
   const font = size?.font;
   // Measured only once the panel has a font, so never during server rendering.
-  const nodeWidth = useMemo(() => {
-    if (!model || font === undefined) return MIN_NODE_WIDTH;
+  const { nodeWidth, cardFigures } = useMemo(() => {
+    const cardFigures = new Map<string, { shown: Figure[]; more: boolean }>();
+    if (!model || font === undefined) return { nodeWidth: MIN_NODE_WIDTH, cardFigures };
     const measureName = createTextMeasurer(font, NAME_FONT.size, NAME_FONT.weight);
     const measureStats = createTextMeasurer(font, STATS_FONT_SIZE);
+    const statsLine = (shown: Figure[], more: boolean) =>
+      measureStats([...shown.map((f) => f.text), ...(more ? ["…"] : [])].join(STATS_SEPARATOR));
+    const all = new Map(model.nodes.map((n) => [n.id, figures(n.value, n.health)]));
     const text = Math.max(
       0,
       ...model.nodes.map((n) =>
         Math.max(
           measureName(truncateWithEllipsis(n.id, MAX_LABEL_CHARS)),
-          measureStats(
-            figures(n.value, n.health)
-              .map((f) => f.text)
-              .join(" · "),
-          ),
+          statsLine(all.get(n.id) ?? [], false),
         ),
       ),
     );
-    return Math.min(
+    const nodeWidth = Math.min(
       MAX_NODE_WIDTH,
       Math.max(MIN_NODE_WIDTH, Math.ceil(text) + TEXT_X + CARD_INSET),
     );
+    // A capped card shows the figures that fit whole, then an ellipsis; the
+    // tooltip has them all.
+    const room = nodeWidth - TEXT_X - CARD_INSET;
+    for (const [id, list] of all) {
+      let count = list.length;
+      while (count > 1 && statsLine(list.slice(0, count), count < list.length) > room) count--;
+      cardFigures.set(id, { shown: list.slice(0, count), more: count < list.length });
+    }
+    return { nodeWidth, cardFigures };
   }, [model, font, figures]);
   // Laid out once per result; fitting it to the panel only moves points.
   const laidOut = useMemo(
@@ -306,6 +316,7 @@ export function NodeGraphVisualization({
               const x = p.x - nodeWidth / 2;
               const y = p.y - NODE_HEIGHT / 2;
               const level = node.health?.level;
+              const line = cardFigures.get(node.id);
               const rate =
                 barColumn === undefined
                   ? undefined
@@ -361,12 +372,13 @@ export function NodeGraphVisualization({
                     className="tabular-nums"
                     pointerEvents="none"
                   >
-                    {figures(node.value, node.health).map((f, i) => (
+                    {(line?.shown ?? figures(node.value, node.health)).map((f, i) => (
                       <Fragment key={f.label}>
-                        {i > 0 && " · "}
+                        {i > 0 && STATS_SEPARATOR}
                         <tspan fill={f.color}>{f.text}</tspan>
                       </Fragment>
                     ))}
+                    {line?.more && `${STATS_SEPARATOR}…`}
                   </text>
                 </>
               );

@@ -69,10 +69,13 @@ export function layoutGraph(
     );
   }
   // A hidden root calling every node nothing calls pulls them all into the
-  // first rank, so entry points line up on the left.
+  // first rank, so entry points line up on the left. Its edges outweigh all
+  // the real ones together, so no number of shared targets drags an entry
+  // point to a later rank.
   const called = new Set(edges.map((e) => e.target));
+  const rootWeight = edges.length + 1;
   g.setNode(ROOT, { width: 0, height: 0 });
-  for (const id of nodeIds) if (!called.has(id)) g.setEdge(ROOT, id, { weight: 10 });
+  for (const id of nodeIds) if (!called.has(id)) g.setEdge(ROOT, id, { weight: rootWeight });
   layout(g);
 
   const nodes = new Map(
