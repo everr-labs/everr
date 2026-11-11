@@ -7,7 +7,6 @@
 @theme inline {
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --animate-marquee: marquee var(--duration) infinite linear;
-  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
 
   @keyframes marquee {
     from {
@@ -15,14 +14,6 @@
     }
     to {
       transform: translateX(calc(-100% - var(--gap)));
-    }
-  }
-  @keyframes marquee-vertical {
-    from {
-      transform: translateY(0);
-    }
-    to {
-      transform: translateY(calc(-100% - var(--gap)));
     }
   }
 }

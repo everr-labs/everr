@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FAQ, type FaqItem } from "@/components/faq";
+import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
-// import { PricingCalculator } from "@/components/pricing-calculator";
 import { PricingCards } from "@/components/pricing-cards";
 import { SelfHostedBanner } from "@/components/self-hosted-banner";
 
@@ -70,13 +70,13 @@ function PricingPage() {
   return (
     <div className="overflow-x-clip">
       <PricingCards />
-      {/* <PricingCalculator /> */}
       <SelfHostedBanner />
       <FAQ
         items={PRICING_FAQS}
         title="Pricing questions"
         contactPrompt="Need help choosing a plan?"
       />
+      <FinalCTA />
       <Footer />
     </div>
   );

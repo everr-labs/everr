@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { motion, useInView } from "motion/react";
 import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Eyebrow } from "@/components/ui/eyebrow";
+import { sectionLead, sectionWrap } from "@/components/ui/type";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -94,69 +94,55 @@ function PricingCta({
   );
 }
 
+const card = "relative flex flex-col rounded-3xl border p-7 sm:p-8";
+const planName = "text-xl font-medium tracking-[-0.02em]";
+const price = "display text-[3.5rem] tabular-nums md:text-[4rem]";
+const groupLabel = "mt-8 border-t border-border pt-5 text-sm text-muted-foreground";
+
 export function PricingCards() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10% 0px" });
 
   return (
-    <section className="relative overflow-x-clip bg-fd-background">
-      <div className="mx-auto max-w-7xl px-6 pt-28 pb-16 md:pt-40">
-        {/* Hero */}
-        <div className="max-w-3xl">
-          <Eyebrow className="mb-7">Plans</Eyebrow>
-          <h1 className="text-balance font-heading text-4xl leading-[1.05] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-            Pricing that grows with you.
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-fd-muted-foreground md:text-lg">
-            Start with a solo project, scale with your team, or contact us for higher volumes and
-            dedicated instances.
-          </p>
-        </div>
+    <section className="relative overflow-x-clip bg-background text-foreground">
+      <div className={`${sectionWrap} pt-14 pb-20 md:pt-20 md:pb-28`}>
+        <h1 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
+          Pricing that grows with you
+        </h1>
+        <p className={`${sectionLead} mt-7 max-w-[52ch]`}>
+          Start with a solo project, scale with your team, or contact us for higher volumes and
+          dedicated instances.
+        </p>
 
-        {/* Tier cards */}
-        <div ref={ref} className="mt-14 grid gap-6 md:mt-20 lg:grid-cols-3">
-          {CARDS.map((card, i) => (
+        <div ref={ref} className="mt-14 grid gap-5 md:mt-20 lg:grid-cols-3">
+          {CARDS.map((plan, i) => (
             <motion.article
-              key={card.id}
+              key={plan.id}
               initial={{ opacity: 0, y: 24 }}
               animate={inView ? { opacity: 1, y: 0 } : undefined}
               transition={{ duration: 0.7, delay: 0.1 + i * 0.08, ease: EASE }}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-8",
-                card.recommended
-                  ? "border-2 border-primary/50 bg-fd-card"
-                  : "border-fd-border bg-fd-card/30",
+                card,
+                plan.recommended ? "border-primary/60 bg-card" : "border-border bg-card/40",
               )}
             >
-              {/* Header */}
-              <Eyebrow>{card.name}</Eyebrow>
-              <div className="mt-4 flex items-end gap-2">
-                <span className="font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
-                  {card.price}
-                </span>
-                {card.unit && (
-                  <span className="pb-1 font-mono text-sm text-fd-muted-foreground">
-                    {card.unit}
-                  </span>
-                )}
+              <h2 className={planName}>{plan.name}</h2>
+              <div className="mt-5 flex items-baseline gap-2">
+                <span className={price}>{plan.price}</span>
+                {plan.unit && <span className="text-base text-muted-foreground">{plan.unit}</span>}
               </div>
-              <p className="mt-4 text-sm leading-relaxed text-fd-muted-foreground">
-                {card.tagline}
+              <p className="mt-4 text-[15px] leading-[1.55] text-muted-foreground lg:min-h-[2lh]">
+                {plan.tagline}
               </p>
 
-              {/* Included */}
-              <p className="mt-8 font-heading text-xs font-semibold uppercase tracking-[0.16em] text-fd-muted-foreground">
-                Included
-              </p>
+              <p className={groupLabel}>Included</p>
               <dl className="mt-4 space-y-3">
-                {card.data.map((row) => (
+                {plan.data.map((row) => (
                   <div key={row.signal} className="flex items-baseline justify-between gap-4">
-                    <dt className="text-sm text-fd-foreground">{row.signal}</dt>
-                    <dd className="text-right">
-                      <span className="font-mono text-sm font-medium text-fd-foreground">
-                        {row.included}
-                      </span>
-                      <span className="mt-0.5 block font-mono text-sm text-fd-muted-foreground">
+                    <dt className="text-[15px]">{row.signal}</dt>
+                    <dd className="text-right text-[15px] tabular-nums">
+                      <span className="font-medium">{row.included}</span>
+                      <span className="mt-0.5 block text-sm text-muted-foreground">
                         {row.overage}&nbsp;
                       </span>
                     </dd>
@@ -164,13 +150,10 @@ export function PricingCards() {
                 ))}
               </dl>
 
-              {/* Features */}
-              <p className="mt-8 font-heading text-xs font-semibold uppercase tracking-[0.16em] text-fd-muted-foreground">
-                Features
-              </p>
+              <p className={groupLabel}>Features</p>
               <ul className="mt-4 flex-1 space-y-3">
-                {card.features.map((f) => (
-                  <li key={f} className="flex items-start gap-3 text-sm text-fd-foreground">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3 text-[15px]">
                     <Check
                       className="mt-0.5 size-4 shrink-0 text-primary"
                       strokeWidth={2.5}
@@ -181,10 +164,9 @@ export function PricingCards() {
                 ))}
               </ul>
 
-              {/* CTA */}
-              <div className="mt-8">
-                <PricingCta href={card.href} primary={card.recommended}>
-                  {card.cta}
+              <div className="mt-9">
+                <PricingCta href={plan.href} primary={plan.recommended}>
+                  {plan.cta}
                 </PricingCta>
               </div>
             </motion.article>
@@ -193,13 +175,11 @@ export function PricingCards() {
             initial={{ opacity: 0, y: 24 }}
             animate={inView ? { opacity: 1, y: 0 } : undefined}
             transition={{ duration: 0.7, delay: 0.26, ease: EASE }}
-            className="relative flex flex-col rounded-2xl border border-fd-border bg-fd-card/30 p-8"
+            className={cn(card, "border-border bg-card/40")}
           >
-            <Eyebrow>Enterprise</Eyebrow>
-            <h2 className="mt-4 font-mono text-4xl font-bold leading-none tracking-tight text-fd-foreground md:text-5xl">
-              Custom
-            </h2>
-            <p className="mt-5 max-w-xs text-sm leading-relaxed text-fd-muted-foreground">
+            <h2 className={planName}>Enterprise</h2>
+            <p className={cn(price, "mt-5")}>Custom</p>
+            <p className="mt-4 max-w-xs text-[15px] leading-[1.55] text-muted-foreground">
               Higher volumes or dedicated instances? Let us build a plan around your needs.
             </p>
             <div className="mt-auto pt-12">

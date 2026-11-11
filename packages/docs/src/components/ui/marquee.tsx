@@ -21,11 +21,6 @@ interface MarqueeProps extends ComponentPropsWithoutRef<"div"> {
    */
   children: React.ReactNode;
   /**
-   * Whether to animate vertically instead of horizontally
-   * @default false
-   */
-  vertical?: boolean;
-  /**
    * Number of times to repeat the content
    * @default 4
    */
@@ -37,7 +32,6 @@ export function Marquee({
   reverse = false,
   pauseOnHover = false,
   children,
-  vertical = false,
   repeat = 4,
   ...props
 }: MarqueeProps) {
@@ -45,11 +39,7 @@ export function Marquee({
     <div
       {...props}
       className={cn(
-        "group flex gap-(--gap) overflow-hidden p-2 [--duration:40s] [--gap:1rem]",
-        {
-          "flex-row": !vertical,
-          "flex-col": vertical,
-        },
+        "group flex flex-row gap-(--gap) overflow-hidden p-2 [--duration:40s] [--gap:1rem]",
         className,
       )}
     >
@@ -60,9 +50,7 @@ export function Marquee({
             // oxlint-disable-next-line react/no-array-index-key -- These are fixed repetitions of the same decorative content.
             key={i}
             aria-hidden={i > 0 || undefined}
-            className={cn("flex shrink-0 justify-around gap-(--gap)", {
-              "animate-marquee flex-row": !vertical,
-              "animate-marquee-vertical flex-col": vertical,
+            className={cn("flex shrink-0 animate-marquee flex-row justify-around gap-(--gap)", {
               "group-hover:[animation-play-state:paused]": pauseOnHover,
               "[animation-direction:reverse]": reverse,
             })}

@@ -1,7 +1,7 @@
-import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
+import { Mascot } from "@/components/mascot";
 import { DISCORD_URL } from "@/constants";
 
 export function Footer() {
@@ -43,7 +43,15 @@ function FooterDirectory() {
       <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
-          <EverrLogo size="lg" className="flex w-full justify-center sm:justify-start" />
+          <span className="flex w-full items-center justify-center gap-0.5 font-heading text-3xl font-semibold sm:justify-start">
+            <Mascot
+              reach={30}
+              eyesClassName="fill-primary"
+              raysClassName="fill-primary"
+              className="size-8 shrink-0"
+            />
+            everr
+          </span>
           <p className="mt-4 text-sm text-fd-muted-foreground">Know before your customers do.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a

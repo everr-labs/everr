@@ -1,5 +1,3 @@
-import { motion, useScroll } from "motion/react";
-import { useRef } from "react";
 import { AGENT_CHAPTER_MS, type AgentChapter, AgentDemo } from "@/components/agent-demo/AgentDemo";
 import { DemoPlayer, type PlayerChapter } from "@/components/demo-player";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
@@ -48,10 +46,6 @@ const CHAPTERS: PlayerChapter<AgentChapter>[] = [
 ];
 
 export function HowItWorks() {
-  const steps = useRef<HTMLOListElement>(null);
-  // The rule above the steps fills as they scroll into view, left to right, in step order
-  const { scrollYProgress } = useScroll({ target: steps, offset: ["start 0.9", "start 0.35"] });
-
   return (
     <section className="border-t border-border text-foreground">
       <div className={`${sectionWrap} py-20 md:py-36`}>
@@ -63,17 +57,10 @@ export function HowItWorks() {
           measure, building the views, keeping it all current. Everr builds that experience into the
           product, and your AI coding assistant does the setup.
         </p>
-        <ol ref={steps} className="relative mt-14 grid gap-10 md:mt-20 md:grid-cols-3 md:gap-12">
-          <li aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-border">
-            <motion.span
-              className="block h-0.5 origin-left bg-primary motion-reduce:transform-none!"
-              style={{ scaleX: scrollYProgress }}
-            />
-          </li>
-          {STEPS.map(({ title, body }, i) => (
-            <li key={title} className="pt-7">
-              <span className="display block text-[4rem] text-primary tabular-nums">{i + 1}</span>
-              <h3 className="mt-4 text-2xl font-medium tracking-[-0.02em]">{title}</h3>
+        <ol className="mt-14 grid gap-y-9 md:mt-20 md:grid-cols-3 md:divide-x md:divide-border">
+          {STEPS.map(({ title, body }) => (
+            <li key={title} className="md:px-9 md:first:pl-0 md:last:pr-0">
+              <h3 className="text-2xl font-medium tracking-[-0.02em]">{title}</h3>
               <p className="mt-3 max-w-[40ch] text-[17px] leading-[1.6] text-pretty text-muted-foreground">
                 {body}
               </p>

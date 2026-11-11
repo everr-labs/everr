@@ -19,7 +19,7 @@ export function OAuthShell({
     <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm animate-fade-up motion-reduce:animate-none">
         <header className="mb-6 text-center">
-          <span className="everr-decoration everr-decoration-primary font-heading text-sm font-bold uppercase tracking-[0.25em] text-foreground">
+          <span className="font-heading text-sm font-bold uppercase tracking-[0.25em] text-foreground">
             Everr
           </span>
           <h1 className="mt-6 text-balance font-heading text-2xl font-bold tracking-tight text-foreground">

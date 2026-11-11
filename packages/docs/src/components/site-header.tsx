@@ -12,7 +12,7 @@ import { GithubInfo } from "@/components/github-info";
 import { Mascot } from "@/components/mascot";
 import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
 
-export const NAV_LINKS = [
+const NAV_LINKS = [
   { text: "Docs", url: "/docs" },
   { text: "Pricing", url: "/pricing" },
   { text: "Devlog", url: "/devlog" },

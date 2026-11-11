@@ -85,12 +85,6 @@ const STACK: Technology[] = [
   { label: "FastAPI", icon: SiFastapi, color: SiFastapiHex },
 ];
 
-const STANDARDS = [
-  { name: "OpenTelemetry", role: "for everything your app sends" },
-  { name: "Perses", role: "for dashboards" },
-  { name: "ClickHouse SQL", role: "for queries" },
-];
-
 // The one part of the page written for people who already know the field,
 // in the field's own terms.
 export function UnderTheHood() {
@@ -114,33 +108,8 @@ export function UnderTheHood() {
         </div>
       </div>
 
-      <div className="overflow-hidden border-y border-border bg-background py-12 sm:py-16">
+      <div className="overflow-hidden border-t border-border bg-background py-12 sm:py-16">
         <CapabilityMarquee features={CAPABILITIES} />
-      </div>
-
-      <div
-        className={`${sectionWrap} grid gap-x-16 gap-y-8 py-20 md:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]`}
-      >
-        <div>
-          <h3 className="text-2xl font-medium tracking-[-0.02em] sm:text-[28px]">
-            No lock-in, by construction
-          </h3>
-          <p className="mt-4 max-w-[44ch] text-[17px] leading-[1.6] text-muted-foreground">
-            Dashboards, alerts and runbooks are plain files that live in your repository, not
-            settings trapped behind a proprietary agent or query language.
-          </p>
-        </div>
-        <dl>
-          {STANDARDS.map(({ name, role }) => (
-            <div
-              key={name}
-              className="flex items-baseline justify-between gap-4 border-t border-border py-4 last:border-b"
-            >
-              <dt className="text-xl font-medium tracking-[-0.02em]">{name}</dt>
-              <dd className="text-right text-[15px] text-muted-foreground">{role}</dd>
-            </div>
-          ))}
-        </dl>
       </div>
     </section>
   );

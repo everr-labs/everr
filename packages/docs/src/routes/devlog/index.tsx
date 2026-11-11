@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
+import { Footer } from "@/components/footer";
+import { sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
 import { getBaseUrl } from "@/lib/url";
 
@@ -51,92 +53,84 @@ function DevlogIndex() {
   const posts = Route.useLoaderData();
 
   return (
-    <main className="flex-1">
-      <div className="mx-auto w-full max-w-7xl px-6">
-        {/* Header */}
-        <section className="pb-16 pt-20 md:pb-20 md:pt-28">
-          <p className="mb-3 font-heading text-[11px] font-bold uppercase tracking-[0.3em] text-fd-muted-foreground/60">
-            Devlog
-          </p>
-          <h1 className="font-heading text-3xl leading-[0.95] sm:text-4xl md:text-5xl lg:text-6xl everr-decoration everr-decoration-primary">
-            Building in the open
-          </h1>
-          <div className="mt-6 max-w-2xl space-y-4 text-fd-muted-foreground">
-            <p>
-              We want to bring AI into the software development lifecycle, making observability a
-              natural part of your stack instead of a separate discipline, and guiding your team
-              toward the best practices that have always been too complicated to apply everywhere.
-            </p>
-            <p>
-              We use Everr on our own systems every day, and honestly we don&apos;t know how we used
-              to live without it.
-            </p>
-          </div>
-        </section>
+    <>
+      <main className="flex-1 text-foreground">
+        <div className={sectionWrap}>
+          <section className="pt-14 pb-16 md:pt-20 md:pb-24">
+            <h1 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
+              Building in the open
+            </h1>
+            <div className={`${sectionLead} mt-7 max-w-[58ch] space-y-5`}>
+              <p>
+                We want to bring AI into the software development lifecycle, making observability a
+                natural part of your stack instead of a separate discipline, and guiding your team
+                toward the best practices that have always been too complicated to apply everywhere.
+              </p>
+              <p>
+                We use Everr on our own systems every day, and honestly we don&apos;t know how we
+                used to live without it.
+              </p>
+            </div>
+          </section>
 
-        {/* Posts */}
-        <section className="pb-20 md:pb-32">
-          <div className="flex flex-col">
-            {posts.map((post, i) => (
-              <Link
-                key={post.slug}
-                to="/devlog/$slug"
-                params={{ slug: post.slug }}
-                className="group"
-                viewTransition
-              >
-                <div
-                  className={`grid grid-cols-1 gap-4 py-8 transition-colors md:grid-cols-[140px_1fr_auto] md:items-center md:gap-6 ${
-                    i > 0 ? "border-t-2 border-fd-border" : ""
-                  }`}
-                >
-                  <div className="flex flex-col gap-1">
-                    <time
-                      className="font-heading text-xs font-bold uppercase tracking-wider text-fd-muted-foreground/60"
-                      style={{ viewTransitionName: `devlog-date-${post.slug}` }}
-                    >
-                      {new Date(post.date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </time>
-                    {post.author && (
-                      <span
-                        className="font-heading text-[11px] uppercase tracking-wider text-fd-muted-foreground/40"
-                        style={{
-                          viewTransitionName: `devlog-author-${post.slug}`,
-                        }}
+          <section className="pb-20 md:pb-32">
+            <ul className="border-t border-border">
+              {posts.map((post) => (
+                <li key={post.slug} className="border-b border-border">
+                  <Link
+                    to="/devlog/$slug"
+                    params={{ slug: post.slug }}
+                    className="group grid grid-cols-1 gap-3 py-8 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary md:grid-cols-[11rem_1fr_auto] md:items-baseline md:gap-8 md:py-10"
+                    viewTransition
+                  >
+                    <div className="flex gap-2 text-[15px] text-muted-foreground md:flex-col md:gap-1">
+                      <time
+                        className="tabular-nums"
+                        style={{ viewTransitionName: `devlog-date-${post.slug}` }}
                       >
-                        {post.author}
-                      </span>
-                    )}
-                  </div>
+                        {new Date(post.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </time>
+                      {post.author && (
+                        <span
+                          className="text-muted-foreground/70"
+                          style={{ viewTransitionName: `devlog-author-${post.slug}` }}
+                        >
+                          {post.author}
+                        </span>
+                      )}
+                    </div>
 
-                  <div>
-                    <h2
-                      className="font-heading text-xl font-bold transition-colors group-hover:text-primary md:text-2xl everr-decoration everr-decoration-primary"
-                      style={{
-                        viewTransitionName: `devlog-title-${post.slug}`,
-                      }}
-                    >
-                      {post.title}
-                    </h2>
-                    <p
-                      className="mt-2 text-fd-muted-foreground line-clamp-2"
-                      style={{ viewTransitionName: `devlog-desc-${post.slug}` }}
-                    >
-                      {post.description}
-                    </p>
-                  </div>
+                    <div>
+                      <h2
+                        className="text-2xl leading-[1.2] font-medium tracking-[-0.02em] text-balance transition-colors group-hover:text-primary md:text-[28px]"
+                        style={{ viewTransitionName: `devlog-title-${post.slug}` }}
+                      >
+                        {post.title}
+                      </h2>
+                      <p
+                        className="mt-3 line-clamp-2 max-w-[70ch] text-[17px] leading-[1.6] text-muted-foreground"
+                        style={{ viewTransitionName: `devlog-desc-${post.slug}` }}
+                      >
+                        {post.description}
+                      </p>
+                    </div>
 
-                  <ArrowRight className="hidden size-5 text-fd-muted-foreground/40 transition-all group-hover:translate-x-1 group-hover:text-primary md:block" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-    </main>
+                    <ArrowRight
+                      aria-hidden
+                      className="hidden size-5 self-center text-muted-foreground transition-[translate,color] duration-300 ease-out-expo group-hover:translate-x-1 group-hover:text-primary md:block"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      </main>
+      <Footer />
+    </>
   );
 }
