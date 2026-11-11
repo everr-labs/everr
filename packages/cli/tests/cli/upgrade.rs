@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use predicates::str::contains;
 use support::{CliTestEnv, mock_api_server};

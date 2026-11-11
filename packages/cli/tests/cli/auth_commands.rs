@@ -1,4 +1,4 @@
-mod support;
+use crate::support;
 
 use mockito::Server;
 use predicates::prelude::PredicateBooleanExt;
