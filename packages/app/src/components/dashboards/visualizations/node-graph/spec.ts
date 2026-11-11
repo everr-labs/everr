@@ -46,8 +46,6 @@ export const nodeGraphSpec = z.looseObject({
     .default([]),
   /** Nodes are service names: clicking one opens Traces for that service. */
   linkToTraces: z.boolean().default(false),
-  /** Ranks run left to right ("LR", callers on the left) or top to bottom ("TB"). */
-  direction: z.enum(["LR", "TB"]).default("LR"),
   /** Draw arrowheads pointing at each edge's target. */
   directed: z.boolean().default(true),
   /** Render the edge's value at its midpoint. */

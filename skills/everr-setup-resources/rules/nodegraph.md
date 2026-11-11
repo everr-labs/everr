@@ -12,7 +12,6 @@ A **directed graph of nodes and weighted edges** laid out in ranks (callers firs
 | `valueFormat`  | object  | none     | see shared rule | Numeric presentation; read `rules/value-format.md` for scaling, precision, rates and custom labels.                                                                        |
 | `stats`        | array   | `[]`     | see below       | Per-edge figures (error rate, latency, …) shown on cards and tooltips, colored by optional thresholds. Read **Health stats** below.                                        |
 | `linkToTraces` | boolean | `false`  | `true`          | Nodes are service names: clicking one opens Traces for that service over the dashboard's time range.                                                                       |
-| `direction`    | string  | `LR`     | `TB`            | Ranks run left to right (callers on the left) or top to bottom (callers on top).                                                                                           |
 | `directed`     | boolean | `true`   | `false`         | Draw arrowheads pointing at each edge's target.                                                                                                                            |
 | `showValues`   | boolean | `false`  | `true`          | Render the edge's value at its midpoint.                                                                                                                                   |
 | `maxNodes`     | number  | unset    | ≥ 2             | Keep only the `maxNodes` highest-value nodes (and the edges between them); the rest are hidden behind a "not shown" badge. There is also a built-in 250-node layout limit. |
@@ -28,7 +27,7 @@ plugin:
       unit: "{request}"
 ```
 
-There is **no** grouping option, no separate nodes query, and no pinning; `direction` is the only layout option, and health colors come only from `stats` thresholds. Nodes are derived from the edge rows only.
+There is **no** grouping option, no separate nodes query, and no layout options, and health colors come only from `stats` thresholds. Nodes are derived from the edge rows only.
 
 ## Data shape — an edge list, no time axis
 

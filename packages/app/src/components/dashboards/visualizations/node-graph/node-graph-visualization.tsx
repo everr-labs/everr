@@ -153,10 +153,10 @@ export function NodeGraphVisualization({
         ? layoutGraph(
             model.nodes.map((n) => n.id),
             model.edges,
-            { direction: spec.direction, nodeWidth, labels: spec.showValues },
+            { nodeWidth, labels: spec.showValues },
           )
         : null,
-    [model, nodeWidth, spec.direction, spec.showValues],
+    [model, nodeWidth, spec.showValues],
   );
   const fitted = useMemo(() => {
     if (!laidOut || !size) return null;

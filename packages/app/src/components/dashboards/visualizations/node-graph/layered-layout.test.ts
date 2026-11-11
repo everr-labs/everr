@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { arrowhead, fitToPanel, layoutGraph, NODE_HEIGHT } from "./layered-layout";
+import { arrowhead, fitToPanel, layoutGraph } from "./layered-layout";
 import { edgeKey } from "./node-graph-data";
 
 const NODE_WIDTH = 120;
-const LR = { direction: "LR", labels: false, nodeWidth: NODE_WIDTH } as const;
+const OPTIONS = { labels: false, nodeWidth: NODE_WIDTH };
 
 const chain = [
   { source: "web", target: "api" },
@@ -18,32 +18,33 @@ const fanIn = {
 
 describe("layoutGraph", () => {
   it("puts callers before the services they call, entry points all in the first rank", () => {
-    const { nodes } = layoutGraph(fanIn.ids, fanIn.edges, LR);
+    const { nodes } = layoutGraph(fanIn.ids, fanIn.edges, OPTIONS);
     const xs = ids.map((id) => nodes.get(id)?.x ?? 0);
     expect(xs).toEqual([...xs].sort((a, b) => a - b));
     expect(new Set(xs).size).toBe(3);
     expect(nodes.get("worker")?.x).toBe(nodes.get("web")?.x);
   });
 
+  it("sizes the layout to everything it draws", () => {
+    const graph = layoutGraph(fanIn.ids, fanIn.edges, OPTIONS);
+    const xs = [...graph.nodes.values()].map((p) => p.x);
+    expect(Math.min(...xs) - NODE_WIDTH / 2).toBe(0);
+    expect(Math.max(...xs) + NODE_WIDTH / 2).toBe(graph.width);
+  });
+
   it("runs edges from side to side, spreading the ends that meet at a node", () => {
-    const { nodes, edges } = layoutGraph(fanIn.ids, fanIn.edges, LR);
+    const { nodes, edges } = layoutGraph(fanIn.ids, fanIn.edges, OPTIONS);
     const api = nodes.get("api");
     const db = nodes.get("db");
     expect(edges.get(edgeKey("api", "db"))?.points[0]?.x).toBe((api?.x ?? 0) + NODE_WIDTH / 2);
     const ends = ["api", "worker"].map((s) => edges.get(edgeKey(s, "db"))?.points.at(-1));
     for (const end of ends) expect(end?.x).toBe((db?.x ?? 0) - NODE_WIDTH / 2);
     expect(ends[0]?.y).not.toBe(ends[1]?.y);
-
-    // Top to bottom, edges leave from a node's bottom instead.
-    const tb = layoutGraph(ids, chain, { ...LR, direction: "TB" });
-    expect(tb.edges.get(edgeKey("web", "api"))?.points[0]?.y).toBe(
-      (tb.nodes.get("web")?.y ?? 0) + NODE_HEIGHT / 2,
-    );
   });
 });
 
 describe("fitToPanel", () => {
-  const graph = layoutGraph(ids, chain, LR);
+  const graph = layoutGraph(ids, chain, OPTIONS);
   const fit = (width: number) => fitToPanel(graph, { width, height: graph.height });
 
   it("squeezes the gaps between ranks to fit, moving edges with their nodes", () => {

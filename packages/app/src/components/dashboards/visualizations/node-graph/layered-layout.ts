@@ -6,8 +6,6 @@ export interface Point {
   y: number;
 }
 
-type Direction = "LR" | "TB";
-
 /** An edge's route, from the source's border to the target's, and where its
  * value label goes. */
 export interface Route {
@@ -15,7 +13,7 @@ export interface Route {
   label: Point;
 }
 
-export interface GraphLayout extends Pick<Options, "direction" | "nodeWidth"> {
+export interface GraphLayout extends Pick<Options, "nodeWidth"> {
   width: number;
   height: number;
   /** Node centers. */
@@ -42,55 +40,24 @@ const LABEL_HEIGHT = 14;
 const ROOT = "\u0000root";
 
 interface Options {
-  direction: Direction;
   /** Width of every node; they share one so ranks line up. */
   nodeWidth: number;
   /** Leave room for a value label on each edge. */
   labels: boolean;
 }
 
-interface Axes {
-  rank: "x" | "y";
-  cross: "x" | "y";
-  rankSize: number;
-  crossSize: number;
-  /** The point at `along` on the rank axis and `across` on the cross axis. */
-  at: (along: number, across: number) => Point;
-}
-
-/** The rank axis (along which callers come before callees) and the cross
- * axis, with a node's size along each. */
-function axes(direction: Direction, nodeWidth: number): Axes {
-  return direction === "LR"
-    ? {
-        rank: "x",
-        cross: "y",
-        rankSize: nodeWidth,
-        crossSize: NODE_HEIGHT,
-        at: (along, across) => ({ x: along, y: across }),
-      }
-    : {
-        rank: "y",
-        cross: "x",
-        rankSize: NODE_HEIGHT,
-        crossSize: nodeWidth,
-        at: (along, across) => ({ x: across, y: along }),
-      };
-}
-
 /**
- * Layered layout: callers in earlier ranks (columns for "LR", rows for "TB"),
- * the services they call in later ones, with edges routed around nodes. The
+ * Layered layout: callers in earlier columns, the
+ * services they call in later ones, with edges routed around nodes. The
  * same graph always lays out the same way.
  */
 export function layoutGraph(
   nodeIds: string[],
   edges: ReadonlyArray<{ source: string; target: string }>,
-  { direction, nodeWidth, labels }: Options,
+  { nodeWidth, labels }: Options,
 ): GraphLayout {
-  const { rank, cross, rankSize, crossSize, at } = axes(direction, nodeWidth);
   const g = new Graph();
-  g.setGraph({ rankdir: direction, nodesep: NODE_GAP, ranksep: RANK_GAP, edgesep: EDGE_GAP });
+  g.setGraph({ rankdir: "LR", nodesep: NODE_GAP, ranksep: RANK_GAP, edgesep: EDGE_GAP });
   g.setDefaultEdgeLabel(() => ({}));
   for (const id of nodeIds) g.setNode(id, { width: nodeWidth, height: NODE_HEIGHT });
   for (const { source, target } of edges) {
@@ -102,7 +69,7 @@ export function layoutGraph(
     );
   }
   // A hidden root calling every node nothing calls pulls them all into the
-  // first rank, so entry points line up on the left (or top).
+  // first rank, so entry points line up on the left.
   const called = new Set(edges.map((e) => e.target));
   g.setNode(ROOT, { width: 0, height: 0 });
   for (const id of nodeIds) if (!called.has(id)) g.setEdge(ROOT, id, { weight: 10 });
@@ -139,9 +106,9 @@ export function layoutGraph(
     const t = nodes.get(target);
     if (!route || !s || !t) continue;
     // A call back up the ranks leaves from the near side.
-    const side = Math.sign(t[rank] - s[rank]) || 1;
-    const towardTarget = route.points[0]?.[cross] ?? t[cross];
-    const fromSource = route.points.at(-1)?.[cross] ?? s[cross];
+    const side = Math.sign(t.x - s.x) || 1;
+    const towardTarget = route.points[0]?.y ?? t.y;
+    const fromSource = route.points.at(-1)?.y ?? s.y;
     const add = (id: string, node: Point, end: "start" | "end", at: number, nodeSide: number) => {
       const slot = edgeKey(id, String(nodeSide));
       const entry = ends.get(slot) ?? { node, list: [] };
@@ -153,13 +120,15 @@ export function layoutGraph(
   }
   for (const { node, list } of ends.values()) {
     list.sort((a, b) => a.at - b.at);
-    const step = Math.min(PORT_SPACING, (crossSize * 0.6) / Math.max(1, list.length - 1));
+    const step = Math.min(PORT_SPACING, (NODE_HEIGHT * 0.6) / Math.max(1, list.length - 1));
     list.forEach(({ key, end, side }, i) => {
       const route = routes.get(key);
       if (!route) return;
       const offset = (i - (list.length - 1) / 2) * step;
-      const port = (distance: number) =>
-        at(node[rank] + side * (rankSize / 2 + distance), node[cross] + offset);
+      const port = (distance: number) => ({
+        x: node.x + side * (nodeWidth / 2 + distance),
+        y: node.y + offset,
+      });
       if (end === "start") route.points.unshift(port(0), port(LEAD));
       else route.points.push(port(LEAD), port(0));
     });
@@ -181,10 +150,11 @@ export function layoutGraph(
     for (const p of route.points) extend(p);
     if (labels) extend(route.label, LABEL_WIDTH, LABEL_HEIGHT);
   }
-  return mapPoints(
-    { direction, nodeWidth, width: maxX - minX, height: maxY - minY, nodes, edges: routes },
-    (p) => ({ x: p.x - minX, y: p.y - minY }),
-  );
+  // The size is moved as a point too, so start from the far corner.
+  return mapPoints({ nodeWidth, width: maxX, height: maxY, nodes, edges: routes }, (p) => ({
+    x: p.x - minX,
+    y: p.y - minY,
+  }));
 }
 
 /** The layout with every node, route point and label moved by `move`, and
@@ -241,7 +211,6 @@ export function fitToPanel(
   graph: GraphLayout,
   room: { width: number; height: number },
 ): GraphLayout {
-  const { rank, cross, rankSize, crossSize, at } = axes(graph.direction, graph.nodeWidth);
   const length = { x: graph.width, y: graph.height };
   const space = { x: room.width, y: room.height };
   const centers = [...graph.nodes.values()];
@@ -252,9 +221,9 @@ export function fitToPanel(
     const factor = total > 0 ? (space[axis] - (length[axis] - total)) / total : 1;
     return move(Math.min(max, Math.max(min, factor)));
   };
-  const along = scaled(rank, rankSize, MIN_RANK_GAP / RANK_GAP, MAX_RANK_STRETCH);
-  const across = scaled(cross, crossSize, 1, MAX_NODE_STRETCH);
-  return mapPoints(graph, (p) => at(along(p[rank]), across(p[cross])));
+  const x = scaled("x", graph.nodeWidth, MIN_RANK_GAP / RANK_GAP, MAX_RANK_STRETCH);
+  const y = scaled("y", NODE_HEIGHT, 1, MAX_NODE_STRETCH);
+  return mapPoints(graph, (p) => ({ x: x(p.x), y: y(p.y) }));
 }
 
 /**

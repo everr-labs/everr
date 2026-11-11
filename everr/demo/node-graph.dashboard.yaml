@@ -158,28 +158,6 @@ spec:
                     - [a, b]
                     - [b, c]
                     - [c, d]
-    node-graph-top-to-bottom:
-      kind: Panel
-      spec:
-        display:
-          name: "NodeGraph: top to bottom"
-          description: "direction: TB → callers on top, the services they call below"
-        plugin:
-          kind: NodeGraph
-          spec: { direction: TB }
-        queries:
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: csv
-                  columns: [source, target, value]
-                  rows:
-                    - [web, api, 420]
-                    - [api, db, 310]
-                    - [api, cache, 260]
-                    - [worker, db, 120]
     node-graph-health:
       kind: Panel
       spec:
@@ -774,39 +752,32 @@ spec:
               y: 83,
               width: 24,
               height: 12,
-              content: { $ref: "#/spec/panels/node-graph-top-to-bottom" },
-            }
-          - {
-              x: 0,
-              y: 95,
-              width: 24,
-              height: 12,
               content: { $ref: "#/spec/panels/node-graph-health" },
             }
           - {
               x: 0,
-              y: 107,
+              y: 95,
               width: 12,
               height: 10,
               content: { $ref: "#/spec/panels/node-graph-health-levels" },
             }
           - {
               x: 12,
-              y: 107,
+              y: 95,
               width: 12,
               height: 10,
               content: { $ref: "#/spec/panels/node-graph-health-latency" },
             }
           - {
               x: 0,
-              y: 117,
+              y: 105,
               width: 24,
               height: 9,
               content: { $ref: "#/spec/panels/node-graph-health-strict" },
             }
           - {
               x: 0,
-              y: 126,
+              y: 114,
               width: 24,
               height: 22,
               content: { $ref: "#/spec/panels/node-graph-health-large" },
