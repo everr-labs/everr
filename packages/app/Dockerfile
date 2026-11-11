@@ -7,6 +7,7 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
 COPY packages/otel-errors/package.json ./packages/otel-errors/
+COPY packages/otel-profiler/package.json ./packages/otel-profiler/
 COPY packages/otel-web/package.json ./packages/otel-web/
 COPY packages/tanstack-start-otel/package.json ./packages/tanstack-start-otel/
 COPY packages/datemath/package.json ./packages/datemath/
@@ -22,6 +23,7 @@ FROM deps AS build
 ARG VITE_EVERR_PUBLIC_INGEST_KEY
 ENV VITE_EVERR_PUBLIC_INGEST_KEY=$VITE_EVERR_PUBLIC_INGEST_KEY
 COPY packages/otel-errors ./packages/otel-errors
+COPY packages/otel-profiler ./packages/otel-profiler
 COPY packages/otel-web ./packages/otel-web
 COPY packages/tanstack-start-otel ./packages/tanstack-start-otel
 COPY packages/datemath ./packages/datemath
@@ -47,8 +49,17 @@ RUN set -eu; \
 # Stage 3: production
 # Node 24.22.1, keep in sync with the builder and .node-version.
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8 AS runner
-WORKDIR /app
+# The output keeps its place in the repository layout so its source maps,
+# relative to the build tree, resolve to /app/packages/<package>/src. Profiles
+# then name files relative to the repository root, the way source links do.
+WORKDIR /app/packages/app
 ENV NODE_ENV=production
+ENV EVERR_PROFILER_SOURCE_ROOT=/app
+# Become the vcs.* resource attributes that profile frames link to source with.
+ARG VCS_REPOSITORY_URL_FULL
+ARG VCS_REF_HEAD_REVISION
+ENV VCS_REPOSITORY_URL_FULL=$VCS_REPOSITORY_URL_FULL
+ENV VCS_REF_HEAD_REVISION=$VCS_REF_HEAD_REVISION
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/app/.output ./.output
 

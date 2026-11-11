@@ -3,11 +3,15 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Boxes, Layers } from "lucide-react";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
-import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-filter-options";
+import {
+  type ProfileFilterOptionsRepo,
+  unionEnvironmentOptions,
+  unionServiceOptions,
+} from "../data/explore-filter-options";
 import { ExploreFilterPill } from "./explore-filter-pill";
 
 // The top zone of the Explore rail. It holds the two filters that stay set when
-// the user moves between Logs, Errors and Traces.
+// the user moves between Logs, Errors, Traces and Profiles.
 //
 // Each option list is the union of the logs values and the traces values. The
 // choices are then the same on every Explore page, because the two values are
@@ -19,6 +23,7 @@ import { ExploreFilterPill } from "./explore-filter-pill";
 export function ExploreGlobalFilters({
   logsRepo,
   tracesRepo,
+  profilesRepo,
   timeRange,
   service,
   environment,
@@ -27,6 +32,8 @@ export function ExploreGlobalFilters({
 }: {
   logsRepo: LogsRepositoryLike;
   tracesRepo: TracesRepositoryLike;
+  // Optional because a host without a profiles store has no profiles to list.
+  profilesRepo?: ProfileFilterOptionsRepo;
   timeRange: TimeRange;
   service: string[];
   environment: string[];
@@ -45,6 +52,7 @@ export function ExploreGlobalFilters({
       options: unionServiceOptions(logsRepo, tracesRepo, {
         timeRange,
         selected: service,
+        profilesRepo,
       }),
       placeholder: "All services",
       searchPlaceholder: "Search services...",
@@ -57,6 +65,7 @@ export function ExploreGlobalFilters({
       options: unionEnvironmentOptions(logsRepo, tracesRepo, {
         timeRange,
         selected: environment,
+        profilesRepo,
       }),
       placeholder: "All environments",
       searchPlaceholder: "Search environments...",

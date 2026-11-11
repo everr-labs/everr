@@ -10,6 +10,7 @@ export const productPolicy: ProductPolicy = {
         tracesDays: env.EVERR_RETENTION_TRACES_DAYS ?? env.EVERR_RETENTION_DAYS,
         logsDays: env.EVERR_RETENTION_LOGS_DAYS ?? env.EVERR_RETENTION_DAYS,
         metricsDays: env.EVERR_RETENTION_METRICS_DAYS ?? env.EVERR_RETENTION_DAYS,
+        profilesDays: env.EVERR_RETENTION_PROFILES_DAYS ?? env.EVERR_RETENTION_DAYS,
         alertEvaluationDays: env.EVERR_RETENTION_ALERT_EVALUATIONS_DAYS ?? env.EVERR_RETENTION_DAYS,
         alertLifecycleDays: env.EVERR_RETENTION_ALERT_LIFECYCLE_DAYS ?? env.EVERR_RETENTION_DAYS,
       },

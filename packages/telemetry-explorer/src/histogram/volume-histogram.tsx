@@ -15,9 +15,9 @@ export interface VolumeStack<K extends string> {
   color: string;
 }
 
-const HISTOGRAM_AXES = {
-  left: { format: (value: number) => value.toLocaleString(), hidden: true },
-};
+function formatCount(value: number) {
+  return value.toLocaleString();
+}
 
 function time(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -45,6 +45,8 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   showVolume,
   onRangeSelect,
   onShowVolumeChange,
+  formatValue = formatCount,
+  highlight,
 }: {
   title: string;
   emptyMessage: string;
@@ -55,7 +57,12 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   showVolume: boolean;
   onRangeSelect: (from: Date, to: Date) => void;
   onShowVolumeChange: (show: boolean) => void;
+  formatValue?: (value: number) => string;
+  /** Bucket indexes to shade, inclusive. */
+  highlight?: { from: number; to: number } | null;
 }) {
+  // Stable unless the formatter changes, so the chart does not rebuild per render.
+  const axes = useMemo(() => ({ left: { format: formatValue, hidden: true } }), [formatValue]);
   const chart = useMemo(
     () => ({
       labels: buckets.map((bucket) => time(new Date(bucket.timestamp))),
@@ -98,8 +105,9 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
           ) : hasData ? (
             <SeriesChart
               {...chart}
-              axes={HISTOGRAM_AXES}
+              axes={axes}
               compact
+              highlight={highlight}
               className="h-[104px] w-full"
               onSelect={(from, to) =>
                 onRangeSelect(new Date(buckets[from].timestamp), new Date(buckets[to].endTimestamp))

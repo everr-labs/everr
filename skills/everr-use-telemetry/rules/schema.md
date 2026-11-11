@@ -11,6 +11,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `metrics_gauge`, `metrics_sum`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Value`. `metrics_sum` adds `IsMonotonic` and `AggregationTemporality`.
 - `metrics_histogram`: `TimeUnix`, `ServiceName`, `MetricName`, `MetricUnit`, `Attributes`, `Count`, `Sum`, `Min`, `Max`, `BucketCounts`, `ExplicitBounds`. `metrics_exponential_histogram` and `metrics_summary` are similar: run `DESCRIBE TABLE` on them.
 - `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
+- `profiles`: continuous profiling samples (OTLP profiles, experimental). One row per sample: `Timestamp`, `ServiceName`, `SampleType`, `SampleUnit`, `ProfileId`, `StackHash`, `FunctionNames`, `FileNames`, `LineNumbers`, `MappingFileNames`, `Addresses`, `Values`, `TimestampsUnixNano`, `TraceId`, `SpanId`, `ResourceAttributes`, `ProfileAttributes`, `SampleAttributes`. The sort key is `ServiceName, SampleType, Timestamp`: filter on all three.
 - `alert_events`: alert history on server installations (not the local CLI store). One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 
 ## Units And Values
@@ -20,6 +21,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `StatusCode` is one of `'Unset'`, `'Ok'`, `'Error'`.
 - `SeverityNumber >= 17` is ERROR or worse. `SeverityText` spelling varies by SDK, so filter on the number.
 - Metrics carry their unit in `MetricUnit` (for example `s`, `ms`, `By`).
+- Profile stacks are arrays, leaf first: `FunctionNames[1]` is the frame that was running. `SampleType` and `SampleUnit` name what `Values` counts (for example `cpu` in `nanoseconds`, `samples` in `count`, `alloc_space` in `bytes`). A sample weighs `if(empty(Values), toInt64(length(TimestampsUnixNano)), arraySum(Values))`. An empty function name is an unsymbolized native frame: fall back to `MappingFileNames` and `Addresses`. `inuse_space` and `inuse_objects` are heap snapshots of what was live when each profile was taken: divide their sum by `uniqExact(ProfileId)` to get the average live heap, since summing snapshots counts the same memory once per profile. `wall` time includes waiting inside a span, `cpu` time does not. Samples taken inside a span carry its `TraceId` and `SpanId`, so `WHERE TraceId = '...'` gives the code that ran for one trace.
 
 ## Attributes
 
@@ -27,7 +29,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - Read a number with ``toFloat64OrZero(toString(SpanAttributes.`key`))``.
 - Never `GROUP BY` or compare the raw `` SpanAttributes.`key` ``: it is a `Dynamic` value, and the query fails.
 - Test presence with `has(SpanAttributesKeys, 'key')`. It is indexed.
-- The `metrics_*` tables keep maps: `Attributes['key']`.
+- The `metrics_*` tables keep maps: `Attributes['key']`. So does `profiles`, for all three of its attribute columns.
 - Attribute names vary across languages and frameworks. Do not guess them. List them first:
 
 ```sql
@@ -112,6 +114,17 @@ WHERE Timestamp >= start AND Timestamp <= end
   AND TraceId = '<trace-id>'
 ORDER BY Timestamp ASC
 LIMIT 200
+```
+
+Hottest functions of a service by self time, for one sample type (list the types first with `SELECT DISTINCT SampleType, SampleUnit FROM profiles WHERE ...`):
+
+```sql
+SELECT FunctionNames[1] AS function, sum(if(empty(Values), toInt64(length(TimestampsUnixNano)), arraySum(Values))) AS self
+FROM profiles
+WHERE Timestamp > now() - INTERVAL 1 HOUR AND ServiceName = '<service>' AND SampleType = 'cpu'
+GROUP BY function
+ORDER BY self DESC
+LIMIT 50
 ```
 
 ## Group Errors By Fingerprint

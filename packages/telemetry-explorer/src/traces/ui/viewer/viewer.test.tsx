@@ -111,6 +111,7 @@ function span(id: string, parentSpanId = ""): Span {
 function renderExplorer(
   search: TraceExplorerProps["search"] = {},
   spans = [span("root"), span("child", "root")],
+  profiles?: TraceExplorerProps["profiles"],
 ) {
   const repo: TracesRepositoryLike = {
     getTrace: vi.fn(async () => spans),
@@ -130,6 +131,7 @@ function renderExplorer(
     },
     onSpanChange: vi.fn(),
     onBack: vi.fn(),
+    profiles,
   };
   const ui = (spanId?: string) => (
     <QueryClientProvider client={client}>
@@ -322,6 +324,45 @@ describe("shared trace explorer", () => {
       "aria-expanded",
       "false",
     );
+  });
+
+  it("offers profiles only for the spans that have samples", async () => {
+    const profiles: TraceExplorerProps["profiles"] = {
+      profiledSpans: async () => ["child"],
+      renderLink: (_window, spanId) => <a href="/profiles">{spanId ?? "trace"} profiles</a>,
+      renderSpanProfile: (target) => (
+        <p>
+          Profile of {target.spanId} from {target.spanStartNs} for {target.spanDurationNs} ns
+        </p>
+      ),
+    };
+    const { rerender } = renderExplorer({ span: "child" }, undefined, profiles);
+
+    expect(await screen.findByRole("link", { name: "trace profiles" })).toBeInTheDocument();
+    const details = screen.getByRole("complementary", { name: "Span details" });
+    expect(
+      await within(details).findByRole("link", { name: "child profiles" }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(details).getByRole("tab", { name: "Profile" }));
+    expect(
+      await within(details).findByText("Profile of child from 1791288000000000000 for 1000000 ns"),
+    ).toBeInTheDocument();
+
+    rerender("root");
+    const rootDetails = await screen.findByRole("complementary", { name: "Span details" });
+    expect(within(rootDetails).queryByRole("tab", { name: "Profile" })).not.toBeInTheDocument();
+    expect(within(rootDetails).queryByRole("link", { name: /profiles/ })).not.toBeInTheDocument();
+  });
+
+  it("hides the profiles link when the trace has no samples", async () => {
+    renderExplorer({ span: "child" }, undefined, {
+      profiledSpans: async () => [],
+      renderLink: () => <a href="/profiles">profiles</a>,
+      renderSpanProfile: () => <p>profile</p>,
+    });
+    const details = await screen.findByRole("complementary", { name: "Span details" });
+    expect(within(details).queryByRole("tab", { name: "Profile" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "profiles" })).not.toBeInTheDocument();
   });
 
   it("uses URL-controlled selection across both hosts and clears it on close", async () => {

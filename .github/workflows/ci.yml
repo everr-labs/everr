@@ -67,6 +67,7 @@ jobs:
               - 'packages/cloud/**'
               - 'packages/datemath/**'
               - 'packages/otel-errors/**'
+              - 'packages/otel-profiler/**'
               - 'packages/otel-web/**'
               - 'packages/tanstack-start-otel/**'
               - 'packages/telemetry-explorer/**'

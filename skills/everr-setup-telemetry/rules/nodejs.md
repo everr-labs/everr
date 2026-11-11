@@ -19,6 +19,7 @@ Use this rule for Node.js services, CLIs, workers, background jobs, and test run
 - Export to OTLP over HTTP for Everr local and remote ingest unless project constraints require a different protocol.
 - Prefer framework-native OpenTelemetry support or OpenTelemetry contrib instrumentation for common libraries, then add manual spans only for work the library instrumentation cannot see.
 - Use `@everr/otel-errors` for error capture: add `new ErrorsInstrumentation()` to the SDK's `instrumentations`. Do not hand-roll process error handlers or exception logging.
+- Use `@everr/otel-profiler` for continuous profiling when the task asks for profiles: see [Profiles](profiles.md#nodejs). Do not hand-roll a pprof exporter.
 
 ## Framework-Specific OpenTelemetry First
 

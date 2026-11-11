@@ -62,3 +62,28 @@ describe("unionEnvironmentOptions", () => {
     expect(options.select(await options.queryFn())).toEqual(["dev", "production", "staging"]);
   });
 });
+
+describe("profiles in the shared options", () => {
+  const profilesRepo = {
+    listServices: async () => ["profiler-only"],
+    attributeValues: async () => ["perf"],
+  };
+
+  it("lists a service that only sends profiles", async () => {
+    const options = unionServiceOptions(logsRepo(["web"], []), tracesRepo(["api"], []), {
+      timeRange,
+      selected: [],
+      profilesRepo,
+    });
+    expect(options.select(await options.queryFn())).toEqual(["api", "profiler-only", "web"]);
+  });
+
+  it("lists an environment that only profiles carry", async () => {
+    const options = unionEnvironmentOptions(logsRepo([], ["prod"]), tracesRepo([], []), {
+      timeRange,
+      selected: [],
+      profilesRepo,
+    });
+    expect(options.select(await options.queryFn())).toEqual(["perf", "prod"]);
+  });
+});

@@ -1,6 +1,8 @@
 @import "@everr/ui/styles/global.css";
+@import "@everr/telemetry-explorer/styles.css";
 
 /* Tailwind detects its sources from this file's package, so the component
    classes and the story classes both have to be registered by hand. */
 @source "../src";
 @source "../../ui/src";
+@source "../../telemetry-explorer/src";

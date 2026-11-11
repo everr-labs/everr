@@ -7,6 +7,7 @@ const settings = [
   "EVERR_RETENTION_TRACES_DAYS",
   "EVERR_RETENTION_LOGS_DAYS",
   "EVERR_RETENTION_METRICS_DAYS",
+  "EVERR_RETENTION_PROFILES_DAYS",
   "EVERR_RETENTION_ALERT_EVALUATIONS_DAYS",
   "EVERR_RETENTION_ALERT_LIFECYCLE_DAYS",
 ];
@@ -31,12 +32,14 @@ describe("configured retention policy", () => {
     vi.stubEnv("EVERR_RETENTION_TRACES_DAYS", "14");
     vi.stubEnv("EVERR_RETENTION_LOGS_DAYS", "7");
     vi.stubEnv("EVERR_RETENTION_METRICS_DAYS", "180");
+    vi.stubEnv("EVERR_RETENTION_PROFILES_DAYS", "7");
     vi.stubEnv("EVERR_RETENTION_ALERT_EVALUATIONS_DAYS", "1");
     vi.stubEnv("EVERR_RETENTION_ALERT_LIFECYCLE_DAYS", "365");
     expect(await retention()).toEqual({
       tracesDays: 14,
       logsDays: 7,
       metricsDays: 180,
+      profilesDays: 7,
       alertEvaluationDays: 1,
       alertLifecycleDays: 365,
     });

@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Link, Outlet } from "@tanstack/react-router";
-import { Bug, Code, ScrollText, Settings, Workflow } from "lucide-react";
+import { Bug, Code, Cpu, ScrollText, Settings, Workflow } from "lucide-react";
 import { useState } from "react";
 import { TitleBarSlotsContext } from "./title-bar";
 
@@ -31,6 +31,9 @@ export function AppShell() {
               </SidebarLink>
               <SidebarLink to="/traces" label="Traces">
                 <Workflow className="size-[18px]" />
+              </SidebarLink>
+              <SidebarLink to="/profiles" label="Profiles">
+                <Cpu className="size-[18px]" />
               </SidebarLink>
               <SidebarLink to="/errors" label="Errors">
                 <Bug className="size-[18px]" />

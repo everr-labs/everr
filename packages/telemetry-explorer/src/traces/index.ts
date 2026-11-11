@@ -15,4 +15,10 @@ export type {
   TracesSearchProps,
 } from "./ui/traces-search-page";
 export { TracesSearch } from "./ui/traces-search-page";
-export { TraceExplorer, type TraceExplorerProps } from "./ui/viewer/viewer";
+export {
+  type SpanProfileTarget,
+  TraceExplorer,
+  type TraceExplorerProps,
+  type TraceProfiles,
+  type TraceWindow,
+} from "./ui/viewer/viewer";

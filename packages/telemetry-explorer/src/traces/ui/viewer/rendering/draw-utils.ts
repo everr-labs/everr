@@ -106,6 +106,8 @@ interface DrawSpanBarArgs {
   selectedSpanId?: string | null;
   hoveredSpanId?: string | null;
   isDimmedByFilter?: boolean;
+  // Labels a bar by its durationNano. Profiles store a sample weight there.
+  formatValue?: (durationNano: number) => string;
 }
 
 export function drawSpanBar(args: DrawSpanBarArgs): void {
@@ -126,6 +128,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     selectedSpanId,
     hoveredSpanId,
     isDimmedByFilter,
+    formatValue = formatSpanDuration,
   } = args;
 
   const spanY = y + metrics.SPAN_BAR_Y_OFFSET;
@@ -231,6 +234,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     color,
     isSelectedOrHovered,
     spanBarHeight: metrics.SPAN_BAR_HEIGHT,
+    formatValue,
   });
 }
 
@@ -243,10 +247,11 @@ interface DrawSpanLabelArgs {
   color: string;
   isSelectedOrHovered: boolean;
   spanBarHeight: number;
+  formatValue: (durationNano: number) => string;
 }
 
 function drawSpanLabel(args: DrawSpanLabelArgs): void {
-  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight } = args;
+  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight, formatValue } = args;
 
   if (width < MIN_WIDTH_FOR_NAME) {
     return;
@@ -271,7 +276,7 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
   const availableWidth = width - LABEL_PADDING_X * 2;
 
   if (width >= MIN_WIDTH_FOR_NAME_AND_DURATION) {
-    const duration = formatDuration(span.durationNano, "ns");
+    const duration = formatValue(span.durationNano);
     const durationWidth = ctx.measureText(duration).width;
     const minGap = 6;
     const nameSpace = availableWidth - durationWidth - minGap;
@@ -314,4 +319,8 @@ function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: num
   }
 
   return lo > 0 ? `${text.slice(0, lo)}${ellipsis}` : ellipsis;
+}
+
+export function formatSpanDuration(durationNano: number): string {
+  return formatDuration(durationNano, "ns");
 }
