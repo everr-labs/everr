@@ -37,7 +37,7 @@ export function ErrorDetailRouteContent({
       occurrence={search.occurrence}
       onBack={onBack}
       onClose={onClose}
-      renderOccurrenceLink={({ occurrence: linkedOccurrence, children, isSelected }) => (
+      renderOccurrenceLink={({ occurrence: linkedOccurrence, label, className, children }) => (
         <Link
           to={detailTo}
           params={{ fingerprint }}
@@ -45,11 +45,12 @@ export function ErrorDetailRouteContent({
             ...search,
             occurrence: getErrorOccurrenceKey(linkedOccurrence),
           }}
-          aria-current={isSelected ? "page" : undefined}
-          className={buttonVariants({
-            variant: isSelected ? "secondary" : "outline",
-            size: "sm",
-          })}
+          // A step of the pager replaces the history entry, so that Back
+          // leaves the Error and does not go through each occurrence again.
+          replace
+          aria-label={label}
+          title={label}
+          className={className}
         >
           {children}
         </Link>

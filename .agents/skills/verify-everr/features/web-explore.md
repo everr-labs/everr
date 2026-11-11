@@ -11,7 +11,7 @@ Signed-in users explore their organization's telemetry on `/logs`, `/traces` and
 - `explore-seeded-logs` after `web-seed`, `/logs` filtered to service `verify-seed-api` lists the 3 seeded bodies, `Showing all 3 matching events`, and Severity counts Error 1, Warning 1, Info 1.
 - `explore-seeded-traces` `/traces` filtered to `verify-seed-api` lists one `/checkout` trace with status `Error` (`Showing all 1 matching traces`).
 - `explore-seeded-trace-detail` `/traces/<trace id>` shows `3 spans`: `POST /checkout`, `SELECT orders`, `charge card`.
-- `explore-seeded-errors` `/errors` filtered to `verify-seed-api` groups the exception log as `VerifySeedPaymentError` / `card declined by verify-seed provider`, `1 occurrence` (`Showing all 1 matching errors`).
+- `explore-seeded-errors` `/errors` filtered to `verify-seed-api` groups the exception log as `VerifySeedPaymentError` / `card declined by verify-seed provider`, with `1` in the Occurrences column (`Showing all 1 matching errors`).
 - `explore-ingest-tenant` ingest rejects an invalid key (`401`) and stores the rows under the key's organization, not the `everr.tenant.id` the client sent.
 
 ## How to get to it (user POV)
@@ -49,7 +49,7 @@ Preconditions:
   agent-browser open "$WEB/traces/$TRACE" && agent-browser wait --text "charge card" && ab_save explore-seeded-03-trace
   grep -q "3 spans" "$SHOTS/explore-seeded-03-trace.txt" && grep -q "SELECT orders" "$SHOTS/explore-seeded-03-trace.txt"
   agent-browser open "$WEB/errors?$SVC" && agent-browser wait --text "VerifySeedPaymentError" && ab_save explore-seeded-04-errors
-  grep -q "card declined by verify-seed provider" "$SHOTS/explore-seeded-04-errors.txt" && grep -q "1 occurrence" "$SHOTS/explore-seeded-04-errors.txt" && grep -q "verify-seed-api" "$SHOTS/explore-seeded-04-errors.txt"
+  grep -q "card declined by verify-seed provider" "$SHOTS/explore-seeded-04-errors.txt" && grep -x -A1 "1" "$SHOTS/explore-seeded-04-errors.txt" | grep -qx "occurrence" && grep -q "verify-seed-api" "$SHOTS/explore-seeded-04-errors.txt"
   ```
 
   Every command exits `0` (the `grep -q` lines are the assertions); `explore-seeded-01-logs.txt` also lists Severity `Error 1`, `Warning 1`, `Info 1` (`explore-seeded-logs`, `explore-seeded-traces`, `explore-seeded-trace-detail`, `explore-seeded-errors`).

@@ -30,6 +30,8 @@ describe("ErrorsRepository.searchIssues", () => {
         latestTraceId: "trace-1",
         latestSpanId: "span-1",
         latestTimestamp: "2026-05-26 10:05:00.000000000",
+        // ClickHouse writes a UInt64 as a string in JSON.
+        trend: ["0", "2", "1"],
       },
     ]);
 
@@ -54,10 +56,12 @@ describe("ErrorsRepository.searchIssues", () => {
     expect(sql).toContain("LIMIT {limit:UInt32}");
     expect(sql).toContain("OFFSET {offset:UInt32}");
     expect(params).toMatchObject({ q: "boom", limit: 50, offset: 50 });
+    expect(sql).toContain("sumResample(0, 24, 1)(1, least(23,");
     expect(result.issues[0]).toMatchObject({
       fingerprint: "fp-1",
       occurrenceCount: 3,
       traceCount: 2,
+      trend: [0, 2, 1],
     });
   });
 

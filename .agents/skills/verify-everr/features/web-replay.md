@@ -28,7 +28,7 @@ Preconditions:
 
   ```bash
   agent-browser open "$WEB/errors?service=%5B%22verify-sdk-web%22%5D" && agent-browser wait --text "VerifySdkError" && ab_save replay-01-errors
-  agent-browser find text "VerifySdkError: checkout exploded" click && agent-browser wait --text "Stacktrace"
+  agent-browser find text "VerifySdkError: checkout exploded" click && agent-browser wait --text "Stack trace"
   agent-browser network requests --clear; sleep 10
   agent-browser network requests --filter _serverFn > "$SHOTS/replay-02-default-range-requests.txt"
   N=$(grep -c GET "$SHOTS/replay-02-default-range-requests.txt"); echo "default range _serverFn GETs in 10s: $N"; test "$N" -le 10
@@ -40,7 +40,7 @@ Preconditions:
 
   ```bash
   ERR=$(agent-browser get url); ABS="${ERR%%\?*}?from=$(date -u -d '-1 hour' +%Y-%m-%dT%H:%M:%S.000Z)&to=$(date -u -d '+10 min' +%Y-%m-%dT%H:%M:%S.000Z)"
-  agent-browser open "$ABS" && agent-browser wait --text "Stacktrace" && agent-browser wait --timeout 30000 --text "TRIGGER" && ab_save replay-04-error-absolute-range
+  agent-browser open "$ABS" && agent-browser wait --text "Stack trace" && agent-browser wait --timeout 30000 --text "TRIGGER" && ab_save replay-04-error-absolute-range
   agent-browser network requests --clear; sleep 10
   agent-browser network requests --filter _serverFn > "$SHOTS/replay-05-absolute-range-requests.txt"; test "$(grep -c GET "$SHOTS/replay-05-absolute-range-requests.txt")" -le 10
   agent-browser get text 'section[aria-label=Replay]'
