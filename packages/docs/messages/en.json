@@ -155,5 +155,7 @@
   "pricing_faq_6_a": "Yes. There is no minimum commitment, and you can cancel your subscription yourself at any time. Pro stays active until the end of the current billing cycle, then the subscription ends. Additional usage charges are frozen when you request the downgrade.",
   "pricing_faq_7_q": "Can I control and predict my costs?",
   "pricing_faq_7_a": "Yes. Pro has a fixed monthly fee and a published rate for additional ingestion, so you can estimate your costs. Monthly budget limits will be available soon.",
-  "language_label": "Language"
+  "language_label": "Language",
+  "hero_ui_pay": "Pay now",
+  "hero_ui_signup": "Create account"
 }

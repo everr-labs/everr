@@ -1,43 +1,12 @@
-import { cn } from "@everr/ui/lib/utils";
-import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
-import { Mascot } from "@/components/mascot";
+import { motion } from "motion/react";
+import { HeroWatch } from "@/components/hero-watch/HeroWatch";
 import { Button } from "@/components/ui/button";
 import { SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-// What Everr says when it notices something, one at a time
-const NOTICES = [
-  { time: "09:41", what: m.hero_notice_1_what, why: m.hero_notice_1_why },
-  { time: "14:02", what: m.hero_notice_2_what, why: m.hero_notice_2_why },
-  { time: "22:17", what: m.hero_notice_3_what, why: m.hero_notice_3_why },
-];
-const SHOW_MS = 5200;
-const REST_MS = 2200;
-
-// Everr notices something, says it, then goes back to watching
-function useNotices() {
-  const [state, setState] = useState({ index: 0, on: true });
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setTimeout(
-      () =>
-        setState(({ index, on }) =>
-          on ? { index, on: false } : { index: (index + 1) % NOTICES.length, on: true },
-        ),
-      state.on ? SHOW_MS : REST_MS,
-    );
-    return () => clearTimeout(id);
-  }, [state]);
-  return state;
-}
-
 export function Hero() {
-  const { index, on } = useNotices();
-  const notice = NOTICES[index];
-
   return (
     <section className="relative -mt-16 min-h-[max(100svh,46rem)] overflow-hidden bg-background pt-16 text-foreground md:-mt-24 md:pt-24">
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-10 sm:px-6 md:pt-[clamp(1rem,3vh,3rem)]">
@@ -85,45 +54,14 @@ export function Hero() {
         </motion.div>
       </div>
 
-      {/* Everr itself, keeping watch from the corner of the page */}
+      {/* Pieces of an app with Everr keeping watch over them, running off the page's corner */}
       <motion.div
-        initial={{ y: "30%", opacity: 0 }}
+        initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 1.3, delay: 0.4, ease }}
-        className="relative mx-auto mt-44 w-[min(88vw,26rem)] md:absolute md:right-[max(1.5rem,calc((100vw-80rem)/2+1.5rem))] md:bottom-0 md:mt-0 md:w-[clamp(24rem,45vw,43rem)]"
+        className="relative mt-16 ml-auto w-[min(100vw,30rem)] md:absolute md:right-0 md:bottom-0 md:mt-0 md:w-[min(clamp(30rem,53vw,47.5rem),(72svh-9.5rem)*1.41)]"
       >
-        <Mascot
-          glow
-          faceClassName="fill-[oklch(0.13_0_0)]"
-          eyesClassName="fill-primary"
-          raysClassName={on ? "fill-primary" : "fill-foreground/20"}
-          className="-mb-[20%] block w-full text-foreground"
-        />
-        <div className="absolute top-[-5%] left-[26%] size-0 md:top-[33%] md:left-[31%]">
-          <AnimatePresence>
-            {on && (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 14, scale: 0.94 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                transition={{ duration: 0.55, ease }}
-                className={cn(
-                  "absolute bottom-0 w-max max-w-[min(19rem,66vw)] rounded-2xl max-md:left-0 max-md:origin-bottom-left max-md:rounded-bl-md md:right-0 md:origin-bottom-right md:rounded-br-md",
-                  "border border-white/12 bg-card/95 px-4 py-3 shadow-[0_24px_60px_-18px_rgb(0_0_0/0.9)] backdrop-blur-sm",
-                )}
-              >
-                <p className="text-xs text-muted-foreground tabular-nums">{notice.time}</p>
-                <p className="mt-1 text-[15px] leading-[1.3] font-semibold text-pretty md:text-base">
-                  {notice.what()}
-                </p>
-                <p className="mt-1 text-sm leading-[1.4] text-pretty text-muted-foreground">
-                  {notice.why()}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <HeroWatch />
       </motion.div>
     </section>
   );

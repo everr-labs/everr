@@ -155,5 +155,7 @@
   "pricing_faq_6_a": "Sì. Non ci sono vincoli di durata e puoi disdire l’abbonamento da solo in qualsiasi momento. Pro resta attivo fino alla fine del periodo di fatturazione in corso, poi l’abbonamento termina. I costi per il consumo extra si fermano nel momento in cui richiedi il downgrade.",
   "pricing_faq_7_q": "Posso tenere sotto controllo i costi e prevederli?",
   "pricing_faq_7_a": "Sì. Pro ha un canone mensile fisso e una tariffa pubblica per l’ingestion extra, quindi puoi stimare quanto spenderai. A breve arriveranno anche i limiti di budget mensili.",
-  "language_label": "Lingua"
+  "language_label": "Lingua",
+  "hero_ui_pay": "Paga ora",
+  "hero_ui_signup": "Crea account"
 }

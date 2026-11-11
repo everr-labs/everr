@@ -1,0 +1,275 @@
+/* Pieces of somebody else's app, loose on the page: the page is the ground */
+.hw {
+  & .ss-stage {
+    --ss-accent: var(--fg);
+    --ss-accent-2: var(--fg);
+    --ss-success: var(--green);
+    --ss-danger: var(--pink);
+    overflow: hidden;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  & .hw-scene {
+    position: absolute;
+    inset: 0;
+    color: var(--fg);
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.3;
+    will-change: transform;
+  }
+  & .hw-scene > * {
+    position: absolute;
+    box-sizing: border-box;
+  }
+
+  & .hw-card {
+    border-radius: 18px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  /* A grey line standing in for words */
+  & .hw-card i {
+    display: block;
+    flex: none;
+    height: 8px;
+    border-radius: 4px;
+    background: oklch(1 0 0 / 14%);
+  }
+
+  /* Variants stacked in one cell and crossfaded, so nothing slides or resizes */
+  & .hw-layer {
+    display: inline-flex;
+    grid-area: stack;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    filter: blur(2px);
+    transition:
+      opacity 250ms ease,
+      filter 250ms ease;
+  }
+  & .hw-layer[data-on] {
+    opacity: 1;
+    filter: none;
+    transition-delay: 80ms;
+  }
+  & .hw-status {
+    display: inline-grid;
+    flex: none;
+    grid-template-areas: "stack";
+    place-items: center;
+  }
+  & .hw-wrong {
+    color: var(--pink);
+  }
+
+  & .hw-action {
+    display: grid;
+    grid-template-areas: "stack";
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    white-space: nowrap;
+  }
+  & .hw-action > .hw-layer:first-child {
+    text-box: trim-both cap alphabetic;
+  }
+  & .hw-solid {
+    background: var(--fg);
+    color: var(--bg);
+    font-weight: 600;
+  }
+  /* On the light button the ring and the arc take the dark ink */
+  & .hw-solid .ss-check__ring {
+    stroke: oklch(0 0 0 / 18%);
+  }
+  & .hw-solid .ss-check__arc {
+    stroke: var(--bg);
+  }
+  & .hw-solid .hw-wrong {
+    color: oklch(0.55 0.22 350);
+  }
+  & .hw-quiet {
+    background: var(--muted);
+    transition: background-color 200ms ease;
+  }
+  & .hw-quiet[data-wrong] {
+    background: color-mix(in oklch, var(--pink) 22%, var(--muted));
+  }
+  & .hw-solid {
+    transition: background-color 200ms ease;
+  }
+  & .hw-solid[data-wrong] {
+    background: color-mix(in oklch, var(--pink) 16%, var(--fg));
+  }
+  & .hw-pay {
+    border-radius: 34px;
+    box-shadow: 0 18px 40px -18px oklch(0 0 0 / 80%);
+  }
+
+  & .hw-form {
+    display: grid;
+    grid-template-rows: 44px 44px 52px;
+    gap: 10px;
+    padding: 18px;
+  }
+  & .hw-form .hw-action {
+    border-radius: 12px;
+  }
+  & .hw-field {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  & .hw-float {
+    top: 184px;
+    left: 16px;
+    width: 230px;
+    height: 60px;
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+
+  & .hw-upload {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px 0 14px;
+  }
+  & .hw-thumb {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: var(--muted);
+    color: var(--mfg);
+  }
+  & .hw-upload-body {
+    display: grid;
+    flex: 1;
+    gap: 11px;
+    min-width: 0;
+  }
+  & .hw-file {
+    font-size: 15px;
+    text-box: trim-both cap alphabetic;
+  }
+  & .hw-upload .ss-meter {
+    background: oklch(1 0 0 / 10%);
+  }
+
+  & .hw-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+  }
+  & .hw-switch .ss-toggle {
+    scale: 1.3;
+    transform-origin: 100% 50%;
+  }
+  & .hw-switch .ss-toggle__knob {
+    background: var(--bg);
+  }
+
+  & .hw-chart {
+    display: grid;
+    align-items: end;
+    overflow: hidden;
+    color: var(--mfg);
+  }
+  & .hw-slider {
+    border-radius: 3px;
+    background: oklch(1 0 0 / 14%);
+  }
+  & .hw-slider > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 56px;
+    border-radius: inherit;
+    background: var(--fg);
+  }
+  & .hw-slider > i {
+    position: absolute;
+    top: -9px;
+    left: 44px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--fg);
+    box-shadow: 0 2px 8px oklch(0 0 0 / 60%);
+  }
+  & .hw-search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 18px;
+    color: var(--mfg);
+  }
+
+  & .hw-mascot {
+    display: block;
+    color: var(--fg);
+  }
+
+  /* What Everr says, one at a time, each in the same place */
+  & .hw-notices {
+    display: grid;
+    grid-template-areas: "stack";
+  }
+  & .hw-notice {
+    display: grid;
+    grid-area: stack;
+    gap: 6px;
+    align-self: start;
+    justify-self: end;
+    max-width: 100%;
+    padding: 16px 20px 18px;
+    border-radius: 20px 20px 6px 20px;
+    background: oklch(0.2 0 0);
+    box-shadow:
+      inset 0 0 0 1px oklch(1 0 0 / 12%),
+      0 24px 60px -18px oklch(0 0 0 / 90%);
+    opacity: 0;
+    will-change: transform;
+    transform: translateY(-10px);
+    transition:
+      opacity 300ms ease,
+      transform 300ms ease;
+  }
+  & .hw-notice[data-on] {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 500ms ease,
+      transform 800ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+  & .hw-time {
+    font-size: 13px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    color: var(--mfg);
+  }
+  & .hw-what {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+  }
+  & .hw-why {
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--mfg);
+    text-wrap: pretty;
+  }
+  & .ss-stage[data-layout="compact"] .hw-what {
+    font-size: 16px;
+  }
+}

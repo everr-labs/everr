@@ -6,3 +6,6 @@ export { Chart } from "./chart";
 export { Playhead } from "./playhead";
 export { Stream } from "./motion/Stream";
 export { Collapse } from "./motion/Collapse";
+export { Check } from "./parts/Check";
+export { Meter } from "./parts/Meter";
+export { Toggle } from "./parts/Toggle";
