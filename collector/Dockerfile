@@ -1,5 +1,5 @@
 # STAGE 1 - build
-FROM golang:1.26.11-alpine3.24 AS build
+FROM golang:1.26.11-alpine3.24@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb AS build
 WORKDIR /collector
 
 ARG EVERR_BUILD_TARGET=cloud
@@ -18,7 +18,7 @@ RUN cd cmd/healthcheck && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /
 RUN mkdir -p /out/queue
 
 # STAGE 2 - final image
-FROM gcr.io/distroless/static-debian13:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 
 ARG EVERR_BUILD_TARGET=cloud
 ARG BIN_PATH=/collector/build/${EVERR_BUILD_TARGET}/everr-collector
