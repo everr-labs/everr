@@ -147,11 +147,18 @@ export function NodeGraphVisualization({
       Math.max(MIN_NODE_WIDTH, Math.ceil(text) + TEXT_X + CARD_INSET),
     );
     // A capped card shows the figures that fit whole, then an ellipsis; the
-    // tooltip has them all.
+    // tooltip has them all. A first figure too wide on its own is cut short.
     const room = nodeWidth - TEXT_X - CARD_INSET;
     for (const [id, list] of all) {
       let count = list.length;
       while (count > 1 && statsLine(list.slice(0, count), count < list.length) > room) count--;
+      const [first] = list;
+      if (count === 1 && first && statsLine([first], false) > room) {
+        let text = first.text;
+        while (text.length > 1 && measureStats(`${text}…`) > room) text = text.slice(0, -1);
+        cardFigures.set(id, { shown: [{ ...first, text: `${text.trimEnd()}…` }], more: false });
+        continue;
+      }
       cardFigures.set(id, { shown: list.slice(0, count), more: count < list.length });
     }
     return { nodeWidth, cardFigures };
