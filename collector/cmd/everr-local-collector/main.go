@@ -227,7 +227,7 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 			return otelcol.Factories{}, err
 		}
 		factories.ExporterModules = makeModulesMap(factories.Exporters, map[component.Type]string{
-			chdbexporter.NewFactory().Type(): "github.com/everr-labs/everr/collector/exporter/chdbexporter v0.160.0",
+			chdbexporter.NewFactory().Type(): "github.com/everr-labs/everr/collector/exporter/chdbexporter v0.165.1",
 		})
 
 		return factories, nil
