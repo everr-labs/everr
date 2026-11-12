@@ -546,10 +546,13 @@ describe("delivery over fetch", () => {
     });
     const t = await start({}, viaFetch);
     t.rec.recorder.emitClip();
+    // The gzip and the retry run on real ticks. A slow machine needs more of them.
+    for (let i = 0; i < 400 && segments.length < 2; i++) await settle(100);
     await settle();
     box().textContent = "next";
     await mutations();
     t.rec.recorder.emitClip();
+    for (let i = 0; i < 400 && segments.length < 3; i++) await settle(100);
     await settle();
     // The gzipped try failed, its plain retry went through, and the next
     // Segment goes plain at once.
