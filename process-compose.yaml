@@ -64,9 +64,39 @@ processes:
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
 
+  # The seeds migrate, create the development account and its ingest keys,
+  # and write them to .dev/seed/ before the applications start.
+  seed-app:
+    working_dir: ${DEV_ROOT}/packages/app
+    command: '"${DEV_ROOT}/scripts/dev/exec.sh" app app pnpm --silent dev:seed'
+    environment:
+      - DATABASE_NAME=everr_app
+      - DATABASE_USER=everr_app
+      - PORTLESS_URL=${DEV_APP_URL}
+      - DEV_SEED_INGEST_URL=${DEV_APP_INGEST_URL}
+      - DEV_SEED_FILE=${DEV_STATE_DIR}/seed/app.env
+    availability: { restart: exit_on_failure }
+    depends_on:
+      databases: { condition: process_healthy }
+
+  seed-cloud:
+    working_dir: ${DEV_ROOT}/packages/cloud
+    command: '"${DEV_ROOT}/scripts/dev/exec.sh" app cloud pnpm --silent dev:seed'
+    environment:
+      - DATABASE_NAME=everr_cloud
+      - DATABASE_USER=everr_cloud
+      - EMAIL_FROM=Everr <dev@example.test>
+      - PORTLESS_URL=${DEV_CLOUD_URL}
+      - DEV_SEED_INGEST_URL=${DEV_CLOUD_INGEST_URL}
+      - DEV_SEED_FILE=${DEV_STATE_DIR}/seed/cloud.env
+    availability: { restart: exit_on_failure }
+    depends_on:
+      databases: { condition: process_healthy }
+      mailpit: { condition: process_healthy }
+
   app:
     working_dir: ${DEV_ROOT}/packages/app
-    command: portless run --name ${DEV_APP_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    command: portless run --name ${DEV_APP_NAME} sh -c 'set -a && . "${DEV_STATE_DIR}/seed/app.env" && set +a && exec "${DEV_ROOT}/scripts/dev/exec.sh" app app vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
     environment:
       - DATABASE_NAME=everr_app
       - DATABASE_USER=everr_app
@@ -75,6 +105,7 @@ processes:
     depends_on:
       databases: { condition: process_healthy }
       mailpit: { condition: process_healthy }
+      seed-app: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
@@ -86,7 +117,7 @@ processes:
 
   cloud:
     working_dir: ${DEV_ROOT}/packages/cloud
-    command: portless run --name ${DEV_CLOUD_NAME} sh -c 'exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
+    command: portless run --name ${DEV_CLOUD_NAME} sh -c 'set -a && . "${DEV_STATE_DIR}/seed/cloud.env" && set +a && exec "${DEV_ROOT}/scripts/dev/exec.sh" app cloud vp dev --host 127.0.0.1 --port "$$PORT" --strictPort'
     environment:
       - DATABASE_NAME=everr_cloud
       - DATABASE_USER=everr_cloud
@@ -96,6 +127,7 @@ processes:
     depends_on:
       databases: { condition: process_healthy }
       mailpit: { condition: process_healthy }
+      seed-cloud: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
@@ -160,6 +192,7 @@ processes:
       echo "Cloud: ${DEV_CLOUD_URL} (ingest: ${DEV_CLOUD_INGEST_URL})"
       echo "App OTLP/gRPC: http://127.0.0.1:${DEV_APP_GRPC_PORT}"
       echo "Cloud OTLP/gRPC: http://127.0.0.1:${DEV_CLOUD_GRPC_PORT}"
+      echo "Sign in to both with ${EVERR_DEV_EMAIL} / ${EVERR_DEV_PASSWORD}"
       echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
     depends_on:
       collector-app: { condition: process_healthy }

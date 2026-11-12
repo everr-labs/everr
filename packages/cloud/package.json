@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vp test run",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/migrate.ts cloud",
+    "dev:seed": "tsx --tsconfig tsconfig.json scripts/dev-seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "test:billing:sandbox": "vp test run --config vitest.billing-sandbox.config.ts",
