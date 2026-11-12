@@ -13,7 +13,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `traces_trace_id_ts`: `TraceId`, `Start`, `End`. The time window of each trace in whole seconds, one row per trace per ingested batch. Aggregate with `min(Start)` and `max(End)`.
 - `alert_events`: alert history on server installations (not the local CLI store). One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 
-`app.recordings` is a Cloud table the SQL API cannot read. Segment bodies for `everr.browser.recording.segment` are not stored in `logs` for new ingest. Do not read `Body` to rebuild a recording; use `recording_journey` / `recording_page` (MCP) or the `/api/cli/recordings/...` routes.
+`app.recordings` is a Cloud table the SQL API cannot read. Segment bodies for `everr.browser.recording.segment` are not stored in `logs`. Do not read `Body` to rebuild a recording; use `recording_journey` / `recording_page` (MCP) or the `/api/cli/recordings/...` routes.
 
 ## Units And Values
 
