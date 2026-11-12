@@ -79,8 +79,9 @@ export async function runDevSeed(
       await createOwner({ db, auth, email, password });
       owner = await findOwner();
       if (!owner) throw new Error(`Seeding ${email} did not create an organization.`);
-      await createOnboardingStore(db).complete(owner);
     }
+    // Also for a reused owner, so a run that failed after creating it recovers.
+    await createOnboardingStore(db).complete(owner);
     const { organizationId, userId } = owner;
     const previous = await readSeedFile(outputFile);
 

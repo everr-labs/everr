@@ -35,7 +35,7 @@ Before App and Cloud start, `seed-app` and `seed-cloud` run each product's migra
 
 The seed marks onboarding as complete and creates two ingest keys in the account's organization: a server key and a public browser key bound to the application's origin. It writes them, with the matching ingest URL, to `.dev/seed/app.env` and `.dev/seed/cloud.env`. Each application loads its file at startup, so App and Cloud send their own traces, metrics, logs and browser telemetry to their own collectors and show up in their own UI. Values in these files take precedence over the package `.env`. Later runs reuse the account and the stored keys, and replace a key only when it no longer verifies, for example after the databases are reset.
 
-`EVERR_DEV_SEED=0` skips the seed and leaves the databases empty. The verification helper sets it, because its recipes start with sign-up and installation setup.
+`EVERR_DEV_SEED=0` skips the seed. It does not clear anything: existing databases keep their accounts and data. The verification helper sets it, because each run starts on its own fresh databases and its recipes begin with sign-up and installation setup.
 
 ## What starts
 

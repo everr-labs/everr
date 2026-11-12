@@ -1,5 +1,6 @@
 // Development only: the Cloud seed entry point for `pnpm dev`.
 import { runDevSeed } from "@everr/app/dev-seed";
+import { generateOrgSlug } from "../src/common/organization-name.ts";
 
 await runDevSeed("cloud", async ({ db, auth, email, password }) => {
   const [{ eq }, { user }] = await Promise.all([
@@ -24,6 +25,6 @@ await runDevSeed("cloud", async ({ db, auth, email, password }) => {
     });
   }
   await auth.api.createOrganization({
-    body: { name: "Everr Dev", slug: "everr-dev", userId: existing.id },
+    body: { name: "Everr Dev", slug: generateOrgSlug(), userId: existing.id },
   });
 });

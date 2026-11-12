@@ -192,7 +192,7 @@ processes:
       echo "Cloud: ${DEV_CLOUD_URL} (ingest: ${DEV_CLOUD_INGEST_URL})"
       echo "App OTLP/gRPC: http://127.0.0.1:${DEV_APP_GRPC_PORT}"
       echo "Cloud OTLP/gRPC: http://127.0.0.1:${DEV_CLOUD_GRPC_PORT}"
-      echo "Sign in to both with ${EVERR_DEV_EMAIL} / ${EVERR_DEV_PASSWORD}"
+      echo "Sign in to both with $${EVERR_DEV_EMAIL} / $${EVERR_DEV_PASSWORD}"
       echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
     depends_on:
       collector-app: { condition: process_healthy }
