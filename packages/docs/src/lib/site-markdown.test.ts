@@ -1,28 +1,66 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { baseLocale, overwriteGetLocale } from "@/paraglide/runtime";
-import { llmsTxt, pricingMarkdown } from "./site-markdown";
+import { docsSections, llmsTxt, pricingMarkdown } from "./site-markdown";
+
+const DOCS_INDEX = `# Docs
+
+- [What Everr is](/docs.md): Observability made simple
+- Getting started
+  - [Installation](/docs/learn/install.md): Install the CLI.
+- Guides
+  - [Production telemetry](/docs/guides/production-telemetry.md): Send OTLP.
+
+  - **CI**
+  - [Debug Your CI](/docs/guides/debug-ci.md): Investigate CI failures.`;
 
 describe("llms.txt", () => {
-  const text = llmsTxt("# Docs\n\n- [Install](/docs/learn/install.md): Install the CLI.", [
+  const text = llmsTxt(DOCS_INDEX, [
     { slug: "first", title: "First post", description: "What shipped.", date: "2026-05-01" },
   ]);
 
-  it("follows the llms.txt layout: title, summary, then sections", () => {
+  it("follows the llms.txt layout: title, summary, guidance, then sections", () => {
     const lines = text.split("\n");
     expect(lines[0]).toBe("# Everr");
     expect(lines[2]).toMatch(/^> /);
     expect(text.match(/^# /gm)).toHaveLength(1);
+    expect(text.match(/^#{3,} /gm)).toBeNull();
   });
 
-  it("tells agents when to use Everr and lists developer resources", () => {
-    expect(text).toContain("## When to use Everr");
-    expect(text).toContain("## Developer resources");
+  it("holds only lists of links in its sections", () => {
+    const sections = text.split(/^## .*$/m).slice(1);
+    for (const section of sections) {
+      const lines = section.split("\n").filter((line) => line.trim() !== "");
+      for (const line of lines) expect(line).toMatch(/^- \[[^\]]+\]\([^)]+\)/);
+    }
+  });
+
+  it("tells agents when to use Everr before the sections", () => {
+    const guidance = text.slice(0, text.indexOf("\n## "));
+    expect(guidance).toContain("**When to use Everr.**");
+    expect(guidance).toContain("**How an agent should use Everr:**");
     expect(text).toContain("[MCP server](/docs/reference/mcp.md)");
   });
 
-  it("nests the docs index and the devlog under their own sections", () => {
-    expect(text).toContain("## Docs\n\n- [Install](/docs/learn/install.md): Install the CLI.");
+  it("lists the devlog under Optional", () => {
+    expect(text).toContain("## Optional");
     expect(text).toContain("- [First post](/devlog/first): What shipped.");
+  });
+});
+
+describe("docs sections", () => {
+  it("turns each top-level docs folder into a section of links", () => {
+    expect(docsSections(DOCS_INDEX)).toBe(`## Docs
+
+- [What Everr is](/docs.md): Observability made simple
+
+## Docs: Getting started
+
+- [Installation](/docs/learn/install.md): Install the CLI.
+
+## Docs: Guides
+
+- [Production telemetry](/docs/guides/production-telemetry.md): Send OTLP.
+- [Debug Your CI](/docs/guides/debug-ci.md): Investigate CI failures.`);
   });
 });
 

@@ -75,11 +75,11 @@ export async function respond(request: Request, pathname: string, deps: Deps) {
   const accept = request.headers.get("accept");
   const preferred = negotiatePage(accept);
 
-  // /about/ redirects to /about: let the redirect happen rather than answer on both.
-  // `pathname` has lost its trailing slash with the locale prefix, so read the URL
+  // /about/ and //about redirect to /about: let the redirect happen rather than answer
+  // on both. `pathname` has lost its trailing slash with the locale prefix, so read the URL
   const requested = new URL(request.url).pathname;
-  const trailingSlash = requested.length > 1 && requested.endsWith("/");
-  if (preferred === MARKDOWN && !trailingSlash) {
+  const canonical = requested === "/" || (!requested.endsWith("/") && !requested.includes("//"));
+  if (preferred === MARKDOWN && canonical) {
     const body = await deps.markdownFor(pathname);
     if (body !== undefined) return markdown(request, body);
   }
@@ -92,7 +92,9 @@ export async function respond(request: Request, pathname: string, deps: Deps) {
     return markdown(request, notFoundMarkdown(pathname), 404);
   }
 
-  if (response.status === 404 || accepts(accept, HTML)) return withVaryAccept(response);
+  // Only a page that exists can be refused for its type: errors keep their status
+  const ok = response.status >= 200 && response.status < 300;
+  if (!ok || accepts(accept, HTML)) return withVaryAccept(response);
 
   // The client accepts neither HTML nor Markdown, or only Markdown and this page has none
   await response.body?.cancel();

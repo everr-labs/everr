@@ -8,13 +8,38 @@ export const SITE_SUMMARY =
 
 export type DevlogEntry = { slug: string; title: string; description: string; date: string };
 
+const LINK_ITEM = /^\s*- (\[[^\]]+\]\([^)]+\).*)$/;
+const GROUP_ITEM = /^- (.+)$/;
+
 /**
- * llms.txt (https://llmstxt.org): an H1, a blockquote summary, free-form guidance,
- * then H2 sections of links. `docsIndex` is the Fumadocs index with Markdown links.
+ * The Fumadocs index as llms.txt sections: llms.txt sections hold only link lists, so
+ * each top-level folder becomes an H2 and the links lose their nesting. Sub-group
+ * labels without a link (such as **CI**) are dropped; the links stay.
+ */
+export function docsSections(docsIndex: string) {
+  const sections: { title: string; links: string[] }[] = [{ title: "Docs", links: [] }];
+  for (const line of docsIndex.split("\n")) {
+    const link = LINK_ITEM.exec(line);
+    if (link) {
+      sections.at(-1)?.links.push(`- ${link[1]}`);
+      continue;
+    }
+    const group = GROUP_ITEM.exec(line);
+    if (group) sections.push({ title: `Docs: ${group[1]}`, links: [] });
+  }
+  return sections
+    .filter((section) => section.links.length > 0)
+    .map((section) => `## ${section.title}\n\n${section.links.join("\n")}`)
+    .join("\n\n");
+}
+
+/**
+ * llms.txt (https://llmstxt.org): an H1, a blockquote summary, free-form guidance with
+ * no headings, then H2 sections that hold only lists of links. `docsIndex` is the Fumadocs index with Markdown links.
  * It is also the Markdown representation of the home page.
  */
 export function llmsTxt(docsIndex: string, devlog: DevlogEntry[]) {
-  const docsLinks = docsIndex.replace(/^#\s+Docs\s*\n+/, "").trim();
+  const docsLinks = docsSections(docsIndex);
   const devlogLinks = devlog.map(
     (post) => `- [${post.title}](/devlog/${post.slug}): ${post.description}`,
   );
@@ -25,9 +50,7 @@ export function llmsTxt(docsIndex: string, devlog: DevlogEntry[]) {
 
 Everr Cloud runs at https://app.everr.dev. Everr is open source (AGPL-3.0) and can also run on your own infrastructure. Every page on ${SITE_URL} is available as Markdown: request it with \`Accept: text/markdown\`, or append \`.md\` to a docs URL.
 
-## When to use Everr
-
-Reach for Everr when the job is one of these:
+**When to use Everr.** Reach for Everr when the job is one of these:
 
 - **Instrument an app with OpenTelemetry.** Add or repair traces, logs, and metrics in a backend or browser app, then verify locally that the data arrives before shipping. Use the \`everr-setup-telemetry\` skill.
 - **Investigate behavior with real telemetry.** Slow requests, errors, crashes, regressions, incidents, or user reports in production or on a local machine. Query with SQL instead of guessing. Use the \`everr-use-telemetry\` skill.
@@ -36,7 +59,7 @@ Reach for Everr when the job is one of these:
 
 Everr is a fit for teams that want observability without running the tooling themselves, and for coding agents that need runtime evidence. It works with any language or framework that has an OpenTelemetry SDK.
 
-## How an agent should use Everr
+**How an agent should use Everr:**
 
 1. Install the CLI (macOS arm64, Linux x86_64 and arm64): \`curl -fsSL ${SITE_URL}/install.sh | sh\`
 2. Install the skills from the project root: \`everr skills install --all --project\`
@@ -54,11 +77,11 @@ Ask the user before publishing resources with \`everr apply\` or deleting them.
 - [Skills](/docs/reference/skills.md): bundled agent skills and how to install them
 - [Production telemetry](/docs/guides/production-telemetry.md): send OTLP traces, logs, and metrics to Everr
 - [Browser telemetry](/docs/guides/browser-telemetry.md): the \`@everr/otel-web\` SDK and public ingest keys
-- [Dashboard spec](/docs/reference/dashboard-spec.md), [AlertRule spec](/docs/reference/alert-spec.md), [Runbook spec](/docs/reference/runbook-spec.md): resource file formats
+- [Dashboard spec](/docs/reference/dashboard-spec.md): the dashboard file format
+- [AlertRule spec](/docs/reference/alert-spec.md): the alert rule file format
+- [Runbook spec](/docs/reference/runbook-spec.md): the runbook file format
 - [Install script](${SITE_URL}/install.sh): installs the \`everr\` binary
 - [Source code](${GITHUB_URL}): the platform, CLI, collector, and this site
-
-## Docs
 
 ${docsLinks}
 

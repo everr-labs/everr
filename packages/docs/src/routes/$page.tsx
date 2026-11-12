@@ -13,9 +13,12 @@ import { getLocale } from "@/paraglide/runtime";
 // About, Contact, Privacy: one MDX file each in content/pages
 export const Route = createFileRoute("/$page")({
   component: SitePage,
-  loader: async ({ params: { page } }) => {
+  // /contact and /it/contact are the same route once the locale is stripped: the locale
+  // keeps their loader data apart, so switching language never shows the other one
+  loaderDeps: () => ({ locale: getLocale() }),
+  loader: async ({ params: { page }, deps: { locale } }) => {
     // The server function's own URL carries no locale: pass the page's
-    const data = await serverLoader({ data: { slug: page, locale: getLocale() } });
+    const data = await serverLoader({ data: { slug: page, locale } });
     await clientLoader.preload(data.path);
     return data;
   },

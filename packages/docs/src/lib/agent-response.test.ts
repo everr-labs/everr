@@ -143,17 +143,44 @@ describe("page responses", () => {
     expect(response).toBe(original);
   });
 
-  // The node server passes srvx's NodeRequest, which is not an instance of the global Request
+  // The node server passes srvx's NodeRequest, which is not an instance of the global
+  // Request. A Markdown-only Accept is the case where the request has to be rebuilt
   it("renders requests that only look like a Request", async () => {
     const request = {
       url: "https://everr.dev/pricing",
       method: "GET",
-      headers: new Headers({ accept: BROWSER }),
+      headers: new Headers({ accept: "text/markdown" }),
       signal: new AbortController().signal,
     } as unknown as Request;
+    let rendered: Request | undefined;
 
-    const response = await respond(request, "/pricing", { render: page(200), markdownFor });
+    const response = await respond(request, "/pricing", {
+      render: async (r) => {
+        rendered = r;
+        return page(200)(r);
+      },
+      markdownFor,
+    });
 
-    expect(response.status).toBe(200);
+    expect(rendered?.headers.get("accept")).toBe("text/html");
+    expect(response.status).toBe(406);
+  });
+
+  it("keeps a server error's status whatever the client accepts", async () => {
+    const response = await respond(get("/about", "application/json"), "/about", {
+      render: page(500),
+      markdownFor,
+    });
+
+    expect(response.status).toBe(500);
+  });
+
+  it("does not answer a path with an empty segment in Markdown", async () => {
+    const response = await respond(get("//about", "text/markdown"), "/about", {
+      render: async () => new Response(null, { status: 308, headers: { location: "/about" } }),
+      markdownFor,
+    });
+
+    expect(response.status).toBe(308);
   });
 });

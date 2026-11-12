@@ -41,9 +41,9 @@ export function Footer() {
 function FooterDirectory() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-      <div className="grid grid-cols-3 gap-x-4 gap-y-8 text-center sm:gap-8 md:grid-cols-5 md:text-left">
+      <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-5 md:text-left">
         {/* Brand */}
-        <div className="col-span-3 mb-4 md:col-span-2 md:mb-0">
+        <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
           <span className="flex w-full items-center justify-center gap-0.5 font-heading text-3xl font-semibold sm:justify-start">
             <Mascot
               reach={30}
@@ -167,8 +167,8 @@ function FooterDirectory() {
             </li>
           </ul>
         </div>
-        {/* Company */}
-        <div>
+        {/* Company: on its own row, centered, while the grid has two columns */}
+        <div className="col-span-2 md:col-span-1">
           <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_company()}</h3>
           <ul className="space-y-3">
             <li>
