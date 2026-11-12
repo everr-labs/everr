@@ -8,6 +8,7 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Suspense } from "react";
 import { z } from "zod";
 import { docsOptions } from "@/lib/layout.shared";
+import { seoHead } from "@/lib/page-head";
 import { source } from "@/lib/source";
 
 export const Route = createFileRoute("/docs/$")({
@@ -18,6 +19,14 @@ export const Route = createFileRoute("/docs/$")({
     await clientLoader.preload(data.path);
     return data;
   },
+  head: ({ loaderData }) =>
+    loaderData
+      ? seoHead({
+          path: loaderData.url,
+          title: loaderData.isIndex ? "Everr Docs" : `${loaderData.title} - Everr Docs`,
+          description: loaderData.description ?? "",
+        })
+      : {},
 });
 
 const serverLoader = createServerFn({
@@ -30,6 +39,10 @@ const serverLoader = createServerFn({
 
     return {
       path: page.path,
+      url: page.url,
+      isIndex: page.slugs.length === 0,
+      title: page.data.title,
+      description: page.data.description,
       pageTree: await source.serializePageTree(source.getPageTree()),
     };
   });

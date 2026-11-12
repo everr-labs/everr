@@ -41,7 +41,7 @@ export function Footer() {
 function FooterDirectory() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-      <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
+      <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-5 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
           <span className="flex w-full items-center justify-center gap-0.5 font-heading text-3xl font-semibold sm:justify-start">
@@ -164,6 +164,39 @@ function FooterDirectory() {
               >
                 Discord
               </a>
+            </li>
+          </ul>
+        </div>
+        {/* Company */}
+        <div>
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_company()}</h3>
+          <ul className="space-y-3">
+            <li>
+              <Link
+                to="/$page"
+                params={{ page: "about" }}
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                {m.footer_about()}
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/$page"
+                params={{ page: "contact" }}
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                {m.footer_contact()}
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/$page"
+                params={{ page: "privacy" }}
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                {m.footer_privacy()}
+              </Link>
             </li>
           </ul>
         </div>

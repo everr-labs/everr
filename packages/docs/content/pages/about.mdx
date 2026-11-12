@@ -1,0 +1,27 @@
+---
+title: About Everr
+description: Everr is an open source observability platform built on OpenTelemetry, made in Europe by Everr Labs.
+---
+
+Everr is an observability platform for teams that want to know how their software behaves in production without hiring specialists to run the tooling. It keeps watch over your app, and when a page slows down or something breaks, it tells you what happened, where, and why.
+
+## What Everr does
+
+Everr collects traces, logs, and metrics over [OpenTelemetry](/docs/concepts/whats-opentelemetry), the open standard for telemetry, so you instrument once and keep control of your data. On top of that data it gives you:
+
+- Ready-made views of speed, errors, and demand from the first day.
+- Alerts with runbooks attached, so each notification arrives with the steps your team agreed on.
+- Dashboards, alert rules, and runbooks as code: files you review in a pull request and publish with `everr apply`.
+- Visibility into GitHub Actions: failing and flaky jobs, slow pipelines, and CI cost.
+
+## Built for coding agents
+
+Everr is designed to be operated by people and coding agents alike. The [Everr CLI](/docs/reference/cli) runs a local collector and UI, queries local and remote telemetry with SQL, and inspects CI runs. Bundled [skills](/docs/reference/skills) teach agents to instrument an app, investigate incidents, and write dashboards and alerts. A read-only [MCP server](/docs/reference/mcp) lets AI clients query your telemetry directly.
+
+## Open source
+
+Everr is open source under the GNU Affero General Public License v3. The code for the platform, the CLI, the collector, and this website lives at [github.com/everr-labs/everr](https://github.com/everr-labs/everr). You can use [Everr Cloud](https://app.everr.dev) or run Everr on your own infrastructure.
+
+## Who we are
+
+Everr is built by Everr Labs, a small team proudly working from Europe. We build in the open: the [devlog](/devlog) covers what we ship each week, and the [Discord community](https://discord.gg/hd6yYDjAuw) is where we hear what to build next. To reach us, see [Contact](/contact).

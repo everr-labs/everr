@@ -1,6 +1,6 @@
 import { defineConfig } from "@inlang/paraglide-js";
 
-// Only the landing and pricing pages are translated. Everything else, the
+// Only the landing, pricing and contact pages are translated. Everything else, the
 // docs and the devlog included, has one English URL.
 export default defineConfig({
   outdir: "./src/paraglide",
@@ -22,6 +22,13 @@ export default defineConfig({
       localized: [
         ["it", "/it/pricing"],
         ["en", "/pricing"],
+      ],
+    },
+    {
+      pattern: "/contact",
+      localized: [
+        ["it", "/it/contact"],
+        ["en", "/contact"],
       ],
     },
     {

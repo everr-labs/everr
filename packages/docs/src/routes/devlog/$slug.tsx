@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import { Footer } from "@/components/footer";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
+import { SITE_URL } from "@/constants";
 import { getBaseUrl } from "@/lib/url";
 
 export const Route = createFileRoute("/devlog/$slug")({
@@ -43,6 +44,7 @@ export const Route = createFileRoute("/devlog/$slug")({
         { name: "twitter:url", content: url },
         { name: "twitter:image", content: image },
       ],
+      links: [{ rel: "canonical", href: `${SITE_URL}/devlog/${loaderData.slug}` }],
     };
   },
 });

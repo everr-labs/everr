@@ -1,7 +1,6 @@
-import { llms } from "fumadocs-core/source";
-import { source } from "../src/lib/source";
-import { markdownDocsLinks, textResponse } from "../src/lib/llms";
+import { textResponse } from "../src/lib/llms";
+import { buildLlmsTxt } from "../src/lib/markdown-pages";
 
 export default function handler() {
-  return textResponse(markdownDocsLinks(llms(source).index()));
+  return textResponse(buildLlmsTxt());
 }

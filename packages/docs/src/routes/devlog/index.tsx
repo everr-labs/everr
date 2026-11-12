@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
+import { SITE_URL } from "@/constants";
+import { DEFAULT_OG_IMAGE } from "@/lib/page-head";
 import { getBaseUrl } from "@/lib/url";
 
 const DEVLOG_TITLE = "Devlog - Everr";
@@ -29,7 +31,10 @@ export const Route = createFileRoute("/devlog/")({
         { name: "twitter:url", content: `${base}/devlog` },
         { name: "twitter:title", content: DEVLOG_TITLE },
         { name: "twitter:description", content: DEVLOG_DESCRIPTION },
+        { property: "og:image", content: DEFAULT_OG_IMAGE },
+        { name: "twitter:image", content: DEFAULT_OG_IMAGE },
       ],
+      links: [{ rel: "canonical", href: `${SITE_URL}/devlog` }],
     };
   },
 });
