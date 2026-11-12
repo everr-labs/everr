@@ -104,7 +104,9 @@ const panelHistoryTypes = {
  * elsewhere any default would run untyped on every navigation, so there is none.
  */
 export function panelHistoryViewTransition() {
-  return typeof CSS !== "undefined" && CSS.supports("selector(:active-view-transition-type(a))")
+  // The router's own check, which also holds where CSS lacks supports (jsdom).
+  return typeof window !== "undefined" &&
+    window.CSS?.supports?.("selector(:active-view-transition-type(a))")
     ? panelHistoryTypes
     : false;
 }
