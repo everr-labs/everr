@@ -111,7 +111,9 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
             : undefined
         }
         headerClassName={
-          statBackground ? "[&_button]:text-inherit [&_button:hover]:text-inherit" : undefined
+          statBackground
+            ? "[&_:is(a,button)]:text-inherit [&_:is(a,button):hover]:text-inherit"
+            : undefined
         }
         inset={getVisualizationInset(plugin.kind)}
         action={

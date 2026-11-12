@@ -1,28 +1,30 @@
 import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
-import { FrameToggle } from "#app/components/rail/frame-toggle.tsx";
 import { persesToRGL } from "#app/data/dashboards/convert.ts";
 import { GRID_COLS } from "#app/data/dashboards/schema.ts";
 import { DashboardPanel } from "./dashboard-panel";
+import { DashboardToolbar } from "./dashboard-toolbar";
+import { type DashboardAddress, MaximizePanelLink } from "./panel-links";
 import { useDashboard } from "./use-dashboard";
-import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 import { SharedTimeCursorProvider } from "./visualizations/shared-time-cursor";
 
 const ROW_HEIGHT = 30;
 
 export function DashboardGrid({
+  address,
   actions,
   notice,
   frameToggle = true,
 }: {
+  /** Where this dashboard lives: each panel header links to its maximized page there. */
+  address: DashboardAddress;
   actions?: ReactNode;
   notice?: ReactNode;
   /** Off where the grid is not seated next to a rail (the home page). */
   frameToggle?: boolean;
 }) {
   const dashboard = useDashboard();
-  const hasVariables = useHasVisibleVariables();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
@@ -35,22 +37,7 @@ export function DashboardGrid({
 
   return (
     <div>
-      <div className="mb-3 flex items-start gap-x-3">
-        {frameToggle && (
-          <div className="flex h-8 shrink-0 items-center">
-            <FrameToggle />
-          </div>
-        )}
-        {frameToggle && hasVariables && (
-          <div aria-hidden className="flex h-8 items-center">
-            <div className="h-5 w-px bg-border" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <VariableBar layout="inline" />
-        </div>
-        {actions && <div className="ml-auto flex h-8 shrink-0 items-center gap-2">{actions}</div>}
-      </div>
+      <DashboardToolbar actions={actions} frameToggle={frameToggle} />
       {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>
         <SharedTimeCursorProvider key={`${dashboard.metadata.project}/${dashboard.metadata.name}`}>
@@ -75,7 +62,17 @@ export function DashboardGrid({
               if (!panel) return null;
               return (
                 <div key={item.i}>
-                  <DashboardPanel panel={panel} panelKey={item.i} />
+                  <DashboardPanel
+                    panel={panel}
+                    panelKey={item.i}
+                    action={
+                      <MaximizePanelLink
+                        address={address}
+                        panelKey={item.i}
+                        title={panel.spec.display?.name ?? item.i}
+                      />
+                    }
+                  />
                 </div>
               );
             })}

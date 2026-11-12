@@ -1,8 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
-import { DashboardGrid } from "#app/components/dashboards/dashboard-grid.tsx";
 import { DashboardNotFound } from "#app/components/dashboards/dashboard-not-found.tsx";
 import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
@@ -20,7 +19,7 @@ export const Route = createFileRoute(
   },
   loaderDeps: ({ search: { preview } }) => ({ preview }),
 
-  component: DashboardPage,
+  component: DashboardLayout,
   notFoundComponent: DashboardNotFound,
   // Preview is app-wide search state; declaring it as a loader dep keeps the
   // prefetch keyed to the same (project, slug, preview) the component reads, so
@@ -71,7 +70,12 @@ export const Route = createFileRoute(
   }),
 });
 
-function DashboardPage() {
+/**
+ * Layout for the grid (index) and the maximized-panel page below it: both draw
+ * the same document, so the loader, the time defaults and the provider live
+ * here once.
+ */
+function DashboardLayout() {
   const { project, slug } = Route.useParams();
   const { preview } = Route.useSearch();
   // The dashboard is immutable (gitops, read-only), so the query cache is the
@@ -81,7 +85,7 @@ function DashboardPage() {
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
     <DashboardProvider document={document}>
-      <DashboardGrid />
+      <Outlet />
     </DashboardProvider>
   );
 }
