@@ -79,3 +79,6 @@ reports
 
 # Worktree development state and binaries
 .dev/
+
+# direnv / nix
+.direnv/
