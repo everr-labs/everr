@@ -762,13 +762,6 @@ export async function pageAt(
   };
 }
 
-export function replayErrorText(error: unknown): string {
-  if (error instanceof ReplayError) {
-    return JSON.stringify({ error: error.code, message: error.message, streams: error.streams });
-  }
-  return error instanceof Error ? error.message : "unknown error";
-}
-
 export function replayHttpError(error: unknown): Response {
   if (error instanceof ReplayError) {
     const status =
