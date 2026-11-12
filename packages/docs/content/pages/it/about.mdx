@@ -1,0 +1,27 @@
+---
+title: Chi siamo
+description: Everr è una piattaforma di observability open source basata su OpenTelemetry, sviluppata in Europa.
+---
+
+Everr è una piattaforma di observability per i team che vogliono sapere come si comporta il proprio software in produzione, senza dover assumere specialisti per gestire gli strumenti. Tiene d'occhio la tua app e, quando una pagina rallenta o qualcosa si rompe, ti dice cosa è successo, dove e perché.
+
+## Cosa fa Everr
+
+Everr raccoglie trace, log e metriche con [OpenTelemetry](/docs/concepts/whats-opentelemetry), lo standard aperto per la telemetria: instrumenti il codice una volta sola e i dati restano sotto il tuo controllo. Su quei dati ti offre:
+
+- Viste già pronte su velocità, errori e traffico, fin dal primo giorno.
+- Alert con un runbook allegato, così ogni notifica arriva con i passi già concordati dal tuo team.
+- Dashboard, regole di alert e runbook come codice: file che revisioni in una pull request e pubblichi con `everr apply`.
+- Visibilità su GitHub Actions: job che falliscono o sono instabili, pipeline lente e costi della CI.
+
+## Pensato per gli agenti di coding
+
+Everr è pensato per essere usato sia dalle persone sia dagli agenti di coding. La [CLI di Everr](/docs/reference/cli) avvia un collector e un'interfaccia in locale, interroga con SQL la telemetria locale e remota e analizza le esecuzioni della CI. Le [skill](/docs/reference/skills) incluse insegnano agli agenti a instrumentare un'app, indagare sugli incidenti e scrivere dashboard e alert. Un [server MCP](/docs/reference/mcp) in sola lettura permette ai client AI di interrogare direttamente la tua telemetria. La documentazione di CLI, skill e server MCP è in inglese.
+
+## Open source
+
+Everr è open source con licenza GNU Affero General Public License v3. Il codice della piattaforma, della CLI, del collector e di questo sito si trova su [github.com/everr-labs/everr](https://github.com/everr-labs/everr). Puoi usare [Everr Cloud](https://app.everr.dev) oppure installare Everr sulla tua infrastruttura.
+
+## Il team
+
+Everr è sviluppato da un piccolo team che lavora con orgoglio dall'Europa. Lavoriamo alla luce del sole: nel [devlog](/devlog) (in inglese) raccontiamo cosa rilasciamo ogni settimana, e nella [community Discord](https://discord.gg/hd6yYDjAuw) scopriamo cosa costruire dopo. Per scriverci, vai alla pagina [Contatti](/it/contatti).

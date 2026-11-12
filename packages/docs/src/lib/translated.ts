@@ -6,6 +6,7 @@ export const TRANSLATED_PATHS = {
   "/": "/it",
   "/pricing": "/it/prezzi",
   "/contact": "/it/contatti",
+  "/about": "/it/chi-siamo",
 } as const;
 
 export type TranslatedPath = keyof typeof TRANSLATED_PATHS;
