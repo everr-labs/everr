@@ -19,8 +19,8 @@ const level =
 /** Sends a custom log on the SDK pipeline. The log carries the envelope, and
  * the SDK puts it in a batch. */
 export const logger = {
-  debug: level(5),
-  info: level(9),
-  warn: level(13),
-  error: level(17),
+  debug: /* @__PURE__ */ level(5),
+  info: /* @__PURE__ */ level(9),
+  warn: /* @__PURE__ */ level(13),
+  error: /* @__PURE__ */ level(17),
 };
