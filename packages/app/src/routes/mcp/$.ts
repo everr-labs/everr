@@ -147,11 +147,13 @@ async function handler(request: Request): Promise<Response> {
     throw new Error("MCP requests are unavailable during prerendering");
   }
   const res = await authedTransport(request);
-  const out = new Response(res.body, res);
+  const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {
-    if (!out.headers.has(k)) out.headers.set(k, v);
+    if (!headers.has(k)) headers.set(k, v);
   }
-  return out;
+  // Explicit init: the node server's Response spreads its init object, which drops
+  // the status getter of a Response passed as init and turns the 401 challenge into 200
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
 function preflight(): Response {
