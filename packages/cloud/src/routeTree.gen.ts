@@ -95,9 +95,13 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreE
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project.$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in.$slug'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project.$slug.index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in.$slug.index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project.$slug.index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotsplatRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project.$slug.$'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/index'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project.$slug.panel.$panelKey'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in.$slug.panel.$panelKey'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
 const routes_authenticatedRoute = routes_authenticatedRouteImport.update({
@@ -701,6 +705,24 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboard
         AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute,
     } as any,
   )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute,
+    } as any,
+  )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRouteImport.update(
     {
@@ -726,6 +748,24 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobId
       path: '/jobs/$jobId/',
       getParentRoute: () =>
         AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRouteImport.update(
+    {
+      id: '/panel/$panelKey',
+      path: '/panel/$panelKey',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRouteImport.update(
+    {
+      id: '/panel/$panelKey',
+      path: '/panel/$panelKey',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute,
     } as any,
   )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute =
@@ -806,11 +846,15 @@ export interface FileRoutesByFullPath {
   '/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
-  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
-  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteWithChildren
+  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteWithChildren
   '/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotsplatRoute
+  '/dashboards/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute
+  '/dashboards/built-in/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute
   '/runbooks/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRoute
   '/runs/$traceId/jobs/$jobId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/dashboards/$project/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute
+  '/dashboards/built-in/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesByTo {
@@ -876,11 +920,13 @@ export interface FileRoutesByTo {
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
   '/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
-  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
-  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
   '/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotsplatRoute
+  '/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute
+  '/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute
   '/runbooks/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRoute
   '/runs/$traceId/jobs/$jobId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/dashboards/$project/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute
+  '/dashboards/built-in/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute
   '/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRoutesById {
@@ -969,11 +1015,15 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint/modal': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsFingerprintModalRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/workflows/$repo/$workflowName': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedWorkflowsRepoWorkflowNameRoute
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteWithChildren
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotsplatRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksProjectDotslugDotindexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdStepsStepNumberRoute
 }
 export interface FileRouteTypes {
@@ -1049,8 +1099,12 @@ export interface FileRouteTypes {
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
     | '/runbooks/$project/$slug/$'
+    | '/dashboards/$project/$slug/'
+    | '/dashboards/built-in/$slug/'
     | '/runbooks/$project/$slug/'
     | '/runs/$traceId/jobs/$jobId/'
+    | '/dashboards/$project/$slug/panel/$panelKey'
+    | '/dashboards/built-in/$slug/panel/$panelKey'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1116,11 +1170,13 @@ export interface FileRouteTypes {
     | '/runs/$traceId'
     | '/errors/$fingerprint/modal'
     | '/workflows/$repo/$workflowName'
+    | '/runbooks/$project/$slug/$'
     | '/dashboards/$project/$slug'
     | '/dashboards/built-in/$slug'
-    | '/runbooks/$project/$slug/$'
     | '/runbooks/$project/$slug'
     | '/runs/$traceId/jobs/$jobId'
+    | '/dashboards/$project/$slug/panel/$panelKey'
+    | '/dashboards/built-in/$slug/panel/$panelKey'
     | '/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   id:
     | '__root__'
@@ -1211,8 +1267,12 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/$'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
   fileRoutesById: FileRoutesById
 }
@@ -1838,6 +1898,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRoute
     }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/'
+      path: '/'
+      fullPath: '/dashboards/$project/$slug/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/'
+      path: '/'
+      fullPath: '/dashboards/built-in/$slug/'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
+    }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/$project/$slug/'
       path: '/$project/$slug'
@@ -1858,6 +1932,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs/$traceId/jobs/$jobId/'
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobIdIndexRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey'
+      path: '/panel/$panelKey'
+      fullPath: '/dashboards/$project/$slug/panel/$panelKey'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
+    }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey'
+      path: '/panel/$panelKey'
+      fullPath: '/dashboards/built-in/$slug/panel/$panelKey'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
     }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/jobs/$jobId/steps/$stepNumber'
@@ -1989,11 +2077,47 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChild
     AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteChildren,
   )
 
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotindexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugDotpanelDotpanelKeyRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotindexRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugDotpanelDotpanelKeyRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteChildren,
+  )
+
 interface AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren {
   AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsGetStartedRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute
-  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute
-  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteWithChildren
+  AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteWithChildren
 }
 
 const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteChildren =
@@ -2003,9 +2127,9 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboard
     AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsIndexRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRoute,
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsProjectDotslugRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRoute,
+      AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsBuiltInDotslugRouteWithChildren,
   }
 
 const AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren =

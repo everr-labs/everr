@@ -4,3 +4,166 @@
 .react-grid-item.cssTransforms {
   transition: none;
 }
+
+/* Maximize/restore morph, as a container transform: the card's box morphs on
+   its own background and the new content scales with it, never stretched. The
+   rest of the page fades on the same clock.
+
+   The moving panel (data-moving-panel) and its title and header action take
+   their names only while this transition runs, so no other view transition
+   (the command bar's) ever sees them. The child combinators keep a card nested
+   inside a panel's content from taking the title's or the action's name. */
+html:active-view-transition-type(dashboard-panel) [data-moving-panel] {
+  view-transition-name: dashboard-panel;
+}
+
+html:active-view-transition-type(dashboard-panel)
+  [data-moving-panel]
+  > [data-slot="card"]
+  > [data-slot="card-header"]
+  > [data-slot="card-title"] {
+  view-transition-name: dashboard-panel-title;
+}
+
+html:active-view-transition-type(dashboard-panel)
+  [data-moving-panel]
+  > [data-slot="card"]
+  > [data-slot="card-header"]
+  > [data-slot="card-action"] {
+  view-transition-name: dashboard-panel-action;
+}
+
+html:active-view-transition-type(dashboard-panel-maximize) {
+  --panel-morph-duration: 250ms;
+}
+
+html:active-view-transition-type(dashboard-panel-restore) {
+  --panel-morph-duration: 200ms;
+}
+
+html:active-view-transition-type(dashboard-panel) {
+  --panel-morph-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The root group too: it moves nothing, but the transition (and its click
+   block) lasts until its longest animation ends. */
+html:active-view-transition-type(dashboard-panel)::view-transition-group(root),
+html:active-view-transition-type(dashboard-panel)::view-transition-old(root),
+html:active-view-transition-type(dashboard-panel)::view-transition-new(root) {
+  animation-duration: var(--panel-morph-duration);
+  animation-timing-function: var(--panel-morph-ease);
+}
+
+::view-transition-group(dashboard-panel) {
+  animation-duration: var(--panel-morph-duration);
+  animation-timing-function: var(--panel-morph-ease);
+  overflow: clip;
+  border-radius: var(--radius-lg);
+  background-color: var(--card);
+  /* The card's ring-1 ring-foreground/10, which the bare box would lose. */
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent);
+}
+
+/* Only the new content is drawn, at the box's width and its own aspect ratio
+   (the UA default sizing), so the chart scales with the card: same data and
+   time range means the x-axis lines up, and the box clips whatever runs
+   taller. No cross-fade: never two charts at once, and never an empty card (a
+   fade-through dips through the bare background, which reads as a flash). */
+::view-transition-old(dashboard-panel) {
+  display: none;
+}
+
+::view-transition-new(dashboard-panel) {
+  animation: none;
+}
+
+/* The box draws the card's outline, so the incoming card drops its own: its
+   snapshot scales to the box's width, not its height, so its edge would show
+   as a line inside the box. Only the incoming one: the outgoing card is what
+   stays frozen on screen while the next page loads, and it keeps its outline. */
+html:active-view-transition-type(dashboard-panel-maximize)
+  [data-maximized-panel]
+  [data-moving-panel]
+  > [data-slot="card"],
+html:active-view-transition-type(dashboard-panel-restore)
+  .react-grid-item
+  [data-moving-panel]
+  > [data-slot="card"] {
+  box-shadow: none;
+}
+
+/* The title reads the same in both states, so it doesn't fade with the rest of
+   the content (two half-transparent copies read as a flash): it rides along
+   with the box as its own group, solid from start to finish. */
+::view-transition-group(dashboard-panel-title) {
+  animation-duration: var(--panel-morph-duration);
+  animation-timing-function: var(--panel-morph-ease);
+  overflow: clip;
+}
+
+::view-transition-old(dashboard-panel-title) {
+  display: none;
+}
+
+::view-transition-new(dashboard-panel-title) {
+  width: 100%;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+  animation: none;
+}
+
+/* The header action (maximize/restore) rides the box's top-right corner the
+   same way, swapping one icon for the other in place instead of staying behind
+   in the old snapshot while the box grows past it. */
+::view-transition-group(dashboard-panel-action) {
+  animation-duration: var(--panel-morph-duration);
+  animation-timing-function: var(--panel-morph-ease);
+}
+
+::view-transition-old(dashboard-panel-action),
+::view-transition-new(dashboard-panel-action) {
+  animation-duration: calc(var(--panel-morph-duration) * 0.5);
+  animation-timing-function: ease-out;
+}
+
+/* The header is lifted out of the page's cross-fade into a group of its own,
+   stacked above the panel: a panel scrolled out of view above the pane would
+   otherwise morph across the header on its way in or out. It swaps without
+   animating, the breadcrumb with it. */
+html:active-view-transition-type(dashboard-panel) [data-app-header] {
+  view-transition-name: dashboard-app-header;
+}
+
+::view-transition-group(dashboard-app-header) {
+  z-index: 1;
+  animation: none;
+}
+
+::view-transition-old(dashboard-app-header) {
+  display: none;
+}
+
+::view-transition-new(dashboard-app-header) {
+  animation: none;
+}
+
+/* Reduced motion keeps the fade and drops the movement: the box sits at its
+   final size and the new content fades in over the page's own cross-fade. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(dashboard-panel),
+  ::view-transition-group(dashboard-panel-title),
+  ::view-transition-group(dashboard-panel-action) {
+    animation: none;
+  }
+
+  ::view-transition-new(dashboard-panel) {
+    animation: var(--panel-morph-duration) ease-out both dashboard-panel-fade-in;
+  }
+
+  @keyframes dashboard-panel-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}

@@ -56,6 +56,7 @@ export function DashboardLayout() {
             content but leaves fixed elements pinned, so the topnav stays put.
             SidebarInset compensates with pt-12. */}
         <header
+          data-app-header
           className={cn(
             "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
             SIDEBAR_TRACKED_LEFT,
