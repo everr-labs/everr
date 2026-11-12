@@ -2,7 +2,7 @@
   <img src="packages/app/public/logo.svg" height="60" alt="Everr" />
 </p>
 
-<h3 align="center">Software delivery intelligence for developers and AI agents, local, CI, and production.</h3>
+<h3 align="center">Observability made simple, for developers and their AI agents.</h3>
 
 <p align="center">
   <a href="https://everr.dev">Website</a> &middot; <a href="https://everr.dev/docs">Docs</a> &middot; <a href="https://everr.dev/devlog">Devlog</a> &middot; <a href="CONTRIBUTING.md">Contributing</a>
@@ -14,36 +14,56 @@
 
 ---
 
-Observability today is trapped behind dashboards, and most "AI integrations" are just legacy tooling with a ChatGPT wrapper slapped on top.
+Everr is an open-source, OpenTelemetry-native observability platform. Logs, traces, metrics, and errors from your laptop, your CI, your backend, and your users' browsers land in one place, queryable with plain SQL by you and by your coding agent.
 
-Everr gives you, and your AI agents, direct access to the signals that matter, wherever your code runs: on your laptop, in CI, and in production.
+Most observability tools are built for teams that can afford dedicated telemetry engineers. Everr is opinionated so it delivers value from day one: it guides you from your first span to your first alert, and keeps dashboards, alerts, and runbooks in your repo next to the code they describe.
 
-## The problem
+## Why Everr
 
-AI coding agents are making development faster than ever. Reading the codebase tells half the story; the other half is what the code actually _does_ the moment it runs, and that half is usually trapped behind a dashboard the agent can't see.
+**OpenTelemetry, all the way down.** Everr speaks OTLP and follows the OpenTelemetry semantic conventions. No proprietary agents, no lock-in: anything that emits OpenTelemetry can send data to Everr.
 
-By the time a regression shows up in a production graph, it's already too late. The bottleneck has moved from writing code to validating it.
+**SQL is the query language.** Every signal is stored in ClickHouse and exposed through a read-only SQL surface. Agents already know SQL, so they can answer questions like "which endpoints got slower after yesterday's deploy?" without a bespoke API for every shape of question.
 
-## How Everr helps
+**Observability as code.** Dashboards ([Perses](https://perses.dev/) format), alert rules, and runbooks are files in your repository. Your agent writes them with your codebase as context, and you review them in a PR like any other change.
 
-**Think in Code.** Everr exposes the same OpenTelemetry data, local, CI, and cloud, behind a read-only SQL surface. Agents already know how to write SQL, so they can answer "show me flaky failures on `main` last week" without us shipping a new endpoint for every shape of question. No screen-scraping, no log parsing, no custom RPC per workflow.
+**Built for AI agents.** Bundled skills teach Claude Code, Codex, Cursor, and other assistants how to instrument code, investigate telemetry, debug CI, and author dashboards and alerts. An MCP server gives any MCP client direct, read-only access to your data.
 
-**Built where the work actually happens.** A local collector with an in-process ClickHouse, a CI integration that captures every workflow run, and a hosted backend that ties them together. Same primitives, same data, same answers, whether the agent is on your laptop, a sandbox in the cloud, or a teammate's machine three time zones away.
+**Local first.** The CLI runs a local collector with an embedded [chDB](https://clickhouse.com/docs/chdb) and a browser UI, so you and your agent can validate a change with real telemetry before it ever reaches production.
 
-**Editor- and agent-agnostic.** VS Code, Cursor, Zed, JetBrains, Claude Code, Codex, Copilot, Everr doesn't replace your stack, it improves it. Bundled skills slot directly into the assistants you already use, so they reach for runtime data the moment a test fails or a span goes missing.
+## What's inside
 
-### Key capabilities
-
-- **Local telemetry, queryable on the spot**, A sidecar collector embeds [chDB](https://clickhouse.com/docs/chdb) and exposes OpenTelemetry data from your dev server, tests, or any wrapped command over SQL. `everr local query "<SQL>"` from the terminal; the same data drives charts and a logs explorer in the local browser UI served by the CLI.
-- **CI observability**, Every GitHub Actions workflow run becomes a structured trace with flakiness scores, performance trends, failure patterns, and cost breakdowns. No YAML changes, no config files.
-- **Production observability**, send the same OpenTelemetry data to any standard OTLP collector so it's available in your existing dashboards, or to local agents alongside everything else they already see.
-- **Bundled agent skills**, `everr skills install` drops skills for working with CI, setting up telemetry, and using telemetry into Claude Code, Codex, or Cursor, globally or per project, kept in sync via `everr skills update`.
+- **Explore**: search logs, inspect traces, and group errors by fingerprint across every service.
+- **Dashboards**: built-in dashboards plus your own, defined as YAML with SQL queries.
+- **Alerts**: an alert is a SQL query; if it returns rows, it fires. Notifications go to Slack or Telegram, and every alert links to a runbook.
+- **Runbooks**: Markdown documents with live panels embedded, written for humans and followed by agents during incidents.
+- **Browser telemetry**: [`@everr/otel-web`](packages/otel-web) captures page views, errors, web vitals, and traces from the browser, sent with an origin-bound public key.
+- **Instrumentation libraries**: [`@everr/tanstack-start-otel`](packages/tanstack-start-otel) for TanStack Start and [`@everr/otel-errors`](packages/otel-errors) for uncaught Node.js errors.
+- **CI observability**: connect the GitHub App and every GitHub Actions run becomes a trace, with logs, flakiness, performance trends, and cost analysis. No workflow changes required.
+- **CLI**: `everr local` for the local stack, `everr cloud query` for remote SQL, `everr apply` to publish resources, and `everr skills install` to set up your agent.
 
 ## Getting started
 
-- **For self-hosting**: follow the [Docker Compose installation guide](deploy/README.md) to run Everr on your own infrastructure.
-- **For CI**: install the GitHub App on your repositories, no YAML changes, no config files, no modifications to your workflows.
-- **For local**: install the CLI and run `everr local start` to bring up the collector alongside your dev server, tests, or agent terminal.
+1. Install the CLI:
+
+   ```sh
+   curl -fsSL https://everr.dev/install.sh | sh
+   ```
+
+2. Give your coding agent the Everr skills:
+
+   ```sh
+   everr skills install --all --project
+   ```
+
+3. Start the local stack and send it telemetry from your dev server or tests:
+
+   ```sh
+   everr local start
+   ```
+
+4. Connect to [Everr Cloud](https://app.everr.dev/) with `everr cloud login`, or run your own installation with the [Docker Compose guide](deploy/README.md).
+
+From there, follow the [docs](https://everr.dev/docs) to instrument your app, then build your first dashboard and alert.
 
 ## Contributing
 
