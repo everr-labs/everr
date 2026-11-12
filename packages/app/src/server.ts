@@ -9,7 +9,7 @@ import { withMigrationLock } from "#app/db/migrations.ts";
 import { startWorkerRuntime } from "#app/server/worker/runtime.ts";
 import { captureError, getTelemetryTracer, SpanKind } from "#app/telemetry/node.ts";
 
-const { migrateDatabase } = runtime;
+const { migrateDatabase, migrateClickHouse } = runtime;
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
 
@@ -19,7 +19,10 @@ if (process.env.TSS_PRERENDERING !== "true") {
     { kind: SpanKind.INTERNAL },
     async (span) => {
       try {
-        await withMigrationLock(migrateDatabase);
+        await withMigrationLock(async (database) => {
+          await migrateDatabase(database);
+          await migrateClickHouse();
+        });
       } catch (error) {
         captureError(error, {
           "everr.error.source": "startup.database_migration",

@@ -198,10 +198,11 @@ in an unconfigured worktree, it copies each application's `.env` from the main
 worktree. The applications load those files for integration settings. See
 `.env.example` for available settings.
 
-Shared ClickHouse table definitions and SQL query limits live in
-`clickhouse/init/shared/`. App's access rules live in `clickhouse/init/self-hosted/`;
-Cloud's live in `clickhouse/init/cloud/`. Each application has its own ClickHouse
-container, using the same `app` and `otel` database names.
+Shared ClickHouse databases, base users, table definitions, and SQL query limits
+live in `packages/app/clickhouse`. A file tagged `self-hosted` or `cloud` after its
+number (`0012-cloud-apply-rls.sql`) applies to that product only.
+Each application applies them on startup to its own ClickHouse container, using the
+same `app` and `otel` database names. See `DATABASE-MIGRATIONS.md`.
 Each worktree has its own database volumes and Portless URLs. Ctrl+C stops the
 stack while retaining database data. In TUI mode, confirm the quit dialog.
 

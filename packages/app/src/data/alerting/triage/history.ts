@@ -9,8 +9,8 @@
  *
  * `event_type` is filtered directly. ClickHouse 26.1 threw `NOT_IMPLEMENTED:
  * Cannot insert element into Set` while pruning any predicate on it, and the
- * readers dodged that with `toString(event_type)`. 26.4, the version pinned in
- * clickhouse/Dockerfile, prunes on the bare column; the wrapped form read the
+ * readers dodged that with `toString(event_type)`. 26.4, where this was
+ * measured (deploy/compose.yaml now pins 26.8), prunes on the bare column; the wrapped form read the
  * same parts through the min-max index, so the wrapper bought nothing there
  * either. One shape still misreads on 26.4: a bare `count()` whose only
  * predicate is `event_type IN (...)` is answered from the minmax projection,

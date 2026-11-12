@@ -1,22 +1,23 @@
 -- Landing tables for the collector's ClickHouse exporter. ENGINE = Null
 -- stores nothing: an insert only triggers the materialized views in
--- 10-create-mvs.sql, which stamp tenant_id and retention_days from the
+-- 0006-create-mvs.sql, which stamp tenant_id and retention_days from the
 -- resource attributes and write the row into app.*. Column lists follow the
 -- upstream clickhouseexporter schema for the version pinned in
--- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here,
--- so keep them in step when that pin moves. The exporter's DDL is the
--- reference: internal/sqltemplates/*.sql in that module.
+-- collector/config/manifest.yaml (v0.160.0); app.* copies its types from here.
+-- When that pin moves, add a new file that ALTERs these tables and app.*:
+-- this file is applied, so editing it stops App and Cloud startup. The
+-- exporter's DDL is the reference: internal/sqltemplates/*.sql in that module.
 --
 -- Logs and traces carry the JSON column set the exporter writes with
 -- `json: true`, typed values and one keys array per attribute column; the
 -- metrics tables keep their maps because the attribute map is the series key
 -- there. `max_dynamic_paths = 256` is the guard against a tenant with
 -- thousands of distinct keys, the same value on every JSON column here, in
--- 10-create-mvs.sql and in the local store's templates.
+-- 0006-create-mvs.sql and in the local store's templates.
 --
 -- Types only, no codecs. A Null table compresses nothing, and app.* is built
 -- with CREATE TABLE ... AS SELECT, which copies types but not codecs, so the
--- codecs that matter are the MODIFY COLUMN blocks in 10-create-mvs.sql.
+-- codecs that matter are the MODIFY COLUMN blocks in 0006-create-mvs.sql.
 -- Declaring them here as well only gave the two files something to drift on.
 
 CREATE TABLE IF NOT EXISTS otel.otel_traces (

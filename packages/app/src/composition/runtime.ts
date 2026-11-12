@@ -18,6 +18,8 @@ export interface ApplicationWorker {
 export interface ApplicationRuntime {
   readonly events: ApplicationEvents;
   migrateDatabase(this: void, database: MigrationDatabase): Promise<void>;
+  /** Runs after migrateDatabase, under the same PostgreSQL migration lock. */
+  migrateClickHouse(this: void): Promise<void>;
   /** Only additional workers owned by this composition, never product workers. */
   registerWorkers(this: void): Promise<readonly ApplicationWorker[]>;
 }

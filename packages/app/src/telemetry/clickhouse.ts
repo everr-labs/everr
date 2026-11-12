@@ -4,7 +4,7 @@ import { isExpectedSqlApiQueryError } from "./expected-errors";
 import { createTelemetryLogger, exceptionAttributes } from "./logger";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
 
-type ClickhouseClient = "admin" | "app" | "sql_api";
+type ClickhouseClient = "admin" | "app" | "migration" | "sql_api";
 
 export type ClickhouseOperationAttributes = {
   client: ClickhouseClient;

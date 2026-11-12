@@ -37,14 +37,16 @@ Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
-The self-hosted app applies the application PostgreSQL migration history during
-startup. The image contains only that history. ClickHouse initializes
-its schema and access roles on the first start with an empty data volume.
-The self-hosted image loads the table definitions and SQL query limits from
-`clickhouse/init/shared/` and its access setup from `clickhouse/init/self-hosted/`.
-It creates `otel` landing tables, `app` read tables, and installation-wide users,
-without Cloud tenant policies or per-organization provisioning privileges. Local
-development uses this same image in a separate container from Cloud.
+The self-hosted app applies its PostgreSQL and ClickHouse migrations during
+startup, so an upgrade only needs newer app and collector images, both at the
+same version. ClickHouse runs the stock
+`clickhouse/clickhouse-server` image. The app connects as `default` and applies the
+databases, base users, table definitions, and SQL query limits from
+`packages/app/clickhouse`, without the files tagged `cloud`. It creates `otel`
+landing tables, `app` read tables, and installation-wide users, without Cloud
+tenant policies or per-organization provisioning privileges.
+The collector starts after the app is healthy, because it reads the landing table
+columns when it starts. Run the app and collector images at the same version.
 Self-hosted telemetry does not stamp a tenant, and queries do not filter by tenant.
 Workers run inside the app; no separate worker service is needed.
 
@@ -125,10 +127,16 @@ rotate credentials in an initialized database.
 
 Named volumes hold PostgreSQL data, ClickHouse data, and the collector queue.
 Keep the Compose project name stable so subsequent starts use the same volumes.
-Back up both databases and the secrets before changing versions. PostgreSQL
-migrations run automatically, but ClickHouse initialization scripts are not an
-upgrade migration mechanism. Review schema changes before upgrading an existing
-installation; this bundle currently targets fresh installations.
+Back up both databases and the secrets before changing versions. PostgreSQL and
+ClickHouse migrations run automatically when the new app version starts. The app
+records each applied ClickHouse file in `default.everr_clickhouse_migrations`
+and runs only the files that table does not list. Review schema changes before
+upgrading an existing installation.
+
+The app's ClickHouse write user is `app_admin`. An installation created when it
+was named `web_app_admin` gets `app_admin` on its first start with this version,
+with the same password. The old user is not used any more and can be dropped:
+`DROP USER IF EXISTS web_app_admin`.
 
 Development uses `pnpm dev` and its separate dependency configuration.
 Run installation commands from this directory to select the deployment stack.

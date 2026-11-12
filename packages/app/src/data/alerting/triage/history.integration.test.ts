@@ -15,8 +15,8 @@
  * Tenant isolation. chdb has no access control, so the loader skips the row
  * policy the shipped DDL ends with, and every read here runs unrestricted.
  *
- * Anything about ClickHouse 26.4. chdb is 26.7, and `clickhouse/Dockerfile`
- * pins 26.4. The partition-pruning behaviour the `history.ts` header describes
+ * Anything about ClickHouse 26.4. chdb is 26.7, and the ClickHouse image in
+ * `deploy/compose.yaml` pins 26.8. The partition-pruning behaviour the `history.ts` header describes
  * is a 26.4 observation, so nothing below pins it. Only semantics both
  * versions must agree on are asserted: which rows a predicate selects, what an
  * aggregate counts, and what order rows come back in.

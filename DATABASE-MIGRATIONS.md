@@ -28,6 +28,49 @@ This migration code does not upgrade pre-split Cloud databases directly.
 Restored Cloud databases must already contain the App and Cloud migration
 baselines.
 
+## ClickHouse
+
+Every migration is a file in `packages/app/clickhouse`. The tag after the number
+selects the product that applies it. A file without a tag applies to both.
+
+| File name                     | Owns                                     | Applied by |
+| ----------------------------- | ---------------------------------------- | ---------- |
+| `NNNN-<name>.sql`             | Databases, base users, tables, functions | App, Cloud |
+| `NNNN-self-hosted-<name>.sql` | Installation-wide SQL API role and user  | App        |
+| `NNNN-cloud-<name>.sql`       | Tenant row policies, provisioning grants | Cloud      |
+
+The four-digit number is one sequence for all files, tagged or not. A number is
+used once. A new file takes the next number.
+
+Each application applies its files in file-name order, after its PostgreSQL
+migrations and under the same lock. Vite bundles the SQL
+into the server, and `default.everr_clickhouse_migrations` records each applied
+file name with a SHA-256 of the file as written.
+
+Applied files are immutable. If an applied file changes at all, a comment
+included, startup fails before running anything. A pull request fails the same check against the
+base branch, so a changed or deleted migration cannot merge. Put every change
+in a new file with the next number, including a new version of a function
+(`CREATE OR REPLACE FUNCTION`).
+
+The runner sends a file one statement at a time: it drops `--` line comments
+and splits on `;`. Do not put `;` or `--` inside a quoted string, and do not
+use block comments.
+
+ClickHouse DDL is not transactional. A file that fails partway runs again from
+its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
+`OR REPLACE`). Use `OR REPLACE` for a row policy, not `DROP` then `CREATE`: the
+table has no tenant filter between the two statements.
+
+Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
+as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10-minute request
+timeout. A timed-out statement can still be running on the server. The retry
+sends the same query id with `replace_running_query`, so ClickHouse cancels
+that run before starting it again. Statements bind the other users' passwords
+as `{name:String}` parameters. `GRANT` does not accept parameters, so a
+parameterized user gets its role through `DEFAULT ROLE`.
+`pnpm db:migrate` applies only the PostgreSQL histories.
+
 ## Verification
 
 Use separate disposable PostgreSQL databases before changing an existing

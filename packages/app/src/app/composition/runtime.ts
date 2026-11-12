@@ -6,6 +6,10 @@ export const runtime: ApplicationRuntime = {
     const { migrateDatabase } = await import("#app/db/migrations.ts");
     return migrateDatabase(database);
   },
+  async migrateClickHouse() {
+    const { migrateInstallationClickHouse } = await import("#app/app/clickhouse-migrations.ts");
+    return migrateInstallationClickHouse();
+  },
   async registerWorkers() {
     return [];
   },

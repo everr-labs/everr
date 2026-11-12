@@ -11,6 +11,10 @@ export const runtime: ApplicationRuntime = {
     const { migrateDatabase } = await import("../migrations");
     return migrateDatabase(database);
   },
+  async migrateClickHouse() {
+    const { migrateCloudClickHouse } = await import("../clickhouse-migrations");
+    return migrateCloudClickHouse();
+  },
   async registerWorkers() {
     serverLogger.info("crm.integration.status", { "everr.crm.enabled": crmEnabled });
     const { organizationWorker } = await import("../../organization-provisioning/worker");

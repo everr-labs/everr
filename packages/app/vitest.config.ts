@@ -53,7 +53,7 @@ export function createAppTestConfig(
         CLICKHOUSE_DATABASE: "app",
         CLICKHOUSE_USERNAME: "app_ro",
         CLICKHOUSE_PASSWORD: "test",
-        CLICKHOUSE_ADMIN_USERNAME: "web_app_admin",
+        CLICKHOUSE_ADMIN_USERNAME: "app_admin",
         CLICKHOUSE_ADMIN_PASSWORD: "test",
         CLICKHOUSE_SQL_API_USERNAME: "sql_api",
         CLICKHOUSE_SQL_API_PASSWORD: "test",

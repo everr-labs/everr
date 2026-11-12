@@ -11,11 +11,13 @@ environment:
   - CLICKHOUSE_DATABASE=app
   - CLICKHOUSE_USERNAME=app_ro
   - CLICKHOUSE_PASSWORD=dev
-  - CLICKHOUSE_ADMIN_USERNAME=web_app_admin
+  - CLICKHOUSE_ADMIN_USERNAME=app_admin
   - CLICKHOUSE_ADMIN_PASSWORD=dev
   - CLICKHOUSE_SQL_API_USERNAME=sql_api
   - CLICKHOUSE_SQL_API_PASSWORD=dev
   - CLICKHOUSE_SQL_API_MASTER_KEY=everr-development-only-not-a-secret
+  - CLICKHOUSE_MIGRATION_PASSWORD=dev
+  - CLICKHOUSE_COLLECTOR_PASSWORD=dev
   - BETTER_AUTH_SECRET=everr-development-only-not-a-secret
   - INGEST_VERIFY_SHARED_SECRET=everr-development-only-not-a-secret
 
@@ -25,15 +27,15 @@ processes:
   databases:
     command: |
       trap 'docker compose down --timeout 60' EXIT
-      docker compose up --build --abort-on-container-exit postgres clickhouse-app clickhouse-cloud
+      docker compose up --abort-on-container-exit postgres clickhouse-app clickhouse-cloud
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
     readiness_probe:
       exec:
         command: >-
           docker compose exec -T postgres pg_isready --host postgres -U postgres &&
-          docker compose exec -T clickhouse-app clickhouse-client --host clickhouse-app --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0' &&
-          docker compose exec -T clickhouse-cloud clickhouse-client --host clickhouse-cloud --password dev --query 'SELECT 1 FROM app.alert_events LIMIT 0'
+          docker compose exec -T clickhouse-app clickhouse-client --host clickhouse-app --password dev --query 'SELECT 1' &&
+          docker compose exec -T clickhouse-cloud clickhouse-client --host clickhouse-cloud --password dev --query 'SELECT 1'
       period_seconds: 2
       failure_threshold: 90
     shutdown:
@@ -72,7 +74,6 @@ processes:
       - INGRESS_COLLECTOR_URL=${DEV_APP_GITHUB_URL}/webhook/github
     depends_on:
       databases: { condition: process_healthy }
-      collector-app: { condition: process_healthy }
       mailpit: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -94,7 +95,6 @@ processes:
       - EMAIL_FROM=Everr <dev@example.test>
     depends_on:
       databases: { condition: process_healthy }
-      collector-cloud: { condition: process_healthy }
       mailpit: { condition: process_healthy }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -113,8 +113,9 @@ processes:
       - INGEST_VERIFY_URL=${DEV_APP_URL}/api/internal/verify-key
       - OTLP_GRPC_PORT=${DEV_APP_GRPC_PORT}
       - GITHUB_PORT=${DEV_APP_GITHUB_PORT}
+    # The app server creates the ClickHouse schema the exporter detects at startup.
     depends_on:
-      databases: { condition: process_healthy }
+      app: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -137,8 +138,9 @@ processes:
       - OTLP_GRPC_PORT=${DEV_CLOUD_GRPC_PORT}
       - GITHUB_PORT=${DEV_CLOUD_GITHUB_PORT}
       - EVERR_QUEUE_DIRECTORY=${DEV_STATE_DIR}/cloud-queue
+    # The cloud server creates the ClickHouse schema the exporter detects at startup.
     depends_on:
-      databases: { condition: process_healthy }
+      cloud: { condition: process_healthy }
       collector-build: { condition: process_completed_successfully }
     success_exit_codes: [143]
     availability: { restart: exit_on_failure }
@@ -160,5 +162,5 @@ processes:
       echo "Cloud OTLP/gRPC: http://127.0.0.1:${DEV_CLOUD_GRPC_PORT}"
       echo 'Development stack ready. Ctrl+C stops this worktree; data is preserved.'
     depends_on:
-      app: { condition: process_healthy }
-      cloud: { condition: process_healthy }
+      collector-app: { condition: process_healthy }
+      collector-cloud: { condition: process_healthy }

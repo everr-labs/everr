@@ -12,12 +12,10 @@
 -- subcolumns of the JSON document and never the whole column. `toString` of
 -- a missing path gives '', the same empty value the map form gave.
 --
--- Keep in step with the collector's copy at
--- collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql
---
--- init/ runs only on a fresh server. Apply to an existing cluster with:
---   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
---     < clickhouse/init/shared/04-create-error-fingerprint-function.sql
+-- Applied migrations are immutable: change the function with a new
+-- CREATE OR REPLACE file. The local collector's chDB registers its own copy at
+-- collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql;
+-- clickhouse-migrations.test.ts fails while it differs from the latest file.
 CREATE OR REPLACE FUNCTION errorFingerprint AS (serviceName, fingerprint, exceptionType, exceptionMessage) ->
   if(
     fingerprint != '',
