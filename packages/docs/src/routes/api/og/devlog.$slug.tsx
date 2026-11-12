@@ -1,3 +1,4 @@
+import { everrLogoPaths } from "@everr/ui/components/everr-logo-paths";
 import { cn } from "@everr/ui/lib/utils";
 import instrumentSansFontBase64 from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2?inline";
 import { ImageResponse } from "@takumi-rs/image-response";
@@ -18,6 +19,12 @@ function decodeInlineFont(dataUrl: string): ArrayBuffer {
 }
 
 const instrumentSansFontData = decodeInlineFont(instrumentSansFontBase64);
+
+// The mark as the site header draws it on the dark theme: a light body, lime eyes and rays
+const LIGHT = "#fafafa";
+const PRIMARY = "#C4E901";
+const mark = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 657 657" fill-rule="evenodd"><path fill="${LIGHT}" d="${everrLogoPaths.body}"/><path fill="${LIGHT}" d="${everrLogoPaths.antenna}"/><path fill="${PRIMARY}" d="${everrLogoPaths.rays}"/><path fill="${PRIMARY}" d="${everrLogoPaths.leftEye}${everrLogoPaths.rightEye}"/></svg>`;
+const markSrc = `data:image/svg+xml;base64,${btoa(mark)}`;
 
 function StatItem({
   icon,
@@ -75,11 +82,14 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
           <div className="flex flex-col w-full h-full px-[72px] py-[60px] bg-[#0a0a0a] text-neutral-50 font-sans">
             {/* Top bar */}
             <div className="flex items-center justify-between">
-              <div
-                className="font-heading text-[22px] font-semibold tracking-tight"
-                style={{ fontFamily: "Instrument Sans" }}
-              >
-                Everr
+              <div className="flex items-center gap-1">
+                <img src={markSrc} width={48} height={48} alt="" />
+                <div
+                  className="font-heading text-[40px] font-semibold"
+                  style={{ fontFamily: "Instrument Sans" }}
+                >
+                  everr
+                </div>
               </div>
               <div
                 className="font-heading text-base font-semibold uppercase tracking-[0.15em] text-neutral-500"
