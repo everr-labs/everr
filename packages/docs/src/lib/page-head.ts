@@ -3,7 +3,7 @@ import { getLocale, locales, localizeHref } from "@/paraglide/runtime";
 import type { TranslatedPath } from "./translated";
 
 const SITE_NAME = "Everr";
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/api/og/site`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og.png`;
 
 type HeadOptions = {
   path: string;

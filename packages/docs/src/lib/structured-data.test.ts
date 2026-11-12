@@ -15,22 +15,6 @@ describe("structured data", () => {
     });
   });
 
-  it("describes the product with its plans", () => {
-    const software = siteStructuredData()["@graph"].find(
-      (node) => node["@type"] === "SoftwareApplication",
-    );
-
-    expect(software?.offers).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          price: "39",
-          priceCurrency: "EUR",
-          priceSpecification: expect.objectContaining({ billingDuration: "P1M" }),
-        }),
-      ]),
-    );
-  });
-
   it("cannot close its script element", () => {
     const script = jsonLdScript({ name: "</script><script>alert(1)</script>" });
 

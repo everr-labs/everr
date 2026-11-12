@@ -10,7 +10,7 @@ describe("page head", () => {
       expect.arrayContaining([
         { property: "og:type", content: "website" },
         { property: "og:url", content: "https://everr.dev/about" },
-        { property: "og:image", content: "https://everr.dev/api/og/site" },
+        { property: "og:image", content: "https://everr.dev/og.png" },
       ]),
     );
   });
@@ -22,13 +22,13 @@ describe("page head", () => {
   });
 
   it("links a translated page to each of its languages", () => {
-    const head = pageHead("/contact", "Contact Everr", "How to reach us.");
+    const head = pageHead("/pricing", "Pricing", "Plans and quotas.");
 
     expect(head.links).toEqual(
       expect.arrayContaining([
-        { rel: "alternate", hrefLang: "en", href: "https://everr.dev/contact" },
-        { rel: "alternate", hrefLang: "it", href: "https://everr.dev/it/contact" },
-        { rel: "alternate", hrefLang: "x-default", href: "https://everr.dev/contact" },
+        { rel: "alternate", hrefLang: "en", href: "https://everr.dev/pricing" },
+        { rel: "alternate", hrefLang: "it", href: "https://everr.dev/it/pricing" },
+        { rel: "alternate", hrefLang: "x-default", href: "https://everr.dev/pricing" },
       ]),
     );
   });

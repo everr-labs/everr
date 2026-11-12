@@ -29,8 +29,7 @@ export function buildLlmsTxt() {
 
 /**
  * The Markdown representation of a page, by its path without the locale prefix.
- * Pricing and the site pages answer in `locale`; the docs, the devlog and the home
- * page (the llms.txt index) are in English only.
+ * Pricing answers in `locale`; everything else is in English only.
  */
 export async function markdownForPath(
   pathname: string,
@@ -65,7 +64,7 @@ export async function markdownForPath(
   }
 
   if (slugs.length === 1) {
-    const page = getSitePage(slugs[0], locale);
+    const page = getSitePage(slugs[0]);
     if (!page) return undefined;
     return pageMarkdown(
       page.data.title,

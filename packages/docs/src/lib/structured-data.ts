@@ -1,4 +1,3 @@
-import { PRICING_PLANS } from "@/components/pricing-cards";
 import {
   CONTACT_EMAIL,
   DISCORD_URL,
@@ -58,24 +57,6 @@ export function siteStructuredData() {
         installUrl: SIGN_UP_URL,
         downloadUrl: `${SITE_URL}/install.sh`,
         publisher: { "@id": ORGANIZATION_ID },
-        offers: PRICING_PLANS.map((plan) => {
-          const price = plan.price.replace(/[^\d.]/g, "");
-          return {
-            "@type": "Offer",
-            name: plan.name,
-            price,
-            priceCurrency: "EUR",
-            url: `${SITE_URL}/pricing`,
-            // A subscription: the price is per month
-            priceSpecification: {
-              "@type": "UnitPriceSpecification",
-              price,
-              priceCurrency: "EUR",
-              billingDuration: "P1M",
-              unitText: "month",
-            },
-          };
-        }),
       },
     ],
   };

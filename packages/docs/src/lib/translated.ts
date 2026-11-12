@@ -1,6 +1,6 @@
 // The pages that exist in more than one language. Keep in step with the URL
 // patterns in project.inlang/paraglide.config.ts.
-export const TRANSLATED_PATHS = ["/", "/pricing", "/contact"] as const;
+export const TRANSLATED_PATHS = ["/", "/pricing"] as const;
 
 export type TranslatedPath = (typeof TRANSLATED_PATHS)[number];
 
