@@ -8,5 +8,8 @@
 --     since app_ro can override SQL_everr_tenant_id (no readonly profile).
 -- The ADMIN OPTION on sql_api_role is granted in 0009-cloud-create-sql-api-role.sql
 -- once the role exists, so web_app_admin can grant it to per-org users.
-GRANT CREATE USER, ALTER USER, DROP USER ON *.* TO web_app_admin;
+-- CURRENT GRANTS gives what the migration user itself holds. A managed
+-- ClickHouse service withholds its own users from that user, and a plain
+-- GRANT ... ON *.* fails there.
+GRANT CURRENT GRANTS(CREATE USER, ALTER USER, DROP USER ON *.*) TO web_app_admin;
 GRANT CREATE ROW POLICY, DROP ROW POLICY ON app.* TO web_app_admin;
