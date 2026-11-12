@@ -22,8 +22,11 @@ export function DashboardGrid({
   notice,
   frameToggle = true,
 }: {
-  /** Where this dashboard lives: each panel header links to its maximized page there. */
-  address: DashboardAddress;
+  /**
+   * Where this dashboard lives: each panel header links to its maximized page there.
+   * Left out where the grid is not on its dashboard's page (the home page), so no link shows.
+   */
+  address?: DashboardAddress;
   actions?: ReactNode;
   notice?: ReactNode;
   /** Off where the grid is not seated next to a rail (the home page). */
@@ -74,11 +77,13 @@ export function DashboardGrid({
                     panelKey={item.i}
                     moving={item.i === movingPanel}
                     action={
-                      <MaximizePanelLink
-                        address={address}
-                        panelKey={item.i}
-                        title={panel.spec.display?.name ?? item.i}
-                      />
+                      address && (
+                        <MaximizePanelLink
+                          address={address}
+                          panelKey={item.i}
+                          title={panel.spec.display?.name ?? item.i}
+                        />
+                      )
                     }
                   />
                 </div>

@@ -39,7 +39,7 @@ function HomePage() {
       organizationId={session.session.activeOrganizationId}
       setupRequested={setup === 1}
     >
-      <DashboardHome document={homeDashboardDocument} builtinSlug={productClient.homeDashboardId} />
+      <DashboardHome document={homeDashboardDocument} />
     </HomeExperience>
   );
 }
