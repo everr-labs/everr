@@ -16,6 +16,7 @@ pub mod skill_store;
 mod skills;
 pub mod state;
 pub mod telemetry;
+pub mod trace_diff;
 mod uninstall;
 pub mod update_notice;
 pub mod upgrade;

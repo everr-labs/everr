@@ -1,0 +1,158 @@
+name: Trace Diff
+
+# Runs the self-hosted app under a fixed browser workload, snapshots its
+# server spans with the local collector, and compares a pull request's spans
+# with the snapshots from recent main runs. Informational for now: it writes
+# the diff to the job summary and does not fail the build.
+#
+# Unlike ci.yml this also runs on draft pull requests.
+#
+# Disabled: GitHub only runs .yml and .yaml files. Rename this file to
+# trace-diff.yml to turn it on (the references to that name below assume it).
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/trace-diff.yml"
+      - "scripts/trace-diff/**"
+      - "scripts/dev/compose.yaml"
+      - "scripts/dev/init-postgres.sql"
+      - "clickhouse/**"
+      - "packages/app/**"
+      - "packages/cli/**"
+      - "packages/composition/**"
+      - "packages/tanstack-start-otel/**"
+      - "packages/otel-errors/**"
+      - "pnpm-lock.yaml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Listing main's runs and downloading their snapshot artifacts.
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+env:
+  SNAPSHOT_ARTIFACT: trace-diff-snapshot
+  BASELINE_RUNS: "3"
+  PLAYWRIGHT_DIR: ${{ github.workspace }}/../playwright
+  EVERR: ${{ github.workspace }}/target/release/everr
+
+jobs:
+  trace-diff:
+    name: Trace diff
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: collector/go.mod
+          cache-dependency-path: collector/**/go.sum
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      # The trace-diff commands are not in a released CLI yet. Once they are,
+      # replace this with the Everr Action's install-cli input.
+      - name: Build Everr CLI
+        run: pnpm --filter @everr/cli build:release
+
+      - name: Build app
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          BETTER_AUTH_URL: http://localhost:3000
+          BETTER_AUTH_SECRET: ci-prerender-only-not-a-runtime-secret
+        run: pnpm --filter @everr/app build
+
+      # Playwright is not a workspace dependency; the workload loads it from
+      # PLAYWRIGHT_DIR.
+      - name: Install Playwright
+        run: |
+          npm install --prefix "$PLAYWRIGHT_DIR" playwright-core@1.56.1
+          "$PLAYWRIGHT_DIR/node_modules/.bin/playwright-core" install --with-deps chromium
+
+      - name: Start local collector
+        run: $EVERR local start --detach --no-open
+
+      - name: Run workload and snapshot
+        env:
+          OTLP_ENDPOINT: http://127.0.0.1:54418
+        run: scripts/trace-diff/run.sh "$RUNNER_TEMP/trace-snapshot.parquet"
+
+      - name: Upload snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SNAPSHOT_ARTIFACT }}
+          path: ${{ runner.temp }}/trace-snapshot.parquet
+          retention-days: ${{ github.event_name == 'push' && 30 || 7 }}
+          if-no-files-found: error
+
+      # Baselines are the snapshots of the latest successful main runs. Until
+      # main has any (this workflow is new), fall back to this branch's own
+      # earlier runs, so a pull request still shows what changed since its
+      # previous push.
+      - name: Download baselines
+        if: github.event_name != 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          download() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow trace-diff.yml \
+              --branch "$1" --status success --limit "$BASELINE_RUNS" \
+              --json databaseId --jq '.[].databaseId' |
+            while read -r run_id; do
+              gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+                --name "$SNAPSHOT_ARTIFACT" --dir "$RUNNER_TEMP/baselines/$run_id" ||
+                echo "::warning::no snapshot in run $run_id"
+            done
+          }
+          mkdir -p "$RUNNER_TEMP/baselines"
+          download main
+          if find "$RUNNER_TEMP/baselines" -name '*.parquet' | grep -q .; then
+            echo "BASELINE_SOURCE=the latest successful main runs" >> "$GITHUB_ENV"
+          else
+            download "$HEAD_REF"
+            echo "BASELINE_SOURCE=earlier runs of this branch (main has no snapshots yet)" >> "$GITHUB_ENV"
+          fi
+          find "$RUNNER_TEMP/baselines" -name '*.parquet' -print
+
+      - name: Diff against baselines
+        if: github.event_name != 'push'
+        run: |
+          bases=()
+          while IFS= read -r file; do bases+=(--base "$file"); done < <(
+            find "$RUNNER_TEMP/baselines" -name '*.parquet' | sort
+          )
+          echo "Baseline: $BASELINE_SOURCE." >> "$GITHUB_STEP_SUMMARY"
+          # tcp.connect counts depend on connection reuse, not on the code.
+          $EVERR ci trace-diff "${bases[@]}" \
+            --head "$RUNNER_TEMP/trace-snapshot.parquet" \
+            --ignore-span tcp.connect
+
+      - name: Stop local collector
+        if: always()
+        run: $EVERR local stop || true

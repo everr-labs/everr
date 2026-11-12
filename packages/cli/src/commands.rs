@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::auth::client;
 use crate::cli::{CiSubcommand, CloudSubcommand, Commands};
-use crate::{auth, core, skills, telemetry, uninstall, upgrade, wrap};
+use crate::{auth, core, skills, telemetry, trace_diff, uninstall, upgrade, wrap};
 
 pub async fn run_command(
     command: Commands,
@@ -23,6 +23,8 @@ pub async fn run_command(
             CiSubcommand::Runs(args) => core::runs_list(args, client(false)?).await?,
             CiSubcommand::Show(args) => core::runs_show(args, client(false)?).await?,
             CiSubcommand::Logs(args) => core::runs_logs(args, client(false)?).await?,
+            CiSubcommand::TraceSnapshot(args) => trace_diff::run_snapshot(args).await?,
+            CiSubcommand::TraceDiff(args) => trace_diff::run_diff(args).await?,
         },
         Commands::Local(args) => telemetry::commands::run(args, lifetime).await?,
         Commands::Wrap(args) => wrap::run(args).await?,
