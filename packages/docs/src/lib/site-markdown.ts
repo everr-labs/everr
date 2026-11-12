@@ -2,6 +2,7 @@ import { PRICING_PLANS } from "@/components/pricing-cards";
 import { BOOK_CALL_URL, GITHUB_URL, SIGN_UP_URL, SITE_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 import type { Locale } from "@/paraglide/runtime";
+import { stripHeadingIds } from "./heading-ids";
 
 export const SITE_SUMMARY =
   "Everr is an open source observability platform built on OpenTelemetry. It stores traces, logs, and metrics, and gives coding agents a CLI, skills, and an MCP server to instrument apps, investigate production issues, debug GitHub Actions CI, and manage dashboards, alerts, and runbooks as code.";
@@ -99,6 +100,20 @@ ${devlogLinks.join("\n")}
 `;
 }
 
+type MessagePart = { type: string; value?: string };
+
+// A paraglide message with one {#link}…{/link} span, as Markdown
+function partsToMarkdown(parts: MessagePart[], href: string) {
+  return parts
+    .map((part) => {
+      if (part.type === "text") return part.value ?? "";
+      if (part.type === "markup-start") return "[";
+      if (part.type === "markup-end") return `](${href})`;
+      return "";
+    })
+    .join("");
+}
+
 export function pricingMarkdown(locale: Locale) {
   const options = { locale };
   const plans = PRICING_PLANS.map((plan) => {
@@ -118,15 +133,23 @@ ${features.join("\n")}
 [${m.get_started({}, options)}](${SIGN_UP_URL})`;
   });
 
-  const faqs = [
-    [m.pricing_faq_1_q, m.pricing_faq_1_a],
-    [m.pricing_faq_2_q, m.pricing_faq_2_a],
-    [m.pricing_faq_3_q, m.pricing_faq_3_a],
-    [m.pricing_faq_4_q, m.pricing_faq_4_a],
-    [m.pricing_faq_5_q, m.pricing_faq_5_a],
-    [m.pricing_faq_6_q, m.pricing_faq_6_a],
-    [m.pricing_faq_7_q, m.pricing_faq_7_a],
-  ].map(([q, a]) => `### ${q({}, options)}\n\n${a({}, options)}`);
+  // Two answers link out with paraglide markup: keep the link as a Markdown link
+  const faqs: [string, string][] = [
+    [m.pricing_faq_1_q({}, options), m.pricing_faq_1_a({}, options)],
+    [
+      m.pricing_faq_2_q({}, options),
+      partsToMarkdown(m.pricing_faq_2_a.parts({}, options), BOOK_CALL_URL),
+    ],
+    [
+      m.pricing_faq_3_q({}, options),
+      partsToMarkdown(m.pricing_faq_3_a.parts({}, options), "/docs/reference/retention"),
+    ],
+    [m.pricing_faq_4_q({}, options), m.pricing_faq_4_a({}, options)],
+    [m.pricing_faq_5_q({}, options), m.pricing_faq_5_a({}, options)],
+    [m.pricing_faq_6_q({}, options), m.pricing_faq_6_a({}, options)],
+    [m.pricing_faq_7_q({}, options), m.pricing_faq_7_a({}, options)],
+  ];
+  const faqText = faqs.map(([q, a]) => `### ${q}\n\n${a}`);
 
   return `# ${m.pricing_heading({}, options)}
 
@@ -142,7 +165,7 @@ ${m.pricing_enterprise_body({}, options)}
 
 ## ${m.pricing_faq_title({}, options)}
 
-${faqs.join("\n\n")}
+${faqText.join("\n\n")}
 `;
 }
 
@@ -160,5 +183,5 @@ ${posts.join("\n")}
 
 export function pageMarkdown(title: string, url: string, body: string, description?: string) {
   const lead = description ? `> ${description}\n\n` : "";
-  return `# ${title} (${url})\n\n${lead}${body.trim()}\n`;
+  return `# ${title} (${url})\n\n${lead}${stripHeadingIds(body).trim()}\n`;
 }

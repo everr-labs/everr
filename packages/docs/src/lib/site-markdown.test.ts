@@ -74,6 +74,12 @@ describe("pricing Markdown", () => {
     expect(text).toContain("## Enterprise");
   });
 
+  it("keeps the links inside FAQ answers", () => {
+    const text = pricingMarkdown("en");
+    expect(text).toContain("[contact us](https://calendar.app.google/");
+    expect(text).toContain("[retention guide](/docs/reference/retention)");
+  });
+
   it("is written in the requested language, not the current one", () => {
     overwriteGetLocale(() => "en");
     expect(pricingMarkdown("it")).toContain("## Hobby: €0/mese");

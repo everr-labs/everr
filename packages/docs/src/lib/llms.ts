@@ -1,4 +1,5 @@
 import { notFoundMarkdown } from "./not-found-markdown";
+import { stripHeadingIds } from "./heading-ids";
 
 const MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8";
 const TEXT_CONTENT_TYPE = "text/plain; charset=utf-8";
@@ -16,7 +17,7 @@ type DocsSource = {
 };
 
 export async function getLLMText(page: DocsPage) {
-  const processed = await page.data.getText("processed");
+  const processed = stripHeadingIds(await page.data.getText("processed"));
   return `# ${page.data.title} (${page.url})\n\n${processed}`;
 }
 

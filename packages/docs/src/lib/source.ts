@@ -22,6 +22,8 @@ const sitePages = loader({
 // content/pages holds the English pages at its root and translations in a folder per
 // language: it/contact.mdx is /it/contact
 export function getSitePage(slug: string, locale: string) {
+  // /it%2Fcontact decodes to the slug "it/contact": only a single segment names a page
+  if (slug.includes("/")) return undefined;
   if (locale !== "en") {
     const translated = sitePages.getPage([locale, slug]);
     if (translated) return translated;
