@@ -77,7 +77,7 @@ function panelRoute(pathname: string | undefined) {
  * the browser's back and forward between a grid and one of its panels morph
  * like the links do. Every other navigation keeps going without one.
  */
-export const panelHistoryViewTransition = {
+const panelHistoryTypes = {
   types: ({
     fromLocation,
     toLocation,
@@ -100,12 +100,22 @@ export const panelHistoryViewTransition = {
 };
 
 /**
+ * The router only asks `types` where the browser supports typed transitions;
+ * elsewhere any default would run untyped on every navigation, so there is none.
+ */
+export function panelHistoryViewTransition() {
+  return typeof CSS !== "undefined" && CSS.supports("selector(:active-view-transition-type(a))")
+    ? panelHistoryTypes
+    : false;
+}
+
+/**
  * The grid remounts on restore, and the pane it scrolls in shrinks to one
  * screen while the panel is maximized, so the scroll offset is lost both ways.
- * Maximize stashes it; restore hands it to the grid only if it is going back
- * to the page the offset was taken on, and the grid takes it once.
+ * Maximize stashes it per dashboard; restore hands the grid the offset of the
+ * page it is going back to, and the grid takes it once.
  */
-let gridScroll: { pathname: string; top: number } | undefined;
+const gridScroll = new Map<string, number>();
 let restoringScroll: { pathname: string; top: number } | undefined;
 
 function scrollPane(element: Element | null) {
@@ -188,13 +198,13 @@ export function MaximizePanelLink({
     viewTransition: { types: maximizeTypes },
     onClick: (event: MouseEvent<HTMLAnchorElement>) => {
       const pane = scrollPane(event.currentTarget);
-      gridScroll = pane ? { pathname: window.location.pathname, top: pane.scrollTop } : undefined;
+      if (pane) gridScroll.set(window.location.pathname, pane.scrollTop);
       // Before the router captures the page, so the panel is named in it.
       setMovingPanel(panelKey);
     },
-    // Revealed on hover where there is hover to reveal it (a fine pointer);
-    // touch screens keep it showing, and keyboard focus always shows it.
-    className: `${iconLinkClass} transition-opacity duration-150 pointer-fine:opacity-0 pointer-fine:group-hover/panel:opacity-100 focus-visible:opacity-100`,
+    // Revealed on hover where there is hover to reveal it (a fine pointer that
+    // hovers); other devices keep it showing, and keyboard focus always shows it.
+    className: `${iconLinkClass} transition-opacity duration-150 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 group-hover/panel:opacity-100 focus-visible:opacity-100`,
     title: "Maximize",
     "aria-label": `Maximize ${title}`,
     children: <Maximize2 className="size-3.5" />,
@@ -233,8 +243,9 @@ export function RestorePanelLink({
       resetScroll={false}
       onClick={(event) => {
         setMovingPanel(panelKey);
-        restoringScroll =
-          gridScroll?.pathname === event.currentTarget.pathname ? gridScroll : undefined;
+        const { pathname } = event.currentTarget;
+        const top = gridScroll.get(pathname);
+        restoringScroll = top === undefined ? undefined : { pathname, top };
       }}
       className={iconLinkClass}
       title="Back to the dashboard"

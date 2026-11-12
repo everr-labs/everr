@@ -64,7 +64,7 @@ export const getRouter = () => {
     // defaultPreload: "intent",
     // Only for navigations no link gave one: the browser's back and forward
     // between a dashboard and a maximized panel; everything else opts out.
-    defaultViewTransition: panelHistoryViewTransition,
+    defaultViewTransition: panelHistoryViewTransition(),
     scrollRestoration: true,
     // A pane that scrolls itself keeps its position across navigation unless
     // it says otherwise; marking it puts the reader at the top of whatever
