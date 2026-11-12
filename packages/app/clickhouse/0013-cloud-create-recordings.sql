@@ -21,27 +21,6 @@
 -- always filters by stream id and tenant), and nothing in the product queries
 -- recordings by session_id (the replay reader matches sessions through the
 -- `recording` span, not through these rows).
---
--- Operator notes for Cloud clusters that ran before this file:
--- 1. Residual Segment rows: if the cluster ever ingested recording Segments
---    into app.logs before the routing cutover, those rows are still readable
---    by SQL API org users whose row policies were created before the
---    `EventName != 'everr.browser.recording.segment'` filter existed (see
---    packages/cloud/src/clickhouse/provisioning.ts). Clean them up once:
---      ALTER TABLE app.logs DELETE WHERE EventName = 'everr.browser.recording.segment'
--- 2. Existing policies: provisioning used CREATE ROW POLICY IF NOT EXISTS, so
---    the logs policy of an existing SQL API org user still uses the old
---    USING clause. Provisioning now runs CREATE ROW POLICY OR REPLACE. Run it
---    again for the affected organizations, or fix them once with:
---      SELECT policy.name, policy.source, user.name
---      FROM system.row_policies AS policy LEFT JOIN system.users AS user
---      ON user.id = policy.user_id
---      WHERE policy.table = 'logs' AND policy.name LIKE 'org_SQL%'
---    then, per policy:
---      ALTER ROW POLICY <policy.name> ON app.logs
---      FOR SELECT USING tenant_id = <tenant literal>
---        AND EventName != 'everr.browser.recording.segment'
---      TO <user.name>
 
 CREATE TABLE IF NOT EXISTS app.recordings
 (
