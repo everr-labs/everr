@@ -1,16 +1,12 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { MaximizedPanel, PanelNotFound } from "#app/components/dashboards/maximized-panel.tsx";
 import { dashboardOptions } from "#app/data/dashboards/options.ts";
+import { loadPanel, panelBreadcrumb } from "./-panel-route.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey",
 )({
-  // Appended to the dashboard's own crumbs, which turns the dashboard name
-  // into the way back.
-  staticData: {
-    breadcrumb: (match: { loaderData?: { panelName: string } }) =>
-      match.loaderData?.panelName ?? "Panel",
-  },
+  staticData: { breadcrumb: panelBreadcrumb },
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   // Same query the dashboard layout above ensures, so this costs no request.
   loader: async ({
@@ -21,9 +17,7 @@ export const Route = createFileRoute(
     const { document } = await queryClient.ensureQueryData(
       dashboardOptions(project, slug, preview),
     );
-    const panel = document.spec.panels[panelKey];
-    if (!panel) throw notFound();
-    return { panelName: panel.spec.display?.name ?? panelKey };
+    return loadPanel(document.spec.panels, panelKey);
   },
   component: PanelPage,
   notFoundComponent: PanelNotFoundPage,

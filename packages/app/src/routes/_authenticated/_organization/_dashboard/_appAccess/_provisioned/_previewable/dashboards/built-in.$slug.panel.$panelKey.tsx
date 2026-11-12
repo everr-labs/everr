@@ -1,21 +1,14 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { MaximizedPanel, PanelNotFound } from "#app/components/dashboards/maximized-panel.tsx";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
+import { loadPanel, panelBreadcrumb } from "./-panel-route.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey",
 )({
-  // Appended to the dashboard's own crumbs, which turns the dashboard name
-  // into the way back.
-  staticData: {
-    breadcrumb: (match: { loaderData?: { panelName: string } }) =>
-      match.loaderData?.panelName ?? "Panel",
-  },
-  loader: ({ params: { slug, panelKey } }) => {
-    const panel = getBuiltinDashboard(slug)?.document.spec.panels[panelKey];
-    if (!panel) throw notFound();
-    return { panelName: panel.spec.display?.name ?? panelKey };
-  },
+  staticData: { breadcrumb: panelBreadcrumb },
+  loader: ({ params: { slug, panelKey } }) =>
+    loadPanel(getBuiltinDashboard(slug)?.document.spec.panels, panelKey),
   component: PanelPage,
   notFoundComponent: PanelNotFoundPage,
 });
