@@ -140,13 +140,27 @@ with the same password. The old user is not used any more and can be dropped:
 
 ### Versions
 
-The app, collector, and ClickHouse images share one version, the same as the
-`everr` CLI. `compose.yaml` pins the release it ships with. To pin another
+The app and collector images share one version, the same as the `everr` CLI.
+ClickHouse runs a pinned stock image and gets its schema from the app, so it has
+no Everr version. `compose.yaml` pins the release it ships with. To pin another
 release, set `EVERR_VERSION` in `.env`:
 
 ```sh
 EVERR_VERSION=0.10.2
 ```
+
+`EVERR_VERSION` sets both images, so the app and collector stay at the same
+version. To upgrade, change it (or update `compose.yaml`) and run:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+The new app applies the ClickHouse files that `default.everr_clickhouse_migrations`
+does not list yet, then the collector restarts against the new columns. Do not
+pin an older version than the one the installation already ran: the app does
+not roll back ClickHouse migrations.
 
 Each release is also tagged by minor version (`0.10`) and as `latest`.
 
