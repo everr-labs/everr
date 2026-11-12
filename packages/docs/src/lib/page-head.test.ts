@@ -27,7 +27,7 @@ describe("page head", () => {
     expect(head.links).toEqual(
       expect.arrayContaining([
         { rel: "alternate", hrefLang: "en", href: "https://everr.dev/pricing" },
-        { rel: "alternate", hrefLang: "it", href: "https://everr.dev/it/pricing" },
+        { rel: "alternate", hrefLang: "it", href: "https://everr.dev/it/prezzi" },
         { rel: "alternate", hrefLang: "x-default", href: "https://everr.dev/pricing" },
       ]),
     );

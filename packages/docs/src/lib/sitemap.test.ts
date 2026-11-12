@@ -6,7 +6,7 @@ describe("sitemap", () => {
     const xml = buildSitemap([
       {
         loc: "https://everr.dev/pricing",
-        alternates: { en: "https://everr.dev/pricing", it: "https://everr.dev/it/pricing" },
+        alternates: { en: "https://everr.dev/pricing", it: "https://everr.dev/it/prezzi" },
       },
       { loc: "https://everr.dev/devlog/a&b", lastmod: "2026-05-01" },
     ]);
@@ -16,7 +16,7 @@ describe("sitemap", () => {
   <url>
     <loc>https://everr.dev/pricing</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://everr.dev/pricing"/>
-    <xhtml:link rel="alternate" hreflang="it" href="https://everr.dev/it/pricing"/>
+    <xhtml:link rel="alternate" hreflang="it" href="https://everr.dev/it/prezzi"/>
   </url>
   <url>
     <loc>https://everr.dev/devlog/a&amp;b</loc>

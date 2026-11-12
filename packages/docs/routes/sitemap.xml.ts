@@ -16,7 +16,7 @@ function translated(path: string): SitemapEntry[] {
 export default function handler() {
   const devlog = publishedDevlog();
   const entries: SitemapEntry[] = [
-    ...TRANSLATED_PATHS.flatMap(translated),
+    ...Object.keys(TRANSLATED_PATHS).flatMap(translated),
     ...englishSitePages()
       .filter((page) => !isTranslatedPath(page.url))
       .map((page) => ({ loc: SITE_URL + page.url })),

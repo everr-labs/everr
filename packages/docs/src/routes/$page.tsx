@@ -13,7 +13,7 @@ import { getLocale } from "@/paraglide/runtime";
 // About, Contact, Privacy: one MDX file each in content/pages
 export const Route = createFileRoute("/$page")({
   component: SitePage,
-  // /contact and /it/contact are the same route once the locale is stripped: the locale
+  // /contact and /it/contatti are the same route once the locale is stripped: the locale
   // keeps their loader data apart, so switching language never shows the other one
   loaderDeps: () => ({ locale: getLocale() }),
   loader: async ({ params: { page }, deps: { locale } }) => {

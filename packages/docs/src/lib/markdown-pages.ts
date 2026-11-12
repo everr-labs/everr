@@ -7,7 +7,7 @@ import {
   pageMarkdown,
   pricingMarkdown,
 } from "./site-markdown";
-import { baseLocale, type Locale } from "@/paraglide/runtime";
+import { baseLocale, type Locale, localizeHref } from "@/paraglide/runtime";
 import { devlogposts, getSitePage, source } from "./source";
 
 export function publishedDevlog(): DevlogEntry[] {
@@ -69,7 +69,7 @@ export async function markdownForPath(
     if (!page) return undefined;
     return pageMarkdown(
       page.data.title,
-      page.url,
+      localizeHref(path, { locale }),
       await page.data.getText("processed"),
       page.data.description,
     );
