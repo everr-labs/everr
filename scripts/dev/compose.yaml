@@ -17,7 +17,7 @@ services:
         host_ip: 127.0.0.1
     volumes:
       - postgres:/var/lib/postgresql/data
-      - ${DEV_ROOT}/scripts/dev/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ${DEV_ROOT}/scripts/dev/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro,z
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-app:
