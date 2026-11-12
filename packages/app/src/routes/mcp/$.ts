@@ -6,7 +6,7 @@ import { getMcpIdentity } from "#app/data/mcp/identity.ts";
 import { assertCurrentMember } from "#app/data/mcp/membership.ts";
 import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
 import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
-import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
@@ -88,6 +88,9 @@ function createTransport() {
     required: true,
     requiredScopes: ["observability:read"],
     resourceMetadataPath: "/.well-known/oauth-protected-resource",
+    // Without it, the challenge's metadata URL comes from X-Forwarded-Host/-Proto
+    // whatever TRUST_PROXY says; the metadata itself is built from BETTER_AUTH_URL
+    resourceUrl: AUTH_BASE,
   });
 }
 
