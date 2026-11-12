@@ -110,8 +110,9 @@ export function createAppConfig(
           output: { dir: outputDirectory },
           traceDeps: ["tslib*"],
           hooks: {
-            "rollup:before": (nitro, config) => {
-              if (!composition.serverEntries || nitro.options.dev) return;
+            "build:config": (nitro, { rollup, rolldown }) => {
+              const config = rollup ?? rolldown;
+              if (!config || !composition.serverEntries || nitro.options.dev) return;
               config.input = {
                 index: nitro.options.entry,
                 ...composition.serverEntries,

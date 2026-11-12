@@ -16,6 +16,9 @@ function redirectAuthErrorPage(request: Request) {
     return null;
   }
 
-  url.pathname = "/auth/error";
-  return Response.redirect(url.toString());
+  // Relative, like every redirect built from the request: see install-callback.ts
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `/auth/error${url.search}` },
+  });
 }
