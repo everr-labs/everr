@@ -5,7 +5,12 @@ import { persesToRGL } from "#app/data/dashboards/convert.ts";
 import { GRID_COLS } from "#app/data/dashboards/schema.ts";
 import { DashboardPanel } from "./dashboard-panel";
 import { DashboardToolbar } from "./dashboard-toolbar";
-import { type DashboardAddress, MaximizePanelLink } from "./panel-links";
+import {
+  type DashboardAddress,
+  MaximizePanelLink,
+  useMovingPanel,
+  useRestoredGridScroll,
+} from "./panel-links";
 import { useDashboard } from "./use-dashboard";
 import { SharedTimeCursorProvider } from "./visualizations/shared-time-cursor";
 
@@ -25,9 +30,11 @@ export function DashboardGrid({
   frameToggle?: boolean;
 }) {
   const dashboard = useDashboard();
+  const movingPanel = useMovingPanel();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
+  useRestoredGridScroll(containerRef);
 
   const layout = useMemo(() => {
     const firstLayout = dashboard.spec.layouts[0];
@@ -65,6 +72,7 @@ export function DashboardGrid({
                   <DashboardPanel
                     panel={panel}
                     panelKey={item.i}
+                    moving={item.i === movingPanel}
                     action={
                       <MaximizePanelLink
                         address={address}
