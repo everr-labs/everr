@@ -1,8 +1,8 @@
 import { SITE_URL } from "../src/constants";
 import { publishedDevlog } from "../src/lib/markdown-pages";
 import { buildSitemap, type SitemapEntry } from "../src/lib/sitemap";
-import { listSitePages, source } from "../src/lib/source";
-import { TRANSLATED_PATHS } from "../src/lib/translated";
+import { englishSitePages, source } from "../src/lib/source";
+import { isTranslatedPath, TRANSLATED_PATHS } from "../src/lib/translated";
 import { locales, localizeHref } from "../src/paraglide/runtime";
 
 // Every translated page is listed once per language, each with all its alternates
@@ -17,7 +17,9 @@ export default function handler() {
   const devlog = publishedDevlog();
   const entries: SitemapEntry[] = [
     ...TRANSLATED_PATHS.flatMap(translated),
-    ...listSitePages().map((page) => ({ loc: SITE_URL + page.url })),
+    ...englishSitePages()
+      .filter((page) => !isTranslatedPath(page.url))
+      .map((page) => ({ loc: SITE_URL + page.url })),
     ...source.getPages().map((page) => ({ loc: SITE_URL + page.url })),
     { loc: `${SITE_URL}/devlog`, lastmod: devlog[0]?.date },
     ...devlog.map((post) => ({ loc: `${SITE_URL}/devlog/${post.slug}`, lastmod: post.date })),

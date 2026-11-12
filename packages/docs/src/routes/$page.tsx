@@ -5,28 +5,37 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Suspense } from "react";
 import { Footer } from "@/components/footer";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
-import { seoHead } from "@/lib/page-head";
+import { pageHead, seoHead } from "@/lib/page-head";
 import { getSitePage } from "@/lib/source";
+import { isTranslatedPath } from "@/lib/translated";
+import { getLocale } from "@/paraglide/runtime";
 
 // About, Contact, Privacy: one MDX file each in content/pages
 export const Route = createFileRoute("/$page")({
   component: SitePage,
-  loader: async ({ params: { page } }) => {
-    const data = await serverLoader({ data: { slug: page } });
+  // /contact and /it/contact are the same route once the locale is stripped: the locale
+  // keeps their loader data apart, so switching language never shows the other one
+  loaderDeps: () => ({ locale: getLocale() }),
+  loader: async ({ params: { page }, deps: { locale } }) => {
+    // The server function's own URL carries no locale: pass the page's
+    const data = await serverLoader({ data: { slug: page, locale } });
     await clientLoader.preload(data.path);
     return data;
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};
-    const { slug, title, description } = loaderData;
-    return seoHead({ path: `/${slug}`, title, description });
+    const path = `/${loaderData.slug}`;
+    const { title, description } = loaderData;
+    return isTranslatedPath(path)
+      ? pageHead(path, title, description)
+      : seoHead({ path, title, description });
   },
 });
 
 const serverLoader = createServerFn({ method: "GET" })
-  .validator((data: { slug: string }) => data)
-  .handler(async ({ data: { slug } }) => {
-    const page = getSitePage(slug);
+  .validator((data: { slug: string; locale: string }) => data)
+  .handler(async ({ data: { slug, locale } }) => {
+    const page = getSitePage(slug, locale);
     if (!page) throw notFound();
 
     return {
