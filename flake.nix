@@ -26,6 +26,7 @@
             pnpm # switches itself to package.json's packageManager version
             process-compose # `pnpm dev`
             gnumake
+            openssl # portless makes its local TLS certs with it; not on a default Fedora
           ];
 
           # Docker with Compose is still required and comes from the host
