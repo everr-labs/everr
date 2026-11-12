@@ -32,7 +32,7 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   -- 'throw' (not 'break') gives the caller a clear error to retry with LIMIT
   -- or a narrower WHERE rather than silently-truncated rows that look
   -- complete. Note: 'break' only breaks at block boundaries (default
-  -- max_block_size=65536), so for small caps it is essentially advisory —
+  -- max_block_size=65536), so for small caps it is essentially advisory:
   -- 'throw' is the only way to enforce a hard row count.
   max_result_rows = 25000 READONLY,                    -- 25k rows returned to the client
   max_result_bytes = 4194304 READONLY,                 -- 4 MB returned to the client

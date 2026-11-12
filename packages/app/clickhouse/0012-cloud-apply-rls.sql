@@ -1,6 +1,6 @@
 -- Tenant filter for app_ro: reads the tenant id from a per-query setting the
 -- app injects via clickhouse_settings. The /sql API uses sql_api_role with its
--- own per-org row policies (see 0009-cloud-create-sql-api-role.sql) — those provide
+-- own per-org row policies (see 0009-cloud-create-sql-api-role.sql). Those provide
 -- isolation against attacker-controlled SQL, which app_ro's setting-based
 -- policy cannot under readonly=0.
 CREATE ROW POLICY OR REPLACE tenant_filter_traces
