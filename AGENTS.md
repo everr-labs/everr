@@ -25,6 +25,13 @@ If .auth is not available, skip.
 ## Clickhouse
 
 - Do not add tenant_id = toUInt64(getSetting('SQL_everr_tenant_id')). We already have a row-level policy for that.
+- ClickHouse migrations (`packages/app/clickhouse`) run on production at server startup. Never write a disruptive migration, one that causes issues in production when it runs:
+  - no dropped or truncated tables, columns, or partitions that hold data
+  - no statement that rewrites existing data on a large table (a mutation such as `ALTER ... UPDATE`, `DELETE`, `MATERIALIZE`, or a column type change)
+  - no step that leaves a table without its tenant filter or a user without its grants, even for a moment (use `OR REPLACE`, not `DROP` then `CREATE`)
+  - no change that breaks the running collector or the previous app version during a rolling deploy
+  - every statement must be safe to repeat (`IF NOT EXISTS`, `OR REPLACE`)
+    If a change needs one of these, stop and ask.
 
 ## Postgres and Drizzle
 
