@@ -14,7 +14,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `profiles`: continuous profiling samples (OTLP profiles, experimental). One row per sample: `Timestamp`, `ServiceName`, `SampleType`, `SampleUnit`, `ProfileId`, `StackHash`, `FunctionNames`, `FileNames`, `LineNumbers`, `MappingFileNames`, `Addresses`, `Values`, `TimestampsUnixNano`, `TraceId`, `SpanId`, `ResourceAttributes`, `ProfileAttributes`, `SampleAttributes`. The sort key is `ServiceName, SampleType, Timestamp`: filter on all three.
 - `alert_events`: alert history on server installations. The local CLI store has the table and never writes to it. One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 
-`app.recordings` is a Cloud table the SQL API cannot read. Segment bodies for `everr.browser.recording.segment` are not stored in `logs` for new ingest. Do not read `Body` to rebuild a recording; use `recording_journey` / `recording_page` (MCP) or the `/api/cli/recordings/...` routes.
+`app.recordings` is a Cloud table the SQL API cannot read. Segment bodies for `everr.browser.recording.segment` are not stored in `logs`. Do not read `Body` to rebuild a recording; use `recording_journey` / `recording_page` (MCP) or the `/api/cli/recordings/...` routes.
 
 ## Units And Values
 
