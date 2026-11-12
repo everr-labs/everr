@@ -59,7 +59,7 @@ function DevlogIndex() {
 
   return (
     <>
-      <main className="flex-1 text-foreground">
+      <div className="flex-1 text-foreground">
         <div className={sectionWrap}>
           <section className="pt-14 pb-16 md:pt-20 md:pb-24">
             <h1 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
@@ -134,7 +134,7 @@ function DevlogIndex() {
             </ul>
           </section>
         </div>
-      </main>
+      </div>
       <Footer />
     </>
   );

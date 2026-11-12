@@ -57,7 +57,7 @@ function SitePage() {
 
   return (
     <>
-      <main className="flex-1 text-foreground">
+      <div className="flex-1 text-foreground">
         <div className={sectionWrap}>
           <article className="mx-auto max-w-3xl pt-10 pb-20 md:pt-14 md:pb-32">
             <header className="mb-10 border-b border-border pb-10 md:mb-14 md:pb-14">
@@ -69,7 +69,7 @@ function SitePage() {
             </div>
           </article>
         </div>
-      </main>
+      </div>
       <Footer />
     </>
   );

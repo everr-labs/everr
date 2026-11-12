@@ -90,7 +90,7 @@ function DevlogPost() {
 
   return (
     <>
-      <main className="flex-1 text-foreground">
+      <div className="flex-1 text-foreground">
         <div className={sectionWrap}>
           <article className="mx-auto max-w-3xl pt-10 pb-20 md:pt-14 md:pb-32">
             <Link
@@ -186,7 +186,7 @@ function DevlogPost() {
             </div>
           </article>
         </div>
-      </main>
+      </div>
       <Footer />
     </>
   );

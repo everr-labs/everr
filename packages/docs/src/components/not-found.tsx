@@ -4,7 +4,7 @@ import { Footer } from "@/components/footer";
 export function NotFound() {
   return (
     <>
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-24 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-24 text-center">
         <h1 className="text-6xl font-bold text-fd-muted-foreground">404</h1>
         <h2 className="text-2xl font-semibold">Page Not Found</h2>
         <p className="text-fd-muted-foreground max-w-md">
@@ -36,7 +36,7 @@ export function NotFound() {
         >
           Back to Home
         </Link>
-      </main>
+      </div>
       <Footer />
     </>
   );
