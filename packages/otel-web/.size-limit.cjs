@@ -14,14 +14,14 @@ module.exports = [
     gzip: true,
     // Includes the shared tracer binding and span-kind support.
     // Raised for span status, links, timestamps, and log correlation.
-    limit: "4.2 KB",
+    limit: "4.1 KB",
   },
   {
     name: "core + public tracer",
     path: "dist/index.js",
     import: "{ WebSDK, tracer }",
     gzip: true,
-    limit: "4.25 KB",
+    limit: "4.15 KB",
   },
   {
     // Raised for the parent span support in the tracer.
@@ -30,7 +30,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4.9 KB",
+    limit: "4.8 KB",
   },
   {
     // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)
@@ -40,7 +40,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "4.35 KB",
+    limit: "4.25 KB",
   },
   {
     // Raised for the naming attributes in the element selector.
@@ -49,7 +49,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",
     gzip: true,
-    limit: "4.75 KB",
+    limit: "4.65 KB",
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
@@ -58,7 +58,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "8.1 KB",
+    limit: "8 KB",
   },
   {
     name: "core + network",
@@ -66,7 +66,7 @@ module.exports = [
     import: "{ WebSDK, network }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "5.4 KB",
+    limit: "5.3 KB",
   },
   {
     // All instrumentation factories composed: verifies the sampled runtime is
@@ -93,12 +93,12 @@ module.exports = [
     limit: "1.05 KB",
   },
   {
-    // rrweb record is most of it.
+    // rrweb record is most of it, without the code that strip-rrweb.ts removes.
     name: "recording chunk",
     path: "dist/recording/recorder.js",
     import: "{ startStream }",
     gzip: true,
     ignore: ["@everr/otel-web"],
-    limit: "26.5 KB",
+    limit: "23.4 KB",
   },
 ];

@@ -47,7 +47,7 @@ export function elementAttrs(el: Element): Record<string, AttrValue | null | und
 
 /** The attributes that name an element, in the order of preference. They are
  * the names that a developer writes and that a rebuild does not change. */
-const NAME_ATTRS = "aria-label,type,name,title,alt".split(",");
+const NAME_ATTRS = /* @__PURE__ */ "aria-label,type,name,title,alt".split(",");
 
 /**
  * A CSS path that does not change. It starts at the nearest id, and below that

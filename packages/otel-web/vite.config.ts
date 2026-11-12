@@ -1,4 +1,5 @@
 import { defineConfig } from "vite-plus";
+import { stripRrweb } from "./strip-rrweb.ts";
 
 const packageVersion = process.env.npm_package_version ?? "0.0.0-dev";
 
@@ -23,6 +24,7 @@ export default defineConfig({
     // resolves it, the react bundle contains the entry of one runtime, and the
     // selection by the "." export conditions of the consumer is lost.
     external: ["@everr/otel-web"],
+    plugins: [stripRrweb()],
     format: ["esm"],
     dts: true,
     platform: "browser",
