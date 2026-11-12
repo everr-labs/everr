@@ -2,6 +2,8 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "meta_pricing_title": "Pricing - Everr",
   "get_started": "Get started",
+  "pricing_hobby_cta": "Get started",
+  "pricing_pro_cta": "Get started",
   "nav_main": "Main",
   "nav_home": "Everr home",
   "nav_docs": "Docs",

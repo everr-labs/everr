@@ -1,7 +1,9 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "meta_pricing_title": "Prezzi - Everr",
-  "get_started": "Inizia ora",
+  "get_started": "Prova Everr",
+  "pricing_hobby_cta": "Inizia gratis",
+  "pricing_pro_cta": "Registrati",
   "nav_main": "Navigazione principale",
   "nav_home": "Vai alla home di Everr",
   "nav_docs": "Docs",

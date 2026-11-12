@@ -24,6 +24,8 @@ export type PlanCard = {
   name: string;
   price: string;
   tagline: Message;
+  // The sign-up button
+  cta: Message;
   data: DataRow[];
   features: Message[];
   recommended?: boolean;
@@ -35,6 +37,7 @@ export const PRICING_PLANS: PlanCard[] = [
     name: "Hobby",
     price: "€0",
     tagline: m.pricing_hobby_tagline,
+    cta: m.pricing_hobby_cta,
     data: [
       { signal: m.pricing_ingestion, included: m.pricing_hobby_ingestion },
       { signal: m.pricing_query_allowance, included: "5x", overage: m.pricing_hobby_scanned },
@@ -47,6 +50,7 @@ export const PRICING_PLANS: PlanCard[] = [
     name: "Pro",
     price: "€39",
     tagline: m.pricing_pro_tagline,
+    cta: m.pricing_pro_cta,
     data: [
       {
         signal: m.pricing_ingestion,
@@ -156,7 +160,7 @@ export function PricingCards() {
 
               <div className="mt-9">
                 <PricingCta href={SIGN_UP_URL} primary={plan.recommended}>
-                  {m.get_started()}
+                  {plan.cta()}
                 </PricingCta>
               </div>
             </motion.article>

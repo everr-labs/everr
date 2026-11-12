@@ -130,7 +130,7 @@ ${plan.tagline({}, options)}
 ${rows.join("\n")}
 ${features.join("\n")}
 
-[${m.get_started({}, options)}](${SIGN_UP_URL})`;
+[${plan.cta({}, options)}](${SIGN_UP_URL})`;
   });
 
   // Two answers link out with paraglide markup: keep the link as a Markdown link

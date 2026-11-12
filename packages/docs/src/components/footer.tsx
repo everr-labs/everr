@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
-import { DISCORD_URL } from "@/constants";
+import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 export function Footer() {
@@ -133,7 +133,7 @@ function FooterDirectory() {
             </li>
             <li>
               <a
-                href="https://app.everr.dev/auth/sign-up"
+                href={SIGN_UP_URL}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
                 {m.get_started()}
