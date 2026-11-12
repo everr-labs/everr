@@ -34,7 +34,10 @@ else
 fi
 node "$DEV_ROOT/scripts/dev/bootstrap-env.mjs" "$@"
 export COMPOSE_FILE="$DEV_ROOT/scripts/dev/compose.yaml"
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | shasum -a 256 | cut -c 1-12)}"
+sha256() {
+  if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi
+}
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | sha256 | cut -c 1-12)}"
 export COMPOSE_PROJECT_NAME
 export DEV_APP_NAME="${DEV_APP_NAME:-app}"
 export DEV_CLOUD_NAME="${DEV_CLOUD_NAME:-app-cloud}"
