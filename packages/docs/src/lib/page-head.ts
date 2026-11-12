@@ -8,7 +8,8 @@ export const DEFAULT_OG_IMAGE = `${SITE_URL}/api/og/site`;
 type HeadOptions = {
   path: string;
   title: string;
-  description: string;
+  // Without one, the site description from the root route stays
+  description?: string;
   type?: "website" | "article";
   image?: string;
 };
@@ -26,9 +27,14 @@ export function seoHead({
   return {
     meta: [
       { title },
-      { name: "description", content: description },
+      ...(description
+        ? [
+            { name: "description", content: description },
+            { property: "og:description", content: description },
+            { name: "twitter:description", content: description },
+          ]
+        : []),
       { property: "og:title", content: title },
-      { property: "og:description", content: description },
       { property: "og:type", content: type },
       { property: "og:url", content: url },
       { property: "og:site_name", content: SITE_NAME },
@@ -37,7 +43,6 @@ export function seoHead({
       { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: title },
-      { name: "twitter:description", content: description },
       { name: "twitter:image", content: image },
     ],
     links: [{ rel: "canonical", href: url }],

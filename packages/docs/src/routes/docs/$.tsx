@@ -24,7 +24,7 @@ export const Route = createFileRoute("/docs/$")({
       ? seoHead({
           path: loaderData.url,
           title: loaderData.isIndex ? "Everr Docs" : `${loaderData.title} - Everr Docs`,
-          description: loaderData.description ?? "",
+          description: loaderData.description,
         })
       : {},
 });

@@ -15,6 +15,12 @@ describe("page head", () => {
     );
   });
 
+  it("leaves the site description in place when the page has none", () => {
+    const head = seoHead({ path: "/docs/x", title: "X - Everr Docs" });
+
+    expect(head.meta.some((tag) => "name" in tag && tag.name === "description")).toBe(false);
+  });
+
   it("links a translated page to each of its languages", () => {
     const head = pageHead("/contact", "Contact Everr", "How to reach us.");
 

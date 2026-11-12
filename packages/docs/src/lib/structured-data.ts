@@ -22,10 +22,9 @@ export function siteStructuredData() {
         "@type": "Organization",
         "@id": ORGANIZATION_ID,
         name: "Everr",
-        alternateName: "Everr Labs",
         url: SITE_URL,
         email: CONTACT_EMAIL,
-        logo: `${SITE_URL}/favicon.ico`,
+        logo: `${SITE_URL}/logo.png`,
         description: SITE_SUMMARY,
         sameAs: [GITHUB_ORG_URL, X_URL, LINKEDIN_URL, DISCORD_URL],
         contactPoint: [
@@ -59,13 +58,24 @@ export function siteStructuredData() {
         installUrl: SIGN_UP_URL,
         downloadUrl: `${SITE_URL}/install.sh`,
         publisher: { "@id": ORGANIZATION_ID },
-        offers: PRICING_PLANS.map((plan) => ({
-          "@type": "Offer",
-          name: plan.name,
-          price: plan.price.replace(/[^\d.]/g, ""),
-          priceCurrency: "EUR",
-          url: `${SITE_URL}/pricing`,
-        })),
+        offers: PRICING_PLANS.map((plan) => {
+          const price = plan.price.replace(/[^\d.]/g, "");
+          return {
+            "@type": "Offer",
+            name: plan.name,
+            price,
+            priceCurrency: "EUR",
+            url: `${SITE_URL}/pricing`,
+            // A subscription: the price is per month
+            priceSpecification: {
+              "@type": "UnitPriceSpecification",
+              price,
+              priceCurrency: "EUR",
+              billingDuration: "P1M",
+              unitText: "month",
+            },
+          };
+        }),
       },
     ],
   };

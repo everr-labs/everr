@@ -29,17 +29,18 @@ describe("llms.txt", () => {
 describe("pricing Markdown", () => {
   afterEach(() => overwriteGetLocale(() => baseLocale));
 
-  it("stays in English when the page is rendered in another language", () => {
-    overwriteGetLocale(() => "it");
-    const text = pricingMarkdown();
-    expect(text).toContain("- Ingestion: 30 GB / month");
-    expect(text).toContain("For personal projects and solo developers");
-  });
-
   it("lists every plan with its price", () => {
-    const text = pricingMarkdown();
+    const text = pricingMarkdown("en");
     expect(text).toContain("## Hobby: €0/month");
     expect(text).toContain("## Pro: €39/month");
     expect(text).toContain("## Enterprise");
+  });
+
+  it("is written in the requested language, not the current one", () => {
+    overwriteGetLocale(() => "en");
+    expect(pricingMarkdown("it")).toContain("## Hobby: €0/mese");
+
+    overwriteGetLocale(() => "it");
+    expect(pricingMarkdown("en")).toContain("- Ingestion: 30 GB / month");
   });
 });

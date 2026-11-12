@@ -2,6 +2,7 @@ import { cn } from "@everr/ui/lib/utils";
 import instrumentSansFontBase64 from "@fontsource-variable/instrument-sans/files/instrument-sans-latin-wght-normal.woff2?inline";
 import { ImageResponse } from "@takumi-rs/image-response";
 import { createFileRoute } from "@tanstack/react-router";
+import { cacheShareImage, shareImageHead } from "@/lib/og-cache";
 import { devlogposts } from "@/lib/source";
 import stylesheet from "@/styles/docs.css?inline";
 
@@ -53,6 +54,8 @@ function StatItem({
 export const Route = createFileRoute("/api/og/devlog/$slug")({
   server: {
     handlers: {
+      HEAD: ({ params: { slug } }) =>
+        devlogposts.getPage([slug]) ? shareImageHead() : new Response(undefined, { status: 404 }),
       GET: async ({ params: { slug } }) => {
         const page = devlogposts.getPage([slug]);
 
@@ -68,7 +71,7 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
           day: "numeric",
         });
 
-        return new ImageResponse(
+        const image = new ImageResponse(
           <div className="flex flex-col w-full h-full px-[72px] py-[60px] bg-[#0a0a0a] text-neutral-50 font-sans">
             {/* Top bar */}
             <div className="flex items-center justify-between">
@@ -220,6 +223,7 @@ export const Route = createFileRoute("/api/og/devlog/$slug")({
             ],
           },
         );
+        return cacheShareImage(image);
       },
     },
   },

@@ -21,7 +21,13 @@ describe("structured data", () => {
     );
 
     expect(software?.offers).toEqual(
-      expect.arrayContaining([expect.objectContaining({ price: "39", priceCurrency: "EUR" })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          price: "39",
+          priceCurrency: "EUR",
+          priceSpecification: expect.objectContaining({ billingDuration: "P1M" }),
+        }),
+      ]),
     );
   });
 

@@ -7,6 +7,7 @@ import {
   pageMarkdown,
   pricingMarkdown,
 } from "./site-markdown";
+import { baseLocale, type Locale } from "@/paraglide/runtime";
 import { devlogposts, getSitePage, source } from "./source";
 
 export function publishedDevlog(): DevlogEntry[] {
@@ -28,13 +29,14 @@ export function buildLlmsTxt() {
 
 /**
  * The Markdown representation of a page, by its path without the locale prefix.
- * Translated site pages answer in `locale`; everything else is in English.
+ * Pricing and the site pages answer in `locale`; the docs, the devlog and the home
+ * page (the llms.txt index) are in English only.
  */
 export async function markdownForPath(
   pathname: string,
-  locale = "en",
+  locale: Locale = baseLocale,
 ): Promise<string | undefined> {
-  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const path = pathname;
   const slugs: string[] = [];
   for (const segment of path.split("/").filter(Boolean)) {
     const decoded = safeDecode(segment);
@@ -43,7 +45,7 @@ export async function markdownForPath(
   }
 
   if (slugs.length === 0) return buildLlmsTxt();
-  if (path === "/pricing") return pricingMarkdown();
+  if (path === "/pricing") return pricingMarkdown(locale);
   if (path === "/devlog") return devlogIndexMarkdown(publishedDevlog());
 
   if (slugs[0] === "docs") {

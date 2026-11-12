@@ -97,6 +97,42 @@ describe("page responses", () => {
     expect(await response.text()).toBe("");
   });
 
+  it("redirects a trailing-slash path instead of answering it in Markdown", async () => {
+    // The server strips the trailing slash from the pathname along with the locale prefix
+    const response = await respond(get("/about/", "text/markdown"), "/about", {
+      render: async () => new Response(null, { status: 307, headers: { location: "/about" } }),
+      markdownFor,
+    });
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("/about");
+  });
+
+  it("passes redirects and files from server routes through whatever the client accepts", async () => {
+    const redirect = new Response(null, { status: 307, headers: { location: "https://s3/x" } });
+    const response = await respond(
+      get("/everr-app/release-metadata.json", "application/json"),
+      "/everr-app/release-metadata.json",
+      { render: async () => redirect, markdownFor },
+    );
+
+    expect(response).toBe(redirect);
+  });
+
+  it("hands the app the original request when it can render it", async () => {
+    const request = get("/about", BROWSER);
+    let rendered: Request | undefined;
+    await respond(request, "/about", {
+      render: async (r) => {
+        rendered = r;
+        return page(200)(r);
+      },
+      markdownFor,
+    });
+
+    expect(rendered).toBe(request);
+  });
+
   it("leaves API routes to the app", async () => {
     const original = new Response("{}", { headers: { "content-type": "application/json" } });
     const response = await respond(get("/api/search", "application/json"), "/api/search", {

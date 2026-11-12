@@ -1,13 +1,12 @@
 import { PRICING_PLANS } from "@/components/pricing-cards";
 import { BOOK_CALL_URL, GITHUB_URL, SIGN_UP_URL, SITE_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
+import type { Locale } from "@/paraglide/runtime";
 
 export const SITE_SUMMARY =
   "Everr is an open source observability platform built on OpenTelemetry. It stores traces, logs, and metrics, and gives coding agents a CLI, skills, and an MCP server to instrument apps, investigate production issues, debug GitHub Actions CI, and manage dashboards, alerts, and runbooks as code.";
 
 export type DevlogEntry = { slug: string; title: string; description: string; date: string };
-
-const en = { locale: "en" } as const;
 
 /**
  * llms.txt (https://llmstxt.org): an H1, a blockquote summary, free-form guidance,
@@ -77,22 +76,23 @@ ${devlogLinks.join("\n")}
 `;
 }
 
-export function pricingMarkdown() {
+export function pricingMarkdown(locale: Locale) {
+  const options = { locale };
   const plans = PRICING_PLANS.map((plan) => {
     const rows = plan.data.map((row) => {
-      const included = typeof row.included === "string" ? row.included : row.included({}, en);
-      const overage = row.overage ? ` (${row.overage({}, en)})` : "";
-      return `- ${row.signal({}, en)}: ${included}${overage}`;
+      const included = typeof row.included === "string" ? row.included : row.included({}, options);
+      const overage = row.overage ? ` (${row.overage({}, options)})` : "";
+      return `- ${row.signal({}, options)}: ${included}${overage}`;
     });
-    const features = plan.features.map((feature) => `- ${feature({}, en)}`);
-    return `## ${plan.name}: ${plan.price}${m.pricing_per_month({}, en)}
+    const features = plan.features.map((feature) => `- ${feature({}, options)}`);
+    return `## ${plan.name}: ${plan.price}${m.pricing_per_month({}, options)}
 
-${plan.tagline({}, en)}
+${plan.tagline({}, options)}
 
 ${rows.join("\n")}
 ${features.join("\n")}
 
-[${m.get_started({}, en)}](${SIGN_UP_URL})`;
+[${m.get_started({}, options)}](${SIGN_UP_URL})`;
   });
 
   const faqs = [
@@ -103,21 +103,21 @@ ${features.join("\n")}
     [m.pricing_faq_5_q, m.pricing_faq_5_a],
     [m.pricing_faq_6_q, m.pricing_faq_6_a],
     [m.pricing_faq_7_q, m.pricing_faq_7_a],
-  ].map(([q, a]) => `### ${q({}, en)}\n\n${a({}, en)}`);
+  ].map(([q, a]) => `### ${q({}, options)}\n\n${a({}, options)}`);
 
-  return `# ${m.pricing_heading({}, en)}
+  return `# ${m.pricing_heading({}, options)}
 
-${m.pricing_lead({}, en)}
+${m.pricing_lead({}, options)}
 
 ${plans.join("\n\n")}
 
-## Enterprise: ${m.pricing_enterprise_price({}, en)}
+## Enterprise: ${m.pricing_enterprise_price({}, options)}
 
-${m.pricing_enterprise_body({}, en)}
+${m.pricing_enterprise_body({}, options)}
 
-[${m.pricing_enterprise_cta({}, en)}](${BOOK_CALL_URL})
+[${m.pricing_enterprise_cta({}, options)}](${BOOK_CALL_URL})
 
-## ${m.pricing_faq_title({}, en)}
+## ${m.pricing_faq_title({}, options)}
 
 ${faqs.join("\n\n")}
 `;
