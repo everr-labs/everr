@@ -28,7 +28,7 @@ vi.mock("@everr/app/env", () => ({
     CLICKHOUSE_USERNAME: "default",
     CLICKHOUSE_PASSWORD: "password",
     CLICKHOUSE_DATABASE: "default",
-    CLICKHOUSE_ADMIN_USERNAME: "web_app_admin",
+    CLICKHOUSE_ADMIN_USERNAME: "app_admin",
     CLICKHOUSE_ADMIN_PASSWORD: "web-app-admin-password",
     CLICKHOUSE_SQL_API_MASTER_KEY: MASTER_KEY,
   },

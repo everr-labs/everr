@@ -133,6 +133,11 @@ records each applied ClickHouse file in `default.everr_clickhouse_migrations`
 and runs only the files that table does not list. Review schema changes before
 upgrading an existing installation.
 
+The app's ClickHouse write user is `app_admin`. An installation created when it
+was named `web_app_admin` gets `app_admin` on its first start with this version,
+with the same password. The old user is not used any more and can be dropped:
+`DROP USER IF EXISTS web_app_admin`.
+
 Development uses `pnpm dev` and its separate dependency configuration.
 Run installation commands from this directory to select the deployment stack.
 

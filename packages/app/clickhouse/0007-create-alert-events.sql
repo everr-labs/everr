@@ -143,4 +143,4 @@ TTL toDate(event_time) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, ttl_only_drop_parts = 1;
 
 GRANT SELECT ON app.alert_events TO app_ro;
-GRANT INSERT, SELECT ON app.alert_events TO web_app_admin;
+GRANT INSERT, SELECT ON app.alert_events TO app_admin;

@@ -107,7 +107,7 @@ export async function migrateClickHouse(
   const params: Params = {
     collector_rw_password: clickhouseMigrationEnv.CLICKHOUSE_COLLECTOR_PASSWORD,
     app_ro_password: env.CLICKHOUSE_PASSWORD,
-    web_app_admin_password: env.CLICKHOUSE_ADMIN_PASSWORD,
+    app_admin_password: env.CLICKHOUSE_ADMIN_PASSWORD,
     ...productParams,
   };
 

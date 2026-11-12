@@ -56,17 +56,17 @@ GRANT SELECT ON app.traces_trace_id_ts           TO sql_api_role;
 REVOKE SELECT ON system.tables FROM sql_api_role;
 REVOKE SELECT ON system.quota_usage FROM sql_api_role;
 
--- web_app_admin needs ADMIN OPTION on sql_api_role to grant it to the per-org
+-- app_admin needs ADMIN OPTION on sql_api_role to grant it to the per-org
 -- users it provisions. Granted here (not in 0002-cloud-grant-provisioning.sql) because the
 -- role doesn't exist yet at that point in the file order.
-GRANT sql_api_role TO web_app_admin WITH ADMIN OPTION;
+GRANT sql_api_role TO app_admin WITH ADMIN OPTION;
 
--- Keep sql_api_role out of web_app_admin's default roles. Otherwise CH would
+-- Keep sql_api_role out of app_admin's default roles. Otherwise CH would
 -- auto-activate it on every connection and apply sql_api_profile (readonly=1,
--- allow_ddl=0, etc.) to web_app_admin's sessions, which would break the
+-- allow_ddl=0, etc.) to app_admin's sessions, which would break the
 -- CREATE USER / GRANT / CREATE ROW POLICY work it has to do. The app code
 -- uses SET ROLE to activate it only for the GRANT statement.
-ALTER USER web_app_admin DEFAULT ROLE NONE;
+ALTER USER app_admin DEFAULT ROLE NONE;
 
 -- Quota: per-tenant limits. Keyed by client_key so each org gets its own
 -- bucket via the X-ClickHouse-Quota header (querySqlApi in
@@ -78,4 +78,4 @@ CREATE QUOTA OR REPLACE sql_api_quota
   KEYED BY client_key
   FOR INTERVAL 1 minute MAX queries = 120, errors = 20,
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
-  TO sql_api_role EXCEPT web_app_admin;
+  TO sql_api_role EXCEPT app_admin;
