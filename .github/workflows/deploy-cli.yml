@@ -12,6 +12,9 @@ concurrency:
 on:
   push:
     tags: ["@everr/cli@*"]
+  # Builds, signs, and smoke-tests every release binary without publishing,
+  # to check a branch before tagging it.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -42,6 +45,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - name: Verify CLI release tag
+        if: github.event_name == 'push'
         run: |
           node --input-type=module <<'JS'
           import { readFileSync } from 'node:fs';
@@ -128,6 +132,25 @@ jobs:
           shasum -a 256 "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
       - name: Smoke test
         run: ./target/cli-release/${{ matrix.asset }} --help
+      # Runs the shipped binary, so it loads the embedded, signed libchdb that
+      # the tests above never touch.
+      - name: Smoke test the local stack
+        shell: bash
+        env:
+          EVERR_BIN: ./target/cli-release/${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          trap '"$EVERR_BIN" local stop || true' EXIT
+          "$EVERR_BIN" local start --detach --no-open
+          test "$("$EVERR_BIN" local query 'SELECT 1 AS one' --format ndjson)" = '{"one":1}'
+          "$EVERR_BIN" wrap -- echo everr-release-smoke
+          for _ in $(seq 1 50); do
+            count="$("$EVERR_BIN" local query "SELECT count() AS n FROM logs WHERE Body = 'everr-release-smoke'" --format ndjson)"
+            [[ "$count" == '{"n":1}' ]] && exit 0
+            sleep 0.2
+          done
+          echo "wrapped output never reached the local collector: $count"
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: everr-cli-${{ matrix.name }}-${{ github.sha }}
@@ -161,6 +184,7 @@ jobs:
           test -f everr-linux-arm64
           test -f everr-linux-x86_64
       - uses: actions/attest@v4
+        if: github.event_name == 'push'
         with:
           subject-checksums: target/cli-release/SHA256SUMS
       - uses: actions/upload-artifact@v4
@@ -171,6 +195,7 @@ jobs:
           retention-days: 14
           compression-level: 0
       - uses: actions/create-github-app-token@v3
+        if: github.event_name == 'push'
         id: app-token
         with:
           app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
@@ -178,6 +203,7 @@ jobs:
           owner: everr-labs
           repositories: everr-deploy
       - uses: peter-evans/repository-dispatch@v4
+        if: github.event_name == 'push'
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: everr-labs/everr-deploy
