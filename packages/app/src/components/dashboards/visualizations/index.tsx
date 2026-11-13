@@ -138,11 +138,11 @@ export function getVisualizationSpecWarnings(plugin: PanelPlugin): string[] {
   return parseSpecLenient(entry.schema, plugin.spec).warnings;
 }
 
-/** The downsampling the panel's queries should ask the server for, if any. */
-export function getVisualizationDownsample(plugin: PanelPlugin): "m4" | undefined {
+/** Whether the panel's queries should ask the server to downsample their rows. */
+export function visualizationDownsamples(plugin: PanelPlugin): boolean {
   const entry = registry[plugin.kind];
-  if (!entry?.downsample) return undefined;
-  return entry.downsample(parseSpecLenient(entry.schema, plugin.spec).spec) ? "m4" : undefined;
+  if (!entry?.downsample) return false;
+  return entry.downsample(parseSpecLenient(entry.schema, plugin.spec).spec);
 }
 
 export interface PanelVisualizationProps {

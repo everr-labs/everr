@@ -1,3 +1,4 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { isNotFound } from "@tanstack/react-router";
 import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -213,7 +214,7 @@ describe("runPanelQuery – downsample", () => {
     const result = await runPanelQuery({
       data: {
         source: clickhouseSource("SELECT ts, service, p95 FROM wrapped;"),
-        downsample: "m4",
+        downsample: { buckets: 250 },
         from: "2026-06-10 00:00:00",
         to: "2026-06-10 01:00:00",
       },
@@ -230,11 +231,100 @@ describe("runPanelQuery – downsample", () => {
     expect(result).toEqual({ rows: [{ ts: "x" }], bucketSeconds: 15 });
   });
 
+  it("sizes the bucket to the bucket count the browser asks for", async () => {
+    mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockResolvedValueOnce([]);
+
+    const result = await runPanelQuery({
+      data: {
+        source: clickhouseSource("SELECT ts, service, p95 FROM wide"),
+        downsample: { buckets: 1000 },
+        from: "2026-06-10 00:00:00",
+        to: "2026-06-10 01:00:00",
+      },
+    });
+
+    // One hour is 3600s: ceil(3600 / 1000).
+    expect(mockedClickhouse.mock.calls[1]![0]).toContain("intDiv(toUnixTimestamp(`ts`), 4)");
+    expect(result).toEqual({ rows: [], bucketSeconds: 4 });
+  });
+
+  it.each([0, 249, 1001, 300.5])("rejects a bucket count of %d", async (buckets) => {
+    await expect(
+      runPanelQuery({
+        data: { source: clickhouseSource("SELECT ts, p95 FROM bounded"), downsample: { buckets } },
+      }),
+    ).rejects.toThrow();
+    expect(mockedClickhouse).not.toHaveBeenCalled();
+  });
+
+  describe("when the result overflows the cap", () => {
+    const overflow = new ClickHouseError({
+      message: "Limit for result exceeded",
+      code: "396",
+      type: "TOO_MANY_ROWS_OR_BYTES",
+    });
+    const range = { from: "2026-06-10 00:00:00", to: "2026-06-10 01:00:00" };
+
+    it("runs once more at the smallest bucket count", async () => {
+      mockedClickhouse
+        .mockResolvedValueOnce(LINE_COLUMNS)
+        .mockRejectedValueOnce(overflow)
+        .mockResolvedValueOnce([{ ts: "x" }]);
+
+      const result = await runPanelQuery({
+        data: {
+          source: clickhouseSource("SELECT ts, service, p95 FROM overflowing"),
+          downsample: { buckets: 1000 },
+          ...range,
+        },
+      });
+
+      expect(mockedClickhouse).toHaveBeenCalledTimes(3);
+      expect(mockedClickhouse.mock.calls[2]![0]).toContain("intDiv(toUnixTimestamp(`ts`), 15)");
+      expect(result).toEqual({ rows: [{ ts: "x" }], bucketSeconds: 15 });
+    });
+
+    it("fails without a second run when it already asked for the smallest count", async () => {
+      mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockRejectedValueOnce(overflow);
+
+      await expect(
+        runPanelQuery({
+          data: {
+            source: clickhouseSource("SELECT ts, service, p95 FROM overflowing_narrow"),
+            downsample: { buckets: 250 },
+            ...range,
+          },
+        }),
+      ).rejects.toBe(overflow);
+      expect(mockedClickhouse).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not run again after any other failure", async () => {
+      const timeout = new ClickHouseError({
+        message: "Timeout exceeded",
+        code: "159",
+        type: "TIMEOUT_EXCEEDED",
+      });
+      mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockRejectedValueOnce(timeout);
+
+      await expect(
+        runPanelQuery({
+          data: {
+            source: clickhouseSource("SELECT ts, service, p95 FROM slow"),
+            downsample: { buckets: 1000 },
+            ...range,
+          },
+        }),
+      ).rejects.toBe(timeout);
+      expect(mockedClickhouse).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("describes a repeated query only once", async () => {
     mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockResolvedValue([]);
     const data = {
       source: clickhouseSource("SELECT ts, service, p95 FROM cached"),
-      downsample: "m4" as const,
+      downsample: { buckets: 250 },
     };
 
     await runPanelQuery({ data });
@@ -254,7 +344,10 @@ describe("runPanelQuery – downsample", () => {
       .mockResolvedValueOnce([{ ts: "x" }]);
 
     const result = await runPanelQuery({
-      data: { source: clickhouseSource("SELECT ts, tags FROM unwrappable"), downsample: "m4" },
+      data: {
+        source: clickhouseSource("SELECT ts, tags FROM unwrappable"),
+        downsample: { buckets: 250 },
+      },
     });
 
     expect(mockedClickhouse.mock.calls[1]![0]).toBe("SELECT ts, tags FROM unwrappable");
@@ -269,7 +362,7 @@ describe("runPanelQuery – downsample", () => {
       .mockResolvedValueOnce([]);
     const data = {
       source: clickhouseSource("SELECT broken FROM failing"),
-      downsample: "m4" as const,
+      downsample: { buckets: 250 },
     };
 
     const first = await runPanelQuery({ data });
@@ -287,7 +380,7 @@ describe("runPanelQuery – downsample", () => {
           kind: "TestData",
           spec: { scenario: "csv", columns: ["a"], rows: [[1]] },
         },
-        downsample: "m4",
+        downsample: { buckets: 250 },
       },
     });
 

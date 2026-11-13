@@ -54,7 +54,8 @@ export const panelQueryOptions = (
   to?: string,
   variables?: VariableValues,
   variableMeta?: VariableMeta,
-  downsample?: "m4",
+  /** M4 bucket count sized to the panel width. Omit to run the query as written. */
+  downsampleBuckets?: number,
 ) =>
   queryOptions({
     queryKey: [
@@ -64,14 +65,22 @@ export const panelQueryOptions = (
       to,
       variables ?? null,
       variableMeta ?? null,
-      downsample ?? null,
+      downsampleBuckets ?? null,
     ],
     queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[]; bucketSeconds?: number }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
       return panelLimiter(signal, () =>
         runPanelQuery({
-          data: { source, from, to, variables, variableMeta, downsample },
+          data: {
+            source,
+            from,
+            to,
+            variables,
+            variableMeta,
+            downsample:
+              downsampleBuckets === undefined ? undefined : { buckets: downsampleBuckets },
+          },
         }),
       );
     },

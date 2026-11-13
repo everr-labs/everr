@@ -15,9 +15,9 @@ import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import { useRetainedPanelData } from "./use-retained-panel-data";
 import {
-  getVisualizationDownsample,
   type QueryResultRow,
   type ResolvedTimeRange,
+  visualizationDownsamples,
 } from "./visualizations";
 
 export interface PanelQueryRequest {
@@ -149,7 +149,14 @@ export interface DashboardPanelData extends CombinedPanelResult {
  */
 export function useDashboardPanelData(
   panel: Panel,
-  options?: { enabled?: boolean },
+  options?: {
+    enabled?: boolean;
+    /**
+     * Bucket count sized to the panel's measured width (`useDownsampleBuckets`).
+     * Without it the queries run as written.
+     */
+    downsampleBuckets?: number;
+  },
 ): DashboardPanelData {
   const active = options?.enabled ?? true;
   // Effective range: explicit URL params, else the dashboard's route defaults,
@@ -160,10 +167,11 @@ export function useDashboardPanelData(
   const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
   const definedNames = useMemo(() => new Set(variables.map((v) => v.spec.name)), [variables]);
   const sources = useMemo(() => getPanelQuerySources(panel), [panel]);
-  const downsample = useMemo(
-    () => getVisualizationDownsample(panel.spec.plugin),
+  const downsamples = useMemo(
+    () => visualizationDownsamples(panel.spec.plugin),
     [panel.spec.plugin],
   );
+  const downsampleBuckets = downsamples ? options?.downsampleBuckets : undefined;
   const requests = useMemo(
     () =>
       buildPanelQueryRequests(sources, {
@@ -184,7 +192,7 @@ export function useDashboardPanelData(
         timeRange.to,
         r.variables,
         r.variableMeta,
-        downsample,
+        downsampleBuckets,
       ),
       placeholderData: keepPreviousData,
       enabled:

@@ -5,6 +5,8 @@ import { afterAll, describe, expect, it } from "vite-plus/test";
 import {
   buildM4Query,
   type ColumnRoles,
+  M4_MAX_BUCKETS,
+  M4_MIN_BUCKETS,
   m4BucketSeconds,
   resolveColumnRoles,
   stripStatementTerminator,
@@ -35,11 +37,13 @@ const BASE_EPOCH = Date.UTC(2026, 0, 1) / 1000;
 const key = (row: Row) => JSON.stringify(row);
 
 describe("M4 wrapper on ClickHouse", () => {
-  it("returns a {step}-bucketed query unchanged, in the author's order", () => {
-    const from = new Date(BASE_EPOCH * 1000);
-    const to = new Date((BASE_EPOCH + 3600) * 1000);
-    const step = bucketSeconds(from, to, 500);
-    const sql = `
+  it.each([M4_MIN_BUCKETS, 500, M4_MAX_BUCKETS])(
+    "returns a {step}-bucketed query unchanged, in the author's order, at %i buckets",
+    (count) => {
+      const from = new Date(BASE_EPOCH * 1000);
+      const to = new Date((BASE_EPOCH + 3600) * 1000);
+      const step = bucketSeconds(from, to, 500);
+      const sql = `
 SELECT toStartOfInterval(t, INTERVAL ${step} SECOND) AS ts, s AS service, avg(v) AS p95
 FROM (
   SELECT ${BASE} + number AS t, ['b', 'a', 'c'][number % 3 + 1] AS s, sin(number / 100) * 10 + number % 7 AS v
@@ -48,12 +52,13 @@ FROM (
 GROUP BY ts, service
 ORDER BY ts, indexOf(['c', 'a', 'b'], service);`;
 
-    const expected = run(stripStatementTerminator(sql));
-    expect(expected.length).toBeGreaterThan(1000);
+      const expected = run(stripStatementTerminator(sql));
+      expect(expected.length).toBeGreaterThan(1000);
 
-    const wrapped = run(buildM4Query(sql, describeRoles(sql), m4BucketSeconds(from, to)));
-    expect(wrapped).toEqual(expected);
-  });
+      const wrapped = run(buildM4Query(sql, describeRoles(sql), m4BucketSeconds(from, to, count)));
+      expect(wrapped).toEqual(expected);
+    },
+  );
 
   describe("on a large raw series with a short spike", () => {
     const RANGE_SECONDS = 30_000;
@@ -67,7 +72,7 @@ SELECT ${BASE} + intDiv(number, 2) AS ts,
        if(number IN (20000, 20002, 20004), ${SPIKE_VALUE}, (number * 7919) % 97) AS value
 FROM numbers(${RANGE_SECONDS * 2})
 ORDER BY ts, service`;
-    const seconds = m4BucketSeconds(from, to);
+    const seconds = m4BucketSeconds(from, to, M4_MIN_BUCKETS);
     const buckets = Math.ceil(RANGE_SECONDS / seconds);
 
     it("keeps the spike, the first and last row, and only rows that exist in the input", () => {

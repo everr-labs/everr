@@ -1,6 +1,14 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import { describe, expect, it } from "vite-plus/test";
-import { buildM4Query, type ColumnRoles, m4BucketSeconds, resolveColumnRoles } from "./m4";
+import {
+  buildM4Query,
+  type ColumnRoles,
+  M4_MAX_BUCKETS,
+  M4_MIN_BUCKETS,
+  m4BucketSeconds,
+  m4BucketsForWidth,
+  resolveColumnRoles,
+} from "./m4";
 
 const col = (name: string, type: string) => ({ name, type });
 
@@ -119,20 +127,46 @@ describe("resolveColumnRoles", () => {
   });
 });
 
+describe("m4BucketsForWidth", () => {
+  it.each([
+    { width: 0, buckets: M4_MIN_BUCKETS },
+    { width: 180, buckets: M4_MIN_BUCKETS },
+    { width: 300, buckets: 300 },
+    { width: 301, buckets: 400 },
+    { width: 640, buckets: 700 },
+    { width: 1000, buckets: M4_MAX_BUCKETS },
+    { width: 3840, buckets: M4_MAX_BUCKETS },
+  ])("asks for $buckets buckets at $width px", ({ width, buckets }) => {
+    expect(m4BucketsForWidth(width)).toBe(buckets);
+  });
+});
+
 describe("m4BucketSeconds", () => {
   const from = new Date("2026-01-01T00:00:00.000Z");
   const ranges = [0, 1, 90, 3600, 6 * 3600, 86_400, 7 * 86_400, 90 * 86_400, 365 * 86_400];
+  const cases = [M4_MIN_BUCKETS, 500, M4_MAX_BUCKETS].flatMap((buckets) =>
+    ranges.map((seconds) => ({ buckets, seconds })),
+  );
 
-  it.each(ranges)("stays within [1, 2 * step] for a %i second range", (seconds) => {
-    const to = new Date(from.getTime() + seconds * 1000);
-    const bucket = m4BucketSeconds(from, to);
-    expect(bucket).toBeGreaterThanOrEqual(1);
-    expect(bucket).toBeLessThanOrEqual(2 * bucketSeconds(from, to, 500));
-  });
+  it.each(cases)(
+    "stays within [1, 2 * step] for $buckets buckets over $seconds seconds",
+    ({ buckets, seconds }) => {
+      const to = new Date(from.getTime() + seconds * 1000);
+      const bucket = m4BucketSeconds(from, to, buckets);
+      expect(bucket).toBeGreaterThanOrEqual(1);
+      expect(bucket).toBeLessThanOrEqual(2 * bucketSeconds(from, to, 500));
+    },
+  );
 
   it("keeps a fractional range unrounded", () => {
     const to = new Date(from.getTime() + 250_001);
-    expect(m4BucketSeconds(from, to)).toBe(2);
+    expect(m4BucketSeconds(from, to, 250)).toBe(2);
+  });
+
+  it("narrows the bucket as the panel asks for more of them", () => {
+    const to = new Date(from.getTime() + 3600_000);
+    expect(m4BucketSeconds(from, to, 250)).toBe(15);
+    expect(m4BucketSeconds(from, to, 1000)).toBe(4);
   });
 });
 

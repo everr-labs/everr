@@ -8,13 +8,24 @@ import { isTimeColumnName } from "./time-column";
  */
 
 /**
- * `{step}` is an integer >= range / 500 (see `PANEL_TARGET_POINTS` in server.ts
- * and `bucketSeconds` in `@everr/ui/lib/bucket`), so `2 * step >= ceil(range / 250)`.
- * A panel bucketed by `{step}` therefore has at most two rows per series per M4
+ * The browser asks for one bucket per CSS pixel column of the panel, snapped
+ * up to `M4_BUCKET_SNAP` so a resize refetches only when it crosses a snap
+ * point, and held inside these bounds.
+ *
+ * The floor keeps `{step}` panels intact. `{step}` is an integer >= range / 500
+ * (see `PANEL_TARGET_POINTS` in server.ts and `bucketSeconds` in
+ * `@everr/ui/lib/bucket`), so `2 * step >= ceil(range / 250)`. With 250 buckets
+ * or more, a panel bucketed by `{step}` has at most two rows per series per M4
  * bucket, M4 keeps both, and the panel gets its rows back unchanged. That only
  * holds when both widths come from the same unrounded range.
+ *
+ * The ceiling bounds the result. A dense series keeps up to four rows per
+ * bucket, so 1000 buckets is up to 4000 rows per series against the SQL API
+ * cap of 25,000 rows.
  */
-const M4_BUCKETS = 250;
+export const M4_MIN_BUCKETS = 250;
+export const M4_MAX_BUCKETS = 1000;
+const M4_BUCKET_SNAP = 100;
 
 const RESERVED_PREFIX = "__everr_";
 const ROW_COLUMN = `${RESERVED_PREFIX}row`;
@@ -26,9 +37,15 @@ export interface ColumnRoles {
   values: string[];
 }
 
-export function m4BucketSeconds(from: Date, to: Date): number {
+/** The bucket count to ask for when the chart is `widthPx` CSS pixels wide. */
+export function m4BucketsForWidth(widthPx: number): number {
+  const snapped = Math.ceil(widthPx / M4_BUCKET_SNAP) * M4_BUCKET_SNAP;
+  return Math.min(M4_MAX_BUCKETS, Math.max(M4_MIN_BUCKETS, snapped));
+}
+
+export function m4BucketSeconds(from: Date, to: Date, buckets: number): number {
   const rangeSeconds = (to.getTime() - from.getTime()) / 1000;
-  return Math.max(1, Math.ceil(rangeSeconds / M4_BUCKETS));
+  return Math.max(1, Math.ceil(rangeSeconds / buckets));
 }
 
 type TypeKind = "temporal" | "value" | "group";

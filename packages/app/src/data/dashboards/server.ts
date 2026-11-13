@@ -1,3 +1,4 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import {
   DEFAULT_TIME_RANGE,
@@ -23,6 +24,8 @@ import { interpolateVariables } from "./interpolate";
 import {
   buildM4Query,
   type ColumnRoles,
+  M4_MAX_BUCKETS,
+  M4_MIN_BUCKETS,
   m4BucketSeconds,
   resolveColumnRoles,
   stripStatementTerminator,
@@ -267,13 +270,22 @@ async function resolveRoles(
   return roles;
 }
 
+/** The SQL API profile throws this when a result passes its row or byte cap. */
+function isResultOverflow(error: unknown): boolean {
+  return error instanceof ClickHouseError && error.type === "TOO_MANY_ROWS_OR_BYTES";
+}
+
 export const runPanelQuery = createAuthenticatedServerFn({
   method: "POST",
 })
   .validator(
     z.object({
       source: querySource,
-      downsample: z.literal("m4").optional(),
+      // The browser sizes the bucket count to the panel width (see
+      // `m4BucketsForWidth`). The bounds are enforced here, not trusted.
+      downsample: z
+        .object({ buckets: z.number().int().min(M4_MIN_BUCKETS).max(M4_MAX_BUCKETS) })
+        .optional(),
       from: z.string().optional(),
       to: z.string().optional(),
       variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
@@ -309,7 +321,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
     const range = resolvePanelRange({ from, to });
     const params = queryParamsFor(range);
     const roles =
-      downsample === "m4"
+      downsample !== undefined
         ? await resolveRoles(
             context.session.session.activeOrganizationId,
             interpolated,
@@ -320,13 +332,25 @@ export const runPanelQuery = createAuthenticatedServerFn({
     // User-supplied SQL: run it through the per-org SQL API user, whose tenant
     // filter is a row policy bound to the user — not a `SETTINGS`-based filter
     // a malicious query could override to read another tenant's rows.
-    if (roles) {
-      const bucket = m4BucketSeconds(range.fromDate, range.toDate);
-      const rows = await context.sql.query<QueryRow>(
-        buildM4Query(interpolated, roles, bucket),
-        params,
-      );
-      return { rows, bucketSeconds: bucket };
+    if (roles && downsample) {
+      const runDownsampled = async (buckets: number) => {
+        const bucket = m4BucketSeconds(range.fromDate, range.toDate, buckets);
+        const rows = await context.sql.query<QueryRow>(
+          buildM4Query(interpolated, roles, bucket),
+          params,
+        );
+        return { rows, bucketSeconds: bucket };
+      };
+      try {
+        return await runDownsampled(downsample.buckets);
+      } catch (error) {
+        // A wide panel asks for more buckets, and many dense series can then
+        // overflow the result cap where the same panel fits when narrow. Fall
+        // back to the floor once, so widening a panel never turns a chart into
+        // an error.
+        if (downsample.buckets === M4_MIN_BUCKETS || !isResultOverflow(error)) throw error;
+        return runDownsampled(M4_MIN_BUCKETS);
+      }
     }
     const rows = await context.sql.query<QueryRow>(interpolated, params);
     return { rows };

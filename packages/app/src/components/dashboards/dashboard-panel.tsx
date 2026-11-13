@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef } from "react";
 import type { Panel } from "#app/data/dashboards/schema.ts";
 import { PanelShell } from "../panel-shell";
 import { useDashboardPanelData } from "./use-dashboard-panel-data";
+import { useDownsampleBuckets } from "./use-downsample-buckets";
 import { useInView } from "./use-in-view";
 import {
   getVisualizationInset,
@@ -66,9 +67,13 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inView = useInView(containerRef);
+  const downsampleBuckets = useDownsampleBuckets(containerRef);
 
   const { data, status, errorMessage, timeRange, bucketSeconds } = useDashboardPanelData(panel, {
-    enabled: inView,
+    // Wait for the width: a query sent before it would run again once the
+    // bucket count is known.
+    enabled: inView && downsampleBuckets !== undefined,
+    downsampleBuckets,
   });
 
   const specWarnings = useMemo(() => getVisualizationSpecWarnings(plugin), [plugin]);
