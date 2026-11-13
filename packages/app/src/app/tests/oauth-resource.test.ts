@@ -225,3 +225,24 @@ it("accepts only the configured resource in dynamic registration", async () => {
   expect(rejected.status).toBe(400);
   expect(await rejected.json()).toMatchObject({ error: "invalid_target" });
 });
+
+it("serves the MCP resource's metadata where RFC 9728 derives it from the resource", async () => {
+  vi.doMock("#app/identity/server.ts", () => ({ auth }));
+  const { Route } = await import("#app/routes/[.]well-known/oauth-protected-resource/mcp.ts");
+  const resource = new URL(MCP_RESOURCE);
+  // Section 3.1: /.well-known/oauth-protected-resource goes between the host and the path
+  const metadataURL = new URL(
+    `/.well-known/oauth-protected-resource${resource.pathname}`,
+    resource,
+  );
+
+  const options = Route.options as unknown as {
+    server: { handlers: { GET: (args: { request: Request }) => Promise<Response> } };
+  };
+  const response = await options.server.handlers.GET({ request: new Request(metadataURL) });
+
+  expect(response.status).toBe(200);
+  const metadata = await response.json();
+  expect(metadata.resource).toBe(MCP_RESOURCE);
+  expect(metadata.scopes_supported).toContain("observability:read");
+});
