@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { eq, isNull } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "#app/data/alerting/delivery/defaults.ts";
@@ -14,7 +13,7 @@ import {
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "#app/db/schema/index.ts";
-import { FLUSH_GROUP_MEMBER_CLAIM_CAP } from "#app/server/alerting/delivery/flush-group.ts";
+import { flushAlertGroup } from "#app/server/alerting/delivery/flush-group.ts";
 import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "#app/server/alerting/evaluation/evidence.ts";
 import { ALERT_EVALUATION_SAMPLE_LIMIT } from "#app/server/alerting/evaluation/samples.ts";
 import { scanDueAlerts, staleEnqueueCutoff } from "#app/server/alerting/scheduling/scanner.ts";
@@ -59,7 +58,8 @@ function onlyEvaluationRow(active: AlertingHarness): EvaluationHistoryRow {
 }
 
 describe("the alerting pipeline's capacity bounds", () => {
-  it("claims exactly the cap from a 501-member group, taking every never-yet-flushed newcomer over the one member already flushed once", async () => {
+  it("claims exactly the cap from a group past it, taking every never-yet-flushed newcomer over the one member already flushed once", async () => {
+    const claimCap = 2;
     const rule = await insertDirectRule(harness().db, {
       forSecs: 0,
       channelType: "slack",
@@ -83,9 +83,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     expect(staleFlushedAtBeforeCap).not.toBeNull();
 
     // The rule's query result still carries "stale" (so its instance stays
-    // firing, no transition, no new event) plus 500 brand-new label sets
-    // (new fingerprints, new fire events, new unflushed memberships).
-    const freshRows = Array.from({ length: FLUSH_GROUP_MEMBER_CLAIM_CAP }, (_, index) => ({
+    // firing, no transition, no new event) plus `claimCap` brand-new label
+    // sets (new fingerprints, new fire events, new unflushed memberships).
+    const freshRows = Array.from({ length: claimCap }, (_, index) => ({
       service: `svc-${index}`,
       value: 42,
     }));
@@ -107,34 +107,37 @@ describe("the alerting pipeline's capacity bounds", () => {
       scheduledFor: new Date().toISOString(),
       ruleVersion: version,
     });
-    // 500 new fire events each enqueue their own dispatch job; the driver's
-    // default drain limit (500) is sized for ordinary cases, not this
-    // file's fixtures.
-    await harness().runDueJobs({ limit: 2_000 });
+    await harness().runDueJobs();
 
     const membersBeforeCappedFlush = await harness().db.select().from(alertNotificationGroupEvents);
-    expect(membersBeforeCappedFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
+    expect(membersBeforeCappedFlush).toHaveLength(claimCap + 1);
 
     // The group already flushed once, so the next flush is due at one
-    // group interval past that flush, not another group wait.
+    // group interval past that flush, not another group wait. The flush is
+    // called directly so the test can set a small cap; the queued flush job
+    // would use the production one.
+    const [groupBeforeCap] = await harness()
+      .db.select()
+      .from(alertNotificationGroups)
+      .where(eq(alertNotificationGroups.directAlertDefinitionId, rule.id));
     harness().advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
-    await harness().runDueJobs({ limit: 2_000 });
+    await flushAlertGroup({ groupId: groupBeforeCap.id }, { claimCap });
 
     // A still-firing claimed member is re-armed in place (a fresh
     // flushedAt), not deleted, so the table's total size does not shrink;
     // the cap shows up in *whose* flushedAt moved, not in the row count.
     const afterCappedFlush = await harness().db.select().from(alertNotificationGroupEvents);
-    expect(afterCappedFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
+    expect(afterCappedFlush).toHaveLength(claimCap + 1);
     const staleMemberAfterCap = afterCappedFlush.find((member) => member.eventId === staleEvent.id);
     const freshMembersAfterCap = afterCappedFlush.filter(
       (member) => member.eventId !== staleEvent.id,
     );
-    // Exactly the cap was claimed, and every one of the 500 claimed was a
+    // Exactly the cap was claimed, and every member claimed was a
     // never-yet-flushed newcomer: the claim's ordering (unflushed first,
     // journal-reader.ts) is what stops the old starvation bug (a stale
     // member winning every claim and starving new arrivals) from
     // reappearing.
-    expect(freshMembersAfterCap).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP);
+    expect(freshMembersAfterCap).toHaveLength(claimCap);
     expect(freshMembersAfterCap.every((member) => member.flushedAt !== null)).toBe(true);
     // The stale member lost the claim entirely: its flushedAt is exactly
     // what phase one left it at, untouched by this flush.
@@ -160,17 +163,14 @@ describe("the alerting pipeline's capacity bounds", () => {
     const [group] = await harness()
       .db.select()
       .from(alertNotificationGroups)
-      .where(eq(alertNotificationGroups.directAlertDefinitionId, rule.id));
+      .where(eq(alertNotificationGroups.id, groupBeforeCap.id));
     expect(group.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
 
     // A flush that hits this cap should also emit a counter and a log
     // line, which this harness has no way to observe: it exposes only the
     // database, ClickHouse itself, and captured fetch calls.
     // This case pins the claim boundary only.
-    // 501 real dispatches and a capped claim, well past vitest's 5s default
-    // under load. The cap is a fixed production constant, so the volume
-    // cannot shrink.
-  }, 60_000);
+  });
 
   it("captures 64 samples from 65 instances, the 3 matching ones first, and marks samples_truncated", async () => {
     const matchingIndexes = new Set([10, 30, 50]);
