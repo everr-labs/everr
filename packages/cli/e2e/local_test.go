@@ -51,7 +51,8 @@ func stoppedOrigin(t *testing.T) string {
 }
 
 func localEnv(t *testing.T, sql, ui string) *Env {
-	return NewEnv(t).Setenv("EVERR_SQL_HTTP_ORIGIN", sql).Setenv("EVERR_LOCAL_UI_ORIGIN", ui)
+	return NewEnv(t).Setenv("EVERR_SQL_HTTP_ORIGIN", sql).Setenv("EVERR_LOCAL_UI_ORIGIN", ui).
+		Setenv("EVERR_OTLP_HTTP_ORIGIN", stoppedOrigin(t))
 }
 
 func TestEndpointIsNotALocalSubcommand(t *testing.T) {
@@ -163,6 +164,24 @@ func TestLocalStatusRecognizesStartingCollector(t *testing.T) {
 	}
 }
 
+func TestLocalStatusShowsSQLUpWhenOnlyThePipelineStopped(t *testing.T) {
+	collector := bodyServer(t, http.StatusServiceUnavailable, identityJSON("everr-local-collector", "one", "stopped"))
+	ui := healthServer(t, "everr-local-ui", "one", false)
+	res := localEnv(t, collector.URL, ui.URL).Run("local", "status").Failure(t, 2)
+	if want := fmt.Sprintf("otlp: stopped\nsql: %s\nui: %s\n", collector.URL, ui.URL); res.Stdout != want {
+		t.Fatalf("stdout = %q, want %q", res.Stdout, want)
+	}
+}
+
+func TestLocalStatusReportsAForeignListenerOnTheOTLPPortOnly(t *testing.T) {
+	foreign := bodyServer(t, http.StatusOK, "ok")
+	env := localEnv(t, stoppedOrigin(t), stoppedOrigin(t)).Setenv("EVERR_OTLP_HTTP_ORIGIN", foreign.URL)
+	res := env.Run("local", "status").Failure(t, 2)
+	if want := "otlp: port occupied by an unrecognized service\nsql: stopped\nui: stopped\n"; res.Stdout != want {
+		t.Fatalf("stdout = %q, want %q", res.Stdout, want)
+	}
+}
+
 func TestLocalStartReusesReadyInstanceWithoutStartingANewProcess(t *testing.T) {
 	collector := healthServer(t, "everr-local-collector", "one", false)
 	ui := healthServer(t, "everr-local-ui", "one", false)
@@ -188,7 +207,7 @@ func TestPartialInstanceIsReportedAndStartRefusesToReplaceIt(t *testing.T) {
 		t.Fatalf("stdout = %q, want %q", res.Stdout, want)
 	}
 	res = env.Run("local", "start", "--no-open").Failure(t, 1)
-	assertContains(t, res.Stderr, "cannot start Everr", "is running")
+	assertContains(t, res.Stderr, "cannot start Everr", ": running")
 }
 
 func TestMismatchedInstancesAreNotReportedAsACompleteRunningInstance(t *testing.T) {

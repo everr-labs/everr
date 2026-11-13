@@ -27,6 +27,13 @@ import (
 
 func testServer(t *testing.T, telemetry *internaltelemetry.Config) string {
 	t.Helper()
+	origin, s := startingServer(t, telemetry)
+	s.ready.Store(true)
+	return origin
+}
+
+func startingServer(t *testing.T, telemetry *internaltelemetry.Config) (string, *server) {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +44,34 @@ func testServer(t *testing.T, telemetry *internaltelemetry.Config) string {
 	srv := &http.Server{Handler: s.handler()}
 	go srv.Serve(ln)
 	t.Cleanup(func() { srv.Close() })
-	return origin
+	return origin, s
+}
+
+func TestUIReportsStartingAndRefusesCommandsUntilReady(t *testing.T) {
+	origin, s := startingServer(t, nil)
+	if got := Probe(context.Background(), origin+"/health", uiService); got.State != StateStarting {
+		t.Fatalf("state before ready = %v", got.State)
+	}
+	resp := post(t, origin, "/api/commands/get_collector_status", "{}", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("command before ready: status = %d", resp.StatusCode)
+	}
+	s.ready.Store(true)
+	if got := Probe(context.Background(), origin+"/health", uiService); got.State != StateRunning {
+		t.Fatalf("state after ready = %v", got.State)
+	}
+}
+
+func TestCommandsFailOnceTheSupervisorHasStopped(t *testing.T) {
+	origin, s := startingServer(t, nil)
+	s.ready.Store(true)
+	close(s.stopped)
+	resp := post(t, origin, "/api/commands/restart_collector", "{}", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("restart after stop: status = %d", resp.StatusCode)
+	}
 }
 
 func post(t *testing.T, origin, path, body string, headers map[string]string) *http.Response {
@@ -507,19 +541,25 @@ func compressed(t *testing.T, data string) []byte {
 	return encoder.EncodeAll([]byte(data), nil)
 }
 
-func TestExtractionWritesTheLibraryToADigestNamedCacheAndPrunesOthers(t *testing.T) {
-	root := t.TempDir()
-	first, err := extractToCache(root, compressed(t, "one"), "aaa")
+// extract unpacks data and releases the library at once, as a process that
+// already exited would.
+func extract(t *testing.T, root, data, digest string) string {
+	t.Helper()
+	library, inUse, err := extractToCache(root, compressed(t, data), digest)
 	if err != nil {
 		t.Fatal(err)
 	}
+	inUse.Close()
+	return library
+}
+
+func TestExtractionWritesTheLibraryToADigestNamedCacheAndPrunesOthers(t *testing.T) {
+	root := t.TempDir()
+	first := extract(t, root, "one", "aaa")
 	if got, _ := os.ReadFile(first); string(got) != "one" {
 		t.Fatalf("library = %q", got)
 	}
-	second, err := extractToCache(root, compressed(t, "two"), "bbb")
-	if err != nil {
-		t.Fatal(err)
-	}
+	second := extract(t, root, "two", "bbb")
 	if _, err := os.Stat(filepath.Dir(first)); !os.IsNotExist(err) {
 		t.Fatal("stale library was not pruned")
 	}
@@ -528,16 +568,24 @@ func TestExtractionWritesTheLibraryToADigestNamedCacheAndPrunesOthers(t *testing
 	}
 }
 
-func TestCacheHitRepairsLibraryPermissions(t *testing.T) {
+func TestALibraryInUseIsNotPruned(t *testing.T) {
 	root := t.TempDir()
-	library, err := extractToCache(root, compressed(t, "lib"), "aaa")
+	first, inUse, err := extractToCache(root, compressed(t, "one"), "aaa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.Chmod(library, 0o600)
-	if _, err := extractToCache(root, compressed(t, "lib"), "aaa"); err != nil {
-		t.Fatal(err)
+	defer inUse.Close()
+	extract(t, root, "two", "bbb")
+	if got, _ := os.ReadFile(first); string(got) != "one" {
+		t.Fatalf("library in use = %q", got)
 	}
+}
+
+func TestCacheHitRepairsLibraryPermissions(t *testing.T) {
+	root := t.TempDir()
+	library := extract(t, root, "lib", "aaa")
+	os.Chmod(library, 0o600)
+	extract(t, root, "lib", "aaa")
 	if info, _ := os.Stat(library); info.Mode().Perm() != 0o644 {
 		t.Fatalf("mode = %v", info.Mode().Perm())
 	}
@@ -545,21 +593,45 @@ func TestCacheHitRepairsLibraryPermissions(t *testing.T) {
 
 func TestExtractionRedoesATruncatedLibraryAndDropsLeftoverTempFiles(t *testing.T) {
 	root := t.TempDir()
-	library, err := extractToCache(root, compressed(t, "complete library"), "aaa")
-	if err != nil {
-		t.Fatal(err)
-	}
+	library := extract(t, root, "complete library", "aaa")
 	os.WriteFile(library, []byte("cut"), 0o644)
 	leftover := library + ".999.tmp"
 	os.WriteFile(leftover, []byte("partial"), 0o644)
 
-	if _, err := extractToCache(root, compressed(t, "complete library"), "aaa"); err != nil {
-		t.Fatal(err)
-	}
+	extract(t, root, "complete library", "aaa")
 	if got, _ := os.ReadFile(library); string(got) != "complete library" {
 		t.Fatalf("library = %q", got)
 	}
 	if _, err := os.Stat(leftover); !os.IsNotExist(err) {
 		t.Fatal("leftover temp file was kept")
+	}
+}
+
+type flakyWriter struct {
+	failures int
+	written  strings.Builder
+}
+
+func (w *flakyWriter) Write(p []byte) (int, error) {
+	if w.failures > 0 {
+		w.failures--
+		return 0, errors.New("no space left on device")
+	}
+	return w.written.Write(p)
+}
+
+func TestLogCopyResumesAfterAFailedWrite(t *testing.T) {
+	reader, writer := io.Pipe()
+	log := &flakyWriter{failures: 1}
+	done := make(chan error, 1)
+	go func() { done <- copyLossy(log, reader) }()
+	writer.Write([]byte("lost "))
+	writer.Write([]byte("kept"))
+	writer.Close()
+	if err := <-done; err == nil {
+		t.Fatal("the failed write was not reported")
+	}
+	if got := log.written.String(); got != "kept" {
+		t.Fatalf("log = %q", got)
 	}
 }

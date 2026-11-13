@@ -88,12 +88,7 @@ func StartLogCapture() (stop func(), captured bool, err error) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := io.Copy(log, reader)
-		if err != nil {
-			// Without a reader, writes to fds 1 and 2 would block once the
-			// pipe fills, hanging the whole process.
-			_, _ = io.Copy(io.Discard, reader)
-		}
+		err := copyLossy(log, reader)
 		done <- errors.Join(err, log.Close())
 	}()
 	var once sync.Once
@@ -131,7 +126,7 @@ func openRotatingLog(path string) (*rotatingLog, error) {
 	}
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		lock.Close()
-		return nil, fmt.Errorf("another instance is writing to this local log directory; use EVERR_LOCAL_LOG_DIR for a separate instance: %w", err)
+		return nil, busyError{fmt.Errorf("another instance is writing to this local log directory; use EVERR_LOCAL_LOG_DIR for a separate instance: %w", err)}
 	}
 	file, err := openLogFile(path)
 	if err != nil {
@@ -165,6 +160,30 @@ func openRotatingLog(path string) (*rotatingLog, error) {
 		size = maxLogBytes
 	}
 	return &rotatingLog{path: path, file: file, size: size, lock: lock}, nil
+}
+
+// copyLossy copies src to log until EOF, dropping what log fails to write.
+// It never stops reading: once the pipe filled up, writes to fds 1 and 2
+// would block and hang the process. log retries rotating and writing on
+// every call, so logging resumes once the disk has room again. It returns the
+// first write error.
+func copyLossy(log io.Writer, src io.Reader) error {
+	buf := make([]byte, 32*1024)
+	var first error
+	for {
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			if _, err := log.Write(buf[:n]); err != nil && first == nil {
+				first = err
+			}
+		}
+		if readErr == io.EOF {
+			return first
+		}
+		if readErr != nil {
+			return errors.Join(first, readErr)
+		}
+	}
 }
 
 func openLogFile(path string) (*os.File, error) {

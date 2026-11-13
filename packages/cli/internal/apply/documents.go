@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -124,6 +125,8 @@ func yamlToJSON(node *yaml.Node) (any, error) {
 	return yamlScalar(node)
 }
 
+var yaml12Int = regexp.MustCompile(`^[-+]?(?:0|[1-9][0-9]*|0x[0-9a-fA-F]+|0o[0-7]+|0b[01]+)$`)
+
 func yamlScalar(node *yaml.Node) (any, error) {
 	if node.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle|yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
 		return node.Value, nil
@@ -138,6 +141,13 @@ func yamlScalar(node *yaml.Node) (any, error) {
 		}
 		return b, nil
 	case "!!int":
+		// yaml.v3 reads YAML 1.1 integers, where a leading zero means octal
+		// and underscores are separators. The YAML 1.2 core schema the
+		// previous CLI used keeps those as strings, so `zip: 01234` stays
+		// "01234" instead of becoming 668.
+		if !yaml12Int.MatchString(node.Value) {
+			return node.Value, nil
+		}
 		var i int64
 		if node.Decode(&i) == nil {
 			return json.Number(strconv.FormatInt(i, 10)), nil

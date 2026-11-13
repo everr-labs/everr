@@ -222,6 +222,46 @@ func TestDetachedAndForegroundInstancesShareTheFullLifecycle(t *testing.T) {
 	i.assertStopped(t)
 }
 
+func TestConcurrentDetachedStartsBothSucceedWithOneInstance(t *testing.T) {
+	i := newInstance(t)
+	results := make(chan Result, 2)
+	for range 2 {
+		go func() { results <- RunCmd(t, i.Command("local", "start", "-d", "--no-open")) }()
+	}
+	for range 2 {
+		if res := <-results; res.Code != 0 {
+			t.Fatalf("start exited %d: %s", res.Code, res.Stderr)
+		}
+	}
+	i.Run("local", "status").Success(t)
+	i.Run("local", "stop").Success(t)
+	i.assertStopped(t)
+}
+
+func TestStopDuringStartupWaitsForTheInstanceThenStopsIt(t *testing.T) {
+	i := newInstance(t)
+	started := make(chan Result, 1)
+	go func() { started <- RunCmd(t, i.Command("local", "start", "-d", "--no-open")) }()
+	// Stop as soon as the UI answers, which is while the collector still
+	// starts.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if resp, err := http.Get(i.ui + "/health"); err == nil {
+			resp.Body.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("UI never answered")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assertContains(t, i.Run("local", "stop").Success(t).Stdout, "Everr stopped")
+	if res := <-started; res.Code != 0 {
+		t.Fatalf("start exited %d: %s", res.Code, res.Stderr)
+	}
+	i.assertStopped(t)
+}
+
 func TestUnavailableLogDirectoryDoesNotStartASupervisor(t *testing.T) {
 	i := newInstance(t)
 	blocker := filepath.Join(i.data, "not-a-directory")

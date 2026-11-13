@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/everr-labs/everr/packages/cli/internal/assets"
@@ -36,6 +37,12 @@ type server struct {
 	telemetry *internaltelemetry.Config
 	export    *http.Client
 	ui        fs.FS
+	// ready is set once the collector is up. Until then /health reports
+	// "starting" and commands are refused, so clients see a starting
+	// instance instead of a connection that never answers.
+	ready atomic.Bool
+	// stopped is closed when the supervisor loop no longer reads requests.
+	stopped chan struct{}
 }
 
 func newServer(origin, instanceID string, supervisor chan<- supervisorRequest, ui fs.FS, telemetry *internaltelemetry.Config) *server {
@@ -43,6 +50,7 @@ func newServer(origin, instanceID string, supervisor chan<- supervisorRequest, u
 		origin:     origin,
 		identity:   uiIdentity(instanceID),
 		supervisor: supervisor,
+		stopped:    make(chan struct{}),
 		sql:        newSQLClient(build.SQLHTTPOrigin()),
 		telemetry:  telemetry,
 		ui:         ui,
@@ -59,6 +67,17 @@ func newServer(origin, instanceID string, supervisor chan<- supervisorRequest, u
 type localServer struct {
 	listener net.Listener
 	http     *http.Server
+	server   *server
+}
+
+func (s *localServer) setReady() {
+	s.server.ready.Store(true)
+}
+
+// supervisorStopped makes pending and later commands fail at once instead of
+// waiting for a loop that has exited, which would hold up shutdown.
+func (s *localServer) supervisorStopped() {
+	close(s.server.stopped)
 }
 
 func bindServer(instanceID string, supervisor chan<- supervisorRequest) (*localServer, error) {
@@ -79,6 +98,7 @@ func bindServer(instanceID string, supervisor chan<- supervisorRequest) (*localS
 	return &localServer{
 		listener: listener,
 		http:     &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second},
+		server:   s,
 	}, nil
 }
 
@@ -96,6 +116,12 @@ func (s *localServer) shutdown(ctx context.Context) error {
 func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		if !s.ready.Load() {
+			starting := s.identity
+			starting.Status = "starting"
+			writeJSON(w, http.StatusServiceUnavailable, starting)
+			return
+		}
 		writeJSON(w, http.StatusOK, s.identity)
 	})
 	mux.HandleFunc("POST /api/commands/{command}", s.command)
@@ -162,6 +188,10 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) command(w http.ResponseWriter, r *http.Request) {
+	if !s.ready.Load() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Everr is still starting"})
+		return
+	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -169,7 +199,11 @@ func (s *server) command(w http.ResponseWriter, r *http.Request) {
 	}
 	value, err := s.dispatch(r.Context(), r.PathValue("command"), body)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		code := http.StatusBadRequest
+		if errors.As(err, new(supervisorError)) {
+			code = http.StatusInternalServerError
+		}
+		writeJSON(w, code, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, value)
@@ -274,19 +308,30 @@ func (s *server) dispatch(ctx context.Context, command string, args []byte) (any
 	return nil, fmt.Errorf("unknown local command: %s", command)
 }
 
+// supervisorError is a failure on the server's side, like a collector that
+// could not restart, rather than a bad request.
+type supervisorError struct{ error }
+
+func (e supervisorError) Unwrap() error { return e.error }
+
 // ask hands a request to the supervisor loop and waits for its reply.
 func (s *server) ask(ctx context.Context, req supervisorRequest, unavailable, interrupted string) error {
 	req.reply = make(chan error, 1)
 	select {
 	case s.supervisor <- req:
+	case <-s.stopped:
+		return supervisorError{errors.New(unavailable)}
 	case <-ctx.Done():
-		return errors.New(unavailable)
+		return supervisorError{errors.New(unavailable)}
 	}
 	select {
 	case err := <-req.reply:
-		return err
+		if err != nil {
+			return supervisorError{err}
+		}
+		return nil
 	case <-ctx.Done():
-		return errors.New(interrupted)
+		return supervisorError{errors.New(interrupted)}
 	}
 }
 

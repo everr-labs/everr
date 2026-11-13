@@ -19,6 +19,7 @@ import (
 	"github.com/pkg/browser"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
 	"github.com/everr-labs/everr/collector/localcollector"
@@ -92,6 +93,10 @@ func runStart(ctx context.Context, args startArgs, lifetime *Lifetime) error {
 		return err
 	}
 	defer ui.listener.Close()
+	// Serve right away: until setReady, the UI answers as starting rather
+	// than leaving connections hanging while chDB loads.
+	served := make(chan error, 1)
+	go func() { served <- ui.serve() }()
 	library, err := extractChDBLibrary()
 	if err != nil {
 		return fmt.Errorf("extract embedded chDB library: %w", err)
@@ -111,12 +116,11 @@ func runStart(ctx context.Context, args startArgs, lifetime *Lifetime) error {
 	}
 	defer func() { collector.stop() }()
 
+	ui.setReady()
 	if !args.quiet {
 		printStartup()
 	}
 
-	served := make(chan error, 1)
-	go func() { served <- ui.serve() }()
 	signals, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stopSignals()
 	openStartedUI(args)
@@ -146,6 +150,7 @@ loop:
 			fmt.Fprintf(os.Stderr, "Collector stopped: %v. Restart it from the local UI.\n", err)
 		}
 	}
+	ui.supervisorStopped()
 	collector.stop()
 	if stopReply != nil {
 		stopReply <- nil
@@ -163,6 +168,13 @@ func openGateway(library, telemetryDir, instanceID string) (*localcollector.Gate
 	if err := os.MkdirAll(chdbPath, 0o755); err != nil {
 		return nil, fmt.Errorf("create chdb dir %s: %w", chdbPath, err)
 	}
+	// chDB only reports a failed connection; its reason goes to the log.
+	probe, err := os.CreateTemp(chdbPath, ".write-check-*")
+	if err != nil {
+		return nil, fmt.Errorf("chDB data directory %s is not writable: %w", chdbPath, err)
+	}
+	probe.Close()
+	_ = os.Remove(probe.Name())
 	logger, err := zap.NewProduction()
 	if err != nil {
 		return nil, err
@@ -273,8 +285,17 @@ func extractChDBLibrary() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return extractToCache(cacheRoot, zst, digest)
+	library, inUse, err := extractToCache(cacheRoot, zst, digest)
+	if err != nil {
+		return "", err
+	}
+	// Held for the life of the process; closing it would let another build
+	// prune the library this one has loaded.
+	libraryInUse = inUse
+	return library, nil
 }
+
+var libraryInUse *os.File
 
 func libraryCacheRoot() (string, error) {
 	cacheDir, err := os.UserCacheDir()
@@ -293,33 +314,65 @@ func RemoveLibraryCache() error {
 	return os.RemoveAll(cacheRoot)
 }
 
-// extractToCache runs under the local.lock flock, so no other process
-// extracts or loads a library from cacheRoot meanwhile.
-func extractToCache(cacheRoot string, zst []byte, digest string) (string, error) {
+// extractToCache unpacks the library into cacheRoot/digest unless a previous
+// run already did, and prunes libraries of other builds. Builds with
+// separate telemetry locks (`everr` and `everr-dev`) share cacheRoot, so an
+// exclusive lock serializes extraction and pruning. The returned file holds a
+// shared lock on the library that keeps other builds from pruning it.
+func extractToCache(cacheRoot string, zst []byte, digest string) (library string, inUse *os.File, err error) {
+	if err := os.MkdirAll(cacheRoot, 0o755); err != nil {
+		return "", nil, fmt.Errorf("create %s: %w", cacheRoot, err)
+	}
+	extracting, err := lockFile(filepath.Join(cacheRoot, ".extract.lock"), unix.LOCK_EX)
+	if err != nil {
+		return "", nil, err
+	}
+	defer extracting.Close()
+
 	dir := filepath.Join(cacheRoot, digest)
-	library := filepath.Join(dir, "libchdb.so")
+	library = filepath.Join(dir, "libchdb.so")
 	marker := filepath.Join(dir, ".complete")
 	if extracted(marker, library) {
 		if err := os.Chmod(library, 0o644); err != nil {
-			return "", err
+			return "", nil, err
 		}
-		return library, pruneStale(cacheRoot, dir)
+	} else {
+		// Starts over, dropping temp files an interrupted extraction left
+		// behind.
+		if err := os.RemoveAll(dir); err != nil {
+			return "", nil, fmt.Errorf("clear %s: %w", dir, err)
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return "", nil, fmt.Errorf("create %s: %w", dir, err)
+		}
+		size, err := writeDecompressed(zst, library)
+		if err != nil {
+			return "", nil, err
+		}
+		if err := writeSynced(marker, fmt.Appendf(nil, "%s %d\n", digest, size)); err != nil {
+			return "", nil, err
+		}
 	}
-	// Starts over, dropping temp files an interrupted extraction left behind.
-	if err := os.RemoveAll(dir); err != nil {
-		return "", fmt.Errorf("clear %s: %w", dir, err)
+	if inUse, err = lockFile(filepath.Join(dir, ".in-use"), unix.LOCK_SH); err != nil {
+		return "", nil, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("create %s: %w", dir, err)
+	if err := pruneStale(cacheRoot, dir); err != nil {
+		inUse.Close()
+		return "", nil, err
 	}
-	size, err := writeDecompressed(zst, library)
+	return library, inUse, nil
+}
+
+func lockFile(path string, how int) (*os.File, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	if err := writeSynced(marker, fmt.Appendf(nil, "%s %d\n", digest, size)); err != nil {
-		return "", err
+	if err := unix.Flock(int(file.Fd()), how); err != nil {
+		file.Close()
+		return nil, fmt.Errorf("lock %s: %w", path, err)
 	}
-	return library, pruneStale(cacheRoot, dir)
+	return file, nil
 }
 
 // extracted reports whether a previous extraction finished. The marker
@@ -341,7 +394,8 @@ func extracted(marker, library string) bool {
 	return err == nil && info.Mode().IsRegular() && info.Size() == size
 }
 
-// pruneStale removes libraries extracted by other CLI builds.
+// pruneStale removes libraries extracted by other CLI builds, except those a
+// running process still holds.
 func pruneStale(cacheRoot, keep string) error {
 	entries, err := os.ReadDir(cacheRoot)
 	if err != nil {
@@ -352,7 +406,13 @@ func pruneStale(cacheRoot, keep string) error {
 		if path == keep || !entry.IsDir() {
 			continue
 		}
-		if err := os.RemoveAll(path); err != nil {
+		unused, err := lockFile(filepath.Join(path, ".in-use"), unix.LOCK_EX|unix.LOCK_NB)
+		if err != nil {
+			continue
+		}
+		err = os.RemoveAll(path)
+		unused.Close()
+		if err != nil {
 			return fmt.Errorf("remove stale chDB cache %s: %w", path, err)
 		}
 	}

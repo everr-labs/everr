@@ -75,6 +75,15 @@ func TestYAMLKeepsTimestampsAndYAML11BooleansAsStrings(t *testing.T) {
 	}
 }
 
+func TestYAMLKeepsLeadingZeroAndUnderscoreNumbersAsStrings(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "d.yaml", "kind: Dashboard\nzip: 01234\nzero: 000\nsep: 1_000\nhex: 0x1A\noct: 0o17\nneg: -5\n")
+	got := asJSON(t, load(t, dir)[0].Document)
+	if want := `{"hex":26,"kind":"Dashboard","neg":-5,"oct":15,"sep":"1_000","zero":"000","zip":"01234"}`; got != want {
+		t.Errorf("document = %s, want %s", got, want)
+	}
+}
+
 func TestIgnoresNonResourceFiles(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "README.md", "# not a dashboard")
@@ -107,6 +116,20 @@ func TestGitignoreRulesFromTheRepositoryRootApply(t *testing.T) {
 	write(t, dir, "mine.local.yaml", dash)
 	write(t, dir, "keep.local.yaml", dash)
 	if got := paths(load(t, dir)); !reflect.DeepEqual(got, []string{"cpu.yaml", "keep.local.yaml"}) {
+		t.Errorf("paths = %v", got)
+	}
+}
+
+func TestWorktreeUsesTheMainRepositoryExcludeFile(t *testing.T) {
+	main := t.TempDir()
+	write(t, main, ".git/info/exclude", "*.draft.yaml\n")
+	write(t, main, ".git/worktrees/feature/commondir", "../..\n")
+	worktree := t.TempDir()
+	write(t, worktree, ".git", "gitdir: "+filepath.Join(main, ".git", "worktrees", "feature")+"\n")
+	dir := filepath.Join(worktree, "everr")
+	write(t, dir, "cpu.yaml", dash)
+	write(t, dir, "wip.draft.yaml", dash)
+	if got := paths(load(t, dir)); !reflect.DeepEqual(got, []string{"cpu.yaml"}) {
 		t.Errorf("paths = %v", got)
 	}
 }

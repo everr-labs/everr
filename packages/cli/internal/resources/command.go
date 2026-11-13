@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -261,8 +262,10 @@ func jsonToYAML(value any) *yaml.Node {
 	case bool:
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: fmt.Sprint(v)}
 	case json.Number:
+		// An integer literal stays !!int at any size, so the output can be
+		// applied again; yaml.v3 refuses to read a !!float without a fraction.
 		tag := "!!int"
-		if _, err := v.Int64(); err != nil {
+		if strings.ContainsAny(v.String(), ".eE") {
 			tag = "!!float"
 		}
 		return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: v.String()}

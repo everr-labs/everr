@@ -139,7 +139,11 @@ func EnumArg(cmd *cobra.Command, name, raw string, allowed ...string) error {
 	if slices.Contains(allowed, raw) {
 		return nil
 	}
-	return usageErrorf(cmd, "invalid value '%s' for '<%s>'\n  [possible values: %s]", raw, name, strings.Join(allowed, ", "))
+	return &UsageError{
+		Cmd:       cmd,
+		Msg:       fmt.Sprintf("invalid value '%s' for '<%s>'\n  [possible values: %s]", raw, name, strings.Join(allowed, ", ")),
+		HideUsage: true,
+	}
 }
 
 // OptionalUint is a flag whose absence is distinguishable from zero.

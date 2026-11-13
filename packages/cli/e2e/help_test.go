@@ -77,3 +77,24 @@ func TestInvalidFlagValueListsTheAcceptedValues(t *testing.T) {
 		t.Fatalf("stderr = %q", res.Stderr)
 	}
 }
+
+func TestUnexpectedArgumentsAreUsageErrors(t *testing.T) {
+	env := NewEnv(t)
+	for _, args := range [][]string{{"local", "ui", "x"}, {"uninstall", "x"}, {"cloud", "status", "x"}} {
+		res := env.Run(args...).Failure(t, 2)
+		assertContains(t, res.Stderr, "error: unexpected argument 'x' found")
+	}
+}
+
+func TestHelpDescribesItself(t *testing.T) {
+	out := NewEnv(t).Run("help", "help").Success(t).Stdout
+	assertContains(t, out, "Usage: everr help [COMMAND]...", "[COMMAND]...  Print help for the subcommand(s)")
+}
+
+func TestInvalidPositionalValueListsTheAcceptedValues(t *testing.T) {
+	res := NewEnv(t).Run("resources", "show", "nope", "x").Failure(t, 2)
+	want := "error: invalid value 'nope' for '<KIND>'\n  [possible values: dashboard, runbook, alert]\n\nFor more information, try '--help'.\n"
+	if res.Stderr != want {
+		t.Fatalf("stderr = %q", res.Stderr)
+	}
+}

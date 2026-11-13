@@ -7,7 +7,7 @@ import (
 
 func TestShowPrintsDocumentsAsBlockYAMLWithSortedKeys(t *testing.T) {
 	document, err := decodeJSON([]byte(`{"spec":{"layouts":[],"panels":{},"tags":["a","b"],"items":[{"z":1,"a":1.5}]},` +
-		`"kind":"Dashboard","note":"line 1\nline 2","flag":"true","none":null}`))
+		`"kind":"Dashboard","note":"line 1\nline 2","flag":"true","none":null,"big":18446744073709551615}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -15,7 +15,8 @@ func TestShowPrintsDocumentsAsBlockYAMLWithSortedKeys(t *testing.T) {
 	if err := printYAML(&out, document); err != nil {
 		t.Fatal(err)
 	}
-	want := `flag: "true"
+	want := `big: 18446744073709551615
+flag: "true"
 kind: Dashboard
 none: null
 note: |-

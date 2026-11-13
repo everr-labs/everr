@@ -62,9 +62,27 @@ func lockTelemetryDir(telemetryDir string) (*os.File, error) {
 	}
 	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		file.Close()
-		return nil, fmt.Errorf("cannot start Everr: another instance is using this telemetry directory: %w", err)
+		return nil, busyError{fmt.Errorf("cannot start Everr: another instance is using this telemetry directory: %w", err)}
 	}
 	return file, nil
+}
+
+// busyExitCode is the exit status of a background start that lost a lock to
+// another Everr process, so the parent waits for that instance instead.
+const busyExitCode = 3
+
+// busyError marks a lock held by another Everr process.
+type busyError struct{ error }
+
+func (e busyError) Unwrap() error { return e.error }
+
+// ExitCode returns the process exit status for a command that failed with
+// err. A background start that lost a lock exits with busyExitCode.
+func ExitCode(err error, code int) int {
+	if _, background := os.LookupEnv(backgroundInstanceIDEnv); background && errors.As(err, new(busyError)) {
+		return busyExitCode
+	}
+	return code
 }
 
 // startDetached re-runs `local start` in a new session and returns once that
@@ -109,19 +127,26 @@ func startDetached(ctx context.Context) error {
 	go func() { exited <- cmd.Wait() }()
 
 	deadline := time.Now().Add(20 * time.Second)
+	// lost is set when the child exited because a concurrent start holds the
+	// instance's locks; any instance that becomes ready then counts.
+	lost := false
 	var failure string
 	for {
 		status := Inspect(ctx)
-		if identity, ok := status.RunningInstance(); ok && identity.InstanceID == instanceID {
+		if identity, ok := status.RunningInstance(); ok && (identity.InstanceID == instanceID || lost) {
 			return nil
 		}
 		select {
 		case waitErr := <-exited:
-			// A concurrent start may have found an already-ready instance.
-			if _, ok := status.RunningInstance(); ok && waitErr == nil {
+			switch {
+			case waitErr == nil:
+				// It found a running instance, or a concurrent stop ended it.
 				return nil
+			case cmd.ProcessState.ExitCode() == busyExitCode:
+				lost = true
+			default:
+				failure = "background process exited: " + exitDescription(cmd.ProcessState)
 			}
-			failure = "background process exited: " + exitDescription(cmd.ProcessState)
 		default:
 			if time.Now().After(deadline) {
 				failure = "background startup did not become ready"
@@ -169,6 +194,23 @@ func terminate(process *os.Process, exited <-chan error) {
 	}
 }
 
+// waitUntilStarted lets an instance that is still starting finish, so stop
+// can then shut it down.
+func waitUntilStarted(ctx context.Context) (Status, error) {
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		status := Inspect(ctx)
+		if !status.starting() || time.Now().After(deadline) {
+			return status, nil
+		}
+		select {
+		case <-ctx.Done():
+			return status, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
 type stopLocalArgs struct {
 	InstanceID string `json:"instance_id"`
 }
@@ -178,7 +220,10 @@ type stopLocalResponse struct {
 }
 
 func stop(ctx context.Context, w io.Writer) error {
-	status := Inspect(ctx)
+	status, err := waitUntilStarted(ctx)
+	if err != nil {
+		return err
+	}
 	if status.Stopped() {
 		dir, err := build.TelemetryDir()
 		if err != nil {

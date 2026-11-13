@@ -79,6 +79,14 @@ func run(ctx context.Context, argv []string) error {
 	child := exec.Command(command.program, command.args...)
 	child.Stdin = os.Stdin
 	child.Stdout, child.Stderr = stdoutW, stderrW
+	// At a terminal, the child shares wrap's foreground process group so it
+	// gets Ctrl-C and job control directly. Elsewhere it gets its own group:
+	// a signal sent to wrap's group (CI runners, `timeout`, `kill -- -pgid`)
+	// then reaches only wrap, which relays it once.
+	interactive := inTerminalForeground()
+	if !interactive {
+		child.SysProcAttr = ownGroupAttr()
+	}
 	startErr := child.Start()
 	stdoutW.Close()
 	stderrW.Close()
@@ -87,7 +95,7 @@ func run(ctx context.Context, argv []string) error {
 		stderrR.Close()
 		return fmt.Errorf("run wrapped command `%s`: %w", command.display, startErr)
 	}
-	stopRelay := relaySignals(child.Process)
+	stopRelay := relaySignals(child.Process, !interactive)
 	defer stopRelay()
 
 	records := make(chan logRecord, batchSize*4)
@@ -128,12 +136,10 @@ func run(ctx context.Context, argv []string) error {
 }
 
 // relaySignals keeps wrap alive until the child exits so its last logs and
-// exit code are still reported. SIGTERM and SIGHUP are sent to wrap alone, so
-// they are relayed. A SIGINT or SIGQUIT typed at the terminal already reaches
-// the child through the foreground process group, so relaying it would signal
-// the child twice; one sent any other way, like `kill -INT` from a harness,
-// is relayed.
-func relaySignals(process *os.Process) (stop func()) {
+// exit code are still reported. SIGTERM and SIGHUP are always relayed. SIGINT
+// and SIGQUIT are relayed only when the child has its own process group; at a
+// terminal they come from the keyboard and already reached the child.
+func relaySignals(process *os.Process, relayInterrupts bool) (stop func()) {
 	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGHUP)
 	done := make(chan struct{})
@@ -141,7 +147,7 @@ func relaySignals(process *os.Process) (stop func()) {
 		for {
 			select {
 			case sig := <-signals:
-				if sig == syscall.SIGTERM || sig == syscall.SIGHUP || !inTerminalForeground() {
+				if sig == syscall.SIGTERM || sig == syscall.SIGHUP || relayInterrupts {
 					_ = process.Signal(sig)
 				}
 			case <-done:

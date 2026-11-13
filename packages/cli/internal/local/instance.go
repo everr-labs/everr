@@ -83,14 +83,33 @@ type Service struct {
 type Status struct {
 	Collector Service
 	UI        Service
+	// OTLPListening is whether anything accepts connections on the OTLP
+	// port. It tells the OTLP row apart from the SQL one when the collector
+	// is not a running Everr instance.
+	OTLPListening bool
 }
 
 func Inspect(ctx context.Context) Status {
 	uiEndpoint := strings.TrimRight(build.LocalUIOrigin(), "/") + "/health"
 	ui := make(chan Service, 1)
 	go func() { ui <- Probe(ctx, uiEndpoint, uiService) }()
+	otlp := make(chan bool, 1)
+	go func() { otlp <- listening(build.OTLPHTTPOrigin()) }()
 	collector := Probe(ctx, build.HealthcheckEndpoint(), collectorService)
-	return Status{Collector: collector, UI: <-ui}
+	return Status{Collector: collector, UI: <-ui, OTLPListening: <-otlp}
+}
+
+func listening(origin string) bool {
+	address, err := listenAddress(origin)
+	if err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", address, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // RunningInstance returns the collector identity when the collector and UI
@@ -104,6 +123,10 @@ func (s Status) RunningInstance() (Identity, bool) {
 	return Identity{}, false
 }
 
+func (s Status) starting() bool {
+	return s.Collector.State == StateStarting || s.UI.State == StateStarting
+}
+
 func (s Status) Stopped() bool {
 	return s.Collector.State == StateStopped && s.UI.State == StateStopped
 }
@@ -114,23 +137,46 @@ func (s Status) mismatched() bool {
 }
 
 func (s Status) Print(w io.Writer) {
-	for _, row := range []struct {
-		label, origin string
-		service       Service
-	}{
-		{"otlp", build.OTLPHTTPOrigin(), s.Collector},
-		{"sql", build.SQLHTTPOrigin(), s.Collector},
-		{"ui", build.LocalUIOrigin(), s.UI},
+	for _, row := range []struct{ label, value string }{
+		{"otlp", s.otlpRow()},
+		{"sql", s.sqlRow()},
+		{"ui", describe(s.UI, build.LocalUIOrigin())},
 	} {
-		value := row.service.State.Description()
-		if row.service.State == StateRunning {
-			value = row.origin
-		}
-		fmt.Fprintf(w, "%s: %s\n", row.label, value)
+		fmt.Fprintf(w, "%s: %s\n", row.label, row.value)
 	}
 	if s.mismatched() {
 		fmt.Fprintln(w, "instance: collector and UI do not belong to the same Everr instance")
 	}
+}
+
+func describe(service Service, origin string) string {
+	if service.State == StateRunning {
+		return origin
+	}
+	return service.State.Description()
+}
+
+// otlpRow follows the collector while it is a running or starting Everr
+// instance. Otherwise the OTLP port is checked on its own, since the SQL
+// health probe says nothing about it.
+func (s Status) otlpRow() string {
+	switch s.Collector.State {
+	case StateStopped, StateOccupied:
+		if s.OTLPListening {
+			return StateOccupied.Description()
+		}
+		return StateStopped.Description()
+	}
+	return describe(s.Collector, build.OTLPHTTPOrigin())
+}
+
+// sqlRow shows the SQL endpoint as up when it answers as Everr with its
+// pipeline stopped, since queries still work then.
+func (s Status) sqlRow() string {
+	if s.Collector.State == StateStopped && s.Collector.Identity.InstanceID != "" {
+		return build.SQLHTTPOrigin()
+	}
+	return describe(s.Collector, build.SQLHTTPOrigin())
 }
 
 func (s Status) RequireStopped() error {
@@ -139,7 +185,7 @@ func (s Status) RequireStopped() error {
 	}
 	if !s.Stopped() {
 		return fmt.Errorf(
-			"cannot start Everr: collector at %s is %s; local UI at %s is %s. Stop the existing instance or free the occupied address, then retry",
+			"cannot start Everr: collector at %s: %s; local UI at %s: %s. Stop the existing instance or free the occupied address, then retry",
 			build.SQLHTTPOrigin(), s.Collector.State.Description(),
 			build.LocalUIOrigin(), s.UI.State.Description(),
 		)
@@ -195,10 +241,10 @@ func Probe(ctx context.Context, endpoint, service string) Service {
 	case resp.StatusCode == http.StatusOK && identity.Status == "ok":
 		return Service{State: StateRunning, Identity: identity}
 	case resp.StatusCode == http.StatusServiceUnavailable && identity.Status == "starting":
-		return Service{State: StateStarting}
+		return Service{State: StateStarting, Identity: identity}
 	case resp.StatusCode == http.StatusServiceUnavailable && identity.Status == "stopped":
 		// The supervisor is up, but its collector pipeline has exited.
-		return Service{State: StateStopped}
+		return Service{State: StateStopped, Identity: identity}
 	}
 	return Service{State: StateOccupied}
 }

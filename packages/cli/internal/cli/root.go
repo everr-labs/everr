@@ -72,6 +72,11 @@ func configureTree(cmd *cobra.Command) {
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
 	// clap listed flags in declaration order.
 	cmd.Flags().SortFlags = false
+	if validate := cmd.Args; validate != nil && !cmd.HasSubCommands() {
+		cmd.Args = func(c *cobra.Command, args []string) error {
+			return clapArgsError(c, args, validate(c, args))
+		}
+	}
 	if cmd.HasSubCommands() {
 		if cmd.RunE == nil && cmd.Run == nil {
 			cmd.Args = func(c *cobra.Command, args []string) error {
@@ -101,10 +106,13 @@ func configureTree(cmd *cobra.Command) {
 	}
 }
 
+const helpAnnotation = "everr_help"
+
 func newHelpCommand(parent *cobra.Command) *cobra.Command {
-	return &cobra.Command{
-		Use:   "help [COMMAND]...",
-		Short: "Print this message or the help of the given subcommand(s)",
+	help := &cobra.Command{
+		Use:         "help",
+		Short:       "Print this message or the help of the given subcommand(s)",
+		Annotations: map[string]string{helpAnnotation: "true"},
 		RunE: func(c *cobra.Command, args []string) error {
 			target := parent
 			for _, name := range args {
@@ -118,11 +126,19 @@ func newHelpCommand(parent *cobra.Command) *cobra.Command {
 			return nil
 		},
 	}
+	cmdutil.Positionals(help, cmdutil.Arg{Name: "COMMAND", Help: "Print help for the subcommand(s)", Optional: true, Variadic: true})
+	return help
+}
+
+// isHelp reports whether cmd is a `help` subcommand. Like `--help`, it
+// records no command telemetry.
+func isHelp(cmd *cobra.Command) bool {
+	return cmd.Annotations[helpAnnotation] != ""
 }
 
 func findSubcommand(cmd *cobra.Command, name string) *cobra.Command {
 	for _, sub := range cmd.Commands() {
-		if sub.Name() != "help" && (sub.Name() == name || sub.HasAlias(name)) {
+		if sub.Name() == name || sub.HasAlias(name) {
 			return sub
 		}
 	}
@@ -135,7 +151,7 @@ func Main(argv []string) int {
 	stopCapture, captured, err := local.StartLogCapture()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
+		return local.ExitCode(err, 1)
 	}
 	lifetime := &local.Lifetime{}
 	root := NewRoot(lifetime)
@@ -160,6 +176,9 @@ func Main(argv []string) int {
 
 	finish := func(error) {}
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		if isHelp(cmd) {
+			return nil
+		}
 		ctx, done := commandtelemetry.Start(cmd.Context(), cmd, append([]string{cmdutil.RootName}, argv...))
 		finish = done
 		cmd.SetContext(ctx)
@@ -180,7 +199,7 @@ func Main(argv []string) int {
 	lifetime.Release()
 
 	printError(os.Stderr, err)
-	return cmdutil.ExitCode(err)
+	return local.ExitCode(err, cmdutil.ExitCode(err))
 }
 
 func isUpgrade(cmd *cobra.Command) bool {
@@ -207,6 +226,21 @@ func printError(w io.Writer, err error) {
 		return
 	}
 	fmt.Fprintf(w, "Error: %v\n", err)
+}
+
+// clapArgsError turns cobra's argument errors into usage errors worded like
+// clap's, which exit with status 2.
+func clapArgsError(cmd *cobra.Command, args []string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := errors.AsType[*cmdutil.UsageError](err); ok {
+		return err
+	}
+	if strings.HasPrefix(err.Error(), "unknown command") && len(args) > 0 {
+		return cmdutil.UsageErrorf(cmd, "unexpected argument '%s' found", args[0])
+	}
+	return cmdutil.UsageErrorf(cmd, "%s", err)
 }
 
 // clapFlagError rewords pflag's unknown-flag errors the way clap reported

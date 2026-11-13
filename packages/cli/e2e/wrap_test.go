@@ -229,6 +229,33 @@ func TestWrapRelaysInterruptSentToItAlone(t *testing.T) {
 	}
 }
 
+func TestWrapDeliversAGroupInterruptToTheChildOnce(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	// The child counts the interrupts it gets for two seconds, then exits
+	// with that count.
+	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "perl", "-e",
+		`$n = 0; $SIG{INT} = sub { $n++ }; $| = 1; print "ready\n"; select(undef, undef, undef, 0.1) for 1 .. 20; exit $n`)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bufio.NewReader(stdout).ReadString('\n'); err != nil {
+		t.Fatal(err)
+	}
+	// Like a CI runner or `timeout -s INT`, signal wrap's whole group.
+	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	if code := cmd.ProcessState.ExitCode(); code != 1 {
+		t.Fatalf("child received %d interrupts, want 1", code)
+	}
+}
+
 func TestWrapRefusesToRunWhenCollectorIsUnavailable(t *testing.T) {
 	res := collectorEnv(t, "http://127.0.0.1:9").Run("wrap", "--", "sh", "-c", "printf 'should not run\\n'").Failure(t, 2)
 	if res.Stdout != "" {

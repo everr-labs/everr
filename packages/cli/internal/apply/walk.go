@@ -178,11 +178,45 @@ func loadLevel(dir string) (ignoreLevel, error) {
 	}
 	if _, statErr := os.Stat(filepath.Join(dir, ".git")); statErr == nil {
 		level.hasGit = true
-		if level.exclude, err = readIgnoreFile(dir, filepath.Join(dir, ".git", "info", "exclude")); err != nil {
+		if level.exclude, err = readIgnoreFile(dir, filepath.Join(gitCommonDir(dir), "info", "exclude")); err != nil {
 			return level, err
 		}
 	}
 	return level, nil
+}
+
+// gitCommonDir returns the directory holding the repository's shared files,
+// like info/exclude. In a worktree or submodule, .git is a file pointing at
+// the real git directory, and a worktree's git directory points further at
+// the main repository's through its commondir file.
+func gitCommonDir(dir string) string {
+	gitDir := filepath.Join(dir, ".git")
+	if info, err := os.Stat(gitDir); err != nil || info.IsDir() {
+		return gitDir
+	}
+	if target, ok := readGitPointer(filepath.Join(dir, ".git"), "gitdir:"); ok {
+		gitDir = resolveFrom(dir, target)
+	}
+	if common, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		return resolveFrom(gitDir, strings.TrimSpace(string(common)))
+	}
+	return gitDir
+}
+
+func readGitPointer(path, prefix string) (string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), prefix)
+	return strings.TrimSpace(target), ok
+}
+
+func resolveFrom(base, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(base, path)
 }
 
 // matchLevels checks levels from the deepest directory outwards. `.ignore`
