@@ -285,6 +285,8 @@ func extractChDBLibrary() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Best effort: a leftover only wastes disk space.
+	_ = os.RemoveAll(legacyCollectorAssets(cacheRoot))
 	library, inUse, err := extractToCache(cacheRoot, zst, digest)
 	if err != nil {
 		return "", err
@@ -305,13 +307,20 @@ func libraryCacheRoot() (string, error) {
 	return filepath.Join(cacheDir, build.SessionNamespace, "chdb-library"), nil
 }
 
-// RemoveLibraryCache deletes every libchdb extracted by `everr local start`.
+// legacyCollectorAssets is where the Rust CLI unpacked its collector binary
+// and libchdb (about 380 MB). Nothing reads it any more.
+func legacyCollectorAssets(cacheRoot string) string {
+	return filepath.Join(filepath.Dir(cacheRoot), "collector-assets")
+}
+
+// RemoveLibraryCache deletes every libchdb extracted by `everr local start`,
+// and what the Rust CLI extracted before it.
 func RemoveLibraryCache() error {
 	cacheRoot, err := libraryCacheRoot()
 	if err != nil {
 		return err
 	}
-	return os.RemoveAll(cacheRoot)
+	return errors.Join(os.RemoveAll(cacheRoot), os.RemoveAll(legacyCollectorAssets(cacheRoot)))
 }
 
 // extractToCache unpacks the library into cacheRoot/digest unless a previous

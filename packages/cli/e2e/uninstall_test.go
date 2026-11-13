@@ -22,6 +22,14 @@ func TestUninstallWipesTheSessionAndChDBCacheAndExplainsHowToRemoveTheBinary(t *
 	if err := os.WriteFile(library, []byte("lib"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// What the Rust CLI extracted before.
+	legacy := filepath.Join(cacheDir, "everr", "collector-assets", "digest", "libchdb.so")
+	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legacy, []byte("lib"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cmd := env.Command("uninstall")
 	cmd.Stdin = strings.NewReader("\n")
 	res := RunCmd(t, cmd).Success(t)
@@ -29,7 +37,9 @@ func TestUninstallWipesTheSessionAndChDBCacheAndExplainsHowToRemoveTheBinary(t *
 	if _, err := os.Stat(env.SessionPath()); !os.IsNotExist(err) {
 		t.Fatalf("session file still exists: %v", err)
 	}
-	if _, err := os.Stat(filepath.Dir(library)); !os.IsNotExist(err) {
-		t.Fatalf("extracted chDB library still exists: %v", err)
+	for _, path := range []string{library, legacy} {
+		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+			t.Fatalf("extracted chDB library %s still exists: %v", path, err)
+		}
 	}
 }
