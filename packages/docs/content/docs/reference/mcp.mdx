@@ -15,6 +15,35 @@ Everr exposes a read-only [MCP](https://modelcontextprotocol.io) server so AI cl
 | Transport | Streamable HTTP             |
 | Auth      | OAuth 2.1                   |
 
+## Tools
+
+Both tools are read-only.
+
+### `query`
+
+Runs one read-only ClickHouse SQL query (`SELECT`, `WITH`, `DESCRIBE`, `SHOW`, or `EXPLAIN`) over your organization's traces, logs, metrics, CI runs, and alert history. Queries only see your organization's data, so they never filter on a tenant.
+
+| Input | Type   | Description          |
+| ----- | ------ | -------------------- |
+| `sql` | string | The query, required. |
+
+The result is ClickHouse's `JSONCompactEachRowWithNamesAndTypes`: a line of column names, a line of column types, then one JSON array per row. It holds at most 200 rows and about 60,000 characters, values longer than 2,000 characters are cut, and queries time out after 30 seconds. The tool's description carries the table schema and starter queries, the same ones as the `everr-use-telemetry` [skill](/docs/reference/skills).
+
+### `whoami`
+
+Returns the Everr user and the organization the connection is authorized for. It takes no input.
+
+## Authorization
+
+Clients find the authorization server from the OAuth protected resource metadata (RFC 9728) at `https://app.everr.dev/.well-known/oauth-protected-resource`, and register themselves with dynamic client registration.
+
+| Scope                | Grants                                         |
+| -------------------- | ---------------------------------------------- |
+| `observability:read` | Running the tools, required                    |
+| `offline_access`     | A refresh token, so the client stays connected |
+
+You pick the organization on the consent screen, and the access token works for that organization only. Removing someone from the organization revokes their access on their next request.
+
 ## Connecting a client
 
 **Claude Code**
