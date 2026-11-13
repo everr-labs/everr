@@ -58,13 +58,19 @@ function StatItem({
   );
 }
 
+// A draft's page is a 404: its share image is too
+function publishedPost(slug: string) {
+  const page = devlogposts.getPage([slug]);
+  return page && !page.data.draft ? page : undefined;
+}
+
 export const Route = createFileRoute("/api/og/devlog/$slug")({
   server: {
     handlers: {
       HEAD: ({ params: { slug } }) =>
-        devlogposts.getPage([slug]) ? shareImageHead() : new Response(undefined, { status: 404 }),
+        publishedPost(slug) ? shareImageHead() : new Response(undefined, { status: 404 }),
       GET: async ({ params: { slug } }) => {
-        const page = devlogposts.getPage([slug]);
+        const page = publishedPost(slug);
 
         if (!page) {
           return new Response(undefined, { status: 404 });
