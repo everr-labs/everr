@@ -29,6 +29,14 @@ process-compose -U -u .dev/pc.sock down
 
 The socket lives under `DEV_STATE_DIR` when that directory is overridden, so verification runs have their own control socket. The control API does not use a TCP port.
 
+## Development account
+
+Before App and Cloud start, `seed-app` and `seed-cloud` run each product's migrations and create a development account: `dev@everr.local` with the password `everr-dev-password`, printed when the stack is ready. Set `EVERR_DEV_EMAIL` and `EVERR_DEV_PASSWORD` before `pnpm dev` to use other credentials. An existing account with that email is reused and its password is left unchanged, so pointing `EVERR_DEV_EMAIL` at an account you already own also works. In App, the account owns the single workspace, so the seed fails if the workspace already belongs to someone else.
+
+The seed marks onboarding as complete and creates two ingest keys in the account's organization: a server key and a public browser key bound to the application's origin. It writes them, with the matching ingest URL, to `.dev/seed/app.env` and `.dev/seed/cloud.env`. Each application loads its file at startup, so App and Cloud send their own traces, metrics, logs and browser telemetry to their own collectors and show up in their own UI. Values in these files take precedence over the package `.env`. Later runs reuse the account and the stored keys, and replace a key only when it no longer verifies, for example after the databases are reset.
+
+`EVERR_DEV_SEED=0` skips the seed. It does not clear anything: existing databases keep their accounts and data. The verification helper sets it, because each run starts on its own fresh databases and its recipes begin with sign-up and installation setup.
+
 ## What starts
 
 Process Compose runs App, Cloud, and one native collector for each application. Each collector handles public OTLP/HTTP, OTLP/gRPC, and signed GitHub replay on separate listeners. The existing Make targets build both the cloud and self-hosted collector distributions for the host. Docker runs PostgreSQL and a separate ClickHouse container for each application.

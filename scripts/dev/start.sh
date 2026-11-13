@@ -39,6 +39,8 @@ sha256() {
 }
 COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-dev-$(printf %s "$DEV_ROOT" | sha256 | cut -c 1-12)}"
 export COMPOSE_PROJECT_NAME
+export EVERR_DEV_EMAIL="${EVERR_DEV_EMAIL:-dev@everr.local}"
+export EVERR_DEV_PASSWORD="${EVERR_DEV_PASSWORD:-everr-dev-password}"
 export DEV_APP_NAME="${DEV_APP_NAME:-app}"
 export DEV_CLOUD_NAME="${DEV_CLOUD_NAME:-app-cloud}"
 export DEV_APP_INGEST_NAME="${DEV_APP_INGEST_NAME:-app-ingest}"

@@ -396,7 +396,7 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   snapshotCollectors(w);
   const otlp = "http://127.0.0.1:9";
   const env = { ...process.env, ...vars, DEV_STATE_DIR: path.join(dir, "state"), COMPOSE_PROJECT_NAME: vars.WEB_PROJECT,
-    OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "" };
+    OTEL_EXPORTER_OTLP_ENDPOINT: otlp, VITE_EVERR_INGEST_ENDPOINT: otlp, EVERR_INGEST_KEY: "", EVERR_DEV_SEED: "0" };
   const log = path.join(dir, "web.log"), logFd = openSync(log, "w");
   const args = ["dev"];
   const ready = phase("web-launch/ready");
