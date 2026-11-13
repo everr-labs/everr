@@ -49,11 +49,13 @@ import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/stat
 import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
+import { Route as ApiCliRecordingsSessionsSessionIdRouteImport } from './routes/api/cli/recordings/sessions/$sessionId'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs'
+import { Route as ApiCliRecordingsSessionsSessionIdPageRouteImport } from './routes/api/cli/recordings/sessions/$sessionId/page'
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
@@ -301,6 +303,12 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedRoute =
     id: '/_provisioned',
     getParentRoute: () => AuthenticatedOrganizationDashboardAppAccessRoute,
   } as any)
+const ApiCliRecordingsSessionsSessionIdRoute =
+  ApiCliRecordingsSessionsSessionIdRouteImport.update({
+    id: '/recordings/sessions/$sessionId',
+    path: '/recordings/sessions/$sessionId',
+    getParentRoute: () => ApiCliRoute,
+  } as any)
 const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -336,6 +344,12 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRoute =
     path: '/runs',
     getParentRoute: () =>
       AuthenticatedOrganizationDashboardAppAccessProvisionedRoute,
+  } as any)
+const ApiCliRecordingsSessionsSessionIdPageRoute =
+  ApiCliRecordingsSessionsSessionIdPageRouteImport.update({
+    id: '/page',
+    path: '/page',
+    getParentRoute: () => ApiCliRecordingsSessionsSessionIdRoute,
   } as any)
 const ApiCliResourcesKindProjectSlugRoute =
   ApiCliResourcesKindProjectSlugRouteImport.update({
@@ -723,8 +737,10 @@ export interface FileRoutesByFullPath {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
@@ -796,7 +812,9 @@ export interface FileRoutesByTo {
   '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
@@ -872,11 +890,13 @@ export interface FileRoutesById {
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren
+  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
+  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
@@ -952,8 +972,10 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/runs/$traceId/logs'
     | '/runs'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/dashboards'
     | '/runbooks'
@@ -1025,7 +1047,9 @@ export interface FileRouteTypes {
     | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/runs/$traceId/logs'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/errors'
     | '/logs'
@@ -1100,11 +1124,13 @@ export interface FileRouteTypes {
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
+    | '/api/cli/recordings/sessions/$sessionId'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs'
+    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks'
@@ -1447,6 +1473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessRoute
     }
+    '/api/cli/recordings/sessions/$sessionId': {
+      id: '/api/cli/recordings/sessions/$sessionId'
+      path: '/recordings/sessions/$sessionId'
+      fullPath: '/api/cli/recordings/sessions/$sessionId'
+      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
     '/api/cli/runs/$traceId/logs': {
       id: '/api/cli/runs/$traceId/logs'
       path: '/logs'
@@ -1481,6 +1514,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/runs'
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRoute
+    }
+    '/api/cli/recordings/sessions/$sessionId/page': {
+      id: '/api/cli/recordings/sessions/$sessionId/page'
+      path: '/page'
+      fullPath: '/api/cli/recordings/sessions/$sessionId/page'
+      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdPageRouteImport
+      parentRoute: typeof ApiCliRecordingsSessionsSessionIdRoute
     }
     '/api/cli/resources/$kind/$project/$slug': {
       id: '/api/cli/resources/$kind/$project/$slug'
@@ -2260,11 +2300,27 @@ const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
   ApiCliRunsRouteChildren,
 )
 
+interface ApiCliRecordingsSessionsSessionIdRouteChildren {
+  ApiCliRecordingsSessionsSessionIdPageRoute: typeof ApiCliRecordingsSessionsSessionIdPageRoute
+}
+
+const ApiCliRecordingsSessionsSessionIdRouteChildren: ApiCliRecordingsSessionsSessionIdRouteChildren =
+  {
+    ApiCliRecordingsSessionsSessionIdPageRoute:
+      ApiCliRecordingsSessionsSessionIdPageRoute,
+  }
+
+const ApiCliRecordingsSessionsSessionIdRouteWithChildren =
+  ApiCliRecordingsSessionsSessionIdRoute._addFileChildren(
+    ApiCliRecordingsSessionsSessionIdRouteChildren,
+  )
+
 interface ApiCliRouteChildren {
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
+  ApiCliRecordingsSessionsSessionIdRoute: typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
@@ -2272,6 +2328,8 @@ const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
+  ApiCliRecordingsSessionsSessionIdRoute:
+    ApiCliRecordingsSessionsSessionIdRouteWithChildren,
 }
 
 const ApiCliRouteWithChildren =

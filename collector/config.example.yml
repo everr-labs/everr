@@ -3,6 +3,13 @@ extensions:
     directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}
     create_directory: true
     fsync: true
+  # Recording Segments queue apart from the ordinary telemetry, under the same
+  # volume. Its exporter caps the queue at 500 requests (one Segment each, at
+  # most about 2 MB), so a ClickHouse stall cannot fill the disk that logs use.
+  file_storage/recordings:
+    directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}/recordings
+    create_directory: true
+    fsync: true
   everr_usage:
     max_series: 30000
   # Authenticates public OTLP ingest by exchanging a Bearer key with the
@@ -16,6 +23,15 @@ connectors:
   everr_usage_connector:
     interval: 60s
     timeout: 10s
+  # After usage metering: Segments leave the ordinary logs insert. Move, not
+  # copy. error_mode propagate so a broken condition fails the batch instead
+  # of sliding Segments into logs/telemetry.
+  routing:
+    default_pipelines: [logs/telemetry]
+    error_mode: propagate
+    table:
+      - condition: log.event_name == "everr.browser.recording.segment"
+        pipelines: [logs/recordings]
 
 receivers:
   githubactions:
@@ -188,8 +204,37 @@ exporters:
     retry_on_failure:
       enabled: true
       max_elapsed_time: 0s
+  # Recording Segments: own queue and a 16-item batch (~15 MB of ~950 KB bodies).
+  # Writes app.recordings directly (MATERIALIZED tenant/ids). create_schema false.
+  clickhouse/recordings:
+    endpoint: http://clickhouse:8123
+    username: collector_rw
+    password: collector-dev
+    database: app
+    logs_table_name: recordings
+    create_schema: false
+    connection_params:
+      wait_for_async_insert: "1"
+    json: true
+    sending_queue:
+      enabled: true
+      storage: file_storage/recordings
+      wait_for_result: false
+      # One request is one Segment. A full queue refuses new Segments, and the
+      # browser tries them again; ordinary logs never share this queue.
+      queue_size: 500
+      num_consumers: 10
+      sizer: requests
+      batch:
+        sizer: items
+        min_size: 16
+        max_size: 16
+        flush_timeout: 1s
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 0s
 service:
-  extensions: [everr_apikey, everr_usage, file_storage/ingestion]
+  extensions: [everr_apikey, everr_usage, file_storage/ingestion, file_storage/recordings]
   pipelines:
     metrics/usage:
       receivers: [everr_usage_connector]
@@ -218,7 +263,7 @@ service:
     logs:
       receivers: [githubactions]
       processors: [resource, resource/retention_logs, everr_usage]
-      exporters: [clickhouse, everr_usage_connector]
+      exporters: [routing, everr_usage_connector]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
     # Must NOT share the `resource` processor with the internal pipelines:
@@ -254,4 +299,13 @@ service:
           resource/public_retention_logs,
           everr_usage,
         ]
-      exporters: [clickhouse, everr_usage_connector]
+      exporters: [routing, everr_usage_connector]
+
+    # Receiving pipelines after the routing connector. No processors: metering
+    # already ran on the ingress pipeline.
+    logs/telemetry:
+      receivers: [routing]
+      exporters: [clickhouse]
+    logs/recordings:
+      receivers: [routing]
+      exporters: [clickhouse/recordings]

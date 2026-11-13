@@ -30,6 +30,7 @@ Use `everr cloud status --json` when diagnosing a connection or resolving the re
 | What alerts fired, why, and whether the notification went out                | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"`                         |
 | Current CI run, branch status, failed jobs, workflow logs                    | Use the `everr-working-with-ci` skill                                                   |
 | Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
+| Session recording journey or page HTML at a time (Cloud)                     | `/api/cli/recordings/sessions/...`. Do not `SELECT Body` of recording segments.         |
 | Missing or stale local telemetry                                             | Use the `everr-setup-telemetry` skill                                                   |
 
 If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally**: if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
@@ -69,6 +70,7 @@ When a local query fails, always run `everr local status` to diagnose the collec
 | Mistake                                                                 | Fix                                                                                                            |
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with `--format`. Express query filters in SQL. |
+| Selecting `Body` of `everr.browser.recording.segment`                   | Use the `/api/cli/recordings/sessions/...` routes. Segment bodies are not on the SQL API.                      |
 | Writing queries without a time window                                   | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`.                                                 |
 | Writing remote queries without LIMIT                                    | Remote queries fail past their result cap (see Schema And Queries). Always include `LIMIT`.                    |
 | Assuming attribute names without discovering them                       | List the keys first (see `rules/schema.md`). Conventions vary.                                                 |

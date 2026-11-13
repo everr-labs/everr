@@ -48,3 +48,4 @@ replaces:
 
 connectors:
   - gomod: github.com/everr-labs/everr/collector/connector/everrusageconnector v0.160.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.160.0
