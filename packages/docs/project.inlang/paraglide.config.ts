@@ -1,7 +1,8 @@
 import { defineConfig } from "@inlang/paraglide-js";
+import { TRANSLATED_PATHS } from "../src/lib/translated";
 
-// Only the landing and pricing pages are translated. Everything else, the
-// docs and the devlog included, has one English URL.
+// The translated pages get an Italian URL. Everything else, the docs and the devlog
+// included, has one English URL
 export default defineConfig({
   outdir: "./src/paraglide",
   outputStructure: "message-modules",
@@ -10,20 +11,13 @@ export default defineConfig({
   // /it/ is the same page as /it
   trailingSlash: "never",
   urlPatterns: [
-    {
-      pattern: "/",
+    ...Object.entries(TRANSLATED_PATHS).map(([pattern, italian]) => ({
+      pattern,
       localized: [
-        ["it", "/it"],
-        ["en", "/"],
-      ],
-    },
-    {
-      pattern: "/pricing",
-      localized: [
-        ["it", "/it/pricing"],
-        ["en", "/pricing"],
-      ],
-    },
+        ["it", italian],
+        ["en", pattern],
+      ] satisfies [string, string][],
+    })),
     {
       pattern: "/:path(.*)?",
       localized: [

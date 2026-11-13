@@ -1,3 +1,4 @@
+import type * as McpHandler from "mcp-handler";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +12,7 @@ vi.mock("mcp-handler", () => ({
   withMcpAuth: mocks.withMcpAuth,
 }));
 vi.mock("#app/lib/mcp-resource.ts", () => ({
+  AUTH_BASE: "http://localhost:3000",
   AUTH_ISSUER: "http://localhost:3000/api/auth",
   MCP_RESOURCE: "http://localhost:3000/mcp",
 }));
@@ -84,6 +86,28 @@ describe("MCP transport lifecycle", () => {
       expect(mocks.transport).toHaveBeenCalledTimes(2);
     },
   );
+
+  it("points the auth challenge at BETTER_AUTH_URL, not the forwarded headers", async () => {
+    const actual = await vi.importActual<typeof McpHandler>("mcp-handler");
+    mocks.withMcpAuth.mockImplementation(actual.withMcpAuth);
+    const { Route } = await import("./$");
+    const handlers = Route.options.server?.handlers;
+    if (!handlers || typeof handlers === "function") throw new Error("Missing handlers");
+
+    const response = await handlers.POST?.({
+      request: new Request("http://localhost:3000/mcp", {
+        method: "POST",
+        headers: { "x-forwarded-host": "attacker.example", "x-forwarded-proto": "https" },
+      }),
+    } as never);
+    if (!(response instanceof Response)) throw new Error("Expected a response");
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toContain(
+      'resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"',
+    );
+    expect(mocks.transport).not.toHaveBeenCalled();
+  });
 
   it("surfaces runtime initialization failures when the module loads", async () => {
     mocks.createMcpHandler.mockImplementationOnce(() => {

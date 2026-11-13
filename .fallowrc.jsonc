@@ -23,6 +23,9 @@
     ".github/actions/everr-action/scripts/build-readme.mjs",
     ".github/actions/everr-action/scripts/sampler-macos.mjs",
     "packages/app/scripts/check-clickhouse-migrations.ts",
+    // Nitro detects server.ts at the Vite root as its server entry (srvx options).
+    "packages/app/server.ts",
+    "packages/docs/server.ts",
     // Nitro scans these folders as file-based server entry points for docs.
     "packages/docs/middleware/**/*.{ts,tsx}",
     "packages/docs/routes/**/*.{ts,tsx}",

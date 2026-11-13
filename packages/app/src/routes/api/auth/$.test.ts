@@ -30,9 +30,7 @@ describe("/api/auth/$ route", () => {
       request: new Request("http://localhost:5173/api/auth/error?error=email_doesn%27t_match"),
     });
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe(
-      "http://localhost:5173/auth/error?error=email_doesn%27t_match",
-    );
+    expect(response.headers.get("Location")).toBe("/auth/error?error=email_doesn%27t_match");
     expect(mocks.handler).not.toHaveBeenCalled();
   });
 

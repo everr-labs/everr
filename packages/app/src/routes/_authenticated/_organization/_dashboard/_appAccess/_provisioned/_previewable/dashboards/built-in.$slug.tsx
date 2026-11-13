@@ -1,19 +1,10 @@
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
-import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { Info } from "lucide-react";
+import { createFileRoute, Link, notFound, Outlet } from "@tanstack/react-router";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
-import { CreateFromBuiltin } from "#app/components/dashboards/create-from-builtin.tsx";
 import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.css?url";
-import { DashboardGrid } from "#app/components/dashboards/dashboard-grid.tsx";
 import { DashboardNotFound } from "#app/components/dashboards/dashboard-not-found.tsx";
-import { InstrumentFromBuiltin } from "#app/components/dashboards/instrument-from-builtin.tsx";
 import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
-import { evaluateBuiltin } from "#app/data/dashboards/built-in/capabilities.ts";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
-import { telemetryCapabilitiesOptions } from "#app/data/dashboards/options.ts";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 export const Route = createFileRoute(
@@ -40,7 +31,7 @@ export const Route = createFileRoute(
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
     };
   },
-  component: BuiltinDashboardPage,
+  component: BuiltinDashboardLayout,
   notFoundComponent: DashboardNotFound,
   head: () => ({
     meta: [{ title: "Everr - Built-in dashboard" }],
@@ -52,58 +43,18 @@ export const Route = createFileRoute(
 });
 
 /**
- * A Built-in dashboard is fully live and read-only: the real renderer on the
- * catalog document, never materialized per Organization. The only create
- * action is the assistant handoff (ADR 0004).
+ * Layout for the grid (index) and the maximized-panel page below it: both draw
+ * the same catalog document, so the loader, the time defaults and the provider
+ * live here once.
  */
-function BuiltinDashboardPage() {
+function BuiltinDashboardLayout() {
   const { slug } = Route.useParams();
   const builtin = getBuiltinDashboard(slug);
-  // Same fixed-window probe as the rail's ready/needs-data grouping (and the
-  // same query cache entry), so this page can never call a dashboard unready
-  // while the list files it under ready, or the other way around. The
-  // on-screen range only affects what the panels draw.
-  const capabilities = useQuery(
-    telemetryCapabilitiesOptions(DEFAULT_TIME_RANGE.from, DEFAULT_TIME_RANGE.to),
-  ).data;
   // The loader already 404s unknown slugs; this only narrows the type.
   if (!builtin) throw notFound();
-
-  const readiness = capabilities ? evaluateBuiltin(builtin, capabilities) : null;
-  const needsSetup = readiness?.status === "needs-setup" ? readiness : null;
-
-  const notice = needsSetup && (
-    <div
-      role="status"
-      className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
-    >
-      <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        Nothing sent in the last 7 days:{" "}
-        <span className="font-mono text-foreground/90">{needsSetup.missing.join(", ")}</span>. The
-        panels fill in on their own once that telemetry arrives.
-      </p>
-    </div>
-  );
-
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* No header of its own: the list row and breadcrumb already name the
-          built-in, so the page is the grid, and the action sits in the
-          variable toolbar like any other dashboard control. Fork when ready,
-          instrumentation prompt when data is missing. */}
-      <DashboardProvider document={builtin.document}>
-        <DashboardGrid
-          notice={notice}
-          actions={
-            needsSetup ? (
-              <InstrumentFromBuiltin name={builtin.name} missing={needsSetup.missing} />
-            ) : (
-              <CreateFromBuiltin slug={builtin.id} name={builtin.name} />
-            )
-          }
-        />
-      </DashboardProvider>
-    </div>
+    <DashboardProvider document={builtin.document}>
+      <Outlet />
+    </DashboardProvider>
   );
 }

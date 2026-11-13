@@ -6,13 +6,15 @@ import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { getGithubConfiguration } from "./configuration";
 
-function redirectToGithub(origin: string, status: string, reason?: string): Response {
-  const url = new URL("/github", origin);
-  url.searchParams.set("github_install", status);
+// A relative Location: the request URL's origin depends on whether the server
+// trusts the proxy's forwarded headers, and the browser resolves this against the
+// page it actually loaded
+function redirectToGithub(status: string, reason?: string): Response {
+  const search = new URLSearchParams({ github_install: status });
   if (reason) {
-    url.searchParams.set("reason", reason);
+    search.set("reason", reason);
   }
-  return Response.redirect(url.toString(), 302);
+  return new Response(null, { status: 302, headers: { Location: `/github?${search}` } });
 }
 
 export async function handleInstallCallback(request: Request): Promise<Response> {
@@ -22,30 +24,30 @@ export async function handleInstallCallback(request: Request): Promise<Response>
   const installationIdParam = callbackURL.searchParams.get("installation_id");
   const state = callbackURL.searchParams.get("state");
   if (!installationIdParam || !state) {
-    return redirectToGithub(callbackURL.origin, "error", "missing_params");
+    return redirectToGithub("error", "missing_params");
   }
 
   const installationId = Number(installationIdParam);
   if (!Number.isSafeInteger(installationId) || installationId <= 0) {
-    return redirectToGithub(callbackURL.origin, "error", "invalid_installation_id");
+    return redirectToGithub("error", "invalid_installation_id");
   }
 
   const session = await getSession({
     headers: request.headers,
   });
   if (!session?.user) {
-    return redirectToGithub(callbackURL.origin, "error", "unauthenticated");
+    return redirectToGithub("error", "unauthenticated");
   }
 
   let parsedState: { organizationId: string; userId: string };
   try {
     parsedState = parseInstallState(state);
   } catch {
-    return redirectToGithub(callbackURL.origin, "error", "invalid_state");
+    return redirectToGithub("error", "invalid_state");
   }
 
   if (parsedState.userId !== session.user.id) {
-    return redirectToGithub(callbackURL.origin, "error", "state_user_mismatch");
+    return redirectToGithub("error", "state_user_mismatch");
   }
 
   const [currentMembership] = await db
@@ -59,10 +61,10 @@ export async function handleInstallCallback(request: Request): Promise<Response>
     )
     .limit(1);
   if (!currentMembership) {
-    return redirectToGithub(callbackURL.origin, "error", "membership_missing");
+    return redirectToGithub("error", "membership_missing");
   }
   if (!isOrganizationAdmin(currentMembership.role)) {
-    return redirectToGithub(callbackURL.origin, "error", "not_authorized");
+    return redirectToGithub("error", "not_authorized");
   }
 
   try {
@@ -77,7 +79,7 @@ export async function handleInstallCallback(request: Request): Promise<Response>
 
     if (existing) {
       if (existing.organizationId !== parsedState.organizationId) {
-        return redirectToGithub(callbackURL.origin, "error", "already_linked");
+        return redirectToGithub("error", "already_linked");
       }
 
       await db
@@ -100,7 +102,7 @@ export async function handleInstallCallback(request: Request): Promise<Response>
       });
     }
   } catch {
-    return redirectToGithub(callbackURL.origin, "error", "link_failed");
+    return redirectToGithub("error", "link_failed");
   }
 
   // The installation runs in a popup. The originating GitHub page polls

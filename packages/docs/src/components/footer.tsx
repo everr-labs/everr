@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
-import { DISCORD_URL } from "@/constants";
+import { DISCORD_URL, GITHUB_URL, LINKEDIN_URL, SIGN_UP_URL, X_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 export function Footer() {
@@ -41,7 +41,7 @@ export function Footer() {
 function FooterDirectory() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
-      <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-4 md:text-left">
+      <div className="grid grid-cols-2 gap-8 text-center md:grid-cols-5 md:text-left">
         {/* Brand */}
         <div className="col-span-2 mb-4 md:col-span-2 md:mb-0">
           <span className="flex w-full items-center justify-center gap-0.5 font-heading text-3xl font-semibold sm:justify-start">
@@ -56,7 +56,7 @@ function FooterDirectory() {
           <p className="mt-4 text-sm text-fd-muted-foreground">Observability made simple.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
-              href="https://x.com/everrlabs"
+              href={X_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -66,7 +66,7 @@ function FooterDirectory() {
             </a>
             {/** oxlint-disable-next-line jsx-a11y/control-has-associated-label -- LinkedIn icon */}
             <a
-              href="https://www.linkedin.com/company/everr-labs"
+              href={LINKEDIN_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -77,7 +77,7 @@ function FooterDirectory() {
               </svg>
             </a>
             <a
-              href="https://github.com/everr-labs/everr"
+              href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -86,7 +86,7 @@ function FooterDirectory() {
               <SiGithub className="size-5" />
             </a>
             <a
-              href="https://discord.gg/hd6yYDjAuw"
+              href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -133,7 +133,7 @@ function FooterDirectory() {
             </li>
             <li>
               <a
-                href="https://app.everr.dev/auth/sign-up"
+                href={SIGN_UP_URL}
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
                 {m.get_started()}
@@ -157,13 +157,37 @@ function FooterDirectory() {
             </li>
             <li>
               <a
-                href="https://discord.gg/hd6yYDjAuw"
+                href={DISCORD_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
               >
                 Discord
               </a>
+            </li>
+          </ul>
+        </div>
+        {/* Company: on its own row, centered, while the grid has two columns */}
+        <div className="col-span-2 md:col-span-1">
+          <h3 className="mb-4 text-sm font-medium font-heading">{m.footer_company()}</h3>
+          <ul className="space-y-3">
+            <li>
+              <Link
+                to="/$page"
+                params={{ page: "about" }}
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                {m.footer_about()}
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/$page"
+                params={{ page: "contact" }}
+                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
+              >
+                {m.footer_contact()}
+              </Link>
             </li>
           </ul>
         </div>

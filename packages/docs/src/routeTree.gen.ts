@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PageRouteImport } from './routes/$page'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
@@ -21,6 +22,11 @@ import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slu
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PageRoute = PageRouteImport.update({
+  id: '/$page',
+  path: '/$page',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -61,6 +67,7 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$page'
     | '/pricing'
     | '/api/search'
     | '/devlog/$slug'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$page'
     | '/pricing'
     | '/api/search'
     | '/devlog/$slug'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/$page'
     | '/pricing'
     | '/api/search'
     | '/devlog/$slug'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PageRoute: typeof PageRoute
   PricingRoute: typeof PricingRoute
   ApiSearchRoute: typeof ApiSearchRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$page': {
+      id: '/$page'
+      path: '/$page'
+      fullPath: '/$page'
+      preLoaderRoute: typeof PageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PageRoute: PageRoute,
   PricingRoute: PricingRoute,
   ApiSearchRoute: ApiSearchRoute,
   DevlogSlugRoute: DevlogSlugRoute,

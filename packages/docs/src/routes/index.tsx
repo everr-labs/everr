@@ -9,11 +9,15 @@ import { HowItWorks } from "@/components/how-it-works";
 import { MonitoringSection } from "@/components/monitoring-section";
 import { UnderTheHood } from "@/components/under-the-hood";
 import { pageHead } from "@/lib/page-head";
+import { jsonLdScript, siteStructuredData } from "@/lib/structured-data";
 import { m } from "@/paraglide/messages";
 
 export const Route = createFileRoute("/")({
   component: RouteComponent,
-  head: () => pageHead("/", "Everr - Observability made simple", m.hero_lead()),
+  head: () => ({
+    ...pageHead("/", "Everr - Observability made simple", m.hero_lead()),
+    scripts: [jsonLdScript(siteStructuredData())],
+  }),
 });
 
 function RouteComponent() {

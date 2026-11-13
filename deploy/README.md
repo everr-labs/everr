@@ -60,6 +60,21 @@ and `/v1/metrics` paths intact and forward the `Authorization` and `Origin`
 headers. A containerized proxy must join this Compose network or reach the host
 ports explicitly. OTLP/gRPC uses port 4317 and needs a gRPC-capable proxy.
 
+Set `TRUST_PROXY` so the app reads the original scheme and host from your proxy's
+`X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-For` headers. It is off
+by default, because any client can send those headers:
+
+- `true` trusts every peer. Use it only when the proxy is the sole way to reach
+  port 3000 (the default `BIND_ADDRESS` of `127.0.0.1` keeps other machines out)
+  and it overwrites those headers instead of passing client values through.
+- A comma-separated list of IP addresses trusts only those peers. A proxy on the
+  host usually reaches the container from the Docker bridge gateway (for example
+  `172.18.0.1`), and a containerized proxy from its own address on this network.
+- `loopback` fits only a proxy that connects from `127.0.0.1` or `::1` inside the
+  app's network namespace.
+
+An unrecognized value stops the app at startup.
+
 `BIND_ADDRESS`, `APP_PORT`, `OTLP_HTTP_PORT`, and `OTLP_GRPC_PORT` can override
 the published listeners. Changing ports does not update the public URLs for you.
 PostgreSQL, ClickHouse, and the collector health endpoint have no published ports.

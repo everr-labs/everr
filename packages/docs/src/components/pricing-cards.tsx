@@ -4,12 +4,14 @@ import { motion, useInView } from "motion/react";
 import { type ReactNode, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
-import { SIGN_UP_URL } from "@/constants";
+import { BOOK_CALL_URL, SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
+import type { Locale } from "@/paraglide/runtime";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-type Message = () => string;
+// A paraglide message: no inputs, and an optional locale for the Markdown version of the page
+type Message = (inputs?: Record<string, never>, options?: { locale?: Locale }) => string;
 
 type DataRow = {
   signal: Message;
@@ -17,22 +19,25 @@ type DataRow = {
   overage?: Message;
 };
 
-type PlanCard = {
+export type PlanCard = {
   id: "hobby" | "pro";
   name: string;
   price: string;
   tagline: Message;
+  // The sign-up button
+  cta: Message;
   data: DataRow[];
   features: Message[];
   recommended?: boolean;
 };
 
-const CARDS: PlanCard[] = [
+export const PRICING_PLANS: PlanCard[] = [
   {
     id: "hobby",
     name: "Hobby",
     price: "€0",
     tagline: m.pricing_hobby_tagline,
+    cta: m.pricing_hobby_cta,
     data: [
       { signal: m.pricing_ingestion, included: m.pricing_hobby_ingestion },
       { signal: m.pricing_query_allowance, included: "5x", overage: m.pricing_hobby_scanned },
@@ -45,6 +50,7 @@ const CARDS: PlanCard[] = [
     name: "Pro",
     price: "€39",
     tagline: m.pricing_pro_tagline,
+    cta: m.pricing_pro_cta,
     data: [
       {
         signal: m.pricing_ingestion,
@@ -101,7 +107,7 @@ export function PricingCards() {
         <p className={`${sectionLead} mt-7 max-w-[52ch]`}>{m.pricing_lead()}</p>
 
         <div ref={ref} className="mt-14 grid gap-5 md:mt-20 lg:grid-cols-3">
-          {CARDS.map((plan, i) => (
+          {PRICING_PLANS.map((plan, i) => (
             <motion.article
               key={plan.id}
               initial={{ opacity: 0, y: 24 }}
@@ -154,7 +160,7 @@ export function PricingCards() {
 
               <div className="mt-9">
                 <PricingCta href={SIGN_UP_URL} primary={plan.recommended}>
-                  {m.get_started()}
+                  {plan.cta()}
                 </PricingCta>
               </div>
             </motion.article>
@@ -171,9 +177,7 @@ export function PricingCards() {
               {m.pricing_enterprise_body()}
             </p>
             <div className="mt-auto pt-12">
-              <PricingCta href="https://calendar.app.google/kgnoxBsk4QyoLywG8">
-                {m.pricing_enterprise_cta()}
-              </PricingCta>
+              <PricingCta href={BOOK_CALL_URL}>{m.pricing_enterprise_cta()}</PricingCta>
             </div>
           </motion.article>
         </div>

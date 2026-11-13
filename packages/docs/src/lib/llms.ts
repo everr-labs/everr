@@ -1,3 +1,6 @@
+import { notFoundMarkdown } from "./not-found-markdown";
+import { stripHeadingIds } from "./heading-ids";
+
 const MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8";
 const TEXT_CONTENT_TYPE = "text/plain; charset=utf-8";
 
@@ -14,7 +17,7 @@ type DocsSource = {
 };
 
 export async function getLLMText(page: DocsPage) {
-  const processed = await page.data.getText("processed");
+  const processed = stripHeadingIds(await page.data.getText("processed"));
   return `# ${page.data.title} (${page.url})\n\n${processed}`;
 }
 
@@ -80,14 +83,17 @@ export function docsMarkdownPathToSlugs(pathname: string) {
 
 export async function docsMarkdownResponse(source: DocsSource, pathname: string) {
   const slugs = docsMarkdownPathToSlugs(pathname);
-  if (!slugs) return notFoundResponse();
+  if (!slugs) return notFoundResponse(pathname);
 
   const page = source.getPage(slugs);
-  if (!page) return notFoundResponse();
+  if (!page) return notFoundResponse(pathname);
 
   return markdownResponse(await getLLMText(page));
 }
 
-function notFoundResponse() {
-  return new Response("Not found", { status: 404 });
+function notFoundResponse(pathname: string) {
+  return new Response(notFoundMarkdown(pathname), {
+    status: 404,
+    headers: { "content-type": MARKDOWN_CONTENT_TYPE },
+  });
 }

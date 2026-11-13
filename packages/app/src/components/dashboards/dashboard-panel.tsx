@@ -25,6 +25,13 @@ interface DashboardPanelProps {
   panelKey: string;
   /** Extra header action rendered next to the spec-warnings indicator. */
   action?: ReactNode;
+  /**
+   * Marks the panel that morphs between the grid and its maximized page; the
+   * names it takes during that transition are in dashboard-grid.css. One panel
+   * at a time: runbooks can embed the same panel twice, and a duplicate name
+   * would skip the transition.
+   */
+  moving?: boolean;
 }
 
 function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
@@ -53,7 +60,7 @@ function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
   );
 }
 
-export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps) {
+export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPanelProps) {
   const { display, plugin } = panel.spec;
   const navigate = useNavigate();
 
@@ -94,7 +101,11 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
   );
 
   return (
-    <div ref={containerRef} className="group/panel relative h-full">
+    <div
+      ref={containerRef}
+      className="group/panel relative h-full"
+      data-moving-panel={moving ? "" : undefined}
+    >
       <PanelShell
         title={display?.name ?? panelKey}
         description={display?.description}
@@ -111,7 +122,9 @@ export function DashboardPanel({ panel, panelKey, action }: DashboardPanelProps)
             : undefined
         }
         headerClassName={
-          statBackground ? "[&_button]:text-inherit [&_button:hover]:text-inherit" : undefined
+          statBackground
+            ? "[&_:is(a,button)]:text-inherit [&_:is(a,button):hover]:text-inherit"
+            : undefined
         }
         inset={getVisualizationInset(plugin.kind)}
         action={
