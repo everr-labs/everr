@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";

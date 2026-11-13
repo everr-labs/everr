@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { StringChunk } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 

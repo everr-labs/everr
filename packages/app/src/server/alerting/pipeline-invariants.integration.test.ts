@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";

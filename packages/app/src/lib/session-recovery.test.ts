@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";

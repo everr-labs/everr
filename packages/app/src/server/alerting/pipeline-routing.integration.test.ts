@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from "vite-plus/test";
 import { alertDeliveries, alertNotificationGroups } from "#app/db/schema/index.ts";
 import {

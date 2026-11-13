@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { describe, expect, it, vi } from "vite-plus/test";
 import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {

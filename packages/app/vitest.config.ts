@@ -18,6 +18,7 @@ export const alertingIntegrationTests = [
 export function createAppTestConfig(
   composition: AppComposition = installationComposition,
   root = appDirectory,
+  extraNodeTests: string[] = [],
 ) {
   return defineConfig({
     root,
@@ -37,7 +38,18 @@ export function createAppTestConfig(
     plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
     test: {
       clearMocks: false,
-      environment: "jsdom",
+      // Only component tests (.test.tsx) pay for a jsdom environment.
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: "node",
+            environment: "node",
+            include: ["**/*.test.ts", ...extraNodeTests],
+          },
+        },
+        { extends: true, test: { name: "dom", environment: "jsdom", include: ["**/*.test.tsx"] } },
+      ],
       setupFiles: [join(appDirectory, "src/test-setup.ts")],
       reporters: ["verbose"],
       env: {

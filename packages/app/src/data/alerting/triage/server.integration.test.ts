@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The three reads the Triage screen makes, end to end, against real engines.
  *

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createEventPublisher } from "#app/server/events/publisher.ts";
 import {
   userEventDefinitions,

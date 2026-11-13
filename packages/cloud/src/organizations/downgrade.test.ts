@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { membershipEventDefinitions } from "@everr/app/identity/events";
 import { billingEventDefinitions } from "../billing/events";

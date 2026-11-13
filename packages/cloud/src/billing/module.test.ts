@@ -1,7 +1,6 @@
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { billingEventDefinitions } from "./events";
 import { membershipEventDefinitions } from "@everr/app/identity/events";
-// @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import type { EventInput } from "@everr/app/composition";

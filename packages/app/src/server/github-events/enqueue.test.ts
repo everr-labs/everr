@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createTestDatabase, type TestDatabase } from "../alerting/testing/pglite-database";

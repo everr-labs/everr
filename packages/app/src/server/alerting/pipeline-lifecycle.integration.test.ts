@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {

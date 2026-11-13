@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { sendChannelNotification } from "#app/data/alerting/delivery/channel-sender.server.ts";

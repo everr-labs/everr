@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The default destination's read and write, against a real database: the
  * write resolves names to channel rows, keeps the two modes exclusive, and

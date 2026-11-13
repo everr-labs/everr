@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Triage screen's ClickHouse reads, against a real engine (chdb, running
  * the shipped `app.alert_events` DDL).

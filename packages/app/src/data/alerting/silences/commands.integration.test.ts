@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Silence commands, against a real PostgreSQL.
  *

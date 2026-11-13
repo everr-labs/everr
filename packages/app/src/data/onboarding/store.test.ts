@@ -1,6 +1,5 @@
 import { createEventPublisher } from "#app/server/events/publisher.ts";
 import { organizationEventDefinitions } from "#app/identity/events.ts";
-// @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { parseCronItems } from "graphile-worker";
 import { expect, it, vi } from "vite-plus/test";
 import { combineWorkerTasks } from "./task-registration";

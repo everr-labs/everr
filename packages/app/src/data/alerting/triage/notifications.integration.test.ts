@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Triage screen's PostgreSQL reads of the notification Journal, against a
  * real engine.

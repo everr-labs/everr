@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 

@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /** The Alert rule state command, against a real PostgreSQL. */
 import { describe, expect, it, vi } from "vite-plus/test";
 import { insertRule } from "#app/server/alerting/testing/fixtures.ts";

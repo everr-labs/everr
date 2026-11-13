@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Triage screen's PostgreSQL reads of Silences, against a real engine.
  *

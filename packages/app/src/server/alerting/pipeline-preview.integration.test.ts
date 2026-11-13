@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { alertDefinitions, alertEvents, alertInstances, previews } from "#app/db/schema/index.ts";

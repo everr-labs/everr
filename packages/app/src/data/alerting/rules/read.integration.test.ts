@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The app's PostgreSQL reads of Alert rules, against a real engine.
  *

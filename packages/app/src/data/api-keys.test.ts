@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";

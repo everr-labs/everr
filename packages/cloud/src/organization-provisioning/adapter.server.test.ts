@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { createApplicationAuth } from "@everr/app/identity/module";
 import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";
 import type { IdentityEvent } from "@everr/app/identity/events";
