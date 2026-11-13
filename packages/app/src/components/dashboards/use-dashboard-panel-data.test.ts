@@ -87,6 +87,19 @@ describe("combineQueryStates", () => {
     expect(result.data).toEqual([[{ x: 1 }], [{ x: 2 }]]);
   });
 
+  it("reports the widest downsampling bucket among the queries", () => {
+    const result = combineQueryStates([
+      state({ rows: [], bucketSeconds: 15 }),
+      state({ rows: [] }),
+      state({ rows: [], bucketSeconds: 30 }),
+    ]);
+    expect(result.bucketSeconds).toBe(30);
+  });
+
+  it("reports no bucket when no query was downsampled", () => {
+    expect(combineQueryStates([state({ rows: [] })]).bucketSeconds).toBeUndefined();
+  });
+
   it("ignores inactive queries entirely", () => {
     const result = combineQueryStates([
       state({ rows: [{ x: 1 }] }),

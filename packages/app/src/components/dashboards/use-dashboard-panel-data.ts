@@ -14,7 +14,11 @@ import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import { useRetainedPanelData } from "./use-retained-panel-data";
-import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
+import {
+  getVisualizationDownsample,
+  type QueryResultRow,
+  type ResolvedTimeRange,
+} from "./visualizations";
 
 export interface PanelQueryRequest {
   source: PanelQuerySource;
@@ -76,6 +80,8 @@ export interface CombinedPanelResult {
   status: PanelQueriesStatus;
   data?: QueryResultRow[][];
   errorMessage?: string;
+  /** Width of the downsampling bucket the server applied, if it downsampled. */
+  bucketSeconds?: number;
 }
 
 export interface SingleQueryState {
@@ -87,6 +93,7 @@ export interface SingleQueryState {
   isError: boolean;
   error?: unknown;
   rows?: QueryResultRow[];
+  bucketSeconds?: number;
 }
 
 export function combineQueryStates(states: SingleQueryState[]): CombinedPanelResult {
@@ -114,7 +121,13 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
   if (active.some((s) => s.isPending || s.isPlaceholderData || s.rows === undefined)) {
     return { status: "pending" };
   }
-  return { status: "success", data: active.map((s) => s.rows ?? []) };
+  // Every wrapped query of a panel shares one range, so their buckets agree.
+  const widths = active.flatMap((s) => (s.bucketSeconds === undefined ? [] : [s.bucketSeconds]));
+  return {
+    status: "success",
+    data: active.map((s) => s.rows ?? []),
+    bucketSeconds: widths.length > 0 ? Math.max(...widths) : undefined,
+  };
 }
 
 export interface DashboardPanelData extends CombinedPanelResult {
@@ -147,6 +160,10 @@ export function useDashboardPanelData(
   const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
   const definedNames = useMemo(() => new Set(variables.map((v) => v.spec.name)), [variables]);
   const sources = useMemo(() => getPanelQuerySources(panel), [panel]);
+  const downsample = useMemo(
+    () => getVisualizationDownsample(panel.spec.plugin),
+    [panel.spec.plugin],
+  );
   const requests = useMemo(
     () =>
       buildPanelQueryRequests(sources, {
@@ -161,7 +178,14 @@ export function useDashboardPanelData(
 
   const results = useQueries({
     queries: requests.map((r) => ({
-      ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
+      ...panelQueryOptions(
+        r.source,
+        timeRange.from,
+        timeRange.to,
+        r.variables,
+        r.variableMeta,
+        downsample,
+      ),
       placeholderData: keepPreviousData,
       enabled:
         active &&
@@ -184,6 +208,7 @@ export function useDashboardPanelData(
           isError: results[i]?.isError ?? false,
           error: results[i]?.error,
           rows: results[i]?.data?.rows,
+          bucketSeconds: results[i]?.data?.bucketSeconds,
         })),
       ),
     [requests, results],

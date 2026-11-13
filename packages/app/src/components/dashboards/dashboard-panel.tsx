@@ -67,7 +67,7 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
   const containerRef = useRef<HTMLDivElement>(null);
   const inView = useInView(containerRef);
 
-  const { data, status, errorMessage, timeRange } = useDashboardPanelData(panel, {
+  const { data, status, errorMessage, timeRange, bucketSeconds } = useDashboardPanelData(panel, {
     enabled: inView,
   });
 
@@ -141,6 +141,7 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
           data={data}
           timeRange={timeRange}
           onTimeRangeChange={handleTimeRangeChange}
+          bucketSeconds={bucketSeconds}
         />
       </PanelShell>
     </div>

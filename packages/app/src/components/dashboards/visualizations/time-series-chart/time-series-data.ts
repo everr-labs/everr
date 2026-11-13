@@ -56,7 +56,9 @@ function clampMerged(byTs: Map<number, ChartRow>, domain: [number, number]): Cha
  * epoch-aligned grid: every in-range point keeps its real timestamp. A single
  * null marker is inserted when two consecutive points of THIS series are more
  * than ~1.5× its own typical interval apart, so a non-connecting line shows the
- * genuine gap.
+ * genuine gap. Downsampled rows are irregular, so when the server reports its
+ * bucket width a gap must also span at least one bucket: spacing below that
+ * carries no gap information.
  *
  * Domain clamping treats each point as a BUCKET, not an instant: a bucketed
  * timestamp (e.g. ClickHouse `toStartOfInterval`) labels the bucket's start,
@@ -68,6 +70,7 @@ function clampMerged(byTs: Map<number, ChartRow>, domain: [number, number]): Cha
 function buildSeriesData(
   samples: Map<number, number | null>,
   domain: [number, number],
+  bucketMs: number,
 ): SeriesPoint[] {
   const sorted = [...samples.entries()].sort((a, b) => a[0] - b[0]);
   // Inferred from ALL samples, pre-clamp, so the leading bucket's width is
@@ -82,7 +85,12 @@ function buildSeriesData(
   const result: SeriesPoint[] = [];
   let previousTs: number | null = null;
   for (const [ts, value] of points) {
-    if (previousTs !== null && interval && ts - previousTs > interval * 1.5) {
+    if (
+      previousTs !== null &&
+      interval &&
+      ts - previousTs > interval * 1.5 &&
+      ts - previousTs >= bucketMs
+    ) {
       result.push([previousTs + interval, null]);
     }
     result.push([ts, value]);
@@ -125,6 +133,7 @@ export interface ChartModel {
 export function buildChartModel(
   dataSets: QueryResultRow[][],
   domain: [number, number],
+  bucketSeconds = 0,
 ): ChartModel {
   // Per series: samples collapse duplicate timestamps with last-write-wins.
   // Both the rendered lines and merged hover timeline derive from these maps.
@@ -208,7 +217,7 @@ export function buildChartModel(
       }
       entry[metadata.id] = value;
     }
-    return { ...metadata, data: buildSeriesData(samples, domain) };
+    return { ...metadata, data: buildSeriesData(samples, domain, bucketSeconds * 1000) };
   });
 
   return {

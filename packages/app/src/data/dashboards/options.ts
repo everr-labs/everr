@@ -54,15 +54,24 @@ export const panelQueryOptions = (
   to?: string,
   variables?: VariableValues,
   variableMeta?: VariableMeta,
+  downsample?: "m4",
 ) =>
   queryOptions({
-    queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
-    queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
+    queryKey: [
+      "panel-query",
+      source,
+      from,
+      to,
+      variables ?? null,
+      variableMeta ?? null,
+      downsample ?? null,
+    ],
+    queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[]; bucketSeconds?: number }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
       return panelLimiter(signal, () =>
         runPanelQuery({
-          data: { source, from, to, variables, variableMeta },
+          data: { source, from, to, variables, variableMeta, downsample },
         }),
       );
     },

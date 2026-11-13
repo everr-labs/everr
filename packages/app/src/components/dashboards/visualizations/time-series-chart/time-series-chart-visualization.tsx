@@ -62,6 +62,7 @@ export function TimeSeriesChartVisualization({
   data,
   timeRange,
   onTimeRangeChange,
+  bucketSeconds,
 }: VisualizationProps<TimeSeriesChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
   const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
@@ -74,8 +75,8 @@ export function TimeSeriesChartVisualization({
   );
 
   const { chartData, series: modelSeries } = useMemo(
-    () => buildChartModel(data ?? [], domain),
-    [data, domain],
+    () => buildChartModel(data ?? [], domain, bucketSeconds),
+    [data, domain, bucketSeconds],
   );
   const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
     modelSeries,
