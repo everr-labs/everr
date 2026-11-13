@@ -25,7 +25,9 @@ export const Route = createFileRoute("/$page")({
   head: ({ loaderData }) => {
     if (!loaderData) return {};
     const path = `/${loaderData.slug}`;
-    const { title, description } = loaderData;
+    // The frontmatter title is also the page's H1: the brand goes in the tab only
+    const title = `${loaderData.title} - Everr`;
+    const { description } = loaderData;
     return isTranslatedPath(path)
       ? pageHead(path, title, description)
       : seoHead({ path, title, description });
