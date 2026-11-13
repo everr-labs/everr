@@ -8,7 +8,7 @@ import { Footer } from "@/components/footer";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
 import { SITE_URL } from "@/constants";
-import { getBaseUrl } from "@/lib/url";
+import { seoHead } from "@/lib/page-head";
 
 export const Route = createFileRoute("/devlog/$slug")({
   component: DevlogPost,
@@ -19,32 +19,21 @@ export const Route = createFileRoute("/devlog/$slug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};
-    const title = `${loaderData.title} - Everr Devlog`;
-    const description = loaderData.description;
-    const base = getBaseUrl();
-    const url = `${base}/devlog/${loaderData.slug}`;
-    const image = `${base}/api/og/devlog/${loaderData.slug}`;
+    const { slug, description, date } = loaderData;
+    const head = seoHead({
+      path: `/devlog/${slug}`,
+      title: `${loaderData.title} - Everr Devlog`,
+      description,
+      type: "article",
+      image: `${SITE_URL}/api/og/devlog/${slug}`,
+    });
     return {
+      ...head,
       meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "article" },
-        { property: "og:url", content: url },
-        { property: "og:image", content: image },
-        { property: "og:image:width", content: "1200" },
-        { property: "og:image:height", content: "630" },
+        ...head.meta,
         { property: "og:image:alt", content: description },
-        { property: "og:site_name", content: "Everr" },
-        { property: "article:published_time", content: loaderData.date },
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: title },
-        { name: "twitter:description", content: description },
-        { name: "twitter:url", content: url },
-        { name: "twitter:image", content: image },
+        { property: "article:published_time", content: date },
       ],
-      links: [{ rel: "canonical", href: `${SITE_URL}/devlog/${loaderData.slug}` }],
     };
   },
 });

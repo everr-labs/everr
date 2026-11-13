@@ -4,9 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
-import { SITE_URL } from "@/constants";
-import { DEFAULT_OG_IMAGE } from "@/lib/page-head";
-import { getBaseUrl } from "@/lib/url";
+import { seoHead } from "@/lib/page-head";
 
 const DEVLOG_TITLE = "Devlog - Everr";
 const DEVLOG_DESCRIPTION =
@@ -17,26 +15,7 @@ export const Route = createFileRoute("/devlog/")({
   loader: async () => {
     return await loadDevlogPosts();
   },
-  head: () => {
-    const base = getBaseUrl();
-    return {
-      meta: [
-        { title: DEVLOG_TITLE },
-        { name: "description", content: DEVLOG_DESCRIPTION },
-        { property: "og:title", content: DEVLOG_TITLE },
-        { property: "og:description", content: DEVLOG_DESCRIPTION },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: `${base}/devlog` },
-        { name: "twitter:card", content: "summary" },
-        { name: "twitter:url", content: `${base}/devlog` },
-        { name: "twitter:title", content: DEVLOG_TITLE },
-        { name: "twitter:description", content: DEVLOG_DESCRIPTION },
-        { property: "og:image", content: DEFAULT_OG_IMAGE },
-        { name: "twitter:image", content: DEFAULT_OG_IMAGE },
-      ],
-      links: [{ rel: "canonical", href: `${SITE_URL}/devlog` }],
-    };
-  },
+  head: () => seoHead({ path: "/devlog", title: DEVLOG_TITLE, description: DEVLOG_DESCRIPTION }),
 });
 
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {

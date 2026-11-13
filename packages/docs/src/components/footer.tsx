@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
-import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
+import { DISCORD_URL, GITHUB_URL, LINKEDIN_URL, SIGN_UP_URL, X_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 export function Footer() {
@@ -56,7 +56,7 @@ function FooterDirectory() {
           <p className="mt-4 text-sm text-fd-muted-foreground">Observability made simple.</p>
           <div className="mt-4 flex items-center justify-center gap-6 sm:gap-4 sm:justify-start">
             <a
-              href="https://x.com/everrlabs"
+              href={X_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -66,7 +66,7 @@ function FooterDirectory() {
             </a>
             {/** oxlint-disable-next-line jsx-a11y/control-has-associated-label -- LinkedIn icon */}
             <a
-              href="https://www.linkedin.com/company/everr-labs"
+              href={LINKEDIN_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -77,7 +77,7 @@ function FooterDirectory() {
               </svg>
             </a>
             <a
-              href="https://github.com/everr-labs/everr"
+              href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -86,7 +86,7 @@ function FooterDirectory() {
               <SiGithub className="size-5" />
             </a>
             <a
-              href="https://discord.gg/hd6yYDjAuw"
+              href={DISCORD_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="text-fd-muted-foreground transition-colors hover:text-fd-foreground"
@@ -157,7 +157,7 @@ function FooterDirectory() {
             </li>
             <li>
               <a
-                href="https://discord.gg/hd6yYDjAuw"
+                href={DISCORD_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
