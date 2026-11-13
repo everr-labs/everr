@@ -210,14 +210,6 @@ export type BuildTelemetry = {
   flush(error?: unknown): Promise<void>;
 };
 
-/** The phase-recording surface build helpers accept. */
-export type BuildPhases = Pick<BuildTelemetry, "phase">;
-
-/** Default for helpers whose callers do not record build telemetry. */
-export const noopBuildPhases: BuildPhases = {
-  phase: (_name, fn) => fn(),
-};
-
 export function createBuildTelemetry({
   buildName,
   env = process.env satisfies BuildTelemetryEnv,

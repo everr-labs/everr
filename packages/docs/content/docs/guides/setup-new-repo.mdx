@@ -23,21 +23,6 @@ The page shows import progress. Once it reports **Import complete**, select **Vi
 
 ## Verify the setup
 
-Check recent runs in Everr Cloud, or use the CLI:
-
-```sh
-everr cloud login
-everr ci runs --repo owner/repo --limit 5
-```
-
-Replace `owner/repo` with your GitHub repository. If you are already signed in to the intended organization, you can skip login. Run `everr cloud status` to check the saved connection. To use another installation or account, log in again; see [Authentication](/docs/reference/cli#authentication-and-remote-queries).
-
-For a new workflow execution, run this from the repository checkout to watch the current commit:
-
-```sh
-everr ci watch
-```
-
-If no runs appear yet, wait for ingestion to catch up or trigger a new GitHub Actions run.
+Check recent runs in Everr Cloud. If no runs appear yet, wait for ingestion to catch up or trigger a new GitHub Actions run.
 
 Next, add [Resource Monitoring](/docs/guides/resource-monitoring) to any jobs where you want per-job CPU, memory, network, and disk metrics.

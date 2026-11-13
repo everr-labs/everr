@@ -19,6 +19,16 @@ type Identity struct {
 	InstanceID string
 }
 
+// Status is the pipeline state the /health endpoint reports. Only StatusOK
+// answers 200.
+type Status string
+
+const (
+	StatusStarting Status = "starting"
+	StatusOK       Status = "ok"
+	StatusStopped  Status = "stopped"
+)
+
 type Server struct {
 	identity Identity
 	cfg      Config
@@ -28,16 +38,18 @@ type Server struct {
 	server       *http.Server
 	listener     net.Listener
 	shutdownOnce sync.Once
-	ready        atomic.Bool
+	status       atomic.Value
 }
 
 func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
-	return &Server{
+	s := &Server{
 		identity: identity,
 		cfg:      cfg.Applied(),
 		handle:   handle,
 		logger:   logger,
 	}
+	s.status.Store(StatusStarting)
+	return s
 }
 
 func (s *Server) Start() error {
@@ -49,15 +61,15 @@ func (s *Server) Start() error {
 		logger:         s.logger,
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/sql", handler)
-	mux.HandleFunc("GET /health", s.handleHealth)
-
 	ln, err := net.Listen("tcp", s.cfg.Endpoint)
 	if err != nil {
 		return err
 	}
 	s.listener = ln
+
+	mux := http.NewServeMux()
+	mux.Handle("/sql", localOnly(ln.Addr(), handler))
+	mux.HandleFunc("GET /health", s.handleHealth)
 	s.server = &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -82,15 +94,41 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-func (s *Server) SetReady(ready bool) {
-	s.ready.Store(ready)
+// LocalHeader must be set to "1" on /sql requests. A web page can't add a
+// custom header to a cross-origin request without a CORS preflight, which
+// this server never approves.
+const LocalHeader = "X-Everr-Local"
+
+// localOnly keeps web pages from running SQL. chDB can read local files and
+// fetch URLs (file(), url()), so a page that reached /sql, directly or
+// through DNS rebinding, could send local files anywhere. Requests must name
+// the loopback listener as their Host, carry no browser Origin, and set
+// LocalHeader.
+func localOnly(addr net.Addr, next http.Handler) http.Handler {
+	_, port, _ := net.SplitHostPort(addr.String())
+	hosts := map[string]bool{
+		addr.String():                       true,
+		net.JoinHostPort("localhost", port): true,
+		net.JoinHostPort("127.0.0.1", port): true,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hosts[r.Host] || r.Header.Get("Origin") != "" || r.Header.Get(LocalHeader) != "1" {
+			httpError(w, http.StatusForbidden, "requests must come from a local client and set "+LocalHeader+": 1")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) SetStatus(status Status) {
+	s.status.Store(status)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	status, code := "ok", http.StatusOK
-	if !s.ready.Load() {
-		status, code = "starting", http.StatusServiceUnavailable
+	status, code := s.status.Load().(Status), http.StatusOK
+	if status != StatusOK {
+		code = http.StatusServiceUnavailable
 	}
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]any{

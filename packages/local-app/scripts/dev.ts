@@ -5,7 +5,8 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite-plus";
-import { compileCli, embeddedAssets, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
+import { compileCli, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
+import { stageSkills } from "../../cli/scripts/stage-skills.ts";
 
 const appDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(appDir, "../..");
@@ -27,9 +28,9 @@ type Task = {
   finished: boolean;
 };
 
-function start(command: string, args: string[], env = process.env): Task {
+function start(command: string, args: string[], env = process.env, cwd = repoDir): Task {
   const child = spawn(command, args, {
-    cwd: repoDir,
+    cwd,
     env,
     stdio: "inherit",
     detached: process.platform !== "win32",
@@ -50,9 +51,9 @@ function start(command: string, args: string[], env = process.env): Task {
   return task;
 }
 
-async function run(command: string, args: string[], env = process.env) {
+async function run(command: string, args: string[], env = process.env, cwd = repoDir) {
   shutdown.signal.throwIfAborted();
-  const result = await start(command, args, env).done;
+  const result = await start(command, args, env, cwd).done;
   shutdown.signal.throwIfAborted();
   if (result.error) throw result.error;
   if (result.code !== 0) throw new Error(`${command} exited with code ${result.code}`);
@@ -118,8 +119,8 @@ async function waitForBackend(task: Task) {
 }
 
 async function rebuildBackend() {
-  console.log("[local dev] Building Rust backend...");
-  await compileCli("debug", embeddedAssets, run);
+  console.log("[local dev] Building Go backend...");
+  await compileCli("debug", run);
   // A failed build leaves the running backend available. Replace it only after
   // compilation succeeds, and rename the binary to avoid overwriting a running executable.
   const previous = backend;
@@ -136,7 +137,7 @@ async function rebuildBackend() {
     }
   });
   await waitForBackend(task);
-  console.log("[local dev] Backend ready. UI edits hot reload; Rust edits rebuild and restart.");
+  console.log("[local dev] Backend ready. UI edits hot reload; Go edits rebuild and restart.");
   vite?.ws.send({ type: "full-reload" });
 }
 
@@ -165,14 +166,15 @@ function scheduleRebuild() {
 async function main() {
   await assertBackendPortFree();
   const required = [
-    embeddedAssets.collectorGz,
-    embeddedAssets.chdbGz,
-    path.join(appDir, "dist/index.html"),
+    path.join(cliDir, "internal/assets/chdb/libchdb.so.zst"),
+    path.join(cliDir, "internal/assets/localui/index.html"),
   ];
   if (!required.every(existsSync)) {
     console.log("[local dev] Preparing embedded assets for the first run...");
     await run("pnpm", ["--filter", "@everr/cli", "build:debug"]);
   }
+  // Skills are embedded from a staged copy, which may predate local edits.
+  await stageSkills();
   await rebuildBackend();
   shutdown.signal.throwIfAborted();
   vite = await createServer({
@@ -182,13 +184,24 @@ async function main() {
   await vite.listen();
   vite.printUrls();
 
-  for (const directory of [path.join(cliDir, "src"), path.dirname(embeddedAssets.collectorGz)]) {
+  // The collector packages build into the CLI, so their edits rebuild it too.
+  for (const directory of [
+    path.join(cliDir, "cmd"),
+    path.join(cliDir, "internal"),
+    path.join(repoDir, "collector/localcollector"),
+    path.join(repoDir, "collector/internal/localgateway"),
+    path.join(repoDir, "collector/exporter/chdbexporter"),
+  ]) {
     watchers.push(watch(directory, { recursive: true }, scheduleRebuild));
   }
-  for (const [directory, files] of [
-    [repoDir, ["Cargo.toml", "Cargo.lock"]],
-    [cliDir, ["Cargo.toml", "build.rs", "package.json"]],
-  ] as const) {
+  // Staging writes into internal/assets, which the watch above turns into a
+  // rebuild.
+  watchers.push(
+    watch(path.join(repoDir, "skills"), { recursive: true }, () => {
+      stageSkills().catch((error) => console.error("[local dev] Staging skills failed.", error));
+    }),
+  );
+  for (const [directory, files] of [[cliDir, ["go.mod", "go.sum", "package.json"]]] as const) {
     watchers.push(
       watch(directory, (_event, file) => {
         if (file && files.some((name) => name === file)) scheduleRebuild();

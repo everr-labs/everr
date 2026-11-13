@@ -1,7 +1,8 @@
 import { $ } from "zx";
-import { installCliBinary, prepareCliEmbeddedAssets, publishCliArtifact } from "./build-support.ts";
+import { installCliBinary, publishCliArtifact } from "./build-support.ts";
 import { compileCli, resolveCliBuild } from "./cli-build.ts";
 import { withBuildTelemetry } from "./build-telemetry.ts";
+import { stageGoAssets } from "./stage-go-assets.ts";
 
 const args = process.argv.slice(2);
 
@@ -26,11 +27,11 @@ await withBuildTelemetry("cli build", async (telemetry) => {
   telemetry.setRootAttribute("everr.build.mode", mode);
 
   await telemetry.phase("build local UI", () => $`pnpm --filter @everr/local-app build`);
-  const assets = await prepareCliEmbeddedAssets(mode, telemetry);
+  await telemetry.phase("stage embedded assets", () => stageGoAssets({ mode, requireUi: true }));
 
   console.log(`Building everr CLI (${mode})...`);
   const builtBin = await telemetry.phase("build cli", () =>
-    compileCli(mode, assets, (command, args, env) => $({ env })`${command} ${args}`),
+    compileCli(mode, (command, args, env, cwd) => $({ env, cwd })`${command} ${args}`),
   );
   let installSource = builtBin;
 
@@ -41,11 +42,10 @@ await withBuildTelemetry("cli build", async (telemetry) => {
     installSource = outputBin;
   }
 
+  const installName = mode === "debug" ? "everr-dev" : "everr";
   if (installBin) {
-    await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
+    await installCliBinary(installSource, installName);
   }
 
-  console.log(
-    `Run '${installBin ? (mode === "debug" ? "everr-dev" : "everr") : installSource} --help' to get started.`,
-  );
+  console.log(`Run '${installBin ? installName : installSource} --help' to get started.`);
 });

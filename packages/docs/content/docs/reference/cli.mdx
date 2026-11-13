@@ -51,40 +51,6 @@ During exporter setup, use `everr cloud status --json` to discover `ingestEndpoi
 
 The `--agent` option can be repeated. With no Agent filter, a command targets all supported Agents.
 
-## CI
-
-- `everr ci status`: show CI status for the current commit
-  - `--commit <sha-or-ref>`: target another commit
-  - `--run-id <id>`: target a GitHub Actions run ID
-  - `--branch <name>` and `--repo <owner/name>`: override repository context
-
-- `everr ci watch`: watch the current commit's CI runs until completion, then exit non-zero if any run was unsuccessful
-  - `--commit <sha-or-ref>`: target another commit
-  - `--run-id <id>`: target a GitHub Actions run ID
-  - `--attempt <n>`: target a specific run attempt
-  - `--branch <name>` and `--repo <owner/name>`: override repository context
-  - `--fail-fast`: exit as soon as a CI run completes unsuccessfully
-
-- `everr ci runs`: list recent CI runs
-  - `--repo <owner/name>`: filter by repository
-  - `--branch <name>` or `--current-branch`: filter by branch
-  - `--conclusion <value>`: filter by conclusion
-  - `--workflow-name <name>`: filter by workflow
-  - `--run-id <id>`: filter by GitHub Actions run ID
-  - `--from <expr>` and `--to <expr>`: restrict the start time using [date math](/docs/reference/datemath), for example `now-7d`
-  - `--limit <n>` and `--offset <n>`: paginate results (`--limit` defaults to 20 and accepts 1 through 100)
-
-- `everr ci show <trace-id>`: show a CI run's jobs and steps
-  - `--failed`: show only failed jobs and their failed steps
-
-- `everr ci logs <trace-id> --job-name <job> --step-number <n>`: print logs for one CI step (the last 1000 lines by default)
-  - `--job-name <job>` or `--job-id <id>`: select one job
-  - `--step-number <n>` or `--log-failed`: select one step
-  - `--tail <n>`: print lines from the bottom
-  - `--limit <n>` and `--offset <n>`: fetch a raw page from the top
-  - `--egrep <pattern>`: keep only lines matching a RE2 regex, exiting non-zero when no lines match
-  - `--color`: preserve ANSI color codes (stripped by default)
-
 ## Local telemetry
 
 Local commands and the local browser UI work without a remote login and do not read the session file. The local UI has no remote account or sign-in controls.

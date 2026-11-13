@@ -7,6 +7,8 @@ coverage
 # production
 collector/build
 collector/build-local
+# `go build` output inside the collector command
+collector/cmd/everr-local-collector/everr-local-collector
 
 # misc
 .DS_Store
@@ -42,7 +44,7 @@ dist
 
 .output
 
-# rust
+# build output
 target
 
 # Terraform infra

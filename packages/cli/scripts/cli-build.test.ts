@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { embeddedBuildEnv, resolveCliBuild } from "./cli-build";
+import { goBuildEnv, resolveCliBuild } from "./cli-build";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -27,12 +27,23 @@ describe("product telemetry in CLI releases", () => {
     expect(() => resolveCliBuild("debug", { EVERR_REQUIRE_INTERNAL_TELEMETRY: "1" })).not.toThrow();
   });
 
-  it("passes only the dedicated key to the Rust build", () => {
+  it("embeds only the dedicated key, and only in release builds", () => {
+    const env = {
+      EVERR_INGEST_KEY: "build-key",
+      EVERR_INTERNAL_TELEMETRY_INGEST_KEY: "product-key",
+    };
+    const release = resolveCliBuild("release", env).buildArgs.join(" ");
+    expect(release).toContain("internaltelemetry.ingestKey=product-key");
+    expect(release).not.toContain("build-key");
+    expect(resolveCliBuild("debug", env).buildArgs.join(" ")).not.toContain("product-key");
+  });
+
+  it("keeps both telemetry keys out of the compiler's environment", () => {
     vi.stubEnv("EVERR_INGEST_KEY", "build-key");
     vi.stubEnv("EVERR_INTERNAL_TELEMETRY_INGEST_KEY", "product-key");
-    const env = embeddedBuildEnv();
+    const env = goBuildEnv();
     expect(env.EVERR_INGEST_KEY).toBeUndefined();
-    expect(env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY).toBe("product-key");
+    expect(env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY).toBeUndefined();
     expect(process.env.EVERR_INGEST_KEY).toBe("build-key");
   });
 });

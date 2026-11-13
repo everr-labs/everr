@@ -25,10 +25,9 @@ Use `everr cloud status --json` when diagnosing a connection or resolving the re
 
 | Question                                                                     | Use                                                                                     |
 | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Production, deployed services, customer reports, remote CI history           | `everr cloud query "<SQL>"`                                                             |
+| Production, deployed services, customer reports, CI runs and their history   | `everr cloud query "<SQL>"`                                                             |
 | Local app, dev server, local tests, wrapped command output                   | `everr local query "<SQL>"`                                                             |
 | What alerts fired, why, and whether the notification went out                | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"`                         |
-| Current CI run, branch status, failed jobs, workflow logs                    | Use the `everr-working-with-ci` skill                                                   |
 | Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
 | Missing or stale local telemetry                                             | Use the `everr-setup-telemetry` skill                                                   |
 
