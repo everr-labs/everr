@@ -9,5 +9,10 @@
     "allowSyntheticDefaultImports": true,
     "emitDeclarationOnly": true
   },
-  "include": ["vite.config.ts", "scripts/*.ts", "../cli/scripts/cli-build.ts"]
+  "include": [
+    "vite.config.ts",
+    "scripts/*.ts",
+    "../cli/scripts/cli-build.ts",
+    "../cli/scripts/stage-skills.ts"
+  ]
 }

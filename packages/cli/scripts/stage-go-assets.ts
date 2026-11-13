@@ -1,7 +1,8 @@
-import { cp, link, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, link, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chdbSigningIdentity, prepareChdbLibAt, sha256File, zstdFile } from "./build-support.ts";
+import { resetDir, stageSkills } from "./stage-skills.ts";
 
 const cliDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(cliDir, "../..");
@@ -14,13 +15,6 @@ async function exists(file: string) {
     return true;
   } catch {
     return false;
-  }
-}
-
-async function resetDir(dir: string) {
-  await mkdir(dir, { recursive: true });
-  for (const entry of await readdir(dir)) {
-    if (entry !== ".gitkeep") await rm(path.join(dir, entry), { recursive: true, force: true });
   }
 }
 
@@ -68,13 +62,6 @@ export async function stageGoAssets({ mode = "debug", requireUi = false } = {}) 
   await linkOrCopy(chdbZst, path.join(chdbDir, "libchdb.so.zst"));
   // The CLI caches the extracted library under this digest.
   await writeFile(path.join(chdbDir, "libchdb.so.zst.sha256"), `${await sha256File(chdbZst)}\n`);
-}
-
-/** Copies the repository's skills/ into the CLI's embedded assets. */
-export async function stageSkills() {
-  const skillsDir = path.join(assetsDir, "skills");
-  await resetDir(skillsDir);
-  await cp(path.join(repoDir, "skills"), skillsDir, { recursive: true });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

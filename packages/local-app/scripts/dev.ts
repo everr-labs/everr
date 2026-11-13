@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite-plus";
 import { compileCli, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
-import { stageSkills } from "../../cli/scripts/stage-go-assets.ts";
+import { stageSkills } from "../../cli/scripts/stage-skills.ts";
 
 const appDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(appDir, "../..");
