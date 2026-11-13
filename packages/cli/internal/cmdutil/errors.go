@@ -30,10 +30,12 @@ func (e *ExitError) Unwrap() error { return e.Err }
 func Exit(code int) error { return &ExitError{Code: code} }
 
 // UsageError is a command-line parsing error. It exits with status 2 and
-// prints the command's usage, like clap.
+// prints the command's usage, like clap. clap left the usage out of
+// invalid-value errors, which HideUsage mirrors.
 type UsageError struct {
-	Cmd *cobra.Command
-	Msg string
+	Cmd       *cobra.Command
+	Msg       string
+	HideUsage bool
 }
 
 func (e *UsageError) Error() string { return e.Msg }

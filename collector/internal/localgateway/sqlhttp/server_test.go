@@ -39,15 +39,15 @@ func TestServerReportsReadinessOnSQLListener(t *testing.T) {
 	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
 	url := "http://" + server.listener.Addr().String() + "/health"
 	for _, state := range []struct {
-		ready  bool
+		set    Status
 		code   int
 		status string
 	}{
-		{false, http.StatusServiceUnavailable, "starting"},
-		{true, http.StatusOK, "ok"},
-		{false, http.StatusServiceUnavailable, "starting"},
+		{StatusStarting, http.StatusServiceUnavailable, "starting"},
+		{StatusOK, http.StatusOK, "ok"},
+		{StatusStopped, http.StatusServiceUnavailable, "stopped"},
 	} {
-		server.SetReady(state.ready)
+		server.SetStatus(state.set)
 		resp, err := http.Get(url)
 		if err != nil {
 			t.Fatalf("GET /health error = %v", err)

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
+	"github.com/everr-labs/everr/packages/cli/internal/local"
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 	"github.com/everr-labs/everr/packages/cli/internal/skills"
 )
@@ -49,9 +50,12 @@ func run(out io.Writer, in io.Reader) error {
 	if err := store.Wipe(); err != nil {
 		return err
 	}
-	// Removing skills must not block wiping the rest of the state.
+	// Removing skills or the chDB cache must not block wiping the rest.
 	if err := skills.UninstallAllGlobal(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not remove Everr skills: %v\n", err)
+	}
+	if err := local.RemoveLibraryCache(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not remove the extracted chDB library: %v\n", err)
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "To remove the CLI binary, run:")

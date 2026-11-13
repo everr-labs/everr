@@ -10,6 +10,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -267,33 +269,76 @@ func extractChDBLibrary() (string, error) {
 	if !ok {
 		return "", fmt.Errorf("chDB is not embedded in this CLI build; rebuild with `pnpm --filter @everr/cli build:debug`")
 	}
+	cacheRoot, err := libraryCacheRoot()
+	if err != nil {
+		return "", err
+	}
+	return extractToCache(cacheRoot, zst, digest)
+}
+
+func libraryCacheRoot() (string, error) {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve user cache directory: %w", err)
 	}
-	return extractToCache(filepath.Join(cacheDir, build.SessionNamespace, "chdb-library"), zst, digest)
+	return filepath.Join(cacheDir, build.SessionNamespace, "chdb-library"), nil
 }
 
+// RemoveLibraryCache deletes every libchdb extracted by `everr local start`.
+func RemoveLibraryCache() error {
+	cacheRoot, err := libraryCacheRoot()
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(cacheRoot)
+}
+
+// extractToCache runs under the local.lock flock, so no other process
+// extracts or loads a library from cacheRoot meanwhile.
 func extractToCache(cacheRoot string, zst []byte, digest string) (string, error) {
 	dir := filepath.Join(cacheRoot, digest)
 	library := filepath.Join(dir, "libchdb.so")
 	marker := filepath.Join(dir, ".complete")
-	if fileExists(marker) && fileExists(library) {
+	if extracted(marker, library) {
 		if err := os.Chmod(library, 0o644); err != nil {
 			return "", err
 		}
 		return library, pruneStale(cacheRoot, dir)
 	}
+	// Starts over, dropping temp files an interrupted extraction left behind.
+	if err := os.RemoveAll(dir); err != nil {
+		return "", fmt.Errorf("clear %s: %w", dir, err)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
-	if err := writeDecompressed(zst, library); err != nil {
+	size, err := writeDecompressed(zst, library)
+	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(marker, []byte(digest+"\n"), 0o644); err != nil {
+	if err := writeSynced(marker, fmt.Appendf(nil, "%s %d\n", digest, size)); err != nil {
 		return "", err
 	}
 	return library, pruneStale(cacheRoot, dir)
+}
+
+// extracted reports whether a previous extraction finished. The marker
+// records the library's size, so a library cut short by a crash is redone.
+func extracted(marker, library string) bool {
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		return false
+	}
+	_, sizeText, ok := strings.Cut(strings.TrimSpace(string(data)), " ")
+	if !ok {
+		return false
+	}
+	size, err := strconv.ParseInt(sizeText, 10, 64)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(library)
+	return err == nil && info.Mode().IsRegular() && info.Size() == size
 }
 
 // pruneStale removes libraries extracted by other CLI builds.
@@ -314,29 +359,50 @@ func pruneStale(cacheRoot, keep string) error {
 	return nil
 }
 
-func writeDecompressed(zst []byte, dest string) error {
+func writeDecompressed(zst []byte, dest string) (int64, error) {
 	reader, err := zstd.NewReader(bytes.NewReader(zst))
 	if err != nil {
-		return fmt.Errorf("decompress %s: %w", dest, err)
+		return 0, fmt.Errorf("decompress %s: %w", dest, err)
 	}
 	defer reader.Close()
+	var size int64
+	err = writeAtomically(dest, func(file *os.File) error {
+		size, err = io.Copy(file, reader)
+		return err
+	})
+	if err != nil {
+		return 0, fmt.Errorf("decompress %s: %w", dest, err)
+	}
+	return size, nil
+}
+
+func writeSynced(dest string, data []byte) error {
+	return writeAtomically(dest, func(file *os.File) error {
+		_, err := file.Write(data)
+		return err
+	})
+}
+
+// writeAtomically writes dest through a synced temp file, so a crash leaves
+// either the old file or the complete new one.
+func writeAtomically(dest string, write func(*os.File) error) error {
 	tmp := fmt.Sprintf("%s.%d.tmp", dest, os.Getpid())
 	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		return fmt.Errorf("write %s: %w", tmp, err)
-	}
-	if _, err := io.Copy(file, reader); err != nil {
-		file.Close()
-		os.Remove(tmp)
-		return fmt.Errorf("decompress %s: %w", dest, err)
-	}
-	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, dest)
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
+	err = write(file)
+	if err == nil {
+		err = file.Sync()
+	}
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmp, dest)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+	}
+	return err
 }

@@ -196,6 +196,9 @@ func Probe(ctx context.Context, endpoint, service string) Service {
 		return Service{State: StateRunning, Identity: identity}
 	case resp.StatusCode == http.StatusServiceUnavailable && identity.Status == "starting":
 		return Service{State: StateStarting}
+	case resp.StatusCode == http.StatusServiceUnavailable && identity.Status == "stopped":
+		// The supervisor is up, but its collector pipeline has exited.
+		return Service{State: StateStopped}
 	}
 	return Service{State: StateOccupied}
 }

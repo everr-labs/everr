@@ -1,6 +1,7 @@
 package cmdutil
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -104,7 +105,7 @@ func (e *enumValue) String() string {
 
 func (e *enumValue) Set(raw string) error {
 	if !slices.Contains(e.allowed, raw) {
-		return fmt.Errorf("invalid value '%s'\n  [possible values: %s]", raw, strings.Join(e.allowed, ", "))
+		return possibleValuesError(e.allowed)
 	}
 	if e.repeat {
 		e.values = append(e.values, raw)
@@ -238,4 +239,27 @@ func JoinOptionalValues(cmd *cobra.Command, args []string) []string {
 		out = append(out, arg)
 	}
 	return out
+}
+
+type possibleValuesError []string
+
+func (e possibleValuesError) Error() string {
+	return "[possible values: " + strings.Join(e, ", ") + "]"
+}
+
+// InvalidFlagValue rewords pflag's invalid-value error the way clap reported
+// it, naming the flag with its value name and listing the accepted values.
+func InvalidFlagValue(cmd *cobra.Command, err error) (error, bool) {
+	invalid, ok := errors.AsType[*pflag.InvalidValueError](err)
+	if !ok {
+		return nil, false
+	}
+	flag := invalid.GetFlag()
+	msg := fmt.Sprintf("invalid value '%s' for '--%s <%s>'", invalid.GetValue(), flag.Name, valueName(flag))
+	if allowed, ok := errors.AsType[possibleValuesError](err); ok {
+		msg += "\n  " + allowed.Error()
+	} else if cause := invalid.Unwrap(); cause != nil {
+		msg += ": " + cause.Error()
+	}
+	return &UsageError{Cmd: cmd, Msg: msg, HideUsage: true}, true
 }

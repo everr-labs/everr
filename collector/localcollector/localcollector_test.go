@@ -44,6 +44,18 @@ func sendLog(t *testing.T, otlp, body string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func timezone(t *testing.T, sql string) string {
+	t.Helper()
+	resp, err := http.Post(sql+"/sql", "text/plain", bytes.NewBufferString("SELECT timezone() AS tz"))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	var row struct {
+		TZ string `json:"tz"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&row))
+	return row.TZ
+}
+
 func countLogs(t *testing.T, sql, body string) int {
 	t.Helper()
 	query := fmt.Sprintf("SELECT count() AS n FROM logs WHERE Body = '%s'", body)
@@ -80,6 +92,7 @@ func runUntilReady(t *testing.T, g *Gateway, sql string) (cancel func()) {
 	}
 }
 
+// chDB can be opened only once per process, so one test covers the gateway.
 func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	if os.Getenv("CHDB_LIB_PATH") == "" {
 		t.Skip("CHDB_LIB_PATH not set")
@@ -100,14 +113,17 @@ func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, code)
 	require.Equal(t, "starting", identity["status"])
 	require.Equal(t, "test-instance", identity["instance_id"])
+	// The local UI reads timestamps as UTC, whatever the machine's zone.
+	require.Equal(t, "UTC", timezone(t, sql))
 
 	stop := runUntilReady(t, g, sql)
 	sendLog(t, otlp, "first")
 	require.Eventually(t, func() bool { return countLogs(t, sql, "first") == 1 }, 10*time.Second, 100*time.Millisecond)
 	stop()
 
-	code, _ = health(sql)
+	code, identity = health(sql)
 	require.Equal(t, http.StatusServiceUnavailable, code)
+	require.Equal(t, "stopped", identity["status"])
 
 	stop = runUntilReady(t, g, sql)
 	defer stop()

@@ -288,6 +288,23 @@ func TestInvalidIdentityOrReadinessIsNotRecognized(t *testing.T) {
 	}
 }
 
+func TestHealthStatusMapsToServiceState(t *testing.T) {
+	for _, c := range []struct {
+		status string
+		code   int
+		want   ServiceState
+	}{
+		{"ok", 200, StateRunning},
+		{"starting", 503, StateStarting},
+		{"stopped", 503, StateStopped},
+	} {
+		body := fmt.Sprintf(`{"service":%q,"version":"0.8.2","instance_id":"one","protocol_version":1,"status":%q}`, collectorService, c.status)
+		if got := Probe(context.Background(), identityServer(t, c.code, body), collectorService); got.State != c.want {
+			t.Fatalf("%s: state = %v, want %v", c.status, got.State, c.want)
+		}
+	}
+}
+
 func TestRedirectAndOversizedResponseAreNotRecognized(t *testing.T) {
 	for _, c := range []struct {
 		status int
@@ -523,5 +540,26 @@ func TestCacheHitRepairsLibraryPermissions(t *testing.T) {
 	}
 	if info, _ := os.Stat(library); info.Mode().Perm() != 0o644 {
 		t.Fatalf("mode = %v", info.Mode().Perm())
+	}
+}
+
+func TestExtractionRedoesATruncatedLibraryAndDropsLeftoverTempFiles(t *testing.T) {
+	root := t.TempDir()
+	library, err := extractToCache(root, compressed(t, "complete library"), "aaa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(library, []byte("cut"), 0o644)
+	leftover := library + ".999.tmp"
+	os.WriteFile(leftover, []byte("partial"), 0o644)
+
+	if _, err := extractToCache(root, compressed(t, "complete library"), "aaa"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(library); string(got) != "complete library" {
+		t.Fatalf("library = %q", got)
+	}
+	if _, err := os.Stat(leftover); !os.IsNotExist(err) {
+		t.Fatal("leftover temp file was kept")
 	}
 }

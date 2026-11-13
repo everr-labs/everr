@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -193,6 +194,39 @@ func TestWrapPreservesWrappedCommandExitCode(t *testing.T) {
 	}
 	body := cliCommandBody(t, collector.bodiesUntil(hasCLICommandBody))
 	assertContains(t, body, "everr.cli.command", "wrap")
+}
+
+func TestWrapRelaysInterruptSentToItAlone(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "sh", "-c",
+		`trap 'exit 42' INT; echo ready; while :; do sleep 0.1; done`)
+	// Without a controlling terminal, nothing else delivers the signal to the
+	// wrapped command's process group.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bufio.NewReader(stdout).ReadString('\n'); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Process.Signal(syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+		if code := cmd.ProcessState.ExitCode(); code != 42 {
+			t.Fatalf("exit code = %d, want the child's 42", code)
+		}
+	case <-time.After(5 * time.Second):
+		_ = cmd.Process.Kill()
+		t.Fatal("the wrapped command never received the interrupt")
+	}
 }
 
 func TestWrapRefusesToRunWhenCollectorIsUnavailable(t *testing.T) {

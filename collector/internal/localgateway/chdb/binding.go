@@ -91,7 +91,9 @@ func newLibSession(libraryPath, dataPath string) (Session, error) {
 	if err := os.MkdirAll(dataPath, 0o755); err != nil {
 		return nil, fmt.Errorf("create chdb directory %s: %w", dataPath, err)
 	}
-	argv := []string{"clickhouse", "--path=" + dataPath}
+	// Timestamp columns carry no zone, so results would otherwise render in
+	// the machine's zone while readers treat them as UTC.
+	argv := []string{"clickhouse", "--path=" + dataPath, "--session_timezone=UTC"}
 	cArgv := make([]*byte, len(argv))
 	for i, arg := range argv {
 		bytes := append([]byte(arg), 0)

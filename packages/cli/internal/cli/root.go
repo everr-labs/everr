@@ -34,7 +34,7 @@ func init() {
 func NewRoot(lifetime *local.Lifetime) *cobra.Command {
 	root := &cobra.Command{
 		Use:           cmdutil.RootName,
-		Short:         "Query telemetry, inspect CI, and manage resources as code in Everr",
+		Short:         "Query telemetry and manage resources as code in Everr",
 		Version:       build.VersionOutput(),
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -64,6 +64,9 @@ func configureTree(cmd *cobra.Command) {
 		cmdutil.RenderHelp(c.OutOrStdout(), c)
 	})
 	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		if invalid, ok := cmdutil.InvalidFlagValue(c, err); ok {
+			return invalid
+		}
 		return cmdutil.UsageErrorf(c, "%s", clapFlagError(err))
 	})
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
@@ -82,10 +85,48 @@ func configureTree(cmd *cobra.Command) {
 				return cmdutil.Exit(2)
 			}
 		}
+		// clap gave every command group a `help` subcommand. cobra only adds
+		// one to the root, and only once Execute runs, after Main has already
+		// resolved the command.
+		help := newHelpCommand(cmd)
+		if cmd.HasParent() {
+			cmd.AddCommand(help)
+		} else {
+			cmd.SetHelpCommand(help)
+			cmd.InitDefaultHelpCmd()
+		}
 		for _, sub := range cmd.Commands() {
 			configureTree(sub)
 		}
 	}
+}
+
+func newHelpCommand(parent *cobra.Command) *cobra.Command {
+	return &cobra.Command{
+		Use:   "help [COMMAND]...",
+		Short: "Print this message or the help of the given subcommand(s)",
+		RunE: func(c *cobra.Command, args []string) error {
+			target := parent
+			for _, name := range args {
+				next := findSubcommand(target, name)
+				if next == nil {
+					return cmdutil.UsageErrorf(target, "unrecognized subcommand '%s'", name)
+				}
+				target = next
+			}
+			cmdutil.RenderHelp(c.OutOrStdout(), target)
+			return nil
+		},
+	}
+}
+
+func findSubcommand(cmd *cobra.Command, name string) *cobra.Command {
+	for _, sub := range cmd.Commands() {
+		if sub.Name() != "help" && (sub.Name() == name || sub.HasAlias(name)) {
+			return sub
+		}
+	}
+	return nil
 }
 
 // Main runs the CLI with argv (without the program name) and returns the
@@ -151,6 +192,10 @@ func printError(w io.Writer, err error) {
 		return
 	}
 	if usage, ok := errors.AsType[*cmdutil.UsageError](err); ok {
+		if usage.HideUsage {
+			fmt.Fprintf(w, "error: %s\n\nFor more information, try '--help'.\n", usage.Msg)
+			return
+		}
 		fmt.Fprintf(w, "error: %s\n\nUsage: %s\n\nFor more information, try '--help'.\n", usage.Msg, cmdutil.UsageLine(usage.Cmd))
 		return
 	}

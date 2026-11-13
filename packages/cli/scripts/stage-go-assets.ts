@@ -1,7 +1,7 @@
-import { cp, link, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { zstdFile, prepareChdbLibAt, sha256File } from "./build-support.ts";
+import { chdbSigningIdentity, prepareChdbLibAt, sha256File, zstdFile } from "./build-support.ts";
 
 const cliDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(cliDir, "../..");
@@ -39,9 +39,7 @@ async function linkOrCopy(source: string, dest: string) {
  * target/ because compressing it takes a while.
  */
 export async function stageGoAssets({ mode = "debug", requireUi = false } = {}) {
-  const skillsDir = path.join(assetsDir, "skills");
-  await resetDir(skillsDir);
-  await cp(path.join(repoDir, "skills"), skillsDir, { recursive: true });
+  await stageSkills();
 
   const uiSource = path.join(repoDir, "packages/local-app/dist");
   const uiDir = path.join(assetsDir, "localui");
@@ -55,15 +53,28 @@ export async function stageGoAssets({ mode = "debug", requireUi = false } = {}) 
   }
 
   const chdbZst = path.join(chdbCacheDir, mode, "libchdb.so.zst");
-  if (!(await exists(chdbZst))) {
+  // macOS release builds sign libchdb before compressing it, so a cached copy
+  // is reused only when it was signed with the same identity.
+  const signerFile = `${chdbZst}.signer`;
+  const signer = chdbSigningIdentity(mode);
+  const cachedSigner = await readFile(signerFile, "utf8").catch(() => "");
+  if (!(await exists(chdbZst)) || cachedSigner !== signer) {
     const lib = await prepareChdbLibAt(mode, path.join(chdbCacheDir, mode, "libchdb.so"));
     await zstdFile(lib, chdbZst);
+    await writeFile(signerFile, signer);
   }
   const chdbDir = path.join(assetsDir, "chdb");
   await resetDir(chdbDir);
   await linkOrCopy(chdbZst, path.join(chdbDir, "libchdb.so.zst"));
   // The CLI caches the extracted library under this digest.
   await writeFile(path.join(chdbDir, "libchdb.so.zst.sha256"), `${await sha256File(chdbZst)}\n`);
+}
+
+/** Copies the repository's skills/ into the CLI's embedded assets. */
+export async function stageSkills() {
+  const skillsDir = path.join(assetsDir, "skills");
+  await resetDir(skillsDir);
+  await cp(path.join(repoDir, "skills"), skillsDir, { recursive: true });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

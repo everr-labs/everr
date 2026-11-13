@@ -89,6 +89,11 @@ func StartLogCapture() (stop func(), captured bool, err error) {
 	done := make(chan error, 1)
 	go func() {
 		_, err := io.Copy(log, reader)
+		if err != nil {
+			// Without a reader, writes to fds 1 and 2 would block once the
+			// pipe fills, hanging the whole process.
+			_, _ = io.Copy(io.Discard, reader)
+		}
 		done <- errors.Join(err, log.Close())
 	}()
 	var once sync.Once

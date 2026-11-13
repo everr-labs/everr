@@ -2,17 +2,17 @@
 
 Vite and TanStack Router browser UI for the local telemetry collector. The CLI embeds the static build and serves it on loopback.
 
-Run `pnpm dev:local` from the repository root. It prepares embedded assets on the first run, builds and starts the Rust CLI and collector, and opens the Vite UI at `http://127.0.0.1:1420`. UI edits hot reload. Rust CLI edits rebuild the backend, restart it after successful compilation, and refresh the browser. Failed compilations leave the previous backend running. Ctrl+C stops Vite, the backend, and the collector.
+Run `pnpm dev:local` from the repository root. It prepares embedded assets on the first run, builds and starts the Go CLI, which runs the collector in-process, and opens the Vite UI at `http://127.0.0.1:1420`. UI edits hot reload. Edits to the CLI, the local collector packages, or `skills/` rebuild the backend, restart it after successful compilation, and refresh the browser. Failed compilations leave the previous backend running. Ctrl+C stops Vite, the backend, and the collector.
 
 Use `pnpm dev:local --no-open` to suppress browser launch. Vite proxies `/api` to the development CLI server on port `54321`. Stop an existing development CLI before using the combined command. To run only Vite against an already running CLI, use `pnpm dev:local:ui`.
 
-To check the embedded UI, run `pnpm dev:cli`, then `./target/debug/everr-dev local start`. The embedded UI on port `54321` updates when rebuilt. Collector Go changes require regenerating the embedded assets with `pnpm dev:cli` before restarting local development.
+To check the embedded UI, run `pnpm dev:cli`, then `./target/go/debug/everr-dev local start`. The embedded UI on port `54321` updates when rebuilt.
 
 The local UI explores logs, traces, and errors stored by the local collector. Settings show collector status and local endpoints and allow collector restarts. Remote account login and agent skill installation are managed through the CLI, independently of the local UI.
 
 ## Telemetry
 
-The UI sends its internal `everr-local-ui` events through the Rust backend at `/api/telemetry/{signal}`. `get_telemetry_context` supplies `serviceVersion`, `telemetryEnabled`, and `deploymentEnvironment`; the backend's build mode determines these values, independently of Vite's build mode. A disabled context prevents SDK initialization.
+The UI sends its internal `everr-local-ui` events through the CLI backend at `/api/telemetry/{signal}`. `get_telemetry_context` supplies `serviceVersion`, `telemetryEnabled`, and `deploymentEnvironment`; the backend's build mode determines these values, independently of Vite's build mode. A disabled context prevents SDK initialization.
 
 In debug builds, UI and CLI telemetry share the development collector. Run `everr-dev local status` to discover the local OTLP URL, or set `EVERR_INTERNAL_TELEMETRY_ENDPOINT` on the debug backend to select another OTLP/HTTP destination.
 

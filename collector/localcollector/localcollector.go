@@ -93,8 +93,8 @@ func Open(opts Options) (*Gateway, error) {
 }
 
 // Run runs the OTLP pipeline until ctx is canceled or the pipeline fails.
-// The SQL endpoint reports ready only while the pipeline is running. Run can
-// be called again after it returns.
+// The SQL endpoint reports ready only while the pipeline is running, and
+// stopped once it has exited. Run can be called again after it returns.
 func (g *Gateway) Run(ctx context.Context) error {
 	g.mu.Lock()
 	if g.running {
@@ -103,8 +103,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 	g.running = true
 	g.mu.Unlock()
+	g.sql.SetStatus(sqlhttp.StatusStarting)
 	defer func() {
-		g.sql.SetReady(false)
+		g.sql.SetStatus(sqlhttp.StatusStopped)
 		g.mu.Lock()
 		g.running = false
 		g.mu.Unlock()
@@ -126,7 +127,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 			return err
 		case <-ticker.C:
 			if collector.GetState() == otelcol.StateRunning {
-				g.sql.SetReady(true)
+				g.sql.SetStatus(sqlhttp.StatusOK)
 				ticker.Stop()
 			}
 		case <-ctx.Done():

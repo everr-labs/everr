@@ -91,7 +91,7 @@ func newInstallCommand() *cobra.Command {
 		if err := scope.validate(cmd); err != nil {
 			return err
 		}
-		return runInstall(cmd.OutOrStdout(), *all, scope, providers(), *dryRun)
+		return runInstall(cmd.OutOrStdout(), *all, scope, providers(), cmd.Flags().Changed("agent"), *dryRun)
 	}
 	return cmd
 }
@@ -157,7 +157,9 @@ func runList(w io.Writer, scope Scope, providers []Provider) error {
 	return nil
 }
 
-func runInstall(w io.Writer, all bool, scopeArgs *scopeFlags, providers []Provider, dryRun bool) error {
+// agentChosen is whether --agent was passed: `--agent all` selects every
+// provider without asking, like no flag does off a terminal.
+func runInstall(w io.Writer, all bool, scopeArgs *scopeFlags, providers []Provider, agentChosen, dryRun bool) error {
 	interactive := isInteractiveTerminal()
 	if !all {
 		if !interactive {
@@ -186,7 +188,7 @@ func runInstall(w io.Writer, all bool, scopeArgs *scopeFlags, providers []Provid
 			return err
 		}
 	}
-	if len(providers) == 0 && interactive {
+	if !agentChosen && interactive {
 		if providers, err = promptProviders(homeDir); err != nil {
 			return err
 		}

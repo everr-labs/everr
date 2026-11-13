@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite-plus";
 import { compileCli, resolveCliBuild } from "../../cli/scripts/cli-build.ts";
+import { stageSkills } from "../../cli/scripts/stage-go-assets.ts";
 
 const appDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(appDir, "../..");
@@ -172,6 +173,8 @@ async function main() {
     console.log("[local dev] Preparing embedded assets for the first run...");
     await run("pnpm", ["--filter", "@everr/cli", "build:debug"]);
   }
+  // Skills are embedded from a staged copy, which may predate local edits.
+  await stageSkills();
   await rebuildBackend();
   shutdown.signal.throwIfAborted();
   vite = await createServer({
@@ -191,6 +194,13 @@ async function main() {
   ]) {
     watchers.push(watch(directory, { recursive: true }, scheduleRebuild));
   }
+  // Staging writes into internal/assets, which the watch above turns into a
+  // rebuild.
+  watchers.push(
+    watch(path.join(repoDir, "skills"), { recursive: true }, () => {
+      stageSkills().catch((error) => console.error("[local dev] Staging skills failed.", error));
+    }),
+  );
   for (const [directory, files] of [[cliDir, ["go.mod", "go.sum", "package.json"]]] as const) {
     watchers.push(
       watch(directory, (_event, file) => {

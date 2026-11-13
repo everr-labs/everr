@@ -157,6 +157,12 @@ async function ensureChdbArchive(archivePath: string, asset: ChdbAsset) {
   await downloadChdbArchive(archivePath, asset);
 }
 
+/** The identity prepareChdbLibAt signs libchdb with, or "" when it does not sign. */
+export function chdbSigningIdentity(mode: string) {
+  if (mode !== "release" || process.platform !== "darwin") return "";
+  return getEnv("APPLE_SIGNING_IDENTITY") ?? "";
+}
+
 export async function prepareChdbLibAt(mode: string, destLib: string) {
   if (mode !== "debug" && mode !== "release") {
     throw new Error(`Unsupported mode: ${mode}`);

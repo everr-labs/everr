@@ -159,6 +159,8 @@ func TestDetachedAndForegroundInstancesShareTheFullLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The local UI reads timestamps as UTC, whatever the machine's zone.
+	i.Setenv("TZ", "America/New_York")
 	out := i.Run("local", "start", "-d", "--no-open").Success(t).Stdout
 	endpoints := fmt.Sprintf("otlp: %s\nsql: %s\nui: %s\n", i.otlp, i.sql, i.ui)
 	if want := endpoints + "log: " + filepath.Join(logDir, "local.log") + "\n"; out != want {
@@ -170,6 +172,10 @@ func TestDetachedAndForegroundInstancesShareTheFullLifecycle(t *testing.T) {
 	}
 	if got := i.identity(t); got["instance_id"] != identity["instance_id"] {
 		t.Fatalf("second start replaced the instance: %v", got)
+	}
+
+	if tz := i.Run("local", "query", "SELECT timezone() AS tz", "--format", "ndjson").Success(t).Stdout; tz != `{"tz":"UTC"}`+"\n" {
+		t.Fatalf("chDB timezone = %q", tz)
 	}
 
 	marker := "detach-" + filepath.Base(i.data)

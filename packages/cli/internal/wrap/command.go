@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
@@ -127,9 +128,11 @@ func run(ctx context.Context, argv []string) error {
 }
 
 // relaySignals keeps wrap alive until the child exits so its last logs and
-// exit code are still reported. SIGINT and SIGQUIT come from the terminal,
-// which already delivers them to the child's process group, so relaying them
-// would signal the child twice; SIGTERM and SIGHUP are sent to wrap alone.
+// exit code are still reported. SIGTERM and SIGHUP are sent to wrap alone, so
+// they are relayed. A SIGINT or SIGQUIT typed at the terminal already reaches
+// the child through the foreground process group, so relaying it would signal
+// the child twice; one sent any other way, like `kill -INT` from a harness,
+// is relayed.
 func relaySignals(process *os.Process) (stop func()) {
 	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGHUP)
@@ -138,7 +141,7 @@ func relaySignals(process *os.Process) (stop func()) {
 		for {
 			select {
 			case sig := <-signals:
-				if sig == syscall.SIGTERM || sig == syscall.SIGHUP {
+				if sig == syscall.SIGTERM || sig == syscall.SIGHUP || !inTerminalForeground() {
 					_ = process.Signal(sig)
 				}
 			case <-done:
@@ -150,6 +153,18 @@ func relaySignals(process *os.Process) (stop func()) {
 		signal.Stop(signals)
 		close(done)
 	}
+}
+
+// inTerminalForeground reports whether wrap's process group is the
+// foreground group of its controlling terminal.
+func inTerminalForeground() bool {
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		return false
+	}
+	defer tty.Close()
+	group, err := unix.IoctlGetInt(int(tty.Fd()), unix.TIOCGPGRP)
+	return err == nil && group == unix.Getpgrp()
 }
 
 func exitCode(state *os.ProcessState) int {

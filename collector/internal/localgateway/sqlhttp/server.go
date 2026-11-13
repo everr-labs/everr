@@ -19,6 +19,16 @@ type Identity struct {
 	InstanceID string
 }
 
+// Status is the pipeline state the /health endpoint reports. Only StatusOK
+// answers 200.
+type Status string
+
+const (
+	StatusStarting Status = "starting"
+	StatusOK       Status = "ok"
+	StatusStopped  Status = "stopped"
+)
+
 type Server struct {
 	identity Identity
 	cfg      Config
@@ -28,16 +38,18 @@ type Server struct {
 	server       *http.Server
 	listener     net.Listener
 	shutdownOnce sync.Once
-	ready        atomic.Bool
+	status       atomic.Value
 }
 
 func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
-	return &Server{
+	s := &Server{
 		identity: identity,
 		cfg:      cfg.Applied(),
 		handle:   handle,
 		logger:   logger,
 	}
+	s.status.Store(StatusStarting)
+	return s
 }
 
 func (s *Server) Start() error {
@@ -82,15 +94,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return err
 }
 
-func (s *Server) SetReady(ready bool) {
-	s.ready.Store(ready)
+func (s *Server) SetStatus(status Status) {
+	s.status.Store(status)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	status, code := "ok", http.StatusOK
-	if !s.ready.Load() {
-		status, code = "starting", http.StatusServiceUnavailable
+	status, code := s.status.Load().(Status), http.StatusOK
+	if status != StatusOK {
+		code = http.StatusServiceUnavailable
 	}
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]any{

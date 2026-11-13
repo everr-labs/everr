@@ -26,7 +26,7 @@ func assertNotContains(t *testing.T, got string, unwanted ...string) {
 func TestRootHelpListsMainCommands(t *testing.T) {
 	out := NewEnv(t).Run("--help").Success(t).Stdout
 	assertContains(t, out,
-		"Query telemetry, inspect CI, and manage resources as code in Everr",
+		"Query telemetry and manage resources as code in Everr",
 		"Usage: everr <COMMAND>",
 		"cloud", "local", "wrap", "skills", "upgrade", "apply", "resources",
 		"Authenticate with and query a remote Everr installation",
@@ -57,5 +57,23 @@ func TestRemovedCommandsAreRejected(t *testing.T) {
 	} {
 		res := env.Run(args...).Failure(t, 2)
 		assertContains(t, res.Stderr, "unrecognized subcommand")
+	}
+}
+
+func TestHelpSubcommandWorksAtEveryLevel(t *testing.T) {
+	env := NewEnv(t)
+	assertContains(t, env.Run("help").Success(t).Stdout, "Usage: everr <COMMAND>")
+	for _, args := range [][]string{{"help", "skills", "install"}, {"skills", "help", "install"}} {
+		assertContains(t, env.Run(args...).Success(t).Stdout, "Usage: everr skills install [OPTIONS]")
+	}
+	res := env.Run("skills", "help", "nope").Failure(t, 2)
+	assertContains(t, res.Stderr, "unrecognized subcommand 'nope'")
+}
+
+func TestInvalidFlagValueListsTheAcceptedValues(t *testing.T) {
+	res := NewEnv(t).Run("skills", "install", "--agent", "bogus").Failure(t, 2)
+	want := "error: invalid value 'bogus' for '--agent <AGENT>'\n  [possible values: all, codex, claude-code, cursor]\n\nFor more information, try '--help'.\n"
+	if res.Stderr != want {
+		t.Fatalf("stderr = %q", res.Stderr)
 	}
 }
