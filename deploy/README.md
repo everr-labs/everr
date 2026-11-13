@@ -1,8 +1,9 @@
 # Run Everr with Docker Compose
 
 This stack runs the Everr app, collector, PostgreSQL, and ClickHouse on one
-machine. It builds the self-hostable product from this checkout. Docker with
-Compose and OpenSSL are required; Node and Go are built inside Docker.
+machine. It pulls the `everr-app` and `everr-collector` images from
+`ghcr.io/everr-labs`, pinned to the release this file ships with, and the stock
+`clickhouse/clickhouse-server` image. Docker with Compose and OpenSSL are required.
 
 From the repository root:
 
@@ -29,10 +30,9 @@ operators can use the recovery commands below.
 Start the stack:
 
 ```sh
-docker compose up -d --build --wait
+docker compose up -d --wait
 ```
 
-The first build downloads dependencies and compiles the app and collector.
 Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
@@ -152,6 +152,38 @@ The app's ClickHouse write user is `app_admin`. An installation created when it
 was named `web_app_admin` gets `app_admin` on its first start with this version,
 with the same password. The old user is not used any more and can be dropped:
 `DROP USER IF EXISTS web_app_admin`.
+
+### Versions
+
+The app and collector images share one version, the same as the `everr` CLI.
+ClickHouse runs a pinned stock image and gets its schema from the app, so it has
+no Everr version. `compose.yaml` pins the release it ships with. To pin another
+release, set `EVERR_VERSION` in `.env`:
+
+```sh
+EVERR_VERSION=0.10.2
+```
+
+`EVERR_VERSION` sets both images, so the app and collector stay at the same
+version. To upgrade, change it (or update `compose.yaml`) and run:
+
+```sh
+docker compose pull
+docker compose up -d --wait
+```
+
+The new app applies the ClickHouse files that `default.everr_clickhouse_migrations`
+does not list yet, then the collector restarts against the new columns. Do not
+pin an older version than the one the installation already ran: the app does
+not roll back ClickHouse migrations.
+
+Each release is also tagged by minor version (`0.10`) and as `latest`.
+
+To build the images from this checkout instead of pulling them:
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait
+```
 
 Development uses `pnpm dev` and its separate dependency configuration.
 Run installation commands from this directory to select the deployment stack.

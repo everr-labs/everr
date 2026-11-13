@@ -2,7 +2,9 @@
 FROM golang:1.26.11-alpine3.24@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb AS build
 WORKDIR /collector
 
-ARG EVERR_BUILD_TARGET=cloud
+# Self-hosted by default. If the Cloud build loses its build arg, its config
+# names usage components this binary lacks, so the collector fails at startup.
+ARG EVERR_BUILD_TARGET=self-hosted
 
 COPY . .
 
@@ -17,7 +19,7 @@ RUN mkdir -p /out/queue
 # STAGE 2 - final image
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329
 
-ARG EVERR_BUILD_TARGET=cloud
+ARG EVERR_BUILD_TARGET=self-hosted
 ARG BIN_PATH=/collector/build/${EVERR_BUILD_TARGET}/everr-collector
 # Volumes created by earlier images are owned by this UID.
 ARG UID=10001

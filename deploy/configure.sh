@@ -18,4 +18,4 @@ while IFS= read -r line || [ -n "$line" ]; do
   printf '%s\n' "$line"
 done < .env.example > .env
 
-echo 'Created .env. Run docker compose up -d --build --wait.'
+echo 'Created .env. Run docker compose up -d --wait.'
