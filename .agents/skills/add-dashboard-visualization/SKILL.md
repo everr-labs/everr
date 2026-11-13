@@ -189,7 +189,7 @@ The `inset` option controls padding inside the panel card:
 - `"flush-content"` (the default): no horizontal or bottom padding. Charts, tables and maps run to the panel's edges.
 - `"default"`: standard padding, for content that is not a chart drawn to the edges (the gauge).
 
-The optional `downsample: (spec) => boolean` field opts a visualization into server-side M4 downsampling of its rows. Only `TimeSeriesChart` sets it, so leave it out unless the visualization draws one line per series over time.
+The optional `downsample: (spec) => boolean` field opts a visualization into server-side M4 downsampling of its rows. The browser sizes the bucket count to the panel width. Only `TimeSeriesChart` sets it, so leave it out unless the visualization draws one line per series over time.
 
 ### 5. Register the schema for apply-time validation
 
