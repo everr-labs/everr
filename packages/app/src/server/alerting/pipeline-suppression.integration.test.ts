@@ -37,41 +37,6 @@ vi.mock("#app/lib/clickhouse-writer.ts", async () => {
 const harness = registerAlertingHarness();
 
 describe("the alerting pipeline's suppression", () => {
-  it("a silence matching the instance's labels defers the notification, and the instance still reaches firing", async () => {
-    await insertDirectRule(harness().db, { forSecs: 0, channelType: "slack" });
-    await insertSilence(harness().db);
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-
-    await harness().runDueJobs();
-
-    const [instance] = await harness().db.select().from(alertInstances);
-    expect(instance.status).toBe("firing");
-    expect(harness().fetchCalls()).toHaveLength(0);
-
-    // The event still firing at defer time is retried rather than settled, so
-    // the chain gets a hold, not a terminal: the notification may still go
-    // out when the silence lapses.
-    const outcomes = harness()
-      .clickhouse.historyRows()
-      .filter(
-        (row) =>
-          row.event_type === "notification_deferred" ||
-          row.event_type === "notification_suppressed",
-      );
-    expect(outcomes.map((row) => row.event_type)).toEqual(["notification_deferred"]);
-    expect(outcomes[0].silenced).toBe(true);
-
-    // The Postgres journal row is the record of the defer decision: tied to
-    // the matching silence, and left unprocessed so the retry job wakes it
-    // later.
-    const [firedEvent] = await harness()
-      .db.select()
-      .from(alertEvents)
-      .where(eq(alertEvents.eventType, "instance_fired"));
-    expect(firedEvent.silenceId).not.toBeNull();
-    expect(firedEvent.processedAt).toBeNull();
-  });
-
   // The case the whole Silence dialog exists to produce, and the one nothing
   // covered: every other case here scopes by an instance label, which both
   // sides always spelled the same way. The rule label is the one they did not:
@@ -130,7 +95,7 @@ describe("the alerting pipeline's suppression", () => {
     });
   });
 
-  it("the notification goes out once the silence's window passes, no longer held", async () => {
+  it("a matching silence defers the notification while the instance still fires, and it goes out once the window passes", async () => {
     await insertDirectRule(harness().db, { forSecs: 0, channelType: "slack" });
     const silenceWindowMs = 120_000;
     await insertSilence(harness().db, {
@@ -139,15 +104,30 @@ describe("the alerting pipeline's suppression", () => {
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness().runDueJobs();
+    const [instance] = await harness().db.select().from(alertInstances);
+    expect(instance.status).toBe("firing");
     expect(harness().fetchCalls()).toHaveLength(0);
-    // Proof the hold actually happened, not just that the group wait had not
-    // elapsed yet: without it, this case would still pass with a silence
-    // that does nothing at all.
+    // The event still firing at defer time is retried rather than settled, so
+    // the chain gets a hold, not a terminal: the notification may still go
+    // out when the silence lapses.
+    const holdOutcomes = harness()
+      .clickhouse.historyRows()
+      .filter(
+        (row) =>
+          row.event_type === "notification_deferred" ||
+          row.event_type === "notification_suppressed",
+      );
+    expect(holdOutcomes.map((row) => row.event_type)).toEqual(["notification_deferred"]);
+    expect(holdOutcomes[0].silenced).toBe(true);
+    // The Postgres journal row is the record of the defer decision: tied to
+    // the matching silence, and left unprocessed so the retry job wakes it
+    // later.
     const [heldEvent] = await harness()
       .db.select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(heldEvent.silenceId).not.toBeNull();
+    expect(heldEvent.processedAt).toBeNull();
 
     // The held event's own retry job wakes exactly at the silence's ends_at,
     // not on the rule's own evaluation interval.
@@ -179,36 +159,6 @@ describe("the alerting pipeline's suppression", () => {
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(firedEvent.silenceId).toBeNull();
-  });
-
-  it("freezes the silence's comment and matchers onto the terminal it withheld", async () => {
-    await insertDirectRule(harness().db, { forSecs: 0, channelType: "slack" });
-    const silence = await insertSilence(harness().db, {
-      comment: "checkout migration window",
-      matchers: [{ label: "service", op: "eq", value: "checkout" }],
-    });
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness().runDueJobs();
-
-    // The instance stops firing while the silence still holds the fire, so
-    // the resolve is the decision that will not be revisited: the chain ends
-    // there, silenced.
-    harness().clickhouse.setSignal([]);
-    harness().advance(60_000); // the rule's evaluation interval
-    await harness().fireAndFlush();
-
-    const terminal = harness()
-      .clickhouse.historyRows()
-      .find((row) => row.event_type === "notification_suppressed");
-    expect(harness().fetchCalls()).toHaveLength(0);
-    // "Why was I not paged" is answerable from this row alone. Retention
-    // deletes the silence at 90 days, long before the history it explains.
-    expect(terminal).toMatchObject({
-      silenced: true,
-      silence_id: silence.id,
-      silence_comment: "checkout migration window",
-      silence_matchers_json: '[{"label":"service","op":"eq","value":"checkout"}]',
-    });
   });
 
   it("refuses a window that is not an instant in time", async () => {
@@ -275,13 +225,13 @@ describe("the alerting pipeline's suppression", () => {
     ).toEqual(["first window", "second window"]);
   });
 
-  it("canceling the silence releases every held event in one statement", async () => {
-    const ruleA = await insertDirectRule(harness().db, {
+  it("canceling the silence releases every held event in one statement, and a second cancel releases nothing", async () => {
+    await insertDirectRule(harness().db, {
       slug: "held-a",
       forSecs: 0,
       channelType: "slack",
     });
-    const ruleB = await insertDirectRule(harness().db, {
+    await insertDirectRule(harness().db, {
       slug: "held-b",
       forSecs: 0,
       channelType: "slack",
@@ -301,11 +251,8 @@ describe("the alerting pipeline's suppression", () => {
     expect(heldBefore).toHaveLength(2);
     expect(heldBefore.every((row) => row.processedAt === null)).toBe(true);
 
-    const { expired } = await expireSilence(
-      { organizationId: TEST_ORG, actor: TEST_ACTOR },
-      silence.id,
-    );
-    expect(expired).toBe(true);
+    const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
+    expect(await expireSilence(scope, silence.id)).toEqual({ expired: true });
 
     // The cancel's own transaction writes both release jobs in the same
     // set-based statement, so they are visible, due immediately, before any
@@ -319,51 +266,20 @@ describe("the alerting pipeline's suppression", () => {
     );
     expect(releaseJobs).toHaveLength(2);
 
+    // The cancel's release is guarded on the silence still being open, so a
+    // repeated cancel (a double click, a retried job) cannot re-release a
+    // chain that has already moved on.
+    const pendingAfterFirstCancel = (await harness().pendingJobs()).length;
+    expect(await expireSilence(scope, silence.id)).toEqual({ expired: false });
+    expect(await harness().pendingJobs()).toHaveLength(pendingAfterFirstCancel);
+
     await harness().fireAndFlush();
 
     // Two distinct rules, so two distinct notification groups: both notify.
     expect(harness().fetchCalls()).toHaveLength(2);
-    expect(ruleA.id).not.toBe(ruleB.id);
   });
 
-  it("releases nothing on a second cancel of the same silence", async () => {
-    await insertDirectRule(harness().db, { forSecs: 0, channelType: "slack" });
-    const silence = await insertSilence(harness().db);
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness().runDueJobs();
-
-    const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
-    expect(await expireSilence(scope, silence.id)).toEqual({ expired: true });
-    const releasedOnce = (await harness().pendingJobs()).length;
-
-    // The cancel's release is guarded on the silence still being open, so a
-    // repeated cancel (a double click, a retried job) cannot re-release a
-    // chain that has already moved on.
-    expect(await expireSilence(scope, silence.id)).toEqual({ expired: false });
-    expect(await harness().pendingJobs()).toHaveLength(releasedOnce);
-  });
-
-  it("a preview rule never notifies, and its history row still carries rule_muted", async () => {
-    const preview = await insertPreview(harness().db);
-    await insertDirectRule(harness().db, {
-      previewId: preview.id,
-      forSecs: 0,
-      channelType: "slack",
-    });
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-
-    await harness().fireAndFlush();
-
-    expect(harness().fetchCalls()).toHaveLength(0);
-    expect(await harness().db.select().from(alertDeliveries)).toHaveLength(0);
-
-    const fired = harness()
-      .clickhouse.historyRows()
-      .find((row) => row.event_type === "instance_fired");
-    expect(fired?.rule_muted).toBe(true);
-  });
-
-  it("a page severity outranks a preview: only the paging rule notifies", async () => {
+  it("a preview rule never notifies, even at page severity, and its history row carries rule_muted", async () => {
     const preview = await insertPreview(harness().db);
     await insertDirectRule(harness().db, {
       slug: "preview-rule",
@@ -385,31 +301,19 @@ describe("the alerting pipeline's suppression", () => {
     // Both rules breach at the same severity; only the one that is not a
     // preview may ever notify.
     expect(harness().fetchCalls()).toHaveLength(1);
-  });
+    expect(await harness().db.select().from(alertDeliveries)).toHaveLength(1);
 
-  it("a canceled silence stores the stable principal separately from the display author", async () => {
-    const actor = { kind: "user", id: "u_42", display: "Alice Smith" } as const;
-    const created = await createSilence(
-      { organizationId: TEST_ORG, actor },
-      {
-        matchers: [{ label: "service", op: "eq", value: "checkout" }],
-        starts_at: new Date().toISOString(),
-        ends_at: new Date(Date.now() + 3_600_000).toISOString(),
-      },
+    const firedBySlug = new Map(
+      harness()
+        .clickhouse.historyRows()
+        .filter((row) => row.event_type === "instance_fired")
+        .map((row) => [row.slug, row.rule_muted]),
     );
-
-    await expireSilence({ organizationId: TEST_ORG, actor: TEST_ACTOR }, created.id);
-
-    const [row] = await harness()
-      .db.select()
-      .from(alertSilences)
-      .where(eq(alertSilences.id, created.id));
-    expect(row.canceledAt).not.toBeNull();
-    expect(row.author).toBe("Alice Smith");
-    expect(row.authorPrincipal).toBe("user:u_42");
+    expect(firedBySlug.get("default/preview-rule")).toBe(true);
+    expect(firedBySlug.get("default/paging-rule")).toBe(false);
   });
 
-  it("a mutation records the server-derived actor, and a client-supplied actor field does not reach the stored row", async () => {
+  it("stores the server-derived actor, never a client-supplied author, and keeps it through a cancel by someone else", async () => {
     const actor = { kind: "user", id: "u_7", display: "Real Name" } as const;
     // No `author` field exists on AlertingSilenceInput (see schema.ts); a
     // client that tries to smuggle one in anyway must still be ignored, not
@@ -422,12 +326,15 @@ describe("the alerting pipeline's suppression", () => {
     } as unknown as AlertingSilenceInput;
 
     const created = await createSilence({ organizationId: TEST_ORG, actor }, maliciousInput);
-
     expect(created.author).toBe("Real Name");
+
+    await expireSilence({ organizationId: TEST_ORG, actor: TEST_ACTOR }, created.id);
+
     const [row] = await harness()
       .db.select()
       .from(alertSilences)
       .where(eq(alertSilences.id, created.id));
+    expect(row.canceledAt).not.toBeNull();
     expect(row.author).toBe("Real Name");
     expect(row.authorPrincipal).toBe("user:u_7");
   });

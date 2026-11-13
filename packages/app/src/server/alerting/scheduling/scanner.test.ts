@@ -56,13 +56,6 @@ describe("alert scanner", () => {
     expect(alertingRetryDelaySeconds(60, 8, 60)).toBe(60);
   });
 
-  it("re-selects a definition whose evaluation never came back", () => {
-    // Without this the scanner skips anything with lastEnqueuedAt at or after
-    // nextEvaluationAt, so a rule whose evaluation died goes silent forever.
-    const now = new Date("2026-08-06T10:00:00Z");
-    expect(staleEnqueueCutoff(now).toISOString()).toBe("2026-08-06T09:45:00.000Z");
-  });
-
   it("waits longer than any plausible evaluation before re-enqueueing", () => {
     const now = new Date("2026-08-06T10:00:00Z");
     const waitedSeconds = (now.getTime() - staleEnqueueCutoff(now).getTime()) / 1_000;

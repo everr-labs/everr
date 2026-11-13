@@ -192,25 +192,21 @@ describe("/errors route", () => {
     return router;
   }
 
-  it("renders the detail child route as a page for a direct error URL", async () => {
-    renderErrorsRoute(["/errors/fp-1"]);
+  it.each([
+    "/errors/fp-1",
+    "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
+  ])("renders the detail child route as a page for a direct or reloaded URL %s", async (url) => {
+    renderErrorsRoute([url]);
 
     expect(await screen.findByText("Error full page route")).toBeInTheDocument();
     expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
-  it("renders a direct error URL with absolute time search params", async () => {
-    renderErrorsRoute([
-      "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
-    ]);
-
-    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
-  });
-
-  it("renders the detail child route in a modal when opened from the list", async () => {
+  it("renders the detail child route in a modal from the list without another tenant subscription", async () => {
     const user = userEvent.setup();
     const router = renderErrorsRoute(["/errors"]);
+
+    await waitFor(() => expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]));
 
     await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
 
@@ -219,26 +215,7 @@ describe("/errors route", () => {
     expect(router.state.location.href).toContain("/modal");
     expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
     expect(router.state.location.maskedLocation?.href).toContain("/errors/fp-1");
-  });
-
-  it("does not start another tenant realtime subscription for modal details", async () => {
-    const user = userEvent.setup();
-    renderErrorsRoute(["/errors"]);
-
     await waitFor(() => expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]));
-
-    await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
-
-    expect(screen.getByText("Error list page")).toBeInTheDocument();
-    expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
-    await waitFor(() => expect(realtimeSubscriptions.starts).toEqual([{ scope: "tenant" }]));
-  });
-
-  it("renders the detail child route as a page when the masked URL is reloaded", async () => {
-    renderErrorsRoute(["/errors/fp-1"]);
-
-    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
   it("renders the list page after dropping invalid empty query params", async () => {

@@ -85,32 +85,28 @@ afterEach(() => {
 });
 
 describe("Errors page filter rail", () => {
-  it("puts the persistent zone above the page filters in one rail", () => {
-    render(<ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />);
+  it("puts the persistent zone and the only search field in one rail, and applies the search on Enter", async () => {
+    const user = userEvent.setup();
+    const onSearchChange = vi.fn();
+    render(
+      <ErrorsPageHarness
+        persistentFilters={<div>persistent zone</div>}
+        onSearchChange={onSearchChange}
+      />,
+    );
 
     const rail = screen.getByRole("complementary", { name: "Error filters" });
     expect(within(rail).getByText("persistent zone")).toBeInTheDocument();
     expect(within(rail).getByText("Search")).toBeInTheDocument();
     expect(within(rail).getByText("Order")).toBeInTheDocument();
-  });
-
-  it("has no search bar outside the rail", () => {
-    render(<ErrorsPageHarness />);
-
-    const rail = screen.getByRole("complementary", { name: "Error filters" });
-    expect(rail).toContainElement(screen.getByPlaceholderText("Search errors"));
-    expect(screen.getAllByPlaceholderText("Search errors")).toHaveLength(1);
-  });
-
-  it("applies the search on Enter", async () => {
-    const user = userEvent.setup();
-    const onSearchChange = vi.fn();
-    render(<ErrorsPageHarness onSearchChange={onSearchChange} />);
-
+    // One field only. The rail holds it, and no second field is above the
+    // results.
     const input = screen.getByPlaceholderText("Search errors");
+    expect(rail).toContainElement(input);
+    expect(screen.getAllByPlaceholderText("Search errors")).toHaveLength(1);
+
     await user.type(input, "TypeError");
     expect(onSearchChange).not.toHaveBeenCalled();
-
     await user.type(input, "{Enter}");
     expect(onSearchChange).toHaveBeenCalledWith({ q: "TypeError" });
   });
@@ -138,31 +134,24 @@ describe("Errors page filter rail", () => {
     expect(patch).not.toHaveProperty("service");
   });
 
-  it("below 1024px the rail moves into a sheet behind a Filters button", async () => {
+  it("below 1024px moves the rail into a sheet behind a Filters button that counts the persistent filters", async () => {
     stubNarrowViewport();
     const user = userEvent.setup();
-    render(<ErrorsPageHarness persistentFilters={<div>persistent zone</div>} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
-    );
-    expect(screen.queryByRole("complementary", { name: "Error filters" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
-  });
-
-  it("the narrow Filters button counts the persistent filters it hides", async () => {
-    stubNarrowViewport();
     render(
       <ErrorsPageHarness
         initial={{ ...emptySearch, q: "TypeError", service: ["demo-api"] }}
         environment={["production"]}
+        persistentFilters={<div>persistent zone</div>}
       />,
     );
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
+    expect(screen.queryByRole("complementary", { name: "Error filters" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
+    expect(screen.getByText("persistent zone")).toBeInTheDocument();
   });
 });

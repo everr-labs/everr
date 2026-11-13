@@ -2,15 +2,12 @@ import { describe, expect, it } from "vite-plus/test";
 import { alertingMutationScope, parseAlertingPrincipal } from "./session";
 
 describe("parseAlertingPrincipal", () => {
-  it("reads a user principal", () => {
+  it("reads a user or API key principal", () => {
     expect(parseAlertingPrincipal("user:u1")).toEqual({
       kind: "user",
       id: "u1",
       display: "user:u1",
     });
-  });
-
-  it("reads an API key principal", () => {
     expect(parseAlertingPrincipal("apikey:k1")).toEqual({
       kind: "apikey",
       id: "k1",

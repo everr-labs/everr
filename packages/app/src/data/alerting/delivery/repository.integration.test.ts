@@ -70,6 +70,9 @@ describe("the default destination", () => {
       tiers: { critical: ["pager"], info: ["#oncall", "pager"] },
     });
     expect(await listDefaultDestination(TEST_ORG)).toEqual(result);
+
+    // An empty selection stops default delivery.
+    expect(await setDefaultDestination(scope, { tiers: {} })).toEqual({ tiers: {} });
   });
 
   it("refuses a name no channel has, and leaves the record as it was", async () => {
@@ -94,17 +97,6 @@ describe("the default destination", () => {
         tiers: { all: ["#oncall"], critical: ["#oncall"] },
       }),
     ).rejects.toThrow(/cannot be combined/);
-  });
-
-  it("an empty selection stops default delivery", async () => {
-    const oncall = await insertChannel(harness().db, { name: "#oncall" });
-    await insertDefaultChannels(harness().db, {
-      tier: "all",
-      channelIds: [oncall.id],
-    });
-    expect(await setDefaultDestination(scope, { tiers: {} })).toEqual({
-      tiers: {},
-    });
   });
 });
 

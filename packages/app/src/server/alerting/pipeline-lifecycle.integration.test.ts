@@ -156,6 +156,14 @@ describe("the alerting pipeline's instance lifecycle", () => {
     harness().advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1_000);
     await harness().runDueJobs();
     expect(harness().fetchCalls()).toHaveLength(2);
+
+    // Slack colors the message red while it fires and green once it resolves.
+    type SlackBody = { attachments: [{ color: string }] };
+    const [firedMessage, resolvedMessage] = harness()
+      .fetchCalls()
+      .map((call) => (call.body as SlackBody).attachments[0]);
+    expect(firedMessage.color).toBe("#dc2626");
+    expect(resolvedMessage.color).toBe("#16a34a");
   });
 
   it("tracks a still-breaching instance's new value without journaling a second event", async () => {
@@ -238,7 +246,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(secondTick.pendingSince).not.toEqual(firstTick.pendingSince);
   });
 
-  it("pausing the rule closes the open instance and the next evaluation job is a no-op", async () => {
+  it("pausing the rule closes the open instance and idles its queued evaluation, and resuming fires it from scratch", async () => {
     const rule = await insertRule(harness().db, {
       forSecs: 0,
       intervalSecs: 60,
@@ -277,17 +285,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(
       (await harness().pendingJobs()).filter((job) => job.identifier === ALERT_EVALUATE_TASK),
     ).toHaveLength(0);
-  });
-
-  it("resuming the rule schedules it again and it fires from scratch", async () => {
-    const rule = await insertRule(harness().db, {
-      forSecs: 0,
-      intervalSecs: 60,
-    });
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness().runDueJobs();
-    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
-    await harness().runDueJobs();
 
     await resumeRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
 
@@ -351,7 +348,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     ).toHaveLength(1);
   });
 
-  it("a query failure degrades the rule's health once and pushes the retry further out each time", async () => {
+  it("a query failure degrades the rule's health once, pushes the retry further out each time, and a pause hands it back healthy", async () => {
     // A rule whose SQL the engine itself refuses, rather than an error handed
     // to a stub: ClickHouse raises this, with its own code and message, on
     // the same path a real bad rule would take.
@@ -397,6 +394,18 @@ describe("the alerting pipeline's instance lifecycle", () => {
         .clickhouse.historyRows()
         .filter((row) => row.event_type === "evaluation_failed"),
     ).toHaveLength(2);
+
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
+
+    // A stale degraded status would survive the pause and greet the resume
+    // near the retry-backoff ceiling, so a rule fixed while paused would sit
+    // out its first interval before anyone saw it evaluate again.
+    const [paused] = await harness()
+      .db.select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    expect(paused.consecutiveFailures).toBe(0);
+    expect(paused.degradedSince).toBeNull();
   });
 
   it("keeps a URL out of both copies of an evaluation error", async () => {
@@ -419,33 +428,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
       expect(stored).toContain("[redacted-url]");
       expect(stored).not.toContain("hooks.slack.com");
     }
-  });
-
-  it("pausing a degraded rule hands it back healthy on resume", async () => {
-    const rule = await insertRule(harness().db, {
-      intervalSecs: 60,
-      sql: "SELECT throwIf(1, 'the rule is broken')",
-    });
-
-    await harness().runDueJobs();
-    const [degraded] = await harness()
-      .db.select()
-      .from(alertDefinitions)
-      .where(eq(alertDefinitions.id, rule.id));
-    expect(degraded.degradedSince).not.toBeNull();
-    expect(degraded.consecutiveFailures).toBeGreaterThan(0);
-
-    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
-
-    // A stale degraded status would survive the pause and greet the resume
-    // near the retry-backoff ceiling, so a rule fixed while paused would sit
-    // out its first interval before anyone saw it evaluate again.
-    const [paused] = await harness()
-      .db.select()
-      .from(alertDefinitions)
-      .where(eq(alertDefinitions.id, rule.id));
-    expect(paused.consecutiveFailures).toBe(0);
-    expect(paused.degradedSince).toBeNull();
   });
 
   it("the scanner replaces rather than duplicates a due evaluation, and evaluating advances the schedule one interval", async () => {
@@ -819,8 +801,8 @@ describe("the alerting pipeline's organization isolation", () => {
     expect(heldEventA.processedAt).toBeNull();
   });
 
-  it("org A's group holds only org A's members", async () => {
-    const { ruleA } = await insertTwinDefaultRules();
+  it("keeps org A's group members and deliveries to org A, through same-named default channels", async () => {
+    const { ruleA, channelA } = await insertTwinDefaultRules();
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // Dispatches both organizations' events into their own group; still
@@ -852,13 +834,9 @@ describe("the alerting pipeline's organization isolation", () => {
     expect(membersA).toHaveLength(1);
     expect(membersA[0].eventOrg).toBe(TEST_ORG);
     expect(membersA[0].ruleId).toBe(ruleA.id);
-  });
 
-  it("listing deliveries for org A returns none of org B's", async () => {
-    const { channelA } = await insertTwinDefaultRules();
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-
-    await harness().fireAndFlush();
+    harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness().runDueJobs();
 
     expect(harness().fetchCalls()).toHaveLength(2);
 
@@ -873,7 +851,6 @@ describe("the alerting pipeline's organization isolation", () => {
     // name: the flush resolved its own organization's default destination,
     // not org B's identically named channel.
     expect(deliveriesA[0].channelId).toBe(channelA.id);
-
-    expect(deliveriesA[0].notificationGroupId).not.toBeNull();
+    expect(deliveriesA[0].notificationGroupId).toBe(groupA.id);
   });
 });

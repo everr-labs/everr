@@ -86,12 +86,6 @@ describe("overlayPreview", () => {
     expect(out.find((row) => row.repoid === "repo-2")?.previewStatus).toBeUndefined();
   });
 
-  it("tags a preview add with no live identity anywhere as added", () => {
-    const out = overlay([p("repo-1", "brand-new")], covered);
-    expect(out).toHaveLength(1);
-    expect(out[0].previewStatus).toBe("added");
-  });
-
   it("ignores orphan preview rows whose repoid is not covered", () => {
     const out = overlay([r("repo-3", "dup"), p("repo-3", "dup")], new Set<string>());
     expect(out).toEqual([r("repo-3", "dup")]);

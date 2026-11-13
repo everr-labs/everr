@@ -84,10 +84,15 @@ async function rowCounts() {
  * clause is stripped and nothing here may claim anything about it.
  */
 describe("the alerting pipeline's retention", () => {
-  it("collects a settled incident whole, once every window has passed", async () => {
+  it("leaves a settled incident alone inside its windows, then collects it whole once every window has passed", async () => {
     await insertDirectRule(harness().db, {
       forSecs: 0,
       channelType: "webhook",
+    });
+    // Matches nothing here, so it only adds a silence row to the windows
+    // under test without holding the incident's notifications.
+    await insertSilence(harness().db, {
+      matchers: [{ label: "service", op: "eq", value: "unrelated" }],
     });
     await runOneSettledIncident();
 
@@ -95,6 +100,16 @@ describe("the alerting pipeline's retention", () => {
     expect(before.evaluations).toBeGreaterThan(0);
     expect(before.events).toBeGreaterThan(0);
     expect(before.deliveries).toBeGreaterThan(0);
+    expect(before.deliveryLinks).toBeGreaterThan(0);
+
+    // A day past the incident: the shortest window is seven days, so nothing
+    // is collectable yet. Each table has its own cutoff, and a cleanup that
+    // used one cutoff for all of them would fail here rather than in
+    // production, three months later.
+    harness().advance(DAY_MS);
+    const early = await cleanupAlertingHistory({ now: new Date() });
+    expect(Object.values(early).every((count) => count === 0)).toBe(true);
+    expect(await rowCounts()).toEqual(before);
 
     harness().advance(100 * DAY_MS);
     const counts = await cleanupAlertingHistory({ now: new Date() });
@@ -102,6 +117,10 @@ describe("the alerting pipeline's retention", () => {
     expect(counts.alertEvaluations).toBe(before.evaluations);
     expect(counts.events).toBe(before.events);
     expect(counts.deliveries).toBe(before.deliveries);
+    // A delivery is only collectable once nothing links it to an event, and
+    // the link is a child of the event. So on its own the delivery statement
+    // would find nothing: it is the event delete, earlier in the same
+    // transaction, that cascades the link away and releases it.
     expect(await rowCounts()).toMatchObject({
       evaluations: 0,
       events: 0,
@@ -109,29 +128,6 @@ describe("the alerting pipeline's retention", () => {
       deliveryLinks: 0,
       groups: 0,
       instances: 0,
-    });
-  });
-
-  it("takes a delivery in the same pass that removes the link which was holding it", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "webhook",
-    });
-    await runOneSettledIncident();
-
-    // A delivery is only collectable once nothing links it to an event, and
-    // the link is a child of the event. So on its own the delivery statement
-    // would find nothing: it is the event delete, earlier in the same
-    // transaction, that cascades the link away and releases it. Ordering is
-    // the whole claim, and only a database with the foreign key can make it.
-    expect((await rowCounts()).deliveryLinks).toBeGreaterThan(0);
-
-    harness().advance(100 * DAY_MS);
-    await cleanupAlertingHistory({ now: new Date() });
-
-    expect(await rowCounts()).toMatchObject({
-      deliveries: 0,
-      deliveryLinks: 0,
     });
   });
 
@@ -208,27 +204,7 @@ describe("the alerting pipeline's retention", () => {
     expect(await rowCounts()).toMatchObject({ groups: 1, events: 1 });
   });
 
-  it("leaves everything inside its own window alone", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "webhook",
-    });
-    await insertSilence(harness().db);
-    await runOneSettledIncident();
-
-    const before = await rowCounts();
-    // A day past the incident: the shortest window is seven days, so nothing
-    // is collectable yet. Each table has its own cutoff, and a cleanup that
-    // used one cutoff for all of them would fail here rather than in
-    // production, three months later.
-    harness().advance(DAY_MS);
-    const counts = await cleanupAlertingHistory({ now: new Date() });
-
-    expect(Object.values(counts).every((count) => count === 0)).toBe(true);
-    expect(await rowCounts()).toEqual(before);
-  });
-
-  it("drains a backlog wider than one batch, and reports every row it took", async () => {
+  it("stops on its time budget, and a later run drains a backlog wider than one batch, reporting every row it took", async () => {
     await insertDirectRule(harness().db, {
       forSecs: 0,
       channelType: "webhook",
@@ -238,39 +214,27 @@ describe("the alerting pipeline's retention", () => {
     expect(before.evaluations).toBeGreaterThan(3);
 
     harness().advance(100 * DAY_MS);
+    // The budget is wall clock, deliberately separate from the cutoff clock:
+    // a run that overshot it would still be deleting when the next hour's run
+    // starts. Spent on arrival, so it stops after one batch with a backlog
+    // still there.
+    const budgeted = await cleanupAlertingHistory({
+      now: new Date(),
+      batchSize: 1,
+      budgetMs: 0,
+      clock: () => 0,
+    });
+    expect(budgeted.alertEvaluations).toBe(1);
+    expect((await rowCounts()).evaluations).toBe(before.evaluations - 1);
+
     // The loop repeats while any statement filled its batch, which is what
     // lets an hourly run drain a backlog no fixed number of batches could.
     const counts = await cleanupAlertingHistory({
       now: new Date(),
       batchSize: 2,
     });
-
-    expect(counts.alertEvaluations).toBe(before.evaluations);
+    expect(counts.alertEvaluations).toBe(before.evaluations - 1);
     expect((await rowCounts()).evaluations).toBe(0);
-  });
-
-  it("stops on its time budget and leaves the rest for the next run", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "webhook",
-    });
-    await runOneSettledIncident();
-    const before = await rowCounts();
-
-    harness().advance(100 * DAY_MS);
-    // The budget is wall clock, deliberately separate from the cutoff clock:
-    // a run that overshot it would still be deleting when the next hour's run
-    // starts. Spent on arrival, so it stops after one batch with a backlog
-    // still there.
-    const counts = await cleanupAlertingHistory({
-      now: new Date(),
-      batchSize: 1,
-      budgetMs: 0,
-      clock: () => 0,
-    });
-
-    expect(counts.alertEvaluations).toBe(1);
-    expect((await rowCounts()).evaluations).toBe(before.evaluations - 1);
   });
 
   it("collects a silence long after its window closed", async () => {

@@ -133,21 +133,6 @@ describe("DashboardBreadcrumb", () => {
     expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
   });
 
-  it("applies hidden md:block class to non-last items for responsive behavior", () => {
-    mockUseMatches.mockReturnValue([
-      makeMatch("/runs", "Runs"),
-      makeMatch("/runs/$traceId", "My Workflow", {
-        params: { traceId: "abc123" },
-      }),
-    ]);
-    const { container } = render(<DashboardBreadcrumb />);
-
-    const items = container.querySelectorAll("[data-slot='breadcrumb-item']");
-    expect(items).toHaveLength(2);
-    expect(items[0].className).toContain("hidden md:block");
-    expect(items[1].className).not.toContain("hidden md:block");
-  });
-
   it("renders multi-segment breadcrumbs from array return", () => {
     const segmentsFn = () =>
       [

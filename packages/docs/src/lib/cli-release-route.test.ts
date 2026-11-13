@@ -16,8 +16,10 @@ function getHandler() {
   return handler;
 }
 
+// Which paths are allowed is covered by cli-release-redirect.test.ts; this only
+// checks that the route answers with that decision.
 describe("/everr-app/$", () => {
-  it("redirects CLI release metadata", async () => {
+  it("redirects CLI release files", async () => {
     const response = await getHandler()({
       request: new Request("https://everr.dev/everr-app/release-metadata.json"),
     });
@@ -26,43 +28,9 @@ describe("/everr-app/$", () => {
     expect(response.headers.get("location")).toContain("/everr-app/release-metadata.json");
   });
 
-  it("redirects CLI checksum files", async () => {
-    const response = await getHandler()({
-      request: new Request("https://everr.dev/everr-app/everr.sha256"),
-    });
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/everr-app/everr.sha256");
-  });
-
-  it("redirects known Linux CLI release files", async () => {
-    const response = await getHandler()({
-      request: new Request("https://everr.dev/everr-app/everr-linux-x86_64"),
-    });
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toContain("/everr-app/everr-linux-x86_64");
-  });
-
-  it("returns 404 for unknown files", async () => {
-    const response = await getHandler()({
-      request: new Request("https://everr.dev/everr-app/debug.txt"),
-    });
-
-    expect(response.status).toBe(404);
-  });
-
-  it("returns 404 for path traversal attempts", async () => {
+  it("returns 404 for files it does not redirect", async () => {
     const response = await getHandler()({
       request: new Request("https://everr.dev/everr-app/%2E%2E/secret"),
-    });
-
-    expect(response.status).toBe(404);
-  });
-
-  it("returns 404 for malformed encoded paths", async () => {
-    const response = await getHandler()({
-      request: new Request("https://everr.dev/everr-app/%E0%A4%A"),
     });
 
     expect(response.status).toBe(404);

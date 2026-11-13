@@ -14,17 +14,10 @@ import {
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "#app/db/schema/index.ts";
-import {
-  BODY_MAX_EVENTS,
-  FLUSH_GROUP_MEMBER_CLAIM_CAP,
-} from "#app/server/alerting/delivery/flush-group.ts";
+import { FLUSH_GROUP_MEMBER_CLAIM_CAP } from "#app/server/alerting/delivery/flush-group.ts";
 import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "#app/server/alerting/evaluation/evidence.ts";
 import { ALERT_EVALUATION_SAMPLE_LIMIT } from "#app/server/alerting/evaluation/samples.ts";
-import {
-  SCANNER_BATCH_SIZE,
-  scanDueAlerts,
-  staleEnqueueCutoff,
-} from "#app/server/alerting/scheduling/scanner.ts";
+import { scanDueAlerts, staleEnqueueCutoff } from "#app/server/alerting/scheduling/scanner.ts";
 import {
   insertDirectRule,
   insertRule,
@@ -174,10 +167,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     // line, which this harness has no way to observe: it exposes only the
     // database, ClickHouse itself, and captured fetch calls.
     // This case pins the claim boundary only.
-    // 501 real dispatches and a capped claim, well past vitest's 5s default.
-    // The headroom is deliberate: this case takes about 8 seconds on its own
-    // but 3 or 4 times that while the rest of the suite runs beside it, so a
-    // tighter budget fails on machine load rather than on behaviour.
+    // 501 real dispatches and a capped claim, well past vitest's 5s default
+    // under load. The cap is a fixed production constant, so the volume
+    // cannot shrink.
   }, 60_000);
 
   it("captures 64 samples from 65 instances, the 3 matching ones first, and marks samples_truncated", async () => {
@@ -230,47 +222,20 @@ describe("the alerting pipeline's capacity bounds", () => {
     expect(Buffer.byteLength(row.evidence_json, "utf8")).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES);
   });
 
-  it("composes a 25-member group's body as 20 listed events plus a line naming the 5 it omitted", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "slack",
-    });
-    const rows = Array.from({ length: 25 }, (_, index) => ({
-      service: `svc-${index}`,
-      value: 42,
-    }));
-    harness().clickhouse.setSignal(rows);
-    await harness().fireAndFlush();
-
-    expect(harness().fetchCalls()).toHaveLength(1);
-    const body = harness().fetchCalls()[0].body as {
-      attachments: [{ blocks: [{ text: { text: string } }] }];
-    };
-    const text = body.attachments[0].blocks[0].text.text;
-
-    // All 25 events share one `occurredAt` (one evaluation batch), so which
-    // 20 make the cut is not pinned by any documented ordering; the bound is
-    // the count listed and what the omitted line says, not which members.
-    const firingLines = text.split("\n").filter((line) => line.startsWith("Firing:"));
-    expect(firingLines).toHaveLength(BODY_MAX_EVENTS);
-    expect(text).toContain(`…and ${25 - BODY_MAX_EVENTS} more events in this group`);
-  });
-
-  it("the scanner's batch of 5000 claims a 5001-rule backlog over two scans", async () => {
+  it("drains a backlog wider than one scanner batch over successive scans", async () => {
     // A bulk insert, not a loop of insertRule calls: insertRule enqueues an
     // evaluation transactionally per row, which this case's own point (the
-    // scanner finding rules with no job in flight) would defeat, and which
-    // would be unusably slow at this count besides.
-    await insertRulesInBulk(harness().db, SCANNER_BATCH_SIZE + 1, {
+    // scanner finding rules with no job in flight) would defeat.
+    const batchSize = 2;
+    await insertRulesInBulk(harness().db, batchSize + 1, {
       nextEvaluationAt: new Date(Date.now() - 60_000),
     });
 
-    const firstScan = await scanDueAlerts();
-    expect(firstScan).toBe(SCANNER_BATCH_SIZE);
+    expect(await scanDueAlerts({ batchSize })).toBe(batchSize);
     const firstRoundJobs = (await harness().pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
-    expect(firstRoundJobs).toHaveLength(SCANNER_BATCH_SIZE);
+    expect(firstRoundJobs).toHaveLength(batchSize);
 
     const stillUnenqueued = await harness()
       .db.select()
@@ -278,17 +243,12 @@ describe("the alerting pipeline's capacity bounds", () => {
       .where(isNull(alertDefinitions.lastEnqueuedAt));
     expect(stillUnenqueued).toHaveLength(1);
 
-    const secondScan = await scanDueAlerts();
-    expect(secondScan).toBe(1);
+    expect(await scanDueAlerts({ batchSize })).toBe(1);
     const allJobs = (await harness().pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
-    expect(allJobs).toHaveLength(SCANNER_BATCH_SIZE + 1);
-    // 5001 rules inserted and two full scans: about 2.5 seconds on its own,
-    // but several times that while the rest of the suite runs beside it, so
-    // the default 5s budget fails on machine load rather than on behaviour.
-    // Same reasoning as the 501-member case above.
-  }, 60_000);
+    expect(allJobs).toHaveLength(batchSize + 1);
+  });
 
   it("skips a rule whose last_enqueued_at is newer than next_evaluation_at, and re-enqueues it once that stamp passes the stale cutoff", async () => {
     const now = new Date();

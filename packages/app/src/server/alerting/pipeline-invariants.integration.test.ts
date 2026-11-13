@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { ALERT_FLUSH_GROUP_TASK } from "#app/data/alerting/delivery/tasks.ts";
 import { uuidv7 } from "#app/data/alerting/history/ids.ts";
+import { deleteChannel } from "#app/data/alerting/delivery/repository.ts";
 import { deleteRule } from "#app/data/alerting/rules/repository.ts";
 import {
   ALERT_EVALUATE_TASK,
@@ -12,6 +13,7 @@ import {
   enqueueAlertEvaluation,
 } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import {
+  alertChannels,
   alertDeliveries,
   alertEvents,
   alertInstances,
@@ -23,6 +25,7 @@ import {
   insertDirectRule,
   insertPreview,
   insertRule,
+  TEST_ACTOR,
   TEST_ORG,
 } from "#app/server/alerting/testing/fixtures.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
@@ -164,10 +167,11 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     expect(rows[0].value).toBe(99);
   });
 
-  it("cascades a rule delete through its instances and direct notification groups, leaving a settled delivery ungrouped but intact", async () => {
+  it("cascades a rule delete through its instances and direct notification groups, leaving a settled delivery ungrouped but intact, and keeps its channel name after the channel goes", async () => {
     const rule = await insertDirectRule(harness().db, {
       forSecs: 0,
       channelType: "webhook",
+      channelName: "delete-me",
     });
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness().fireAndFlush();
@@ -193,12 +197,20 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     expect(deliveryAfter.dedupKey).toBe(deliveryBefore.dedupKey);
     expect(deliveryAfter.notificationGroupId).toBeNull();
     expect(deliveryAfter.status).toBe("sent");
-  });
 
-  // Deleting a channel that has delivery history belongs to this file by
-  // subject, but pipeline-delivery.integration.test.ts already pins it, and
-  // pins more: it also asserts the channel row itself is gone. A second copy
-  // here would cost maintenance and add no coverage.
+    // With the rule gone nothing references the channel, so it can be
+    // deleted; the delivery keeps the name it was sent under.
+    const { deleted } = await deleteChannel(
+      { organizationId: TEST_ORG, actor: TEST_ACTOR },
+      "delete-me",
+    );
+    expect(deleted).toBe(true);
+    const [afterChannelDelete] = await harness().db.select().from(alertDeliveries);
+    expect(afterChannelDelete.channelId).toBeNull();
+    expect(afterChannelDelete.channelName).toBe("delete-me");
+    expect(afterChannelDelete.status).toBe("sent");
+    expect(await harness().db.select().from(alertChannels)).toHaveLength(0);
+  });
 
   it("allows one live rule and one preview rule to share a slug, and rejects a second live rule with it", async () => {
     await insertRule(harness().db, { slug: "checkout-latency" });

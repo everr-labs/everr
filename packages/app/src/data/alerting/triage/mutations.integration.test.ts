@@ -31,9 +31,6 @@ describe("pausing an Alert rule from the Triage screen", () => {
     expect(await setAlertRulePaused({ data: { path: PATH, paused: true } })).toEqual({
       paused: true,
     });
-  });
-
-  it("pauses nothing for a path no Alert rule has", async () => {
     await expect(
       setAlertRulePaused({
         data: { path: "default/no-such-rule", paused: true },

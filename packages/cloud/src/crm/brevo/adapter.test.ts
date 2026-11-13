@@ -2,6 +2,24 @@
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createBrevoAdapter } from "./adapter";
 
+// Fake timers don't patch node:timers/promises, so the rate-limit waits would run in real time.
+vi.mock("node:timers/promises", () => ({
+  setTimeout: (ms: number, value: unknown, options?: { signal?: AbortSignal }) =>
+    new Promise((resolve, reject) => {
+      const signal = options?.signal;
+      if (signal?.aborted) return reject(signal.reason);
+      const timer = setTimeout(() => resolve(value), ms);
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason);
+        },
+        { once: true },
+      );
+    }),
+}));
+
 const config = { apiKey: "secret", timeoutMs: 100 };
 const user = {
   kind: "user",

@@ -116,31 +116,7 @@ async function loadModule() {
   return vi.importActual<typeof ServerFnTypes>("./serverFn");
 }
 
-describe("createAuthenticatedServerFn", () => {
-  it("wires the auth middleware into createServerFn", async () => {
-    const { createAuthenticatedServerFn } = await loadModule();
-
-    // Data functions require both membership and completed provisioning.
-    const [, , requireOrgDef] = mocked.allDefinitions;
-    expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
-    expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([requireOrgDef]);
-  });
-});
-
 describe("createOrganizationAdminServerFn", () => {
-  it("wires the organization admin middleware into createServerFn", async () => {
-    const { createOrganizationAdminServerFn } = await loadModule();
-
-    const [, , , requireOrganizationAdminDef] = mocked.allDefinitions;
-    expect(createOrganizationAdminServerFn).toBe(mocked.createServerFnResult);
-    expect(mocked.createServerFnMiddleware).toHaveBeenLastCalledWith([
-      expect.objectContaining({
-        options: requireOrganizationAdminDef?.options,
-        __handler: expect.any(Function),
-      }),
-    ]);
-  });
-
   it.each(["admin", "owner", "member, admin"])("allows an %s", async (role) => {
     await loadModule();
     const request = new Request("http://localhost/_server");

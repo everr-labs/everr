@@ -47,7 +47,7 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
 });
 
 describe("/traces route", () => {
-  function renderTracesRoute(initialEntries: string[], initialState?: Record<string, unknown>) {
+  function renderTracesRoute(initialEntries: string[]) {
     const rootRoute = createRootRoute({
       component: Outlet,
     });
@@ -94,7 +94,6 @@ describe("/traces route", () => {
       ]),
     ]);
     const history = createMemoryHistory({ initialEntries });
-    if (initialState) history.replace(initialEntries[0] ?? "/", initialState);
 
     const router = createRouter({
       routeTree,
@@ -114,13 +113,6 @@ describe("/traces route", () => {
     return router;
   }
 
-  it("renders the detail child route as a page for a direct trace URL", async () => {
-    renderTracesRoute(["/traces/trace-1"]);
-
-    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
-  });
-
   it("opens a full-page trace and preserves list filters without adding trace timestamps", async () => {
     const user = userEvent.setup();
     const router = renderTracesRoute(["/traces?from=now-1h&to=now"]);
@@ -135,12 +127,5 @@ describe("/traces route", () => {
     expect(router.state.location.search).not.toHaveProperty("start");
     expect(router.state.location.search).not.toHaveProperty("end");
     expect(router.state.location.maskedLocation).toBeUndefined();
-  });
-
-  it("renders the detail child route as a page when the URL is reloaded", async () => {
-    renderTracesRoute(["/traces/trace-1"]);
-
-    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 });

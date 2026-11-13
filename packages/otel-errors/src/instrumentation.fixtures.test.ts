@@ -3,9 +3,9 @@
 // process cannot examine it. Each fixture registers the instrumentation as an
 // application registers it. Then the fixture prints the data that its
 // exporters receive, one JSON object on each line.
-import { execSync, spawnSync } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vite-plus/test";
 
 const TEST_FILE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -13,26 +13,62 @@ const PKG_ROOT = resolve(TEST_FILE_DIR, "..");
 
 type Line = { kind: "log" | "span" | "metric" } & Record<string, unknown>;
 
-function runFixture(name: string) {
-  const result = spawnSync(
-    process.execPath,
-    [fileURLToPath(pathToFileURL(resolve(PKG_ROOT, "test/fixtures", name)))],
-    { encoding: "utf8", timeout: 15_000 },
-  );
-  const lines = result.stdout.trim().split("\n").filter(Boolean);
-  const records = lines.map((l) => JSON.parse(l) as Line);
-  return {
-    status: result.status,
-    stderr: result.stderr,
-    logs: records.filter((r) => r.kind === "log"),
-    spans: records.filter((r) => r.kind === "span"),
-    metrics: records.filter((r) => r.kind === "metric"),
-  };
+type FixtureResult = {
+  status: number | null;
+  stderr: string;
+  logs: Line[];
+  spans: Line[];
+  metrics: Line[];
+};
+
+const FIXTURES = [
+  "uncaught-exit.mjs",
+  "rejection-warn.mjs",
+  "rejection-exit.mjs",
+  "uncaught-continue.mjs",
+  "other-handler-no-exit.mjs",
+  "next-filter-no-exit.mjs",
+  "worker-crash.mjs",
+  "other-handler-force-exit.mjs",
+] as const;
+
+function spawnFixture(name: string): Promise<FixtureResult> {
+  const fixture = resolve(PKG_ROOT, "test/fixtures", name);
+  return new Promise((resolve) => {
+    const child = execFile(
+      process.execPath,
+      [fixture],
+      { encoding: "utf8", timeout: 15_000 },
+      (_error, stdout, stderr) => {
+        const lines = stdout.trim().split("\n").filter(Boolean);
+        const records = lines.map((l) => JSON.parse(l) as Line);
+        resolve({
+          status: child.exitCode,
+          stderr,
+          logs: records.filter((r) => r.kind === "log"),
+          spans: records.filter((r) => r.kind === "span"),
+          metrics: records.filter((r) => r.kind === "metric"),
+        });
+      },
+    );
+  });
+}
+
+const results = new Map<string, FixtureResult>();
+
+function runFixture(name: (typeof FIXTURES)[number]) {
+  const result = results.get(name);
+  if (!result) throw new Error(`fixture ${name} did not run`);
+  return result;
 }
 
 describe("node fatal exit semantics (fixtures)", () => {
-  beforeAll(() => {
+  // Each fixture is a separate Node process, so they run in parallel once up
+  // front instead of one spawn per test.
+  beforeAll(async () => {
     execSync("pnpm build", { cwd: PKG_ROOT, stdio: "inherit" });
+    const outcomes = await Promise.all(FIXTURES.map(spawnFixture));
+    FIXTURES.forEach((name, i) => results.set(name, outcomes[i]));
   }, 120_000);
 
   it("uncaughtException: flushes the record then exits 1", () => {

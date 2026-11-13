@@ -118,28 +118,25 @@ async function loadRuntime(apiKey?: string) {
 }
 
 describe("worker runtime", () => {
-  it.each(["fixture", undefined])(
-    "publishes readiness without CRM admission or diagnostics with API key %s",
-    async (apiKey) => {
-      await loadRuntime(apiKey);
-      const { runtime: composition } = await import("./app/composition/runtime");
-      const { createEventPublisher } = await import("@everr/app/server/events/publisher");
-      expect(composition.events).toHaveLength(apiKey ? 12 : 0);
-      expect(
-        composition.events.find(({ definition }) => definition.type === "organization.provisioned"),
-      ).toBeUndefined();
-      const diagnostics = runtimeMocks.serverLoggerError;
-      diagnostics.mockClear();
-      const events = createEventPublisher({ routes: composition.events });
-      await events.publish({
-        type: "organization.provisioned",
-        version: 1,
-        subjectId: "org",
-        data: { organizationId: "org" },
-      });
-      expect(diagnostics).not.toHaveBeenCalled();
-    },
-  );
+  it("publishes readiness without CRM admission or diagnostics", async () => {
+    await loadRuntime("fixture");
+    const { runtime: composition } = await import("./app/composition/runtime");
+    const { createEventPublisher } = await import("@everr/app/server/events/publisher");
+    expect(composition.events).toHaveLength(12);
+    expect(
+      composition.events.find(({ definition }) => definition.type === "organization.provisioned"),
+    ).toBeUndefined();
+    const diagnostics = runtimeMocks.serverLoggerError;
+    diagnostics.mockClear();
+    const events = createEventPublisher({ routes: composition.events });
+    await events.publish({
+      type: "organization.provisioned",
+      version: 1,
+      subjectId: "org",
+      data: { organizationId: "org" },
+    });
+    expect(diagnostics).not.toHaveBeenCalled();
+  });
 
   it("reserves a third runner with one independent CRM execution slot", async () => {
     const runtime = await loadRuntime("fixture");
@@ -164,22 +161,20 @@ describe("worker runtime", () => {
     expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
   });
 
-  it.each([undefined, "", "   "])(
-    "disables CRM admission and consumption without a key (%s)",
-    async (apiKey) => {
-      const runtime = await loadRuntime(apiKey);
-      await runtime.startWorkerRuntime();
-      expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-      const { runtime: composition } = await import("./app/composition/runtime");
-      expect(composition.events).toHaveLength(0);
-      expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith("crm.integration.status", {
-        "everr.crm.enabled": false,
-      });
-      expect(
-        runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList)),
-      ).toBe(true);
-    },
-  );
+  // Blank-key normalization is covered in app/env.test.ts.
+  it("disables CRM admission and consumption without a key", async () => {
+    const runtime = await loadRuntime();
+    await runtime.startWorkerRuntime();
+    expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
+    const { runtime: composition } = await import("./app/composition/runtime");
+    expect(composition.events).toHaveLength(0);
+    expect(runtimeMocks.serverLoggerInfo).toHaveBeenCalledWith("crm.integration.status", {
+      "everr.crm.enabled": false,
+    });
+    expect(runtimeMocks.runOptions.every((options) => !("crm/sync-user" in options.taskList))).toBe(
+      true,
+    );
+  });
 
   it("rolls back only CRM startup when its runner fails", async () => {
     const runtime = await loadRuntime("fixture");

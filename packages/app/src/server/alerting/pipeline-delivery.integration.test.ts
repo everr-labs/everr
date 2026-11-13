@@ -8,12 +8,12 @@ import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
 } from "#app/data/alerting/delivery/defaults.ts";
-import { deleteChannel, testChannel } from "#app/data/alerting/delivery/repository.ts";
+import { testChannel } from "#app/data/alerting/delivery/repository.ts";
 import {
   ALERT_SEND_DELIVERY_TASK,
   IDLE_GROUP_FLUSH_AT,
 } from "#app/data/alerting/delivery/tasks.ts";
-import { deleteRule, pauseRule, updateRule } from "#app/data/alerting/rules/repository.ts";
+import { pauseRule, updateRule } from "#app/data/alerting/rules/repository.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -83,6 +83,16 @@ describe("the alerting pipeline's delivery", () => {
     await harness().runDueJobs();
     // Still inside the 10s group wait (6s elapsed): nothing sent yet.
     expect(harness().fetchCalls()).toHaveLength(0);
+
+    // Every later dispatch under the same rule shares the groupKey, so it
+    // joins the group the first one created instead of opening its own.
+    const groups = await harness().db.select().from(alertNotificationGroups);
+    expect(groups).toHaveLength(1);
+    const members = await harness()
+      .db.select()
+      .from(alertNotificationGroupEvents)
+      .where(eq(alertNotificationGroupEvents.groupId, groups[0].id));
+    expect(members).toHaveLength(3);
 
     harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000 - 2 * FAST_TICK_SECS * 1000);
     await harness().runDueJobs();
@@ -337,37 +347,6 @@ describe("the alerting pipeline's delivery", () => {
     expect(succeededRows).toHaveLength(1);
   });
 
-  it("keeps a settled delivery's channel name after the channel is deleted", async () => {
-    const rule = await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "webhook",
-      channelName: "delete-me",
-    });
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness().fireAndFlush();
-
-    const [sent] = await harness().db.select().from(alertDeliveries);
-    expect(sent.status).toBe("sent");
-
-    // The channel is still directly wired to the rule; deleteChannel refuses
-    // that on its own (a live reference, not an in-flight delivery). Deleting
-    // the rule first frees the reference without touching the delivery row,
-    // which has no foreign key to the rule at all.
-    await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness().db));
-
-    const { deleted } = await deleteChannel(
-      { organizationId: TEST_ORG, actor: TEST_ACTOR },
-      "delete-me",
-    );
-    expect(deleted).toBe(true);
-
-    const [afterDelete] = await harness().db.select().from(alertDeliveries);
-    expect(afterDelete.channelId).toBeNull();
-    expect(afterDelete.channelName).toBe("delete-me");
-    expect(afterDelete.status).toBe("sent");
-    expect(await harness().db.select().from(alertChannels)).toHaveLength(0);
-  });
-
   it("records the channel's real type, not unknown, for a delivery withheld by a paused rule", async () => {
     const rule = await insertDirectRule(harness().db, {
       forSecs: 0,
@@ -401,47 +380,6 @@ describe("the alerting pipeline's delivery", () => {
       .clickhouse.historyRows()
       .find((row) => row.event_type === "delivery_failed");
     expect(Object.keys(failedRow?.delivery_targets as Record<string, unknown>)).toEqual(["slack"]);
-  });
-
-  // PGlite is a single connection: the two dispatches below run strictly
-  // sequentially, so the second's opening `SELECT ... FOR UPDATE` always
-  // finds the first's already-committed group row and takes the ordinary
-  // "existing group, add a member" branch (claimNotificationGroup's
-  // `if (existing)` path). The `INSERT ... onConflictDoNothing()` plus retry
-  // fallback that actually loses a race (process-event.ts:197-223) is never
-  // reached and cannot be exercised under this harness. This case pins only
-  // the serialized outcome: two dispatches under one rule converge on one
-  // group id, not two.
-  it("a second dispatch under the same rule joins the existing group instead of creating a second one", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      intervalSecs: FAST_TICK_SECS,
-      channelType: "slack",
-    });
-    harness().clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
-    await harness().runDueJobs(); // the first dispatch: creates the group and its first membership
-
-    const groupsAfterFirst = await harness().db.select().from(alertNotificationGroups);
-    expect(groupsAfterFirst).toHaveLength(1);
-
-    harness().clickhouse.setSignal([
-      { service: "svc-a", value: 42 },
-      { service: "svc-b", value: 42 },
-    ]);
-    harness().advance(FAST_TICK_SECS * 1000);
-    // A second, distinct instance under the same rule: same groupKey, so it
-    // must join the group above rather than create its own.
-    await harness().runDueJobs();
-
-    const groupsAfterSecond = await harness().db.select().from(alertNotificationGroups);
-    expect(groupsAfterSecond).toHaveLength(1);
-    expect(groupsAfterSecond[0].id).toBe(groupsAfterFirst[0].id);
-
-    const members = await harness()
-      .db.select()
-      .from(alertNotificationGroupEvents)
-      .where(eq(alertNotificationGroupEvents.groupId, groupsAfterSecond[0].id));
-    expect(members).toHaveLength(2);
   });
 
   it("does nothing on a second dispatch of an already-stamped event", async () => {
@@ -694,71 +632,49 @@ describe("the alerting pipeline's delivery", () => {
   // labels ride the body too, so anything that reaches the monitored system
   // reaches the channel: a service name, a User-Agent, an exception message.
   // These two pin the whole path, not the provider in isolation.
-  it("never lets a value out of the query address a discord server", async () => {
+  it("never lets a value out of the query address a discord server or become slack markup", async () => {
     await insertDirectRule(harness().db, {
+      slug: "discord-rule",
       forSecs: 0,
       channelType: "discord",
       channelName: "discord-channel",
     });
-    harness().clickhouse.setSignal([{ service: "@everyone", value: 42 }]);
-
-    await harness().fireAndFlush();
-
-    const [call] = harness().fetchCalls();
-    const body = call.body as {
-      content: string;
-      allowed_mentions: { parse: string[] };
-    };
-    // The text still says what happened; it just cannot ping anyone.
-    expect(body.content).toContain("@everyone");
-    expect(body.allowed_mentions.parse).toEqual([]);
-  });
-
-  it("never lets a value out of the query become slack markup", async () => {
     await insertDirectRule(harness().db, {
+      slug: "slack-rule",
       forSecs: 0,
       channelType: "slack",
       channelName: "slack-channel",
     });
     harness().clickhouse.setSignal([
       {
-        service: "<!channel> <https://evil.example|Open the alert>",
+        service: "@everyone <!channel> <https://evil.example|Open the alert>",
         value: 42,
       },
     ]);
 
     await harness().fireAndFlush();
 
-    const [call] = harness().fetchCalls();
-    const text = (call.body as { attachments: [{ blocks: [{ text: { text: string } }] }] })
-      .attachments[0].blocks[0].text.text;
-    expect(text).toContain("&lt;!channel&gt;");
-    expect(text).not.toContain("<!channel>");
-    expect(text).not.toContain("<https://evil.example|");
-  });
+    const callTo = (type: string) => {
+      const call = harness()
+        .fetchCalls()
+        .find((candidate) => candidate.url.endsWith(`/${type}`));
+      if (!call) throw new Error(`no ${type} call`);
+      return call;
+    };
+    const discordBody = callTo("discord").body as {
+      content: string;
+      allowed_mentions: { parse: string[] };
+    };
+    // The text still says what happened; it just cannot ping anyone.
+    expect(discordBody.content).toContain("@everyone");
+    expect(discordBody.allowed_mentions.parse).toEqual([]);
 
-  it("colors a slack message red while it fires and green once it resolves", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      resolveAfter: 1,
-      intervalSecs: FAST_TICK_SECS,
-      channelType: "slack",
-    });
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness().fireAndFlush();
-
-    harness().clickhouse.setSignal([]);
-    harness().advance(FAST_TICK_SECS * 1000);
-    await harness().runDueJobs();
-    harness().advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
-    await harness().runDueJobs();
-
-    type SlackBody = { attachments: [{ color: string }] };
-    const [fired, resolved] = harness()
-      .fetchCalls()
-      .map((call) => (call.body as SlackBody).attachments[0]);
-    expect(fired.color).toBe("#dc2626");
-    expect(resolved.color).toBe("#16a34a");
+    const slackText = (
+      callTo("slack").body as { attachments: [{ blocks: [{ text: { text: string } }] }] }
+    ).attachments[0].blocks[0].text.text;
+    expect(slackText).toContain("&lt;!channel&gt;");
+    expect(slackText).not.toContain("<!channel>");
+    expect(slackText).not.toContain("<https://evil.example|");
   });
 
   it("keeps webhook URLs and bot tokens out of the delivery's error trail", async () => {

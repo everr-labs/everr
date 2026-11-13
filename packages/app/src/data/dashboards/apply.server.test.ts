@@ -98,16 +98,6 @@ const live = { orgId: "org-1", repoid: "repo-1", kind: "live" } as const;
 const base = { namespace: live, db };
 
 describe("applyDashboardSpecs", () => {
-  it("accepts a defaulted doc under the repo scope", async () => {
-    mockApplySelect([]);
-    const result = await applyDashboardSpecs({
-      ...base,
-      dryRun: true,
-      resources: [{ path: "cpu.yaml", resource: dash("cpu") }],
-    });
-    expect(result.created).toEqual(["default/cpu"]);
-  });
-
   it("prunes the last dashboard of a repo with no files", async () => {
     mockApplySelect([
       {

@@ -5,7 +5,7 @@ import { alertDefinitions } from "#app/db/schema/index.ts";
 import { env } from "#app/env/index.ts";
 import { setAlertSpanAttributes } from "../telemetry";
 
-export const SCANNER_BATCH_SIZE = 5_000;
+const SCANNER_BATCH_SIZE = 5_000;
 const ENQUEUE_CONCURRENCY = 8;
 
 /**

@@ -14,19 +14,15 @@ it.each([
   expect(Boolean(socialProviders?.google)).toBe(enabled);
 });
 
-it("leaves the ingestion endpoint unset until configured", async () => {
-  vi.resetModules();
-  vi.stubEnv("EVERR_PUBLIC_INGEST_URL", undefined);
-  const { deployment } = await import("@composition/deployment");
-  expect(deployment.ingestEndpoint).toBeUndefined();
-});
-
-it("publishes the configured public ingestion endpoint", async () => {
-  vi.resetModules();
-  vi.stubEnv("EVERR_PUBLIC_INGEST_URL", "https://telemetry.example.test/otlp");
-  const { deployment } = await import("@composition/deployment");
-  expect(deployment.ingestEndpoint).toBe("https://telemetry.example.test/otlp");
-});
+it.each([undefined, "https://telemetry.example.test/otlp"])(
+  "publishes the public ingestion endpoint only when configured (%s)",
+  async (endpoint) => {
+    vi.resetModules();
+    vi.stubEnv("EVERR_PUBLIC_INGEST_URL", endpoint);
+    const { deployment } = await import("@composition/deployment");
+    expect(deployment.ingestEndpoint).toBe(endpoint);
+  },
+);
 
 it.each([true, false])("stamps self-hosted telemetry only in development (%s)", async (dev) => {
   vi.resetModules();

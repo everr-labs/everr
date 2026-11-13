@@ -37,7 +37,7 @@ export interface AlertingHarness {
   close(): Promise<void>;
 }
 
-export async function createAlertingHarness(
+async function createAlertingHarness(
   additionalMigrations: MigrationConfig[] = inject("alertingMigrations") ?? [],
 ): Promise<AlertingHarness> {
   // Fake Date only, not the whole timer set: PGlite boots a WebAssembly

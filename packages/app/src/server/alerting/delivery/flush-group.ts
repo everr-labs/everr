@@ -43,7 +43,7 @@ import { alertDeliveryHash } from "./targeting";
 // firing/resolved counts, so cutting lines never hides how big the group is.
 const COMPOSE_FRAME_MARGIN = 200;
 const BODY_MAX_CHARS = CHANNEL_TEXT_MIN - COMPOSE_FRAME_MARGIN;
-export const BODY_MAX_EVENTS = 20;
+const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.
 const OMITTED_LINE_RESERVE = 48;

@@ -40,18 +40,20 @@ function renderPicker(
 }
 
 describe("AttributeKeyPicker", () => {
-  it("pins in-range promoted attributes under a Suggested group", async () => {
+  it("pins in-range promoted attributes under Suggested, lists the rest, and searches raw keys", async () => {
     renderPicker();
     fireEvent.click(screen.getByText("Filter"));
     expect(await screen.findByText("Suggested")).toBeInTheDocument();
     expect(screen.getByText("Repository")).toBeInTheDocument();
     expect(screen.getByText("vcs.repository.name")).toBeInTheDocument();
-  });
+    // Unknown keys show the raw key.
+    expect(screen.getByText("custom.unknown.thing")).toBeInTheDocument();
 
-  it("shows discovered non-promoted keys (raw key when unknown)", async () => {
-    renderPicker();
-    fireEvent.click(screen.getByText("Filter"));
-    expect(await screen.findByText("custom.unknown.thing")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Search attributes..."), {
+      target: { value: "vcs.repository" },
+    });
+    expect(screen.getByText("Repository")).toBeInTheDocument();
+    expect(screen.queryByText("custom.unknown.thing")).not.toBeInTheDocument();
   });
 
   it("hides keys that are already active", async () => {
@@ -61,21 +63,15 @@ describe("AttributeKeyPicker", () => {
     expect(screen.queryByText("Repository")).not.toBeInTheDocument();
   });
 
-  it("omits promoted attributes absent from the discovered range", async () => {
-    renderPicker(undefined, [{ source: "log", key: "custom.unknown.thing" }]);
-    fireEvent.click(screen.getByText("Filter"));
-    await screen.findByText("custom.unknown.thing");
-    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
-    expect(screen.queryByText("Repository")).not.toBeInTheDocument();
-  });
-
-  it("hides excluded keys (service.name)", async () => {
+  it("omits excluded keys and promoted attributes absent from the discovered range", async () => {
     renderPicker(undefined, [
       { source: "resource", key: "service.name" },
       { source: "log", key: "custom.unknown.thing" },
     ]);
     fireEvent.click(screen.getByText("Filter"));
     await screen.findByText("custom.unknown.thing");
+    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
+    expect(screen.queryByText("Repository")).not.toBeInTheDocument();
     expect(screen.queryByText("service.name")).not.toBeInTheDocument();
   });
 
@@ -101,23 +97,5 @@ describe("AttributeKeyPicker", () => {
     expect(await screen.findByText("No attributes.")).toBeInTheDocument();
     expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
     expect(screen.queryByText("service.name")).not.toBeInTheDocument();
-  });
-
-  it("shows the empty state when the range has no attributes", async () => {
-    renderPicker(undefined, []);
-    fireEvent.click(screen.getByText("Filter"));
-    expect(await screen.findByText("No attributes.")).toBeInTheDocument();
-    expect(screen.queryByText("Suggested")).not.toBeInTheDocument();
-  });
-
-  it("matches a known item when searching by its raw key", async () => {
-    renderPicker();
-    fireEvent.click(screen.getByText("Filter"));
-    await screen.findByText("Repository");
-    fireEvent.change(screen.getByPlaceholderText("Search attributes..."), {
-      target: { value: "vcs.repository" },
-    });
-    expect(screen.getByText("Repository")).toBeInTheDocument();
-    expect(screen.queryByText("custom.unknown.thing")).not.toBeInTheDocument();
   });
 });

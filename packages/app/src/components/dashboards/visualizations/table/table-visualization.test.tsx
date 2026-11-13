@@ -18,20 +18,10 @@ function renderTable(data: QueryResultRow[][]) {
 }
 
 describe("TableVisualization", () => {
-  it("uses the shared two-decimal default for numeric cells", () => {
+  it("formats numeric cells with the shared two-decimal default, with no selector for one query", () => {
     renderTable([[{ value: 42.56789 }]]);
     expect(screen.getByText("42.57")).toBeInTheDocument();
-  });
-  it("shows no selector for a single query", () => {
-    renderTable([[{ a: 1 }]]);
-    expect(screen.queryByText("Query B")).toBeNull();
-    expect(screen.getByText("1")).toBeInTheDocument();
-  });
-
-  it("shows a selector with one entry per query", () => {
-    renderTable([[{ a: 1 }], [{ a: 2 }]]);
-    expect(screen.getByText("Query A")).toBeInTheDocument();
-    expect(screen.getByText("Query B")).toBeInTheDocument();
+    expect(screen.queryByText("Query A")).toBeNull();
   });
 
   it("shows the borderless empty state for a single query with no rows", () => {

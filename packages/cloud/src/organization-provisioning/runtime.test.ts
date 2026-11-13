@@ -1,7 +1,6 @@
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { organizationReadinessEventDefinitions } from "@everr/app/organizations/events";
 // @vitest-environment node
-
 import { organization } from "@everr/app/db/schema";
 import {
   createTestDatabase,

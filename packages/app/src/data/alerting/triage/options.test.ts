@@ -72,9 +72,7 @@ describe("the Triage screen's queries", () => {
     expect(alertDetailOptions(PATH, RANGE).queryKey).not.toEqual(
       alertDetailOptions(PATH, OTHER_RANGE).queryKey,
     );
-  });
-
-  it("keeps two Alert rules' details apart", () => {
+    // Two Alert rules' details stay apart too.
     expect(alertDetailOptions(PATH, RANGE).queryKey).not.toEqual(
       alertDetailOptions("default/other-rule", RANGE).queryKey,
     );

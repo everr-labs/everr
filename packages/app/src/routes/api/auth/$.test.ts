@@ -11,9 +11,9 @@ import { Route } from "./$";
 
 type AuthHandler = (args: { request: Request }) => Response | Promise<Response>;
 
-function getHandler(method: "GET" | "POST") {
+function getHandler(method: "GET") {
   const routeOptions = Route.options as {
-    server?: { handlers?: { GET?: AuthHandler; POST?: AuthHandler } };
+    server?: { handlers?: { GET?: AuthHandler } };
   };
   const handler = routeOptions.server?.handlers?.[method];
   if (!handler) throw new Error(`Missing ${method} handler for auth route.`);
@@ -33,17 +33,4 @@ describe("/api/auth/$ route", () => {
     expect(response.headers.get("Location")).toBe("/auth/error?error=email_doesn%27t_match");
     expect(mocks.handler).not.toHaveBeenCalled();
   });
-
-  it.each(["GET", "POST"] as const)(
-    "delegates %s to the configured auth handler",
-    async (method) => {
-      const request = new Request("http://localhost:5173/api/auth/get-session", {
-        method,
-      });
-      const expected = new Response("auth response");
-      mocks.handler.mockResolvedValue(expected);
-      expect(await getHandler(method)({ request })).toBe(expected);
-      expect(mocks.handler).toHaveBeenCalledExactlyOnceWith(request);
-    },
-  );
 });

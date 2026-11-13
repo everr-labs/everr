@@ -175,7 +175,7 @@ describe("the state chart behind the inventory", () => {
 });
 
 describe("one Alert rule's detail", () => {
-  it("names a lane for an Alert instance the window saw but the last evaluation did not", async () => {
+  it("names a lane for an Alert instance the window saw but the last evaluation did not, and reports not found for an unknown path", async () => {
     const target = await rule({ slug: "checkout-latency", state: "firing" });
     // Earlier in the window: two series. The instance `gone` stopped being
     // returned before the last evaluation ran.
@@ -190,10 +190,6 @@ describe("one Alert rule's detail", () => {
     // Both are named, and neither falls back to a bare fingerprint.
     expect(lanes.get("a")).toBe("host=a");
     expect(lanes.get("gone")).toBe("host=gone");
-  });
-
-  it("reports not found for a path no Alert rule has", async () => {
-    await rule({ slug: "checkout-latency", state: "firing" });
 
     await expect(
       getAlertDetail({ data: { path: "default/no-such-rule", ...range(60) } }),

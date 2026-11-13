@@ -14,11 +14,8 @@ describe("attributionAttributes", () => {
     expect(attributionAttributes("?gclid=g1&fbclid=f1")).toEqual({});
   });
 
-  it("stamps nothing on organic traffic", () => {
+  it("stamps nothing on organic traffic or garbage input", () => {
     expect(attributionAttributes("")).toEqual({});
-  });
-
-  it("ignores garbage input", () => {
     expect(attributionAttributes("not a query string")).toEqual({});
   });
 });

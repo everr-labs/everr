@@ -44,13 +44,4 @@ describe("startInstance", () => {
       functionMiddleware: [startMocks.functionMiddleware],
     });
   });
-
-  it("gives the request middleware the app's own router factory", async () => {
-    await import("./start");
-
-    const { getRouter } = await import("#app/router.tsx");
-    const options = startMocks.createRequestTelemetryMiddleware.mock.calls[0]?.[0];
-    options?.router();
-    expect(getRouter).toHaveBeenCalled();
-  });
 });

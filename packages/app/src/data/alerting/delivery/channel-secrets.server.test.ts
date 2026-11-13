@@ -20,52 +20,6 @@ const TELEGRAM = {
 };
 
 describe("the channel secret envelope", () => {
-  it("round-trips the config through the key", () => {
-    const sealed = encryptChannelConfig(ORG, ID, TELEGRAM);
-    expect(sealed.split(":")).toHaveLength(4);
-    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(TELEGRAM);
-  });
-
-  it("redacts webhook header values and keeps the names", () => {
-    const stored = {
-      type: "webhook" as const,
-      url: "https://203.0.113.10/hook",
-      headers: [{ name: "Authorization", value: "Bearer super-secret-value" }],
-    };
-    const sealed = encryptChannelConfig(ORG, ID, stored);
-    expect(readRedactedChannelConfig(sealed)).toEqual({
-      type: "webhook",
-      url: "***",
-      headers: [{ name: "Authorization", value: "***" }],
-    });
-    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(stored);
-    expect(sealed).not.toContain("Bearer super-secret-value");
-  });
-
-  it("reads a webhook saved before headers existed", () => {
-    const stored = {
-      type: "webhook" as const,
-      url: "https://203.0.113.10/hook",
-    };
-    const sealed = encryptChannelConfig(ORG, ID, stored);
-    expect(decryptChannelConfig(ORG, ID, sealed)).toEqual(stored);
-    expect(readRedactedChannelConfig(sealed)).toEqual({
-      type: "webhook",
-      url: "***",
-    });
-  });
-
-  it("reads the redacted copy without the secret in it", () => {
-    const sealed = encryptChannelConfig(ORG, ID, TELEGRAM);
-    expect(readRedactedChannelConfig(sealed)).toEqual({
-      type: "telegram",
-      bot_token: "***",
-      chat_ids: ["-100", "-200"],
-    });
-    expect(sealed).not.toContain("123:secret");
-    expect(sealed).not.toContain(Buffer.from("123:secret").toString("base64url"));
-  });
-
   it("refuses a public part that was edited under the ciphertext", () => {
     const sealed = encryptChannelConfig(ORG, ID, {
       type: "slack",

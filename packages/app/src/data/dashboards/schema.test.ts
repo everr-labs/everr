@@ -259,28 +259,22 @@ describe("dashboardSpecSchemaStrict – query plugin specs", () => {
 });
 
 describe("dashboardSlugSchema", () => {
-  it("accepts valid slugs", () => {
-    expect(dashboardSlugSchema.safeParse("abc").success).toBe(true);
-    expect(dashboardSlugSchema.safeParse("a").success).toBe(true);
-    expect(dashboardSlugSchema.safeParse("my-dash-2").success).toBe(true);
-    expect(dashboardSlugSchema.safeParse("xfmezad9iug4").success).toBe(true);
-  });
-
-  it("rejects uppercase and invalid characters", () => {
-    expect(dashboardSlugSchema.safeParse("MyDash").success).toBe(false);
-    expect(dashboardSlugSchema.safeParse("my_dash").success).toBe(false);
-    expect(dashboardSlugSchema.safeParse("my dash").success).toBe(false);
-  });
-
-  it("rejects leading and trailing hyphens", () => {
-    expect(dashboardSlugSchema.safeParse("-abc").success).toBe(false);
-    expect(dashboardSlugSchema.safeParse("abc-").success).toBe(false);
-  });
-
-  it("rejects empty and over-long slugs", () => {
-    expect(dashboardSlugSchema.safeParse("").success).toBe(false);
-    expect(dashboardSlugSchema.safeParse("a".repeat(201)).success).toBe(false);
-    expect(dashboardSlugSchema.safeParse("a".repeat(200)).success).toBe(true);
+  it("accepts lowercase alphanumerics and inner hyphens, up to 200 characters", () => {
+    for (const [slug, valid] of [
+      ["abc", true],
+      ["a", true],
+      ["my-dash-2", true],
+      ["a".repeat(200), true],
+      ["MyDash", false],
+      ["my_dash", false],
+      ["my dash", false],
+      ["-abc", false],
+      ["abc-", false],
+      ["", false],
+      ["a".repeat(201), false],
+    ] as const) {
+      expect(dashboardSlugSchema.safeParse(slug).success, slug).toBe(valid);
+    }
   });
 });
 

@@ -109,22 +109,24 @@ async function group(eventId: string, opts: { flushed: boolean }) {
 }
 
 describe("what the Journal says delivery did", () => {
-  it("keeps the newest Journal row for each Alert rule", async () => {
-    const rule = await insertRule(harness().db, { slug: "checkout-latency" });
+  it("keeps the newest notifying Journal row for each Alert rule", async () => {
+    const first = await insertRule(harness().db, { slug: "first" });
+    const second = await insertRule(harness().db, { slug: "second" });
+    await journal({ definitionId: first.id, occurredAt: minutesAgo(30), title: "older" });
+    await journal({ definitionId: first.id, occurredAt: minutesAgo(5), title: "newest" });
+    // Newer, but a Closed instance pages nobody, so it must not win.
     await journal({
-      definitionId: rule.id,
-      occurredAt: minutesAgo(30),
-      title: "older",
+      definitionId: first.id,
+      eventType: "instance_closed",
+      occurredAt: minutesAgo(1),
     });
-    await journal({
-      definitionId: rule.id,
-      occurredAt: minutesAgo(5),
-      title: "newest",
-    });
+    // Older than every row of the first rule: one row per rule, not per set.
+    await journal({ definitionId: second.id, occurredAt: minutesAgo(60), title: "second rule" });
 
-    const latest = await loadLatestNotifications(TEST_ORG, [rule.id]);
+    const latest = await loadLatestNotifications(TEST_ORG, [first.id, second.id]);
 
-    expect(latest.get(rule.id)?.title).toBe("newest");
+    expect(latest.get(first.id)?.title).toBe("newest");
+    expect(latest.get(second.id)?.title).toBe("second rule");
   });
 
   it("settles equal timestamps by descending event id", async () => {
@@ -148,47 +150,9 @@ describe("what the Journal says delivery did", () => {
     expect(latest.get(rule.id)?.title).toBe("higher id");
   });
 
-  it("keeps one row for each Alert rule, not one row for the set", async () => {
-    const first = await insertRule(harness().db, { slug: "first" });
-    const second = await insertRule(harness().db, { slug: "second" });
-    await journal({
-      definitionId: first.id,
-      occurredAt: minutesAgo(30),
-      title: "first rule",
-    });
-    await journal({
-      definitionId: second.id,
-      occurredAt: minutesAgo(60),
-      title: "second rule",
-    });
-
-    const latest = await loadLatestNotifications(TEST_ORG, [first.id, second.id]);
-
-    expect(latest.get(first.id)?.title).toBe("first rule");
-    expect(latest.get(second.id)?.title).toBe("second rule");
-  });
-
-  it("never reads a state row as the delivery story", async () => {
-    const rule = await insertRule(harness().db, { slug: "checkout-latency" });
-    await journal({
-      definitionId: rule.id,
-      occurredAt: minutesAgo(30),
-      title: "notified",
-    });
-    // Newer, but a Closed instance pages nobody, so it must not win.
-    await journal({
-      definitionId: rule.id,
-      eventType: "instance_closed",
-      occurredAt: minutesAgo(1),
-    });
-
-    const latest = await loadLatestNotifications(TEST_ORG, [rule.id]);
-
-    expect(latest.get(rule.id)?.title).toBe("notified");
-  });
-
-  it("separates a row that joined a group from one that never did", async () => {
+  it("separates a flushed group, a waiting group, and a row that never joined one", async () => {
     const carried = await insertRule(harness().db, { slug: "carried" });
+    const waiting = await insertRule(harness().db, { slug: "waiting" });
     const ended = await insertRule(harness().db, { slug: "ended" });
     const carriedEvent = await journal({
       definitionId: carried.id,
@@ -196,6 +160,12 @@ describe("what the Journal says delivery did", () => {
       processedAt: minutesAgo(4),
     });
     await group(carriedEvent, { flushed: true });
+    const waitingEvent = await journal({
+      definitionId: waiting.id,
+      occurredAt: minutesAgo(2),
+      processedAt: minutesAgo(2),
+    });
+    await group(waitingEvent, { flushed: false });
     // Processed with no group membership: a terminal ended the chain.
     await journal({
       definitionId: ended.id,
@@ -203,33 +173,11 @@ describe("what the Journal says delivery did", () => {
       processedAt: minutesAgo(4),
     });
 
-    const latest = await loadLatestNotifications(TEST_ORG, [carried.id, ended.id]);
+    const latest = await loadLatestNotifications(TEST_ORG, [carried.id, waiting.id, ended.id]);
 
-    expect(latest.get(carried.id)).toMatchObject({
-      grouped: true,
-      flushed: true,
-    });
-    expect(latest.get(ended.id)).toMatchObject({
-      grouped: false,
-      flushed: false,
-    });
-  });
-
-  it("reports a group nothing has flushed yet as still waiting", async () => {
-    const rule = await insertRule(harness().db, { slug: "checkout-latency" });
-    const event = await journal({
-      definitionId: rule.id,
-      occurredAt: minutesAgo(2),
-      processedAt: minutesAgo(2),
-    });
-    await group(event, { flushed: false });
-
-    const latest = await loadLatestNotifications(TEST_ORG, [rule.id]);
-
-    expect(latest.get(rule.id)).toMatchObject({
-      grouped: true,
-      flushed: false,
-    });
+    expect(latest.get(carried.id)).toMatchObject({ grouped: true, flushed: true });
+    expect(latest.get(waiting.id)).toMatchObject({ grouped: true, flushed: false });
+    expect(latest.get(ended.id)).toMatchObject({ grouped: false, flushed: false });
   });
 
   it("asks the database nothing when it was given no rules", async () => {
@@ -278,6 +226,8 @@ describe("what a Silence is holding", () => {
 
 describe("the Default destination's tiers", () => {
   it("reports the tiers the Organization has channels for, once each", async () => {
+    expect(await loadDefaultTiers(TEST_ORG)).toEqual(new Set());
+
     const channel = await insertChannel(harness().db, { name: "oncall" });
     const second = await insertChannel(harness().db, { name: "backup" });
     await insertDefaultChannels(harness().db, {
@@ -290,9 +240,5 @@ describe("the Default destination's tiers", () => {
     });
 
     expect(await loadDefaultTiers(TEST_ORG)).toEqual(new Set(["critical", "warning"]));
-  });
-
-  it("reports no tiers for an Organization with no Default destination", async () => {
-    expect(await loadDefaultTiers(TEST_ORG)).toEqual(new Set());
   });
 });

@@ -117,25 +117,7 @@ const navTo = (router: ReturnType<typeof buildRouter>) =>
   router.navigate as unknown as LooseNavigate;
 
 describe("explore filter clear + persistence", () => {
-  it("keeps an explicitly set service in the URL", async () => {
-    const router = buildRouter(['/logs?service=["alert"]']);
-    await waitFor(() => expect(serviceOf(router)).toEqual(["alert"]));
-  });
-
-  it("removes service from the URL when cleared back to empty", async () => {
-    const router = buildRouter(['/logs?service=["alert"]']);
-    await waitFor(() => expect(serviceOf(router)).toEqual(["alert"]));
-
-    await navTo(router)({
-      to: "/logs",
-      search: (prev) => ({ ...prev, service: [] }),
-    });
-
-    await waitFor(() => expect(serviceOf(router)).toBeUndefined());
-    expect(router.state.location.pathname).toBe("/logs");
-  });
-
-  it("retains service across cross-section navigation", async () => {
+  it("retains a set service across sections and removes it from the URL when cleared", async () => {
     const router = buildRouter(['/logs?service=["alert"]']);
     await waitFor(() => expect(serviceOf(router)).toEqual(["alert"]));
 
@@ -145,5 +127,13 @@ describe("explore filter clear + persistence", () => {
       expect(router.state.location.pathname).toBe("/errors");
       expect(serviceOf(router)).toEqual(["alert"]);
     });
+
+    await navTo(router)({
+      to: "/errors",
+      search: (prev) => ({ ...prev, service: [] }),
+    });
+
+    await waitFor(() => expect(serviceOf(router)).toBeUndefined());
+    expect(router.state.location.pathname).toBe("/errors");
   });
 });

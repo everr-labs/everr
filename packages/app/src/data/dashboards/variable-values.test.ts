@@ -211,16 +211,6 @@ describe("pickByNames", () => {
 });
 
 describe("sortVariableOptions", () => {
-  it("preserves order for undefined sort", () => {
-    const opts = ["c", "a", "b"];
-    expect(sortVariableOptions(opts, undefined)).toEqual(["c", "a", "b"]);
-  });
-
-  it('preserves order for sort "none"', () => {
-    const opts = ["c", "a", "b"];
-    expect(sortVariableOptions(opts, "none")).toEqual(["c", "a", "b"]);
-  });
-
   it("does not mutate the input array", () => {
     const opts = ["c", "a", "b"];
     const original = [...opts];
@@ -228,45 +218,19 @@ describe("sortVariableOptions", () => {
     expect(opts).toEqual(original);
   });
 
-  it("sorts alphabetical-asc (case-sensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-asc")).toEqual(["A", "b", "c"]);
-  });
-
-  it("sorts alphabetical-desc (case-sensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-desc")).toEqual(["c", "b", "A"]);
-  });
-
-  it("sorts alphabetical-ci-asc (case-insensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-asc")).toEqual(["A", "b", "c"]);
-  });
-
-  it("sorts alphabetical-ci-desc (case-insensitive)", () => {
-    expect(sortVariableOptions(["b", "A", "c"], "alphabetical-ci-desc")).toEqual(["c", "b", "A"]);
-  });
-
-  it("sorts numerical-asc", () => {
-    expect(sortVariableOptions(["10", "2", "1"], "numerical-asc")).toEqual(["1", "2", "10"]);
-  });
-
-  it("sorts numerical-desc", () => {
-    expect(sortVariableOptions(["10", "2", "1"], "numerical-desc")).toEqual(["10", "2", "1"]);
-  });
-
-  it("pushes non-numeric values to end for numerical-asc", () => {
-    expect(sortVariableOptions(["foo", "10", "bar", "2"], "numerical-asc")).toEqual([
-      "2",
-      "10",
-      "foo",
-      "bar",
-    ]);
-  });
-
-  it("pushes non-numeric values to end for numerical-desc", () => {
-    expect(sortVariableOptions(["foo", "10", "bar", "2"], "numerical-desc")).toEqual([
-      "10",
-      "2",
-      "foo",
-      "bar",
-    ]);
+  it("orders by each sort mode", () => {
+    for (const [sort, input, expected] of [
+      [undefined, ["c", "a", "b"], ["c", "a", "b"]],
+      ["none", ["c", "a", "b"], ["c", "a", "b"]],
+      ["alphabetical-asc", ["b", "A", "c"], ["A", "b", "c"]],
+      ["alphabetical-desc", ["b", "A", "c"], ["c", "b", "A"]],
+      ["alphabetical-ci-asc", ["b", "A", "c"], ["A", "b", "c"]],
+      ["alphabetical-ci-desc", ["b", "A", "c"], ["c", "b", "A"]],
+      // Non-numeric values go last in both directions.
+      ["numerical-asc", ["foo", "10", "bar", "2"], ["2", "10", "foo", "bar"]],
+      ["numerical-desc", ["foo", "10", "bar", "2"], ["10", "2", "foo", "bar"]],
+    ] as const) {
+      expect(sortVariableOptions([...input], sort), String(sort)).toEqual(expected);
+    }
   });
 });

@@ -22,7 +22,7 @@ function renderSecret(hasStoredSecret = true) {
   render(<Harness />);
 }
 
-it("requires an explicit action before replacing a stored secret", async () => {
+it("requires an explicit action before replacing a stored secret, and cancels back to it", async () => {
   const user = userEvent.setup();
   renderSecret();
 
@@ -37,14 +37,7 @@ it("requires an explicit action before replacing a stored secret", async () => {
   expect(replacement).toHaveFocus();
   await user.type(replacement, "replacement");
   expect(replacement).toHaveValue("replacement");
-});
 
-it("cancels a replacement without changing the stored secret", async () => {
-  const user = userEvent.setup();
-  renderSecret();
-
-  await user.click(screen.getByRole("button", { name: "Edit secret" }));
-  await user.type(screen.getByLabelText("Webhook URL"), "replacement");
   await user.click(screen.getByRole("button", { name: "Cancel editing secret" }));
 
   expect(screen.getByLabelText("Webhook URL")).toHaveValue("Stored securely");

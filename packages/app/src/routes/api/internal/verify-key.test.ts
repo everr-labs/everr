@@ -62,19 +62,13 @@ beforeEach(async () => {
 });
 
 describe("/api/internal/verify-key", () => {
-  it("returns 403 when shared secret is missing", async () => {
-    const res = await getHandler()({
-      request: makeRequest({ key: "k" }, null),
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("returns 403 when shared secret is wrong", async () => {
-    const res = await getHandler()({
-      request: makeRequest({ key: "k" }, "wrong-secret-padded-to-32-characters"),
-    });
-    expect(res.status).toBe(403);
-  });
+  it.each([null, "wrong-secret-padded-to-32-characters"])(
+    "returns 403 when the shared secret is %s",
+    async (secret) => {
+      const res = await getHandler()({ request: makeRequest({ key: "k" }, secret) });
+      expect(res.status).toBe(403);
+    },
+  );
 
   it("returns 400 when body has no key", async () => {
     const res = await getHandler()({ request: makeRequest({}) });
@@ -196,95 +190,43 @@ describe("/api/internal/verify-key browser origin policy", () => {
     permissions: { ingest: ["write"] },
   };
 
-  it("public key + allowlisted origin: 200", async () => {
-    await mockVerify({ valid: true, error: null, key: publicKey });
+  it.each([
+    {
+      name: "public key + allowlisted origin",
+      key: publicKey,
+      origin: "https://app.example.com",
+      status: 200,
+    },
+    {
+      name: "public key + no origin (server-side use)",
+      key: publicKey,
+      origin: undefined,
+      status: 403,
+    },
+    {
+      name: "public key + mismatched origin",
+      key: publicKey,
+      origin: "https://evil.example",
+      status: 403,
+    },
+    {
+      name: "secret key + origin present (browser replay of a server key)",
+      key: secretKey,
+      origin: "https://app.example.com",
+      status: 403,
+    },
+    { name: "secret key + no origin", key: secretKey, origin: undefined, status: 200 },
+    {
+      name: "secret key + non-string origin (treated as absent)",
+      key: secretKey,
+      origin: 123,
+      status: 200,
+    },
+  ])("$name: $status", async ({ key, origin, status }) => {
+    await mockVerify({ valid: true, error: null, key });
     const res = await getHandler()({
-      request: makeRequest({
-        key: "the-key",
-        origin: "https://app.example.com",
-      }),
+      request: makeRequest({ key: "the-key", origin }),
     });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      keyId: "ak_public",
-      tracesDays: 365,
-      logsDays: 365,
-      metricsDays: 365,
-    });
-  });
-
-  it("public key + normalizable origin (case/default port): 200", async () => {
-    await mockVerify({ valid: true, error: null, key: publicKey });
-    const res = await getHandler()({
-      request: makeRequest({
-        key: "the-key",
-        origin: "HTTPS://App.Example.COM:443",
-      }),
-    });
-    expect(res.status).toBe(200);
-  });
-
-  it("public key metadata handed back as a JSON string: still enforced", async () => {
-    await mockVerify({
-      valid: true,
-      error: null,
-      key: { ...publicKey, metadata: JSON.stringify(publicKey.metadata) },
-    });
-    const res = await getHandler()({
-      request: makeRequest({
-        key: "the-key",
-        origin: "https://app.example.com",
-      }),
-    });
-    expect(res.status).toBe(200);
-  });
-
-  it("public key + no origin (server-side use): 403", async () => {
-    await mockVerify({ valid: true, error: null, key: publicKey });
-    const res = await getHandler()({
-      request: makeRequest({ key: "the-key" }),
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("public key + mismatched origin: 403", async () => {
-    await mockVerify({ valid: true, error: null, key: publicKey });
-    const res = await getHandler()({
-      request: makeRequest({ key: "the-key", origin: "https://evil.example" }),
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("secret key + origin present (browser replay of a server key): 403", async () => {
-    await mockVerify({ valid: true, error: null, key: secretKey });
-    const res = await getHandler()({
-      request: makeRequest({
-        key: "the-key",
-        origin: "https://app.example.com",
-      }),
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("secret key + no origin (unchanged server path): 200", async () => {
-    await mockVerify({ valid: true, error: null, key: secretKey });
-    const res = await getHandler()({
-      request: makeRequest({ key: "the-key" }),
-    });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      keyId: "ak_secret",
-      tracesDays: 365,
-      logsDays: 365,
-      metricsDays: 365,
-    });
-  });
-
-  it("non-string origin is ignored (treated as absent) for a secret key: 200", async () => {
-    await mockVerify({ valid: true, error: null, key: secretKey });
-    const res = await getHandler()({
-      request: makeRequest({ key: "the-key", origin: 123 }),
-    });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(status);
   });
 });

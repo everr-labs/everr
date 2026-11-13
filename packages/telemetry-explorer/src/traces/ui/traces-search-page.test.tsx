@@ -111,35 +111,29 @@ afterEach(() => {
 });
 
 describe("Traces page filter rail", () => {
-  it("puts the persistent zone above the page filters in one rail", () => {
-    render(<TracesPageHarness persistentFilters={<div>persistent zone</div>} />);
+  it("puts the persistent zone and the only search field in one rail, and applies the search on Enter", async () => {
+    const user = userEvent.setup();
+    const onSearchChange = vi.fn();
+    render(
+      <TracesPageHarness
+        persistentFilters={<div>persistent zone</div>}
+        onSearchChange={onSearchChange}
+      />,
+    );
 
     const rail = screen.getByRole("complementary", { name: "Trace filters" });
     expect(within(rail).getByText("persistent zone")).toBeInTheDocument();
     expect(within(rail).getByText("Search")).toBeInTheDocument();
     expect(within(rail).getByText("Status")).toBeInTheDocument();
-  });
-
-  it("has no search bar outside the rail", () => {
-    render(<TracesPageHarness />);
-
-    const rail = screen.getByRole("complementary", { name: "Trace filters" });
-    const input = screen.getByPlaceholderText("Filter by span name");
-    expect(rail).toContainElement(input);
     // One field only. The rail holds it, and no second field is above the
     // results.
-    expect(screen.getAllByPlaceholderText("Filter by span name")).toHaveLength(1);
-  });
-
-  it("applies the search on Enter, not on every keystroke", async () => {
-    const user = userEvent.setup();
-    const onSearchChange = vi.fn();
-    render(<TracesPageHarness onSearchChange={onSearchChange} />);
-
     const input = screen.getByPlaceholderText("Filter by span name");
+    expect(rail).toContainElement(input);
+    expect(screen.getAllByPlaceholderText("Filter by span name")).toHaveLength(1);
+    expect(await screen.findByRole("link", { name: "GET /api/orders" })).toBeInTheDocument();
+
     await user.type(input, "checkout");
     expect(onSearchChange).not.toHaveBeenCalled();
-
     await user.type(input, "{Enter}");
     expect(onSearchChange).toHaveBeenCalledWith({ name: "checkout" });
   });
@@ -162,27 +156,14 @@ describe("Traces page filter rail", () => {
     expect((screen.getByPlaceholderText("Filter by span name") as HTMLInputElement).value).toBe("");
   });
 
-  it("below 1024px the rail moves into a sheet behind a Filters button", async () => {
+  it("below 1024px moves the rail into a sheet behind a Filters button that counts the persistent filters", async () => {
     stubNarrowViewport();
     const user = userEvent.setup();
-    render(<TracesPageHarness persistentFilters={<div>persistent zone</div>} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
-    );
-    expect(screen.queryByRole("complementary", { name: "Trace filters" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
-    expect(screen.getByText("persistent zone")).toBeInTheDocument();
-  });
-
-  it("the narrow Filters button counts the persistent filters it hides", async () => {
-    stubNarrowViewport();
     render(
       <TracesPageHarness
         initial={{ ...emptySearch, service: ["demo-api"], status: "error" }}
         environment={["production"]}
+        persistentFilters={<div>persistent zone</div>}
       />,
     );
 
@@ -191,14 +172,10 @@ describe("Traces page filter rail", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
-  });
+    expect(screen.queryByRole("complementary", { name: "Trace filters" })).not.toBeInTheDocument();
 
-  it("badges the HTTP method on the root span name", async () => {
-    render(<TracesPageHarness />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: "GET /api/orders" })).toBeInTheDocument(),
-    );
-    expect(screen.getByText("GET")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
+    expect(screen.getByText("persistent zone")).toBeInTheDocument();
   });
 });
