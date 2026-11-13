@@ -26,17 +26,11 @@ jobs:
           cache: pnpm
       - uses: actions/setup-go@v5
         with:
-          go-version-file: collector/go.mod
-          cache-dependency-path: collector/**/go.sum
+          go-version-file: packages/cli/go.mod
+          cache-dependency-path: |
+            packages/cli/go.sum
+            collector/**/go.sum
       - run: pnpm install --frozen-lockfile
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
 
       - name: Typecheck local frontend
         run: pnpm --filter @everr/local-app typecheck
@@ -44,8 +38,8 @@ jobs:
       - name: Build release binary
         run: pnpm --filter @everr/cli build:release
 
-      - name: Test Rust with prepared assets
-        run: pnpm --filter @everr/cli test:rust --prepared
+      - name: Test with prepared assets
+        run: pnpm --filter @everr/cli test:go --prepared
 
       - name: Smoke test
-        run: ./target/release/everr --help
+        run: ./target/go/release/everr --help

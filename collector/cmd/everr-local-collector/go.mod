@@ -3,19 +3,22 @@ module github.com/everr-labs/everr/collector/cmd/everr-local-collector
 go 1.26.11
 
 require (
-	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000
-	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
-	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/collector/component v1.66.0
-	go.opentelemetry.io/collector/confmap v1.66.0
-	go.opentelemetry.io/collector/exporter v1.66.0
-	go.opentelemetry.io/collector/otelcol v0.160.0
-	go.opentelemetry.io/collector/receiver v1.66.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0
-	go.opentelemetry.io/collector/service v0.160.0
 	go.uber.org/zap v1.28.0
+)
+
+require (
+	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000 // indirect
+	go.opentelemetry.io/collector/component v1.66.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.66.0 // indirect
+	go.opentelemetry.io/collector/exporter v1.66.0 // indirect
+	go.opentelemetry.io/collector/otelcol v0.160.0 // indirect
+	go.opentelemetry.io/collector/receiver v1.66.0 // indirect
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.160.0 // indirect
+	go.opentelemetry.io/collector/service v0.160.0 // indirect
 )
 
 require (
@@ -30,9 +33,9 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chdb-io/chdb-go v1.11.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
+	github.com/everr-labs/everr/collector/localcollector v0.0.0
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20251226215517-609e4778396f // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
@@ -199,3 +202,5 @@ replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../.
 replace github.com/everr-labs/everr/collector/internal/localgateway/config => ../../internal/localgateway/config
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../../internal/localgateway/sqlhttp
+
+replace github.com/everr-labs/everr/collector/localcollector => ../../localcollector

@@ -42,7 +42,7 @@ dist
 
 .output
 
-# rust
+# build output
 target
 
 # Terraform infra

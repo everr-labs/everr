@@ -109,8 +109,8 @@ export async function applyResources(opts: {
    * each apply, including an empty array, so the submitted state is the complete
    * desired state for the repo; an absent kind prunes within the repoid.
    *
-   * Keep the kinds in sync with classify_documents in
-   * packages/cli/src/apply.rs, which routes documents by kind CLI-side.
+   * Keep the kinds in sync with ClassifyDocuments in
+   * packages/cli/internal/apply/documents.go, which routes documents by kind CLI-side.
    */
   const registry: {
     key: keyof ApplyInput["state"];

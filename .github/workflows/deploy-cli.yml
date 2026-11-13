@@ -50,14 +50,12 @@ jobs:
             throw new Error('Release tag does not match the CLI package version');
           }
           JS
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
       - uses: actions/setup-go@v5
         with:
-          go-version-file: collector/go.mod
-          cache-dependency-path: collector/**/go.sum
+          go-version-file: packages/cli/go.mod
+          cache-dependency-path: |
+            packages/cli/go.sum
+            collector/**/go.sum
       - run: pnpm install --frozen-lockfile
       - name: Import Apple Developer ID certificate
         if: runner.os == 'macOS'
@@ -103,7 +101,7 @@ jobs:
             echo "APPLE_KEYCHAIN_PATH=$keychain_path"
           } >> "$GITHUB_ENV"
 
-      - name: Build CLI with local UI and collector
+      - name: Build CLI with local UI and chDB
         env:
           EVERR_CI_JOB_NAME: Build CLI ${{ matrix.name }}
           EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
@@ -118,8 +116,8 @@ jobs:
           if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then
             security delete-keychain "$APPLE_KEYCHAIN_PATH"
           fi
-      - name: Test Rust with prepared assets
-        run: pnpm --filter @everr/cli test:rust --prepared
+      - name: Test with prepared assets
+        run: pnpm --filter @everr/cli test:go --prepared
       - name: Stage binary
         shell: bash
         run: |

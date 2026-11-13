@@ -155,14 +155,14 @@ describe("createBuildTelemetry", () => {
     const telemetry = createBuildTelemetry({ buildName: "cli release build", env: {} });
     await telemetry
       .phase("build cli", async () => {
-        throw new Error("cargo failed");
+        throw new Error("go build failed");
       })
       .catch(() => {});
 
     const payload = capturePayload(telemetry);
     const spans = (await payload).resourceSpans[0].scopeSpans[0].spans;
     const failed = spans.find((span) => span.name === "build cli");
-    expect(failed?.status).toEqual({ code: 2, message: "cargo failed" });
+    expect(failed?.status).toEqual({ code: 2, message: "go build failed" });
     const root = spans.find((span) => span.name === "cli release build");
     expect(root?.status.code).toBe(1);
     expect(root?.parentSpanId).toBeUndefined();

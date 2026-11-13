@@ -1,3 +1,3 @@
 .PHONY: test
 test:
-	cargo test --workspace
+	pnpm --filter @everr/cli test:go

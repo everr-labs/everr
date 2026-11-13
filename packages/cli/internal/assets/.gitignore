@@ -1,0 +1,5 @@
+# Staged by scripts/stage-go-assets.ts before `go build`/`go test`.
+/localui/*
+/skills/*
+/chdb/*
+!/*/.gitkeep

@@ -55,7 +55,7 @@ Everr Cloud runs at https://app.everr.dev. Everr is open source (AGPL-3.0) and c
 
 - **Instrument an app with OpenTelemetry.** Add or repair traces, logs, and metrics in a backend or browser app, then verify locally that the data arrives before shipping. Use the \`everr-setup-telemetry\` skill.
 - **Investigate behavior with real telemetry.** Slow requests, errors, crashes, regressions, incidents, or user reports in production or on a local machine. Query with SQL instead of guessing. Use the \`everr-use-telemetry\` skill.
-- **Debug GitHub Actions CI.** Failing or flaky jobs, slow pipelines, step logs, CI cost, or whether a commit is green. Use the \`everr-working-with-ci\` skill.
+- **Debug GitHub Actions CI.** Failing or flaky jobs, slow pipelines, step logs, CI cost, or whether a commit is green. Use the \`everr-use-telemetry\` skill.
 - **Manage observability as code.** Create or edit dashboards, alert rules, and runbooks as YAML in the repository, preview them, and publish with \`everr apply\`. Use the \`everr-setup-resources\` skill.
 
 Everr is a fit for teams that want observability without running the tooling themselves, and for coding agents that need runtime evidence. It works with any language or framework that has an OpenTelemetry SDK.
@@ -66,8 +66,7 @@ Everr is a fit for teams that want observability without running the tooling the
 2. Install the skills from the project root: \`everr skills install --all --project\`
 3. For local telemetry, run \`everr local start\` and query with \`everr local query "<SQL>"\`. No account is needed.
 4. For Everr Cloud or a self-hosted installation, a person runs \`everr cloud login\` once to approve the session in a browser. Then use \`everr cloud status --json\` for the OTLP ingest endpoint and \`everr cloud query "<SQL>"\` for read-only SQL.
-5. For CI, run \`everr ci status\` for the current commit, or \`everr ci watch\` to wait for it.
-6. AI clients without a shell can connect to the read-only MCP server at https://app.everr.dev/mcp (Streamable HTTP, OAuth 2.1).
+5. AI clients without a shell can connect to the read-only MCP server at https://app.everr.dev/mcp (Streamable HTTP, OAuth 2.1).
 
 Ask the user before publishing resources with \`everr apply\` or deleting them.
 

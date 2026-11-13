@@ -2,26 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/otelcol"
-	"go.opentelemetry.io/collector/receiver"
-	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
-	otelconftelemetry "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/zap"
 
-	chdbexporter "github.com/everr-labs/everr/collector/exporter/chdbexporter"
-	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 	localconfig "github.com/everr-labs/everr/collector/internal/localgateway/config"
-	"github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp"
+	"github.com/everr-labs/everr/collector/localcollector"
 )
 
 const (
@@ -128,122 +122,28 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	handle, err := chdb.Open(opts.ChDBPath)
+	gateway, err := localcollector.Open(localcollector.Options{
+		OTLPEndpoint: opts.OTLP.Origin,
+		SQLEndpoint:  opts.SQL.Origin,
+		ChDBPath:     opts.ChDBPath,
+		TTL:          opts.TTL,
+		Version:      os.Getenv("EVERR_LOCAL_VERSION"),
+		InstanceID:   os.Getenv("EVERR_LOCAL_INSTANCE_ID"),
+		Logger:       logger,
+	})
 	if err != nil {
-		return fmt.Errorf("open chdb: %w", err)
-	}
-	defer func() { _ = handle.Close() }()
-
-	sqlServer := sqlhttp.NewServer(sqlhttp.Config{Endpoint: opts.SQL.ListenAddress}, handle, logger, sqlhttp.Identity{Version: os.Getenv("EVERR_LOCAL_VERSION"), InstanceID: os.Getenv("EVERR_LOCAL_INSTANCE_ID")})
-	if err := sqlServer.Start(); err != nil {
-		return fmt.Errorf("start sql http server: %w", err)
+		return err
 	}
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = sqlServer.Shutdown(shutdownCtx)
+		_ = gateway.Close(shutdownCtx)
 	}()
 
-	collectorConfig := localconfig.BuildCollectorConfigMap(localconfig.CollectorConfig{
-		OTLPListenAddress: opts.OTLP.ListenAddress,
-		TTL:               opts.TTL,
-	})
-	collector, err := otelcol.NewCollector(collectorSettings(handle, collectorConfig))
-	if err != nil {
-		return fmt.Errorf("create collector: %w", err)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := gateway.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
 	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- collector.Run(ctx)
-	}()
-
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case err := <-done:
-			return err
-		case <-ticker.C:
-			if collector.GetState() == otelcol.StateRunning {
-				sqlServer.SetReady(true)
-				return <-done
-			}
-		case <-ctx.Done():
-			collector.Shutdown()
-			err := <-done
-			if err != nil {
-				return err
-			}
-			return ctx.Err()
-		}
-	}
-}
-
-func collectorSettings(handle *chdb.Handle, rawConfig map[string]any) otelcol.CollectorSettings {
-	staticProviderFactory := localconfig.NewStaticProviderFactory(rawConfig)
-	return otelcol.CollectorSettings{
-		BuildInfo: component.BuildInfo{
-			Command:     "everr-local-collector",
-			Description: "Local diagnostic collector gateway",
-			Version:     "0.1.0",
-		},
-		Factories: collectorFactories(handle),
-		ConfigProviderSettings: otelcol.ConfigProviderSettings{
-			ResolverSettings: confmap.ResolverSettings{
-				URIs:              []string{localconfig.StaticURI},
-				DefaultScheme:     localconfig.StaticScheme,
-				ProviderFactories: []confmap.ProviderFactory{staticProviderFactory},
-			},
-		},
-		ProviderModules: map[string]string{
-			localconfig.StaticScheme: "github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0",
-		},
-		ConverterModules: []string{},
-	}
-}
-
-func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
-	return func() (otelcol.Factories, error) {
-		var err error
-		factories := otelcol.Factories{
-			Telemetry: otelconftelemetry.NewFactory(),
-		}
-
-		factories.Receivers, err = otelcol.MakeFactoryMap[receiver.Factory](
-			otlpreceiver.NewFactory(),
-		)
-		if err != nil {
-			return otelcol.Factories{}, err
-		}
-		factories.ReceiverModules = makeModulesMap(factories.Receivers, map[component.Type]string{
-			otlpreceiver.NewFactory().Type(): "go.opentelemetry.io/collector/receiver/otlpreceiver v0.152.0",
-		})
-
-		factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
-			chdbexporter.NewFactoryWithHandle(handle),
-		)
-		if err != nil {
-			return otelcol.Factories{}, err
-		}
-		factories.ExporterModules = makeModulesMap(factories.Exporters, map[component.Type]string{
-			chdbexporter.NewFactory().Type(): "github.com/everr-labs/everr/collector/exporter/chdbexporter v0.160.0",
-		})
-
-		return factories, nil
-	}
-}
-
-type aliasProvider interface{ DeprecatedAlias() component.Type }
-
-func makeModulesMap[T component.Factory](factories map[component.Type]T, modules map[component.Type]string) map[component.Type]string {
-	for compType, factory := range factories {
-		if ap, ok := any(factory).(aliasProvider); ok {
-			alias := ap.DeprecatedAlias()
-			if alias.String() != "" {
-				modules[alias] = modules[compType]
-			}
-		}
-	}
-	return modules
+	return nil
 }

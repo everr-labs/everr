@@ -1,0 +1,72 @@
+import { cp, link, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { zstdFile, prepareChdbLibAt, sha256File } from "./build-support.ts";
+
+const cliDir = fileURLToPath(new URL("..", import.meta.url));
+const repoDir = path.resolve(cliDir, "../..");
+const assetsDir = path.join(cliDir, "internal/assets");
+const chdbCacheDir = path.join(repoDir, "target/cli-go-assets");
+
+async function exists(file: string) {
+  try {
+    await stat(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resetDir(dir: string) {
+  await mkdir(dir, { recursive: true });
+  for (const entry of await readdir(dir)) {
+    if (entry !== ".gitkeep") await rm(path.join(dir, entry), { recursive: true, force: true });
+  }
+}
+
+async function linkOrCopy(source: string, dest: string) {
+  await rm(dest, { force: true });
+  try {
+    await link(source, dest);
+  } catch {
+    await cp(source, dest);
+  }
+}
+
+/**
+ * Copies everything the Go CLI embeds into internal/assets, since go:embed
+ * cannot read outside the module. The compressed libchdb is cached under
+ * target/ because compressing it takes a while.
+ */
+export async function stageGoAssets({ mode = "debug", requireUi = false } = {}) {
+  const skillsDir = path.join(assetsDir, "skills");
+  await resetDir(skillsDir);
+  await cp(path.join(repoDir, "skills"), skillsDir, { recursive: true });
+
+  const uiSource = path.join(repoDir, "packages/local-app/dist");
+  const uiDir = path.join(assetsDir, "localui");
+  await resetDir(uiDir);
+  if (await exists(path.join(uiSource, "index.html"))) {
+    await cp(uiSource, uiDir, { recursive: true });
+  } else if (requireUi) {
+    throw new Error("missing local UI assets; build @everr/local-app before building the CLI");
+  } else {
+    console.warn("Local UI not built; `everr local start` will serve no UI.");
+  }
+
+  const chdbZst = path.join(chdbCacheDir, mode, "libchdb.so.zst");
+  if (!(await exists(chdbZst))) {
+    const lib = await prepareChdbLibAt(mode, path.join(chdbCacheDir, mode, "libchdb.so"));
+    await zstdFile(lib, chdbZst);
+  }
+  const chdbDir = path.join(assetsDir, "chdb");
+  await resetDir(chdbDir);
+  await linkOrCopy(chdbZst, path.join(chdbDir, "libchdb.so.zst"));
+  // The CLI caches the extracted library under this digest.
+  await writeFile(path.join(chdbDir, "libchdb.so.zst.sha256"), `${await sha256File(chdbZst)}\n`);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const mode = process.argv[2] ?? "debug";
+  await stageGoAssets({ mode });
+}
