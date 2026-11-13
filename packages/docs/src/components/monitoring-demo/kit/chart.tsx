@@ -1,3 +1,4 @@
+import { useHydrated } from "@tanstack/react-router";
 import { useId, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { useReducedMotion } from "./reduced-motion";
 import "./chart.css";
@@ -54,16 +55,20 @@ export function chartPoints({
   }));
 }
 
+// A tenth of a pixel is finer than any screen draws, and the full float
+// precision would make each chart several times bigger in the page's HTML
+const r = (n: number) => Math.round(n * 10) / 10;
+
 /** A smooth path through the points (Catmull-Rom as cubic Béziers), never overshooting the ends. */
 function smooth(p: { x: number; y: number }[]) {
   if (!p.length) return "";
-  let d = `M${p[0].x} ${p[0].y}`;
+  let d = `M${r(p[0].x)} ${r(p[0].y)}`;
   for (let i = 0; i < p.length - 1; i++) {
     const a = p[i - 1] ?? p[i];
     const b = p[i];
     const c = p[i + 1];
     const e = p[i + 2] ?? c;
-    d += `C${b.x + (c.x - a.x) / 6} ${b.y + (c.y - a.y) / 6} ${c.x - (e.x - b.x) / 6} ${c.y - (e.y - b.y) / 6} ${c.x} ${c.y}`;
+    d += `C${r(b.x + (c.x - a.x) / 6)} ${r(b.y + (c.y - a.y) / 6)} ${r(c.x - (e.x - b.x) / 6)} ${r(c.y - (e.y - b.y) / 6)} ${r(c.x)} ${r(c.y)}`;
   }
   return d;
 }
@@ -142,6 +147,7 @@ export function Chart({
   style,
 }: ChartProps) {
   const reduced = useReducedMotion();
+  const hydrated = useHydrated();
   const id = useId().replace(/:/g, "");
   const drawRef = useRef<SVGGElement>(null);
   const wipeRef = useRef<SVGRectElement>(null);
@@ -258,7 +264,7 @@ export function Chart({
   const curve = resample(pts);
   samples.current = curve;
   const line = smooth(curve);
-  const fill = `${line}L${pts[pts.length - 1].x} ${height}L${pts[0].x} ${height}Z`;
+  const fill = `${line}L${r(pts[pts.length - 1].x)} ${height}L${r(pts[0].x)} ${height}Z`;
   const end = pts[pts.length - 1];
   return (
     <svg
@@ -282,20 +288,21 @@ export function Chart({
       </defs>
       {/* One wipe reveals the line and its fill together, so the fill never
           runs ahead of the line. d is also set as a style so a data change
-          eases the shape */}
+          eases the shape, from hydration on: the server HTML has nothing to
+          ease and would carry every path twice */}
       <g ref={drawRef} className="ss-chart__draw" clipPath={`url(#${id}-wipe)`}>
         {area && pts.length > 1 && (
           <path
             className="ss-chart__area"
             d={fill}
-            style={{ d: `path("${fill}")` } as CSSProperties}
+            style={hydrated ? ({ d: `path("${fill}")` } as CSSProperties) : undefined}
             fill={`url(#${id}-fill)`}
           />
         )}
         <path
           className="ss-chart__line"
           d={line}
-          style={{ d: `path("${line}")` } as CSSProperties}
+          style={hydrated ? ({ d: `path("${line}")` } as CSSProperties) : undefined}
         />
       </g>
       {dot && (
