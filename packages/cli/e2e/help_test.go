@@ -33,12 +33,6 @@ func TestRootHelpListsMainCommands(t *testing.T) {
 		"Run and query the local telemetry Collector",
 		"Reconcile a directory of as-code resources",
 	)
-	assertNotContains(t, out,
-		"\n  install", "\n  login", "\n  logout", "\n  profiles", "--profile",
-		"setup-assistant", "\n  setup", "\n  init", "ai-instructions", "\n  status",
-		"\n  grep", "slowest-tests", "slowest-jobs", "\n  watch", "wait-pipeline",
-		"\n  runs", "\n  show", "\n  logs", "\n  ci", "completion",
-	)
 }
 
 func TestVersionNamesBuildType(t *testing.T) {
@@ -53,7 +47,8 @@ func TestRemovedCommandsAreRejected(t *testing.T) {
 		{"ai-instructions"}, {"wait-pipeline"}, {"status"}, {"grep"}, {"watch"},
 		{"runs"}, {"show"}, {"logs"}, {"telemetry"}, {"test-history"},
 		{"slowest-tests"}, {"slowest-jobs"}, {"workflows"}, {"setup"}, {"init"},
-		{"query"}, {"login"}, {"logout"}, {"whoami"},
+		{"query"}, {"login"}, {"logout"}, {"whoami"}, {"install"}, {"profiles"}, {"completion"},
+		{"local", "ai-instructions"},
 	} {
 		res := env.Run(args...).Failure(t, 2)
 		assertContains(t, res.Stderr, "unrecognized subcommand")

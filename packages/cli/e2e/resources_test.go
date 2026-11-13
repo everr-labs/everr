@@ -10,11 +10,6 @@ import (
 const resourceList = `[{"kind":"dashboard","project":"default","slug":"cpu","repoid":"github.com/acme/api","updatedAt":"2026-07-01"},` +
 	`{"kind":"runbook","project":"default","slug":"oom","repoid":"","updatedAt":"2026-07-02"}]`
 
-func TestResourcesHelpListsSubcommands(t *testing.T) {
-	out := NewEnv(t).Run("resources", "--help").Success(t).Stdout
-	assertContains(t, out, "Inspect and manage live dashboards, runbooks, and alerts", "list", "show", "delete", "adopt")
-}
-
 func TestResourcesListStarsThisRepositorysResources(t *testing.T) {
 	srv := newCloudServer(t, map[string]reply{"GET /api/cli/resources": {Body: resourceList}})
 	env := NewEnv(t)

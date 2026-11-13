@@ -17,25 +17,7 @@ import (
 
 const SessionNamespace = "everr"
 
-// Set with -ldflags "-X github.com/everr-labs/everr/packages/cli/internal/build.releaseSHA=...".
-var (
-	releaseSHA      = "unknown"
-	releaseShortSHA = ""
-)
-
 func Version() string { return everrcli.Version }
-
-func ReleaseSHA() string { return releaseSHA }
-
-func ReleaseShortSHA() string {
-	if releaseShortSHA != "" {
-		return releaseShortSHA
-	}
-	if len(releaseSHA) > 7 {
-		return releaseSHA[:7]
-	}
-	return releaseSHA
-}
 
 // VersionOutput is what `everr --version` prints after the program name.
 func VersionOutput() string {
@@ -54,17 +36,22 @@ var commandName = sync.OnceValue(func() string {
 // installed debug builds, everr otherwise.
 func CommandName() string { return commandName() }
 
-// debugOverride returns a debug-only environment override. Release builds
-// never read these variables.
-func debugOverride(key string) (string, bool) {
+// DebugOverride reads an environment override that only debug builds honor,
+// so no environment variable can redirect a release binary. A blank value
+// counts as unset.
+func DebugOverride(name string) (string, bool) {
 	if Release {
 		return "", false
 	}
-	return os.LookupEnv(key)
+	value := os.Getenv(name)
+	if strings.TrimSpace(value) == "" {
+		return "", false
+	}
+	return value, true
 }
 
 func LocalUIOrigin() string {
-	if origin, ok := debugOverride("EVERR_LOCAL_UI_ORIGIN"); ok {
+	if origin, ok := DebugOverride("EVERR_LOCAL_UI_ORIGIN"); ok {
 		return origin
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", LocalUIPort)
@@ -72,7 +59,7 @@ func LocalUIOrigin() string {
 
 // OTLPHTTPOrigin is the local collector's OTLP HTTP origin.
 func OTLPHTTPOrigin() string {
-	if origin, ok := debugOverride("EVERR_OTLP_HTTP_ORIGIN"); ok {
+	if origin, ok := DebugOverride("EVERR_OTLP_HTTP_ORIGIN"); ok {
 		return origin
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", OTLPHTTPPort)
@@ -81,7 +68,7 @@ func OTLPHTTPOrigin() string {
 // SQLHTTPOrigin is the local collector's SQL HTTP origin, which also serves
 // the collector's /health.
 func SQLHTTPOrigin() string {
-	if origin, ok := debugOverride("EVERR_SQL_HTTP_ORIGIN"); ok {
+	if origin, ok := DebugOverride("EVERR_SQL_HTTP_ORIGIN"); ok {
 		return origin
 	}
 	return fmt.Sprintf("http://127.0.0.1:%d", SQLHTTPPort)
@@ -114,11 +101,6 @@ func DataLocalDir() (string, error) {
 			return "", err
 		}
 		return filepath.Join(home, "Library", "Application Support"), nil
-	case "windows":
-		if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
-			return dir, nil
-		}
-		return "", errors.New("failed to resolve user local data dir")
 	default:
 		if dir := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(dir) {
 			return dir, nil

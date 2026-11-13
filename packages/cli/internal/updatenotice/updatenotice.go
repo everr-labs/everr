@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Masterminds/semver/v3"
@@ -144,23 +143,10 @@ func FetchReleaseMetadata(ctx context.Context, timeout time.Duration) (ReleaseMe
 }
 
 func releaseMetadataURL() string {
-	if url, ok := TestOverride(releaseMetadataURLEnv); ok {
+	if url, ok := build.DebugOverride(releaseMetadataURLEnv); ok {
 		return url
 	}
 	return build.DefaultDocsBaseURL + releaseMetadataPath
-}
-
-// TestOverride reads a `*_FOR_TESTS` environment override. Release builds
-// never read it, so no environment variable can redirect a real upgrade.
-func TestOverride(name string) (string, bool) {
-	if build.Release {
-		return "", false
-	}
-	value := os.Getenv(name)
-	if strings.TrimSpace(value) == "" {
-		return "", false
-	}
-	return value, true
 }
 
 func cachePath() (string, error) {

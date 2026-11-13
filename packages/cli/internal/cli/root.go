@@ -30,7 +30,6 @@ func init() {
 	cobra.EnableCommandSorting = false
 }
 
-// NewRoot builds the full command tree.
 func NewRoot(lifetime *local.Lifetime) *cobra.Command {
 	root := &cobra.Command{
 		Use:           cmdutil.RootName,
@@ -72,11 +71,6 @@ func configureTree(cmd *cobra.Command) {
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
 	// clap listed flags in declaration order.
 	cmd.Flags().SortFlags = false
-	if validate := cmd.Args; validate != nil && !cmd.HasSubCommands() {
-		cmd.Args = func(c *cobra.Command, args []string) error {
-			return clapArgsError(c, args, validate(c, args))
-		}
-	}
 	if cmd.HasSubCommands() {
 		if cmd.RunE == nil && cmd.Run == nil {
 			cmd.Args = func(c *cobra.Command, args []string) error {
@@ -218,29 +212,10 @@ func printError(w io.Writer, err error) {
 		fmt.Fprintf(w, "error: %s\n\nUsage: %s\n\nFor more information, try '--help'.\n", usage.Msg, cmdutil.UsageLine(usage.Cmd))
 		return
 	}
-	if exit, ok := errors.AsType[*cmdutil.ExitError](err); ok && exit.Err == nil {
-		return
-	}
-	if strings.HasPrefix(err.Error(), "unknown command") || strings.HasPrefix(err.Error(), "unknown flag") {
-		fmt.Fprintf(w, "error: %s\n", err)
+	if _, ok := errors.AsType[*cmdutil.ExitError](err); ok {
 		return
 	}
 	fmt.Fprintf(w, "Error: %v\n", err)
-}
-
-// clapArgsError turns cobra's argument errors into usage errors worded like
-// clap's, which exit with status 2.
-func clapArgsError(cmd *cobra.Command, args []string, err error) error {
-	if err == nil {
-		return nil
-	}
-	if _, ok := errors.AsType[*cmdutil.UsageError](err); ok {
-		return err
-	}
-	if strings.HasPrefix(err.Error(), "unknown command") && len(args) > 0 {
-		return cmdutil.UsageErrorf(cmd, "unexpected argument '%s' found", args[0])
-	}
-	return cmdutil.UsageErrorf(cmd, "%s", err)
 }
 
 // clapFlagError rewords pflag's unknown-flag errors the way clap reported

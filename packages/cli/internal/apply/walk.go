@@ -3,6 +3,7 @@ package apply
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -246,11 +247,15 @@ func matchLevels(levels []ignoreLevel, path string, isDir bool) match {
 }
 
 // walkFiles calls visit with every regular file under root that is neither
-// hidden nor ignored, in lexical order. Symlinks are not followed.
+// hidden nor ignored, in lexical order. Symlinks are not followed. Errors from
+// visit are returned as is.
 func walkFiles(root string, visit func(path string) error) error {
+	treeErr := func(err error) error {
+		return fmt.Errorf("failed to read directory tree under %s: %w", root, err)
+	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return err
+		return treeErr(err)
 	}
 	var levels []ignoreLevel
 	var ancestors []string
@@ -263,7 +268,7 @@ func walkFiles(root string, visit func(path string) error) error {
 	for i := len(ancestors) - 1; i >= 0; i-- {
 		level, err := loadLevel(ancestors[i])
 		if err != nil {
-			return err
+			return treeErr(err)
 		}
 		levels = append(levels, level)
 	}
@@ -272,12 +277,12 @@ func walkFiles(root string, visit func(path string) error) error {
 	walk = func(dir, relDir string, levels []ignoreLevel) error {
 		level, err := loadLevel(dir)
 		if err != nil {
-			return err
+			return treeErr(err)
 		}
 		levels = append(levels[:len(levels):len(levels)], level)
 		entries, err := os.ReadDir(dir)
 		if err != nil {
-			return err
+			return treeErr(err)
 		}
 		for _, entry := range entries {
 			path := filepath.Join(dir, entry.Name())

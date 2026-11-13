@@ -23,7 +23,14 @@ var chdb embed.FS
 // LocalUI is the built local UI (packages/local-app/dist), rooted at its
 // index.html. ok is false when the UI was not staged.
 func LocalUI() (ui fs.FS, ok bool) {
-	return subWith(localUI, "localui", "index.html")
+	sub, err := fs.Sub(localUI, "localui")
+	if err != nil {
+		return nil, false
+	}
+	if _, err := fs.Stat(sub, "index.html"); err != nil {
+		return nil, false
+	}
+	return sub, true
 }
 
 // Skills is the repository's skills/ directory. ok is false when skills were
@@ -57,15 +64,4 @@ func ChDBLibraryZst() (zst []byte, sha256 string, ok bool) {
 		return nil, "", false
 	}
 	return zst, strings.TrimSpace(string(sum)), true
-}
-
-func subWith(fsys embed.FS, dir, required string) (fs.FS, bool) {
-	sub, err := fs.Sub(fsys, dir)
-	if err != nil {
-		return nil, false
-	}
-	if _, err := fs.Stat(sub, required); err != nil {
-		return nil, false
-	}
-	return sub, true
 }

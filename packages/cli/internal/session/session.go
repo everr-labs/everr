@@ -186,11 +186,6 @@ func platformConfigDir() (string, error) {
 			return "", err
 		}
 		return filepath.Join(home, "Library", "Application Support"), nil
-	case "windows":
-		if dir := os.Getenv("APPDATA"); dir != "" {
-			return dir, nil
-		}
-		return "", errors.New("%APPDATA% is not set")
 	default:
 		if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
 			return dir, nil

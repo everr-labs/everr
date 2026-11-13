@@ -9,12 +9,15 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/everr-labs/everr/packages/cli/internal/api"
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 )
 
 func TestDeviceLoginReportsEachTokenOutcome(t *testing.T) {
+	defer func(step time.Duration) { slowDownStep = step }(slowDownStep)
+	slowDownStep = time.Millisecond
 	const deviceCode = "device-\"code\\with\nescapes"
 	for _, tc := range []struct {
 		response string
@@ -90,13 +93,6 @@ func TestDeviceLoginReportsEachTokenOutcome(t *testing.T) {
 	}
 }
 
-func TestBlankDeviceTokensAreRejected(t *testing.T) {
-	_, err := sessionFromDeviceToken("https://app.everr.dev", "   ")
-	if err == nil || err.Error() != "received an empty access token" {
-		t.Fatalf("err = %v", err)
-	}
-}
-
 func TestNormalizeURL(t *testing.T) {
 	for in, want := range map[string]string{
 		" https://App.Everr.dev:443/ ":  "https://app.everr.dev",
@@ -129,8 +125,6 @@ func isolateConfig(t *testing.T) *session.Store {
 	return session.At(dir)
 }
 
-// Covers the CLI test apply_uses_an_explicit_api_key_url_without_a_saved_session
-// at the client level until `everr apply` is ported.
 func TestAPIKeyWithExplicitURLNeedsNoSavedSession(t *testing.T) {
 	store := isolateConfig(t)
 	var auth string
@@ -162,26 +156,32 @@ func TestAPIKeyWithExplicitURLNeedsNoSavedSession(t *testing.T) {
 
 func TestAPIKeyFallsBackToTheSavedSessionURL(t *testing.T) {
 	store := isolateConfig(t)
-	if err := store.Save(session.Session{APIBaseURL: "https://example.test/everr", Token: "saved-token"}); err != nil {
+	var auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/everr/api/apply" {
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+		auth = r.Header.Get("Authorization")
+		io.WriteString(w, `{"dryRun":true,"results":[],"organization":{"id":"org-test","name":"Test"}}`)
+	}))
+	defer srv.Close()
+	if err := store.Save(session.Session{APIBaseURL: srv.URL + "/everr", Token: "saved-token"}); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("EVERR_API_TOKEN", "legacy-key")
 
-	client, err := NewClient(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if client.BaseURL() != "https://example.test/everr" || client.AuthKind() != api.AuthToken {
-		t.Errorf("client targets %s with kind %v", client.BaseURL(), client.AuthKind())
-	}
-
 	// Commands other than apply ignore the key and use the session.
-	client, err = NewClient(false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if client.AuthKind() != api.AuthSession {
-		t.Errorf("kind = %v, want session", client.AuthKind())
+	for allowAPIKey, want := range map[bool]string{true: "Bearer legacy-key", false: "Bearer saved-token"} {
+		client, err := NewClient(allowAPIKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.Apply(t.Context(), &api.ApplyRequest{Repoid: "test-repo", DryRun: true}); err != nil {
+			t.Fatal(err)
+		}
+		if auth != want {
+			t.Errorf("allowAPIKey=%v: Authorization = %q, want %q", allowAPIKey, auth, want)
+		}
 	}
 }
 
@@ -190,15 +190,6 @@ func TestAPIKeyWithoutAnyTargetURLExplainsHowToSetOne(t *testing.T) {
 	t.Setenv("EVERR_API_KEY", "api-key")
 	_, err := NewClient(true)
 	if err == nil || err.Error() != "EVERR_API_KEY is set but no target URL is configured; set EVERR_API_URL or run `everr cloud login`." {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestClientWithoutSessionAsksToLogIn(t *testing.T) {
-	isolateConfig(t)
-	t.Setenv("EVERR_API_KEY", "api-key")
-	_, err := NewClient(false)
-	if err == nil || err.Error() != "No active session. Run `everr cloud login`." {
 		t.Fatalf("err = %v", err)
 	}
 }

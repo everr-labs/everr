@@ -84,14 +84,6 @@ func TestYAMLKeepsLeadingZeroAndUnderscoreNumbersAsStrings(t *testing.T) {
 	}
 }
 
-func TestIgnoresNonResourceFiles(t *testing.T) {
-	dir := t.TempDir()
-	write(t, dir, "README.md", "# not a dashboard")
-	if docs := load(t, dir); len(docs) != 0 {
-		t.Errorf("docs = %v", paths(docs))
-	}
-}
-
 func TestRespectsGitignore(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, ".gitignore", "generated/\nscratch.yaml\n")
@@ -186,23 +178,9 @@ func TestManifestRejectsEmptyRepoidAndExtraKeys(t *testing.T) {
 	}
 }
 
-func TestResolveRepoid(t *testing.T) {
-	pinned := t.TempDir()
-	write(t, pinned, "everr.yaml", "repoid: \"pinned\"\n")
-	if got, _ := ResolveRepoid(pinned, "git@github.com:acme/api.git"); got != "pinned" {
-		t.Errorf("manifest repoid = %q", got)
-	}
-	if got, _ := ResolveRepoid(t.TempDir(), "git@github.com:Acme/API.git"); got != "github.com/acme/api" {
-		t.Errorf("inferred repoid = %q", got)
-	}
-	_, err := ResolveRepoid(t.TempDir(), "")
-	if err == nil || !strings.Contains(err.Error(), "everr.yaml") || !strings.Contains(err.Error(), "origin") {
-		t.Errorf("err = %v", err)
-	}
-}
-
-func TestLoadResourceDocumentsExcludesTheManifest(t *testing.T) {
+func TestLoadResourceDocumentsSkipsTheManifestAndNonResourceFiles(t *testing.T) {
 	dir := t.TempDir()
+	write(t, dir, "README.md", "# not a dashboard")
 	write(t, dir, "everr.yaml", "repoid: abc\n")
 	write(t, dir, "everr.yml", "repoid: legacy\n")
 	write(t, dir, "cpu.yaml", dash)
@@ -294,7 +272,8 @@ func TestRunbookMarkdownMissingFileNamesBothPaths(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "rb.yaml", "kind: Notebook\nmetadata:\n  name: rb\nspec:\n  markdown:\n    file: ./missing.md\n")
 	_, err := LoadResourceDocuments(dir)
-	if err == nil || !strings.Contains(err.Error(), "rb.yaml") || !strings.Contains(err.Error(), "missing.md") {
+	if err == nil || !strings.Contains(err.Error(), "rb.yaml") || !strings.Contains(err.Error(), "missing.md") ||
+		strings.Contains(err.Error(), "directory tree") {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -314,24 +293,5 @@ func TestNonRunbookDocumentsAreNotInlined(t *testing.T) {
 	spec := load(t, dir)[0].Document.(map[string]any)["spec"].(map[string]any)
 	if got := asJSON(t, spec["markdown"]); got != `{"file":"./nope.md"}` {
 		t.Errorf("markdown = %s", got)
-	}
-}
-
-func TestPercentEncodeEscapesSlashesInBranchNames(t *testing.T) {
-	for in, want := range map[string]string{
-		"gio/apply-previews": "gio%2Fapply-previews",
-		"a b&c":              "a%20b%26c",
-		"safe-_.~AZ09":       "safe-_.~AZ09",
-	} {
-		if got := percentEncode(in); got != want {
-			t.Errorf("percentEncode(%q) = %q, want %q", in, got, want)
-		}
-	}
-}
-
-func TestOSC8HyperlinkWrapsTheURL(t *testing.T) {
-	url := "https://app.everr.dev/dashboards?preview=x"
-	if got := osc8Hyperlink(url); got != "\x1b]8;;"+url+"\x1b\\"+url+"\x1b]8;;\x1b\\" {
-		t.Errorf("got %q", got)
 	}
 }

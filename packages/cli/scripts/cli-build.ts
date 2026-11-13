@@ -24,10 +24,7 @@ export function resolveCliBuild(mode: string, env: NodeJS.ProcessEnv = process.e
 }
 
 function goBuildArgs(mode: string, env: NodeJS.ProcessEnv, output: string) {
-  const releaseSha = env.EVERR_RELEASE_SHA?.trim() || "unknown";
-  const ldflags = [`-X ${goModule}/internal/build.releaseSHA=${releaseSha}`];
-  const shortSha = env.EVERR_RELEASE_SHORT_SHA?.trim();
-  if (shortSha) ldflags.push(`-X ${goModule}/internal/build.releaseShortSHA=${shortSha}`);
+  const ldflags: string[] = [];
   // Debug builds never embed the product key; they export to the local collector.
   const key = env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY?.trim();
   if (mode === "release") {

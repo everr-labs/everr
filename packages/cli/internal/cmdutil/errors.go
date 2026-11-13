@@ -9,22 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ExitError ends the command with Code. Err, when set, is printed as
-// "Error: ..."; a nil Err exits silently because the command already
-// reported the outcome.
+// ExitError ends the command with Code without printing anything, because
+// the command already reported the outcome.
 type ExitError struct {
 	Code int
-	Err  error
 }
 
-func (e *ExitError) Error() string {
-	if e.Err == nil {
-		return fmt.Sprintf("exit status %d", e.Code)
-	}
-	return e.Err.Error()
-}
-
-func (e *ExitError) Unwrap() error { return e.Err }
+func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }
 
 // Exit ends the command with code without printing anything further.
 func Exit(code int) error { return &ExitError{Code: code} }
@@ -40,13 +31,9 @@ type UsageError struct {
 
 func (e *UsageError) Error() string { return e.Msg }
 
-func usageErrorf(cmd *cobra.Command, format string, args ...any) error {
-	return &UsageError{Cmd: cmd, Msg: fmt.Sprintf(format, args...)}
-}
-
 // UsageErrorf reports invalid arguments for cmd.
 func UsageErrorf(cmd *cobra.Command, format string, args ...any) error {
-	return usageErrorf(cmd, format, args...)
+	return &UsageError{Cmd: cmd, Msg: fmt.Sprintf(format, args...)}
 }
 
 // ExitCode returns the process exit code for err.

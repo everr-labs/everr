@@ -29,15 +29,15 @@ func logPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory for local logs: %w", err)
 	}
-	return filepath.Join(defaultLogDir(home, os.Getenv("XDG_STATE_HOME"), runtime.GOOS == "darwin"), "local.log"), nil
+	return filepath.Join(defaultLogDir(home, os.Getenv("XDG_STATE_HOME")), "local.log"), nil
 }
 
-func defaultLogDir(home, state string, macos bool) string {
+func defaultLogDir(home, state string) string {
 	app := "everr"
 	if !build.Release {
 		app = "everr-dev"
 	}
-	if macos {
+	if runtime.GOOS == "darwin" {
 		return filepath.Join(home, "Library", "Logs", app)
 	}
 	if !filepath.IsAbs(state) {
@@ -116,7 +116,7 @@ type rotatingLog struct {
 	lock *os.File
 }
 
-func openRotatingLog(path string) (*rotatingLog, error) {
+func openRotatingLog(path string) (_ *rotatingLog, err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create local log directory: %w", err)
 	}
@@ -124,37 +124,35 @@ func openRotatingLog(path string) (*rotatingLog, error) {
 	if err != nil {
 		return nil, err
 	}
+	var file *os.File
+	defer func() {
+		if err != nil {
+			if file != nil {
+				file.Close()
+			}
+			lock.Close()
+		}
+	}()
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		lock.Close()
 		return nil, busyError{fmt.Errorf("another instance is writing to this local log directory; use EVERR_LOCAL_LOG_DIR for a separate instance: %w", err)}
 	}
-	file, err := openLogFile(path)
-	if err != nil {
-		lock.Close()
+	if file, err = openLogFile(path); err != nil {
 		return nil, err
 	}
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
-		lock.Close()
 		return nil, err
 	}
 	size := info.Size()
 	if size > maxLogBytes {
 		tail := make([]byte, maxLogBytes)
 		if _, err := file.ReadAt(tail, size-maxLogBytes); err != nil && !errors.Is(err, io.EOF) {
-			file.Close()
-			lock.Close()
 			return nil, err
 		}
 		if err := file.Truncate(0); err != nil {
-			file.Close()
-			lock.Close()
 			return nil, err
 		}
 		if _, err := file.Write(tail); err != nil {
-			file.Close()
-			lock.Close()
 			return nil, err
 		}
 		size = maxLogBytes

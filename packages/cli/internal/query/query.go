@@ -68,7 +68,7 @@ func Bind(cmd *cobra.Command) *Args {
 	args := &Args{}
 	cmdutil.Positionals(cmd, cmdutil.Arg{Name: "SQL", Help: "SQL query to run. Keep it quoted and include LIMIT yourself."})
 	args.format = cmdutil.Enum(cmd, "format", "Output format. Default: table on a TTY, ndjson otherwise.", FormatJSON, FormatNDJSON, FormatTable)
-	cmdutil.SetHumanStdout(cmd, func(_ *cobra.Command, stdoutIsTerminal bool) bool {
+	cmdutil.SetHumanStdout(cmd, func(stdoutIsTerminal bool) bool {
 		switch args.format() {
 		case FormatTable:
 			return true
@@ -77,13 +77,8 @@ func Bind(cmd *cobra.Command) *Args {
 		}
 		return stdoutIsTerminal
 	})
-	prev := cmd.PreRunE
-	cmd.PreRunE = func(c *cobra.Command, positional []string) error {
+	cmd.PreRun = func(_ *cobra.Command, positional []string) {
 		args.SQL = positional[0]
-		if prev != nil {
-			return prev(c, positional)
-		}
-		return nil
 	}
 	return args
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -64,10 +63,10 @@ func Positionals(cmd *cobra.Command, args ...Arg) {
 			}
 		}
 		if len(got) < minArgs {
-			return usageErrorf(cmd, "the following required arguments were not provided:\n  %s", strings.Join(missing, "\n  "))
+			return UsageErrorf(cmd, "the following required arguments were not provided:\n  %s", strings.Join(missing, "\n  "))
 		}
 		if maxArgs >= 0 && len(got) > maxArgs {
-			return usageErrorf(cmd, "unexpected argument '%s' found", got[maxArgs])
+			return UsageErrorf(cmd, "unexpected argument '%s' found", got[maxArgs])
 		}
 		return nil
 	}
@@ -145,38 +144,6 @@ func EnumArg(cmd *cobra.Command, name, raw string, allowed ...string) error {
 		HideUsage: true,
 	}
 }
-
-// OptionalUint is a flag whose absence is distinguishable from zero.
-// Min and Max bound accepted values when either is non-zero.
-type OptionalUint struct {
-	Min, Max uint32
-	value    uint32
-	set      bool
-}
-
-func (o *OptionalUint) String() string {
-	if !o.set {
-		return ""
-	}
-	return strconv.FormatUint(uint64(o.value), 10)
-}
-
-func (o *OptionalUint) Set(raw string) error {
-	n, err := strconv.ParseUint(raw, 10, 32)
-	if err != nil {
-		return fmt.Errorf("invalid digit found in string")
-	}
-	if (o.Min != 0 || o.Max != 0) && (uint32(n) < o.Min || uint32(n) > o.Max) {
-		return fmt.Errorf("%d is not in %d..=%d", n, o.Min, o.Max)
-	}
-	o.value, o.set = uint32(n), true
-	return nil
-}
-
-func (o *OptionalUint) Type() string { return "uint" }
-
-// Get returns the value and whether the flag was passed.
-func (o *OptionalUint) Get() (uint32, bool) { return o.value, o.set }
 
 // OptionalString is a string flag whose absence is distinguishable from "".
 type OptionalString struct {

@@ -6,8 +6,8 @@ import {
   mkdir,
   readFile,
   readdir,
+  rename,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -22,15 +22,15 @@ const packageDir = path.resolve(scriptDir, "..");
 const repoDir = path.resolve(packageDir, "..", "..");
 const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 const envFile = path.join(packageDir, ".env");
-export const CHDB_RELEASE_VERSION = "v26.7.3";
+const CHDB_RELEASE_VERSION = "v26.7.3";
 
-export type ChdbAsset = { assetName: string; sha256: string };
+type ChdbAsset = { assetName: string; sha256: string };
 
 /**
  * Pinned chDB release assets keyed by `${process.platform}-${process.arch}`.
  * Each CLI target embeds the matching prebuilt `libchdb.so`.
  */
-export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
+const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   "darwin-arm64": {
     assetName: "macos-arm64-libchdb.tar.gz",
     sha256: "5640e50dccf711bf3dd5551333d08e43f433edf7bd94b2289f36c2539e627762",
@@ -45,7 +45,7 @@ export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   },
 };
 
-export function resolveChdbAsset(
+function resolveChdbAsset(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): ChdbAsset {
@@ -84,7 +84,7 @@ function getEnv(name: string) {
   return value ? value : undefined;
 }
 
-export function chdbReleaseAssetUrl(
+function chdbReleaseAssetUrl(
   assetName = resolveChdbAsset().assetName,
   version = CHDB_RELEASE_VERSION,
 ) {
@@ -97,7 +97,7 @@ export async function sha256File(filePath: string) {
     .digest("hex");
 }
 
-async function pathExists(filePath: string) {
+export async function pathExists(filePath: string) {
   try {
     await access(filePath);
     return true;
@@ -138,9 +138,7 @@ async function downloadChdbArchive(archivePath: string, asset: ChdbAsset) {
       `Downloaded ${asset.assetName} has sha256 ${digest}; expected ${asset.sha256}.`,
     );
   }
-  await rm(archivePath, { force: true });
-  await copyFile(tmpPath, archivePath);
-  await rm(tmpPath, { force: true });
+  await rename(tmpPath, archivePath);
 }
 
 async function ensureChdbArchive(archivePath: string, asset: ChdbAsset) {
@@ -164,10 +162,6 @@ export function chdbSigningIdentity(mode: string) {
 }
 
 export async function prepareChdbLibAt(mode: string, destLib: string) {
-  if (mode !== "debug" && mode !== "release") {
-    throw new Error(`Unsupported mode: ${mode}`);
-  }
-
   const asset = resolveChdbAsset();
 
   const chdbCacheDir = path.join(repoDir, "target", "chdb");
@@ -182,11 +176,6 @@ export async function prepareChdbLibAt(mode: string, destLib: string) {
   const extractedLib = await findFileByName(extractDir, "libchdb.so");
   if (!extractedLib) {
     throw new Error(`${asset.assetName} did not contain libchdb.so.`);
-  }
-
-  const extractedStat = await stat(extractedLib);
-  if (!extractedStat.isFile()) {
-    throw new Error(`Extracted libchdb.so is not a file: ${extractedLib}`);
   }
 
   await mkdir(path.dirname(destLib), { recursive: true });
@@ -216,9 +205,7 @@ export async function zstdFile(source: string, dest: string) {
     },
   });
   await writeFile(tmp, compressed);
-  await rm(dest, { force: true });
-  await copyFile(tmp, dest);
-  await rm(tmp, { force: true });
+  await rename(tmp, dest);
   console.log(`Compressed ${source} -> ${dest}`);
 }
 

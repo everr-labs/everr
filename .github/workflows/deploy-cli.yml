@@ -111,7 +111,6 @@ jobs:
           EVERR_INGEST_KEY: ${{ secrets.EVERR_INGEST_KEY }}
           EVERR_INTERNAL_TELEMETRY_INGEST_KEY: ${{ secrets.EVERR_INTERNAL_TELEMETRY_INGEST_KEY }}
           EVERR_REQUIRE_INTERNAL_TELEMETRY: "1"
-          EVERR_RELEASE_SHA: ${{ github.sha }}
         run: pnpm --filter @everr/cli build:release
       - name: Remove temporary signing keychain
         if: always() && runner.os == 'macOS'

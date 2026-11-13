@@ -42,11 +42,10 @@ await withBuildTelemetry("cli build", async (telemetry) => {
     installSource = outputBin;
   }
 
+  const installName = mode === "debug" ? "everr-dev" : "everr";
   if (installBin) {
-    await installCliBinary(installSource, mode === "debug" ? "everr-dev" : "everr");
+    await installCliBinary(installSource, installName);
   }
 
-  console.log(
-    `Run '${installBin ? (mode === "debug" ? "everr-dev" : "everr") : installSource} --help' to get started.`,
-  );
+  console.log(`Run '${installBin ? installName : installSource} --help' to get started.`);
 });

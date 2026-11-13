@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -38,27 +39,16 @@ const (
 // AllProviders is every provider, in the order they are processed and shown.
 var AllProviders = []Provider{Codex, ClaudeCode, Cursor}
 
-func (p Provider) String() string {
-	switch p {
-	case Codex:
-		return "codex"
-	case ClaudeCode:
-		return "claude-code"
-	default:
-		return "cursor"
-	}
+var providerInfo = [...]struct {
+	name, displayName, rootDir string
+}{
+	Codex:      {"codex", "Codex", ".codex"},
+	ClaudeCode: {"claude-code", "Claude Code", ".claude"},
+	Cursor:     {"cursor", "Cursor", ".cursor"},
 }
 
-func (p Provider) DisplayName() string {
-	switch p {
-	case Codex:
-		return "Codex"
-	case ClaudeCode:
-		return "Claude Code"
-	default:
-		return "Cursor"
-	}
-}
+func (p Provider) String() string      { return providerInfo[p].name }
+func (p Provider) DisplayName() string { return providerInfo[p].displayName }
 
 type Scope int
 
@@ -99,10 +89,9 @@ func (a PathAction) String() string {
 type PathChange struct {
 	Skill string
 	// Provider is nil for the canonical .agents/skills copy.
-	Provider      *Provider
-	Path          string
-	CanonicalPath string
-	Action        PathAction
+	Provider *Provider
+	Path     string
+	Action   PathAction
 }
 
 type Summary struct {
@@ -119,7 +108,6 @@ type BundledSkill struct {
 type ProviderStatus struct {
 	Provider Provider
 	Detected bool
-	Path     string
 }
 
 func bundle() (fs.FS, error) {
@@ -158,13 +146,9 @@ func Bundled() ([]BundledSkill, error) {
 func ProviderStatuses(homeDir string) []ProviderStatus {
 	statuses := make([]ProviderStatus, 0, len(AllProviders))
 	for _, provider := range AllProviders {
-		root := filepath.Join(homeDir, providerRootDir(provider))
+		root := filepath.Join(homeDir, providerInfo[provider].rootDir)
 		detected := exists(root) || (provider == Codex && exists("/etc/codex"))
-		statuses = append(statuses, ProviderStatus{
-			Provider: provider,
-			Detected: detected,
-			Path:     globalProviderSkillsDir(homeDir, provider),
-		})
+		statuses = append(statuses, ProviderStatus{Provider: provider, Detected: detected})
 	}
 	return statuses
 }
@@ -204,19 +188,9 @@ func Install(options Options) (Summary, error) {
 	return Summary{Skills: names, Changes: changes, DryRun: options.DryRun}, nil
 }
 
-// Update reinstalls the selected skills, or every installed bundled skill when
-// none are selected, replacing installed legacy skills with their successors.
+// Update reinstalls the selected skills, replacing installed legacy skills
+// with their successors. SkillNames must already be successor names.
 func Update(options Options) (Summary, error) {
-	var err error
-	if !options.All && len(options.SkillNames) == 0 {
-		options.SkillNames, err = InstalledUpdateSkillNames(options)
-	} else if !options.All {
-		options.SkillNames, err = NormalizeUpdateSkillNames(options.SkillNames)
-	}
-	if err != nil {
-		return Summary{}, err
-	}
-
 	legacyChanges, err := removeLegacySkillsSelectedForUpdate(options)
 	if err != nil {
 		return Summary{}, err
@@ -317,51 +291,38 @@ func resolveSkillNames(options Options) ([]string, error) {
 		for name := range available {
 			names = append(names, name)
 		}
-	} else {
-		for _, name := range options.SkillNames {
-			if name = strings.TrimSpace(name); name != "" {
-				names = append(names, name)
-			}
+	}
+	for _, raw := range options.SkillNames {
+		name := strings.TrimSpace(raw)
+		if name == "" {
+			continue
 		}
+		if !available[name] {
+			return nil, fmt.Errorf("unknown skill %q", strings.TrimSpace(raw))
+		}
+		names = append(names, name)
 	}
 	if len(names) == 0 {
 		return nil, errors.New("provide at least one skill name or use --all")
-	}
-	for _, name := range names {
-		if err := validateSkillName(name); err != nil {
-			return nil, err
-		}
-		if !available[name] {
-			return nil, fmt.Errorf("unknown skill %q", name)
-		}
 	}
 	slices.Sort(names)
 	return slices.Compact(names), nil
 }
 
-// InstalledBundledSkillNames lists bundled skills whose SKILL.md is present in
-// the scope's canonical directory.
-func InstalledBundledSkillNames(options Options) ([]string, error) {
+// InstalledUpdateSkillNames lists what `skills update` refreshes: bundled
+// skills whose SKILL.md is in the scope's canonical directory, plus the
+// successors of installed legacy skills.
+func InstalledUpdateSkillNames(options Options) ([]string, error) {
 	skills, err := Bundled()
 	if err != nil {
 		return nil, err
 	}
-	var installed []string
+	var names []string
 	for _, skill := range skills {
 		info, err := os.Stat(filepath.Join(canonicalSkillDir(options, skill.Name), "SKILL.md"))
 		if err == nil && info.Mode().IsRegular() {
-			installed = append(installed, skill.Name)
+			names = append(names, skill.Name)
 		}
-	}
-	return installed, nil
-}
-
-// InstalledUpdateSkillNames lists what `skills update` refreshes: installed
-// bundled skills plus the successors of installed legacy skills.
-func InstalledUpdateSkillNames(options Options) ([]string, error) {
-	names, err := InstalledBundledSkillNames(options)
-	if err != nil {
-		return nil, err
 	}
 	for _, rename := range legacySkillRenames {
 		if skillPathExists(options, rename[0]) {
@@ -370,45 +331,6 @@ func InstalledUpdateSkillNames(options Options) ([]string, error) {
 	}
 	slices.Sort(names)
 	return slices.Compact(names), nil
-}
-
-// NormalizeUpdateSkillNames validates requested names and maps legacy names to
-// their successors.
-func NormalizeUpdateSkillNames(skillNames []string) ([]string, error) {
-	available, err := bundledNames()
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, raw := range skillNames {
-		name := strings.TrimSpace(raw)
-		if name == "" {
-			continue
-		}
-		if err := validateSkillName(name); err != nil {
-			return nil, err
-		}
-		normalized := name
-		if renamed, ok := renamedSkillName(name); ok {
-			normalized = renamed
-		}
-		if !available[normalized] {
-			return nil, fmt.Errorf("unknown skill %q", name)
-		}
-		names = append(names, normalized)
-	}
-	if len(names) == 0 {
-		return nil, errors.New("provide at least one skill name")
-	}
-	slices.Sort(names)
-	return slices.Compact(names), nil
-}
-
-func validateSkillName(name string) error {
-	if name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-		return fmt.Errorf("invalid skill name %q", name)
-	}
-	return nil
 }
 
 func renamedSkillName(name string) (string, bool) {
@@ -456,19 +378,8 @@ func providerSkillDir(options Options, provider Provider, name string) string {
 	return filepath.Join(providerSkillsDir(options, provider), name)
 }
 
-func providerRootDir(provider Provider) string {
-	switch provider {
-	case Codex:
-		return ".codex"
-	case ClaudeCode:
-		return ".claude"
-	default:
-		return ".cursor"
-	}
-}
-
 func globalProviderSkillsDir(homeDir string, provider Provider) string {
-	return filepath.Join(homeDir, providerRootDir(provider), "skills")
+	return filepath.Join(homeDir, providerInfo[provider].rootDir, "skills")
 }
 
 func skillPathExists(options Options, name string) bool {
@@ -484,19 +395,9 @@ func skillPathExists(options Options, name string) bool {
 }
 
 func removeLegacySkillsSelectedForUpdate(options Options) ([]PathChange, error) {
-	selected := map[string]bool{}
-	if options.All {
-		for _, rename := range legacySkillRenames {
-			selected[rename[1]] = true
-		}
-	} else {
-		for _, name := range options.SkillNames {
-			selected[name] = true
-		}
-	}
 	var changes []PathChange
 	for _, rename := range legacySkillRenames {
-		if selected[rename[1]] && skillPathExists(options, rename[0]) {
+		if slices.Contains(options.SkillNames, rename[1]) && skillPathExists(options, rename[0]) {
 			removed, err := removeInstalledSkillPaths(options, rename[0])
 			if err != nil {
 				return nil, err
@@ -518,13 +419,13 @@ func removeInstalledSkillPaths(options Options, name string) ([]PathChange, erro
 		if providerDir == canonicalDir {
 			continue
 		}
-		change, err := removePath(name, &provider, providerDir, canonicalDir, options.DryRun)
+		change, err := removePath(name, &provider, providerDir, options.DryRun)
 		if err != nil {
 			return nil, err
 		}
 		changes = append(changes, change)
 	}
-	change, err := removePath(name, nil, canonicalDir, "", options.DryRun)
+	change, err := removePath(name, nil, canonicalDir, options.DryRun)
 	if err != nil {
 		return nil, err
 	}
@@ -533,103 +434,41 @@ func removeInstalledSkillPaths(options Options, name string) ([]PathChange, erro
 
 func syncBundledSkillDir(fsys fs.FS, name, target string, dryRun bool) (PathChange, error) {
 	change := PathChange{Skill: name, Path: target, Action: Written}
-	if dryRun {
-		change.Action = WouldWrite
-	}
-	state, missing, err := existingDirState(fsys, name, target)
-	if err != nil {
+	matches, err := dirMatchesBundle(fsys, name, target)
+	switch {
+	case err != nil:
 		return PathChange{}, err
-	}
-	switch state {
-	case dirSame:
+	case matches:
 		change.Action = Unchanged
-		return change, nil
-	case dirMissingBundledFiles:
-		if !dryRun {
-			if err := writeFiles(target, missing); err != nil {
-				return PathChange{}, err
-			}
+	case dryRun:
+		change.Action = WouldWrite
+	default:
+		if err := os.RemoveAll(target); err != nil {
+			return PathChange{}, fmt.Errorf("remove %s: %w", target, err)
 		}
-	case dirDifferent:
-		if !dryRun {
-			if err := removeAny(target); err != nil {
-				return PathChange{}, err
-			}
-			if err := writeBundledDir(fsys, name, target); err != nil {
-				return PathChange{}, err
-			}
-		}
-	case dirMissing:
-		if !dryRun {
-			if err := writeBundledDir(fsys, name, target); err != nil {
-				return PathChange{}, err
-			}
+		if err := writeBundledDir(fsys, name, target); err != nil {
+			return PathChange{}, err
 		}
 	}
 	return change, nil
 }
 
-type dirState int
-
-const (
-	dirMissing dirState = iota
-	dirSame
-	// dirMissingBundledFiles: every file present matches the bundle, some bundled
-	// files are absent, so only those need writing.
-	dirMissingBundledFiles
-	dirDifferent
-)
-
-func existingDirState(fsys fs.FS, name, target string) (dirState, map[string][]byte, error) {
+// dirMatchesBundle reports whether target holds exactly the bundled files of
+// the skill. Symlinks inside target are ignored.
+func dirMatchesBundle(fsys fs.FS, name, target string) (bool, error) {
 	info, err := os.Lstat(target)
-	if err != nil {
-		return dirMissing, nil, nil
-	}
-	if !info.IsDir() {
-		return dirDifferent, nil, nil
+	if err != nil || !info.IsDir() {
+		return false, nil
 	}
 	expected, err := bundledFileMap(fsys, name)
 	if err != nil {
-		return 0, nil, err
+		return false, err
 	}
 	actual, err := fileMap(target)
 	if err != nil {
-		return 0, nil, err
+		return false, err
 	}
-	for relative, contents := range actual {
-		if want, ok := expected[relative]; !ok || !bytes.Equal(want, contents) {
-			return dirDifferent, nil, nil
-		}
-	}
-	if len(actual) == len(expected) {
-		return dirSame, nil, nil
-	}
-	missing := map[string][]byte{}
-	for relative, contents := range expected {
-		if _, ok := actual[relative]; ok {
-			continue
-		}
-		// Something not tracked as a file (a symlink, a directory) sits where a
-		// bundled file should go, so a full rewrite is needed.
-		if _, err := os.Lstat(filepath.Join(target, filepath.FromSlash(relative))); !errors.Is(err, fs.ErrNotExist) {
-			return dirDifferent, nil, nil
-		}
-		missing[relative] = contents
-	}
-	return dirMissingBundledFiles, missing, nil
-}
-
-func writeFiles(target string, files map[string][]byte) error {
-	for relative, contents := range files {
-		dest := filepath.Join(target, filepath.FromSlash(relative))
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return fmt.Errorf("create %s: %w", filepath.Dir(dest), err)
-		}
-		if err := os.WriteFile(dest, contents, 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", dest, err)
-		}
-	}
-	return nil
+	return maps.EqualFunc(actual, expected, bytes.Equal), nil
 }
 
 func bundledFileMap(fsys fs.FS, name string) (map[string][]byte, error) {
@@ -697,23 +536,12 @@ func writeBundledDir(fsys fs.FS, name, target string) error {
 }
 
 func linkProviderDir(provider Provider, name, canonicalDir, providerDir string, dryRun bool) (PathChange, error) {
-	change := PathChange{Skill: name, Provider: &provider, Path: providerDir, CanonicalPath: canonicalDir}
-	pointsTo, err := providerLinkPointsTo(providerDir, canonicalDir)
-	if err != nil {
-		return PathChange{}, err
-	}
-	if pointsTo {
-		change.Action = Unchanged
-		return change, nil
-	}
-	change.Action = WouldLink
+	change := PathChange{Skill: name, Provider: &provider, Path: providerDir, Action: WouldLink}
 	if dryRun {
 		return change, nil
 	}
-	if lexists(providerDir) {
-		if err := removeAny(providerDir); err != nil {
-			return PathChange{}, err
-		}
+	if err := os.RemoveAll(providerDir); err != nil {
+		return PathChange{}, fmt.Errorf("remove %s: %w", providerDir, err)
 	}
 	parent := filepath.Dir(providerDir)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
@@ -726,27 +554,6 @@ func linkProviderDir(provider Provider, name, canonicalDir, providerDir string, 
 	return change, nil
 }
 
-func providerLinkPointsTo(providerDir, canonicalDir string) (bool, error) {
-	info, err := os.Lstat(providerDir)
-	if err != nil || info.Mode()&fs.ModeSymlink == 0 {
-		return false, nil
-	}
-	link, err := os.Readlink(providerDir)
-	if err != nil {
-		return false, err
-	}
-	if !filepath.IsAbs(link) {
-		link = filepath.Join(filepath.Dir(providerDir), link)
-	}
-	resolved, resolvedErr := filepath.EvalSymlinks(link)
-	canonical, canonicalErr := filepath.EvalSymlinks(canonicalDir)
-	if resolvedErr != nil || canonicalErr != nil {
-		// Two unresolvable paths compare equal, as they did in the previous CLI.
-		return resolvedErr != nil && canonicalErr != nil, nil
-	}
-	return resolved == canonical, nil
-}
-
 // Links are relative so a moved home or project directory keeps working.
 func relativeSymlinkTarget(target, link string) string {
 	relative, err := filepath.Rel(filepath.Dir(link), target)
@@ -756,36 +563,20 @@ func relativeSymlinkTarget(target, link string) string {
 	return relative
 }
 
-func removePath(name string, provider *Provider, p, canonicalPath string, dryRun bool) (PathChange, error) {
-	change := PathChange{Skill: name, Provider: provider, Path: p, CanonicalPath: canonicalPath}
+func removePath(name string, provider *Provider, p string, dryRun bool) (PathChange, error) {
+	change := PathChange{Skill: name, Provider: provider, Path: p}
 	switch {
 	case !lexists(p):
 		change.Action = Missing
 	case dryRun:
 		change.Action = WouldRemove
 	default:
-		if err := removeAny(p); err != nil {
-			return PathChange{}, err
+		if err := os.RemoveAll(p); err != nil {
+			return PathChange{}, fmt.Errorf("remove %s: %w", p, err)
 		}
 		change.Action = Removed
 	}
 	return change, nil
-}
-
-func removeAny(p string) error {
-	info, err := os.Lstat(p)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", p, err)
-	}
-	if info.IsDir() {
-		err = os.RemoveAll(p)
-	} else {
-		err = os.Remove(p)
-	}
-	if err != nil {
-		return fmt.Errorf("remove %s: %w", p, err)
-	}
-	return nil
 }
 
 func samePath(a, b string) bool {

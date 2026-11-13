@@ -14,7 +14,6 @@ import (
 
 	"go.uber.org/zap"
 
-	localconfig "github.com/everr-labs/everr/collector/internal/localgateway/config"
 	"github.com/everr-labs/everr/collector/localcollector"
 )
 
@@ -25,13 +24,6 @@ const (
 	defaultTTL          = 7 * 24 * time.Hour
 )
 
-type options struct {
-	OTLP     localconfig.Endpoint
-	SQL      localconfig.Endpoint
-	ChDBPath string
-	TTL      time.Duration
-}
-
 func main() {
 	if err := run(context.Background(), os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "everr-local-collector: %v\n", err)
@@ -39,41 +31,19 @@ func main() {
 	}
 }
 
-func parseOptions(args []string) (options, error) {
+func parseOptions(args []string) (localcollector.Options, error) {
 	fs := flag.NewFlagSet("everr-local-collector", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
-	otlpEndpoint := fs.String("otlp-http-endpoint", defaultOTLPEndpoint, "OTLP HTTP endpoint apps send telemetry to")
-	sqlEndpoint := fs.String("sql-http-endpoint", defaultSQLEndpoint, "SQL HTTP endpoint")
-	chdbPath := fs.String("chdb-path", defaultChDBPath, "chDB database path")
-	ttl := defaultTTL
-	fs.Var(ttlFlag{value: &ttl}, "ttl", "local telemetry TTL")
-
+	opts := localcollector.Options{TTL: defaultTTL}
+	fs.StringVar(&opts.OTLPEndpoint, "otlp-http-endpoint", defaultOTLPEndpoint, "OTLP HTTP endpoint apps send telemetry to")
+	fs.StringVar(&opts.SQLEndpoint, "sql-http-endpoint", defaultSQLEndpoint, "SQL HTTP endpoint")
+	fs.StringVar(&opts.ChDBPath, "chdb-path", defaultChDBPath, "chDB database path")
+	fs.Var(ttlFlag{value: &opts.TTL}, "ttl", "local telemetry TTL")
 	if err := fs.Parse(args); err != nil {
-		return options{}, err
+		return localcollector.Options{}, err
 	}
-
-	otlp, err := localconfig.ParseEndpoint(*otlpEndpoint)
-	if err != nil {
-		return options{}, fmt.Errorf("otlp http endpoint: %w", err)
-	}
-	sql, err := localconfig.ParseEndpoint(*sqlEndpoint)
-	if err != nil {
-		return options{}, fmt.Errorf("sql http endpoint: %w", err)
-	}
-	if *chdbPath == "" {
-		return options{}, fmt.Errorf("chdb path must be specified")
-	}
-	if ttl <= 0 {
-		return options{}, fmt.Errorf("ttl must be greater than zero")
-	}
-
-	return options{
-		OTLP:     otlp,
-		SQL:      sql,
-		ChDBPath: *chdbPath,
-		TTL:      ttl,
-	}, nil
+	return opts, nil
 }
 
 type ttlFlag struct {
@@ -122,15 +92,10 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	gateway, err := localcollector.Open(localcollector.Options{
-		OTLPEndpoint: opts.OTLP.Origin,
-		SQLEndpoint:  opts.SQL.Origin,
-		ChDBPath:     opts.ChDBPath,
-		TTL:          opts.TTL,
-		Version:      os.Getenv("EVERR_LOCAL_VERSION"),
-		InstanceID:   os.Getenv("EVERR_LOCAL_INSTANCE_ID"),
-		Logger:       logger,
-	})
+	opts.Version = os.Getenv("EVERR_LOCAL_VERSION")
+	opts.InstanceID = os.Getenv("EVERR_LOCAL_INSTANCE_ID")
+	opts.Logger = logger
+	gateway, err := localcollector.Open(opts)
 	if err != nil {
 		return err
 	}

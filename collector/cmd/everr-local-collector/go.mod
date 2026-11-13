@@ -3,7 +3,6 @@ module github.com/everr-labs/everr/collector/cmd/everr-local-collector
 go 1.26.11
 
 require (
-	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/zap v1.28.0
 )
@@ -11,6 +10,7 @@ require (
 require (
 	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000 // indirect
 	go.opentelemetry.io/collector/component v1.66.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.66.0 // indirect

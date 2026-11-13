@@ -15,7 +15,6 @@ import (
 // RootName is the program name shown in help, whichever binary name runs.
 const RootName = "everr"
 
-// RenderHelp writes cmd's help.
 func RenderHelp(w io.Writer, cmd *cobra.Command) {
 	about := cmd.Long
 	if about == "" {

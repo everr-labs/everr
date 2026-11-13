@@ -99,19 +99,7 @@ func newLibSession(libraryPath, dataPath string) (Session, error) {
 		bytes := append([]byte(arg), 0)
 		cArgv[i] = &bytes[0]
 	}
-	var conn *cConnection
-	var connectErr error
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				connectErr = fmt.Errorf("chdb connect: %v", r)
-			}
-		}()
-		conn = chdbConnect(len(cArgv), cArgv)
-	}()
-	if connectErr != nil {
-		return nil, connectErr
-	}
+	conn := chdbConnect(len(cArgv), cArgv)
 	if conn == nil {
 		return nil, errors.New("could not create a chdb connection")
 	}

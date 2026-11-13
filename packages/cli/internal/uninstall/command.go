@@ -14,16 +14,15 @@ import (
 	"github.com/everr-labs/everr/packages/cli/internal/skills"
 )
 
-// NewCommand builds `everr uninstall`.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove local Everr state and globally installed skills",
-		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return run(c.OutOrStdout(), c.InOrStdin())
 		},
 	}
+	cmdutil.Positionals(cmd)
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
 	return cmd
 }

@@ -205,10 +205,6 @@ func LoadResourceDocuments(dir string) ([]ResourceDocument, error) {
 		return nil
 	})
 	if err != nil {
-		var pathErr *os.PathError
-		if errors.As(err, &pathErr) {
-			return nil, fmt.Errorf("failed to read directory tree under %s: %w", dir, err)
-		}
 		return nil, err
 	}
 	return out, nil
@@ -362,22 +358,23 @@ func parseManifest(contents []byte) (string, error) {
 // manifest's repoid when there is one, else the normalized origin remote
 // (remote, as read by DetectGitSource). The manifest is the escape hatch for
 // repositories without a remote and a pin against remote renames.
-func ResolveRepoid(dir, remote string) (string, error) {
-	repoid, err := LoadApplyManifest(dir)
+func ResolveRepoid(dir, remote string) (repoid string, fromManifest bool, err error) {
+	repoid, err = LoadApplyManifest(dir)
 	if err != nil || repoid != "" {
-		return repoid, err
+		return repoid, err == nil, err
 	}
 	if slug, ok := git.NormalizeRemoteSlug(remote); ok && remote != "" {
-		return slug, nil
+		return slug, false, nil
 	}
-	return "", fmt.Errorf("cannot determine the repository identity of %s: no `origin` git remote to infer it from and no everr.yaml manifest.\n"+
+	return "", false, fmt.Errorf("cannot determine the repository identity of %s: no `origin` git remote to infer it from and no everr.yaml manifest.\n"+
 		"Either add an `origin` remote, or create everr.yaml with a stable repository id, e.g.\n"+
 		"repoid: \"2f8e3f90-9d1c-5d5f-a0f9-2d8e7f4a25d1\"", dir)
 }
 
 // ResolveRepoidForDir resolves the repoid of dir the way apply does.
 func ResolveRepoidForDir(dir string) (string, error) {
-	return ResolveRepoid(dir, OriginRemote(dir))
+	repoid, _, err := ResolveRepoid(dir, OriginRemote(dir))
+	return repoid, err
 }
 
 // ClassifyDocuments splits documents by kind. Unknown kinds (including

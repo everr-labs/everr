@@ -58,13 +58,20 @@ func NormalizeURL(value string) (string, error) {
 	return strings.TrimRight(u.String(), "/"), nil
 }
 
-// RequireSession returns the saved session or tells the user to log in.
-func RequireSession() (session.Session, error) {
+// loadSession returns the user's session store and its saved session, nil
+// when logged out.
+func loadSession() (*session.Store, *session.Session, error) {
 	store, err := session.User()
 	if err != nil {
-		return session.Session{}, err
+		return nil, nil, err
 	}
 	s, err := store.Load()
+	return store, s, err
+}
+
+// RequireSession returns the saved session or tells the user to log in.
+func RequireSession() (session.Session, error) {
+	_, s, err := loadSession()
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -86,11 +93,7 @@ func NewClient(allowAPIKey bool) (*api.Client, error) {
 		if token != "" {
 			target := os.Getenv("EVERR_API_URL")
 			if target == "" {
-				store, err := session.User()
-				if err != nil {
-					return nil, err
-				}
-				s, err := store.Load()
+				_, s, err := loadSession()
 				if err != nil {
 					return nil, err
 				}
@@ -174,11 +177,7 @@ func Login(ctx context.Context, out io.Writer, opts LoginOptions) error {
 
 // Logout revokes the saved session and removes it.
 func Logout(ctx context.Context, out io.Writer) error {
-	store, err := session.User()
-	if err != nil {
-		return err
-	}
-	s, err := store.Load()
+	store, s, err := loadSession()
 	if err != nil {
 		return err
 	}

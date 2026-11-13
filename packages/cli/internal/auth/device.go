@@ -46,7 +46,10 @@ func AuthorizeWithPrompt(ctx context.Context, apiBaseURL string, prompt Prompt) 
 	if err != nil {
 		return session.Session{}, err
 	}
-	return sessionFromDeviceToken(apiBaseURL, token)
+	if strings.TrimSpace(token) == "" {
+		return session.Session{}, errors.New("received an empty access token")
+	}
+	return session.Session{APIBaseURL: apiBaseURL, Token: token}, nil
 }
 
 func postJSON(ctx context.Context, client *http.Client, rawURL string, body any) (*http.Response, error) {
@@ -122,62 +125,47 @@ func startDeviceAuthorization(ctx context.Context, client *http.Client, apiBaseU
 	}, nil
 }
 
-type pollStatus int
+// slowDownStep is how much a slow_down answer lengthens the polling interval.
+var slowDownStep = 5 * time.Second
 
-const (
-	pollAuthorized pollStatus = iota
-	pollPending
-	pollSlowDown
-	pollDenied
-	pollExpired
-)
-
-func pollDeviceAuthorization(ctx context.Context, client *http.Client, apiBaseURL string, authorization *DeviceAuthorization) (pollStatus, string, error) {
+// pollDeviceAuthorization returns the access token, or the OAuth error code
+// the server answered with.
+func pollDeviceAuthorization(ctx context.Context, client *http.Client, apiBaseURL string, authorization *DeviceAuthorization) (token, code string, err error) {
 	resp, err := postJSON(ctx, client, apiBaseURL+"/api/auth/device/token", map[string]string{
 		"grant_type":  "urn:ietf:params:oauth:grant-type:device_code",
 		"device_code": authorization.DeviceCode,
 		"client_id":   deviceClientID,
 	})
 	if err != nil {
-		return 0, "", fmt.Errorf("failed while polling for CLI access token: %w", err)
+		return "", "", fmt.Errorf("failed while polling for CLI access token: %w", err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		var token struct {
+		var body struct {
 			AccessToken *string `json:"access_token"`
 		}
 		if err == nil {
-			err = json.Unmarshal(data, &token)
+			err = json.Unmarshal(data, &body)
 		}
-		if err == nil && token.AccessToken == nil {
+		if err == nil && body.AccessToken == nil {
 			err = errors.New("missing field `access_token`")
 		}
 		if err != nil {
-			return 0, "", fmt.Errorf("failed to parse authentication response: %w", err)
+			return "", "", fmt.Errorf("failed to parse authentication response: %w", err)
 		}
-		return pollAuthorized, *token.AccessToken, nil
+		return *body.AccessToken, "", nil
 	}
 
 	var body struct {
 		Error *string `json:"error"`
 	}
-	code := "unknown_error"
-	if err == nil && json.Unmarshal(data, &body) == nil && body.Error != nil {
-		code = *body.Error
+	// An empty code would read as success.
+	if err == nil && json.Unmarshal(data, &body) == nil && body.Error != nil && *body.Error != "" {
+		return "", *body.Error, nil
 	}
-	switch code {
-	case "authorization_pending":
-		return pollPending, "", nil
-	case "slow_down":
-		return pollSlowDown, "", nil
-	case "access_denied":
-		return pollDenied, "", nil
-	case "expired_token":
-		return pollExpired, "", nil
-	}
-	return 0, "", fmt.Errorf("device authentication failed: %s", code)
+	return "", "unknown_error", nil
 }
 
 func completeDeviceAuthorization(ctx context.Context, client *http.Client, apiBaseURL string, authorization *DeviceAuthorization) (string, error) {
@@ -192,26 +180,21 @@ func completeDeviceAuthorization(ctx context.Context, client *http.Client, apiBa
 			return "", ctx.Err()
 		case <-time.After(interval):
 		}
-		status, token, err := pollDeviceAuthorization(ctx, client, apiBaseURL, authorization)
-		if err != nil {
+		token, code, err := pollDeviceAuthorization(ctx, client, apiBaseURL, authorization)
+		switch {
+		case err != nil:
 			return "", err
-		}
-		switch status {
-		case pollAuthorized:
+		case code == "":
 			return token, nil
-		case pollSlowDown:
-			interval += 5 * time.Second
-		case pollDenied:
+		case code == "authorization_pending":
+		case code == "slow_down":
+			interval += slowDownStep
+		case code == "access_denied":
 			return "", errors.New("device authentication was denied")
-		case pollExpired:
+		case code == "expired_token":
 			return "", errors.New("device authentication token expired")
+		default:
+			return "", fmt.Errorf("device authentication failed: %s", code)
 		}
 	}
-}
-
-func sessionFromDeviceToken(apiBaseURL, accessToken string) (session.Session, error) {
-	if strings.TrimSpace(accessToken) == "" {
-		return session.Session{}, errors.New("received an empty access token")
-	}
-	return session.Session{APIBaseURL: apiBaseURL, Token: accessToken}, nil
 }

@@ -29,7 +29,6 @@ func NewCommand(lifetime *Lifetime) *cobra.Command {
 		&cobra.Command{
 			Use:   "stop",
 			Short: "Stop the local collector and browser UI",
-			Args:  cobra.NoArgs,
 			RunE: func(c *cobra.Command, _ []string) error {
 				return stop(c.Context(), c.OutOrStdout())
 			},
@@ -38,7 +37,6 @@ func NewCommand(lifetime *Lifetime) *cobra.Command {
 		&cobra.Command{
 			Use:   "status",
 			Short: "Show the local Collector status and endpoints",
-			Args:  cobra.NoArgs,
 			RunE: func(c *cobra.Command, _ []string) error {
 				status := Inspect(c.Context())
 				if _, ok := status.RunningInstance(); !ok {
@@ -51,14 +49,14 @@ func NewCommand(lifetime *Lifetime) *cobra.Command {
 		&cobra.Command{
 			Use:   "ui",
 			Short: "Open the running local UI in the default browser",
-			Args:  cobra.NoArgs,
 			RunE: func(c *cobra.Command, _ []string) error {
-				return runUI(c.Context(), c.OutOrStdout(), openBrowser)
+				return runUI(c.Context(), c.OutOrStdout())
 			},
 		},
 	)
 	for _, sub := range cmd.Commands() {
 		if sub.Name() != "query" {
+			cmdutil.Positionals(sub)
 			cmdutil.SetHumanStdout(sub, cmdutil.HumanAlways)
 		}
 	}
@@ -70,7 +68,6 @@ func newStartCommand(lifetime *Lifetime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the local collector and browser UI",
-		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			return runStart(c.Context(), args, lifetime)
 		},
@@ -108,28 +105,17 @@ func connectionFailureMessage(err error) string {
 	return collectorUnavailableMessage
 }
 
-func runUI(ctx context.Context, w io.Writer, open func(string) error) error {
+func runUI(ctx context.Context, w io.Writer) error {
 	status := Inspect(ctx)
-	origin := build.LocalUIOrigin()
-	opened, err := openUI(status, origin, open)
-	if err != nil {
-		return err
-	}
-	if !opened {
+	if _, ok := status.RunningInstance(); !ok {
 		return reportUnavailable(w, status)
+	}
+	origin := build.LocalUIOrigin()
+	if err := openBrowser(origin); err != nil {
+		return fmt.Errorf("Could not open the local UI. Open this URL manually: %s: %w", origin, err)
 	}
 	fmt.Fprintf(w, "ui: %s\n", origin)
 	return nil
-}
-
-func openUI(status Status, origin string, open func(string) error) (bool, error) {
-	if _, ok := status.RunningInstance(); !ok {
-		return false, nil
-	}
-	if err := open(origin); err != nil {
-		return false, fmt.Errorf("Could not open the local UI. Open this URL manually: %s: %w", origin, err)
-	}
-	return true, nil
 }
 
 func reportUnavailable(w io.Writer, status Status) error {

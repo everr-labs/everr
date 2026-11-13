@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -43,14 +42,10 @@ type Options struct {
 // OTLP pipeline runs separately so it can be restarted without reopening
 // chDB, which a process can only open once.
 type Gateway struct {
-	opts   Options
 	otlp   localconfig.Endpoint
+	ttl    time.Duration
 	handle *chdb.Handle
 	sql    *sqlhttp.Server
-	logger *zap.Logger
-
-	mu      sync.Mutex
-	running bool
 }
 
 // Open loads chDB and starts the SQL endpoint. Its /health reports
@@ -89,33 +84,23 @@ func Open(opts Options) (*Gateway, error) {
 		_ = handle.Close()
 		return nil, fmt.Errorf("start sql http server: %w", err)
 	}
-	return &Gateway{opts: opts, otlp: otlp, handle: handle, sql: server, logger: logger}, nil
+	return &Gateway{otlp: otlp, ttl: opts.TTL, handle: handle, sql: server}, nil
 }
 
 // Run runs the OTLP pipeline until ctx is canceled or the pipeline fails.
 // The SQL endpoint reports ready only while the pipeline is running, and
-// stopped once it has exited. Run can be called again after it returns.
+// stopped once it has exited. Run can be called again after it returns, but
+// must not be called concurrently.
 func (g *Gateway) Run(ctx context.Context) error {
-	g.mu.Lock()
-	if g.running {
-		g.mu.Unlock()
-		return errors.New("collector is already running")
-	}
-	g.running = true
-	g.mu.Unlock()
 	g.sql.SetStatus(sqlhttp.StatusStarting)
-	defer func() {
-		g.sql.SetStatus(sqlhttp.StatusStopped)
-		g.mu.Lock()
-		g.running = false
-		g.mu.Unlock()
-	}()
+	defer g.sql.SetStatus(sqlhttp.StatusStopped)
 
 	collector, err := otelcol.NewCollector(g.collectorSettings())
 	if err != nil {
 		return fmt.Errorf("create collector: %w", err)
 	}
 
+	// The collector shuts itself down once ctx is done.
 	done := make(chan error, 1)
 	go func() { done <- collector.Run(ctx) }()
 
@@ -124,18 +109,15 @@ func (g *Gateway) Run(ctx context.Context) error {
 	for {
 		select {
 		case err := <-done:
+			if err == nil {
+				err = ctx.Err()
+			}
 			return err
 		case <-ticker.C:
 			if collector.GetState() == otelcol.StateRunning {
 				g.sql.SetStatus(sqlhttp.StatusOK)
 				ticker.Stop()
 			}
-		case <-ctx.Done():
-			collector.Shutdown()
-			if err := <-done; err != nil {
-				return err
-			}
-			return ctx.Err()
 		}
 	}
 }
@@ -150,7 +132,7 @@ func (g *Gateway) Close(ctx context.Context) error {
 func (g *Gateway) collectorSettings() otelcol.CollectorSettings {
 	rawConfig := localconfig.BuildCollectorConfigMap(localconfig.CollectorConfig{
 		OTLPListenAddress: g.otlp.ListenAddress,
-		TTL:               g.opts.TTL,
+		TTL:               g.ttl,
 	})
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
@@ -189,9 +171,6 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
-		factories.ReceiverModules = makeModulesMap(factories.Receivers, map[component.Type]string{
-			otlpreceiver.NewFactory().Type(): "go.opentelemetry.io/collector/receiver/otlpreceiver v0.152.0",
-		})
 
 		factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 			chdbexporter.NewFactoryWithHandle(handle),
@@ -199,24 +178,7 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
-		factories.ExporterModules = makeModulesMap(factories.Exporters, map[component.Type]string{
-			chdbexporter.NewFactory().Type(): "github.com/everr-labs/everr/collector/exporter/chdbexporter v0.160.0",
-		})
 
 		return factories, nil
 	}
-}
-
-type aliasProvider interface{ DeprecatedAlias() component.Type }
-
-func makeModulesMap[T component.Factory](factories map[component.Type]T, modules map[component.Type]string) map[component.Type]string {
-	for compType, factory := range factories {
-		if ap, ok := any(factory).(aliasProvider); ok {
-			alias := ap.DeprecatedAlias()
-			if alias.String() != "" {
-				modules[alias] = modules[compType]
-			}
-		}
-	}
-	return modules
 }

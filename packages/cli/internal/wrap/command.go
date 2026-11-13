@@ -48,12 +48,12 @@ func NewCommand() *cobra.Command {
 	cmd.Flags().SetInterspersed(false)
 	cmdutil.Positionals(cmd, cmdutil.Arg{Name: "COMMAND", Help: "Command and arguments to run", Variadic: true})
 	// stdout carries the wrapped command's output untouched.
-	cmdutil.SetHumanStdout(cmd, func(*cobra.Command, bool) bool { return false })
+	cmdutil.SetHumanStdout(cmd, func(bool) bool { return false })
 	return cmd
 }
 
 func run(ctx context.Context, argv []string) error {
-	command := newWrappedCommand(argv)
+	command := wrappedCommand{program: argv[0], args: argv[1:], display: strings.Join(argv, " ")}
 	exporter := newExporter(command)
 	if err := exporter.probe(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, collectorUnavailable)
@@ -286,14 +286,6 @@ type wrappedCommand struct {
 	display string
 }
 
-func newWrappedCommand(argv []string) wrappedCommand {
-	return wrappedCommand{program: argv[0], args: argv[1:], display: strings.Join(argv, " ")}
-}
-
-func (c wrappedCommand) serviceName() string {
-	return "everr-wrap-" + c.program
-}
-
 type exporter struct {
 	http     *http.Client
 	endpoint string
@@ -313,9 +305,6 @@ func (e *exporter) probe(ctx context.Context) error {
 }
 
 func (e *exporter) send(records []logRecord) error {
-	if len(records) == 0 {
-		return nil
-	}
 	return e.post(context.Background(), e.payload(records))
 }
 
@@ -398,17 +387,21 @@ func (e *exporter) payload(records []logRecord) otlpLogs {
 		if record.exitCode != nil {
 			attrs = append(attrs, attr("everr.wrap.exit_code", strconv.Itoa(*record.exitCode)))
 		}
+		severityText, severityNumber := "INFO", 9
+		if record.isError {
+			severityText, severityNumber = "ERROR", 17
+		}
 		logRecords = append(logRecords, otlpRecord{
 			TimeUnixNano:         record.timeUnixNano,
 			ObservedTimeUnixNano: record.timeUnixNano,
-			SeverityText:         record.severityText,
-			SeverityNumber:       record.severityNumber,
+			SeverityText:         severityText,
+			SeverityNumber:       severityNumber,
 			Body:                 anyValue{StringValue: record.body},
 			Attributes:           attrs,
 		})
 	}
 	return otlpLogs{ResourceLogs: []resourceLogs{{
-		Resource: otlpResource{Attributes: []keyValue{attr("service.name", e.command.serviceName())}},
+		Resource: otlpResource{Attributes: []keyValue{attr("service.name", "everr-wrap-"+e.command.program)}},
 		ScopeLogs: []scopeLogs{{
 			Scope:      otlpScope{Name: "everr-cli.wrap"},
 			LogRecords: logRecords,
@@ -417,40 +410,29 @@ func (e *exporter) payload(records []logRecord) otlpLogs {
 }
 
 type logRecord struct {
-	timeUnixNano   string
-	stream         string
-	severityText   string
-	severityNumber int
-	body           string
-	exitCode       *int
+	timeUnixNano string
+	stream       string
+	isError      bool
+	body         string
+	exitCode     *int
 }
 
 func lineRecord(stream string, line []byte) logRecord {
-	text, number := "INFO", 9
-	if stream == "stderr" {
-		text, number = "ERROR", 17
-	}
 	return logRecord{
-		timeUnixNano:   nowUnixNano(),
-		stream:         stream,
-		severityText:   text,
-		severityNumber: number,
-		body:           lineBody(line),
+		timeUnixNano: nowUnixNano(),
+		stream:       stream,
+		isError:      stream == "stderr",
+		body:         lineBody(line),
 	}
 }
 
 func exitRecord(code int) logRecord {
-	text, number := "INFO", 9
-	if code != 0 {
-		text, number = "ERROR", 17
-	}
 	return logRecord{
-		timeUnixNano:   nowUnixNano(),
-		stream:         "exit",
-		severityText:   text,
-		severityNumber: number,
-		body:           fmt.Sprintf("wrapped command exited with code %d", code),
-		exitCode:       &code,
+		timeUnixNano: nowUnixNano(),
+		stream:       "exit",
+		isError:      code != 0,
+		body:         fmt.Sprintf("wrapped command exited with code %d", code),
+		exitCode:     &code,
 	}
 }
 

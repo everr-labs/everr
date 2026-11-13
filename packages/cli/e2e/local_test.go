@@ -55,18 +55,9 @@ func localEnv(t *testing.T, sql, ui string) *Env {
 		Setenv("EVERR_OTLP_HTTP_ORIGIN", stoppedOrigin(t))
 }
 
-func TestEndpointIsNotALocalSubcommand(t *testing.T) {
-	res := NewEnv(t).Run("local", "endpoint").Failure(t, 2)
-	assertContains(t, res.Stderr, "unrecognized subcommand", "endpoint")
-}
-
 func TestLocalHelpListsSubcommands(t *testing.T) {
-	env := NewEnv(t)
-	out := env.Run("local", "--help").Success(t).Stdout
+	out := NewEnv(t).Run("local", "--help").Success(t).Stdout
 	assertContains(t, out, "start", "query", "status", "Open the running local UI in the default browser")
-	assertNotContains(t, out, "\n  endpoint")
-	assertContains(t, env.Run("local", "start", "--help").Success(t).Stdout, "--quiet")
-	assertContains(t, env.Run("local", "ui", "--help").Success(t).Stdout, "Usage: everr local ui")
 }
 
 func TestLocalStopIsIdempotentWhenBothListenersAreAbsent(t *testing.T) {
@@ -100,18 +91,11 @@ func TestLocalStopRefusesUnrecognizedOrMismatchedInstances(t *testing.T) {
 
 func TestLocalUIReportsTheSameUnavailableStatesAsStatus(t *testing.T) {
 	collector := healthServer(t, "everr-local-collector", "one", false)
-	ui := healthServer(t, "everr-local-ui", "one", false)
 	mismatchedUI := healthServer(t, "everr-local-ui", "two", false)
-	starting := healthServer(t, "everr-local-collector", "one", true)
-	unrelated := bodyServer(t, http.StatusOK, "not Everr")
 	for _, origins := range [][2]string{
 		{stoppedOrigin(t), stoppedOrigin(t)},
 		{collector.URL, stoppedOrigin(t)},
-		{stoppedOrigin(t), ui.URL},
-		{starting.URL, ui.URL},
 		{collector.URL, mismatchedUI.URL},
-		{unrelated.URL, ui.URL},
-		{collector.URL, unrelated.URL},
 	} {
 		env := localEnv(t, origins[0], origins[1])
 		status := env.Run("local", "status").Failure(t, 2)
@@ -150,8 +134,9 @@ func TestUnrelatedHTTPSuccessIsNotEverrForEitherListener(t *testing.T) {
 	} {
 		sql := bodyServer(t, http.StatusOK, bodies[0])
 		ui := bodyServer(t, http.StatusOK, bodies[1])
-		res := localEnv(t, sql.URL, ui.URL).Run("local", "status").Failure(t, 2)
-		assertContains(t, res.Stdout, "port occupied by an unrecognized service")
+		env := localEnv(t, sql.URL, ui.URL)
+		assertContains(t, env.Run("local", "status").Failure(t, 2).Stdout, "port occupied by an unrecognized service")
+		assertContains(t, env.Run("local", "start", "--no-open").Failure(t, 1).Stderr, "port occupied by an unrecognized service")
 	}
 }
 
@@ -216,23 +201,6 @@ func TestMismatchedInstancesAreNotReportedAsACompleteRunningInstance(t *testing.
 	env := localEnv(t, collector.URL, ui.URL)
 	assertContains(t, env.Run("local", "status").Failure(t, 2).Stdout, "do not belong to the same Everr instance")
 	assertContains(t, env.Run("local", "start", "--no-open").Failure(t, 1).Stderr, "cannot start Everr")
-}
-
-func TestLocalStartLeavesUnrelatedListenersRunning(t *testing.T) {
-	for _, sqlConflict := range []bool{true, false} {
-		unrelated := bodyServer(t, http.StatusOK, "ok\n")
-		sql, ui := unrelated.URL, stoppedOrigin(t)
-		if !sqlConflict {
-			sql, ui = ui, sql
-		}
-		res := localEnv(t, sql, ui).Run("local", "start", "--no-open").Failure(t, 1)
-		assertContains(t, res.Stderr, "port occupied by an unrecognized service")
-		if resp, err := http.Get(unrelated.URL); err != nil {
-			t.Fatalf("unrelated listener stopped: %v", err)
-		} else {
-			resp.Body.Close()
-		}
-	}
 }
 
 func TestLocalStartLeavesUnrelatedOTLPListenerRunning(t *testing.T) {

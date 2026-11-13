@@ -24,52 +24,28 @@ import (
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 )
 
-// ErrReauthenticationRequired means the session was rejected and
-// `cloud login` fixes it.
-var ErrReauthenticationRequired = errors.New("session expired")
-
-type reauthError struct{}
-
-func (reauthError) Error() string {
-	return fmt.Sprintf("Session expired. Run `%s cloud login` to re-authenticate.", build.CommandName())
-}
-
-func (reauthError) Is(target error) bool { return target == ErrReauthenticationRequired }
-
-// IsReauthenticationRequired reports whether err asks the user to log in again.
-func IsReauthenticationRequired(err error) bool {
-	return errors.Is(err, ErrReauthenticationRequired)
-}
-
-// AuthKind is the credential a Client sends. A rejected API key cannot be
-// fixed by `cloud login`, so some endpoints report a 401 differently per kind.
-type AuthKind int
-
-const (
-	AuthSession AuthKind = iota
-	AuthToken
-)
-
 // Client calls the Everr API with a bearer credential.
 type Client struct {
 	http         *http.Client
 	baseURL      string
 	baseEndpoint string
 	bearer       string
-	authKind     AuthKind
+	// A rejected API key cannot be fixed by `cloud login`, so some endpoints
+	// report a 401 differently for it.
+	apiKey bool
 }
 
 // FromSession builds a client for a saved login.
 func FromSession(s session.Session) (*Client, error) {
-	return fromBearer(s.APIBaseURL, s.Token, AuthSession)
+	return fromBearer(s.APIBaseURL, s.Token, false)
 }
 
 // FromToken builds a client for a raw API key (EVERR_API_KEY in CI).
 func FromToken(apiBaseURL, token string) (*Client, error) {
-	return fromBearer(apiBaseURL, token, AuthToken)
+	return fromBearer(apiBaseURL, token, true)
 }
 
-func fromBearer(apiBaseURL, token string, kind AuthKind) (*Client, error) {
+func fromBearer(apiBaseURL, token string, apiKey bool) (*Client, error) {
 	bearer := "Bearer " + token
 	if !validHeaderValue(bearer) {
 		return nil, errors.New("invalid token for Authorization header")
@@ -80,7 +56,7 @@ func fromBearer(apiBaseURL, token string, kind AuthKind) (*Client, error) {
 		baseURL:      baseURL,
 		baseEndpoint: baseURL + "/api/cli",
 		bearer:       bearer,
-		authKind:     kind,
+		apiKey:       apiKey,
 	}, nil
 }
 
@@ -103,9 +79,6 @@ func validHeaderValue(v string) bool {
 
 // BaseURL is the installation URL without a trailing slash.
 func (c *Client) BaseURL() string { return c.baseURL }
-
-// AuthKind is the kind of credential the client sends.
-func (c *Client) AuthKind() AuthKind { return c.authKind }
 
 // PrintTarget writes the installation URL to stderr.
 func (c *Client) PrintTarget() {
@@ -162,7 +135,7 @@ func readBodyText(resp *http.Response) string {
 
 func httpStatusError(status int, text, context string) error {
 	if status == http.StatusUnauthorized {
-		return reauthError{}
+		return fmt.Errorf("Session expired. Run `%s cloud login` to re-authenticate.", build.CommandName())
 	}
 	return fmt.Errorf("%s failed with %s: %s", context, StatusString(status), text)
 }
@@ -234,7 +207,7 @@ func (c *Client) Apply(ctx context.Context, request *ApplyRequest) (*ApplySummar
 	}
 	if !success(resp.StatusCode) {
 		text := readBodyText(resp)
-		if resp.StatusCode == http.StatusUnauthorized && c.authKind == AuthToken {
+		if resp.StatusCode == http.StatusUnauthorized && c.apiKey {
 			return nil, errors.New("apply was rejected (401 Unauthorized): the API key (EVERR_API_KEY, " +
 				"or the deprecated EVERR_API_TOKEN) is missing, invalid, or not " +
 				"authorized to apply resources in this organization.")
@@ -290,9 +263,9 @@ func (c *Client) PostSQL(ctx context.Context, sql string) (_ string, err error) 
 	return string(data), nil
 }
 
-// ListResources lists live resources, optionally filtered by kind and repo.
-// ListResources filters by kind when it is not empty, and by repoid when it
-// is not nil; an empty repoid selects resources created in the UI.
+// ListResources lists live resources, filtered by kind when it is not empty
+// and by repoid when it is not nil; an empty repoid selects resources created
+// in the UI.
 func (c *Client) ListResources(ctx context.Context, kind string, repoid *string) ([]ResourceSummary, error) {
 	query := url.Values{}
 	if kind != "" {

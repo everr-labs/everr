@@ -4,7 +4,6 @@ package commandtelemetry
 
 import (
 	"context"
-	"errors"
 	"maps"
 	"net/http"
 	"runtime"
@@ -30,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
-	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
 	"github.com/everr-labs/everr/packages/cli/internal/internaltelemetry"
 )
 
@@ -171,38 +169,24 @@ func Start(ctx context.Context, cmd *cobra.Command, argv []string) (_ context.Co
 	emit(ctx, logger, log.SeverityInfo, eventName, attrs)
 
 	return ctx, func(err error) {
+		status, severity := "ok", log.SeverityInfo
 		attrs := []attribute.KeyValue{
 			attribute.String("event.name", resultEventName),
 			attribute.String("everr.cli.command", inv.command),
 			attribute.String("everr.cli.subcommand", inv.subcommand),
 		}
-		if failed(err) {
+		if err != nil {
+			status, severity = "error", log.SeverityError
 			span.SetStatus(codes.Error, "")
-			attrs = append(attrs,
-				attribute.String("everr.cli.status", "error"),
-				attribute.String("error.message", internaltelemetry.CommandError(err)),
-				attribute.String("os.type", runtime.GOOS),
-			)
-			emit(ctx, logger, log.SeverityError, resultEventName, attrs)
-		} else {
-			attrs = append(attrs,
-				attribute.String("everr.cli.status", "ok"),
-				attribute.String("os.type", runtime.GOOS),
-			)
-			emit(ctx, logger, log.SeverityInfo, resultEventName, attrs)
+			attrs = append(attrs, attribute.String("error.message", internaltelemetry.CommandError(err)))
 		}
+		attrs = append(attrs,
+			attribute.String("everr.cli.status", status),
+			attribute.String("os.type", runtime.GOOS),
+		)
+		emit(ctx, logger, severity, resultEventName, attrs)
 		span.End()
 	}
-}
-
-func failed(err error) bool {
-	if err == nil {
-		return false
-	}
-	if exit, ok := errors.AsType[*cmdutil.ExitError](err); ok && exit.Code == 0 {
-		return false
-	}
-	return true
 }
 
 func emit(ctx context.Context, logger log.Logger, severity log.Severity, name string, attrs []attribute.KeyValue) {

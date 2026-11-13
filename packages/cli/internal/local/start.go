@@ -93,7 +93,7 @@ func runStart(ctx context.Context, args startArgs, lifetime *Lifetime) error {
 		return err
 	}
 	defer ui.listener.Close()
-	// Serve right away: until setReady, the UI answers as starting rather
+	// Serve right away: until ready, the UI answers as starting rather
 	// than leaving connections hanging while chDB loads.
 	served := make(chan error, 1)
 	go func() { served <- ui.serve() }()
@@ -116,7 +116,7 @@ func runStart(ctx context.Context, args startArgs, lifetime *Lifetime) error {
 	}
 	defer func() { collector.stop() }()
 
-	ui.setReady()
+	ui.ready.Store(true)
 	if !args.quiet {
 		printStartup()
 	}
@@ -150,14 +150,14 @@ loop:
 			fmt.Fprintf(os.Stderr, "Collector stopped: %v. Restart it from the local UI.\n", err)
 		}
 	}
-	ui.supervisorStopped()
+	close(ui.stopped)
 	collector.stop()
 	if stopReply != nil {
 		stopReply <- nil
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := ui.shutdown(shutdownCtx); err != nil && result == nil {
+	if err := ui.http.Shutdown(shutdownCtx); err != nil && result == nil {
 		result = err
 	}
 	return result
@@ -341,11 +341,7 @@ func extractToCache(cacheRoot string, zst []byte, digest string) (library string
 	dir := filepath.Join(cacheRoot, digest)
 	library = filepath.Join(dir, "libchdb.so")
 	marker := filepath.Join(dir, ".complete")
-	if extracted(marker, library) {
-		if err := os.Chmod(library, 0o644); err != nil {
-			return "", nil, err
-		}
-	} else {
+	if !extracted(marker, library) {
 		// Starts over, dropping temp files an interrupted extraction left
 		// behind.
 		if err := os.RemoveAll(dir); err != nil {

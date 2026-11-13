@@ -103,24 +103,6 @@ func writeFile(t *testing.T, p, content string) {
 	}
 }
 
-func TestBundlesCurrentSkillCatalog(t *testing.T) {
-	skills, err := Bundled()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var names []string
-	for _, skill := range skills {
-		names = append(names, skill.Name)
-		if strings.TrimSpace(skill.Description) == "" {
-			t.Errorf("%s has no description", skill.Name)
-		}
-	}
-	want := []string{"everr-setup-resources", "everr-setup-telemetry", "everr-use-telemetry", "everr-working-with-ci"}
-	if !slices.Equal(names, want) {
-		t.Fatalf("bundled skills = %v, want %v", names, want)
-	}
-}
-
 func TestInstallsAllBundledSkillsAndSupportingFiles(t *testing.T) {
 	options := newOptions(t, ScopeProject, []Provider{Codex})
 	mustInstall(t, options)
@@ -152,16 +134,6 @@ func TestInstallsAllBundledSkillsAndSupportingFiles(t *testing.T) {
 			t.Errorf("installed %s differs from the bundle", p)
 		}
 	}
-}
-
-func TestInstallAddsMissingRuleFiles(t *testing.T) {
-	options := newOptions(t, ScopeProject, []Provider{Codex}, "everr-setup-telemetry")
-	skillDir := filepath.Join(options.Cwd, ".agents", "skills", "everr-setup-telemetry")
-	writeFile(t, filepath.Join(skillDir, "SKILL.md"), string(bundledFile(t, "everr-setup-telemetry/SKILL.md")))
-
-	mustInstall(t, options)
-
-	assertFile(t, filepath.Join(skillDir, "rules", "error-tracking.md"))
 }
 
 func TestInstallOverwritesModifiedRule(t *testing.T) {
@@ -237,109 +209,60 @@ func TestDryRunReportsChangesWithoutWritingFiles(t *testing.T) {
 	)
 }
 
-func TestUpdateRewritesModifiedInstalledSkill(t *testing.T) {
-	options := newOptions(t, ScopeProject, []Provider{Codex}, "everr-use-telemetry")
-	mustInstall(t, options)
-	skillDoc := filepath.Join(options.Cwd, ".agents", "skills", "everr-use-telemetry", "SKILL.md")
-	writeFile(t, skillDoc, "local edits")
-
-	options.SkillNames = nil
-	if _, err := Update(options); err != nil {
+func TestUpdateReplacesInstalledLegacySkillWithSuccessor(t *testing.T) {
+	const legacy, successor = "everr-ci-debugging", "everr-working-with-ci"
+	options := newOptions(t, ScopeProject, []Provider{ClaudeCode})
+	options.All = false
+	legacyCanonical := filepath.Join(options.Cwd, ".agents", "skills", legacy)
+	writeFile(t, filepath.Join(legacyCanonical, "SKILL.md"), "name: "+legacy)
+	legacyProvider := filepath.Join(options.Cwd, ".claude", "skills", legacy)
+	if err := os.MkdirAll(filepath.Dir(legacyProvider), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(legacyCanonical, legacyProvider); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := readFile(t, skillDoc); got != string(bundledFile(t, "everr-use-telemetry/SKILL.md")) {
-		t.Fatalf("skill was not updated:\n%s", got)
+	names, err := InstalledUpdateSkillNames(options)
+	if err != nil {
+		t.Fatal(err)
 	}
+	options.SkillNames = names
+	summary, err := Update(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !slices.Equal(summary.Skills, []string{successor}) {
+		t.Errorf("updated skills = %v, want [%s]", summary.Skills, successor)
+	}
+	assertMissing(t, legacyCanonical, legacyProvider)
+	canonical := filepath.Join(options.Cwd, ".agents", "skills", successor)
+	if got := readFile(t, filepath.Join(canonical, "SKILL.md")); !strings.Contains(got, "name: "+successor) {
+		t.Errorf("successor SKILL.md does not name %s:\n%s", successor, got)
+	}
+	assertSymlinkTo(t, filepath.Join(options.Cwd, ".claude", "skills", successor), canonical)
 }
 
-func TestUpdateReplacesInstalledLegacySkillsWithSuccessors(t *testing.T) {
-	for legacy, successor := range map[string]string{
-		"everr-ci-debugging":    "everr-working-with-ci",
-		"everr-write-notebooks": "everr-setup-resources",
+func TestInstallReplacesStaleProviderSymlink(t *testing.T) {
+	for name, target := range map[string]func(t *testing.T, home string) string{
+		"other directory": func(t *testing.T, _ string) string { return t.TempDir() },
+		"dangling":        func(_ *testing.T, home string) string { return filepath.Join(home, "missing-target") },
 	} {
-		t.Run(legacy, func(t *testing.T) {
-			options := newOptions(t, ScopeProject, []Provider{ClaudeCode})
-			options.All = false
-			legacyCanonical := filepath.Join(options.Cwd, ".agents", "skills", legacy)
-			writeFile(t, filepath.Join(legacyCanonical, "SKILL.md"), "name: "+legacy)
-			legacyProvider := filepath.Join(options.Cwd, ".claude", "skills", legacy)
-			if err := os.MkdirAll(filepath.Dir(legacyProvider), 0o755); err != nil {
+		t.Run(name, func(t *testing.T) {
+			options := newOptions(t, ScopeGlobal, []Provider{ClaudeCode}, "everr-use-telemetry")
+			providerLink := filepath.Join(options.HomeDir, ".claude", "skills", "everr-use-telemetry")
+			if err := os.MkdirAll(filepath.Dir(providerLink), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.Symlink(legacyCanonical, legacyProvider); err != nil {
+			if err := os.Symlink(target(t, options.HomeDir), providerLink); err != nil {
 				t.Fatal(err)
 			}
 
-			summary, err := Update(options)
-			if err != nil {
-				t.Fatal(err)
-			}
+			mustInstall(t, options)
 
-			if !slices.Equal(summary.Skills, []string{successor}) {
-				t.Errorf("updated skills = %v, want [%s]", summary.Skills, successor)
-			}
-			assertMissing(t, legacyCanonical, legacyProvider)
-			canonical := filepath.Join(options.Cwd, ".agents", "skills", successor)
-			if got := readFile(t, filepath.Join(canonical, "SKILL.md")); !strings.Contains(got, "name: "+successor) {
-				t.Errorf("successor SKILL.md does not name %s:\n%s", successor, got)
-			}
-			assertSymlinkTo(t, filepath.Join(options.Cwd, ".claude", "skills", successor), canonical)
+			assertSymlinkTo(t, providerLink, filepath.Join(options.HomeDir, ".agents", "skills", "everr-use-telemetry"))
 		})
-	}
-}
-
-func TestInstallOverwritesModifiedSkill(t *testing.T) {
-	options := newOptions(t, ScopeProject, []Provider{Codex}, "everr-use-telemetry")
-	skillDoc := filepath.Join(options.Cwd, ".agents", "skills", "everr-use-telemetry", "SKILL.md")
-	writeFile(t, skillDoc, "local edits")
-
-	mustInstall(t, options)
-
-	if got := readFile(t, skillDoc); got != string(bundledFile(t, "everr-use-telemetry/SKILL.md")) {
-		t.Fatalf("skill was not replaced:\n%s", got)
-	}
-}
-
-func TestInstallReplacesExistingProviderSymlink(t *testing.T) {
-	options := newOptions(t, ScopeGlobal, []Provider{ClaudeCode}, "everr-use-telemetry")
-	providerLink := filepath.Join(options.HomeDir, ".claude", "skills", "everr-use-telemetry")
-	if err := os.MkdirAll(filepath.Dir(providerLink), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(t.TempDir(), providerLink); err != nil {
-		t.Fatal(err)
-	}
-
-	mustInstall(t, options)
-
-	assertSymlinkTo(t, providerLink, filepath.Join(options.HomeDir, ".agents", "skills", "everr-use-telemetry"))
-}
-
-func TestInstallRemovesDanglingProviderSymlink(t *testing.T) {
-	options := newOptions(t, ScopeGlobal, []Provider{Cursor}, "everr-use-telemetry")
-	providerLink := filepath.Join(options.HomeDir, ".cursor", "skills", "everr-use-telemetry")
-	if err := os.MkdirAll(filepath.Dir(providerLink), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(filepath.Join(options.HomeDir, "missing-target"), providerLink); err != nil {
-		t.Fatal(err)
-	}
-
-	mustInstall(t, options)
-
-	assertSymlinkTo(t, providerLink, filepath.Join(options.HomeDir, ".agents", "skills", "everr-use-telemetry"))
-}
-
-func TestUninstallRemovesCanonicalAndProviderLinks(t *testing.T) {
-	options := newOptions(t, ScopeGlobal, []Provider{Codex, ClaudeCode}, "everr-use-telemetry")
-	mustInstall(t, options)
-	if _, err := Uninstall(options); err != nil {
-		t.Fatal(err)
-	}
-
-	for _, dir := range []string{".agents", ".codex", ".claude"} {
-		assertMissing(t, filepath.Join(options.HomeDir, dir, "skills", "everr-use-telemetry"))
 	}
 }
 

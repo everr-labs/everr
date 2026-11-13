@@ -9,7 +9,6 @@ import (
 	"github.com/everr-labs/everr/packages/cli/internal/query"
 )
 
-// NewCommand builds `everr cloud`.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cloud",
@@ -33,7 +32,6 @@ func loginCommand() *cobra.Command {
 		},
 	}
 	cmdutil.Positionals(cmd)
-	cmd.Flags().SortFlags = false
 	cmd.Flags().StringVar(&url, "url", "", "Installation URL (defaults to the saved session or build default)")
 	cmd.Flags().BoolVar(&opts.NoOpen, "no-open", false, "Print the authorization URL without opening a browser")
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
@@ -64,7 +62,7 @@ func statusCommand() *cobra.Command {
 	}
 	cmdutil.Positionals(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Print connection details, including the ingestion endpoint, as JSON")
-	cmdutil.SetHumanStdout(cmd, func(*cobra.Command, bool) bool { return !asJSON })
+	cmdutil.SetHumanStdout(cmd, func(bool) bool { return !asJSON })
 	return cmd
 }
 

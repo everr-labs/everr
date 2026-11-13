@@ -96,27 +96,21 @@ func readFile(t *testing.T, path string) []byte {
 	return data
 }
 
-func TestCloudHelpListsSubcommands(t *testing.T) {
-	out := NewEnv(t).Run("cloud", "--help").Success(t).Stdout
-	assertContains(t, out, "login", "logout", "query",
-		"Show the current identity, installation URL, and ingestion endpoint")
-	assertNotContains(t, out, "\n  grep", "\n  logs")
-}
-
-func TestCloudQueryHelpListsFormatOption(t *testing.T) {
-	out := NewEnv(t).Run("cloud", "query", "--help").Success(t).Stdout
-	assertContains(t, out, "Run read-only SQL against telemetry in the remote installation", "<SQL>", "--format <FORMAT>")
-}
-
-func TestCloudStatusHelp(t *testing.T) {
-	out := NewEnv(t).Run("cloud", "status", "--help").Success(t).Stdout
-	assertContains(t, out, "Usage: everr cloud status", "--json")
-}
-
-func TestCloudLoginHelpOffersURLNotToken(t *testing.T) {
-	out := NewEnv(t).Run("cloud", "login", "--help").Success(t).Stdout
-	assertContains(t, out, "--url")
-	assertNotContains(t, out, "--token")
+func TestCloudHelp(t *testing.T) {
+	env := NewEnv(t)
+	for _, tc := range []struct {
+		args           []string
+		want, unwanted []string
+	}{
+		{[]string{"cloud"}, []string{"login", "logout", "query", "Show the current identity, installation URL, and ingestion endpoint"}, []string{"\n  grep", "\n  logs"}},
+		{[]string{"cloud", "query"}, []string{"Run read-only SQL against telemetry in the remote installation", "<SQL>", "--format <FORMAT>"}, nil},
+		{[]string{"cloud", "status"}, []string{"Usage: everr cloud status", "--json"}, nil},
+		{[]string{"cloud", "login"}, []string{"--url"}, []string{"--token"}},
+	} {
+		out := env.Run(append(tc.args, "--help")...).Success(t).Stdout
+		assertContains(t, out, tc.want...)
+		assertNotContains(t, out, tc.unwanted...)
+	}
 }
 
 func TestCloudStatusReportsIdentityWithoutExposingOrChangingTheSession(t *testing.T) {
@@ -186,7 +180,6 @@ func TestCloudStatusReportsAPIErrorsAndKeepsTheSession(t *testing.T) {
 	}{
 		{401, `{"error":"expired"}`, "Session expired. Run `everr cloud login` to re-authenticate."},
 		{500, `{"error":"service unavailable"}`, "service unavailable"},
-		// Also covers api_errors_are_reported_to_the_user until `ci show` is ported.
 		{500, "boom", "CLI API request failed with 500 Internal Server Error: boom"},
 		{200, `{"email":"ada@example.com"}`, "decode"},
 	} {

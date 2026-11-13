@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
-	"runtime"
 	"testing"
 )
 
@@ -35,14 +34,12 @@ func TestOldSessionFilesStayReadableAndSavingKeepsOnlyURLAndToken(t *testing.T) 
 	if !reflect.DeepEqual(saved, want) {
 		t.Errorf("saved %v, want %v", saved, want)
 	}
-	if runtime.GOOS != "windows" {
-		info, err := os.Stat(store.Path())
-		if err != nil {
-			t.Fatal(err)
-		}
-		if perm := info.Mode().Perm(); perm != 0o600 {
-			t.Errorf("session file mode %o, want 600", perm)
-		}
+	info, err := os.Stat(store.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Errorf("session file mode %o, want 600", perm)
 	}
 }
 

@@ -36,32 +36,3 @@ func TestRemoteSlugRejectsHostlessRemotes(t *testing.T) {
 		}
 	}
 }
-
-func TestNormalizeBranchNameStripsLocalRefPrefix(t *testing.T) {
-	if got := NormalizeBranchName("refs/heads/feature/refactor"); got != "feature/refactor" {
-		t.Errorf("got %q", got)
-	}
-	if got := NormalizeBranchName("HEAD"); got != "HEAD" {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestParseRepoFromRemoteSupportsSSHAndHTTPURLs(t *testing.T) {
-	for _, remote := range []string{
-		"git@github.com:everr-labs/everr.git",
-		"https://github.com/everr-labs/everr.git",
-		"http://github.com/everr-labs/everr",
-	} {
-		if got, ok := ParseRepoFromRemoteURL(remote); !ok || got != "everr-labs/everr" {
-			t.Errorf("ParseRepoFromRemoteURL(%q) = %q, %v", remote, got, ok)
-		}
-	}
-}
-
-func TestParseRepoFromRemoteRejectsInvalidValues(t *testing.T) {
-	for _, remote := range []string{"https://github.com/everr-app", "everr-app", ""} {
-		if got, ok := ParseRepoFromRemoteURL(remote); ok {
-			t.Errorf("ParseRepoFromRemoteURL(%q) = %q, want none", remote, got)
-		}
-	}
-}

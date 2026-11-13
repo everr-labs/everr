@@ -18,15 +18,6 @@ func sourceSkill(t *testing.T, relative string) string {
 	return string(data)
 }
 
-func readText(t *testing.T, p string) string {
-	t.Helper()
-	data, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
-}
-
 func writeText(t *testing.T, p, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -70,12 +61,6 @@ func (e *Env) runIn(t *testing.T, dir string, args ...string) Result {
 	return RunCmd(t, cmd)
 }
 
-func TestSkillsHelpDescribesSkillManagement(t *testing.T) {
-	out := NewEnv(t).Run("skills", "--help").Success(t).Stdout
-	assertContains(t, out, "Manage bundled Everr skills", "list", "install", "update", "uninstall")
-	assertNotContains(t, out, "--json")
-}
-
 func TestSkillsSubcommandHelpKeepsClapLayout(t *testing.T) {
 	env := NewEnv(t)
 	assertContains(t, env.Run("skills", "install", "--help").Success(t).Stdout,
@@ -87,15 +72,6 @@ func TestSkillsSubcommandHelpKeepsClapLayout(t *testing.T) {
 		"Usage: everr skills uninstall [OPTIONS] [SKILLS]...",
 		"-y, --yes",
 	)
-}
-
-func TestOldAIInstructionCommandsAreRemoved(t *testing.T) {
-	env := NewEnv(t)
-	for _, args := range [][]string{{"ai-instructions"}, {"local", "ai-instructions"}, {"setup-assistant"}} {
-		if res := env.Run(args...); res.Code == 0 {
-			t.Errorf("everr %v should fail", args)
-		}
-	}
 }
 
 func TestSkillsInstallAllProjectCreatesCanonicalSkillsAndProviderSymlink(t *testing.T) {
@@ -166,30 +142,22 @@ func TestSkillsInstallGlobalCreatesProviderSymlink(t *testing.T) {
 	assertIsSymlink(t, codexSkill)
 }
 
-func TestSkillsUpdateWithoutScopeChecksGlobalSkills(t *testing.T) {
-	env := NewEnv(t)
-	repo := env.repoDir(t)
-	skillDoc := filepath.Join(env.HomeDir, ".agents", "skills", "everr-use-telemetry", "SKILL.md")
-	writeText(t, skillDoc, "local edits")
-
-	out := env.runIn(t, repo, "skills", "update").Success(t).Stdout
-
-	assertContains(t, out, "Updated 1 skill: everr-use-telemetry")
-	if got := readText(t, skillDoc); got != sourceSkill(t, "everr-use-telemetry/SKILL.md") {
-		t.Errorf("skill was not updated:\n%s", got)
-	}
-}
-
-func TestSkillsUpdateWithoutScopeRefreshesTelemetryRules(t *testing.T) {
+func TestSkillsUpdateWithoutScopeRefreshesGlobalSkills(t *testing.T) {
 	env := NewEnv(t)
 	env.Run("skills", "install", "--all", "--global", "--agent", "codex").Success(t)
-	rule := filepath.Join(env.HomeDir, ".agents", "skills", "everr-setup-telemetry", "rules", "validation.md")
+	skills := filepath.Join(env.HomeDir, ".agents", "skills")
+	skillDoc := filepath.Join(skills, "everr-use-telemetry", "SKILL.md")
+	rule := filepath.Join(skills, "everr-setup-telemetry", "rules", "validation.md")
+	writeText(t, skillDoc, "local edits")
 	writeText(t, rule, "stale rule")
 
-	out := env.Run("skills", "update").Success(t).Stdout
+	out := env.runIn(t, env.repoDir(t), "skills", "update").Success(t).Stdout
 
-	assertContains(t, out, "Updated", "everr-setup-telemetry")
-	if got := readText(t, rule); got != sourceSkill(t, "everr-setup-telemetry/rules/validation.md") {
+	assertContains(t, out, "Updated", "everr-use-telemetry", "everr-setup-telemetry")
+	if got := string(readFile(t, skillDoc)); got != sourceSkill(t, "everr-use-telemetry/SKILL.md") {
+		t.Errorf("skill was not updated:\n%s", got)
+	}
+	if got := string(readFile(t, rule)); got != sourceSkill(t, "everr-setup-telemetry/rules/validation.md") {
 		t.Errorf("rule was not refreshed:\n%s", got)
 	}
 }

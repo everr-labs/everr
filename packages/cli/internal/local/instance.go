@@ -229,8 +229,8 @@ func Probe(ctx context.Context, endpoint, service string) Service {
 	if len(body) > maxHealthBody {
 		return Service{State: StateOccupied}
 	}
-	identity, ok := parseIdentity(body)
-	if !ok || identity.Service != service || identity.ProtocolVersion != 1 ||
+	var identity Identity
+	if err := json.Unmarshal(body, &identity); err != nil || identity.Service != service || identity.ProtocolVersion != 1 ||
 		strings.TrimSpace(identity.InstanceID) == "" {
 		return Service{State: StateOccupied}
 	}
@@ -247,30 +247,6 @@ func Probe(ctx context.Context, endpoint, service string) Service {
 		return Service{State: StateStopped, Identity: identity}
 	}
 	return Service{State: StateOccupied}
-}
-
-// parseIdentity requires every field, like the serde struct it replaces.
-func parseIdentity(body []byte) (Identity, bool) {
-	var raw struct {
-		Service         *string `json:"service"`
-		Version         *string `json:"version"`
-		InstanceID      *string `json:"instance_id"`
-		ProtocolVersion *uint32 `json:"protocol_version"`
-		Status          *string `json:"status"`
-	}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return Identity{}, false
-	}
-	if raw.Service == nil || raw.Version == nil || raw.InstanceID == nil || raw.ProtocolVersion == nil || raw.Status == nil {
-		return Identity{}, false
-	}
-	return Identity{
-		Service:         *raw.Service,
-		Version:         *raw.Version,
-		InstanceID:      *raw.InstanceID,
-		ProtocolVersion: *raw.ProtocolVersion,
-		Status:          *raw.Status,
-	}, true
 }
 
 func isPermissionDenied(err error) bool {

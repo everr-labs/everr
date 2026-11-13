@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 
@@ -65,16 +66,12 @@ func run(ctx context.Context, w io.Writer, client *api.Client, opts *options) er
 	if source != nil && source.Remote != nil {
 		remote = *source.Remote
 	}
-	repoid, err := ResolveRepoid(dir, remote)
-	if err != nil {
-		return err
-	}
-	manifest, err := LoadApplyManifest(dir)
+	repoid, fromManifest, err := ResolveRepoid(dir, remote)
 	if err != nil {
 		return err
 	}
 	origin := "inferred from origin remote"
-	if manifest != "" {
+	if fromManifest {
 		origin = "everr.yaml"
 	}
 	fmt.Fprintf(w, "Repoid: %s (%s)\n", repoid, origin)
@@ -138,8 +135,8 @@ func run(ctx context.Context, w io.Writer, client *api.Client, opts *options) er
 	}
 	printSummary(w, summary, false)
 	if preview != nil {
-		url := client.BaseURL() + "/dashboards?preview=" + percentEncode(*preview)
-		fmt.Fprintf(w, "Preview: %s\n", previewLink(url))
+		link := client.BaseURL() + "/dashboards?preview=" + strings.ReplaceAll(url.QueryEscape(*preview), "+", "%20")
+		fmt.Fprintf(w, "Preview: %s\n", previewLink(link))
 	}
 	return nil
 }
@@ -194,20 +191,6 @@ func previewLink(url string) string {
 // OSC 8 support still print a readable address.
 func osc8Hyperlink(url string) string {
 	return "\x1b]8;;" + url + "\x1b\\" + url + "\x1b]8;;\x1b\\"
-}
-
-// percentEncode is RFC 3986 query-component encoding.
-func percentEncode(s string) string {
-	var b strings.Builder
-	for _, c := range []byte(s) {
-		switch {
-		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '-', c == '_', c == '.', c == '~':
-			b.WriteByte(c)
-		default:
-			fmt.Fprintf(&b, "%%%02X", c)
-		}
-	}
-	return b.String()
 }
 
 // Confirm gates a destructive action: yes skips the prompt, interactive

@@ -75,15 +75,11 @@ func resolve(debug bool, embeddedKey string, readEnv func(string) string, localE
 	return &Config{Endpoint: cloudEndpoint, Headers: headers}
 }
 
-// SignalEndpoint is the OTLP/HTTP URL for signal ("traces", "logs", ...).
+// SignalEndpoint is the OTLP/HTTP URL for signal ("traces", "logs", ...):
+// /v1/<signal> appended to Endpoint, replacing a signal path it already ends
+// with.
 func (c *Config) SignalEndpoint(signal string) string {
-	return SignalEndpoint(c.Endpoint, signal)
-}
-
-// SignalEndpoint appends /v1/<signal> to base, replacing a signal path base
-// already ends with.
-func SignalEndpoint(base, signal string) string {
-	base = strings.TrimRight(base, "/")
+	base := strings.TrimRight(c.Endpoint, "/")
 	for _, name := range []string{"traces", "logs", "metrics"} {
 		if trimmed, ok := strings.CutSuffix(base, "/v1/"+name); ok {
 			base = trimmed

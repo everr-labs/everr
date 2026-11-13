@@ -210,14 +210,29 @@ func runUpdate(w io.Writer, skills []string, scopeArgs *scopeFlags, providers []
 	if err != nil {
 		return err
 	}
+	if len(skills) > 0 {
+		// Updating a legacy skill installs its successor.
+		for i, name := range skills {
+			if renamed, ok := renamedSkillName(strings.TrimSpace(name)); ok {
+				skills[i] = renamed
+			}
+		}
+		if skills, err = resolveSkillNames(Options{SkillNames: skills}); err != nil {
+			return err
+		}
+	}
 	var summary Summary
 	if scopeArgs.set() {
 		options, err := operationOptions(scopeArgs.scope(), homeDir, providers, skills, false, dryRun)
 		if err != nil {
 			return err
 		}
-		summary, err = Update(options)
-		if err != nil {
+		if len(skills) == 0 {
+			if options.SkillNames, err = InstalledUpdateSkillNames(options); err != nil {
+				return err
+			}
+		}
+		if summary, err = Update(options); err != nil {
 			return err
 		}
 	} else if summary, err = updateInstalledScopes(homeDir, providers, skills, dryRun); err != nil {
@@ -230,12 +245,6 @@ func runUpdate(w io.Writer, skills []string, scopeArgs *scopeFlags, providers []
 // updateInstalledScopes updates whatever is installed in the project and
 // global scopes, so `skills update` works without knowing where skills went.
 func updateInstalledScopes(homeDir string, providers []Provider, requested []string, dryRun bool) (Summary, error) {
-	if len(requested) > 0 {
-		var err error
-		if requested, err = NormalizeUpdateSkillNames(requested); err != nil {
-			return Summary{}, err
-		}
-	}
 	merged := Summary{DryRun: dryRun}
 	updated := false
 	for _, scope := range []Scope{ScopeProject, ScopeGlobal} {

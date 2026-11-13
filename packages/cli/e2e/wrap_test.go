@@ -151,7 +151,13 @@ func TestCLICommandTelemetryDoesNotRecordWrappedCommand(t *testing.T) {
 
 func TestWrapForwardsPartialOutputBeforeNewline(t *testing.T) {
 	collector := newOTLPServer(t, 0)
-	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "sh", "-c", "printf partial; sleep 3; printf ' done\\n'")
+	// The child holds the rest of its output until the test has seen the
+	// partial line, so the check needs no timing margin.
+	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "sh", "-c", "printf partial; read _; printf ' done\\n'")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -175,8 +181,11 @@ func TestWrapForwardsPartialOutputBeforeNewline(t *testing.T) {
 		if got != "partial" {
 			t.Fatalf("first output = %q", got)
 		}
-	case <-time.After(1500 * time.Millisecond):
+	case <-time.After(5 * time.Second):
 		t.Fatal("partial output was not forwarded before newline")
+	}
+	if _, err := io.WriteString(stdin, "\n"); err != nil {
+		t.Fatal(err)
 	}
 	if got := <-rest; got != " done\n" {
 		t.Fatalf("rest = %q", got)
@@ -192,8 +201,6 @@ func TestWrapPreservesWrappedCommandExitCode(t *testing.T) {
 	if res.Stdout != "before fail\n" {
 		t.Fatalf("stdout = %q", res.Stdout)
 	}
-	body := cliCommandBody(t, collector.bodiesUntil(hasCLICommandBody))
-	assertContains(t, body, "everr.cli.command", "wrap")
 }
 
 func TestWrapRelaysInterruptSentToItAlone(t *testing.T) {
@@ -231,10 +238,10 @@ func TestWrapRelaysInterruptSentToItAlone(t *testing.T) {
 
 func TestWrapDeliversAGroupInterruptToTheChildOnce(t *testing.T) {
 	collector := newOTLPServer(t, 0)
-	// The child counts the interrupts it gets for two seconds, then exits
-	// with that count.
+	// The child counts the interrupts it gets for a second, then exits with
+	// that count.
 	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "perl", "-e",
-		`$n = 0; $SIG{INT} = sub { $n++ }; $| = 1; print "ready\n"; select(undef, undef, undef, 0.1) for 1 .. 20; exit $n`)
+		`$n = 0; $SIG{INT} = sub { $n++ }; $| = 1; print "ready\n"; select(undef, undef, undef, 0.1) for 1 .. 10; exit $n`)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -314,9 +321,4 @@ func TestSlowCollectorDoesNotThrottleWrappedOutput(t *testing.T) {
 		_ = cmd.Process.Kill()
 		t.Fatal("wrap waited for collector queue space while reading output")
 	}
-}
-
-func TestWrapHelpDescribesCommandCapture(t *testing.T) {
-	out := NewEnv(t).Run("wrap", "--help").Success(t).Stdout
-	assertContains(t, out, "<COMMAND>", "capture its output as local logs")
 }

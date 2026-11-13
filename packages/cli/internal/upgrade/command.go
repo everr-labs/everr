@@ -33,7 +33,6 @@ const (
 	DownloadBaseURLOverrideEnv = "EVERR_DOWNLOAD_BASE_URL_FOR_TESTS"
 )
 
-// NewCommand builds `everr upgrade`.
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "upgrade",
@@ -75,29 +74,18 @@ func run(ctx context.Context, out io.Writer) error {
 	}
 	fmt.Fprintf(out, "Downloading Everr CLI v%s...\n", latest)
 
-	type download struct {
-		body []byte
-		err  error
-	}
-	binaryCh, checksumCh := make(chan download, 1), make(chan download, 1)
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		body, err := downloadBytes(ctx, base+"/"+binaryName)
-		binaryCh <- download{body, err}
-	}()
-	go func() {
-		body, err := downloadBytes(ctx, base+"/"+binaryName+".sha256")
-		checksumCh <- download{body, err}
-	}()
-	binary, checksum := <-binaryCh, <-checksumCh
-	if err := errors.Join(binary.err, checksum.err); err != nil {
+	checksum, err := downloadBytes(ctx, base+"/"+binaryName+".sha256")
+	if err != nil {
 		return err
 	}
-	if err := verifySHA256(binary.body, checksum.body); err != nil {
+	binary, err := downloadBytes(ctx, base+"/"+binaryName)
+	if err != nil {
 		return err
 	}
-	if err := replaceCurrentExe(binary.body); err != nil {
+	if err := verifySHA256(binary, checksum); err != nil {
+		return err
+	}
+	if err := replaceCurrentExe(binary); err != nil {
 		return err
 	}
 	fmt.Fprintf(out, "Upgraded everr v%s → v%s\n", current, latest)
@@ -145,7 +133,7 @@ func platformArch(goarch string) string {
 // this at a local server via the override variable.
 func downloadBaseURL() (string, error) {
 	if !build.Release {
-		url, ok := updatenotice.TestOverride(DownloadBaseURLOverrideEnv)
+		url, ok := build.DebugOverride(DownloadBaseURLOverrideEnv)
 		if !ok {
 			return "", fmt.Errorf("refusing to self-update a debug build; set %s or use a release binary", DownloadBaseURLOverrideEnv)
 		}

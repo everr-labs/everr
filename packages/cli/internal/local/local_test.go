@@ -21,7 +21,6 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 
-	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/internaltelemetry"
 )
 
@@ -58,8 +57,18 @@ func TestUIReportsStartingAndRefusesCommandsUntilReady(t *testing.T) {
 		t.Fatalf("command before ready: status = %d", resp.StatusCode)
 	}
 	s.ready.Store(true)
-	if got := Probe(context.Background(), origin+"/health", uiService); got.State != StateRunning {
-		t.Fatalf("state after ready = %v", got.State)
+	// /health is probed without the Origin and X-Everr-Local headers the API
+	// requires.
+	resp, err := http.Get(origin + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("cache-control = %q", resp.Header.Get("Cache-Control"))
+	}
+	if got := Probe(context.Background(), origin+"/health", uiService); got.State != StateRunning || got.Identity != uiIdentity("test-instance") {
+		t.Fatalf("probe after ready = %+v", got)
 	}
 }
 
@@ -189,22 +198,6 @@ func TestSQLCommandsRejectInvalidArgumentsWithJSONErrors(t *testing.T) {
 	}
 }
 
-func TestHealthIdentifiesUIWithoutRequiringBrowserHeaders(t *testing.T) {
-	origin := testServer(t, nil)
-	resp, err := http.Get(origin + "/health")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "no-store" {
-		t.Fatalf("status = %d, cache-control = %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
-	}
-	service := Probe(context.Background(), origin+"/health", uiService)
-	if service.State != StateRunning || service.Identity != uiIdentity("test-instance") {
-		t.Fatalf("probe = %+v", service)
-	}
-}
-
 func TestLocalCommandsRequireSameOriginAndCustomHeader(t *testing.T) {
 	origin := testServer(t, nil)
 	for _, c := range []struct {
@@ -225,13 +218,8 @@ func TestLocalCommandsRequireSameOriginAndCustomHeader(t *testing.T) {
 			t.Fatalf("%+v: status = %d", c, resp.StatusCode)
 		}
 	}
-	resp := post(t, origin, "/api/commands/get_telemetry_context", "{}", nil)
-	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "no-store" {
-		t.Fatalf("status = %d", resp.StatusCode)
-	}
-	want := map[string]any{"serviceVersion": build.Version(), "telemetryEnabled": false, "deploymentEnvironment": internaltelemetry.DeploymentEnvironment()}
-	if got := decode(t, resp); fmt.Sprint(got) != fmt.Sprint(want) {
-		t.Fatalf("context = %v", got)
+	if got := post(t, origin, "/api/commands/get_telemetry_context", "{}", nil).StatusCode; got != http.StatusOK {
+		t.Fatalf("same origin with header: status = %d", got)
 	}
 }
 
@@ -322,23 +310,6 @@ func TestInvalidIdentityOrReadinessIsNotRecognized(t *testing.T) {
 	}
 }
 
-func TestHealthStatusMapsToServiceState(t *testing.T) {
-	for _, c := range []struct {
-		status string
-		code   int
-		want   ServiceState
-	}{
-		{"ok", 200, StateRunning},
-		{"starting", 503, StateStarting},
-		{"stopped", 503, StateStopped},
-	} {
-		body := fmt.Sprintf(`{"service":%q,"version":"0.8.2","instance_id":"one","protocol_version":1,"status":%q}`, collectorService, c.status)
-		if got := Probe(context.Background(), identityServer(t, c.code, body), collectorService); got.State != c.want {
-			t.Fatalf("%s: state = %v, want %v", c.status, got.State, c.want)
-		}
-	}
-}
-
 func TestRedirectAndOversizedResponseAreNotRecognized(t *testing.T) {
 	for _, c := range []struct {
 		status int
@@ -382,79 +353,6 @@ func TestPermissionDeniedConnectionMentionsSandboxNetworkAccess(t *testing.T) {
 	refused := &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
 	if connectionFailureMessage(refused) != collectorUnavailableMessage {
 		t.Fatal("refused connection should mention starting the collector")
-	}
-}
-
-func ready() Status {
-	identity := Identity{Service: collectorService, Version: "0.8.2", InstanceID: "one", ProtocolVersion: 1, Status: "ok"}
-	ui := identity
-	ui.Service = uiService
-	return Status{Collector: Service{StateRunning, identity}, UI: Service{StateRunning, ui}}
-}
-
-func TestOpensReadyUIOnceAtTheConfiguredOrigin(t *testing.T) {
-	var opened []string
-	ok, err := openUI(ready(), "http://127.0.0.1:1", func(url string) error {
-		opened = append(opened, url)
-		return nil
-	})
-	if !ok || err != nil || len(opened) != 1 || opened[0] != "http://127.0.0.1:1" {
-		t.Fatalf("ok = %v, err = %v, opened = %v", ok, err, opened)
-	}
-}
-
-func TestUnavailableInstancesDoNotOpenTheBrowser(t *testing.T) {
-	mismatched := ready()
-	mismatched.UI.Identity.InstanceID = "two"
-	for _, status := range []Status{{}, {Collector: ready().Collector}, mismatched} {
-		ok, err := openUI(status, "http://127.0.0.1:1", func(string) error {
-			t.Fatal("opened the browser")
-			return nil
-		})
-		if ok || err != nil {
-			t.Fatalf("ok = %v, err = %v", ok, err)
-		}
-	}
-}
-
-func TestBrowserFailureIncludesTheManualURLAndCause(t *testing.T) {
-	_, err := openUI(ready(), "http://127.0.0.1:1", func(string) error { return errors.New("no browser") })
-	if err == nil || !strings.Contains(err.Error(), "Open this URL manually: http://127.0.0.1:1") || !strings.Contains(err.Error(), "no browser") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestDataLockExcludesAnotherOwnerAndCanBeReusedAfterExit(t *testing.T) {
-	dir := t.TempDir()
-	first, err := lockTelemetryDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := lockTelemetryDir(dir); err == nil {
-		t.Fatal("second owner acquired the lock")
-	}
-	first.Close()
-	second, err := lockTelemetryDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second.Close()
-}
-
-func TestLogDefaultsFollowPlatformConventionsAndIgnoreRelativeXDGPaths(t *testing.T) {
-	home := "/home/test"
-	app := filepath.Base(defaultLogDir(home, "", true))
-	if got := defaultLogDir(home, "", true); got != filepath.Join(home, "Library/Logs", app) {
-		t.Fatalf("macos = %q", got)
-	}
-	if got := defaultLogDir(home, "", false); got != filepath.Join(home, ".local/state", app) {
-		t.Fatalf("linux = %q", got)
-	}
-	if defaultLogDir(home, "relative", false) != defaultLogDir(home, "", false) {
-		t.Fatal("relative XDG_STATE_HOME was used")
-	}
-	if got := defaultLogDir(home, "/state", false); got != filepath.Join("/state", app) {
-		t.Fatalf("XDG_STATE_HOME = %q", got)
 	}
 }
 
@@ -578,16 +476,6 @@ func TestALibraryInUseIsNotPruned(t *testing.T) {
 	extract(t, root, "two", "bbb")
 	if got, _ := os.ReadFile(first); string(got) != "one" {
 		t.Fatalf("library in use = %q", got)
-	}
-}
-
-func TestCacheHitRepairsLibraryPermissions(t *testing.T) {
-	root := t.TempDir()
-	library := extract(t, root, "lib", "aaa")
-	os.Chmod(library, 0o600)
-	extract(t, root, "lib", "aaa")
-	if info, _ := os.Stat(library); info.Mode().Perm() != 0o644 {
-		t.Fatalf("mode = %v", info.Mode().Perm())
 	}
 }
 

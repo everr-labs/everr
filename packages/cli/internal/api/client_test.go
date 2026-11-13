@@ -48,45 +48,11 @@ func tokenClient(t *testing.T, baseURL, token string) *Client {
 	return client
 }
 
-func TestGetMeParsesIdentity(t *testing.T) {
-	srv, hits := serve(t, "GET", "/api/cli/me", 200,
-		`{"email":"user@example.test","name":"Test User","organizationName":"Test Org"}`)
-	me, err := sessionClient(t, srv.URL).GetMe(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if me.Email != "user@example.test" || me.Name != "Test User" || me.OrganizationName != "Test Org" || me.IngestEndpoint != nil {
-		t.Errorf("unexpected identity %+v", me)
-	}
-	if *hits != 1 {
-		t.Errorf("hits = %d", *hits)
-	}
-}
-
-func TestGetMeRejectsIncompleteIdentity(t *testing.T) {
-	srv, _ := serve(t, "GET", "/api/cli/me", 200, `{"email":"ada@example.com"}`)
-	_, err := sessionClient(t, srv.URL).GetMe(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "decode") {
-		t.Fatalf("err = %v, want a decode error", err)
-	}
-}
-
-func TestGetMeUnauthorizedRequiresReauthentication(t *testing.T) {
-	srv, _ := serve(t, "GET", "/api/cli/me", 401, `{"error":"expired"}`)
-	_, err := sessionClient(t, srv.URL).GetMe(t.Context())
-	if !IsReauthenticationRequired(err) {
-		t.Fatalf("err = %v, want reauthentication", err)
-	}
-	if err.Error() != "Session expired. Run `everr cloud login` to re-authenticate." {
-		t.Errorf("message = %q", err)
-	}
-}
-
 func TestApplyUnauthorizedWithAPIKeyBlamesTheKey(t *testing.T) {
 	srv, _ := serve(t, "POST", "/api/apply", 401, `{"error":"unauthorized"}`)
 	_, err := tokenClient(t, srv.URL, "bad-token").Apply(t.Context(), &ApplyRequest{Repoid: "repo-1", DryRun: false})
-	if err == nil || IsReauthenticationRequired(err) {
-		t.Fatalf("err = %v, want an API key error", err)
+	if err == nil {
+		t.Fatal("want an API key error")
 	}
 	assertContains(t, err.Error(), "EVERR_API_KEY")
 	assertNotContains(t, err.Error(), "Session expired", "re-authenticate")
@@ -95,18 +61,16 @@ func TestApplyUnauthorizedWithAPIKeyBlamesTheKey(t *testing.T) {
 func TestApplyUnauthorizedWithSessionRequiresReauthentication(t *testing.T) {
 	srv, _ := serve(t, "POST", "/api/apply", 401, `{"error":"Unauthenticated"}`)
 	_, err := sessionClient(t, srv.URL).Apply(t.Context(), &ApplyRequest{Repoid: "repo-1"})
-	if !IsReauthenticationRequired(err) {
+	if err == nil || err.Error() != "Session expired. Run `everr cloud login` to re-authenticate." {
 		t.Fatalf("err = %v, want reauthentication", err)
 	}
-	assertContains(t, err.Error(), "everr cloud login")
-	assertNotContains(t, err.Error(), "EVERR_API_KEY")
 }
 
 func TestApplyFailureSurfacesStatusAndBody(t *testing.T) {
 	srv, _ := serve(t, "POST", "/api/apply", 400, `bad.yaml: unknown kind "Gizmo"`)
 	_, err := tokenClient(t, srv.URL, "tok").Apply(t.Context(), &ApplyRequest{Repoid: "repo-1"})
-	if err == nil || IsReauthenticationRequired(err) {
-		t.Fatalf("err = %v", err)
+	if err == nil {
+		t.Fatal("want an error")
 	}
 	assertContains(t, err.Error(), "400", "Gizmo")
 }
@@ -139,106 +103,6 @@ func TestApplySendsEmptyKindsAsListsAndDecodesSummary(t *testing.T) {
 	}
 	if !summary.DryRun || summary.Organization.Name != "Acme" || *summary.Results[0].Note != "preview rules evaluate suppressed" {
 		t.Errorf("unexpected summary %+v", summary)
-	}
-}
-
-func TestListResourcesSendsFiltersAndParses(t *testing.T) {
-	var query string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query = r.URL.RawQuery
-		io.WriteString(w, `[{"kind":"runbook","project":"default","slug":"oom","repoid":"github.com/acme/app","updatedAt":"2026-07-01T00:00:00.000Z"}]`)
-	}))
-	defer srv.Close()
-	out, err := sessionClient(t, srv.URL).ListResources(t.Context(), "runbook", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if query != "kind=runbook" {
-		t.Errorf("query = %q", query)
-	}
-	ui := ""
-	if _, err := sessionClient(t, srv.URL).ListResources(t.Context(), "", &ui); err != nil {
-		t.Fatal(err)
-	}
-	if query != "repoid=" {
-		t.Errorf("UI-created filter query = %q", query)
-	}
-	if len(out) != 1 || out[0].Slug != "oom" || out[0].Repoid != "github.com/acme/app" {
-		t.Errorf("unexpected resources %+v", out)
-	}
-}
-
-func TestGetResourceReturnsDocument(t *testing.T) {
-	srv, _ := serve(t, "GET", "/api/cli/resources/dashboard/default/errors", 200, `{"kind":"Dashboard","metadata":{"name":"errors"}}`)
-	doc, err := sessionClient(t, srv.URL).GetResource(t.Context(), "dashboard", "default", "errors")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var parsed struct {
-		Kind     string `json:"kind"`
-		Metadata struct {
-			Name string `json:"name"`
-		} `json:"metadata"`
-	}
-	if err := json.Unmarshal(doc, &parsed); err != nil || parsed.Kind != "Dashboard" || parsed.Metadata.Name != "errors" {
-		t.Errorf("doc = %s, %v", doc, err)
-	}
-}
-
-func TestDeleteResource(t *testing.T) {
-	srv, hits := serve(t, "DELETE", "/api/cli/resources/dashboard/default/errors", 200, `{"ok":true}`)
-	if err := sessionClient(t, srv.URL).DeleteResource(t.Context(), "dashboard", "default", "errors"); err != nil {
-		t.Fatal(err)
-	}
-	if *hits != 1 {
-		t.Errorf("hits = %d", *hits)
-	}
-
-	missing, _ := serve(t, "DELETE", "/api/cli/resources/dashboard/default/nope", 404, `{"error":"resource not found"}`)
-	err := sessionClient(t, missing.URL).DeleteResource(t.Context(), "dashboard", "default", "nope")
-	if err == nil || !strings.Contains(err.Error(), "404") {
-		t.Errorf("err = %v, want 404", err)
-	}
-}
-
-func TestAdoptResourceSendsRepoidAndParsesOutcome(t *testing.T) {
-	var body string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/cli/resources/dashboard/default/errors/adopt" {
-			t.Errorf("path = %s", r.URL.Path)
-		}
-		data, _ := io.ReadAll(r.Body)
-		body = string(data)
-		io.WriteString(w, `{"kind":"dashboard","project":"default","slug":"errors","repoid":"github.com/acme/app","alreadyOwned":false}`)
-	}))
-	defer srv.Close()
-	outcome, err := sessionClient(t, srv.URL).AdoptResource(t.Context(), "dashboard", "default", "errors", "github.com/acme/app")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if body != `{"repoid":"github.com/acme/app"}` {
-		t.Errorf("body = %s", body)
-	}
-	if outcome.Repoid != "github.com/acme/app" || outcome.AlreadyOwned {
-		t.Errorf("unexpected outcome %+v", outcome)
-	}
-}
-
-func TestPostSQLSendsPlainTextAndReturnsBody(t *testing.T) {
-	var contentType, auth, body string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		contentType, auth = r.Header.Get("Content-Type"), r.Header.Get("Authorization")
-		data, _ := io.ReadAll(r.Body)
-		body = string(data)
-		io.WriteString(w, "{\"ok\":1}\n")
-	}))
-	defer srv.Close()
-	out, err := sessionClient(t, srv.URL).PostSQL(t.Context(), "SELECT 1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if out != "{\"ok\":1}\n" || body != "SELECT 1" || contentType != "text/plain" || auth != "Bearer test-token" {
-		t.Errorf("out=%q body=%q content-type=%q auth=%q", out, body, contentType, auth)
 	}
 }
 

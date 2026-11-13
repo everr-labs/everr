@@ -41,8 +41,13 @@ type server struct {
 	// "starting" and commands are refused, so clients see a starting
 	// instance instead of a connection that never answers.
 	ready atomic.Bool
-	// stopped is closed when the supervisor loop no longer reads requests.
+	// stopped is closed when the supervisor loop no longer reads requests,
+	// so pending and later commands fail at once instead of holding up
+	// shutdown.
 	stopped chan struct{}
+
+	listener net.Listener
+	http     *http.Server
 }
 
 func newServer(origin, instanceID string, supervisor chan<- supervisorRequest, ui fs.FS, telemetry *internaltelemetry.Config) *server {
@@ -63,24 +68,7 @@ func newServer(origin, instanceID string, supervisor chan<- supervisorRequest, u
 	}
 }
 
-// localServer is the bound UI listener.
-type localServer struct {
-	listener net.Listener
-	http     *http.Server
-	server   *server
-}
-
-func (s *localServer) setReady() {
-	s.server.ready.Store(true)
-}
-
-// supervisorStopped makes pending and later commands fail at once instead of
-// waiting for a loop that has exited, which would hold up shutdown.
-func (s *localServer) supervisorStopped() {
-	close(s.server.stopped)
-}
-
-func bindServer(instanceID string, supervisor chan<- supervisorRequest) (*localServer, error) {
+func bindServer(instanceID string, supervisor chan<- supervisorRequest) (*server, error) {
 	ui, ok := assets.LocalUI()
 	if !ok {
 		return nil, errors.New("local UI assets are missing; build the CLI with `pnpm --filter @everr/cli build:debug`")
@@ -95,22 +83,16 @@ func bindServer(instanceID string, supervisor chan<- supervisorRequest) (*localS
 		return nil, fmt.Errorf("cannot start Everr: local UI address %s is unavailable; another instance may be starting: %w", address, err)
 	}
 	s := newServer(origin, instanceID, supervisor, ui, internaltelemetry.FromEnv(internaltelemetry.SourceUI))
-	return &localServer{
-		listener: listener,
-		http:     &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second},
-		server:   s,
-	}, nil
+	s.listener = listener
+	s.http = &http.Server{Handler: s.handler(), ReadHeaderTimeout: 5 * time.Second}
+	return s, nil
 }
 
-func (s *localServer) serve() error {
+func (s *server) serve() error {
 	if err := s.http.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("serve local UI: %w", err)
 	}
 	return nil
-}
-
-func (s *localServer) shutdown(ctx context.Context) error {
-	return s.http.Shutdown(ctx)
 }
 
 func (s *server) handler() http.Handler {
@@ -160,16 +142,13 @@ func (s *server) protect(next http.Handler) http.Handler {
 
 func (s *server) asset(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/")
-	for segment := range strings.SplitSeq(name, "/") {
-		if segment == ".." {
-			http.NotFound(w, r)
-			return
-		}
+	if name == "" {
+		name = "index.html"
 	}
 	data, err := fs.ReadFile(s.ui, name)
-	if err != nil || name == "" {
+	if err != nil {
 		// Client-side routes have no file extension; serve the app shell.
-		if strings.Contains(path.Base(name), ".") && name != "" {
+		if strings.Contains(path.Base(name), ".") {
 			http.NotFound(w, r)
 			return
 		}

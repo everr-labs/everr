@@ -88,7 +88,7 @@ func listCommand() *cobra.Command {
 		}
 		return printList(cmd.OutOrStdout(), resources, asJSON)
 	}
-	cmdutil.SetHumanStdout(cmd, func(*cobra.Command, bool) bool { return !asJSON })
+	cmdutil.SetHumanStdout(cmd, func(bool) bool { return !asJSON })
 	return cmd
 }
 
@@ -150,7 +150,7 @@ func showCommand() *cobra.Command {
 		}
 		return printYAML(cmd.OutOrStdout(), document)
 	}
-	cmdutil.SetHumanStdout(cmd, func(*cobra.Command, bool) bool { return !asJSON })
+	cmdutil.SetHumanStdout(cmd, func(bool) bool { return !asJSON })
 	return cmd
 }
 
