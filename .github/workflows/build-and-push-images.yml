@@ -101,6 +101,8 @@ jobs:
           context: ./collector
           file: collector/Dockerfile
           push: true
+          build-args: |
+            EVERR_BUILD_TARGET=cloud
           tags: |
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/collector:${{ github.sha }}
             ${{ env.SCW_REGISTRY_HOST }}/${{ env.SCW_REGISTRY_NAMESPACE }}/collector:latest
