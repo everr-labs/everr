@@ -32,6 +32,14 @@ jobs:
             collector/**/go.sum
       - run: pnpm install --frozen-lockfile
 
+      # Compressing libchdb takes minutes on this runner. The scripts pin the
+      # chDB version and the compression settings, so they make the key.
+      - name: Cache compressed chDB
+        uses: actions/cache@v4
+        with:
+          path: target/cli-go-assets/release/libchdb.so.zst
+          key: chdb-zst-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packages/cli/scripts/build-support.ts', 'packages/cli/scripts/stage-go-assets.ts') }}
+
       - name: Typecheck local frontend
         run: pnpm --filter @everr/local-app typecheck
 
