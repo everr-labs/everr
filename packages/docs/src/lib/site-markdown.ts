@@ -91,7 +91,6 @@ ${docsLinks}
 - [About](/about): what Everr is and who builds it
 - [Pricing](/pricing): plans, quotas, and what counts toward usage
 - [Contact](/contact): support, sales, and bug reports; email hello@everr.dev
-- [Privacy](/privacy): what this website collects
 
 ## Optional
 

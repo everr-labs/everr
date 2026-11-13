@@ -189,15 +189,6 @@ function FooterDirectory() {
                 {m.footer_contact()}
               </Link>
             </li>
-            <li>
-              <Link
-                to="/$page"
-                params={{ page: "privacy" }}
-                className="text-sm text-fd-muted-foreground transition-colors hover:text-fd-foreground"
-              >
-                {m.footer_privacy()}
-              </Link>
-            </li>
           </ul>
         </div>
       </div>

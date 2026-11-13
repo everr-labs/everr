@@ -10,7 +10,7 @@ import { getSitePage } from "@/lib/source";
 import { isTranslatedPath } from "@/lib/translated";
 import { getLocale } from "@/paraglide/runtime";
 
-// About, Contact, Privacy: one MDX file each in content/pages
+// About and Contact: one MDX file each in content/pages
 export const Route = createFileRoute("/$page")({
   component: SitePage,
   // /contact and /it/contatti are the same route once the locale is stripped: the locale
