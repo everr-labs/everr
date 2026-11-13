@@ -41,8 +41,6 @@ export default defineConfig({
       preset: "node-server",
       scanDirs: ["."],
       traceDeps: ["@takumi-rs/image-response", "@takumi-rs/core"],
-      // The Italian pricing page's URL before it was translated
-      routeRules: { "/it/pricing": { redirect: { to: "/it/prezzi", status: 301 } } },
     }),
     svgr(),
   ]),
