@@ -221,23 +221,13 @@ func Confirm(question string, yes, warn bool, refusal string) (bool, error) {
 		return false, errors.New(refusal)
 	}
 	proceed := false
-	prompt := huh.NewConfirm().Title(question).Value(&proceed)
-	form := huh.NewForm(huh.NewGroup(prompt))
+	theme := cmdutil.PromptTheme()
 	if warn {
-		form = form.WithTheme(warnTheme())
+		theme = cmdutil.WarnPromptTheme()
 	}
-	if err := form.Run(); err != nil {
+	prompt := huh.NewConfirm().Title(question).Value(&proceed)
+	if err := huh.NewForm(huh.NewGroup(prompt)).WithTheme(theme).Run(); err != nil {
 		return false, err
 	}
 	return proceed, nil
-}
-
-// warnTheme paints the prompt yellow with a ▲ marker, flagging that a live
-// apply is about to write.
-func warnTheme() *huh.Theme {
-	theme := huh.ThemeBase()
-	yellow := lipgloss.ANSIColor(3)
-	theme.Focused.Base = theme.Focused.Base.BorderForeground(yellow)
-	theme.Focused.Title = theme.Focused.Title.Foreground(yellow).SetString("▲")
-	return theme
 }

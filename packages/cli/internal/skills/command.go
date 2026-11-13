@@ -166,7 +166,7 @@ func runInstall(w io.Writer, all bool, scopeArgs *scopeFlags, providers []Provid
 			return errors.New("use --all to install bundled Everr skills")
 		}
 		install := true
-		if err := huh.NewConfirm().Title("Install all bundled Everr skills?").Value(&install).Run(); err != nil {
+		if err := cmdutil.RunPrompt(huh.NewConfirm().Title("Install all bundled Everr skills?").Value(&install)); err != nil {
 			return err
 		}
 		if !install {
@@ -362,11 +362,10 @@ func isInteractiveTerminal() bool {
 
 func promptScope() (Scope, error) {
 	scope := ScopeProject
-	err := huh.NewSelect[Scope]().
+	err := cmdutil.RunPrompt(huh.NewSelect[Scope]().
 		Title("Install skills at project's level or globally?").
 		Options(huh.NewOption("Project", ScopeProject), huh.NewOption("Globally", ScopeGlobal)).
-		Value(&scope).
-		Run()
+		Value(&scope))
 	return scope, err
 }
 
@@ -388,7 +387,7 @@ func promptProviders(homeDir string) ([]Provider, error) {
 			selected = append(selected, status.Provider)
 		}
 	}
-	err := huh.NewMultiSelect[Provider]().
+	err := cmdutil.RunPrompt(huh.NewMultiSelect[Provider]().
 		Title("Select providers").
 		Options(options...).
 		Value(&selected).
@@ -397,8 +396,7 @@ func promptProviders(homeDir string) ([]Provider, error) {
 				return errors.New("Please select at least one option")
 			}
 			return nil
-		}).
-		Run()
+		}))
 	if err != nil {
 		return nil, err
 	}
