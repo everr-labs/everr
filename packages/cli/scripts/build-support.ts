@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
 import {
   access,
   chmod,
@@ -13,9 +12,8 @@ import {
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { constants as zlib, createZstdCompress } from "node:zlib";
+import { constants as zlib, zstdCompressSync } from "node:zlib";
 import { $ } from "zx";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -203,16 +201,15 @@ export async function zstdFile(source: string, dest: string) {
   await mkdir(path.dirname(dest), { recursive: true });
   const tmp = `${dest}.tmp`;
   await rm(tmp, { force: true });
-  await pipeline(
-    createReadStream(source),
-    createZstdCompress({
-      params: {
-        [zlib.ZSTD_c_compressionLevel]: 19,
-        [zlib.ZSTD_c_nbWorkers]: os.availableParallelism(),
-      },
-    }),
-    createWriteStream(tmp),
-  );
+  // The streaming compressor fails on Linux with multiple workers
+  // (ERR_STREAM_PUSH_AFTER_EOF), so compress the whole buffer at once.
+  const compressed = zstdCompressSync(await readFile(source), {
+    params: {
+      [zlib.ZSTD_c_compressionLevel]: 19,
+      [zlib.ZSTD_c_nbWorkers]: os.availableParallelism(),
+    },
+  });
+  await writeFile(tmp, compressed);
   await rm(dest, { force: true });
   await copyFile(tmp, dest);
   await rm(tmp, { force: true });
