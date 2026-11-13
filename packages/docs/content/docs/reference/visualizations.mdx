@@ -583,6 +583,8 @@ GROUP BY ts ORDER BY ts
 
 The width snaps to clock-aligned values so bucket boundaries land on clean axis lines. See [Query parameters](/docs/reference/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
 
+`TimeSeriesChart` panels (not `stacked`) are downsampled on the server to the first, last, lowest and highest row of each series in each time bucket. The number of buckets follows the panel width, from 250 to 1000, so a wider panel shows more detail. A query that returns more rows than a chart can show still renders, and short spikes keep their true height. A query bucketed with `{step}` comes back unchanged.
+
 <Callout type="info">
   The first and last buckets of a range are usually **partial**: the picker's edges rarely fall on a
   bucket boundary, so the leading bucket starts before `from` and the trailing one ends before a

@@ -42,6 +42,8 @@ export interface VisualizationProps<TSpec = unknown> {
   data?: QueryResultRow[][];
   timeRange: ResolvedTimeRange;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
+  /** Width of the server-side downsampling bucket, when the rows were downsampled. */
+  bucketSeconds?: number;
 }
 
 interface VisualizationEntry {
@@ -49,6 +51,8 @@ interface VisualizationEntry {
   component: ComponentType<VisualizationProps>;
   /** Charts run to the panel's edges; "default" pads the content instead. */
   inset?: "default" | "flush-content";
+  /** Whether the server may downsample this panel's rows to a bounded line. */
+  downsample?: (spec: unknown) => boolean;
 }
 
 /**
@@ -60,6 +64,7 @@ function defineVisualization<S extends z.ZodType>(entry: {
   schema: S;
   component: ComponentType<VisualizationProps<z.output<S>>>;
   inset?: "default" | "flush-content";
+  downsample?: (spec: z.output<S>) => boolean;
 }): VisualizationEntry {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- intentional spec-type erasure: the registry holds heterogeneous visualizations under one entry type, and React props are contravariant so a specific-spec component isn't assignable to the erased VisualizationProps<unknown> component
   return entry as VisualizationEntry;
@@ -106,6 +111,9 @@ const registry: Record<string, VisualizationEntry> = {
   TimeSeriesChart: defineVisualization({
     schema: timeSeriesChartSpec,
     component: TimeSeriesChartVisualization,
+    // A stacked chart sums series at shared timestamps, and downsampling keeps
+    // different timestamps per series.
+    downsample: (spec) => !spec.stacked,
   }),
   Treemap: defineVisualization({
     schema: treemapSpec,
@@ -130,11 +138,23 @@ export function getVisualizationSpecWarnings(plugin: PanelPlugin): string[] {
   return parseSpecLenient(entry.schema, plugin.spec).warnings;
 }
 
+/** Whether the panel's queries should ask the server to downsample their rows. */
+export function visualizationDownsamples(plugin: PanelPlugin): boolean {
+  const entry = registry[plugin.kind];
+  if (!entry?.downsample) return false;
+  return entry.downsample(parseSpecLenient(entry.schema, plugin.spec).spec);
+}
+
 export interface PanelVisualizationProps {
   plugin: PanelPlugin;
   data?: QueryResultRow[][];
   timeRange: ResolvedTimeRange;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
+  /**
+   * Required so a caller cannot drop it: a downsampled line chart drawn
+   * without its bucket width breaks at every bucket boundary.
+   */
+  bucketSeconds: number | undefined;
 }
 
 export function PanelVisualization({
@@ -142,6 +162,7 @@ export function PanelVisualization({
   data,
   timeRange,
   onTimeRangeChange,
+  bucketSeconds,
 }: PanelVisualizationProps) {
   const entry = registry[plugin.kind];
 
@@ -174,6 +195,7 @@ export function PanelVisualization({
         data={data}
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
+        bucketSeconds={bucketSeconds}
       />
     </Suspense>
   );

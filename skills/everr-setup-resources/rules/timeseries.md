@@ -61,5 +61,6 @@ To break **multiple** metrics out per service, use **one query per metric** (eac
 
 - **Multiple queries overlay** on one shared timeline; series colors continue across queries.
 - **Gaps:** a line breaks where two consecutive points are more than ~1.5× the series' median interval apart. `connectNulls: true` bridges them. Irregularly-sampled series look broken unless bucketed evenly.
+- **Downsampling:** a non-`stacked` chart keeps the first, last, lowest and highest row of each series in each time bucket. The bucket count follows the panel width (250 to 1000), so a query returning more rows than a chart can show still renders and short spikes keep their true height. A query bucketed with `{step}` comes back unchanged.
 - **Edge buckets are partial** (the picker rarely lands on a bucket boundary): the leading bucket is kept but clipped at the left edge, and the trailing bucket reads low. Don't mistake the trailing dip for a real regression.
 - **Drag across the plot to zoom** — a user action that rewrites the time range; nothing to configure.

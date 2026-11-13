@@ -1,4 +1,5 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { isTimeColumnName } from "#app/data/dashboards/time-column.ts";
 import { isNumericValue, toNumber } from "#app/lib/numeric.ts";
 import type { QueryResultRow } from "./index";
 
@@ -225,11 +226,7 @@ export function detectTimeKey(rows: QueryResultRow[]): string | undefined {
   const first = rows[0];
   if (!first) return undefined;
 
-  const timeNames = /^(ts|time|timestamp)$/i;
-  for (const key of Object.keys(first)) {
-    if (timeNames.test(key)) return key;
-  }
-  return undefined;
+  return Object.keys(first).find(isTimeColumnName);
 }
 
 /**

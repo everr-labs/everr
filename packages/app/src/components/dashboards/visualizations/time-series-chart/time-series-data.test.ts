@@ -251,6 +251,41 @@ describe("buildChartModel", () => {
   });
 });
 
+describe("buildChartModel with downsampled rows", () => {
+  const BUCKET_SECONDS = 15;
+  const second = (offset: number) => ({
+    time: new Date(Date.UTC(2026, 5, 7) + offset * 1000).toISOString(),
+    value: offset,
+  });
+  const markers = (model: ReturnType<typeof buildChartModel>) =>
+    model.series[0]?.data?.filter((point) => point[1] === null) ?? [];
+
+  // Up to four kept rows inside a bucket, then a jump to the next bucket.
+  const irregular = [0, 1, 2, 3, 15, 16, 17, 18, 30, 31, 32, 33].map(second);
+
+  it("draws no gap between consecutive buckets", () => {
+    const model = buildChartModel([irregular], WIDE, BUCKET_SECONDS);
+    expect(markers(model)).toHaveLength(0);
+  });
+
+  it("still marks a bucket with no rows", () => {
+    const withHole = [0, 1, 2, 3, 15, 16, 17, 18, 45, 46, 47, 48].map(second);
+    const model = buildChartModel([withHole], WIDE, BUCKET_SECONDS);
+    expect(markers(model)).toHaveLength(1);
+  });
+
+  it("still marks a missing point of a regular series bucketed at 1.5x its step", () => {
+    const regular = [0, 10, 20, 40, 50].map(second);
+    const model = buildChartModel([regular], WIDE, 15);
+    expect(markers(model)).toHaveLength(1);
+  });
+
+  it("keeps the median-spacing rule when no bucket width is known", () => {
+    const model = buildChartModel([irregular], WIDE);
+    expect(markers(model)).toHaveLength(2);
+  });
+});
+
 describe("buildStackedData", () => {
   it("aligns every series to the shared timeline and fills gaps with zero", () => {
     const model = buildChartModel(
