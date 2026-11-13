@@ -54,6 +54,11 @@ jobs:
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@v2
+        with:
+          cache-key: build-and-push-images/app
+
       - name: Build and push Everr Cloud image
         uses: useblacksmith/build-push-action@v2
         with:
@@ -95,6 +100,11 @@ jobs:
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@v2
+        with:
+          cache-key: build-and-push-images/collector
+
       - name: Build and push collector image
         uses: useblacksmith/build-push-action@v2
         with:
@@ -135,6 +145,11 @@ jobs:
           registry: ${{ env.SCW_REGISTRY_HOST }}
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
+
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@v2
+        with:
+          cache-key: build-and-push-images/docs
 
       - name: Build and push docs image
         uses: useblacksmith/build-push-action@v2
