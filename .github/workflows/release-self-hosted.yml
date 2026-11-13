@@ -26,12 +26,10 @@ jobs:
           - name: everr-app
             context: .
             file: packages/app/Dockerfile
-            target: ""
             build-args: ""
           - name: everr-collector
             context: ./collector
             file: collector/Dockerfile
-            target: ""
             build-args: EVERR_BUILD_TARGET=self-hosted
         platform:
           - arch: amd64
@@ -73,26 +71,27 @@ jobs:
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # A local BuildKit on a Blacksmith sticky disk keeps the layer cache between
+      # releases, one disk per image and architecture.
+      - name: Set up Blacksmith Docker builder
+        uses: useblacksmith/setup-docker-builder@v2
+        with:
+          cache-key: release-self-hosted/${{ matrix.image.name }}-${{ matrix.platform.arch }}
 
       # Each platform builds on a native runner and pushes by digest only. The
-      # merge job then publishes one multi-platform manifest under the version tags.
+      # publish job then creates one multi-platform manifest under the version tags.
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.file }}
-          target: ${{ matrix.image.target }}
           build-args: ${{ matrix.image.build-args }}
           platforms: linux/${{ matrix.platform.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
-          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.platform.arch }}
 
       - name: Export digest
         run: |
