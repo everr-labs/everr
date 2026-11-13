@@ -44,10 +44,20 @@ func sendLog(t *testing.T, otlp, body string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func postSQL(t *testing.T, sql, query string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, sql+"/sql", bytes.NewBufferString(query))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("X-Everr-Local", "1")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return resp
+}
+
 func timezone(t *testing.T, sql string) string {
 	t.Helper()
-	resp, err := http.Post(sql+"/sql", "text/plain", bytes.NewBufferString("SELECT timezone() AS tz"))
-	require.NoError(t, err)
+	resp := postSQL(t, sql, "SELECT timezone() AS tz")
 	defer resp.Body.Close()
 	var row struct {
 		TZ string `json:"tz"`
@@ -59,8 +69,7 @@ func timezone(t *testing.T, sql string) string {
 func countLogs(t *testing.T, sql, body string) int {
 	t.Helper()
 	query := fmt.Sprintf("SELECT count() AS n FROM logs WHERE Body = '%s'", body)
-	resp, err := http.Post(sql+"/sql", "text/plain", bytes.NewBufferString(query))
-	require.NoError(t, err)
+	resp := postSQL(t, sql, query)
 	defer resp.Body.Close()
 	out, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

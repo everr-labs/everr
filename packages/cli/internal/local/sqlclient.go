@@ -46,6 +46,8 @@ func (c *sqlClient) Query(ctx context.Context, sql string, params map[string]jso
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "text/plain")
+		// The collector refuses SQL without it, so web pages can't run any.
+		req.Header.Set("X-Everr-Local", "1")
 		resp, err := c.http.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("POST %s: %w", endpoint, err)

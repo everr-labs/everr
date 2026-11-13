@@ -61,15 +61,15 @@ func (s *Server) Start() error {
 		logger:         s.logger,
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/sql", handler)
-	mux.HandleFunc("GET /health", s.handleHealth)
-
 	ln, err := net.Listen("tcp", s.cfg.Endpoint)
 	if err != nil {
 		return err
 	}
 	s.listener = ln
+
+	mux := http.NewServeMux()
+	mux.Handle("/sql", localOnly(ln.Addr(), handler))
+	mux.HandleFunc("GET /health", s.handleHealth)
 	s.server = &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -92,6 +92,32 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		}
 	})
 	return err
+}
+
+// LocalHeader must be set to "1" on /sql requests. A web page can't add a
+// custom header to a cross-origin request without a CORS preflight, which
+// this server never approves.
+const LocalHeader = "X-Everr-Local"
+
+// localOnly keeps web pages from running SQL. chDB can read local files and
+// fetch URLs (file(), url()), so a page that reached /sql, directly or
+// through DNS rebinding, could send local files anywhere. Requests must name
+// the loopback listener as their Host, carry no browser Origin, and set
+// LocalHeader.
+func localOnly(addr net.Addr, next http.Handler) http.Handler {
+	_, port, _ := net.SplitHostPort(addr.String())
+	hosts := map[string]bool{
+		addr.String():                       true,
+		net.JoinHostPort("localhost", port): true,
+		net.JoinHostPort("127.0.0.1", port): true,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hosts[r.Host] || r.Header.Get("Origin") != "" || r.Header.Get(LocalHeader) != "1" {
+			httpError(w, http.StatusForbidden, "requests must come from a local client and set "+LocalHeader+": 1")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) SetStatus(status Status) {

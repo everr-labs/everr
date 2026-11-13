@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
+	"github.com/everr-labs/everr/packages/cli/internal/internaltelemetry"
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 )
 
@@ -265,7 +266,9 @@ func (c *Client) PostSQL(ctx context.Context, sql string) (_ string, err error) 
 	)
 	defer func() {
 		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
+			// Errors carry the server's response, which often repeats the
+			// query, so release builds export a fixed message.
+			span.SetStatus(codes.Error, internaltelemetry.CommandError(err))
 		}
 		span.End()
 	}()
