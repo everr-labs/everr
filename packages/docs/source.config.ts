@@ -15,6 +15,9 @@ export const docs = defineDocs({
 export const devlog = defineCollections({
   type: "doc",
   dir: "content/devlog",
+  postprocess: {
+    includeProcessedMarkdown: true,
+  },
   schema: z.object({
     title: z.string(),
     description: z.string(),
@@ -25,6 +28,19 @@ export const devlog = defineCollections({
     prs: z.number().optional(),
     additions: z.number().optional(),
     deletions: z.number().optional(),
+  }),
+});
+
+/** @expected-unused — read by fumadocs build pipeline, not by TS imports. */
+export const pages = defineCollections({
+  type: "doc",
+  dir: "content/pages",
+  postprocess: {
+    includeProcessedMarkdown: true,
+  },
+  schema: z.object({
+    title: z.string(),
+    description: z.string(),
   }),
 });
 

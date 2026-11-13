@@ -2,19 +2,16 @@ import { Menu } from "@base-ui/react/menu";
 import { useLocation } from "@tanstack/react-router";
 import { Check, ChevronDown, Globe } from "lucide-react";
 import { cn } from "@everr/ui/lib/utils";
+import { isTranslatedPath } from "@/lib/translated";
 import { m } from "@/paraglide/messages";
 import { getLocale, type Locale, locales, localizeHref } from "@/paraglide/runtime";
 
 // Each language in its own name, so a reader finds theirs whatever the page is in.
 const NAMES: Record<Locale, string> = { en: "English", it: "Italiano" };
 
-// The pages that exist in more than one language. Keep in step with the URL
-// patterns in project.inlang/paraglide.config.ts.
-const TRANSLATED = ["/", "/pricing"];
-
 function useTranslatedPath() {
   const { pathname } = useLocation();
-  return TRANSLATED.includes(pathname) ? pathname : null;
+  return isTranslatedPath(pathname) ? pathname : null;
 }
 
 /**

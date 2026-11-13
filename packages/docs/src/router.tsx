@@ -10,7 +10,7 @@ export function getRouter() {
     defaultPreload: "intent",
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
-    // /it/pricing is the /pricing route in Italian: routes are matched without the locale
+    // /it/prezzi is the /pricing route in Italian: routes are matched without the locale
     rewrite: {
       input: ({ url }) => deLocalizeUrl(url),
       output: ({ url }) => localizeUrl(url),

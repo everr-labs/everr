@@ -384,7 +384,7 @@ export function AgentDemo({
                 Settings
               </span>
             </aside>
-            <main className="ag-main">
+            <div className="ag-main">
               <header className="ag-head">
                 <span className="ag-cut">{s.sent ? thread.title : "New thread"}</span>
                 <span className="ag-skill" data-on={s.sent || undefined}>
@@ -421,7 +421,7 @@ export function AgentDemo({
                   <ArrowUp size={14} aria-hidden="true" />
                 </span>
               </div>
-            </main>
+            </div>
             <div className="ag-dash" data-on={s.dash || undefined} aria-hidden={!s.dash}>
               <Window url={PREVIEW_URL} className="mo-win">
                 <div className="ag-dash-body">

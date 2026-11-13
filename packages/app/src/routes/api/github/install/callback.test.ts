@@ -100,6 +100,19 @@ beforeEach(() => {
 });
 
 describe("/api/github/install/callback", () => {
+  // Relative, so the browser stays on the origin it loaded whatever the server
+  // makes of the proxy's forwarded headers
+  it("redirects relative to the page, not to the server's view of the URL", async () => {
+    const response = await getHandler()({
+      request: new Request("http://internal:3000/api/github/install/callback"),
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "/github?github_install=error&reason=missing_params",
+    );
+  });
+
   it("redirects with already_linked when installation belongs to another org", async () => {
     await mockBetterAuthSession({
       user: { id: "user_1" },
@@ -119,7 +132,7 @@ describe("/api/github/install/callback", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/github?github_install=error&reason=already_linked",
+      "/github?github_install=error&reason=already_linked",
     );
   });
 
@@ -162,7 +175,7 @@ describe("/api/github/install/callback", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/github?github_install=error&reason=membership_missing",
+      "/github?github_install=error&reason=membership_missing",
     );
     expect(db.insert).not.toHaveBeenCalled();
   });
@@ -182,7 +195,7 @@ describe("/api/github/install/callback", () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe(
-      "http://localhost/github?github_install=error&reason=not_authorized",
+      "/github?github_install=error&reason=not_authorized",
     );
     expect(db.insert).not.toHaveBeenCalled();
     expect(db.update).not.toHaveBeenCalled();

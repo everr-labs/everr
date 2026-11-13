@@ -6,7 +6,7 @@ import { getMcpIdentity } from "#app/data/mcp/identity.ts";
 import { assertCurrentMember } from "#app/data/mcp/membership.ts";
 import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
 import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
-import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
+import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
@@ -88,6 +88,9 @@ function createTransport() {
     required: true,
     requiredScopes: ["observability:read"],
     resourceMetadataPath: "/.well-known/oauth-protected-resource",
+    // Without it, the challenge's metadata URL comes from X-Forwarded-Host/-Proto
+    // whatever TRUST_PROXY says; the metadata itself is built from BETTER_AUTH_URL
+    resourceUrl: AUTH_BASE,
   });
 }
 
@@ -147,11 +150,13 @@ async function handler(request: Request): Promise<Response> {
     throw new Error("MCP requests are unavailable during prerendering");
   }
   const res = await authedTransport(request);
-  const out = new Response(res.body, res);
+  const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(CORS_HEADERS)) {
-    if (!out.headers.has(k)) out.headers.set(k, v);
+    if (!headers.has(k)) headers.set(k, v);
   }
-  return out;
+  // Explicit init: the node server's Response spreads its init object, which drops
+  // the status getter of a Response passed as init and turns the 401 challenge into 200
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
 }
 
 function preflight(): Response {

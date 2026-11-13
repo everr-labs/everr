@@ -1,3 +1,9 @@
 export const DISCORD_URL = "https://discord.gg/hd6yYDjAuw";
 export const SIGN_UP_URL = "https://app.everr.dev/auth/sign-up";
 export const SITE_URL = "https://everr.dev";
+export const BOOK_CALL_URL = "https://calendar.app.google/kgnoxBsk4QyoLywG8";
+export const GITHUB_ORG_URL = "https://github.com/everr-labs";
+export const GITHUB_URL = "https://github.com/everr-labs/everr";
+export const X_URL = "https://x.com/everrlabs";
+export const LINKEDIN_URL = "https://www.linkedin.com/company/everr-labs";
+export const CONTACT_EMAIL = "hello@everr.dev";

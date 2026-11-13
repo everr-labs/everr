@@ -69,7 +69,7 @@ describe("docs LLM helpers", () => {
     expect(await response.text()).toBe("# CLI (/docs/reference/cli)\n\nUse `everr --help`.");
   });
 
-  it("returns 404 when no Markdown docs page matches", async () => {
+  it("returns a Markdown 404 when no docs page matches", async () => {
     const response = await docsMarkdownResponse(
       {
         getPage() {
@@ -80,6 +80,8 @@ describe("docs LLM helpers", () => {
     );
 
     expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(await response.text()).toContain("[llms.txt](/llms.txt)");
   });
 
   it("rewrites docs links in llms.txt to Markdown endpoints", () => {

@@ -10,7 +10,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "re
 import { GithubInfo } from "@/components/github-info";
 import { LanguageList, LanguageMenu } from "@/components/language-switch";
 import { Mascot } from "@/components/mascot";
-import { DISCORD_URL, SIGN_UP_URL } from "@/constants";
+import { DISCORD_URL, GITHUB_URL, SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 const NAV_LINKS = [
@@ -374,7 +374,7 @@ function MobileMenu({ pathname }: { pathname: string }) {
           </ul>
           <div className="mt-8 flex gap-6 text-foreground/70">
             <a
-              href="https://github.com/everr-labs/everr"
+              href={GITHUB_URL}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center gap-1 text-base"

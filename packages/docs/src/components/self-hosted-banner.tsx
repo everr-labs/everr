@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
+import { GITHUB_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
 export function SelfHostedBanner() {
@@ -27,7 +28,7 @@ export function SelfHostedBanner() {
             nativeButton={false}
             render={
               // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- content is injected by Button
-              <a href="https://github.com/everr-labs/everr" />
+              <a href={GITHUB_URL} />
             }
             className="mt-8 w-full"
           >

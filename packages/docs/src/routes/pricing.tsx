@@ -5,6 +5,7 @@ import { FinalCTA } from "@/components/final-cta";
 import { Footer } from "@/components/footer";
 import { PricingCards } from "@/components/pricing-cards";
 import { SelfHostedBanner } from "@/components/self-hosted-banner";
+import { BOOK_CALL_URL } from "@/constants";
 import { pageHead } from "@/lib/page-head";
 import { m } from "@/paraglide/messages";
 
@@ -20,7 +21,7 @@ const pricingFaqs = (): FaqItem[] => [
         message={m.pricing_faq_2_a}
         markup={{
           link: ({ children }) => (
-            <a href="https://calendar.app.google/kgnoxBsk4QyoLywG8" className={faqLink}>
+            <a href={BOOK_CALL_URL} className={faqLink}>
               {children}
             </a>
           ),

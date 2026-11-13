@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Footer } from "@/components/footer";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
 import { devlogposts } from "@/lib/source";
-import { getBaseUrl } from "@/lib/url";
+import { seoHead } from "@/lib/page-head";
 
 const DEVLOG_TITLE = "Devlog - Everr";
 const DEVLOG_DESCRIPTION =
@@ -15,23 +15,7 @@ export const Route = createFileRoute("/devlog/")({
   loader: async () => {
     return await loadDevlogPosts();
   },
-  head: () => {
-    const base = getBaseUrl();
-    return {
-      meta: [
-        { title: DEVLOG_TITLE },
-        { name: "description", content: DEVLOG_DESCRIPTION },
-        { property: "og:title", content: DEVLOG_TITLE },
-        { property: "og:description", content: DEVLOG_DESCRIPTION },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: `${base}/devlog` },
-        { name: "twitter:card", content: "summary" },
-        { name: "twitter:url", content: `${base}/devlog` },
-        { name: "twitter:title", content: DEVLOG_TITLE },
-        { name: "twitter:description", content: DEVLOG_DESCRIPTION },
-      ],
-    };
-  },
+  head: () => seoHead({ path: "/devlog", title: DEVLOG_TITLE, description: DEVLOG_DESCRIPTION }),
 });
 
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
@@ -54,7 +38,7 @@ function DevlogIndex() {
 
   return (
     <>
-      <main className="flex-1 text-foreground">
+      <div className="flex-1 text-foreground">
         <div className={sectionWrap}>
           <section className="pt-14 pb-16 md:pt-20 md:pb-24">
             <h1 className="display max-w-[12ch] text-[clamp(2.75rem,6.6vw,6.5rem)]">
@@ -129,7 +113,7 @@ function DevlogIndex() {
             </ul>
           </section>
         </div>
-      </main>
+      </div>
       <Footer />
     </>
   );
