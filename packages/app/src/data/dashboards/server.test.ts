@@ -184,6 +184,119 @@ describe("runPanelQuery – variable interpolation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// runPanelQuery – M4 downsampling
+// ---------------------------------------------------------------------------
+
+describe("runPanelQuery – downsample", () => {
+  const LINE_COLUMNS = [
+    { name: "ts", type: "DateTime" },
+    { name: "service", type: "String" },
+    { name: "p95", type: "Float64" },
+  ];
+  const clickhouseSource = (sql: string) => ({ kind: "ClickHouseSQL" as const, sql });
+
+  it("sends the author SQL verbatim, in one call, without the flag", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    const result = await runPanelQuery({
+      data: { source: clickhouseSource("SELECT ts, p95 FROM unflagged") },
+    });
+
+    expect(mockedClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT ts, p95 FROM unflagged");
+    expect(result).not.toHaveProperty("bucketSeconds");
+  });
+
+  it("describes the query, then runs a wrapper around the author SQL", async () => {
+    mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockResolvedValueOnce([{ ts: "x" }]);
+
+    const result = await runPanelQuery({
+      data: {
+        source: clickhouseSource("SELECT ts, service, p95 FROM wrapped;"),
+        downsample: "m4",
+        from: "2026-06-10 00:00:00",
+        to: "2026-06-10 01:00:00",
+      },
+    });
+
+    expect(mockedClickhouse).toHaveBeenCalledTimes(2);
+    expect(mockedClickhouse.mock.calls[0]![0]).toMatch(/^DESCRIBE \(/);
+    const executed = mockedClickhouse.mock.calls[1]![0] as string;
+    expect(executed).toContain("SELECT ts, service, p95 FROM wrapped\n");
+    expect(executed).not.toContain(";");
+    // Both calls bind the same parameters, so {step} and {from} mean the same.
+    expect(mockedClickhouse.mock.calls[1]![2]).toEqual(mockedClickhouse.mock.calls[0]![2]);
+    // One hour is 3600s: ceil(3600 / 250).
+    expect(result).toEqual({ rows: [{ ts: "x" }], bucketSeconds: 15 });
+  });
+
+  it("describes a repeated query only once", async () => {
+    mockedClickhouse.mockResolvedValueOnce(LINE_COLUMNS).mockResolvedValue([]);
+    const data = {
+      source: clickhouseSource("SELECT ts, service, p95 FROM cached"),
+      downsample: "m4" as const,
+    };
+
+    await runPanelQuery({ data });
+    await runPanelQuery({ data });
+
+    const describes = mockedClickhouse.mock.calls.filter(([sql]) => sql.startsWith("DESCRIBE"));
+    expect(describes).toHaveLength(1);
+    expect(mockedClickhouse).toHaveBeenCalledTimes(3);
+  });
+
+  it("runs the author SQL as written when its columns cannot be wrapped", async () => {
+    mockedClickhouse
+      .mockResolvedValueOnce([
+        { name: "ts", type: "DateTime" },
+        { name: "tags", type: "Array(String)" },
+      ])
+      .mockResolvedValueOnce([{ ts: "x" }]);
+
+    const result = await runPanelQuery({
+      data: { source: clickhouseSource("SELECT ts, tags FROM unwrappable"), downsample: "m4" },
+    });
+
+    expect(mockedClickhouse.mock.calls[1]![0]).toBe("SELECT ts, tags FROM unwrappable");
+    expect(result).toEqual({ rows: [{ ts: "x" }] });
+  });
+
+  it("runs the author SQL as written when DESCRIBE fails, and describes again next time", async () => {
+    mockedClickhouse
+      .mockRejectedValueOnce(new Error("Unknown identifier"))
+      .mockResolvedValueOnce([{ ts: "x" }])
+      .mockResolvedValueOnce(LINE_COLUMNS)
+      .mockResolvedValueOnce([]);
+    const data = {
+      source: clickhouseSource("SELECT broken FROM failing"),
+      downsample: "m4" as const,
+    };
+
+    const first = await runPanelQuery({ data });
+    expect(mockedClickhouse.mock.calls[1]![0]).toBe("SELECT broken FROM failing");
+    expect(first).toEqual({ rows: [{ ts: "x" }] });
+
+    await runPanelQuery({ data });
+    expect(mockedClickhouse.mock.calls[2]![0]).toMatch(/^DESCRIBE \(/);
+  });
+
+  it("ignores the flag for TestData", async () => {
+    const result = await runPanelQuery({
+      data: {
+        source: {
+          kind: "TestData",
+          spec: { scenario: "csv", columns: ["a"], rows: [[1]] },
+        },
+        downsample: "m4",
+      },
+    });
+
+    expect(result).toEqual({ rows: [{ a: 1 }] });
+    expect(mockedClickhouse).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runVariableOptionsQuery
 // ---------------------------------------------------------------------------
 

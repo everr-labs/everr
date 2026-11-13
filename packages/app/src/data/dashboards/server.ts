@@ -20,6 +20,13 @@ import {
   decodeCapabilityRows,
 } from "./built-in/capabilities";
 import { interpolateVariables } from "./interpolate";
+import {
+  buildM4Query,
+  type ColumnRoles,
+  m4BucketSeconds,
+  resolveColumnRoles,
+  stripStatementTerminator,
+} from "./m4";
 import { dashboardFromResource } from "./normalize";
 import type { DashboardResource } from "./schema";
 import { dashboardSpecSchema } from "./schema";
@@ -29,20 +36,27 @@ import { testDataSpec } from "./testdata/spec";
 /** A time-series panel targets ~this many points; `step` is sized to hit it. */
 const PANEL_TARGET_POINTS = 500;
 
+function resolvePanelRange(range: { from?: string; to?: string }) {
+  return resolveTimeRange({
+    from: range.from ?? DEFAULT_TIME_RANGE.from,
+    to: range.to ?? DEFAULT_TIME_RANGE.to,
+  });
+}
+
 /**
  * Shared panel and variable parameters. Round bounds outward to whole seconds
  * for DateTime columns, and size the bucket width to the panel point target.
  */
-function dashboardQueryParams(range: { from?: string; to?: string }) {
-  const { fromDate, toDate } = resolveTimeRange({
-    from: range.from ?? DEFAULT_TIME_RANGE.from,
-    to: range.to ?? DEFAULT_TIME_RANGE.to,
-  });
+function queryParamsFor({ fromDate, toDate }: { fromDate: Date; toDate: Date }) {
   return {
     from: toClickHouseDateTimeSeconds(fromDate, "floor"),
     to: toClickHouseDateTimeSeconds(toDate, "ceil"),
     step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
   };
+}
+
+function dashboardQueryParams(range: { from?: string; to?: string }) {
+  return queryParamsFor(resolvePanelRange(range));
 }
 
 export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
@@ -213,12 +227,53 @@ const querySource = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const describedColumn = z.array(z.object({ name: z.string(), type: z.string() }));
+
+const COLUMN_ROLES_TTL_MS = 5 * 60_000;
+const COLUMN_ROLES_MAX_ENTRIES = 500;
+const columnRolesCache = new Map<string, { roles: ColumnRoles | null; expiresAt: number }>();
+
+/**
+ * How the result columns of `sql` play in a line chart, or null when the query
+ * cannot be downsampled. A query that fails to describe is not cached: the
+ * caller runs it as written, and ClickHouse reports its own error.
+ */
+async function resolveRoles(
+  organizationId: string,
+  sql: string,
+  params: Record<string, unknown>,
+  describe: (statement: string, params: Record<string, unknown>) => Promise<unknown>,
+): Promise<ColumnRoles | null> {
+  const cacheKey = `${organizationId}\n${sql}`;
+  const cached = columnRolesCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.roles;
+
+  let roles: ColumnRoles | null;
+  try {
+    const described = describedColumn.parse(
+      await describe(`DESCRIBE (\n${stripStatementTerminator(sql)}\n)`, params),
+    );
+    roles = resolveColumnRoles(described);
+  } catch {
+    return null;
+  }
+
+  columnRolesCache.delete(cacheKey);
+  if (columnRolesCache.size >= COLUMN_ROLES_MAX_ENTRIES) {
+    const oldest = columnRolesCache.keys().next();
+    if (!oldest.done) columnRolesCache.delete(oldest.value);
+  }
+  columnRolesCache.set(cacheKey, { roles, expiresAt: Date.now() + COLUMN_ROLES_TTL_MS });
+  return roles;
+}
+
 export const runPanelQuery = createAuthenticatedServerFn({
   method: "POST",
 })
   .validator(
     z.object({
       source: querySource,
+      downsample: z.literal("m4").optional(),
       from: z.string().optional(),
       to: z.string().optional(),
       variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
@@ -233,7 +288,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
         .optional(),
     }),
   )
-  .handler(async ({ data: { source, from, to, variables, variableMeta }, context }) => {
+  .handler(async ({ data: { source, downsample, from, to, variables, variableMeta }, context }) => {
     // Synthetic data for the gallery / dev dashboards: deterministic, no
     // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
     if (source.kind === "TestData") {
@@ -249,13 +304,31 @@ export const runPanelQuery = createAuthenticatedServerFn({
     const interpolated = variables
       ? interpolateVariables(source.sql, variables, variableMeta ?? {})
       : source.sql;
+    // Resolved once: the M4 bucket must derive from the same unrounded range as
+    // `{step}` for the two widths to keep their documented relation.
+    const range = resolvePanelRange({ from, to });
+    const params = queryParamsFor(range);
+    const roles =
+      downsample === "m4"
+        ? await resolveRoles(
+            context.session.session.activeOrganizationId,
+            interpolated,
+            params,
+            (statement, bound) => context.sql.query(statement, bound),
+          )
+        : null;
     // User-supplied SQL: run it through the per-org SQL API user, whose tenant
     // filter is a row policy bound to the user — not a `SETTINGS`-based filter
     // a malicious query could override to read another tenant's rows.
-    const rows = await context.sql.query<QueryRow>(
-      interpolated,
-      dashboardQueryParams({ from, to }),
-    );
+    if (roles) {
+      const bucket = m4BucketSeconds(range.fromDate, range.toDate);
+      const rows = await context.sql.query<QueryRow>(
+        buildM4Query(interpolated, roles, bucket),
+        params,
+      );
+      return { rows, bucketSeconds: bucket };
+    }
+    const rows = await context.sql.query<QueryRow>(interpolated, params);
     return { rows };
   });
 
@@ -272,7 +345,7 @@ const VARIABLE_OPTIONS_LIMIT = 1000;
  * semicolon is stripped so the subquery stays valid.
  */
 function withRowLimit(query: string, limit: number): string {
-  const inner = query.trim().replace(/;\s*$/, "");
+  const inner = stripStatementTerminator(query);
   return `SELECT * FROM (\n${inner}\n) LIMIT ${limit}`;
 }
 
