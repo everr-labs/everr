@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubTransportFetch } from "../test-fetch.js";
 import type { OtlpSpan } from "../test-kit.js";
-import { type BeforeSend, createEmitter, type Emit, type EmitSpan } from "./emitter.js";
-import { fetchSend } from "./transport.js";
+import {
+  type BeforeSend,
+  createEmitter,
+  type Emit,
+  type EmitSpan,
+  type SendEvent,
+} from "./emitter.js";
+import { fetchSend, type Send } from "./transport.js";
 
 type SentBatch = {
   url: string;
@@ -32,7 +38,11 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(envelope: () => Record<string, string> = () => ({}), beforeSend?: BeforeSend) {
+function makeEmitter(
+  envelope: (session?: string) => Record<string, string> = () => ({}),
+  beforeSend?: BeforeSend,
+  observe?: (item: SendEvent) => void,
+) {
   sent = [];
   stubTransportFetch(
     vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
@@ -56,6 +66,8 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({}), before
     { name: "@everr/otel-web", version: "test" },
     envelope,
     beforeSend,
+    undefined,
+    observe,
   );
 }
 
@@ -669,5 +681,130 @@ describe("a caller-supplied send owns delivery", () => {
     await vi.advanceTimersByTimeAsync(50);
     await pending;
     expect(settled).toBe(true);
+  });
+});
+
+describe("observe", () => {
+  it("sees each log and span that beforeSend keeps, as the hook returned it", () => {
+    const seen: SendEvent[] = [];
+    const [log, , , span, now] = makeEmitter(
+      undefined,
+      (item) =>
+        item.kind === "log" && item.eventName === "dropped"
+          ? null
+          : { ...item, attributes: { ...item.attributes, scrubbed: true } },
+      (item) => seen.push(item),
+    );
+    log("kept");
+    log("dropped");
+    span("a".repeat(32), "b".repeat(16), "request", 0, 1, {});
+    now("segment", {}, 1, "[]");
+    expect(
+      seen.map((item) => [item.kind, item.kind === "log" ? item.eventName : item.name]),
+    ).toEqual([
+      ["log", "kept"],
+      ["span", "request"],
+      ["log", "segment"],
+    ]);
+    expect(seen.every((item) => item.attributes.scrubbed)).toBe(true);
+  });
+});
+
+describe("emitNow, the path of the recording Segments", () => {
+  it("sends one record on its own request, outside the queue and without keepalive", async () => {
+    const [queued, flushQueue, , , emitNow] = makeEmitter();
+    queued("page_view");
+    await emitNow(
+      "everr.browser.recording.segment",
+      { "everr.recording.segment.index": 0 },
+      1_000,
+      "[]",
+    )?.[1]();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].keepalive).toBeFalsy();
+    const [record] = sent[0].payload.resourceLogs[0].scopeLogs[0].logRecords;
+    expect(record).toMatchObject({
+      eventName: "everr.browser.recording.segment",
+      timeUnixNano: "1000000000",
+    });
+    expect(record.body).toEqual({ stringValue: "[]" });
+    await flushQueue();
+    expect(sent).toHaveLength(2);
+  });
+
+  it("passes the record's own session to the envelope, so the session is not read", async () => {
+    const envelope = vi.fn((session?: string) => ({ "session.id": session ?? "read" }));
+    const [queued, flushQueue, , , emitNow] = makeEmitter(envelope);
+    await emitNow("segment", { "session.id": "stream-session" }, 1, "[]")?.[1]();
+    queued("page_view");
+    await flushQueue();
+    expect(envelope.mock.calls).toEqual([["stream-session"], [undefined]]);
+  });
+
+  it("goes through beforeSend, and a null drops it without a request", () => {
+    const [, , , , emitNow] = makeEmitter(undefined, () => null);
+    expect(emitNow("segment", {}, 1, "[]")).toBeUndefined();
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("emitNow delivery", () => {
+  let requests: { encoding?: string; body: unknown }[];
+  const segment = (beforeSend?: BeforeSend, send?: Send) => {
+    requests = [];
+    stubTransportFetch(
+      vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+        const encoding = ((init?.headers ?? {}) as Record<string, string>)["Content-Encoding"];
+        requests.push({ encoding, body: init?.body });
+        return Promise.resolve(new Response(null, { status: 200 }));
+      }),
+    );
+    const [, , , , emitNow] = createEmitter(
+      send ??
+        fetchSend("https://ingest.example/v1/logs", "https://ingest.example/v1/traces", undefined),
+      !send,
+      {},
+      { name: "@everr/otel-web", version: "test" },
+      () => ({}),
+      beforeSend,
+    );
+    return (body = "[]") => emitNow("everr.browser.recording.segment", {}, 1, body)!;
+  };
+  const record = (payload: string) =>
+    JSON.parse(payload).resourceLogs[0].scopeLogs[0].logRecords[0];
+
+  it("gives the payload, and sends it plain or as the gzipped copy it is given", async () => {
+    const [payload, send, gzip] = segment()('["payload"]');
+    expect(gzip).toBe(true);
+    expect(record(payload).body).toEqual({ stringValue: '["payload"]' });
+    const zipped = new ArrayBuffer(4);
+    expect(await send(zipped)).toBeInstanceOf(Response);
+    await send();
+    expect(requests).toEqual([
+      { encoding: "gzip", body: zipped },
+      { encoding: undefined, body: payload },
+    ]);
+  });
+
+  it("tells a host sender apart, which takes text only", () => {
+    const [, , gzip] = segment(undefined, () => {})();
+    expect(gzip).toBe(false);
+  });
+
+  it("rejects when the transport fails", async () => {
+    const [, send] = segment()();
+    stubTransportFetch(vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+    await expect(send()).rejects.toThrow("Failed to fetch");
+  });
+
+  it("shows beforeSend the event name as the body, and sends the real body", () => {
+    const bodies: unknown[] = [];
+    const [payload] = segment((item) => {
+      if (item.kind === "log") bodies.push(item.body);
+      return item.kind === "log" ? { ...item, body: "changed", attributes: { kept: 1 } } : item;
+    })("[1,2]");
+    expect(bodies).toEqual(["everr.browser.recording.segment"]);
+    expect(record(payload).body).toEqual({ stringValue: "[1,2]" });
+    expect(record(payload).attributes).toContainEqual({ key: "kept", value: { intValue: "1" } });
   });
 });
