@@ -1,6 +1,7 @@
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 import { createAuthClient } from "better-auth/client";
 import { auth } from "#app/identity/server.ts";
+import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 
 function createMcpResourceClient() {
   return createAuthClient({ plugins: [oauthProviderResourceClient(auth)] });
@@ -12,4 +13,20 @@ export function mcpResourceClient() {
     cached = createMcpResourceClient();
   }
   return cached;
+}
+
+/** The MCP server's OAuth protected resource metadata (RFC 9728). */
+export async function protectedResourceMetadataResponse() {
+  // Advertise observability:read (the resource scope) plus offline_access
+  // so DCR clients (e.g. Claude Code) register for a refresh token; without
+  // it, the client registers narrowly and the authorize step rejects its
+  // offline_access request. The helper only forbids `openid` here.
+  const meta = await mcpResourceClient().getProtectedResourceMetadata({
+    resource: MCP_RESOURCE,
+    authorization_servers: [AUTH_ISSUER],
+    scopes_supported: ["observability:read", "offline_access"],
+  });
+  return Response.json(meta, {
+    headers: { "access-control-allow-origin": "*" },
+  });
 }

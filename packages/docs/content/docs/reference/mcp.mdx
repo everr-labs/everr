@@ -35,7 +35,7 @@ Returns the Everr user and the organization the connection is authorized for. It
 
 ## Authorization
 
-Clients find the authorization server from the OAuth protected resource metadata (RFC 9728) at `https://app.everr.dev/.well-known/oauth-protected-resource`, and register themselves with dynamic client registration.
+Clients find the authorization server from the OAuth protected resource metadata (RFC 9728) at `https://app.everr.dev/.well-known/oauth-protected-resource/mcp`, the URL the server's `401` response points to, and register themselves with dynamic client registration.
 
 | Scope                | Grants                                         |
 | -------------------- | ---------------------------------------------- |
