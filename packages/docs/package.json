@@ -19,7 +19,7 @@
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@icons-pack/react-simple-icons": "catalog:",
     "@inlang/paraglide-js-react": "^1.0.4",
-    "@posthog/react": "^1.9.0",
+    "@posthog/react": "^1.11.3",
     "@t3-oss/env-core": "catalog:",
     "@takumi-rs/core": "^1.1.2",
     "@takumi-rs/image-response": "^1.1.2",
@@ -31,7 +31,7 @@
     "fumadocs-ui": "16.8.8",
     "lucide-react": "catalog:",
     "motion": "catalog:",
-    "posthog-js": "^1.372.10",
+    "posthog-js": "^1.447.7",
     "react": "catalog:",
     "react-dom": "catalog:",
     "zod": "catalog:"
