@@ -33,10 +33,9 @@ export function buildLlmsTxt() {
  * page (the llms.txt index) are in English only.
  */
 export async function markdownForPath(
-  pathname: string,
+  path: string,
   locale: Locale = baseLocale,
 ): Promise<string | undefined> {
-  const path = pathname;
   const slugs: string[] = [];
   for (const segment of path.split("/").filter(Boolean)) {
     const decoded = safeDecode(segment);
