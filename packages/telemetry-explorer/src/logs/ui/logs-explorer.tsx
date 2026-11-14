@@ -1,7 +1,10 @@
 import { Dialog, DialogContent, DialogTitle } from "@everr/ui/components/dialog";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
+import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
+import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { useIsMobile, useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -147,9 +150,9 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton() {
         <div
           // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
           key={index}
-          className="grid grid-cols-[86px_minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
+          className="grid grid-cols-[minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
         >
-          <div className="flex flex-col gap-2">
+          <div className="hidden flex-col gap-2 md:flex">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-5 w-14 rounded-full" />
           </div>
@@ -187,6 +190,14 @@ export function LogsExplorer({
     key: string;
   } | null>(null);
   const [isInspectorExpanded, setIsInspectorExpanded] = useState(false);
+  // Below `lg` there is no room for the inspector column beside the list, so
+  // a log's details open over it: a side sheet, the way alert details do, and
+  // on a phone a bottom drawer, swiped down to close. A sheet edge to edge
+  // there reads as a page, and the edge swipe that would leave it is the
+  // browser's back.
+  const isNarrow = useIsNarrow();
+  const isMobile = useIsMobile();
+  const inspectorColumn = selectedLogState !== null && !isNarrow;
 
   // Optimistic local mirror of the search filter state. Filter toggles update
   // synchronously so the UI feels instant; onSearchChange runs alongside.
@@ -276,6 +287,18 @@ export function LogsExplorer({
     setIsInspectorExpanded(false);
   }, []);
 
+  // The inspector in the drawer or the sheet; the column and the expanded
+  // dialog render their own, with an expand button the overlays don't have.
+  const overlayInspector = selectedLogState ? (
+    <LogInspectorPanel
+      repo={repo}
+      log={selectedLogState.log}
+      onClose={handleCloseInspector}
+      renderRunLink={renderRunLink}
+      resolveJobId={resolveJobId}
+    />
+  ) : null;
+
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
@@ -286,7 +309,7 @@ export function LogsExplorer({
             // that the log list keeps the remaining height. The traces grid and
             // the errors grid use the same rule.
             "grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
-            selectedLogState &&
+            inspectorColumn &&
               "lg:grid-cols-[220px_minmax(0,1fr)_320px] xl:grid-cols-[260px_minmax(0,1fr)_360px]",
           )}
         >
@@ -348,7 +371,7 @@ export function LogsExplorer({
             </div>
           </main>
 
-          {selectedLogState ? (
+          {inspectorColumn ? (
             <aside className="bg-muted/10 min-h-0 min-w-0 lg:border-l">
               <LogInspectorPanel
                 repo={repo}
@@ -362,8 +385,35 @@ export function LogsExplorer({
           ) : null}
         </div>
 
+        {/* The panel draws its own close button. No expand: the drawer or the
+            sheet is already as large as the screen allows. */}
+        {isNarrow && isMobile ? (
+          <Drawer
+            open={selectedLogState !== null}
+            onOpenChange={(open) => !open && handleCloseInspector()}
+          >
+            <DrawerContent className="h-[90dvh]">
+              <DrawerTitle className="sr-only">Log event</DrawerTitle>
+              {overlayInspector}
+            </DrawerContent>
+          </Drawer>
+        ) : isNarrow ? (
+          <Sheet
+            open={selectedLogState !== null}
+            onOpenChange={(open) => !open && handleCloseInspector()}
+          >
+            <SheetContent
+              showCloseButton={false}
+              className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[30rem]"
+            >
+              <SheetTitle className="sr-only">Log event</SheetTitle>
+              {overlayInspector}
+            </SheetContent>
+          </Sheet>
+        ) : null}
+
         <Dialog
-          open={isInspectorExpanded && selectedLogState !== null}
+          open={isInspectorExpanded && inspectorColumn}
           onOpenChange={(open) => {
             if (!open) setIsInspectorExpanded(false);
           }}
