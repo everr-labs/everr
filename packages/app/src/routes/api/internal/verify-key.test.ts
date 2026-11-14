@@ -198,6 +198,18 @@ describe("/api/internal/verify-key browser origin policy", () => {
       status: 200,
     },
     {
+      name: "public key + normalizable origin (case/default port)",
+      key: publicKey,
+      origin: "HTTPS://App.Example.COM:443",
+      status: 200,
+    },
+    {
+      name: "public key metadata handed back as a JSON string",
+      key: { ...publicKey, metadata: JSON.stringify(publicKey.metadata) },
+      origin: "https://app.example.com",
+      status: 200,
+    },
+    {
       name: "public key + no origin (server-side use)",
       key: publicKey,
       origin: undefined,
@@ -228,5 +240,8 @@ describe("/api/internal/verify-key browser origin policy", () => {
       request: makeRequest({ key: "the-key", origin }),
     });
     expect(res.status).toBe(status);
+    // A denial has no body; an allowed key gets its own id back.
+    const body = await res.text();
+    expect(body && JSON.parse(body).keyId).toBe(status === 200 ? key.id : "");
   });
 });

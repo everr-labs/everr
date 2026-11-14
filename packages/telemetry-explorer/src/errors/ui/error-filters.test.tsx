@@ -49,7 +49,7 @@ describe("ErrorFilters", () => {
     expect(onChange).toHaveBeenCalledWith({ sort: "count" });
   });
 
-  it("clear resets the search and attributes, but not the sort order or the persistent filters", () => {
+  it("clear resets the search and attributes but not the sort order", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
@@ -68,7 +68,6 @@ describe("ErrorFilters", () => {
             },
           ],
         }}
-        persistentFilterCount={1}
         onChange={onChange}
       />,
     );
@@ -80,6 +79,23 @@ describe("ErrorFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [] });
+  });
+
+  it("clear never touches the persistent filters", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={{ ...baseValue, q: "TypeError" }}
+        persistentFilterCount={1}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    const patch = onChange.mock.calls[0]?.[0];
+    expect(patch).not.toHaveProperty("service");
+    expect(patch).not.toHaveProperty("environment");
   });
 
   it.each([

@@ -41,7 +41,7 @@ describe("LogFiltersBar", () => {
     expect(screen.queryByText("Environment")).not.toBeInTheDocument();
   });
 
-  it("clear resets the page zone and never touches the persistent filters", () => {
+  it("clear resets the search, levels, attributes and trace id", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <LogFiltersBar
@@ -57,7 +57,6 @@ describe("LogFiltersBar", () => {
           },
         ]}
         traceId="abc"
-        persistentFilterCount={2}
         onChange={onChange}
       />,
     );
@@ -76,6 +75,22 @@ describe("LogFiltersBar", () => {
       attributes: [],
       traceId: undefined,
     });
+  });
+
+  it("clear never touches the persistent filters", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <LogFiltersBar
+        {...baseProps}
+        levels={["error"]}
+        persistentFilterCount={2}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    const patch = onChange.mock.calls[0]?.[0];
+    expect(patch).not.toHaveProperty("services");
+    expect(patch).not.toHaveProperty("environment");
   });
 
   it("an active persistent filter alone does not surface the clear control", () => {

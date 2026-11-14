@@ -147,6 +147,24 @@ describe("createAuthenticatedServerFn", () => {
     ).rejects.toMatchObject({ name: "StorageNotReadyError" });
     expect(next).not.toHaveBeenCalled();
   });
+
+  it("rejects a user who is not a member of the active organization", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockResolvedValue([]);
+    const next = vi.fn();
+
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: new Request("http://localhost/_server"),
+        next,
+      }),
+    ).rejects.toThrow("Not a member of the active organization");
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe("createOrganizationAdminServerFn", () => {

@@ -198,35 +198,76 @@ describe("POST /api/apply", () => {
     state: { dashboards: [], runbooks: [], alerts: [] },
   };
 
-  const DENIED_BODY = { error: expect.stringMatching(/read-only/i) };
-
-  it.each([
-    { name: "read-only key, mutative apply", applyActions: ["read"], dryRun: false, status: 403 },
-    {
-      name: "read-only key, dryRun omitted",
-      applyActions: ["read"],
-      dryRun: undefined,
-      status: 403,
-    },
-    { name: "read-only key, dry-run plan", applyActions: ["read"], dryRun: true, status: 200 },
-    { name: "write key", applyActions: ["read", "write", "delete"], dryRun: false, status: 200 },
-    { name: "wildcard key", applyActions: ["*"], dryRun: false, status: 200 },
-    {
-      name: "delete-only key (write required)",
-      applyActions: ["delete"],
-      dryRun: false,
-      status: 403,
-    },
-    { name: "session auth (no gate)", applyActions: null, dryRun: false, status: 200 },
-  ])("gates apply actions: $name -> $status", async ({ applyActions, dryRun, status }) => {
-    applyResources.mockResolvedValueOnce({ dryRun: dryRun ?? false, results: [] });
-    const res = await POST({
-      request: req({ ...minimalState, dryRun }),
-      context: { ...ctx, applyActions },
+  describe("apply action gate (read-only keys)", () => {
+    it("rejects a read-only key on a mutative apply (dryRun: false)", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: false }),
+        context: { ...ctx, applyActions: ["read"] },
+      });
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        error: expect.stringMatching(/read-only/i),
+      });
+      expect(applyResources).not.toHaveBeenCalled();
     });
-    expect(res.status).toBe(status);
-    expect(applyResources).toHaveBeenCalledTimes(status === 403 ? 0 : 1);
-    expect(await res.json()).toMatchObject(status === 403 ? DENIED_BODY : { results: [] });
+
+    it("rejects a read-only key when dryRun defaults to false (omitted)", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState }),
+        context: { ...ctx, applyActions: ["read"] },
+      });
+      expect(res.status).toBe(403);
+      expect(applyResources).not.toHaveBeenCalled();
+    });
+
+    it("lets a read-only key run a dry-run plan pass", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: true, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: true }),
+        context: { ...ctx, applyActions: ["read"] },
+      });
+      expect(res.status).toBe(200);
+      expect(applyResources).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
+    });
+
+    it("lets a write key run a mutative apply", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: false }),
+        context: { ...ctx, applyActions: ["read", "write", "delete"] },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it("lets a wildcard-apply key run a mutative apply", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: false }),
+        context: { ...ctx, applyActions: ["*"] },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it("rejects a delete-only key on a mutative apply (write required)", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: false }),
+        context: { ...ctx, applyActions: ["delete"] },
+      });
+      expect(res.status).toBe(403);
+      expect(applyResources).not.toHaveBeenCalled();
+    });
+
+    it("does not gate session-authenticated apply (applyActions null)", async () => {
+      applyResources.mockResolvedValueOnce({ dryRun: false, results: [] });
+      const res = await POST({
+        request: req({ ...minimalState, dryRun: false }),
+        context: { ...ctx, applyActions: null },
+      });
+      expect(res.status).toBe(200);
+    });
   });
 
   it("forwards preview to applyResources and echoes it", async () => {

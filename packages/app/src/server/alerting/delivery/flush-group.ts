@@ -43,7 +43,7 @@ import { alertDeliveryHash } from "./targeting";
 // firing/resolved counts, so cutting lines never hides how big the group is.
 const COMPOSE_FRAME_MARGIN = 200;
 const BODY_MAX_CHARS = CHANNEL_TEXT_MIN - COMPOSE_FRAME_MARGIN;
-const BODY_MAX_EVENTS = 20;
+export const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.
 const OMITTED_LINE_RESERVE = 48;
@@ -52,7 +52,7 @@ const OMITTED_LINE_RESERVE = 48;
 // group would push one worker through an unbounded number of suppression
 // checks. What is left stays linked and unflushed, and the pending count this
 // flush already computes turns it into a follow-up flush, not a lost member.
-const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
+export const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
 
 export type NotificationEvent = Pick<
   typeof alertEvents.$inferSelect,

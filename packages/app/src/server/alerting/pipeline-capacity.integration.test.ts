@@ -13,7 +13,7 @@ import {
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "#app/db/schema/index.ts";
-import { flushAlertGroup } from "#app/server/alerting/delivery/flush-group.ts";
+import { BODY_MAX_EVENTS, flushAlertGroup } from "#app/server/alerting/delivery/flush-group.ts";
 import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "#app/server/alerting/evaluation/evidence.ts";
 import { ALERT_EVALUATION_SAMPLE_LIMIT } from "#app/server/alerting/evaluation/samples.ts";
 import { scanDueAlerts, staleEnqueueCutoff } from "#app/server/alerting/scheduling/scanner.ts";
@@ -220,6 +220,32 @@ describe("the alerting pipeline's capacity bounds", () => {
     // Fewer than the row cap alone would keep: the byte cap trimmed further.
     expect(evidence.length).toBeLessThan(MAX_EVIDENCE_ROWS);
     expect(Buffer.byteLength(row.evidence_json, "utf8")).toBeLessThanOrEqual(MAX_EVIDENCE_BYTES);
+  });
+
+  it("composes a 25-member group's body as 20 listed events plus a line naming the 5 it omitted", async () => {
+    await insertDirectRule(harness().db, {
+      forSecs: 0,
+      channelType: "slack",
+    });
+    const rows = Array.from({ length: 25 }, (_, index) => ({
+      service: `svc-${index}`,
+      value: 42,
+    }));
+    harness().clickhouse.setSignal(rows);
+    await harness().fireAndFlush();
+
+    expect(harness().fetchCalls()).toHaveLength(1);
+    const body = harness().fetchCalls()[0].body as {
+      attachments: [{ blocks: [{ text: { text: string } }] }];
+    };
+    const text = body.attachments[0].blocks[0].text.text;
+
+    // All 25 events share one `occurredAt` (one evaluation batch), so which
+    // 20 make the cut is not pinned by any documented ordering; the bound is
+    // the count listed and what the omitted line says, not which members.
+    const firingLines = text.split("\n").filter((line) => line.startsWith("Firing:"));
+    expect(firingLines).toHaveLength(BODY_MAX_EVENTS);
+    expect(text).toContain(`…and ${25 - BODY_MAX_EVENTS} more events in this group`);
   });
 
   it("drains a backlog wider than one scanner batch over successive scans", async () => {

@@ -30,3 +30,10 @@ describe("assertCurrentMember", () => {
     await expect(assertCurrentMember("u", "org-1")).rejects.toBeInstanceOf(McpMembershipError);
   });
 });
+
+it("returns pending readiness with verified membership", async () => {
+  selectMock.mockReturnValueOnce(returning([{ metadata: '{"clickhouseReady":false}' }]));
+  expect(await assertCurrentMember("u", "org-1")).toEqual({
+    metadata: '{"clickhouseReady":false}',
+  });
+});

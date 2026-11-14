@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   groupRow: null as Record<string, unknown> | null,
   memberRows: [] as unknown[],
+  memberQuery: vi.fn((_tx: unknown, _groupId: string, _limit: number) =>
+    Promise.resolve(mocks.memberRows),
+  ),
   updates: [] as Record<string, unknown>[],
   // Everything the commit transaction inserted, in order.
   inserts: [] as unknown[],
@@ -108,7 +111,7 @@ vi.mock("#app/db/client.ts", () => {
 });
 
 vi.mock("./journal-reader", () => ({
-  deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+  deliverableGroupMemberQuery: mocks.memberQuery,
 }));
 
 vi.mock("#app/server/worker/jobs.ts", () => ({
@@ -134,7 +137,12 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
-import { flushAlertGroup, formatNotification, type NotificationEvent } from "./flush-group";
+import {
+  FLUSH_GROUP_MEMBER_CLAIM_CAP,
+  flushAlertGroup,
+  formatNotification,
+  type NotificationEvent,
+} from "./flush-group";
 
 beforeEach(() => {
   mocks.groupRow = null;
@@ -143,6 +151,7 @@ beforeEach(() => {
   mocks.inserts = [];
   mocks.commitSelectQueue = [];
   mocks.transactionCalls = 0;
+  mocks.memberQuery.mockClear();
   mocks.loadSilences.mockClear();
   mocks.loadFiringKeys.mockClear();
   mocks.recordHistory.mockClear();
@@ -277,6 +286,12 @@ describe("flushAlertGroup suppression batching", () => {
     await flushAlertGroup({ groupId: GROUP_ID });
 
     expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
+    // The job handler passes no cap, so this is the bound production runs with.
+    expect(mocks.memberQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      GROUP_ID,
+      FLUSH_GROUP_MEMBER_CLAIM_CAP,
+    );
   });
 
   // A group above the claim cap leaves members unflushed on every pass. A
