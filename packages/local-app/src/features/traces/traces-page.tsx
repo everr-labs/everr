@@ -11,6 +11,7 @@ import {
 } from "@everr/telemetry-explorer/traces";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { ProfilesRepository, traceProfiles } from "@everr/telemetry-explorer/profiles";
 import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
@@ -24,6 +25,7 @@ export const TracesListSearchSchema = TraceSearchParamsSchema.extend(ExploreSear
 export const TraceDetailSearchSchema = TraceDetailParamsSchema.extend(ExploreSearchShape);
 
 const localTracesRepo = new TracesRepository(localSqlClient);
+const localProfilesRepo = new ProfilesRepository(localSqlClient);
 
 export function TracesPage() {
   const search: TraceSearchParams & {
@@ -105,8 +107,13 @@ export function TraceDetailPage() {
               resetScroll: false,
             })
           }
+          profiles={traceProfiles(localProfilesRepo, traceId, profilesLink)}
         />
       </LocalTelemetryGate>
     </>
   );
 }
+
+const profilesLink: Parameters<typeof traceProfiles>[2] = (search) => (
+  <Link to="/profiles" search={search} />
+);

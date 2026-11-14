@@ -36,6 +36,9 @@ type verifyResponse struct {
 	LogsDays    uint16 `json:"logsDays"`
 	TracesDays  uint16 `json:"tracesDays"`
 	MetricsDays uint16 `json:"metricsDays"`
+	// Optional so a collector rolled out before the app keeps authenticating
+	// every other signal; profiles without it fail at the retention view.
+	ProfilesDays uint16 `json:"profilesDays"`
 }
 
 type ext struct {

@@ -57,6 +57,7 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRout
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/profiles'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
@@ -357,6 +358,15 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute =
     {
       id: '/logs',
       path: '/logs',
+      getParentRoute: () =>
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+    } as any,
+  )
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRouteImport.update(
+    {
+      id: '/profiles',
+      path: '/profiles',
       getParentRoute: () =>
         AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
     } as any,
@@ -731,6 +741,7 @@ export interface FileRoutesByFullPath {
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/profiles': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -800,6 +811,7 @@ export interface FileRoutesByTo {
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/profiles': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute
   '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -883,6 +895,7 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/profiles': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
@@ -960,6 +973,7 @@ export interface FileRouteTypes {
     | '/runs/$traceId'
     | '/errors'
     | '/logs'
+    | '/profiles'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
@@ -1029,6 +1043,7 @@ export interface FileRouteTypes {
     | '/api/cli/resources/$kind/$project/$slug'
     | '/errors'
     | '/logs'
+    | '/profiles'
     | '/traces'
     | '/cost-analysis'
     | '/repos'
@@ -1111,6 +1126,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/profiles'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis'
@@ -1503,6 +1519,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport
       parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
     }
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/profiles': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/profiles'
+      path: '/profiles'
+      fullPath: '/profiles'
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+    }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces'
       path: '/traces'
@@ -1813,6 +1836,7 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWi
 interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren {
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
@@ -1824,6 +1848,8 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute,
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreProfilesRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute:

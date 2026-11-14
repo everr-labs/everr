@@ -10,9 +10,11 @@ import (
 	usage "github.com/everr-labs/everr/collector/extension/everrusageextension"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/connector/xconnector"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 )
@@ -50,10 +52,11 @@ type anchor struct {
 	stop sync.Once
 }
 
-func (*anchor) Capabilities() consumer.Capabilities                   { return consumer.Capabilities{} }
-func (*anchor) ConsumeLogs(context.Context, plog.Logs) error          { return nil }
-func (*anchor) ConsumeTraces(context.Context, ptrace.Traces) error    { return nil }
-func (*anchor) ConsumeMetrics(context.Context, pmetric.Metrics) error { return nil }
+func (*anchor) Capabilities() consumer.Capabilities                      { return consumer.Capabilities{} }
+func (*anchor) ConsumeLogs(context.Context, plog.Logs) error             { return nil }
+func (*anchor) ConsumeTraces(context.Context, ptrace.Traces) error       { return nil }
+func (*anchor) ConsumeMetrics(context.Context, pmetric.Metrics) error    { return nil }
+func (*anchor) ConsumeProfiles(context.Context, pprofile.Profiles) error { return nil }
 func (a *anchor) Start(_ context.Context, h component.Host) error {
 	p := a.p
 	p.once.Do(func() {
@@ -139,16 +142,19 @@ func NewFactory() connector.Factory {
 		p.mu.Unlock()
 		return &anchor{p: p}
 	}
-	return connector.NewFactory(component.MustNewType(usage.Type+"_connector"), func() component.Config {
+	return xconnector.NewFactory(component.MustNewType(usage.Type+"_connector"), func() component.Config {
 		return &Config{Extension: component.MustNewID(usage.Type), Interval: time.Minute, Timeout: 10 * time.Second}
 	},
-		connector.WithLogsToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Logs, error) {
+		xconnector.WithLogsToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Logs, error) {
 			return create(s, c, n), nil
 		}, component.StabilityLevelDevelopment),
-		connector.WithTracesToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Traces, error) {
+		xconnector.WithTracesToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Traces, error) {
 			return create(s, c, n), nil
 		}, component.StabilityLevelDevelopment),
-		connector.WithMetricsToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Metrics, error) {
+		xconnector.WithMetricsToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (connector.Metrics, error) {
+			return create(s, c, n), nil
+		}, component.StabilityLevelDevelopment),
+		xconnector.WithProfilesToMetrics(func(_ context.Context, s connector.Settings, c component.Config, n consumer.Metrics) (xconnector.Profiles, error) {
 			return create(s, c, n), nil
 		}, component.StabilityLevelDevelopment))
 }

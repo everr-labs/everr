@@ -27,6 +27,9 @@ interface UseFlamegraphDrawArgs {
   spanRectsRef: RefObject<SpanRect[]>;
   eventRectsRef: RefObject<EventRect[]>;
   matchingSpanIds: ReadonlySet<string> | null;
+  formatValue?: (durationNano: number) => string;
+  /** Overrides the `colorBy` color of a bar, as a profile diff does. */
+  colorOf?: (span: FlamegraphSpan) => string | undefined;
 }
 
 const OVERSCAN_ROWS = 4;
@@ -46,6 +49,9 @@ interface DrawLevelArgs {
   eventRectsArray: EventRect[];
   metrics: FlamegraphRowMetrics;
   matchingSpanIds: ReadonlySet<string> | null;
+  formatValue?: (durationNano: number) => string;
+  /** Overrides the `colorBy` color of a bar, as a profile diff does. */
+  colorOf?: (span: FlamegraphSpan) => string | undefined;
 }
 
 function drawLevel(args: DrawLevelArgs): void {
@@ -64,6 +70,8 @@ function drawLevel(args: DrawLevelArgs): void {
     eventRectsArray,
     metrics,
     matchingSpanIds,
+    formatValue,
+    colorOf,
   } = args;
 
   const viewEndTs = viewStartTs + timeSpan;
@@ -99,7 +107,7 @@ function drawLevel(args: DrawLevelArgs): void {
     // Minimum 1px width so tiny spans remain visible
     width = clamp(width, 1, Infinity);
 
-    const color = canvasServiceColor(spanColorGroup(span, colorBy));
+    const color = colorOf?.(span) ?? canvasServiceColor(spanColorGroup(span, colorBy));
     const isDimmedByFilter = matchingSpanIds !== null && !matchingSpanIds.has(span.spanId);
 
     drawSpanBar({
@@ -119,6 +127,7 @@ function drawLevel(args: DrawLevelArgs): void {
       selectedSpanId,
       hoveredSpanId,
       isDimmedByFilter,
+      formatValue,
     });
   }
 }
@@ -206,6 +215,8 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     spanRectsRef,
     eventRectsRef,
     matchingSpanIds,
+    formatValue,
+    colorOf,
   } = args;
 
   const drawFlamegraph = useCallback(() => {
@@ -283,6 +294,8 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
         eventRectsArray,
         metrics,
         matchingSpanIds,
+        formatValue,
+        colorOf,
       });
     }
 
@@ -302,6 +315,8 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     hoveredSpanId,
     colorBy,
     matchingSpanIds,
+    formatValue,
+    colorOf,
   ]);
 
   return drawFlamegraph;

@@ -25,7 +25,7 @@ The connector creates graph dependencies between metered ingestion pipelines and
 usage publication. Its final flush runs after source admissions finish and before
 the downstream cumulative processor and usage exporter stop.
 
-Its input methods accept logs, traces, and metrics, return success, and neither
+Its input methods accept logs, traces, metrics, and profiles, return success, and neither
 record nor forward source payloads. Collector creates one node per input signal,
 sharing one publisher. Each node stops after its upstream processors; only the
 last node stops periodic publication and flushes. The downstream cumulative

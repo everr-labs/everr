@@ -25,7 +25,7 @@ import (
 // shapedTemplatesDigest pins the DDL that decides the shape of the local
 // store. localSchemaVersion has to change with it, because a store built by an
 // older binary is only dropped and rebuilt when the version differs.
-const shapedTemplatesDigest = "3c0ff55415972749828596d34e042896fcfff26133cd33f4f75de0b9f79c7596"
+const shapedTemplatesDigest = "4d4a364131df0d889f3375893fa3559401e9ef1e93b9e952e90f28f627df445d"
 
 func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	digest := sha256.New()

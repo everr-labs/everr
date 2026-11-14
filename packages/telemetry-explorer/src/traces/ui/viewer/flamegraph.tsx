@@ -1,8 +1,14 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- This composite control or canvas chart needs its ARIA role and cannot be represented by a native input, select, or img. */
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@everr/ui/components/context-menu";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import {
+  type ReactNode,
   type Ref,
   useCallback,
   useEffect,
@@ -13,7 +19,8 @@ import {
 } from "react";
 import type { TraceModel } from "./model";
 import type { VisualLayout } from "./rendering/compute-visual-layout";
-import type { EventRect, SpanRect } from "./rendering/types";
+import { formatSpanDuration } from "./rendering/draw-utils";
+import type { EventRect, FlamegraphSpan, SpanRect } from "./rendering/types";
 import { useFlamegraphDraw } from "./rendering/use-flamegraph-draw";
 
 export type ViewRange = { start: number; end: number };
@@ -47,9 +54,17 @@ export function TraceFlamegraph({
   range,
   onRangeChange,
   onSelect,
+  formatValue = formatSpanDuration,
+  colorOf,
+  timeAxis = true,
+  renderHover,
+  onHoverChange,
+  renderContextMenu,
+  ariaLabel = "Trace flamegraph. Select spans using the waterfall, or click a flamegraph bar. Pinch to zoom and drag to pan.",
   ref,
 }: {
-  model: TraceModel;
+  // Only the full extent is read, so a profile can pass its total weight.
+  model: Pick<TraceModel, "durationMs">;
   layout: VisualLayout;
   selectedSpanId?: string;
   matchingIds: ReadonlySet<string>;
@@ -58,6 +73,16 @@ export function TraceFlamegraph({
   range: ViewRange;
   onRangeChange: (range: ViewRange) => void;
   onSelect: (id: string) => void;
+  formatValue?: (durationNano: number) => string;
+  colorOf?: (span: FlamegraphSpan) => string | undefined;
+  // Off when the x axis is not time, as in a profile, where it is sample weight.
+  timeAxis?: boolean;
+  renderHover?: (span: FlamegraphSpan) => ReactNode;
+  /** Called with the hovered bar's id when it changes, and `undefined` when the pointer leaves the bars. */
+  onHoverChange?: (id: string | undefined) => void;
+  /** Menu items for a right-clicked bar. Without it the browser's menu shows. */
+  renderContextMenu?: (id: string) => ReactNode;
+  ariaLabel?: string;
   ref?: Ref<FlamegraphHandle>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +103,27 @@ export function TraceFlamegraph({
     x: number;
     y: number;
   }>();
+  // The bar a right-click landed on, kept while its menu is open.
+  const [menuId, setMenuId] = useState<string>();
+  const menuTargetRef = useRef<string | undefined>(undefined);
+  const hoveredId = hover?.span.span.spanId;
+  const changeHover = (next: typeof hover) => {
+    setHover(next);
+    const id = next?.span.span.spanId;
+    if (id !== hoveredId) onHoverChange?.(id);
+  };
+  const barAt = (event: { clientX: number; clientY: number; currentTarget: Element }) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const rects = spanRectsRef.current;
+    // The last drawn bar is on top.
+    for (let i = rects.length - 1; i >= 0; i--) {
+      const s = rects[i];
+      if (x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height) return s;
+    }
+    return undefined;
+  };
   const drawFlamegraph = useFlamegraphDraw({
     canvasRef,
     containerRef,
@@ -92,6 +138,8 @@ export function TraceFlamegraph({
     eventRectsRef,
     matchingSpanIds: filterActive ? matchingIds : null,
     colorBy,
+    formatValue,
+    colorOf,
   });
 
   // URL selection controls the external scroll surface, not local selection state.
@@ -181,7 +229,7 @@ export function TraceFlamegraph({
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <TimeRuler range={range} />
+      {timeAxis ? <TimeRuler range={range} /> : null}
       <ScrollArea
         viewportRef={containerRef}
         className="min-h-0 flex-1"
@@ -189,17 +237,20 @@ export function TraceFlamegraph({
           onScroll: () => drawFlamegraph(),
         }}
       >
-        <div
-          style={{
-            height: Math.max(160, layout.totalVisualRows * 24),
-            minHeight: "100%",
+        <BarsSurface
+          height={Math.max(160, layout.totalVisualRows * 24)}
+          menu={renderContextMenu && menuId ? renderContextMenu(menuId) : undefined}
+          menuEnabled={renderContextMenu !== undefined}
+          onMenuOpenChange={(open) => {
+            // Only a right-click on a bar opens the menu; the empty area keeps none.
+            setMenuId(open ? menuTargetRef.current : undefined);
           }}
         >
           <canvas
             ref={canvasRef}
             className="sticky top-0 block cursor-grab touch-none"
             role="img"
-            aria-label="Trace flamegraph. Select spans using the waterfall, or click a flamegraph bar. Pinch to zoom and drag to pan."
+            aria-label={ariaLabel}
             onPointerDown={(event) => {
               if (event.button !== 0) return;
               setCursor(undefined);
@@ -222,7 +273,7 @@ export function TraceFlamegraph({
                     ),
                   );
                   onRangeChange({ start, end: start + width });
-                  setHover(undefined);
+                  changeHover(undefined);
                 }
                 return;
               }
@@ -232,13 +283,11 @@ export function TraceFlamegraph({
                 x: Math.max(0, Math.min(rect.width, x)),
                 width: rect.width,
               });
-              const span = [...spanRectsRef.current]
-                .reverse()
-                .find((s) => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height);
+              const span = barAt(event);
               const dot = eventRectsRef.current.find(
                 (e) => Math.abs(e.cx - x) <= e.halfSize + 2 && Math.abs(e.cy - y) <= e.halfSize + 2,
               );
-              setHover(
+              changeHover(
                 span
                   ? {
                       span,
@@ -254,12 +303,7 @@ export function TraceFlamegraph({
               dragRef.current = null;
               event.currentTarget.releasePointerCapture(event.pointerId);
               if (moved) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              const x = event.clientX - rect.left;
-              const y = event.clientY - rect.top;
-              const hit = [...spanRectsRef.current]
-                .reverse()
-                .find((s) => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height);
+              const hit = barAt(event);
               if (hit) {
                 directSelectionRef.current =
                   hit.span.spanId === selectedSpanId ? undefined : hit.span.spanId;
@@ -270,14 +314,18 @@ export function TraceFlamegraph({
               dragRef.current = null;
             }}
             onPointerLeave={() => {
-              setHover(undefined);
+              changeHover(undefined);
               setCursor(undefined);
+            }}
+            onContextMenu={(event) => {
+              menuTargetRef.current = barAt(event)?.span.spanId;
+              changeHover(undefined);
             }}
             onDoubleClick={() => onRangeChange({ start: 0, end: model.durationMs })}
           />
-        </div>
+        </BarsSurface>
       </ScrollArea>
-      {cursor && cursor.width > 0 && (
+      {timeAxis && cursor && cursor.width > 0 && (
         <div
           aria-hidden
           data-slot="flamegraph-crosshair"
@@ -305,18 +353,48 @@ export function TraceFlamegraph({
             top: Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
           }}
         >
-          <div className="truncate font-medium">
-            {hover.event?.event.name ?? hover.span.span.name}
-          </div>
-          <div className="text-muted-foreground mt-1 truncate">
-            {hover.span.span.resource["service.name"]}
-          </div>
-          <div className="mt-1 font-mono">
-            {formatDuration(hover.span.span.durationNano, "ns")}
-            {hover.span.span.hasError ? " · Error" : ""}
-          </div>
+          {renderHover ? (
+            renderHover(hover.span.span)
+          ) : (
+            <>
+              <div className="truncate font-medium">
+                {hover.event?.event.name ?? hover.span.span.name}
+              </div>
+              <div className="text-muted-foreground mt-1 truncate">
+                {hover.span.span.resource["service.name"]}
+              </div>
+              <div className="mt-1 font-mono">
+                {formatDuration(hover.span.span.durationNano, "ns")}
+                {hover.span.span.hasError ? " · Error" : ""}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/** The scrollable bars, with a right-click menu when the host gives one. */
+function BarsSurface({
+  height,
+  menu,
+  menuEnabled,
+  onMenuOpenChange,
+  children,
+}: {
+  height: number;
+  menu: ReactNode;
+  menuEnabled: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  const style = { height, minHeight: "100%" };
+  if (!menuEnabled) return <div style={style}>{children}</div>;
+  return (
+    <ContextMenu open={menu !== undefined} onOpenChange={onMenuOpenChange}>
+      <ContextMenuTrigger render={<div style={style} />}>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-48">{menu}</ContextMenuContent>
+    </ContextMenu>
   );
 }

@@ -27,5 +27,8 @@ COPY --from=build --chmod=755 ${BIN_PATH} /usr/bin/everr-collector
 
 USER ${UID}:${UID}
 
-ENTRYPOINT ["/usr/bin/everr-collector"]
+# Profiles are an alpha OTLP signal and need this gate. It sits in the
+# entrypoint, not CMD, so a deployment that overrides the args keeps it. One
+# that overrides the command (everr-deploy's collector.tf) must pass it too.
+ENTRYPOINT ["/usr/bin/everr-collector", "--feature-gates=service.profilesSupport"]
 CMD ["--config=/etc/everr-collector/config.yaml"]

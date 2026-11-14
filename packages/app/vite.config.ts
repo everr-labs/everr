@@ -108,6 +108,8 @@ export function createAppConfig(
         }),
         nitro({
           output: { dir: outputDirectory },
+          // The profiler maps sampled frames back to the TypeScript sources.
+          sourcemap: true,
           traceDeps: ["tslib*"],
           hooks: {
             "build:config": (nitro, { rollup, rolldown }) => {

@@ -118,6 +118,37 @@ describe("telemetry config", () => {
       "service.name": "everr-dev-app",
       "service.namespace": "everr",
       "service.version": "abc123",
+      "vcs.ref.head.revision": "abc123",
+    });
+  });
+
+  it("names the source repository and revision for source links", () => {
+    expect(
+      telemetryResourceAttributes(
+        {
+          GITHUB_REPOSITORY: "everr-labs/everr",
+          GITHUB_SERVER_URL: "https://github.com",
+          GITHUB_SHA: "abc123",
+        },
+        "instance-1",
+      ),
+    ).toMatchObject({
+      "vcs.repository.url.full": "https://github.com/everr-labs/everr",
+      "vcs.ref.head.revision": "abc123",
+    });
+    expect(
+      telemetryResourceAttributes(
+        {
+          VERCEL_GIT_COMMIT_SHA: "def456",
+          VERCEL_GIT_PROVIDER: "gitlab",
+          VERCEL_GIT_REPO_OWNER: "acme",
+          VERCEL_GIT_REPO_SLUG: "shop",
+        },
+        "instance-1",
+      ),
+    ).toMatchObject({
+      "vcs.repository.url.full": "https://gitlab.com/acme/shop",
+      "vcs.ref.head.revision": "def456",
     });
   });
 

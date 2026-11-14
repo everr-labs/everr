@@ -63,7 +63,7 @@ describe("local telemetry explorer", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    for (const name of ["Logs", "Traces", "Errors", "Settings"]) {
+    for (const name of ["Logs", "Traces", "Profiles", "Errors", "Settings"]) {
       expect(screen.getByRole("link", { name })).toBeInTheDocument();
     }
     const localCommands = new Set(["get_collector_status", "telemetry_sql_query"]);

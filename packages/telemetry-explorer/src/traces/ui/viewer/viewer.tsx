@@ -15,7 +15,7 @@ import {
 } from "@everr/ui/components/select";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ChevronDown,
@@ -28,7 +28,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { type ComponentProps, useCallback, useMemo, useRef, useState } from "react";
+import { type ComponentProps, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
@@ -51,6 +51,34 @@ export type TraceExplorerProps = {
   };
   onBack: () => void;
   onSpanChange: (spanId: string | undefined) => void;
+  // The host's profiles data. The links to the profiles and the span's Profile
+  // tab show only for spans with linked samples, so they never lead to an
+  // empty page.
+  profiles?: TraceProfiles;
+};
+
+export type TraceWindow = { start: Date; end: Date };
+
+export type TraceProfiles = {
+  /** The ids of the trace's spans that have profile samples linked to them. */
+  profiledSpans: (target: { traceId: string; window: TraceWindow }) => Promise<readonly string[]>;
+  /**
+   * A link to the trace's profiles, or with `spanId` to one span's. Profile
+   * queries need the trace's time window to find their samples.
+   */
+  renderLink: (window: TraceWindow, spanId?: string) => ReactNode;
+  /** The selected span's profile, in the span details' Profile tab. */
+  renderSpanProfile: (target: SpanProfileTarget) => ReactNode;
+};
+
+export type SpanProfileTarget = {
+  traceId: string;
+  spanId: string;
+  /** The trace's time window, which the profile query pads to find its rows. */
+  window: TraceWindow;
+  /** Unix nanoseconds, as a string to keep their precision. */
+  spanStartNs: string;
+  spanDurationNs: number;
 };
 
 type Props = Omit<TraceExplorerProps, "repo">;
@@ -134,7 +162,8 @@ function PreparedFlamegraph({
   model,
   queryKey,
   ...props
-}: Omit<ComponentProps<typeof TraceFlamegraph>, "layout"> & {
+}: Omit<ComponentProps<typeof TraceFlamegraph>, "layout" | "model"> & {
+  model: TraceModel;
   queryKey: (string | number)[];
 }) {
   // oxlint-disable-next-line query/exhaustive-deps -- The caller-provided trace key and version identify this immutable model input without hashing the full span dataset.
@@ -163,6 +192,7 @@ function TraceViewer({
   search,
   onSpanChange,
   onBack,
+  profiles,
 }: Props & { model: TraceModel; layoutKey: (string | number)[] }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<SpanCategory>("All");
@@ -197,6 +227,13 @@ function TraceViewer({
     [model, openNodes],
   );
   const root = model.roots[0];
+  const timeWindow = useMemo(() => traceWindow(model), [model]);
+  const { data: profiledSpans } = useQuery({
+    queryKey: ["traces", "profiled-spans", traceId, timeWindow] as const,
+    queryFn: profiles ? () => profiles.profiledSpans({ traceId, window: timeWindow }) : skipToken,
+    select: (ids) => new Set(ids),
+  });
+  const selectedProfiled = Boolean(selected && profiledSpans?.has(selected.spanId));
   const previewFields = useMemo(
     () => [...new Set(model.waterfall.flatMap((node) => Object.keys(node.attributes)))].sort(),
     [model],
@@ -280,6 +317,9 @@ function TraceViewer({
             </span>
           </div>
         </div>
+        {profiledSpans?.size ? (
+          <div className="flex shrink-0 items-center gap-2">{profiles?.renderLink(timeWindow)}</div>
+        ) : null}
       </div>
       {model.missingParents > 0 && (
         <div className="shrink-0 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
@@ -507,6 +547,20 @@ function TraceViewer({
                 key={selected.spanId}
                 node={selected}
                 durationMs={model.durationMs}
+                actions={
+                  selectedProfiled ? profiles?.renderLink(timeWindow, selected.spanId) : undefined
+                }
+                profile={
+                  selectedProfiled
+                    ? profiles?.renderSpanProfile({
+                        traceId,
+                        spanId: selected.spanId,
+                        window: timeWindow,
+                        spanStartNs: selected.source.timestampNs,
+                        spanDurationNs: selected.durationNano,
+                      })
+                    : undefined
+                }
                 onClose={() => onSpanChange(undefined)}
                 onFocus={() => {
                   const padding = Math.max((selected.durationNano / 1e6) * 0.1, 0.001);
@@ -526,4 +580,13 @@ function TraceViewer({
       </ResizablePanelGroup>
     </section>
   );
+}
+
+// Padded out to whole seconds, so samples at the edges of the trace fall inside.
+function traceWindow(model: TraceModel): TraceWindow {
+  const startMs = Number(model.startNs / 1_000_000n);
+  return {
+    start: new Date(Math.floor(startMs / 1000) * 1000),
+    end: new Date(Math.ceil((startMs + model.durationMs) / 1000) * 1000 + 1000),
+  };
 }

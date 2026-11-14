@@ -9,6 +9,7 @@ export function retentionForDays(
     tracesDays: telemetryDays,
     logsDays: telemetryDays,
     metricsDays: telemetryDays,
+    profilesDays: telemetryDays,
     alertEvaluationDays: evaluationDays,
     alertLifecycleDays: lifecycleDays,
   };

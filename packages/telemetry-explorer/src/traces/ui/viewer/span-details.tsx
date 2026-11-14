@@ -5,18 +5,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@everr/ui/components/t
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { Link } from "@tanstack/react-router";
 import { Copy, Focus, X } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import type { TraceNode } from "./model";
 
 export function SpanDetails({
   node,
   durationMs,
+  actions,
+  profile,
   onClose,
   onFocus,
 }: {
   node: TraceNode;
   durationMs: number;
+  actions?: ReactNode;
+  /** Shown in a Profile tab, which is absent without it. */
+  profile?: ReactNode;
   onClose: () => void;
   onFocus: () => void;
 }) {
@@ -44,6 +49,7 @@ export function SpanDetails({
           <Focus />
           Zoom to span
         </Button>
+        {actions}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -66,6 +72,7 @@ export function SpanDetails({
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="events">Events ({span.events.length})</TabsTrigger>
           <TabsTrigger value="links">Links ({span.links.length})</TabsTrigger>
+          {profile ? <TabsTrigger value="profile">Profile</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="overview" className="min-h-0 overflow-hidden">
           <ScrollArea className="h-full" viewportClassName="p-3">
@@ -127,6 +134,11 @@ export function SpanDetails({
             ))
           )}
         </TabsContent>
+        {profile ? (
+          <TabsContent value="profile" className="flex min-h-0 flex-col overflow-hidden">
+            {profile}
+          </TabsContent>
+        ) : null}
       </Tabs>
     </aside>
   );

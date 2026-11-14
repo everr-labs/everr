@@ -123,6 +123,11 @@ processors:
       - action: upsert
         key: everr.retention.days
         from_context: auth.retention_metrics_days
+  resource/public_retention_profiles:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_profiles_days
 
 exporters:
   debug:
@@ -252,4 +257,11 @@ service:
           resource/public_retention_logs,
           everr_usage,
         ]
+      exporters: [clickhouse, everr_usage_connector]
+    # Needs --feature-gates=service.profilesSupport (set in the image
+    # entrypoint). attributesprocessor cannot process profiles; the views read
+    # the tenant from the resource, which resource/public_tenant overwrites.
+    profiles/public:
+      receivers: [otlp/public]
+      processors: [resource/public_tenant, resource/public_retention_profiles, everr_usage]
       exporters: [clickhouse, everr_usage_connector]

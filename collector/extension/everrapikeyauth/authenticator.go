@@ -33,6 +33,9 @@ func newAuthData(vr verifyResponse) *authData {
 	if vr.TenantID != "" {
 		attrs["tenant_id"] = vr.TenantID
 	}
+	if vr.ProfilesDays != 0 {
+		attrs["retention_profiles_days"] = strconv.FormatUint(uint64(vr.ProfilesDays), 10)
+	}
 	names := make([]string, 0, len(attrs))
 	for name := range attrs {
 		names = append(names, name)

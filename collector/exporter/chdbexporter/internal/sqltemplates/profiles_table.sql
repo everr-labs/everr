@@ -33,15 +33,15 @@ CREATE TABLE IF NOT EXISTS %q.%q %s (
     `__otel_materialized_deployment.environment.name` LowCardinality(String) MATERIALIZED ResourceAttributes['deployment.environment.name'] CODEC(ZSTD(3)),
     `__otel_materialized_service.namespace` LowCardinality(String) MATERIALIZED ResourceAttributes['service.namespace'] CODEC(ZSTD(3)),
     `__otel_materialized_service.instance.id` LowCardinality(String) MATERIALIZED ResourceAttributes['service.instance.id'] CODEC(ZSTD(3)),
-    INDEX idx_profile_id ProfileId TYPE text(tokenizer = 'array'),
-    INDEX idx_trace_id TraceId TYPE text(tokenizer = 'array'),
-    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE text(tokenizer = 'array'),
-    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE text(tokenizer = 'array'),
-    INDEX idx_sample_attr_key mapKeys(SampleAttributes) TYPE text(tokenizer = 'array'),
-    INDEX idx_sample_attr_value mapValues(SampleAttributes) TYPE text(tokenizer = 'array'),
-    INDEX idx_function_names FunctionNames TYPE text(tokenizer = 'splitByNonAlpha')
+    INDEX idx_profile_id ProfileId TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_trace_id TraceId TYPE bloom_filter(0.001) GRANULARITY 1,
+    INDEX idx_res_attr_key mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_res_attr_value mapValues(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_sample_attr_key mapKeys(SampleAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_sample_attr_value mapValues(SampleAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_function_names FunctionNames TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = %s
 PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SampleType, toDateTime(Timestamp))
+ORDER BY (ServiceName, SampleType, Timestamp)
 %s
 SETTINGS index_granularity=8192, ttl_only_drop_parts = 1

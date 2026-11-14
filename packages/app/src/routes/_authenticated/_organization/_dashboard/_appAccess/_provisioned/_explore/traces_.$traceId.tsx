@@ -7,6 +7,8 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { createFileRoute, type ErrorComponentProps, Link } from "@tanstack/react-router";
+import { traceProfiles } from "@everr/telemetry-explorer/profiles";
+import { remoteProfilesRepo } from "#app/data/profiles/remote-repo.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 export const Route = createFileRoute(
@@ -57,6 +59,7 @@ function TraceDetailRoute() {
           resetScroll: false,
         })
       }
+      profiles={traceProfiles(remoteProfilesRepo, traceId, profilesLink)}
     />
   );
 }
@@ -82,3 +85,7 @@ function TraceDetailError({ error }: ErrorComponentProps) {
     </Empty>
   );
 }
+
+const profilesLink: Parameters<typeof traceProfiles>[2] = (search) => (
+  <Link to="/profiles" search={search} />
+);

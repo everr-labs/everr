@@ -60,6 +60,11 @@ processors:
       - action: upsert
         key: everr.retention.days
         from_context: auth.retention_metrics_days
+  resource/public_retention_profiles:
+    attributes:
+      - action: upsert
+        key: everr.retention.days
+        from_context: auth.retention_profiles_days
   resource/github_tenant:
     attributes:
       - action: upsert
@@ -132,6 +137,16 @@ service:
         - attributes/strip_user_tenant
         - resource/public_tenant
         - resource/public_retention_logs
+      exporters:
+        - clickhouse
+    # attributesprocessor has no profiles support; the views read the tenant
+    # from the resource, which resource/public_tenant overwrites.
+    profiles/public:
+      receivers:
+        - otlp/public
+      processors:
+        - resource/public_tenant
+        - resource/public_retention_profiles
       exporters:
         - clickhouse
     traces/github:

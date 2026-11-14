@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pipeline/xpipeline"
 	"go.uber.org/zap"
 )
 
@@ -205,14 +206,10 @@ func TestClockGenerationsRemainSeparateWithinFlush(t *testing.T) {
 
 func TestUnsupportedSignalsAreNotPublished(t *testing.T) {
 	m := newMeter(Config{MaxSeries: 10}, zap.NewNop())
-	var profiles pipeline.Signal
-	require.NoError(t, profiles.UnmarshalText([]byte("profiles")))
-	for _, signal := range []pipeline.Signal{{}, profiles} {
-		m.Record(signal, map[string]int64{"a": 100})
-	}
+	m.Record(pipeline.Signal{}, map[string]int64{"a": 100})
 	require.Zero(t, m.Drain().DataPointCount())
-	for _, signal := range []pipeline.Signal{pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics} {
+	for _, signal := range []pipeline.Signal{pipeline.SignalLogs, pipeline.SignalTraces, pipeline.SignalMetrics, xpipeline.SignalProfiles} {
 		m.Record(signal, map[string]int64{"a": 100})
 	}
-	require.Equal(t, 3, m.Drain().DataPointCount())
+	require.Equal(t, 4, m.Drain().DataPointCount())
 }

@@ -27,12 +27,13 @@ describe("attribute metadata", () => {
     });
   });
 
-  it("labels every source including span", () => {
+  it("labels every source", () => {
     expect(ATTRIBUTE_SOURCE_LABELS).toEqual({
       resource: "Resource",
       log: "Log",
       scope: "Scope",
       span: "Span",
+      sample: "Sample",
     });
   });
 

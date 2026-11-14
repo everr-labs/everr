@@ -43,6 +43,7 @@ func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
 	// explorer queries run unchanged.
 	require.Equal(t, "logs", chdb["logs_table_name"])
 	require.Equal(t, "traces", chdb["traces_table_name"])
+	require.Equal(t, "profiles", chdb["profiles_table_name"])
 	require.Equal(t, true, chdb["json"], "the local store writes JSON attribute columns like the cloud")
 	metricsTables := chdb["metrics_tables"].(map[string]any)
 	require.Equal(t, map[string]any{"name": "metrics_gauge"}, metricsTables["gauge"])
@@ -67,4 +68,12 @@ func TestStaticProviderReturnsGeneratedConfig(t *testing.T) {
 	conf, err := retrieved.AsConf()
 	require.NoError(t, err)
 	require.NotNil(t, conf)
+}
+
+func TestBuildCollectorConfigRoutesEverySignalToTheLocalStore(t *testing.T) {
+	pipelines := BuildCollectorConfig(CollectorConfig{OTLPListenAddress: "127.0.0.1:54318"}).
+		ToStringMap()["service"].(map[string]any)["pipelines"].(map[string]any)
+	for _, signal := range []string{"traces", "logs", "metrics", "profiles"} {
+		require.Equal(t, map[string]any{"receivers": []any{"otlp"}, "exporters": []any{"chdb"}}, pipelines[signal], signal)
+	}
 }

@@ -132,6 +132,7 @@ describe("/api/internal/verify-key", () => {
         tracesDays: 14,
         logsDays: 7,
         metricsDays: 90,
+        profilesDays: 90,
       });
       expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
@@ -210,6 +211,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
       tracesDays: 365,
       logsDays: 365,
       metricsDays: 365,
+      profilesDays: 365,
     });
   });
 
@@ -277,6 +279,7 @@ describe("/api/internal/verify-key browser origin policy", () => {
       tracesDays: 365,
       logsDays: 365,
       metricsDays: 365,
+      profilesDays: 365,
     });
   });
 

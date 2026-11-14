@@ -26,7 +26,7 @@ usage connector -> delta_to_cumulative -> dedicated usage exporter
 | Unit | `By` |
 | Publication interval | 60 seconds by default; no unchanged idle points |
 | Datapoint attributes | `everr.ingestion.signal`, `everr.usage.tenant.id`, `everr.usage.month`, `everr.usage.clock.generation` |
-| Signals | `logs`, `traces`, `metrics` |
+| Signals | `logs`, `traces`, `metrics`, `profiles` (metered, not invoiced: `customer-usage.sql` selects the other three) |
 | Month | UTC calendar month, `YYYY-MM`, assigned at successful admission |
 | Timestamp | Latest successful admission represented by the delta |
 | Resource owner | `everr.tenant.id`, the measured tenant |
