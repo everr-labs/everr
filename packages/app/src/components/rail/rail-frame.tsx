@@ -2,17 +2,24 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
-import { useLocation } from "@tanstack/react-router";
-import { type ComponentProps, createContext, type ReactNode, useContext, useState } from "react";
+import { useMatches } from "@tanstack/react-router";
+import {
+  type ComponentProps,
+  createContext,
+  type ReactNode,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import * as z from "zod";
+import { useOnNavigate } from "#app/hooks/use-on-navigate.ts";
 
 /**
- * How the frame's rail shows below `md`. With `collapsedOnNarrow`, what is open
- * gets the whole phone screen and the rail opens over it as a sheet
- * (`openSheet`) until the next navigation.
+ * What the pane's `FrameToggle` does: on a phone, where the rail is a sheet,
+ * `sheet` is set and the toggle opens it; otherwise it flips `full`.
  */
 interface RailFrameState {
-  collapsedOnNarrow: boolean;
+  sheet: boolean;
   openSheet: () => void;
 }
 
@@ -57,18 +64,11 @@ export function RailFrame({
   rail,
   paneClassName,
   paneProps,
-  collapsedOnNarrow = false,
   children,
 }: {
   /** Names the rail for assistive technology, e.g. "Dashboards". */
   label: string;
   full: boolean;
-  /**
-   * Below `md`, drop the rail from the layout and open it as a sheet when the pane's `FrameToggle` asks for it; the next navigation
-   * (picking a row) closes it. Only where the pane carries a `FrameToggle`,
-   * or the rail can't come back. Without it the rail stacks above the pane.
-   */
-  collapsedOnNarrow?: boolean;
   rail: ReactNode;
   /** Extra layout for the scrolling pane, e.g. its padding or a container name. */
   paneClassName?: string;
@@ -76,24 +76,30 @@ export function RailFrame({
   paneProps?: ComponentProps<typeof ScrollArea>["viewportProps"];
   children: ReactNode;
 }) {
-  const pathname = useLocation({ select: (location) => location.pathname });
-  // Keyed by the path it was opened on, so any navigation closes it again
-  // without an effect resetting the state.
-  const [openOn, setOpenOn] = useState<string | null>(null);
-  const narrowOpen = openOn === pathname;
-  // Only decides whether the sheet may show: the layout itself hides the
-  // rail with CSS, so the server markup is already right on a phone.
+  // Below `md` the rail of a page that shows a `FrameToggle` (`railToggle` in
+  // its route's static data) leaves the layout and opens as a sheet from the
+  // toggle. Elsewhere it stacks above the pane, the only way back to it.
+  const collapsible = useMatches({
+    select: (matches) =>
+      matches.some((match) => match.staticData.railToggle && match.status === "success"),
+  });
+  // Only decides whether the sheet may show: the layout hides the rail with
+  // CSS, so the server markup is already right on a phone.
   const isMobile = useIsMobile();
-  const narrowHidden = collapsedOnNarrow || full;
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // Picking a row is done with the list, and so is any other navigation.
+  useOnNavigate(() => setSheetOpen(false));
+  const sheet = collapsible && isMobile;
+  const frame = useMemo(() => ({ sheet, openSheet: () => setSheetOpen(true) }), [sheet]);
   return (
-    <RailFrameContext.Provider value={{ collapsedOnNarrow, openSheet: () => setOpenOn(pathname) }}>
+    <RailFrameContext.Provider value={frame}>
       <div
         className={cn(
           "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-sidebar motion-reduce:md:transition-none",
           full ? "md:grid-cols-[0px_minmax(0,1fr)]" : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",
           // Without the rail the pane is the only row; left in the `auto` row it
           // would grow to its content and stop scrolling.
-          narrowHidden && "max-md:grid-rows-[minmax(0,1fr)]",
+          collapsible && "max-md:grid-rows-[minmax(0,1fr)]",
         )}
       >
         {/*
@@ -108,12 +114,11 @@ export function RailFrame({
           aria-label={label}
           className={cn(
             "min-h-0 min-w-0 overflow-hidden border-b bg-muted/15 md:border-r md:border-b-0",
-            // Stacked on narrow viewports the rail stays expanded: it is
-            // navigation, not filters, so hiding it behind a button would bury
-            // the only way to switch. Just under half the viewport leaves what
-            // is open the larger share; the rows scroll.
+            // Stacked (no toggle to bring it back) it stays expanded below
+            // `md`: just under half the viewport leaves what is open the
+            // larger share; the rows scroll.
             "max-md:max-h-[45dvh]",
-            narrowHidden && "max-md:hidden",
+            collapsible && "max-md:hidden",
             full && "md:border-r-0",
           )}
         >
@@ -128,13 +133,8 @@ export function RailFrame({
           {children}
         </ScrollArea>
       </div>
-      {collapsedOnNarrow && (
-        <Sheet
-          open={narrowOpen && isMobile}
-          onOpenChange={(open) => setOpenOn(open ? pathname : null)}
-        >
-          {/* Styled like the Explore filter rail's sheet: the rail at its
-              own width over the dimmed page, not a page of its own. */}
+      {collapsible && (
+        <Sheet open={sheetOpen && isMobile} onOpenChange={setSheetOpen}>
           {/* Styled like the Explore filter rail's sheet: the rail at its
               own width over the dimmed page, under the same small heading.
               A tap doesn't focus the search box, which would raise the
@@ -144,16 +144,7 @@ export function RailFrame({
             className="w-[300px] p-0 sm:max-w-[300px]"
             initialFocus={(openType) => openType !== "touch"}
           >
-            {/* Any link closes it, including the page already open, which
-                navigates nowhere and so would not close it by path. */}
-            {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/click-events-have-key-events -- delegated close for the links inside, which carry their own keyboard handling */}
-            <nav
-              aria-label={label}
-              onClick={(e) => {
-                if (e.target instanceof Element && e.target.closest("a")) setOpenOn(null);
-              }}
-              className="flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3"
-            >
+            <nav aria-label={label} className="flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3">
               <SheetTitle className="text-muted-foreground text-[0.6875rem] font-medium tracking-wider uppercase">
                 {label}
               </SheetTitle>

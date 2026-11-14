@@ -11,13 +11,16 @@ import {
   SidebarRail,
   useSidebar,
 } from "@everr/ui/components/sidebar";
-import { Link, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { NavMain } from "#app/components/nav-main.tsx";
+import { useOnNavigate } from "#app/hooks/use-on-navigate.ts";
 import { navGroups } from "#app/lib/navigation.ts";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  useCloseOnNavigate();
+  // On a phone the sidebar is a sheet over the page, which a navigation from
+  // it, or from the user menu portaled outside it, should leave.
+  const { setOpenMobile } = useSidebar();
+  useOnNavigate(() => setOpenMobile(false));
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -43,21 +46,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
-  );
-}
-
-/**
- * On a phone the sidebar is a sheet over the page, and a sheet left open after
- * a navigation hides the page it went to. Listens to the router rather than to
- * the sidebar's links, so the user menu's items (portaled outside the sheet)
- * and a tap on the page already open close it too. Closing starts with the
- * navigation, not after its loaders, so the tap answers at once.
- */
-function useCloseOnNavigate() {
-  const router = useRouter();
-  const { setOpenMobile } = useSidebar();
-  useEffect(
-    () => router.subscribe("onBeforeNavigate", () => setOpenMobile(false)),
-    [router, setOpenMobile],
   );
 }

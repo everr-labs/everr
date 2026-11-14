@@ -174,7 +174,7 @@ export function TimeRangePicker({
     <QuickRangeList
       groups={filteredGroups}
       value={value}
-      large={isMobile}
+      touch={isMobile}
       onPick={handlePresetClick}
     />
   );
@@ -186,7 +186,7 @@ export function TimeRangePicker({
       onToChange={setCustomTo}
       state={customRangeState}
       onApply={handleApply}
-      inline={isMobile}
+      touch={isMobile}
     />
   );
 
@@ -258,13 +258,13 @@ export function TimeRangePicker({
 function QuickRangeList({
   groups,
   value,
-  large,
+  touch,
   onPick,
 }: {
   groups: QuickRangeGroup[];
   value: TimeRange;
-  /** Finger-sized rows, for the phone sheet. */
-  large: boolean;
+  /** The phone sheet: finger-sized rows. */
+  touch: boolean;
   onPick: (from: string, to: string) => void;
 }) {
   if (groups.length === 0) {
@@ -282,7 +282,7 @@ function QuickRangeList({
             type="button"
             className={cn(
               "w-full text-left rounded-md px-2 transition-colors",
-              large ? "min-h-11 py-2 text-sm" : "min-h-7 py-1 text-xs/relaxed",
+              touch ? "min-h-11 py-2 text-sm" : "min-h-7 py-1 text-xs/relaxed",
               isActive
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-foreground hover:bg-accent hover:text-accent-foreground",
@@ -304,7 +304,7 @@ function CustomRangeForm({
   onToChange,
   state,
   onApply,
-  inline,
+  touch,
 }: {
   from: string;
   to: string;
@@ -317,17 +317,62 @@ function CustomRangeForm({
     rangeInverted: boolean;
   };
   onApply: () => void;
-  /** From and To side by side, for the phone sheet's bottom bar. */
-  inline: boolean;
+  /** The phone sheet's bottom bar: From and To side by side, a taller button. */
+  touch: boolean;
 }) {
-  const field = (
-    id: string,
-    label: string,
-    value: string,
-    onValueChange: (value: string) => void,
-    placeholder: string,
-    preview: string | null,
-  ) => (
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
+      <div className={cn(touch ? "flex gap-3" : "space-y-3")}>
+        <RangeField
+          id="time-range-from"
+          label="From"
+          value={from}
+          onChange={onFromChange}
+          placeholder="now-7d"
+          preview={state.fromPreview}
+        />
+        <RangeField
+          id="time-range-to"
+          label="To"
+          value={to}
+          onChange={onToChange}
+          placeholder="now"
+          preview={state.toPreview}
+        />
+      </div>
+      {state.rangeInverted && (
+        <p className="text-destructive text-[11px]">
+          &quot;From&quot; must be before &quot;To&quot;
+        </p>
+      )}
+      <Button
+        className={cn("w-full mt-1", touch && "h-10")}
+        disabled={!state.canApply}
+        onClick={onApply}
+      >
+        Apply time range
+      </Button>
+    </div>
+  );
+}
+
+function RangeField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  preview,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  preview: string | null;
+}) {
+  return (
     <div className="min-w-0 flex-1 space-y-1.5 flex flex-col">
       <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
         {label}
@@ -335,7 +380,7 @@ function CustomRangeForm({
       <Input
         id={id}
         value={value}
-        onChange={(e) => onValueChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
       <div className="text-[11px] h-3.5 truncate">
@@ -345,27 +390,6 @@ function CustomRangeForm({
           <span className="text-destructive">Invalid expression</span>
         ) : null}
       </div>
-    </div>
-  );
-  return (
-    <div className="space-y-3">
-      <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
-      <div className={cn(inline ? "flex gap-3" : "space-y-3")}>
-        {field("time-range-from", "From", from, onFromChange, "now-7d", state.fromPreview)}
-        {field("time-range-to", "To", to, onToChange, "now", state.toPreview)}
-      </div>
-      {state.rangeInverted && (
-        <p className="text-destructive text-[11px]">
-          &quot;From&quot; must be before &quot;To&quot;
-        </p>
-      )}
-      <Button
-        className={cn("w-full mt-1", inline && "h-10")}
-        disabled={!state.canApply}
-        onClick={onApply}
-      >
-        Apply time range
-      </Button>
     </div>
   );
 }

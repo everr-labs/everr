@@ -131,7 +131,7 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
         inset={getVisualizationInset(plugin.kind)}
         action={
           action || specWarnings.length > 0 ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
               {specWarnings.length > 0 && <SpecWarningsIndicator warnings={specWarnings} />}
               {action}
             </div>

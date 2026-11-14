@@ -6,7 +6,8 @@ import { loadPanel, panelBreadcrumb } from "./-panel-route.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug/panel/$panelKey",
 )({
-  staticData: { breadcrumb: panelBreadcrumb },
+  // Carries the dashboard toolbar and its list toggle (see RailFrame).
+  staticData: { breadcrumb: panelBreadcrumb, railToggle: true },
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   // Same query the dashboard layout above ensures, so this costs no request.
   loader: async ({

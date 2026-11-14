@@ -13,6 +13,8 @@ import { telemetryCapabilitiesOptions } from "#app/data/dashboards/options.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/",
 )({
+  // Carries the dashboard toolbar and its list toggle (see RailFrame).
+  staticData: { railToggle: true },
   component: BuiltinDashboardPage,
 });
 

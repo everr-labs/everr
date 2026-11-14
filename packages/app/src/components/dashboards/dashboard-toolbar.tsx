@@ -24,11 +24,7 @@ export function DashboardToolbar({
   const hasVariables = useHasVisibleVariables();
   return (
     <div className="mb-3 flex items-start gap-x-3">
-      {frameToggle && (
-        <div className="flex h-8 shrink-0 items-center">
-          <FrameToggle />
-        </div>
-      )}
+      {frameToggle && <FrameToggle />}
       {frameToggle && hasVariables && (
         <div aria-hidden className="flex h-8 items-center">
           <div className="h-5 w-px bg-border" />
@@ -50,7 +46,7 @@ export function DashboardToolbar({
                 collisionPadding={12}
                 className="w-[calc(100vw-1.5rem)] max-h-(--available-height) overflow-y-auto *:mb-0"
               >
-                <VariableBar idPrefix="filters-var" />
+                <VariableBar />
               </PopoverContent>
             </Popover>
           </div>

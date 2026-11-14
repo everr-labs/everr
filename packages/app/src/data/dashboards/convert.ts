@@ -1,4 +1,4 @@
-import type { LayoutItem } from "react-grid-layout";
+import { type LayoutItem, sortLayoutItemsByRowCol } from "react-grid-layout";
 import { type GridItem, PANEL_REF_PREFIX } from "./schema";
 
 function panelKeyFromRef(ref: string): string {
@@ -23,11 +23,9 @@ export function persesToRGL(items: GridItem[]): LayoutItem[] {
  */
 export function stackLayout(items: LayoutItem[], cols: number): LayoutItem[] {
   let y = 0;
-  return [...items]
-    .sort((a, b) => a.y - b.y || a.x - b.x)
-    .map((item) => {
-      const stacked = { ...item, x: 0, y, w: cols };
-      y += item.h;
-      return stacked;
-    });
+  return sortLayoutItemsByRowCol(items).map((item) => {
+    const stacked = { ...item, x: 0, y, w: cols };
+    y += item.h;
+    return stacked;
+  });
 }

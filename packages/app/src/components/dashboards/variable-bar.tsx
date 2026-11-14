@@ -13,7 +13,7 @@ import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useId } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
 import type { ListVariable, TextVariable, Variable } from "#app/data/dashboards/schema.ts";
 import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
@@ -55,14 +55,9 @@ export function useHasVisibleVariables(): boolean {
  */
 export type VariableBarLayout = "stacked" | "inline";
 
-export function VariableBar({
-  layout = "stacked",
-  idPrefix = "var",
-}: {
-  layout?: VariableBarLayout;
-  /** Keeps control ids unique where a page renders the bar twice (the toolbar's Filters popover). */
-  idPrefix?: string;
-}) {
+export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout }) {
+  // Unique per bar: the toolbar renders a second one in its Filters popover.
+  const idPrefix = useId();
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
