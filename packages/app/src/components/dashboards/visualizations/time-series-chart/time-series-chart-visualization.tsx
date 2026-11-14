@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -27,7 +28,7 @@ import {
 import { useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
-import { linearTimeScale, TimeTrackOverlay, useTimeTrack } from "../time-track";
+import { linearTimeScale, TOUCH_SCRUB, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
@@ -268,7 +269,10 @@ export function TimeSeriesChartVisualization({
   const markerX = tooltipTs === undefined ? null : localX(tooltipTs);
 
   return (
-    <div className="relative h-full w-full select-none text-muted-foreground" {...track.handlers}>
+    <div
+      className={cn("relative h-full w-full select-none text-muted-foreground", TOUCH_SCRUB)}
+      {...track.handlers}
+    >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       {/* The canvas has no text of its own: say what it shows. */}
       <p className="sr-only">

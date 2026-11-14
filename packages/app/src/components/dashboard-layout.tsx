@@ -51,7 +51,9 @@ export function DashboardLayout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset className="h-screen min-w-0 pt-12">
+      {/* `dvh`, not `vh`: on mobile browsers `100vh` reaches under the browser's
+          own toolbar, which would hide the bottom of every scrolling pane. */}
+      <SidebarInset className="h-dvh min-w-0 pt-12">
         {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
             content but leaves fixed elements pinned, so the topnav stays put.
             SidebarInset compensates with pt-12. */}
@@ -62,13 +64,15 @@ export function DashboardLayout() {
             SIDEBAR_TRACKED_LEFT,
           )}
         >
-          <div className="flex items-center justify-between flex-1">
-            <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+            {/* The breadcrumb gives way first on a narrow screen: it truncates
+                so the data controls on the right stay whole. */}
+            <div className="flex min-w-0 items-center gap-2">
               <SidebarTrigger className="-ml-1 size-11 md:size-8" />
-              <Separator orientation="vertical" className="mr-2" />
+              <Separator orientation="vertical" className="mr-2 max-md:hidden" />
               <DashboardBreadcrumb />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {showDataControls && <PreviewIndicator />}
               {showDataControls && <CommandBar />}
 

@@ -55,7 +55,14 @@ export function useHasVisibleVariables(): boolean {
  */
 export type VariableBarLayout = "stacked" | "inline";
 
-export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout }) {
+export function VariableBar({
+  layout = "stacked",
+  idPrefix = "var",
+}: {
+  layout?: VariableBarLayout;
+  /** Keeps control ids unique where a page renders the bar twice (the toolbar's Filters popover). */
+  idPrefix?: string;
+}) {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
@@ -99,6 +106,7 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
             key={variable.spec.name}
             variable={variable}
             layout={layout}
+            id={`${idPrefix}-${variable.spec.name}`}
             value={typeof currentValue === "string" ? currentValue : ""}
             onCommit={(value) => setValue(variable.spec.name, value)}
           />
@@ -107,6 +115,7 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
             key={variable.spec.name}
             variable={variable}
             layout={layout}
+            id={`${idPrefix}-${variable.spec.name}`}
             value={values[variable.spec.name]}
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
@@ -125,22 +134,23 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
 function TextVariableField({
   variable,
   layout,
+  id,
   value,
   onCommit,
 }: {
   variable: TextVariable;
   layout: VariableBarLayout;
+  id: string;
   value: string;
   onCommit: (value: string) => void;
 }) {
-  const name = variable.spec.name;
   return (
     <div className={fieldClass(layout)}>
-      <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
       <Input
-        id={`var-${name}`}
+        id={id}
         key={value}
         defaultValue={value}
         className="h-8 w-40"
@@ -158,17 +168,18 @@ function TextVariableField({
 function ListVariableField({
   variable,
   layout,
+  id,
   value,
   optionsState,
   onChange,
 }: {
   variable: ListVariable;
   layout: VariableBarLayout;
+  id: string;
   value: string | string[] | undefined;
   optionsState: VariableOptionsState | undefined;
   onChange: (value: string | string[]) => void;
 }) {
-  const name = variable.spec.name;
   const multi = variable.spec.allowMultiple === true;
   const allowAll = variable.spec.allowAllValue === true;
   const { options, isPending, error, truncated } = optionsState ?? {
@@ -204,14 +215,14 @@ function ListVariableField({
 
   return (
     <div className={fieldClass(layout)}>
-      <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
-              id={`var-${name}`}
+              id={id}
               variant="outline"
               size="sm"
               title={error ?? (selected.length > 0 ? selected.join(", ") : undefined)}

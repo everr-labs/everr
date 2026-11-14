@@ -37,16 +37,20 @@ export function DashboardBreadcrumb() {
   if (crumbs.length === 0) return null;
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0">
+      {/* One line: the header is a fixed 48px, so the current page truncates
+          instead of wrapping out of it. */}
+      <BreadcrumbList className="flex-nowrap">
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
           return (
             <Fragment key={`${crumb.label}-${String(i)}`}>
-              {i > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-              <BreadcrumbItem className={isLast ? undefined : "hidden md:block"}>
+              {i > 0 && <BreadcrumbSeparator className="hidden shrink-0 md:block" />}
+              <BreadcrumbItem className={isLast ? "min-w-0" : "hidden shrink-0 md:inline-flex"}>
                 {isLast ? (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  <BreadcrumbPage className="truncate" title={crumb.label}>
+                    {crumb.label}
+                  </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink render={crumb.link}>{crumb.label}</BreadcrumbLink>
                 )}

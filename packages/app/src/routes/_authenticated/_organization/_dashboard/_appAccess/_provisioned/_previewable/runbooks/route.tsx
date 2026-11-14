@@ -28,6 +28,9 @@ function RunbooksLayout() {
       label="Runbooks"
       full={full ?? false}
       rail={<RunbooksList preview={preview} />}
+      // The toggle below sits in this layout, on every runbooks page, so on a
+      // phone the list can always hide behind it and open as a sheet.
+      collapsedOnNarrow
       // Named container: the pages nav floats or lies down by how much room
       // this pane has, which the viewport alone cannot tell it.
       paneClassName="@container/pane"
@@ -37,8 +40,12 @@ function RunbooksLayout() {
     >
       {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}
+      {/* The same 32px row the dashboard toolbar seats it in, so the toggle
+          sits at the same height on both pages. */}
       <div className="p-3 pb-2">
-        <FrameToggle listLabel="runbook list" />
+        <div className="flex h-8 items-center">
+          <FrameToggle listLabel="runbook list" />
+        </div>
       </div>
       {/* Every step up widens the reading column and the navs floating
             beside it together, so the margins never shrink below what they

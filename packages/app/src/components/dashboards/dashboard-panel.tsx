@@ -1,10 +1,12 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
+import { Toggletip, ToggletipContent, ToggletipTrigger } from "@everr/ui/components/toggletip";
+import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useMemo, useRef } from "react";
 import type { Panel } from "#app/data/dashboards/schema.ts";
 import { PanelShell } from "../panel-shell";
+import { TOUCH_TARGET } from "../touch-target";
 import { useDashboardPanelData } from "./use-dashboard-panel-data";
 import { useInView } from "./use-in-view";
 import {
@@ -36,27 +38,27 @@ interface DashboardPanelProps {
 
 function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
+    <Toggletip>
+      <ToggletipTrigger
         render={
           <button
             type="button"
-            className="text-amber-500 hover:text-amber-400"
+            className={cn("text-amber-500 hover:text-amber-400", TOUCH_TARGET)}
             aria-label="Invalid panel options"
           />
         }
       >
         <TriangleAlert className="size-4" />
-      </TooltipTrigger>
-      <TooltipContent className="max-w-72">
+      </ToggletipTrigger>
+      <ToggletipContent className="max-w-72">
         <p className="mb-1 font-medium">Invalid panel options ignored (defaults used):</p>
         <ul className="list-disc space-y-0.5 pl-4">
           {warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}
         </ul>
-      </TooltipContent>
-    </Tooltip>
+      </ToggletipContent>
+    </Toggletip>
   );
 }
 
@@ -129,7 +131,7 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
         inset={getVisualizationInset(plugin.kind)}
         action={
           action || specWarnings.length > 0 ? (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
               {specWarnings.length > 0 && <SpecWarningsIndicator warnings={specWarnings} />}
               {action}
             </div>
