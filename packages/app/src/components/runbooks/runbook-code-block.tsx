@@ -1,9 +1,9 @@
 import { Button } from "@everr/ui/components/button";
+import { HighlightedCode, LanguageName } from "@everr/ui/components/highlighted-code";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { Suspense, useMemo, useRef } from "react";
-import { HighlightedCode, LanguageName } from "./highlighted-code";
 
 /** The options a fence's info string carries after its language. */
 function parseFenceMeta(meta: string | undefined): {
