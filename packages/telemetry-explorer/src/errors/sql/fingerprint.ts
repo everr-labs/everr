@@ -9,6 +9,11 @@ import { attributeExists, attributeText } from "../../sql/json-attributes";
 // the query reads three subcolumns and never the whole LogAttributes column.
 export const ERROR_FINGERPRINT_SQL = `errorFingerprint(ServiceName, ${attributeText("LogAttributes", "error.fingerprint")}, ${attributeText("LogAttributes", "exception.type")}, ${attributeText("LogAttributes", "exception.message")})`;
 
+// An error's message with its variable parts (ids, numbers, emails, URLs, and
+// such) replaced by placeholders: the text the fingerprint hashes. It reads as
+// the error's name and carries much less user data than the message itself.
+export const ERROR_MESSAGE_TEMPLATE_SQL = `errorMessageTemplate(${attributeText("LogAttributes", "exception.message")})`;
+
 export const EXCEPTION_LOG_FILTER_SQL = `
   ${attributeExists("ResourceAttributes", "service.name")}
   AND SeverityNumber >= 17

@@ -116,7 +116,7 @@ LIMIT 200
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a _fingerprint_: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
+Everr groups error logs into Errors by a _fingerprint_: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and the message's template. The template, from the ClickHouse function `errorMessageTemplate(message)`, replaces URLs, emails, UUIDs, IP addresses, hex ids, durations, long quoted strings, and numbers (except three-digit ones, usually HTTP status codes) with placeholders such as `<n>` and `<url>`. The ClickHouse function `errorFingerprint` computes the fingerprint, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
 

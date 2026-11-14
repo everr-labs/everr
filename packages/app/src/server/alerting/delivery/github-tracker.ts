@@ -81,8 +81,11 @@ export function githubTracker(organizationId: string, config: GithubIssuesConfig
     },
     async state(repo, id) {
       const issue = await getGithubIssueState(await token(repo), repo, Number(id));
-      if (issue.state === "open") return "open";
-      return issue.stateReason === "not_planned" ? "not_planned" : "done";
+      if (issue.state === "open") return { state: "open", closedAt: null };
+      return {
+        state: issue.stateReason === "not_planned" ? "not_planned" : "done",
+        closedAt: issue.closedAt,
+      };
     },
     async reopen(repo, id) {
       await reopenGithubIssue(await token(repo), repo, Number(id));

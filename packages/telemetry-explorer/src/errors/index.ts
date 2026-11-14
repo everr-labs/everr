@@ -9,6 +9,7 @@ export * from "./data/schemas";
 export * from "./data/types";
 export {
   ERROR_FINGERPRINT_SQL,
+  ERROR_MESSAGE_TEMPLATE_SQL,
   EXCEPTION_LOG_FILTER_SQL,
   errorIssueCountExpr,
   errorOccurrencesQuery,

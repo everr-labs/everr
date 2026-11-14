@@ -42,8 +42,9 @@ export function linearTracker(config: LinearConfig): IssueTracker {
     },
     async state(_teamId, id) {
       const issue = await getLinearIssueState(key, id);
-      if (issue.type === "canceled") return "not_planned";
-      return issue.type === "completed" ? "done" : "open";
+      if (issue.type === "canceled") return { state: "not_planned", closedAt: issue.closedAt };
+      if (issue.type === "completed") return { state: "done", closedAt: issue.closedAt };
+      return { state: "open", closedAt: null };
     },
     async reopen(_teamId, id) {
       const issue = await getLinearIssueState(key, id);

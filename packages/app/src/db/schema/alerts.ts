@@ -541,6 +541,12 @@ export const alertTrackerIssues = pgTable(
     // issue id for Linear.
     externalId: text("external_id").notNull(),
     url: text("url").notNull(),
+    // The issue's state when Everr last read it. Only the follow-up for
+    // issues about errors reads it (see `followUpErrorIssues`).
+    state: text("state", { enum: ["open", "done", "not_planned"] })
+      .notNull()
+      .default("open"),
+    stateCheckedAt: timestamp("state_checked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -558,6 +564,44 @@ export const alertTrackerIssues = pgTable(
       foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
       name: "alert_tracker_issues_definition_tenant_fk",
     }).onDelete("cascade"),
+  ],
+);
+
+// An issue about an error, closed as done: what Everr knows of the release
+// that should carry the fix. Versions of the service seen in the day before
+// the close cannot have it, so an occurrence in one of them is no reason to
+// reopen. The first version seen after the close is the release; a day of it
+// without the error confirms the fix. Gone when the issue reopens.
+export const alertTrackerIssueFixes = pgTable(
+  "alert_tracker_issue_fixes",
+  {
+    organizationId: text("organization_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    alertDefinitionId: uuid("alert_definition_id").notNull(),
+    instanceFingerprint: text("instance_fingerprint").notNull(),
+    serviceName: text("service_name").notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }).notNull(),
+    // `service.version` values seen in the day before the close. Empty when
+    // the service reports none.
+    versionsAtClose: jsonb("versions_at_close").notNull().$type<string[]>().default([]),
+    releasedVersion: text("released_version"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.channelId, table.alertDefinitionId, table.instanceFingerprint],
+    }),
+    foreignKey({
+      columns: [table.channelId, table.alertDefinitionId, table.instanceFingerprint],
+      foreignColumns: [
+        alertTrackerIssues.channelId,
+        alertTrackerIssues.alertDefinitionId,
+        alertTrackerIssues.instanceFingerprint,
+      ],
+      name: "alert_tracker_issue_fixes_issue_fk",
+    }).onDelete("cascade"),
+    index("alert_tracker_issue_fixes_org_closed_idx").on(table.organizationId, table.closedAt),
   ],
 );
 

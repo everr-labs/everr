@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "#app/data/alerting/delivery/defaults.ts";
 import { testChannel } from "#app/data/alerting/delivery/repository.ts";
-import { ANN_ISSUES_QUIET } from "#app/data/alerting/resource-annotations.ts";
+import { ANN_ISSUES_KIND } from "#app/data/alerting/resource-annotations.ts";
 import {
   heldIssueCounts,
   releaseCapacityHolds,
@@ -173,23 +173,17 @@ describe("an alert rule delivering to GitHub Issues", () => {
     expect(JSON.stringify(github.calls("comment")[1].body)).toContain("Fired again");
   });
 
-  it("comments only on a reopen for a rule whose resolve says nothing about a fix", async () => {
+  it("only opens the issue for a rule about errors, and leaves the rest to the follow-up", async () => {
     await installGithubApp();
     const github = fakeGithub();
     await insertDirectRule(harness().db, {
       channelType: "github_issues",
       repo: "acme/api",
       intervalSecs: TICK_SECS,
-      annotations: { [ANN_ISSUES_QUIET]: "true" },
+      annotations: { [ANN_ISSUES_KIND]: "error" },
     });
     harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness().fireAndFlush();
-
-    harness().clickhouse.setSignal([]);
-    await nextTick();
-    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await nextTick();
-    expect(github.calls("comment")).toHaveLength(0);
 
     harness().clickhouse.setSignal([]);
     await nextTick();
@@ -198,8 +192,8 @@ describe("an alert rule delivering to GitHub Issues", () => {
     await nextTick();
 
     expect(github.calls("create")).toHaveLength(1);
-    expect(github.calls("reopen")).toHaveLength(1);
-    expect(github.calls("comment")).toHaveLength(1);
+    expect(github.calls("reopen")).toHaveLength(0);
+    expect(github.calls("comment")).toHaveLength(0);
   });
 
   it("leaves an issue closed as not planned alone when the alert fires again", async () => {

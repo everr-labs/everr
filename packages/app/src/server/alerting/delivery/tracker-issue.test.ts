@@ -52,4 +52,17 @@ describe("an alert issue", () => {
     );
     expect(body).toContain("[Runbook](https://app.everr.dev/runbooks/default/errors)");
   });
+
+  it("is the description and the evidence alone for an issue about an error", () => {
+    const body = trackerIssueBody({
+      ...INPUT,
+      plain: true,
+      description: "A new error in checkout.",
+      evidence: { service: "checkout" },
+      alertLink: "https://app.everr.dev/alerts?alert=everr/new-errors",
+    });
+    expect(body).toBe(
+      "A new error in checkout.\n\n### Evidence\n\n| Column | Value |\n| --- | --- |\n| `service` | `checkout` |",
+    );
+  });
 });

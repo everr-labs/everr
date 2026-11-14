@@ -21,6 +21,10 @@ export type TrackerIssueInput = {
   occurredAt: Date;
   alertLink?: string;
   runbookLink?: string;
+  /** The description and the evidence alone, for an issue about an error:
+   *  its description already says what to do, and the alert's facts would
+   *  only add noise. */
+  plain?: boolean;
 };
 
 function labelText(labels: Record<string, string>): string {
@@ -70,14 +74,16 @@ function trackerIssueDetails(input: TrackerIssueInput): string {
   const sections: string[] = [];
   if (input.description) sections.push(input.description);
 
-  const facts = [
-    `**Alert rule:** ${inlineCode(input.rulePath)} (${input.ruleName})`,
-    `**Severity:** ${input.severity}`,
-    `**Fired at:** ${input.occurredAt.toISOString()}`,
-  ];
-  const labels = labelText(input.labels);
-  if (labels) facts.push(`**Labels:** ${inlineCode(labels)}`);
-  sections.push(facts.join("\n"));
+  if (!input.plain) {
+    const facts = [
+      `**Alert rule:** ${inlineCode(input.rulePath)} (${input.ruleName})`,
+      `**Severity:** ${input.severity}`,
+      `**Fired at:** ${input.occurredAt.toISOString()}`,
+    ];
+    const labels = labelText(input.labels);
+    if (labels) facts.push(`**Labels:** ${inlineCode(labels)}`);
+    sections.push(facts.join("\n"));
+  }
 
   // An empty column says nothing. A multi-line one, like a stack trace,
   // reads only with its line breaks, so it gets a block of its own.
@@ -102,7 +108,7 @@ function trackerIssueDetails(input: TrackerIssueInput): string {
   }
 
   const links = [
-    input.alertLink ? `[Open the alert in Everr](${input.alertLink})` : "",
+    input.alertLink && !input.plain ? `[Open the alert in Everr](${input.alertLink})` : "",
     input.runbookLink ? `[Runbook](${input.runbookLink})` : "",
   ].filter(Boolean);
   if (links.length > 0) sections.push(links.join(" · "));
@@ -110,6 +116,7 @@ function trackerIssueDetails(input: TrackerIssueInput): string {
 }
 
 export function trackerIssueBody(input: TrackerIssueInput): string {
+  if (input.plain) return trackerIssueDetails(input);
   const footer = [
     "---",
     "Opened by Everr from a firing alert. Investigate it with the Everr CLI or MCP server,",

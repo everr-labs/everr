@@ -6,8 +6,8 @@ import { db, type Transaction } from "#app/db/client.ts";
 import { alertDeliveries, alertHeldIssueDeliveries } from "#app/db/schema/index.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
 
-// An error stops being new after a day. A week covers a weekend without
-// anyone looking, and an issue for anything older would only be noise.
+// An error stops being new after a week, and a week covers a weekend
+// without anyone looking. An issue for anything older would only be noise.
 const HOLD_DAYS = 7;
 
 function holdCutoff(): Date {
@@ -120,8 +120,8 @@ export async function releaseHeldIssues(organizationId: string, service: string)
 /**
  * Try the issue that matters most of those waiting for room, one per channel
  * and place, so they fill freed slots in order instead of racing for them.
- * What matters most is the alert's value now: for new errors, how often the
- * error happened in the last few minutes. Returns how many were tried.
+ * What matters most is the alert's value now: for new errors, how many
+ * requests hit the error in the last day. Returns how many were tried.
  */
 export async function releaseCapacityHolds(): Promise<number> {
   const rows = await db.execute<{ organization_id: string; delivery_dedup_key: string }>(sql`
@@ -137,12 +137,15 @@ export async function releaseCapacityHolds(): Promise<number> {
     LEFT JOIN alert_events AS event
       ON event.organization_id = link.organization_id
      AND event.id = link.event_id
-    LEFT JOIN alert_instances AS instance
+    INNER JOIN alert_instances AS instance
       ON instance.alert_definition_id = event.source_definition_id
      AND instance.fingerprint = event.instance_fingerprint
     WHERE held.reason = 'capacity'
       AND held.held_at >= ${holdCutoff()}
       AND delivery.status = 'failed'
+      -- An alert that stopped firing while it waited opens nothing: for new
+      -- errors, one that has not happened enough in the last day.
+      AND instance.status = 'firing'
     ORDER BY held.organization_id, delivery.channel_id, held.location,
       instance.value DESC NULLS LAST, held.held_at
   `);

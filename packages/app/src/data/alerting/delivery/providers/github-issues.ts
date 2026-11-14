@@ -15,6 +15,7 @@ export type GithubIssueState = {
   state: "open" | "closed";
   /** Why it was closed: `not_planned` is a person deciding against the work. */
   stateReason: string | null;
+  closedAt: Date | null;
 };
 
 /** The repository part of a repoid inferred from a GitHub remote
@@ -194,12 +195,16 @@ export async function getGithubIssueState(
   repo: string,
   issueNumber: number,
 ): Promise<GithubIssueState> {
-  const issue = await githubRequest<{ state: "open" | "closed"; state_reason: string | null }>(
-    token,
-    `/repos/${repo}/issues/${issueNumber}`,
-    "issue read",
-  );
-  return { state: issue.state, stateReason: issue.state_reason };
+  const issue = await githubRequest<{
+    state: "open" | "closed";
+    state_reason: string | null;
+    closed_at: string | null;
+  }>(token, `/repos/${repo}/issues/${issueNumber}`, "issue read");
+  return {
+    state: issue.state,
+    stateReason: issue.state_reason,
+    closedAt: issue.closed_at ? new Date(issue.closed_at) : null,
+  };
 }
 
 export async function reopenGithubIssue(

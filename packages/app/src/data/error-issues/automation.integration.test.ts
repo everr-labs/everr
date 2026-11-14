@@ -26,7 +26,7 @@ const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
 
 describe("issues for new errors", () => {
   it("starts off", async () => {
-    expect(await getErrorIssues(TEST_ORG)).toEqual({
+    expect(await getErrorIssues(TEST_ORG)).toMatchObject({
       enabled: false,
       environment: null,
       target: null,
@@ -40,10 +40,16 @@ describe("issues for new errors", () => {
       target: { type: "github_issues" },
     });
 
-    expect(state).toEqual({
+    expect(state).toMatchObject({
       enabled: true,
       environment: "production",
-      target: { type: "github_issues", labels: ["everr-fix"], assignees: [], max_open: 5 },
+      handoff: "agent",
+      target: {
+        type: "github_issues",
+        labels: ["everr", "everr-fix"],
+        assignees: [],
+        max_open: 5,
+      },
       waiting: 0,
     });
     const [rule] = await harness().db.select().from(alertDefinitions);
@@ -78,6 +84,23 @@ describe("issues for new errors", () => {
         target: { type: "linear", team: "OPS" },
       }),
     ).resolves.toMatchObject({ target: { team: "OPS" } });
+  });
+
+  it("opens issues for review without the agent's label or assignee", async () => {
+    const state = await enableErrorIssues(scope, {
+      environment: "production",
+      handoff: "review",
+      minOccurrences: 5,
+      ignore: [],
+      target: { type: "github_issues", assignees: ["fix-bot"] },
+    });
+
+    expect(state).toMatchObject({
+      handoff: "review",
+      minOccurrences: 5,
+      ignore: [],
+      target: { labels: ["everr"], assignees: [] },
+    });
   });
 
   it("pauses on turn off and resumes on turn on", async () => {
@@ -134,6 +157,7 @@ describe("issues for new errors", () => {
         label: "#12",
         location: "acme/web",
         url: "https://github.com/acme/web/issues/12",
+        status: "open",
       },
     });
   });

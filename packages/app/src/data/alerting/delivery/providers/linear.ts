@@ -4,7 +4,7 @@ const LINEAR_API = "https://api.linear.app/graphql";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 /** Where a Linear issue stands, in the workflow state types Linear uses. */
-export type LinearIssueState = { type: string; teamId: string };
+export type LinearIssueState = { type: string; teamId: string; closedAt: Date | null };
 
 /**
  * One GraphQL call with the outcome classified for the send job. Linear
@@ -193,17 +193,27 @@ export async function getLinearIssueState(
   issueId: string,
 ): Promise<LinearIssueState> {
   const data = await linearRequest<{
-    issue: { state: { type: string }; team: { id: string } } | null;
+    issue: {
+      state: { type: string };
+      team: { id: string };
+      completedAt: string | null;
+      canceledAt: string | null;
+    } | null;
   }>(
     apiKey,
     "issue read",
-    `query Issue($id: String!) { issue(id: $id) { state { type } team { id } } }`,
+    `query Issue($id: String!) { issue(id: $id) { state { type } team { id } completedAt canceledAt } }`,
     { id: issueId },
   );
   if (!data.issue) {
     throw new ChannelSendError("the Linear issue no longer exists", { permanent: true });
   }
-  return { type: data.issue.state.type, teamId: data.issue.team.id };
+  const closedAt = data.issue.completedAt ?? data.issue.canceledAt;
+  return {
+    type: data.issue.state.type,
+    teamId: data.issue.team.id,
+    closedAt: closedAt ? new Date(closedAt) : null,
+  };
 }
 
 /** Move an issue back to the team's first not-started state. */

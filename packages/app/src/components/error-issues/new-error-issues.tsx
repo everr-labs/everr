@@ -11,6 +11,7 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { SecretInput } from "@everr/ui/components/secret-input";
+import { Textarea } from "@everr/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Bot } from "lucide-react";
@@ -18,6 +19,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { invalidateAlertNotifications } from "#app/data/alerting/delivery/options.ts";
 import type {
+  ErrorIssuesHandoff,
   ErrorIssuesSettings,
   ErrorIssuesState,
 } from "#app/data/error-issues/automation.server.ts";
@@ -33,6 +35,11 @@ import { CHANNEL_OPTIONS } from "../alerts/channel-mark";
 import { ServiceRepositoryList } from "./service-repository-list";
 
 type Destination = "github_issues" | "linear";
+
+const HANDOFF_OPTIONS: { value: ErrorIssuesHandoff; label: string }[] = [
+  { value: "agent", label: "Right away" },
+  { value: "review", label: "After someone reviews it" },
+];
 
 const DESTINATION_OPTIONS = CHANNEL_OPTIONS.filter(
   (option) => option.value === "github_issues" || option.value === "linear",
@@ -117,8 +124,8 @@ export function NewErrorIssues() {
             {destinationText(target)}.{" "}
             {waiting > 0 && (
               <>
-                {waiting} more {waiting === 1 ? "waits" : "wait"} for an open issue to close, most
-                frequent first.{" "}
+                {waiting} more {waiting === 1 ? "waits" : "wait"} for an open issue to close, the
+                one hitting the most requests first.{" "}
               </>
             )}
             {github && gap && (
@@ -200,18 +207,31 @@ function SetupForm({
     stored?.type === "github_issues" ? stored.assignees.join(", ") : "",
   );
   const keepsKey = stored?.type === "linear";
+  const [handoff, setHandoff] = useState<ErrorIssuesHandoff>(state.handoff);
+  const [minOccurrences, setMinOccurrences] = useState(String(state.minOccurrences));
+  const [ignore, setIgnore] = useState(state.ignore.join("\n"));
+  const toAgent = handoff === "agent";
 
   const submit = () => {
+    const common = {
+      environment,
+      handoff,
+      minOccurrences: Number(minOccurrences),
+      ignore: ignore
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    };
     if (destination === "github_issues") {
       const assignees = githubAssignees
         .split(",")
         .map((login) => login.trim())
         .filter(Boolean);
-      onSubmit({ environment, target: { type: "github_issues", assignees } });
+      onSubmit({ ...common, target: { type: "github_issues", assignees } });
       return;
     }
     onSubmit({
-      environment,
+      ...common,
       target: {
         type: "linear",
         ...(apiKey ? { api_key: apiKey } : {}),
@@ -226,9 +246,10 @@ function SetupForm({
       <DialogHeader>
         <DialogTitle>Issues for new errors</DialogTitle>
         <DialogDescription>
-          Each error first seen in the last day becomes one issue, labeled{" "}
-          <span className="font-mono">everr-fix</span>, with a link back to Everr. At most 5 are
-          open at a time; the rest wait, most frequent first.
+          Each error first seen in the last week becomes one issue, labeled{" "}
+          <span className="font-mono">everr</span>, with a link back to Everr. At most 5 are open
+          per repository or Linear team; the rest wait, the one hitting the most requests first.
+          When an issue closes, Everr reopens it if the error comes back in a later release.
         </DialogDescription>
       </DialogHeader>
       <form
@@ -264,6 +285,64 @@ function SetupForm({
             reported in the last week.
           </p>
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="error-issues-min-occurrences">Open an issue once an error happens</Label>
+          <div className="flex items-center gap-2 text-sm">
+            <Input
+              id="error-issues-min-occurrences"
+              type="number"
+              min={1}
+              max={1000}
+              required
+              className="w-20"
+              value={minOccurrences}
+              disabled={pending}
+              onChange={(event) => setMinOccurrences(event.target.value)}
+            />
+            <span>times in a day</span>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Each trace counts once. A single occurrence is often a fluke that never comes back.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="error-issues-ignore">Skip errors whose type or message contains</Label>
+          <Textarea
+            id="error-issues-ignore"
+            className="min-h-24 font-mono text-xs"
+            value={ignore}
+            disabled={pending}
+            onChange={(event) => setIgnore(event.target.value)}
+          />
+          <p className="text-muted-foreground text-xs">
+            One per line, in any case. The list starts with network errors and timeouts, which no
+            code change fixes.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="error-issues-handoff">Hand each issue to the agent</Label>
+          <OptionCombobox
+            id="error-issues-handoff"
+            className="w-56"
+            value={handoff}
+            disabled={pending}
+            onChange={(value) => setHandoff(value === "review" ? "review" : "agent")}
+            options={HANDOFF_OPTIONS}
+          />
+          <p className="text-muted-foreground text-xs">
+            {toAgent ? (
+              <>
+                Issues open with the <span className="font-mono">everr-fix</span> label and the
+                assignee below, which start the agent.
+              </>
+            ) : (
+              <>
+                Issues open without the agent&apos;s label or assignee. Add{" "}
+                <span className="font-mono">everr-fix</span>, or assign the agent, to hand one over.
+              </>
+            )}
+          </p>
+        </div>
         {destination === "github_issues" ? (
           <div className="space-y-1.5">
             <p className="text-sm font-medium">Where each service&apos;s errors go</p>
@@ -272,20 +351,22 @@ function SetupForm({
               An error from a service with no repository waits, for up to a week, and opens its
               issue once the service has one. Public repositories are refused.
             </p>
-            <div className="space-y-1.5 pt-2">
-              <Label htmlFor="error-issues-github-assignees">Assign to</Label>
-              <Input
-                id="error-issues-github-assignees"
-                className="font-mono"
-                placeholder="GitHub logins, comma-separated"
-                value={githubAssignees}
-                disabled={pending}
-                onChange={(event) => setGithubAssignees(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">
-                A person, or the account a coding agent works as: assigning an issue starts it.
-              </p>
-            </div>
+            {toAgent && (
+              <div className="space-y-1.5 pt-2">
+                <Label htmlFor="error-issues-github-assignees">Assign to</Label>
+                <Input
+                  id="error-issues-github-assignees"
+                  className="font-mono"
+                  placeholder="GitHub logins, comma-separated"
+                  value={githubAssignees}
+                  disabled={pending}
+                  onChange={(event) => setGithubAssignees(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  A person, or the account a coding agent works as: assigning an issue starts it.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -312,19 +393,21 @@ function SetupForm({
                 onChange={(event) => setTeam(event.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="error-issues-assignee">Assignee</Label>
-              <Input
-                id="error-issues-assignee"
-                placeholder="Email or name"
-                value={assignee}
-                disabled={pending}
-                onChange={(event) => setAssignee(event.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">
-                A person or an agent. Assigning an issue to an agent delegates it.
-              </p>
-            </div>
+            {toAgent && (
+              <div className="space-y-1.5">
+                <Label htmlFor="error-issues-assignee">Assignee</Label>
+                <Input
+                  id="error-issues-assignee"
+                  placeholder="Email or name"
+                  value={assignee}
+                  disabled={pending}
+                  onChange={(event) => setAssignee(event.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  A person or an agent. Assigning an issue to an agent delegates it.
+                </p>
+              </div>
+            )}
           </>
         )}
         <AgentAccessNote />
@@ -344,8 +427,9 @@ function AgentAccessNote() {
     <div className="bg-muted/50 space-y-1 rounded-md p-3 text-xs">
       <p className="font-medium">Your agent reads each error from Everr</p>
       <p className="text-muted-foreground">
-        An issue names the error and the query that pulls its occurrences, and copies no telemetry.
-        Give the agent an{" "}
+        An issue names the error, with its message&apos;s ids, numbers, emails, and URLs replaced,
+        and the query that pulls its occurrences. It copies no stack trace or raw message. Give the
+        agent an{" "}
         <Link to="/api-keys" className="underline">
           API key
         </Link>{" "}

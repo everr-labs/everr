@@ -12,13 +12,29 @@ On the **Errors** page, choose **Set up** in the bar above the list. Pick where 
 - **GitHub Issues**: each error opens in the repository of the service that raised it. Everr finds the repository from the service's `vcs.repository.url.full` or `vcs.repository.name` resource attribute, from a `service.version` that is a commit Everr saw built in CI, or from a repository you pick for the service in the dialog. Everr's GitHub App must be installed on the repository, and the repository must be private.
 - **Linear**: each error opens in the team you choose, with your Linear API key.
 
-Each issue is labeled `everr-fix`. At most 5 are open at a time. An error from a service with no repository, or one that arrives while 5 are open, waits for up to a week. When room frees, the error happening most often opens first.
+An error is new when Everr first saw it in the last week and not in the week before, so an error from a weekly job does not open an issue every week. Before an issue opens:
+
+- **The error must happen often enough.** By default, twice in a day. Each trace counts once, so one request that logs an error several times counts as one.
+- **The error must not match the skip list.** An error whose type or message contains a line of the list never opens an issue. The list starts with network errors and timeouts (`ECONNRESET`, `ETIMEDOUT`, `503 Service Unavailable`, and the like), which no code change fixes.
+
+Each issue is labeled `everr`. At most 5 are open per repository on GitHub, or per team on Linear. An error from a service with no repository, or one that arrives while 5 are open, waits for up to a week. When room frees, the error that hit the most requests in the last day opens first. An error that stopped happening while it waited opens nothing.
+
+### How Everr groups errors
+
+Everr groups occurrences into one error by service, exception type, and the message's template: the message with its URLs, emails, UUIDs, IP addresses, hex ids, durations, long quoted strings, and numbers replaced by placeholders. `User 4821 not found` and `User 77 not found` are one error, `User <n> not found`. Three-digit numbers stay, since they are usually HTTP status codes, so a 404 and a 500 are two errors. An `error.fingerprint` log attribute overrides the grouping.
+
+Stack frames do not count: frame names in minified bundles change with every build, and an error must keep its identity across deploys and between your machine and production.
 
 ## Hand issues to an agent
 
-Start the agent the way it expects to be started:
+Choose when an issue reaches the agent:
 
-- **By assignment.** Put the agent's account in **Assign to** (GitHub) or **Assignee** (Linear). Every new issue is assigned to it.
+- **Right away.** Issues open with the `everr-fix` label, and assigned to the account in **Assign to** (GitHub) or **Assignee** (Linear).
+- **After someone reviews it.** Issues open with only the `everr` label and no assignee. A person adds `everr-fix`, or assigns the agent, to hand one over, or closes it as not planned.
+
+Then start the agent the way it expects to be started:
+
+- **By assignment.** Assigning an issue to the agent's account starts it.
 - **By label.** Run the agent from a workflow that triggers on the `everr-fix` label.
 
 ```yaml
@@ -44,7 +60,7 @@ jobs:
 
 ## Give the agent access to Everr
 
-An issue names the error and carries the query that pulls its occurrences, with their stack traces and trace ids. It copies no telemetry: messages and stack traces can hold user data, and an issue outlives Everr's retention and access rules. The agent reads the details from Everr instead.
+An issue names the error by its type and its message's template, says which `service.version` it first appeared in, and carries the query that pulls its occurrences, with their messages, stack traces, and trace ids. It copies no stack trace and no raw message: those can hold user data, and an issue outlives Everr's retention and access rules. The agent reads the details from Everr instead.
 
 1. Create an API key with the **Query telemetry** capability on the **API Keys** page. Give it only that capability.
 2. Store it where the agent runs as `EVERR_API_KEY`, and the installation's URL as `EVERR_API_URL`.
@@ -58,8 +74,13 @@ The local collector has the same tables and the same error fingerprint as your i
 
 ## What happens to an issue later
 
-- When the error comes back after its issue was closed as done, Everr reopens the issue and comments with the new occurrence.
-- An issue closed as not planned stays closed.
-- Everr does not comment when an error goes quiet, since that does not mean it was fixed.
+Everr follows each issue for 30 days after it closes as done, and reads the `service.version` of the error's service:
+
+- **The error comes back in a later release.** Everr reopens the issue and comments with the version. The versions that ran in the day before the close do not count: a fix merged is not yet deployed, and the old build can keep logging the error until the new one replaces it.
+- **A later release runs a day without the error.** Everr comments once that the fix held, and the Errors page marks the issue fixed.
+
+A service that reports no `service.version` gets a time-based check instead: an occurrence more than an hour after the close reopens the issue, and three quiet days count as fixed.
+
+An issue closed as not planned stays closed. Everr does not comment when an error goes quiet while its issue is open, since that does not mean it was fixed.
 
 The issues and the rule behind them are managed by Everr. They show on the **Notifications** and **Triage** pages, and you change them from the **Errors** page.

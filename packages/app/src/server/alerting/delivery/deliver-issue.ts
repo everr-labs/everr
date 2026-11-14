@@ -4,7 +4,7 @@ import { ChannelSendError } from "#app/data/alerting/delivery/providers/outbound
 import {
   ANN_ALERTING_LINK_ALERT,
   ANN_ALERTING_LINK_RUNBOOK,
-  ANN_ISSUES_QUIET,
+  ANN_ISSUES_KIND,
 } from "#app/data/alerting/resource-annotations.ts";
 import { rulePath, ruleTitle } from "#app/data/alerting/rules/read.ts";
 import { db } from "#app/db/client.ts";
@@ -30,6 +30,8 @@ import {
 /** Where an issue stands, in the terms the lifecycle below decides by. */
 export type TrackedIssueState = "open" | "done" | "not_planned";
 
+export type TrackedIssueStatus = { state: TrackedIssueState; closedAt: Date | null };
+
 /** An issue tracker as an alert instance's lifecycle needs it. */
 export interface IssueTracker {
   provider: (typeof alertTrackerIssues.$inferSelect)["provider"];
@@ -43,12 +45,12 @@ export interface IssueTracker {
     location: string,
     issue: { title: string; body: string },
   ): Promise<{ id: string; url: string }>;
-  state(location: string, id: string): Promise<TrackedIssueState>;
+  state(location: string, id: string): Promise<TrackedIssueStatus>;
   reopen(location: string, id: string): Promise<void>;
   comment(location: string, id: string, body: string): Promise<void>;
 }
 
-function trackerFor(organizationId: string, config: IssueChannelConfig): IssueTracker {
+export function trackerFor(organizationId: string, config: IssueChannelConfig): IssueTracker {
   switch (config.type) {
     case "github_issues":
       return githubTracker(organizationId, config);
@@ -178,12 +180,12 @@ export async function deliverIssue(input: {
   const tracker = trackerFor(input.organizationId, input.config);
   const tracked = await loadTrackedIssue(input.channelId, definition.id, event.instanceFingerprint);
 
-  const quiet = definition.spec.annotations?.[ANN_ISSUES_QUIET] === "true";
+  const errorIssue = definition.spec.annotations?.[ANN_ISSUES_KIND] === "error";
 
   if (event.eventType === "instance_resolved") {
     // Nothing to say on an issue that was never opened, for example because
     // the cap withheld it.
-    if (!tracked || quiet) return;
+    if (!tracked || errorIssue) return;
     await tracker.comment(
       tracked.location,
       tracked.externalId,
@@ -203,14 +205,15 @@ export async function deliverIssue(input: {
     occurredAt: event.occurredAt,
     alertLink: definition.spec.annotations?.[ANN_ALERTING_LINK_ALERT],
     runbookLink: definition.spec.annotations?.[ANN_ALERTING_LINK_RUNBOOK],
+    plain: errorIssue,
   };
 
   if (tracked) {
-    const state = await tracker.state(tracked.location, tracked.externalId);
+    if (errorIssue) return;
+    const { state } = await tracker.state(tracked.location, tracked.externalId);
     // Closed as not planned is a person deciding against the work. A new
     // fire does not overrule that, and a comment there would only be noise.
     if (state === "not_planned") return;
-    if (state === "open" && quiet) return;
     if (state === "done") await tracker.reopen(tracked.location, tracked.externalId);
     await tracker.comment(tracked.location, tracked.externalId, trackerRefiredComment(content));
     return;
@@ -264,6 +267,8 @@ export async function deliverIssue(input: {
           location,
           externalId: created.id,
           url: created.url,
+          state: "open",
+          stateCheckedAt: null,
           updatedAt: sql`now()`,
         },
       });

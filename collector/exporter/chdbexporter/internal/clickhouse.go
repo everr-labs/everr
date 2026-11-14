@@ -21,13 +21,19 @@ const DefaultDatabase = "default"
 // does. Route it through Query, not Exec: chDB only persists CREATE FUNCTION when
 // the statement runs with a real output format, and Exec uses an empty one. The
 // DDL must match the latest packages/app/clickhouse migration that defines errorFingerprint.
+// errorFingerprint calls errorMessageTemplate, so that one is registered first.
 func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
-	rows, err := db.Query(ctx, sqltemplates.CreateErrorFingerprintFunction)
-	if err != nil {
-		return fmt.Errorf("create errorFingerprint function: %w", err)
-	}
-	if rows != nil {
-		_ = rows.Close()
+	for _, fn := range []struct{ name, ddl string }{
+		{"errorMessageTemplate", sqltemplates.CreateErrorMessageTemplateFunction},
+		{"errorFingerprint", sqltemplates.CreateErrorFingerprintFunction},
+	} {
+		rows, err := db.Query(ctx, fn.ddl)
+		if err != nil {
+			return fmt.Errorf("create %s function: %w", fn.name, err)
+		}
+		if rows != nil {
+			_ = rows.Close()
+		}
 	}
 	return nil
 }
