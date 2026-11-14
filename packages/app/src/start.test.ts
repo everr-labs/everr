@@ -43,5 +43,9 @@ describe("startInstance", () => {
       ],
       functionMiddleware: [startMocks.functionMiddleware],
     });
+
+    const { getRouter } = await import("#app/router.tsx");
+    startMocks.createRequestTelemetryMiddleware.mock.calls[0]?.[0]?.router();
+    expect(getRouter).toHaveBeenCalled();
   });
 });

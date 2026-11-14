@@ -360,4 +360,13 @@ describe("createApiKey response compatibility", () => {
       expect(await listApiKeys()).toEqual([]);
     }
   });
+
+  it("passes through provider metadata without new JSON validation", async () => {
+    const metadata = { value: undefined, unsupported: () => "legacy" };
+    const row = { id: "ak_1", configId: "ingest", metadata };
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [row] } as never);
+    const listed = await listApiKeys();
+    expect(listed[0]).toBe(row);
+    expect(listed[0].metadata).toBe(metadata);
+  });
 });

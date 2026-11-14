@@ -40,6 +40,6 @@ describe("/api/auth/$ route", () => {
     const request = new Request("http://localhost:5173/api/auth/get-session", { method });
 
     expect(await getHandler(method)({ request })).toBe(handled);
-    expect(mocks.handler).toHaveBeenCalledWith(request);
+    expect(mocks.handler).toHaveBeenCalledExactlyOnceWith(request);
   });
 });

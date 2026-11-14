@@ -243,7 +243,22 @@ describe("the alerting pipeline's ClickHouse projection", () => {
         .map((row) => (row.instance_labels as Record<string, string>).service)
         .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
     ).toEqual(["checkout", "payments"]);
+
+    // The deliveries land after the fires they report on.
+    const order = harness().clickhouse.queryRows(`
+      SELECT event_type
+      FROM app.alert_events
+      WHERE event_type IN ('instance_fired', 'delivery_succeeded')
+      ORDER BY event_time, event_id
+    `);
+    expect(order.map((row) => row.event_type)).toEqual([
+      "instance_fired",
+      "instance_fired",
+      "delivery_succeeded",
+      "delivery_succeeded",
+    ]);
   });
+
   it("writes every label column the rule declares into instance_labels", async () => {
     await insertRule(harness().db, {
       forSecs: 0,
