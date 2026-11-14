@@ -59,3 +59,18 @@ chdb/table-engine-params-only:
   endpoint: clickhouse://127.0.0.1:9000
   table_engine:
     params: "whatever"
+chdb/database-engine-empty:
+  endpoint: clickhouse://127.0.0.1:9000
+chdb/database-engine-name-only:
+  endpoint: clickhouse://127.0.0.1:9000
+  database_engine:
+    name: Replicated
+chdb/database-engine-full:
+  endpoint: clickhouse://127.0.0.1:9000
+  database_engine:
+    name: Replicated
+    params: "'/clickhouse/databases/otel', '{shard}', '{replica}'"
+chdb/database-engine-params-only:
+  endpoint: clickhouse://127.0.0.1:9000
+  database_engine:
+    params: "whatever"
