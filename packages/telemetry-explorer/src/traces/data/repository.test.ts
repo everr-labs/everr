@@ -80,6 +80,9 @@ describe("TracesRepository.search", () => {
     expect(page).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
     expect(page).not.toContain("durationNsRaw <= toUInt64({maxDurationNs:String})");
     expect(page).toContain("countIf(StatusCode = 'Error') > 0");
+    // Both filter on aggregates, so ClickHouse only accepts them under HAVING.
+    expect(page).toMatch(/HAVING[\s\S]*durationNsRaw >= /);
+    expect(page).toMatch(/HAVING[\s\S]*countIf\(StatusCode = 'Error'\) > 0/);
     expect(page).toContain("TraceId < {cursorTraceId:String}");
     const summary = sql.split("), aggregated AS (")[1];
     expect(summary).not.toMatch(/HAVING|NOT IN|ServiceName IN/);

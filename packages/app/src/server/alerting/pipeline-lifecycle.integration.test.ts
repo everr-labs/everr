@@ -28,6 +28,7 @@ import {
   ALERT_RETRY_MAX_INTERVAL_FACTOR,
   evaluateAlert,
 } from "#app/server/alerting/evaluation/rule.ts";
+import { ZERO_UUID } from "#app/server/alerting/history/clickhouse.ts";
 import { projectAlertLifecycle } from "#app/server/alerting/history/project-lifecycle.ts";
 import { scanDueAlerts } from "#app/server/alerting/scheduling/scanner.ts";
 import {
@@ -213,6 +214,8 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
     const episodeIds = [...new Set(lifecycleRows.map((row) => row.episode_id))];
     expect(episodeIds).toHaveLength(2);
+    // A fired episode always has a real id; ZERO_UUID means "no episode".
+    expect(episodeIds).not.toContain(ZERO_UUID);
     const [firstEpisodeId, secondEpisodeId] = episodeIds;
 
     const firstEpisodeRows = lifecycleRows.filter((row) => row.episode_id === firstEpisodeId);
