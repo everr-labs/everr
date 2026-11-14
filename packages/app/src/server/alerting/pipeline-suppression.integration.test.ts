@@ -301,6 +301,7 @@ describe("the alerting pipeline's suppression", () => {
     // Both rules breach at the same severity; only the one that is not a
     // preview may ever notify.
     expect(harness().fetchCalls()).toHaveLength(1);
+    expect(await harness().db.select().from(alertDeliveries)).toHaveLength(1);
     const deliveries = await harness()
       .db.select({ ruleId: alertNotificationGroups.directAlertDefinitionId })
       .from(alertDeliveries)
