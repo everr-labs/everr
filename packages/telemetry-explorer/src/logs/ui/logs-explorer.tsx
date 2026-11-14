@@ -389,10 +389,11 @@ export function LogsExplorer({
             sheet is already as large as the screen allows. */}
         {isNarrow && isMobile ? (
           <Drawer
+            showSwipeHandle
             open={selectedLogState !== null}
             onOpenChange={(open) => !open && handleCloseInspector()}
           >
-            <DrawerContent className="h-[90dvh]">
+            <DrawerContent className="[--drawer-content-height:100dvh]">
               <DrawerTitle className="sr-only">Log event</DrawerTitle>
               {overlayInspector}
             </DrawerContent>
