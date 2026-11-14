@@ -15,7 +15,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
+import { MenuIcon, PanelLeftIcon } from "lucide-react";
 import {
   createContext,
   useCallback,
@@ -431,7 +431,9 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      {/* On a phone the sidebar is a menu sheet, so it gets a menu icon. */}
+      <PanelLeftIcon className="max-md:hidden" />
+      <MenuIcon className="md:hidden" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
