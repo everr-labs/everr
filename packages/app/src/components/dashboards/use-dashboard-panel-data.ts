@@ -45,14 +45,10 @@ function usedVariableNames(source: PanelQuerySource, ctx: VariableContext): stri
   return extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
 }
 
-/**
- * `usedNames` defaults to the variables this source references. A panel passes
- * the union across all of its queries instead (see `buildPanelQueryRequests`).
- */
-export function buildPanelQueryRequest(
+function buildPanelQueryRequest(
   source: PanelQuerySource,
   ctx: VariableContext,
-  usedNames = usedVariableNames(source, ctx),
+  usedNames: string[],
 ): PanelQueryRequest {
   // Only ClickHouse SQL carries `$variable` tokens; other sources skip the
   // whole variable-resolution path (no missing/waiting/options states).
@@ -132,10 +128,10 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
 }
 
 /**
- * The window the newest fetch queried. Each query pins its relative range to
- * exact dates when it runs, and a multi-query panel's queries can resolve at
- * slightly different moments, so the latest one covers all of their data.
- * Placeholder data belongs to the previous key, so its window is ignored.
+ * The window the newest fetch queried. The server resolves each query's
+ * relative range when it runs, and a multi-query panel's queries can run a few
+ * seconds apart, so the latest window is used. Placeholder data belongs to the
+ * previous key, so its window is ignored.
  */
 export function latestQueriedRange(
   results: readonly { data?: { timeRange?: ResolvedTimeRange }; isPlaceholderData?: boolean }[],

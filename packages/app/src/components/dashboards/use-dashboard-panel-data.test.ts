@@ -7,7 +7,6 @@ vi.mock("#app/db/client.ts", () => ({ db: {} }));
 
 import type { PanelQuerySource } from "./query-array";
 import {
-  buildPanelQueryRequest,
   buildPanelQueryRequests,
   combineQueryStates,
   latestQueriedRange,
@@ -45,11 +44,6 @@ describe("buildPanelQueryRequests", () => {
     expect(reqs[1]!.variables).toEqual({ region: "us" });
   });
 
-  it("resolves only a single query's own variables", () => {
-    const req = buildPanelQueryRequest(ch("select 1"), ctx);
-    expect(req.variables).toBeUndefined();
-  });
-
   it("flags a query whose variable has no value", () => {
     const reqs = buildPanelQueryRequests([ch("select $region")], {
       ...ctx,
@@ -67,11 +61,11 @@ describe("buildPanelQueryRequests", () => {
   });
 
   it("surfaces a used variable's options error", () => {
-    const req = buildPanelQueryRequest(ch("select $region"), {
+    const [req] = buildPanelQueryRequests([ch("select $region")], {
       ...ctx,
       allErrors: { region: 'Variable "$region" has too many values' },
     });
-    expect(req.optionsError).toBe('Variable "$region" has too many values');
+    expect(req!.optionsError).toBe('Variable "$region" has too many values');
   });
 
   it("does no variable handling for a TestData source", () => {
@@ -79,11 +73,11 @@ describe("buildPanelQueryRequests", () => {
       kind: "TestData",
       spec: { scenario: "csv", columns: ["a"], rows: [] },
     };
-    const req = buildPanelQueryRequest(source, { ...ctx, values: {} });
-    expect(req.source).toEqual(source);
-    expect(req.variables).toBeUndefined();
-    expect(req.missingName).toBeUndefined();
-    expect(req.waitingForOptions).toBe(false);
+    const [req] = buildPanelQueryRequests([source], { ...ctx, values: {} });
+    expect(req!.source).toEqual(source);
+    expect(req!.variables).toBeUndefined();
+    expect(req!.missingName).toBeUndefined();
+    expect(req!.waitingForOptions).toBe(false);
   });
 });
 
