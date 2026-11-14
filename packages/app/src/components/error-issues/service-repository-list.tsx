@@ -91,22 +91,25 @@ export function ServiceRepositoryList({ environment }: { environment: string }) 
   return (
     <div className="space-y-2">
       {needing.length === 0 ? (
-        <p className="text-xs">
+        <p className="text-muted-foreground text-xs">
           Every service in <span className="font-mono">{environment}</span> has a repository.
         </p>
       ) : (
-        <ul className="divide-y rounded-md border">
-          {needing.map((row) => (
-            <NeedingRow
-              key={row.service}
-              row={row}
-              repositories={repositories}
-              pending={busy(row.service)}
-              onLink={(repository) => link.mutate({ service: row.service, repository })}
-              onSend={() => send.mutate(row.service)}
-            />
-          ))}
-        </ul>
+        <>
+          <ul className="divide-y rounded-md border">
+            {needing.map((row) => (
+              <NeedingRow
+                key={row.service}
+                row={row}
+                repositories={repositories}
+                pending={busy(row.service)}
+                onLink={(repository) => link.mutate({ service: row.service, repository })}
+                onSend={() => send.mutate(row.service)}
+              />
+            ))}
+          </ul>
+          {needing.some((row) => row.repository === null) && <AttributeHint />}
+        </>
       )}
       {placed.length > 0 && (
         <Collapsible>
@@ -183,44 +186,35 @@ function NeedingRow({
   onSend: () => void;
 }) {
   return (
-    <li className="space-y-2 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-xs">{row.service}</p>
-          {row.held > 0 && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              {issuesText(row.held)} waiting for a repository
-            </p>
-          )}
-        </div>
-        {row.repository === null ? (
-          <RepositoryPicker
-            row={row}
-            repositories={repositories}
-            pending={pending}
-            onLink={onLink}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs">{row.repository}</span>
-            <Button type="button" size="sm" disabled={pending} onClick={onSend}>
-              Send {issuesText(row.held)}
-            </Button>
-          </div>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate font-mono text-xs">{row.service}</span>
+        {row.held > 0 && (
+          <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+            {row.held} waiting
+          </span>
         )}
       </div>
-      {row.repository === null && <AttributeHint service={row.service} known={repositories} />}
+      {row.repository === null ? (
+        <RepositoryPicker row={row} repositories={repositories} pending={pending} onLink={onLink} />
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs">{row.repository}</span>
+          <Button type="button" size="sm" disabled={pending} onClick={onSend}>
+            Send {issuesText(row.held)}
+          </Button>
+        </div>
+      )}
     </li>
   );
 }
 
+const ATTRIBUTE_LINE =
+  "OTEL_RESOURCE_ATTRIBUTES=vcs.repository.url.full=https://github.com/OWNER/REPO";
+
 /** The lasting fix: the service says where its code lives, and every Everr
  *  feature reads it from then on. */
-function AttributeHint({ service, known }: { service: string; known: string[] }) {
-  const guess =
-    known.find((repo) => repo.split("/")[1]?.toLowerCase() === service.toLowerCase()) ??
-    "OWNER/REPO";
-  const line = `OTEL_RESOURCE_ATTRIBUTES=vcs.repository.url.full=https://github.com/${guess}`;
+function AttributeHint() {
   return (
     <Collapsible>
       <CollapsibleTrigger className="text-muted-foreground hover:text-foreground group flex items-center gap-1 text-xs">
@@ -228,27 +222,28 @@ function AttributeHint({ service, known }: { service: string; known: string[] })
           aria-hidden
           className="size-3 transition-transform group-data-[panel-open]:rotate-90"
         />
-        Or have the service report it
+        Or have each service report its repository
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-1.5 pt-1.5">
-        <div className="bg-muted flex items-start gap-2 rounded-md p-2">
-          <code className="min-w-0 flex-1 font-mono text-xs break-all">{line}</code>
+        <div className="bg-muted flex items-center gap-2 rounded-md py-1 pr-1 pl-2">
+          <code className="min-w-0 flex-1 font-mono text-xs break-all">{ATTRIBUTE_LINE}</code>
           <Button
             type="button"
             size="icon-xs"
             variant="ghost"
             aria-label="Copy"
             onClick={() => {
-              void navigator.clipboard.writeText(line).then(() => toast.success("Copied"));
+              void navigator.clipboard
+                .writeText(ATTRIBUTE_LINE)
+                .then(() => toast.success("Copied"));
             }}
           >
             <Copy aria-hidden />
           </Button>
         </div>
         <p className="text-muted-foreground text-xs">
-          Set in the service&apos;s environment, or add{" "}
-          <span className="font-mono">vcs.repository.url.full</span> to its OpenTelemetry resource.
-          Once its logs carry it, send the waiting issues from here.
+          In the service&apos;s environment, with its own repository. Once its logs carry it, send
+          the waiting issues from here.
         </p>
       </CollapsibleContent>
     </Collapsible>
@@ -268,11 +263,10 @@ function PlacedRow({
 }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-      <span className="min-w-0 flex-1 truncate font-mono text-xs">{row.service}</span>
-      <div className="flex min-w-0 flex-col items-end gap-0.5">
-        <RepositoryPicker row={row} repositories={repositories} pending={pending} onLink={onLink} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-mono text-xs">{row.service}</p>
         {row.source && (
-          <span className="text-muted-foreground flex items-center gap-1 text-xs">
+          <p className="text-muted-foreground flex items-center gap-1 text-xs">
             {SOURCE_TEXT[row.source]}
             {row.source === "set" && (
               <Button
@@ -286,9 +280,10 @@ function PlacedRow({
                 Reset
               </Button>
             )}
-          </span>
+          </p>
         )}
       </div>
+      <RepositoryPicker row={row} repositories={repositories} pending={pending} onLink={onLink} />
     </li>
   );
 }

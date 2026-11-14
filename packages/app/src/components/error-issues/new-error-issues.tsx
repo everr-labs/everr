@@ -11,11 +11,12 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { SecretInput } from "@everr/ui/components/secret-input";
-import { Textarea } from "@everr/ui/components/textarea";
+import { TagsInput } from "@everr/ui/components/tags-input";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Bot } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { invalidateAlertNotifications } from "#app/data/alerting/delivery/options.ts";
 import type {
@@ -35,11 +36,6 @@ import { CHANNEL_OPTIONS } from "../alerts/channel-mark";
 import { ServiceRepositoryList } from "./service-repository-list";
 
 type Destination = "github_issues" | "linear";
-
-const HANDOFF_OPTIONS: { value: ErrorIssuesHandoff; label: string }[] = [
-  { value: "agent", label: "Right away" },
-  { value: "review", label: "After someone reviews it" },
-];
 
 const DESTINATION_OPTIONS = CHANNEL_OPTIONS.filter(
   (option) => option.value === "github_issues" || option.value === "linear",
@@ -172,6 +168,7 @@ export function NewErrorIssues() {
             state={state.data}
             pending={turnOn.isPending}
             onSubmit={(settings) => turnOn.mutate(settings)}
+            onCancel={() => setOpen(false)}
           />
         )}
       </Dialog>
@@ -179,14 +176,18 @@ export function NewErrorIssues() {
   );
 }
 
+const GUIDE_URL = "https://everr.dev/docs/guides/fix-errors-with-agents";
+
 function SetupForm({
   state,
   pending,
   onSubmit,
+  onCancel,
 }: {
   state: ErrorIssuesState;
   pending: boolean;
   onSubmit: (settings: ErrorIssuesSettings) => void;
+  onCancel: () => void;
 }) {
   const stored = state.target;
   // Seeded once per opening: the dialog remounts this form each time.
@@ -203,31 +204,20 @@ function SetupForm({
   const [assignee, setAssignee] = useState(
     stored?.type === "linear" ? (stored.assignee ?? "") : "",
   );
-  const [githubAssignees, setGithubAssignees] = useState(
-    stored?.type === "github_issues" ? stored.assignees.join(", ") : "",
+  const [githubAssignees, setGithubAssignees] = useState<string[]>(
+    stored?.type === "github_issues" ? stored.assignees : [],
   );
   const keepsKey = stored?.type === "linear";
   const [handoff, setHandoff] = useState<ErrorIssuesHandoff>(state.handoff);
   const [minOccurrences, setMinOccurrences] = useState(String(state.minOccurrences));
-  const [ignore, setIgnore] = useState(state.ignore.join("\n"));
+  const [ignore, setIgnore] = useState<string[]>(state.ignore);
   const toAgent = handoff === "agent";
+  const github = destination === "github_issues";
 
   const submit = () => {
-    const common = {
-      environment,
-      handoff,
-      minOccurrences: Number(minOccurrences),
-      ignore: ignore
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
-    };
-    if (destination === "github_issues") {
-      const assignees = githubAssignees
-        .split(",")
-        .map((login) => login.trim())
-        .filter(Boolean);
-      onSubmit({ ...common, target: { type: "github_issues", assignees } });
+    const common = { environment, handoff, minOccurrences: Number(minOccurrences), ignore };
+    if (github) {
+      onSubmit({ ...common, target: { type: "github_issues", assignees: githubAssignees } });
       return;
     }
     onSubmit({
@@ -242,201 +232,274 @@ function SetupForm({
   };
 
   return (
-    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
-      <DialogHeader>
-        <DialogTitle>Issues for new errors</DialogTitle>
+    <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogHeader className="border-b px-6 pt-5 pb-4">
+        <DialogTitle className="text-base">Issues for new errors</DialogTitle>
         <DialogDescription>
-          Each error first seen in the last week becomes one issue, labeled{" "}
-          <span className="font-mono">everr</span>, with a link back to Everr. At most 5 are open
-          per repository or Linear team; the rest wait, the one hitting the most requests first.
-          When an issue closes, Everr reopens it if the error comes back in a later release.
+          One issue per new error, ready for a coding agent. Everr reopens it if the error comes
+          back after the fix ships.
         </DialogDescription>
       </DialogHeader>
       <form
-        className="space-y-4"
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
         }}
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="error-issues-destination">Open issues in</Label>
-          <OptionCombobox
-            id="error-issues-destination"
-            value={destination}
-            disabled={pending}
-            onChange={(value) => setDestination(value === "linear" ? "linear" : "github_issues")}
-            options={DESTINATION_OPTIONS}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="error-issues-environment">Environment</Label>
-          <OptionCombobox
-            id="error-issues-environment"
-            className="w-48"
-            value={environment}
-            disabled={pending}
-            onChange={setEnvironment}
-            options={environmentOptions}
-            searchable={environmentOptions.length > 8}
-          />
-          <p className="text-muted-foreground text-xs">
-            The <span className="font-mono">deployment.environment.name</span> values services
-            reported in the last week.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="error-issues-min-occurrences">Open an issue once an error happens</Label>
-          <div className="flex items-center gap-2 text-sm">
-            <Input
-              id="error-issues-min-occurrences"
-              type="number"
-              min={1}
-              max={1000}
-              required
-              className="w-20"
-              value={minOccurrences}
-              disabled={pending}
-              onChange={(event) => setMinOccurrences(event.target.value)}
-            />
-            <span>times in a day</span>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Each trace counts once. A single occurrence is often a fluke that never comes back.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="error-issues-ignore">Skip errors whose type or message contains</Label>
-          <Textarea
-            id="error-issues-ignore"
-            className="min-h-24 font-mono text-xs"
-            value={ignore}
-            disabled={pending}
-            onChange={(event) => setIgnore(event.target.value)}
-          />
-          <p className="text-muted-foreground text-xs">
-            One per line, in any case. The list starts with network errors and timeouts, which no
-            code change fixes.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="error-issues-handoff">Hand each issue to the agent</Label>
-          <OptionCombobox
-            id="error-issues-handoff"
-            className="w-56"
-            value={handoff}
-            disabled={pending}
-            onChange={(value) => setHandoff(value === "review" ? "review" : "agent")}
-            options={HANDOFF_OPTIONS}
-          />
-          <p className="text-muted-foreground text-xs">
-            {toAgent ? (
-              <>
-                Issues open with the <span className="font-mono">everr-fix</span> label and the
-                assignee below, which start the agent.
-              </>
-            ) : (
-              <>
-                Issues open without the agent&apos;s label or assignee. Add{" "}
-                <span className="font-mono">everr-fix</span>, or assign the agent, to hand one over.
-              </>
-            )}
-          </p>
-        </div>
-        {destination === "github_issues" ? (
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium">Where each service&apos;s errors go</p>
-            <ServiceRepositoryList environment={environment} />
-            <p className="text-muted-foreground text-xs">
-              An error from a service with no repository waits, for up to a week, and opens its
-              issue once the service has one. Public repositories are refused.
-            </p>
-            {toAgent && (
-              <div className="space-y-1.5 pt-2">
-                <Label htmlFor="error-issues-github-assignees">Assign to</Label>
-                <Input
-                  id="error-issues-github-assignees"
-                  className="font-mono"
-                  placeholder="GitHub logins, comma-separated"
-                  value={githubAssignees}
+        <div className="min-h-0 flex-1 divide-y overflow-y-auto px-6">
+          <Section title="Destination" hint="Where issues open, and the environment Everr watches.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Open issues in" htmlFor="error-issues-destination">
+                <OptionCombobox
+                  id="error-issues-destination"
+                  value={destination}
                   disabled={pending}
-                  onChange={(event) => setGithubAssignees(event.target.value)}
+                  onChange={(value) =>
+                    setDestination(value === "linear" ? "linear" : "github_issues")
+                  }
+                  options={DESTINATION_OPTIONS}
                 />
-                <p className="text-muted-foreground text-xs">
-                  A person, or the account a coding agent works as: assigning an issue starts it.
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="space-y-1.5">
-              <Label htmlFor="error-issues-api-key">API key</Label>
-              <SecretInput
-                id="error-issues-api-key"
-                className="font-mono"
-                value={apiKey}
-                disabled={pending}
-                hasStoredSecret={keepsKey}
-                onValueChange={setApiKey}
-                placeholder="lin_api_..."
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="error-issues-team">Team key</Label>
-              <Input
-                id="error-issues-team"
-                className="w-32 font-mono"
-                placeholder="ENG"
-                value={team}
-                disabled={pending}
-                onChange={(event) => setTeam(event.target.value)}
-              />
-            </div>
-            {toAgent && (
-              <div className="space-y-1.5">
-                <Label htmlFor="error-issues-assignee">Assignee</Label>
-                <Input
-                  id="error-issues-assignee"
-                  placeholder="Email or name"
-                  value={assignee}
+              </Field>
+              <Field label="Environment" htmlFor="error-issues-environment">
+                <OptionCombobox
+                  id="error-issues-environment"
+                  value={environment}
                   disabled={pending}
-                  onChange={(event) => setAssignee(event.target.value)}
+                  onChange={setEnvironment}
+                  options={environmentOptions}
+                  searchable={environmentOptions.length > 8}
                 />
-                <p className="text-muted-foreground text-xs">
-                  A person or an agent. Assigning an issue to an agent delegates it.
-                </p>
+              </Field>
+              {!github && (
+                <>
+                  <Field label="Linear API key" htmlFor="error-issues-api-key">
+                    <SecretInput
+                      id="error-issues-api-key"
+                      className="font-mono"
+                      value={apiKey}
+                      disabled={pending}
+                      hasStoredSecret={keepsKey}
+                      onValueChange={setApiKey}
+                      placeholder="lin_api_..."
+                    />
+                  </Field>
+                  <Field label="Team key" htmlFor="error-issues-team">
+                    <Input
+                      id="error-issues-team"
+                      className="font-mono"
+                      placeholder="ENG"
+                      value={team}
+                      disabled={pending}
+                      onChange={(event) => setTeam(event.target.value)}
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+          </Section>
+
+          <Section
+            title="Which errors"
+            hint="Errors first seen in the last week. At most 5 issues are open per repository or team; the rest wait, busiest first."
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Label htmlFor="error-issues-min-occurrences" className="font-normal">
+                  Open an issue after
+                </Label>
+                <Input
+                  id="error-issues-min-occurrences"
+                  type="number"
+                  min={1}
+                  max={1000}
+                  required
+                  className="w-16 text-center"
+                  value={minOccurrences}
+                  disabled={pending}
+                  onChange={(event) => setMinOccurrences(event.target.value)}
+                />
+                <span>occurrences in a day, one per trace</span>
               </div>
-            )}
-          </>
-        )}
-        <AgentAccessNote />
-        <DialogFooter>
-          <Button type="submit" disabled={pending} aria-busy={pending}>
-            {state.enabled ? "Save" : "Turn on"}
-          </Button>
+              <Field
+                label="Skip errors containing"
+                note="Matched against the type and message, in any case. No code change fixes network errors and timeouts."
+              >
+                <TagsInput
+                  aria-label="Skip errors containing"
+                  value={ignore}
+                  onValueChange={setIgnore}
+                  disabled={pending}
+                  placeholder="Add text to skip"
+                />
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Hand-off" hint="When the coding agent gets an issue.">
+            <div className="space-y-3">
+              <fieldset className="grid gap-2 sm:grid-cols-2">
+                <legend className="sr-only">Hand-off</legend>
+                <HandoffOption
+                  selected={handoff === "agent"}
+                  disabled={pending}
+                  title="Right away"
+                  onSelect={() => setHandoff("agent")}
+                >
+                  Labeled <span className="font-mono">everr-fix</span> and assigned below, which
+                  starts the agent.
+                </HandoffOption>
+                <HandoffOption
+                  selected={handoff === "review"}
+                  disabled={pending}
+                  title="After review"
+                  onSelect={() => setHandoff("review")}
+                >
+                  A person adds <span className="font-mono">everr-fix</span> or assigns the agent.
+                </HandoffOption>
+              </fieldset>
+              {toAgent && (
+                <Field label="Assign to" htmlFor={github ? undefined : "error-issues-assignee"}>
+                  {github ? (
+                    <TagsInput
+                      aria-label="GitHub logins to assign"
+                      className="font-mono"
+                      value={githubAssignees}
+                      onValueChange={setGithubAssignees}
+                      disabled={pending}
+                      placeholder="GitHub login, such as fix-agent[bot]"
+                    />
+                  ) : (
+                    <Input
+                      id="error-issues-assignee"
+                      placeholder="Email or name of a person or agent"
+                      value={assignee}
+                      disabled={pending}
+                      onChange={(event) => setAssignee(event.target.value)}
+                    />
+                  )}
+                </Field>
+              )}
+            </div>
+          </Section>
+
+          {github && (
+            <Section
+              title="Repositories"
+              hint="Each error opens in its service's repository. Errors from a service with none wait up to a week. Public repositories are refused."
+            >
+              <ServiceRepositoryList environment={environment} />
+            </Section>
+          )}
+        </div>
+
+        <DialogFooter className="items-center border-t px-6 py-3 sm:justify-between">
+          <p className="text-muted-foreground text-xs">
+            Your agent needs an{" "}
+            <Link to="/api-keys" className="text-foreground underline">
+              API key
+            </Link>{" "}
+            with Query telemetry.{" "}
+            <a
+              href={GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline"
+            >
+              Guide
+            </a>
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" disabled={pending} onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={pending} aria-busy={pending}>
+              {state.enabled ? "Save" : "Turn on"}
+            </Button>
+          </div>
         </DialogFooter>
       </form>
     </DialogContent>
   );
 }
 
-/** What an agent working from these issues needs to read the error. */
-function AgentAccessNote() {
+function HandoffOption({
+  selected,
+  disabled,
+  title,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  disabled: boolean;
+  title: string;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div className="bg-muted/50 space-y-1 rounded-md p-3 text-xs">
-      <p className="font-medium">Your agent reads each error from Everr</p>
-      <p className="text-muted-foreground">
-        An issue names the error, with its message&apos;s ids, numbers, emails, and URLs replaced,
-        and the query that pulls its occurrences. It copies no stack trace or raw message. Give the
-        agent an{" "}
-        <Link to="/api-keys" className="underline">
-          API key
-        </Link>{" "}
-        with <span className="font-mono">Query telemetry</span> as{" "}
-        <span className="font-mono">EVERR_API_KEY</span>, and this installation&apos;s URL as{" "}
-        <span className="font-mono">EVERR_API_URL</span>.
-      </p>
+    <label
+      className={cn(
+        "has-[:focus-visible]:ring-ring/50 flex cursor-pointer flex-col gap-1 rounded-md border p-3 transition-colors has-[:disabled]:cursor-default has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2",
+        selected ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+      )}
+    >
+      <input
+        type="radio"
+        name="error-issues-handoff"
+        className="sr-only"
+        checked={selected}
+        disabled={disabled}
+        onChange={onSelect}
+      />
+      <span className="flex items-center gap-2 text-xs font-medium">
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-3.5 items-center justify-center rounded-full border",
+            selected && "border-primary",
+          )}
+        >
+          {selected && <span className="bg-primary size-1.5 rounded-full" />}
+        </span>
+        {title}
+      </span>
+      <span className="text-muted-foreground text-xs">{children}</span>
+    </label>
+  );
+}
+
+/** A titled block of the form: what it decides on the left, its controls on
+ *  the right. Stacks on narrow screens. */
+function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-x-8 gap-y-3 py-5 sm:grid-cols-[11rem_1fr]">
+      <div className="space-y-1">
+        <h3 className="text-sm font-medium">{title}</h3>
+        <p className="text-muted-foreground text-xs">{hint}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  label,
+  htmlFor,
+  note,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  note?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={htmlFor} className="text-muted-foreground text-xs font-normal">
+        {label}
+      </Label>
+      {children}
+      {note && <p className="text-muted-foreground text-xs">{note}</p>}
     </div>
   );
 }
