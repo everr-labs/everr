@@ -448,7 +448,7 @@ it("keeps verification explicit and offers recovery without marking onboarding c
   expect(screen.getByRole("button", { name: /To production/ })).toBeDisabled();
   await user.click(screen.getByText("No data yet?"));
   expect(screen.getByRole("link", { name: "Open the instrumentation guide" })).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Back" }));
+  await user.click(screen.getByRole("button", { name: /Instrument your app/ }));
   expect(screen.getByRole("heading", { name: "Instrument your app" })).toBeVisible();
   expect(screen.getByRole("button", { name: "Set up manually" })).toHaveAttribute(
     "aria-pressed",

@@ -1,3 +1,4 @@
+import { product } from "@composition/product";
 import { organization } from "@everr/app/db/schema";
 import {
   createTestDatabase,
@@ -48,5 +49,13 @@ describe("cloud retention read from billing", () => {
       alertEvaluationDays: evaluationDays,
       alertLifecycleDays: telemetryDays,
     });
+  });
+
+  // App code reads retention through @composition/product, so the cloud build
+  // has to resolve it to cloud's billing policy.
+  it("serves the billing retention to app code", async () => {
+    await expect(product.retentionForOrg("pro-org")).resolves.toEqual(
+      (await productPolicy.forOrganization("pro-org")).retention,
+    );
   });
 });
