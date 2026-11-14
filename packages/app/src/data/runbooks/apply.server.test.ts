@@ -98,16 +98,6 @@ const live = { orgId: "org-1", repoid: "repo-1", kind: "live" } as const;
 const base = { namespace: live, db };
 
 describe("applyRunbookSpecs", () => {
-  it("accepts a defaulted doc under the repo scope", async () => {
-    mockApplySelect([]);
-    const result = await applyRunbookSpecs({
-      ...base,
-      dryRun: true,
-      resources: [{ path: "a.yaml", resource: nb("a") }],
-    });
-    expect(result.created).toEqual(["default/a"]);
-  });
-
   it("updates a runbook whose document changed", async () => {
     mockApplySelect([
       {

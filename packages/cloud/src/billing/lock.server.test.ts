@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { createLockPool } from "@everr/app/db/database";
 
 import { Pool, type PoolClient } from "pg";

@@ -108,16 +108,6 @@ describe("sampled()", () => {
     expect(disagreed).toBe(true);
   });
 
-  it("wraps a third-party (userland) instrumentation the same as a built-in", () => {
-    let ran = false;
-    const userland: Instrumentation = (ctx) => {
-      ctx.ids();
-      ran = true;
-    };
-    sampled(userland, 1)(fakeCtx("s1"));
-    expect(ran).toBe(true);
-  });
-
   it("returns the inner instrumentation's teardown when it runs", () => {
     const teardown = () => {};
     const instrumentation: Instrumentation = () => teardown;

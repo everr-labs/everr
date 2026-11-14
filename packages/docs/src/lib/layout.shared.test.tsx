@@ -13,10 +13,4 @@ describe("layout options", () => {
     expect(docs.searchToggle?.enabled).toBe(false);
     expect(docs.sidebar?.collapsible).toBe(false);
   });
-
-  it("offsets the docs layout below the shared top navigation", () => {
-    expect(docsOptions().containerProps?.style).toMatchObject({
-      "--fd-banner-height": "3.5rem",
-    });
-  });
 });

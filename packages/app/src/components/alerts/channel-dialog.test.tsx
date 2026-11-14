@@ -89,30 +89,6 @@ function renderDialog(onSave = vi.fn()) {
 }
 
 describe("ChannelDialog webhook headers", () => {
-  it("keeps a stored header value and sends one the reader adds", async () => {
-    const onSave = renderDialog();
-    const user = userEvent.setup();
-
-    expect(screen.getByDisplayValue("Authorization")).not.toHaveAttribute("aria-invalid");
-    expect(screen.getAllByLabelText("Value")[0]).toHaveValue("Stored securely");
-    expect(screen.getAllByLabelText("Value")[0]).not.toHaveAttribute("aria-invalid");
-
-    await user.click(screen.getByRole("button", { name: "Add header" }));
-    const names = screen.getAllByPlaceholderText("Authorization");
-    await user.type(names[1], "X-Env");
-    const values = screen.getAllByLabelText("Value");
-    await user.type(values[values.length - 1], "staging");
-    await user.click(screen.getByRole("button", { name: "Save channel" }));
-
-    expect(onSave).toHaveBeenCalledWith({
-      name: "pager",
-      config: {
-        type: "webhook",
-        headers: [{ name: "Authorization" }, { name: "X-Env", value: "staging" }],
-      },
-    });
-  });
-
   it("clears a header the reader removes", async () => {
     const onSave = renderDialog();
     const user = userEvent.setup();
@@ -126,27 +102,21 @@ describe("ChannelDialog webhook headers", () => {
     });
   });
 
-  it("starts a new header row empty, with no error before a save", async () => {
-    renderDialog();
+  it("shows a missing header value once Save is clicked, then follows the edits", async () => {
+    const onSave = renderDialog();
     const user = userEvent.setup();
+
+    expect(screen.getByDisplayValue("Authorization")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getAllByLabelText("Value")[0]).toHaveValue("Stored securely");
 
     await user.click(screen.getByRole("button", { name: "Add header" }));
     const names = screen.getAllByPlaceholderText("Authorization");
     expect(names[1]).toHaveValue("");
     await user.type(names[1], "X-Env");
-
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     for (const input of [...names, ...screen.getAllByLabelText("Value")]) {
       expect(input).not.toHaveAttribute("aria-invalid");
     }
-  });
-
-  it("shows a missing header value once Save is clicked, then follows the edits", async () => {
-    const onSave = renderDialog();
-    const user = userEvent.setup();
-
-    await user.click(screen.getByRole("button", { name: "Add header" }));
-    await user.type(screen.getAllByPlaceholderText("Authorization")[1], "X-Env");
     await user.click(screen.getByRole("button", { name: "Save channel" }));
 
     expect(onSave).not.toHaveBeenCalled();

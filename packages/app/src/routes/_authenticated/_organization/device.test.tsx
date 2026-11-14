@@ -49,7 +49,11 @@ function renderPage() {
   return render(<Component />);
 }
 
-it("approves the device with the organization selected from the dropdown", async () => {
+it("approves the device with the selected organization, retrying after an activation error", async () => {
+  mocks.approveDevice.mockResolvedValueOnce({
+    ok: false,
+    message: "You are no longer a member of this organization.",
+  });
   const user = userEvent.setup();
   renderPage();
 
@@ -59,8 +63,12 @@ it("approves the device with the organization selected from the dropdown", async
   await user.click(await screen.findByRole("option", { name: "Org B" }));
   await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-  expect(mocks.approveDevice).toHaveBeenCalledWith("ABCD1234", "org-b");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "You are no longer a member of this organization.",
+  );
+  await user.click(screen.getByRole("button", { name: "Confirm" }));
   expect(await screen.findByText("Device approved")).toBeVisible();
+  expect(mocks.approveDevice).toHaveBeenLastCalledWith("ABCD1234", "org-b");
 });
 
 it("uses the only organization without showing a dropdown", async () => {
@@ -72,22 +80,6 @@ it("uses the only organization without showing a dropdown", async () => {
   await user.click(screen.getByRole("button", { name: "Confirm" }));
 
   expect(mocks.approveDevice).toHaveBeenCalledWith("ABCD1234", "org-a");
-});
-
-it("shows an organization activation error and allows retrying", async () => {
-  mocks.approveDevice.mockResolvedValueOnce({
-    ok: false,
-    message: "You are no longer a member of this organization.",
-  });
-  const user = userEvent.setup();
-  renderPage();
-  await user.click(screen.getByRole("button", { name: "Confirm" }));
-
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "You are no longer a member of this organization.",
-  );
-  await user.click(screen.getByRole("button", { name: "Confirm" }));
-  expect(await screen.findByText("Device approved")).toBeVisible();
 });
 
 it("denies the request without activating the selected organization", async () => {

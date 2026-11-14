@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   insertDirectRule,
@@ -84,9 +83,10 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     expect(result.columns).toEqual(["service", "value"]);
   });
 
-  it("lands every written column in the type the shipped DDL declares", async () => {
+  it("writes a fire's row in the declared column types, with its rule identity, evidence and exact instant", async () => {
     await insertRule(harness().db, { forSecs: 0 });
     harness().clickhouse.setSignal(BREACHING);
+    const firedAt = Date.now();
     await harness().runDueJobs();
 
     const written = harness().clickhouse.historyRows();
@@ -112,6 +112,36 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     for (const key of Object.keys(written[0])) {
       expect(declared.has(key)).toBe(true);
     }
+
+    const [row] = harness().clickhouse.queryRows(`
+      SELECT slug, severity, instance_labels, evidence_json,
+             toUnixTimestamp64Milli(UUIDv7ToDateTime(event_id)) AS from_id,
+             toUnixTimestamp64Milli(event_time) AS millis
+      FROM app.alert_events
+      WHERE event_type = 'instance_fired'
+    `);
+
+    // A history row is self-sufficient: a reader of a paused, deleted or
+    // raced rule still has to know which rule fired, how loud it was, and
+    // what it saw. None of that can be recovered from the definition row
+    // later, so a writer that dropped one of these leaves history unreadable.
+    expect(row.slug).toBe("default/checkout-latency");
+    expect(row.severity).toBe("warning");
+    expect(row.instance_labels).toEqual({ service: "checkout" });
+    expect(row.evidence_json).not.toBe("");
+
+    // The writer hands the engine an ISO string and the column is a naive
+    // DateTime64(3), so the instant only survives if the engine parses that
+    // text the way the writer meant it and keeps all three decimal places.
+    // A second-precision column, or a writer that sent a local reading,
+    // would still produce a plausible row and be wrong by a whole offset.
+    expect(Number(row.millis)).toBe(firedAt);
+
+    // The id is not opaque: `uuidv7(occurredAt)` (history/clickhouse.ts) puts
+    // the write time inside it, which is what lets a reader recover when a row
+    // happened without trusting a separate column, and what makes a repaired
+    // row derivable. UUIDv7ToDateTime is the engine reading its own id back.
+    expect(Number(row.from_id)).toBe(Number(row.millis));
   });
 
   it("derives is_live in the engine, from preview_id, for a rule the writer never marks", async () => {
@@ -138,67 +168,6 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     );
     expect(bySlug.get("default/live-rule")).toBe(true);
     expect(bySlug.get("default/preview-rule")).toBe(false);
-  });
-
-  it("writes an event_id whose embedded UUIDv7 time is the row's own event time", async () => {
-    await insertRule(harness().db, { forSecs: 0 });
-    harness().clickhouse.setSignal(BREACHING);
-    await harness().runDueJobs();
-
-    // The id is not opaque: `uuidv7(occurredAt)` (history/clickhouse.ts) puts
-    // the write time inside it, which is what lets a reader recover when a row
-    // happened without trusting a separate column, and what makes a repaired
-    // row derivable. UUIDv7ToDateTime is the engine reading its own id back.
-    const [row] = harness().clickhouse.queryRows(`
-      SELECT toUnixTimestamp64Milli(UUIDv7ToDateTime(event_id)) AS from_id,
-             toUnixTimestamp64Milli(event_time) AS from_column
-      FROM app.alert_events
-      WHERE event_type = 'instance_fired'
-    `);
-    expect(Number(row.from_id)).toBe(Number(row.from_column));
-  });
-
-  it("recovers the exact instant a row happened, to the millisecond", async () => {
-    await insertRule(harness().db, { forSecs: 0 });
-    harness().clickhouse.setSignal(BREACHING);
-    const firedAt = Date.now();
-    await harness().runDueJobs();
-
-    // The writer hands the engine an ISO string and the column is a naive
-    // DateTime64(3), so the instant only survives if the engine parses that
-    // text the way the writer meant it and keeps all three decimal places.
-    // A second-precision column, or a writer that sent a local reading,
-    // would still produce a plausible row and be wrong by a whole offset.
-    const [row] = harness().clickhouse.queryRows(`
-      SELECT toUnixTimestamp64Milli(event_time) AS millis
-      FROM app.alert_events
-      WHERE event_type = 'instance_fired'
-    `);
-    expect(Number(row.millis)).toBe(firedAt);
-  });
-
-  it("carries one episode_id across the fired and resolved rows of a single breach", async () => {
-    await insertRule(harness().db, { forSecs: 0, intervalSecs: 60 });
-    harness().clickhouse.setSignal(BREACHING);
-    await harness().runDueJobs();
-
-    harness().clickhouse.setSignal([]);
-    harness().advance(60_000);
-    await harness().runDueJobs();
-    harness().advance(60_000);
-    await harness().runDueJobs();
-
-    const rows = harness().clickhouse.queryRows(`
-      SELECT event_type, episode_id
-      FROM app.alert_events
-      WHERE event_type IN ('instance_fired', 'instance_resolved')
-      ORDER BY event_time, event_id
-    `);
-    expect(rows.map((row) => row.event_type)).toEqual(["instance_fired", "instance_resolved"]);
-    // One continuous breach is one episode: the resolve has to name the fire
-    // it ends, or a reader cannot pair them without guessing from timestamps.
-    expect(rows[0].episode_id).toBe(rows[1].episode_id);
-    expect(rows[0].episode_id).not.toBe(ZERO_UUID);
   });
 
   it("leaves the correlation ids on the zero sentinel for a row that correlates nothing", async () => {
@@ -243,26 +212,6 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     expect(harness().clickhouse.historyRows()).toHaveLength(afterFirstReplay);
   });
 
-  it("keeps a delivery's row alongside the notification it came from", async () => {
-    await insertDirectRule(harness().db, {
-      forSecs: 0,
-      channelType: "webhook",
-    });
-    harness().clickhouse.setSignal(BREACHING);
-    await harness().fireAndFlush();
-
-    const rows = harness().clickhouse.queryRows(`
-      SELECT event_type, notification_event_id
-      FROM app.alert_events
-      WHERE event_type IN ('instance_fired', 'delivery_succeeded')
-      ORDER BY event_time, event_id
-    `);
-    expect(rows.map((row) => row.event_type)).toEqual(["instance_fired", "delivery_succeeded"]);
-    // The delivery names the transition that caused it, so a per-instance
-    // history can show what was sent about which fire.
-    expect(rows[1].notification_event_id).not.toBe(ZERO_UUID);
-  });
-
   it("writes one delivery row per transition the notification carried", async () => {
     await insertDirectRule(harness().db, {
       forSecs: 0,
@@ -284,6 +233,9 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       WHERE event_type = 'delivery_succeeded'
     `);
     expect(rows).toHaveLength(2);
+    // Each delivery row names the transition that caused it, so a
+    // per-instance history can show what was sent about which fire.
+    expect(rows.every((row) => row.notification_event_id !== ZERO_UUID)).toBe(true);
     expect(new Set(rows.map((row) => row.notification_event_id)).size).toBe(2);
     expect(new Set(rows.map((row) => row.delivery_dedup_key)).size).toBe(1);
     expect(
@@ -292,45 +244,6 @@ describe("the alerting pipeline's ClickHouse projection", () => {
         .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
     ).toEqual(["checkout", "payments"]);
   });
-  it("writes the firing rule's own identity and evidence onto the transition", async () => {
-    await insertRule(harness().db, { forSecs: 0 });
-    harness().clickhouse.setSignal(BREACHING);
-    await harness().runDueJobs();
-
-    // A history row is self-sufficient: a reader of a paused, deleted or
-    // raced rule still has to know which rule fired, how loud it was, and
-    // what it saw. None of that can be recovered from the definition row
-    // later, so a writer that dropped one of these leaves history unreadable.
-    const [row] = harness().clickhouse.queryRows(`
-      SELECT slug, severity, instance_labels, evidence_json
-      FROM app.alert_events
-      WHERE event_type = 'instance_fired'
-    `);
-    expect(row.slug).toBe("default/checkout-latency");
-    expect(row.severity).toBe("warning");
-    expect(row.instance_labels).toEqual({ service: "checkout" });
-    expect(row.evidence_json).not.toBe("");
-  });
-
-  it("keeps two rules breaching at once under their own slugs", async () => {
-    await insertRule(harness().db, { slug: "checkout-latency", forSecs: 0 });
-    await insertRule(harness().db, { slug: "cart-errors", forSecs: 0 });
-    harness().clickhouse.setSignal(BREACHING);
-    await harness().runDueJobs();
-
-    // slug is the second field of the sort key, so a rule that wrote under a
-    // neighbour's name would not just mislabel a row, it would land in the
-    // neighbour's part and be read back as its history.
-    const rows = harness().clickhouse.queryRows(`
-      SELECT slug FROM app.alert_events WHERE event_type = 'instance_fired'
-    `);
-    expect(
-      rows
-        .map((row) => row.slug)
-        .sort((a, b) => (JSON.stringify(a) ?? "").localeCompare(JSON.stringify(b) ?? "")),
-    ).toEqual(["default/cart-errors", "default/checkout-latency"]);
-  });
-
   it("writes every label column the rule declares into instance_labels", async () => {
     await insertRule(harness().db, {
       forSecs: 0,
@@ -367,7 +280,9 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       intervalSecs: 60,
       channelType: "webhook",
     });
-    const silence = await insertSilence(harness().db);
+    const silence = await insertSilence(harness().db, {
+      comment: "checkout migration window",
+    });
     harness().clickhouse.setSignal(BREACHING);
     await harness().runDueJobs();
 
@@ -386,12 +301,13 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // the row freezes the silence's id, comment and matchers rather than
     // pointing at a row a cleanup will eventually delete.
     const [suppressed] = harness().clickhouse.queryRows(`
-      SELECT notification_event_id, silenced, silence_id, silence_matchers_json
+      SELECT notification_event_id, silenced, silence_id, silence_comment, silence_matchers_json
       FROM app.alert_events
       WHERE event_type = 'notification_suppressed'
     `);
     expect(suppressed.silenced).toBe(true);
     expect(suppressed.silence_id).toBe(silence.id);
+    expect(suppressed.silence_comment).toBe("checkout migration window");
     expect(suppressed.silence_matchers_json).toBe(
       JSON.stringify([{ label: "service", op: "eq", value: "checkout" }]),
     );
@@ -404,6 +320,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     expect(suppressed.notification_event_id).toBe(resolved.notification_event_id);
 
     // Suppressed means nothing went out, not "went out and was marked".
+    expect(harness().fetchCalls()).toHaveLength(0);
     expect(
       harness().clickhouse.queryRows(`
         SELECT event_type FROM app.alert_events

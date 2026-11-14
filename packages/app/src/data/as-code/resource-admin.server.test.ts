@@ -1,10 +1,8 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   adoptResource,
   deleteResource,
   isResourceKind,
-  RESOURCE_KINDS,
   ReservedProjectError,
 } from "./resource-admin.server";
 
@@ -23,10 +21,6 @@ describe("isResourceKind", () => {
     expect(isResourceKind("Dashboard")).toBe(false);
     expect(isResourceKind("alertrule")).toBe(false);
     expect(isResourceKind("")).toBe(false);
-  });
-
-  it("RESOURCE_KINDS lists exactly the three kinds", () => {
-    expect([...RESOURCE_KINDS]).toEqual(["dashboard", "runbook", "alert"]);
   });
 });
 

@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Triage screen's ClickHouse reads, against a real engine (chdb, running
  * the shipped `app.alert_events` DDL).
@@ -32,7 +30,6 @@ import {
   instanceHistoryRow,
   journalHoldRow,
   journalTerminalRow,
-  ZERO_UUID,
 } from "#app/server/alerting/history/clickhouse.ts";
 import { TEST_ORG } from "#app/server/alerting/testing/fixtures.ts";
 import { registerAlertingHarness } from "#app/testing/alerting-harness.ts";
@@ -148,10 +145,15 @@ function write(...rows: AlertHistoryRow[]) {
 }
 
 describe("the lifecycle events behind the state chart", () => {
-  it("reads every live Alert rule's events inside the window, oldest first", async () => {
+  it("reads every live Alert rule's events inside the window, oldest first, never a Preview copy's", async () => {
+    const preview = definition({
+      previewId: "0f2c1d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
+      ruleMuted: true,
+    });
     write(
       transition({ eventType: "instance_pending", at: minutesAgo(50) }),
       transition({ eventType: "instance_fired", at: minutesAgo(40) }),
+      transition({ eventType: "instance_fired", at: minutesAgo(9), def: preview }),
       // Outside the window on the old side.
       transition({ eventType: "instance_fired", at: minutesAgo(120) }),
     );
@@ -159,25 +161,6 @@ describe("the lifecycle events behind the state chart", () => {
     const events = await loadLifecycleEvents(query, windowOf(60));
 
     expect(events.map((row) => row.event_type)).toEqual(["instance_pending", "instance_fired"]);
-  });
-
-  it("never reads a Preview copy's events", async () => {
-    const preview = definition({
-      previewId: "0f2c1d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
-      ruleMuted: true,
-    });
-    write(
-      transition({ eventType: "instance_fired", at: minutesAgo(10) }),
-      transition({
-        eventType: "instance_fired",
-        at: minutesAgo(9),
-        def: preview,
-      }),
-    );
-
-    const events = await loadLifecycleEvents(query, windowOf(60));
-
-    expect(events).toHaveLength(1);
   });
 });
 
@@ -201,21 +184,7 @@ describe("the state an Alert instance carried into the window", () => {
         at: minutesAgo(30),
         fingerprint: "b",
       }),
-    );
-
-    const prior = await loadPriorStates(query, windowOf(60));
-
-    expect(prior).toEqual([
-      expect.objectContaining({
-        slug: PATH,
-        instance_fingerprint: "a",
-        last_event_type: "instance_fired",
-      }),
-    ]);
-  });
-
-  it("leaves out a row that belongs to no Alert instance", async () => {
-    write(
+      // Belongs to no Alert instance.
       evaluationHistoryRow({
         def: definition(),
         scheduledFor: minutesAgo(150),
@@ -228,7 +197,15 @@ describe("the state an Alert instance carried into the window", () => {
       }),
     );
 
-    expect(await loadPriorStates(query, windowOf(60))).toEqual([]);
+    const prior = await loadPriorStates(query, windowOf(60));
+
+    expect(prior).toEqual([
+      expect.objectContaining({
+        slug: PATH,
+        instance_fingerprint: "a",
+        last_event_type: "instance_fired",
+      }),
+    ]);
   });
 });
 
@@ -255,52 +232,25 @@ describe("the recent events the detail lists", () => {
     );
   });
 
-  it("looks back thirty days and no further", async () => {
-    write(transition({ eventType: "instance_fired", at: minutesAgo(10) }), {
-      ...transition({ eventType: "instance_fired", at: minutesAgo(10) }),
-      event_id: uuidv7(new Date(Date.now() - 40 * DAY)),
-      event_time: new Date(Date.now() - 40 * DAY).toISOString(),
-    });
-
-    const timeline = await loadRecentTimeline(query, {
-      path: PATH,
-      windowTo: new Date(),
-    });
-
-    expect(timeline).toHaveLength(1);
-  });
-
-  it("stops at the window end, so a past window never shows later events", async () => {
+  it("reads only the asked rule's last thirty days, up to the window end", async () => {
+    const other = definition({ slug: "default/other-rule" });
     write(
       transition({ eventType: "instance_fired", at: minutesAgo(50) }),
       transition({ eventType: "instance_resolved", at: minutesAgo(5) }),
+      transition({ eventType: "instance_fired", at: minutesAgo(4), def: other }),
+      {
+        ...transition({ eventType: "instance_fired", at: minutesAgo(10) }),
+        event_id: uuidv7(new Date(Date.now() - 40 * DAY)),
+        event_time: new Date(Date.now() - 40 * DAY).toISOString(),
+      },
     );
 
-    const timeline = await loadRecentTimeline(query, {
-      path: PATH,
-      windowTo: minutesAgo(30),
-    });
+    const now = await loadRecentTimeline(query, { path: PATH, windowTo: new Date() });
+    // A past window never shows later events.
+    const past = await loadRecentTimeline(query, { path: PATH, windowTo: minutesAgo(30) });
 
-    expect(timeline.map((row) => row.event_type)).toEqual(["instance_fired"]);
-  });
-
-  it("reads the events of the rule it was asked about", async () => {
-    const other = definition({ slug: "default/other-rule" });
-    write(
-      transition({ eventType: "instance_fired", at: minutesAgo(5) }),
-      transition({
-        eventType: "instance_fired",
-        at: minutesAgo(4),
-        def: other,
-      }),
-    );
-
-    const timeline = await loadRecentTimeline(query, {
-      path: PATH,
-      windowTo: new Date(),
-    });
-
-    expect(timeline).toHaveLength(1);
+    expect(now.map((row) => row.event_type)).toEqual(["instance_resolved", "instance_fired"]);
+    expect(past.map((row) => row.event_type)).toEqual(["instance_fired"]);
   });
 });
 
@@ -317,25 +267,9 @@ describe("the last evaluation the detail reads its values from", () => {
       samplesTruncated: false,
     });
 
-  it("gives back only the newest evaluation", async () => {
+  it("gives back the newest successful evaluation before the window end", async () => {
     write(
-      evaluation(minutesAgo(20), [{ fingerprint: "older" }]),
-      evaluation(minutesAgo(2), [{ fingerprint: "newest" }]),
-    );
-
-    const rows = await loadLastEvaluation(query, {
-      path: PATH,
-      windowFrom: minutesAgo(60),
-      windowTo: new Date(),
-      intervalSecs: 60,
-    });
-
-    expect(rows).toHaveLength(1);
-    expect(rows[0].samples_json).toContain("newest");
-  });
-
-  it("never reads a failed evaluation as the last one", async () => {
-    write(
+      evaluation(minutesAgo(50), [{ fingerprint: "inside" }]),
       evaluation(minutesAgo(20), [{ fingerprint: "succeeded" }]),
       evaluationFailureHistoryRow({
         def: definition(),
@@ -345,31 +279,23 @@ describe("the last evaluation the detail reads its values from", () => {
       }),
     );
 
-    const rows = await loadLastEvaluation(query, {
+    const latest = await loadLastEvaluation(query, {
       path: PATH,
       windowFrom: minutesAgo(60),
       windowTo: new Date(),
       intervalSecs: 60,
     });
-
-    expect(rows[0].samples_json).toContain("succeeded");
-  });
-
-  it("takes the last evaluation before the window end, not the newest one", async () => {
-    write(
-      evaluation(minutesAgo(50), [{ fingerprint: "inside" }]),
-      evaluation(minutesAgo(5), [{ fingerprint: "after" }]),
-    );
-
-    const rows = await loadLastEvaluation(query, {
+    const past = await loadLastEvaluation(query, {
       path: PATH,
       windowFrom: minutesAgo(60),
       windowTo: minutesAgo(30),
       intervalSecs: 60,
     });
 
-    expect(rows).toHaveLength(1);
-    expect(rows[0].samples_json).toContain("inside");
+    expect(latest).toHaveLength(1);
+    expect(latest[0].samples_json).toContain("succeeded");
+    expect(past).toHaveLength(1);
+    expect(past[0].samples_json).toContain("inside");
   });
 
   it("reaches back before the window when the rule stopped evaluating", async () => {
@@ -417,7 +343,8 @@ describe("the labels the chart names its lanes with", () => {
 describe("what a Silence withheld", () => {
   const SILENCE = "6c0b6e1a-9d4f-4d3a-8e21-77c2b1a5f3d4";
 
-  it("counts notifications, not the rows that talk about them", async () => {
+  it("counts notifications, not the rows that talk about them, for each Silence apart", async () => {
+    const other = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
     const first = chain(minutesAgo(20), "a");
     const second = chain(minutesAgo(15), "b");
     const dropped = chain(minutesAgo(10), "c");
@@ -427,18 +354,7 @@ describe("what a Silence withheld", () => {
       journalHoldRow(first, silenceCopy(SILENCE)),
       journalHoldRow(second, silenceCopy(SILENCE)),
       journalTerminalRow(dropped, { silence: silenceCopy(SILENCE) }),
-    );
-
-    const impact = await loadSilenceImpact(query, [{ id: SILENCE, startsAt: minutesAgo(60) }]);
-
-    expect(impact.get(SILENCE)).toEqual({ held: 2, dropped: 1 });
-  });
-
-  it("keeps two Silences apart", async () => {
-    const other = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
-    write(
-      journalHoldRow(chain(minutesAgo(20), "a"), silenceCopy(SILENCE)),
-      journalHoldRow(chain(minutesAgo(19), "b"), silenceCopy(other)),
+      journalHoldRow(chain(minutesAgo(19), "d"), silenceCopy(other)),
     );
 
     const impact = await loadSilenceImpact(query, [
@@ -446,17 +362,11 @@ describe("what a Silence withheld", () => {
       { id: other, startsAt: minutesAgo(60) },
     ]);
 
-    expect(impact.get(SILENCE)).toEqual({ held: 1, dropped: 0 });
+    expect(impact.get(SILENCE)).toEqual({ held: 2, dropped: 1 });
     expect(impact.get(other)).toEqual({ held: 1, dropped: 0 });
   });
 
   it("asks the database nothing when there is no Silence to ask about", async () => {
     expect(await loadSilenceImpact(query, [])).toEqual(new Map());
   });
-});
-
-// The sentinel a live row carries, so a case that builds a Preview row is
-// visibly doing something different.
-it("treats the zero uuid as the live sentinel", () => {
-  expect(definition().previewId ?? ZERO_UUID).toBe(ZERO_UUID);
 });

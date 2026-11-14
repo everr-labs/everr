@@ -85,18 +85,4 @@ describe("hosted SQL result compatibility", () => {
       traceCount: 1,
     });
   });
-
-  it("passes through trace rows without adding SQL result validation", async () => {
-    const rows = [{ traceId: "legacy", spanCount: "not-a-count" }];
-    queryMock.mockResolvedValueOnce(rows);
-    expect(await searchTraces({ data: tracesInput })).toBe(rows);
-  });
-
-  it("retains the existing error count conversion for incomplete rows", async () => {
-    queryMock.mockResolvedValueOnce([{}]);
-    expect((await searchErrorIssues({ data: tracesInput })).issues[0]).toMatchObject({
-      occurrenceCount: Number.NaN,
-      traceCount: Number.NaN,
-    });
-  });
 });

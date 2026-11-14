@@ -1,4 +1,3 @@
-// @vitest-environment node
 import type { GenericEndpointContext } from "better-auth";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import {

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { expect, it } from "vite-plus/test";
 import { entry } from "./app/composition/entry";
 

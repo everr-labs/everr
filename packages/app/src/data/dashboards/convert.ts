@@ -1,7 +1,7 @@
 import type { LayoutItem } from "react-grid-layout";
 import { type GridItem, PANEL_REF_PREFIX } from "./schema";
 
-export function panelKeyFromRef(ref: string): string {
+function panelKeyFromRef(ref: string): string {
   return ref.slice(PANEL_REF_PREFIX.length);
 }
 

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it, vi } from "vite-plus/test";
 import { alertDeliveries, alertNotificationGroups } from "#app/db/schema/index.ts";
 import {
@@ -60,50 +59,6 @@ describe("the alerting pipeline's default-destination targeting", () => {
     const [group] = await harness().db.select().from(alertNotificationGroups);
     expect(group.directAlertDefinitionId).not.toBeNull();
     expect(group.defaultTier).toBeNull();
-  });
-
-  it("delivers a warning-severity event through the 'all' tier when the destination is unsplit", async () => {
-    const channel = await insertChannel(harness().db, {
-      type: "webhook",
-      name: "unsplit-channel",
-    });
-    await insertDefaultChannels(harness().db, { channelIds: [channel.id] });
-
-    await fireDefaultRuleAndFlush();
-
-    expect(harness().fetchCalls()).toHaveLength(1);
-    const [delivery] = await harness().db.select().from(alertDeliveries);
-    expect(delivery.channelName).toBe("unsplit-channel");
-    const [group] = await harness().db.select().from(alertNotificationGroups);
-    expect(group.defaultTier).toBe("all");
-    expect(group.directAlertDefinitionId).toBeNull();
-  });
-
-  it("delivers to the tier matching the event's severity when the destination is split", async () => {
-    const warningChannel = await insertChannel(harness().db, {
-      type: "webhook",
-      name: "warning-channel",
-    });
-    await insertDefaultChannels(harness().db, {
-      tier: "warning",
-      channelIds: [warningChannel.id],
-    });
-    const criticalChannel = await insertChannel(harness().db, {
-      type: "webhook",
-      name: "critical-channel",
-    });
-    await insertDefaultChannels(harness().db, {
-      tier: "critical",
-      channelIds: [criticalChannel.id],
-    });
-
-    await fireDefaultRuleAndFlush({ severity: "warning" });
-
-    expect(harness().fetchCalls()).toHaveLength(1);
-    const [delivery] = await harness().db.select().from(alertDeliveries);
-    expect(delivery.channelName).toBe("warning-channel");
-    const [group] = await harness().db.select().from(alertNotificationGroups);
-    expect(group.defaultTier).toBe("warning");
   });
 
   it("delivers nothing when the split destination has no tier for the event's severity", async () => {
@@ -172,7 +127,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
     ]);
   });
 
-  it("does not let a user label named severity steer tier selection away from the rule's severity", async () => {
+  it("delivers to the tier matching the rule's severity when the destination is split, whatever a user label named severity says", async () => {
     const warnChannel = await insertChannel(harness().db, {
       type: "webhook",
       name: "warn-channel",
@@ -205,9 +160,11 @@ describe("the alerting pipeline's default-destination targeting", () => {
     expect(harness().fetchCalls()).toHaveLength(1);
     const [delivery] = await harness().db.select().from(alertDeliveries);
     expect(delivery.channelName).toBe("warn-channel");
+    const [group] = await harness().db.select().from(alertNotificationGroups);
+    expect(group.defaultTier).toBe("warning");
   });
 
-  it("splits two rules into two groups under one destination, since grouping is by rule", async () => {
+  it("delivers through the 'all' tier of an unsplit destination, in one group per rule", async () => {
     const channel = await insertChannel(harness().db, {
       type: "webhook",
       name: "shared-channel",
@@ -225,5 +182,11 @@ describe("the alerting pipeline's default-destination targeting", () => {
     const groups = await harness().db.select().from(alertNotificationGroups);
     expect(groups).toHaveLength(2);
     expect(groups.every((group) => group.defaultTier === "all")).toBe(true);
+    expect(groups.every((group) => group.directAlertDefinitionId === null)).toBe(true);
+    const deliveries = await harness().db.select().from(alertDeliveries);
+    expect(deliveries.map((delivery) => delivery.channelName)).toEqual([
+      "shared-channel",
+      "shared-channel",
+    ]);
   });
 });

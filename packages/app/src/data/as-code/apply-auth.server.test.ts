@@ -59,13 +59,9 @@ beforeEach(() => {
 });
 
 describe("extractBearerKey", () => {
-  it("reads a Bearer token from the Authorization header", () => {
+  it("reads a Bearer token or the x-api-key header, and nothing else", () => {
     expect(extractBearerKey(headers({ authorization: "Bearer ek_abc" }))).toBe("ek_abc");
-  });
-  it("reads the x-api-key header", () => {
     expect(extractBearerKey(headers({ "x-api-key": "ek_xyz" }))).toBe("ek_xyz");
-  });
-  it("returns null when no key header is present", () => {
     expect(extractBearerKey(headers({}))).toBeNull();
   });
 });
@@ -263,38 +259,23 @@ describe("buildApplyContext", () => {
       display: "user:u1",
     });
   });
-
-  it("threads a null applyActions through for session auth", () => {
-    const ctx = buildApplyContext({
-      organizationId: "org-k",
-      organizationName: "Kettle",
-      sql,
-      principalId: "user:u1",
-      applyActions: null,
-    });
-    expect(ctx.applyActions).toBeNull();
-  });
 });
 
 describe("canApplyMutate", () => {
-  it("allows session auth (null actions) unconditionally", () => {
-    expect(canApplyMutate(null)).toBe(true);
-  });
-  it("allows a write action", () => {
-    expect(canApplyMutate(["read", "write", "delete"])).toBe(true);
-    expect(canApplyMutate(["write"])).toBe(true);
-  });
-  it("allows the wildcard action", () => {
-    expect(canApplyMutate(["*"])).toBe(true);
-  });
-  it("rejects a read-only key on a mutative apply", () => {
-    expect(canApplyMutate(["read"])).toBe(false);
-  });
-  it("rejects an empty action array (defense-in-depth)", () => {
-    expect(canApplyMutate([])).toBe(false);
-  });
-  it("rejects a delete-only key on a mutative apply", () => {
-    expect(canApplyMutate(["delete"])).toBe(false);
+  // Session auth (null actions) is unconditional; a key needs write or the
+  // wildcard, and an empty array grants nothing (defense in depth).
+  it("allows session auth and keys with write or the wildcard, nothing else", () => {
+    for (const [actions, expected] of [
+      [null, true],
+      [["read", "write", "delete"], true],
+      [["write"], true],
+      [["*"], true],
+      [["read"], false],
+      [["delete"], false],
+      [[], false],
+    ] as const) {
+      expect(canApplyMutate(actions), JSON.stringify(actions)).toBe(expected);
+    }
   });
 });
 

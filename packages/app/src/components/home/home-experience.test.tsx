@@ -407,18 +407,6 @@ it("creates a public browser key from production setup", async () => {
   });
 });
 
-it("lets manual users return to step two and continue without selecting their method again", async () => {
-  seedProgress("local", "manual");
-  const { user } = mount();
-  await user.click(screen.getByRole("button", { name: /Instrument your app/ }));
-  expect(screen.getByRole("button", { name: "Set up manually" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
-  expect(screen.getByRole("button", { name: "Copy local status command" })).toBeVisible();
-});
-
 it("changes setup method without navigating or unlocking the next step", async () => {
   seedProgress("agent");
   const { user } = mount();
@@ -466,6 +454,8 @@ it("keeps verification explicit and offers recovery without marking onboarding c
     "aria-pressed",
     "true",
   );
+  await user.click(screen.getByRole("button", { name: "Check my telemetry" }));
+  expect(screen.getByRole("button", { name: "Copy local status command" })).toBeVisible();
 });
 
 it("copies the installation login command and shows its ingestion endpoint", async () => {

@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-// Only so that importing `./scanner` for the pure functions below does not
-// build a real database pool. Nothing here answers a query: every case in
-// this file is a pure function.
-vi.mock("#app/db/client.ts", () => ({ db: {}, pool: {} }));
+// No real database pool. The scan query resolves to no rows; only the batch
+// size it was asked for is recorded.
+const mocks = vi.hoisted(() => ({ limit: vi.fn((_count: number) => Promise.resolve([])) }));
+vi.mock("#app/db/client.ts", () => {
+  const query = {
+    select: () => query,
+    from: () => query,
+    where: () => query,
+    orderBy: () => query,
+    limit: mocks.limit,
+  };
+  return { db: query, pool: {} };
+});
 
 import {
   alertingPartitionQueue,
@@ -11,9 +20,16 @@ import {
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
 } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
-import { staleEnqueueCutoff } from "./scanner";
+import { SCANNER_BATCH_SIZE, scanDueAlerts, staleEnqueueCutoff } from "./scanner";
 
 describe("alert scanner", () => {
+  it("claims the production batch size when the caller passes none", async () => {
+    // The scheduler calls scanDueAlerts() with no options, so this is the
+    // batch production runs with.
+    await scanDueAlerts();
+    expect(mocks.limit).toHaveBeenCalledWith(SCANNER_BATCH_SIZE);
+  });
+
   it("uses only 64 queue partitions", () => {
     const queues = new Set(
       Array.from({ length: 2_000 }, (_, index) => alertingPartitionQueue("alert", `rule-${index}`)),

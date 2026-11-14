@@ -41,6 +41,25 @@ describe("createLimiter", () => {
     expect(maxActive).toBe(2);
   });
 
+  it("starts queued tasks in the order they were submitted", async () => {
+    const run = createLimiter(1);
+    const started: number[] = [];
+    const gate = deferred<void>();
+    const tasks = [1, 2, 3].map((id) =>
+      run(undefined, async () => {
+        started.push(id);
+        if (id === 1) await gate.promise;
+      }),
+    );
+
+    await tick();
+    expect(started).toEqual([1]);
+
+    gate.resolve();
+    await Promise.all(tasks);
+    expect(started).toEqual([1, 2, 3]);
+  });
+
   it("skips an already-aborted task without running its work", async () => {
     const run = createLimiter(2);
     let ran = false;
@@ -53,25 +72,5 @@ describe("createLimiter", () => {
       }),
     ).rejects.toBeDefined();
     expect(ran).toBe(false);
-  });
-
-  it("a queued task still runs after earlier tasks finish", async () => {
-    const run = createLimiter(1);
-    const order: number[] = [];
-    const first = deferred<void>();
-    const p1 = run(undefined, async () => {
-      order.push(1);
-      await first.promise;
-    });
-    const p2 = run(undefined, async () => {
-      order.push(2);
-    });
-
-    await tick();
-    expect(order).toEqual([1]); // second is queued behind the single slot
-
-    first.resolve();
-    await Promise.all([p1, p2]);
-    expect(order).toEqual([1, 2]);
   });
 });

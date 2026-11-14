@@ -9,9 +9,10 @@ function divider(container: HTMLElement) {
 }
 
 describe("FilterSidebar", () => {
-  it("renders the Filters header and children", () => {
-    render(
-      <FilterSidebar label="Log filters" hasActiveFilters={false} onClear={vi.fn()}>
+  it("shows the clear control only when page filters are active and calls onClear", () => {
+    const onClear = vi.fn();
+    const { rerender } = render(
+      <FilterSidebar label="Log filters" hasActiveFilters={false} onClear={onClear}>
         <div>child content</div>
       </FilterSidebar>,
     );
@@ -19,28 +20,25 @@ describe("FilterSidebar", () => {
     expect(screen.getByText("Filters")).toBeInTheDocument();
     expect(screen.getByText("child content")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
-  });
-
-  it("shows the clear control only when page filters are active and calls onClear", () => {
-    const onClear = vi.fn();
-    const { rerender } = render(
-      <FilterSidebar label="Log filters" hasActiveFilters={false} onClear={onClear}>
-        <div />
-      </FilterSidebar>,
-    );
-    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
 
     rerender(
       <FilterSidebar label="Log filters" hasActiveFilters onClear={onClear}>
-        <div />
+        <div>child content</div>
       </FilterSidebar>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
-  it("puts the persistent zone above the page zone, separated by a divider", () => {
-    const { container } = render(
+  it("puts the persistent zone above the page zone, separated by a divider only when present", () => {
+    const { container, rerender } = render(
+      <FilterSidebar label="Trace filters" hasActiveFilters={false} onClear={vi.fn()}>
+        <div>page zone</div>
+      </FilterSidebar>,
+    );
+    expect(divider(container)).toBeNull();
+
+    rerender(
       <FilterSidebar
         label="Trace filters"
         hasActiveFilters={false}
@@ -54,14 +52,5 @@ describe("FilterSidebar", () => {
     const page = screen.getByText("page zone");
     expect(persistent.compareDocumentPosition(page)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(divider(container)).toBeInTheDocument();
-  });
-
-  it("omits the divider when there is no persistent zone", () => {
-    const { container } = render(
-      <FilterSidebar label="Trace filters" hasActiveFilters={false} onClear={vi.fn()}>
-        <div>page zone</div>
-      </FilterSidebar>,
-    );
-    expect(divider(container)).toBeNull();
   });
 });

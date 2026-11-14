@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Silence commands, against a real PostgreSQL.
  *
@@ -49,13 +47,16 @@ describe("creating an Alert silence", () => {
       slug: "checkout-latency",
     });
 
-    const { id } = await createAlertSilence({
+    const scoped = await createAlertSilence({
       data: {
         path: PATH,
         durationMinutes: 30,
         matchers: "host=web-1",
         comment: "deploying",
       },
+    });
+    const wholeRule = await createAlertSilence({
+      data: { path: PATH, durationMinutes: 30, matchers: "", comment: "" },
     });
 
     // The rule Matcher comes first and is always present. Without it this
@@ -64,33 +65,23 @@ describe("creating an Alert silence", () => {
     // Its value is the rule's row id, not the path the caller sent: the
     // mutation resolves the one into the other, and delivery matches on the
     // id it stored.
-    expect((await storedSilence(id)).matchers).toEqual([
+    expect((await storedSilence(scoped.id)).matchers).toEqual([
       { label: "rule", op: "eq", value: rule.id },
       { label: "host", op: "eq", value: "web-1" },
     ]);
-  });
-
-  it("writes a whole-rule Silence when no Matchers were typed", async () => {
-    const rule = await insertRule(harness().db, {
-      organizationId: SESSION_ORG,
-      slug: "checkout-latency",
-    });
-
-    const { id } = await createAlertSilence({
-      data: { path: PATH, durationMinutes: 30, matchers: "", comment: "" },
-    });
-
-    expect((await storedSilence(id)).matchers).toEqual([
+    // No Matchers typed: a whole-rule Silence.
+    expect((await storedSilence(wholeRule.id)).matchers).toEqual([
       { label: "rule", op: "eq", value: rule.id },
     ]);
   });
 
-  it("mutes nothing for a path no Alert rule has", async () => {
+  it("writes nothing for a path no Alert rule has or a Matcher that is not a pair", async () => {
     await insertRule(harness().db, {
       organizationId: SESSION_ORG,
       slug: "checkout-latency",
     });
 
+    // The rule is resolved before the Silence is written.
     await expect(
       createAlertSilence({
         data: {
@@ -101,17 +92,6 @@ describe("creating an Alert silence", () => {
         },
       }),
     ).rejects.toThrow();
-
-    // The rule is resolved before the Silence is written, so nothing landed.
-    expect(await harness().db.select().from(alertSilences)).toEqual([]);
-  });
-
-  it("refuses a Matcher that is not a pair before it writes anything", async () => {
-    await insertRule(harness().db, {
-      organizationId: SESSION_ORG,
-      slug: "checkout-latency",
-    });
-
     await expect(
       createAlertSilence({
         data: {

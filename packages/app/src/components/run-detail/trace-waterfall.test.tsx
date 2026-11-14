@@ -126,14 +126,6 @@ const mixedSpans: Span[] = [
 ];
 
 describe("TraceWaterfall", () => {
-  it("renders each span with its duration label", () => {
-    renderWaterfall(flatSpans);
-
-    expectSpansVisible("Job A", "Job B");
-    expect(screen.getByText("500ms")).toBeInTheDocument();
-    expect(screen.getByText("600ms")).toBeInTheDocument();
-  });
-
   it("renders spans when totalDuration is 0", () => {
     renderWaterfall([
       makeSpan({
@@ -166,6 +158,9 @@ describe("TraceWaterfall", () => {
   it("focuses a span, replaces the focus, then clears it", async () => {
     const user = renderWaterfall(flatSpans);
 
+    expectSpansVisible("Job A", "Job B");
+    expect(screen.getByText("500ms")).toBeInTheDocument();
+    expect(screen.getByText("600ms")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear focus" })).not.toBeInTheDocument();
 
     const focusButtons = getFocusButtons();

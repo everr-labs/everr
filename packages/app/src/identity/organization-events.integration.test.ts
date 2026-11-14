@@ -1,5 +1,4 @@
 import { serverLogger } from "#app/telemetry/logger.ts";
-// @vitest-environment node
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { EventDefinition, EventPublisher } from "#app/composition/events.ts";

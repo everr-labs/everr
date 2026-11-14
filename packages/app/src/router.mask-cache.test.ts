@@ -1,6 +1,5 @@
 // Node environment so `this.isServer` is true and the router takes the caching
 // path this test is about.
-// @vitest-environment node
 import { createMemoryHistory, createRootRoute, createRoute } from "@tanstack/react-router";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 

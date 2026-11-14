@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { expect, it, vi } from "vite-plus/test";
 import { createInstallState, parseInstallState } from "./github-install-state";
 

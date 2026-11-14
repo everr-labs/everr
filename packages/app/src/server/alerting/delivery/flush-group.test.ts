@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   groupRow: null as Record<string, unknown> | null,
   memberRows: [] as unknown[],
+  memberQuery: vi.fn((_tx: unknown, _groupId: string, _limit: number) =>
+    Promise.resolve(mocks.memberRows),
+  ),
   updates: [] as Record<string, unknown>[],
   // Everything the commit transaction inserted, in order.
   inserts: [] as unknown[],
@@ -108,7 +111,7 @@ vi.mock("#app/db/client.ts", () => {
 });
 
 vi.mock("./journal-reader", () => ({
-  deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+  deliverableGroupMemberQuery: mocks.memberQuery,
 }));
 
 vi.mock("#app/server/worker/jobs.ts", () => ({
@@ -134,7 +137,12 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import { CHANNEL_TEXT_MAX } from "#app/data/alerting/delivery/channel-text-limits.ts";
-import { flushAlertGroup, formatNotification, type NotificationEvent } from "./flush-group";
+import {
+  FLUSH_GROUP_MEMBER_CLAIM_CAP,
+  flushAlertGroup,
+  formatNotification,
+  type NotificationEvent,
+} from "./flush-group";
 
 beforeEach(() => {
   mocks.groupRow = null;
@@ -143,6 +151,7 @@ beforeEach(() => {
   mocks.inserts = [];
   mocks.commitSelectQueue = [];
   mocks.transactionCalls = 0;
+  mocks.memberQuery.mockClear();
   mocks.loadSilences.mockClear();
   mocks.loadFiringKeys.mockClear();
   mocks.recordHistory.mockClear();
@@ -203,10 +212,9 @@ describe("formatNotification", () => {
     const { title, body } = formatNotification(events);
     expect(title).toBe("Everr alert: 300 firing");
     const lines = body.split("\n");
-    expect(lines.at(-1)).toMatch(/^…and \d+ more events in this group$/);
-    const shown = lines.length - 1;
-    expect(shown).toBeLessThanOrEqual(20);
-    expect(lines.at(-1)).toBe(`…and ${300 - shown} more events in this group`);
+    // Short lines, so the event cap binds before the character budget does.
+    expect(lines.slice(0, -1)).toHaveLength(20);
+    expect(lines.at(-1)).toBe("…and 280 more events in this group");
     expect(body.length).toBeLessThan(CHANNEL_TEXT_MAX.discord - title.length - 4);
   });
 
@@ -278,6 +286,12 @@ describe("flushAlertGroup suppression batching", () => {
     await flushAlertGroup({ groupId: GROUP_ID });
 
     expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
+    // The job handler passes no cap, so this is the bound production runs with.
+    expect(mocks.memberQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      GROUP_ID,
+      FLUSH_GROUP_MEMBER_CLAIM_CAP,
+    );
   });
 
   // A group above the claim cap leaves members unflushed on every pass. A

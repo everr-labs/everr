@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import type { PoolClient } from "pg";
 import { afterAll, beforeEach, expect, it, vi } from "vite-plus/test";
 import { createInstallationIdentity } from "#app/app/identity.ts";

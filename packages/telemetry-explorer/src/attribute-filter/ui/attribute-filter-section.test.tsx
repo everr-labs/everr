@@ -35,25 +35,7 @@ function setup(attributes: AttributeFilter[]) {
 }
 
 describe("AttributeFilterSection", () => {
-  it("renders the header and the add-filter trigger", () => {
-    setup([]);
-    expect(screen.getByText("Attributes")).toBeInTheDocument();
-    expect(screen.getByText("Filter")).toBeInTheDocument();
-  });
-
-  it("renders a pill per active filter", () => {
-    setup([
-      {
-        source: "resource",
-        key: "deployment.environment",
-        op: "in",
-        values: [],
-      },
-    ]);
-    expect(screen.getByText("Environment")).toBeInTheDocument();
-  });
-
-  it("removes a filter via its pill", () => {
+  it("renders the add-filter trigger and a removable pill per active filter", () => {
     const { onChange } = setup([
       {
         source: "resource",
@@ -62,6 +44,9 @@ describe("AttributeFilterSection", () => {
         values: [],
       },
     ]);
+    expect(screen.getByText("Attributes")).toBeInTheDocument();
+    expect(screen.getByText("Filter")).toBeInTheDocument();
+    expect(screen.getByText("Environment")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Remove Environment filter"));
     expect(onChange).toHaveBeenCalledWith([]);
   });

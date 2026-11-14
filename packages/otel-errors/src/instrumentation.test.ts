@@ -175,6 +175,7 @@ describe("ErrorsInstrumentation capture", () => {
     const [record] = otel.records();
     expect(record.attributes["everr.error.mechanism"]).toBe("unhandledrejection");
     expect(record.attributes["exception.type"]).toBe("NonError");
+    expect(consoleError).toHaveBeenCalledWith("string reason");
   });
 
   it("captures unhandledRejection as error by default, and as fatal in strict mode", () => {
@@ -219,12 +220,6 @@ describe("the fatal path", () => {
     // the stack, the same as Node shows it.
     expect(consoleError).toHaveBeenCalledWith(error);
     expect(otel.records()).toHaveLength(1);
-  });
-
-  it("writes a rejection reason that is not an Error", () => {
-    enable();
-    process.emit("unhandledRejection", "string reason", Promise.resolve());
-    expect(consoleError).toHaveBeenCalledWith("string reason");
   });
 
   it("keeps no timer after the flush, and thus holds the process open for no time", async () => {

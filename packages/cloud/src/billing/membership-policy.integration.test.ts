@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import type { Database } from "@everr/app/db/database";
 import { account, invitation, member, organization, session, user } from "@everr/app/db/schema";
 import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";

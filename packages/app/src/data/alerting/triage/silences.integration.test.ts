@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The Triage screen's PostgreSQL reads of Silences, against a real engine.
  *
@@ -52,19 +50,12 @@ function at(hoursFromNow: number): Date {
 }
 
 describe("the Silences the Triage screen reads", () => {
-  it("leaves out a Silence whose window has already closed", async () => {
+  it("keeps an open Silence and one that has not started, but attributes only the started one", async () => {
     const open = await insertSilence(harness().db, {
       startsAt: at(-2),
       endsAt: at(1),
     });
     await insertSilence(harness().db, { startsAt: at(-4), endsAt: at(-1) });
-
-    const silences = await loadOpenSilences(TEST_ORG);
-
-    expect(silences.map((row) => row.id)).toEqual([open.id]);
-  });
-
-  it("keeps a Silence that has not started, and does not yet attribute it", async () => {
     const scheduled = await insertSilence(harness().db, {
       startsAt: at(1),
       endsAt: at(2),
@@ -74,12 +65,12 @@ describe("the Silences the Triage screen reads", () => {
     const silences = await loadOpenSilences(TEST_ORG);
 
     // Open by the window test, so a caller can list it as scheduled...
-    expect(silences.map((row) => row.id)).toEqual([scheduled.id]);
+    expect(new Set(silences.map((row) => row.id))).toEqual(new Set([open.id, scheduled.id]));
     // ...but nothing is muted until it starts.
     expect(silenceFor(RULE_ID, "warning", silences, new Date())).toBeNull();
   });
 
-  it("takes each window bound on its own", async () => {
+  it("takes each window bound on its own, and only Silences that select the rule", async () => {
     const from = at(-1);
     const to = new Date(Date.now());
     const endedInside = await insertSilence(harness().db, {
@@ -104,6 +95,12 @@ describe("the Silences the Triage screen reads", () => {
       endsAt: at(2),
       matchers: ruleMatcher,
     });
+    // Spans the window, but its Matchers do not select the rule.
+    await insertSilence(harness().db, {
+      startsAt: at(-3),
+      endsAt: at(3),
+      matchers: [{ label: "rule", op: "eq", value: "default/some-other-rule" }],
+    });
 
     const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", from, to);
 
@@ -127,23 +124,6 @@ describe("the Silences the Triage screen reads", () => {
     const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", at(-4), at(0));
 
     expect(silences.map((row) => row.id)).toEqual([newer.id, older.id]);
-  });
-
-  it("leaves out a Silence whose Matchers do not select the rule", async () => {
-    const mine = await insertSilence(harness().db, {
-      startsAt: at(-1),
-      endsAt: at(1),
-      matchers: ruleMatcher,
-    });
-    await insertSilence(harness().db, {
-      startsAt: at(-1),
-      endsAt: at(1),
-      matchers: [{ label: "rule", op: "eq", value: "default/some-other-rule" }],
-    });
-
-    const silences = await loadSilencesInWindow(TEST_ORG, RULE_ID, "warning", at(-2), at(0));
-
-    expect(silences.map((row) => row.id)).toEqual([mine.id]);
   });
 
   it("selects a Silence written against the rule's Severity", async () => {
@@ -204,18 +184,31 @@ describe("the Silences the Silences page lists", () => {
     expect(cut).toBeNull();
   });
 
-  it("resolves the stored rule id to the path it links by and the name it prints", async () => {
-    const { id } = await insertSilence(harness().db, {
+  it("resolves the stored rule id for the record, and never prints the raw id", async () => {
+    const named = await insertSilence(harness().db, {
       matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
       startsAt: at(-2),
       endsAt: at(1),
     });
+    const unnamed = await insertSilence(harness().db, {
+      matchers: [{ label: "environment", op: "eq", value: "staging" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    // Negated, so it resolves to no one rule.
+    const negated = await insertSilence(harness().db, {
+      matchers: [{ label: "rule", op: "ne", value: RULE_ID }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
     const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
-    const row = rows.find((r) => r.id === id);
-    if (!row) throw new Error("silence not listed");
+    const row = (id: string) => {
+      const found = rows.find((r) => r.id === id);
+      if (!found) throw new Error("silence not listed");
+      return found;
+    };
 
-    const page = silenceRecord(row, new Date(), { held: 2, dropped: 0 }, ruleFor);
-
+    const page = silenceRecord(row(named.id), new Date(), { held: 2, dropped: 0 }, ruleFor);
     expect(page.state).toBe("active");
     expect(page.rule).toEqual({ path: RULE_PATH, name: RULE_NAME });
     // The lookup handed over a whole rule row; only the two names it is asked
@@ -223,62 +216,24 @@ describe("the Silences the Silences page lists", () => {
     expect(JSON.stringify(page)).not.toContain(RULE_ID);
     expect(page.scope).toBe("region=eu");
     expect(page.impact).toBe("held 2");
-  });
 
-  it("has no rule to repeat when the Silence named none", async () => {
-    const { id } = await insertSilence(harness().db, {
-      matchers: [{ label: "environment", op: "eq", value: "staging" }],
-      startsAt: at(-2),
-      endsAt: at(1),
-    });
-    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
-    const row = rows.find((r) => r.id === id);
-    if (!row) throw new Error("silence not listed");
-
-    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, ruleFor);
-
-    expect(page.rule).toBeNull();
-    expect(page.scope).toBe("environment=staging");
-    expect(page.impact).toBeNull();
-  });
-
-  it("keeps the stored rule id off the record when the rule is gone", async () => {
     // Retention keeps a Silence for 90 days and the rule it named can be
     // deleted inside that window. Nothing the record carries may then be the
-    // raw id: a row that printed it read `rule=0e1c2b8f-…` at the reader.
-    const { id } = await insertSilence(harness().db, {
-      matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
-      startsAt: at(-2),
-      endsAt: at(1),
-    });
-    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
-    const row = rows.find((r) => r.id === id);
-    if (!row) throw new Error("silence not listed");
+    // raw id: a row that printed it read `rule=0e1c2b8f-...` at the reader.
+    const gone = silenceRecord(row(named.id), new Date(), { held: 0, dropped: 0 }, () => null);
+    expect(gone.rule).toBeNull();
+    expect(gone.deletedRule).toBe(true);
+    expect(JSON.stringify(gone)).not.toContain(RULE_ID);
 
-    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, () => null);
+    const noRule = silenceRecord(row(unnamed.id), new Date(), { held: 0, dropped: 0 }, ruleFor);
+    expect(noRule.rule).toBeNull();
+    expect(noRule.scope).toBe("environment=staging");
+    expect(noRule.impact).toBeNull();
 
-    expect(page.rule).toBeNull();
-    // The row leads with that rather than reprinting the window it already
-    // shows in the column beside it.
-    expect(page.deletedRule).toBe(true);
-    expect(JSON.stringify(page)).not.toContain(RULE_ID);
-  });
-
-  it("does not call a rule deleted when the Silence named no single one", async () => {
-    // Negated, so it resolves to no one rule. Nothing here has been deleted,
-    // and saying so would be a guess about matchers that are right there.
-    const { id } = await insertSilence(harness().db, {
-      matchers: [{ label: "rule", op: "ne", value: RULE_ID }],
-      startsAt: at(-2),
-      endsAt: at(1),
-    });
-    const { rows } = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
-    const row = rows.find((r) => r.id === id);
-    if (!row) throw new Error("silence not listed");
-
-    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 }, ruleFor);
-
-    expect(page.rule).toBeNull();
-    expect(page.deletedRule).toBe(false);
+    // Nothing here has been deleted, and saying so would be a guess about
+    // matchers that are right there.
+    const notOne = silenceRecord(row(negated.id), new Date(), { held: 0, dropped: 0 }, ruleFor);
+    expect(notOne.rule).toBeNull();
+    expect(notOne.deletedRule).toBe(false);
   });
 });

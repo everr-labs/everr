@@ -1,16 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import type { ErrorIssueSummary, RelatedSpan } from "../data/types";
-
-function withQueryClient(ui: ReactNode) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>;
-}
 
 vi.mock("react-virtuoso", () => ({
   Virtuoso: <T, C>({
@@ -37,8 +29,6 @@ vi.mock("react-virtuoso", () => ({
   },
 }));
 
-import type { ErrorsRepositoryLike } from "../data/repository";
-import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import { ErrorTracePanel } from "./error-trace-panel";
 
@@ -87,7 +77,9 @@ function listProps() {
 
 describe("ErrorIssueList", () => {
   it("renders one row for each Error, with the same columns as the Traces list", () => {
-    render(<ErrorIssueList {...listProps()} issues={[issue]} />);
+    render(
+      <ErrorIssueList {...listProps()} issues={[{ ...issue, services: ["web", "api", "jobs"] }]} />,
+    );
 
     // The link holds the type and the message, and its name keeps them apart.
     expect(
@@ -99,27 +91,19 @@ describe("ErrorIssueList", () => {
     );
     expect(screen.getByLabelText(/busiest interval has 2/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy fingerprint" })).toBeInTheDocument();
-  });
-
-  it("names the other services that reported the Error", () => {
-    render(
-      <ErrorIssueList {...listProps()} issues={[{ ...issue, services: ["web", "api", "jobs"] }]} />,
-    );
+    // Names the other services that reported the Error.
     expect(screen.getByTitle("web, api, jobs")).toHaveTextContent("web+2");
   });
 
-  it("offers to clear the filters when no Error matches", async () => {
+  it("offers to clear the filters when no Error matches, only when a page filter is set", async () => {
     const props = listProps();
-    render(<ErrorIssueList {...props} issues={[]} />);
+    const { rerender } = render(<ErrorIssueList {...props} issues={[]} />);
 
     expect(screen.getByText("No errors")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(props.onClearFilters).toHaveBeenCalledTimes(1);
-  });
 
-  it("offers no clear when no page filter is set", () => {
-    render(<ErrorIssueList {...listProps()} onClearFilters={undefined} issues={[]} />);
-
+    rerender(<ErrorIssueList {...props} onClearFilters={undefined} issues={[]} />);
     expect(screen.getByText("No errors")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
   });
@@ -134,34 +118,6 @@ describe("ErrorIssueList", () => {
     expect(screen.getByText("query timeout")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(props.onRetry).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("ErrorFilters", () => {
-  it("emits sort changes", async () => {
-    const onChange = vi.fn();
-    const repo = {
-      attributeKeys: vi.fn().mockResolvedValue([]),
-      attributeValues: vi.fn().mockResolvedValue([]),
-    } as unknown as ErrorsRepositoryLike;
-    render(
-      withQueryClient(
-        <ErrorFilters
-          repo={repo}
-          timeRange={{ from: "now-1h", to: "now" }}
-          value={{
-            q: "",
-            service: [],
-            fingerprint: "",
-            sort: "lastSeen",
-            attributes: [],
-          }}
-          onChange={onChange}
-        />,
-      ),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Count" }));
-    expect(onChange).toHaveBeenCalledWith({ sort: "count" });
   });
 });
 

@@ -139,32 +139,28 @@ describe("Logs page filter rail", () => {
     queryClient.clear();
   });
 
-  it("puts the persistent zone above the page filters in one rail", () => {
-    render(<LogsPageHarness persistentFilters={<div>persistent zone</div>} />);
+  it("puts the persistent zone and the only search field in one rail, and applies the search on Enter", async () => {
+    const user = userEvent.setup();
+    const onSearchChange = vi.fn();
+    render(
+      <LogsPageHarness
+        persistentFilters={<div>persistent zone</div>}
+        onSearchChange={onSearchChange}
+      />,
+    );
 
     const rail = screen.getByRole("complementary", { name: "Log filters" });
     expect(within(rail).getByText("persistent zone")).toBeInTheDocument();
     expect(within(rail).getByText("Search")).toBeInTheDocument();
     expect(within(rail).getByText("Severity")).toBeInTheDocument();
-  });
-
-  it("has no search bar outside the rail", () => {
-    render(<LogsPageHarness />);
-
-    const rail = screen.getByRole("complementary", { name: "Log filters" });
-    expect(rail).toContainElement(screen.getByPlaceholderText("Search messages, errors, IDs"));
-    expect(screen.getAllByPlaceholderText("Search messages, errors, IDs")).toHaveLength(1);
-  });
-
-  it("applies the search on Enter", async () => {
-    const user = userEvent.setup();
-    const onSearchChange = vi.fn();
-    render(<LogsPageHarness onSearchChange={onSearchChange} />);
-
+    // One field only. The rail holds it, and no second field is above the
+    // results.
     const input = screen.getByPlaceholderText("Search messages, errors, IDs");
+    expect(rail).toContainElement(input);
+    expect(screen.getAllByPlaceholderText("Search messages, errors, IDs")).toHaveLength(1);
+
     await user.type(input, "timeout");
     expect(onSearchChange).not.toHaveBeenCalled();
-
     await user.type(input, "{Enter}");
     expect(onSearchChange).toHaveBeenCalledWith(expect.objectContaining({ q: "timeout" }));
   });
@@ -187,31 +183,24 @@ describe("Logs page filter rail", () => {
     expect(next.services).toEqual(["demo-api"]);
   });
 
-  it("below 1024px the rail moves into a sheet behind a Filters button", async () => {
+  it("below 1024px moves the rail into a sheet behind a Filters button that counts the persistent filters", async () => {
     stubNarrowViewport();
     const user = userEvent.setup();
-    render(<LogsPageHarness persistentFilters={<div>persistent zone</div>} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Filters/ })).toBeInTheDocument(),
-    );
-    expect(screen.queryByRole("complementary", { name: "Log filters" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Filters/ }));
-    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
-  });
-
-  it("the narrow Filters button counts the persistent filters it hides", async () => {
-    stubNarrowViewport();
     render(
       <LogsPageHarness
         initial={{ ...emptySearch, services: ["demo-api"], levels: ["error"] }}
         environment={["production"]}
+        persistentFilters={<div>persistent zone</div>}
       />,
     );
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("3"),
     );
+    expect(screen.queryByRole("complementary", { name: "Log filters" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
+    expect(screen.getByText("persistent zone")).toBeInTheDocument();
   });
 });

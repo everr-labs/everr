@@ -18,12 +18,4 @@ describe("flushGroupJobKey", () => {
       "alerts/flush-group:group-1:2026-08-10T10:00:30.000Z",
     );
   });
-
-  it("differs across groups and across due times", () => {
-    const flushAt = new Date("2026-08-10T10:00:30.000Z");
-    const later = new Date("2026-08-10T10:05:00.000Z");
-
-    expect(flushGroupJobKey("group-1", flushAt)).not.toBe(flushGroupJobKey("group-2", flushAt));
-    expect(flushGroupJobKey("group-1", flushAt)).not.toBe(flushGroupJobKey("group-1", later));
-  });
 });

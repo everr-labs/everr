@@ -3,27 +3,12 @@ import { parse } from "./parse.js";
 import { DateMathError } from "./types.js";
 
 describe("parse", () => {
-  it("parses 'now' anchor", () => {
-    expect(parse("now")).toEqual({ anchor: "now", ops: [] });
-  });
-
-  it("parses absolute anchor", () => {
-    expect(parse("2024-01-01")).toEqual({ anchor: "2024-01-01", ops: [] });
-  });
-
-  it("parses absolute anchor with time", () => {
-    expect(parse("2024-01-15T10:30:00Z")).toEqual({
-      anchor: "2024-01-15T10:30:00Z",
-      ops: [],
-    });
-  });
-
-  it("parses absolute anchor with a space between date and time", () => {
-    expect(parse("2024-01-15 10:30:00.123")).toEqual({
-      anchor: "2024-01-15 10:30:00.123",
-      ops: [],
-    });
-  });
+  it.each(["now", "2024-01-01", "2024-01-15T10:30:00Z", "2024-01-15 10:30:00.123"])(
+    "parses the bare anchor %s",
+    (anchor) => {
+      expect(parse(anchor)).toEqual({ anchor, ops: [] });
+    },
+  );
 
   it("parses now with subtract", () => {
     expect(parse("now-7d")).toEqual({
@@ -95,28 +80,14 @@ describe("parse", () => {
     });
   });
 
-  it("throws on empty expression", () => {
-    expect(() => parse("")).toThrow(DateMathError);
-  });
-
-  it("throws on invalid unit", () => {
-    expect(() => parse("now+1x")).toThrow(DateMathError);
-  });
-
-  it("throws on invalid absolute date", () => {
-    expect(() => parse("not-a-date||+1d")).toThrow(DateMathError);
-  });
-
-  it("throws on trailing operator", () => {
-    expect(() => parse("now+")).toThrow(DateMathError);
-  });
-
-  it("throws on missing unit after /", () => {
-    expect(() => parse("now/")).toThrow(DateMathError);
-  });
-
-  it("includes expression in error", () => {
-    expect(() => parse("now+1x")).toThrow(DateMathError);
-    expect(() => parse("now+1x")).toThrow(expect.objectContaining({ expression: "now+1x" }));
+  it.each([
+    ["an empty expression", ""],
+    ["an invalid unit", "now+1x"],
+    ["an invalid absolute date", "not-a-date||+1d"],
+    ["a trailing operator", "now+"],
+    ["a missing unit after /", "now/"],
+  ])("throws on %s, naming the expression", (_, expression) => {
+    expect(() => parse(expression)).toThrow(DateMathError);
+    expect(() => parse(expression)).toThrow(expect.objectContaining({ expression }));
   });
 });

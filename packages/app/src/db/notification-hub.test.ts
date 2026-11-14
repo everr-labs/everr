@@ -59,27 +59,6 @@ describe("NotificationHub", () => {
   });
 
   describe("subscribe and dispatch", () => {
-    it("dispatches to tenant subscribers by tenantId", () => {
-      const cb = vi.fn();
-      hub.subscribe("tenant", "42", cb);
-      hub.dispatch(makePayload());
-      expect(cb).toHaveBeenCalledWith(makePayload());
-    });
-
-    it("dispatches to trace subscribers by tenantId:traceId", () => {
-      const cb = vi.fn();
-      hub.subscribe("trace", "42:trace-1", cb);
-      hub.dispatch(makePayload());
-      expect(cb).toHaveBeenCalledWith(makePayload());
-    });
-
-    it("dispatches to commit subscribers by tenantId:sha", () => {
-      const cb = vi.fn();
-      hub.subscribe("commit", "42:abc123", cb);
-      hub.dispatch(makePayload());
-      expect(cb).toHaveBeenCalledWith(makePayload());
-    });
-
     it("does not dispatch to non-matching keys", () => {
       const cb = vi.fn();
       hub.subscribe("tenant", "99", cb);
@@ -97,30 +76,26 @@ describe("NotificationHub", () => {
       expect(cb2).toHaveBeenCalledOnce();
     });
 
-    it("dispatches across all topics for one payload", () => {
-      const tenantCb = vi.fn();
-      const traceCb = vi.fn();
-      const commitCb = vi.fn();
-      hub.subscribe("tenant", "42", tenantCb);
-      hub.subscribe("trace", "42:trace-1", traceCb);
-      hub.subscribe("commit", "42:abc123", commitCb);
-      hub.dispatch(makePayload());
-      expect(tenantCb).toHaveBeenCalledOnce();
-      expect(traceCb).toHaveBeenCalledOnce();
-      expect(commitCb).toHaveBeenCalledOnce();
+    it("dispatches one payload across the tenant, trace, commit, and author topics", () => {
+      const callbacks = {
+        tenant: vi.fn(),
+        trace: vi.fn(),
+        commit: vi.fn(),
+        author: vi.fn(),
+      };
+      hub.subscribe("tenant", "42", callbacks.tenant);
+      hub.subscribe("trace", "42:trace-1", callbacks.trace);
+      hub.subscribe("commit", "42:abc123", callbacks.commit);
+      hub.subscribe("author", "42:dev@example.com", callbacks.author);
+      const payload = makePayload({ authorEmail: "dev@example.com" });
+      hub.dispatch(payload);
+      for (const cb of Object.values(callbacks))
+        expect(cb).toHaveBeenCalledExactlyOnceWith(payload);
     });
   });
 
   describe("unsubscribe", () => {
-    it("removes subscriber so it no longer receives dispatches", () => {
-      const cb = vi.fn();
-      const unsub = hub.subscribe("tenant", "42", cb);
-      unsub();
-      hub.dispatch(makePayload());
-      expect(cb).not.toHaveBeenCalled();
-    });
-
-    it("is idempotent — calling twice does not throw", () => {
+    it("removes the subscriber and is idempotent", () => {
       const cb = vi.fn();
       const unsub = hub.subscribe("tenant", "42", cb);
       unsub();
@@ -149,10 +124,6 @@ describe("NotificationHub", () => {
   });
 
   describe("dispatch edge cases", () => {
-    it("ignores payloads with no matching subscribers", () => {
-      hub.dispatch(makePayload());
-    });
-
     it("continues dispatching to remaining subscribers if one throws", () => {
       const bad = vi.fn(() => {
         throw new Error("boom");
@@ -223,26 +194,13 @@ describe("NotificationHub — pg.Client lifecycle", () => {
     expect(cb).toHaveBeenCalledWith(payload);
   });
 
-  it("ignores notifications with missing payload", async () => {
+  it.each([undefined, "not-json{"])("ignores notifications with payload %s", async (raw) => {
     const cb = vi.fn();
     hub.subscribe("tenant", "42", cb);
 
     await hub.start();
 
-    const notificationHandler = getHandler("notification");
-    notificationHandler({ payload: undefined });
-
-    expect(cb).not.toHaveBeenCalled();
-  });
-
-  it("ignores notifications with unparseable payload", async () => {
-    const cb = vi.fn();
-    hub.subscribe("tenant", "42", cb);
-
-    await hub.start();
-
-    const notificationHandler = getHandler("notification");
-    notificationHandler({ payload: "not-json{" });
+    getHandler("notification")({ payload: raw });
 
     expect(cb).not.toHaveBeenCalled();
   });
@@ -261,16 +219,6 @@ describe("NotificationHub — author topic", () => {
     hub = new NotificationHub();
   });
 
-  it("dispatches to author topic when authorEmail is present", () => {
-    const callback = vi.fn();
-    hub.subscribe("author", "42:dev@example.com", callback);
-
-    const payload = makePayload({ authorEmail: "dev@example.com" });
-    hub.dispatch(payload);
-
-    expect(callback).toHaveBeenCalledWith(payload);
-  });
-
   it("does not dispatch to author topic when authorEmail is null", () => {
     const callback = vi.fn();
     hub.subscribe("author", "42:null", callback);
@@ -283,31 +231,6 @@ describe("NotificationHub — author topic", () => {
   it("does not dispatch to unrelated author subscribers", () => {
     const callback = vi.fn();
     hub.subscribe("author", "42:other@example.com", callback);
-
-    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
-
-    expect(callback).not.toHaveBeenCalled();
-  });
-
-  it("still dispatches to tenant, trace, and commit topics", () => {
-    const tenantCb = vi.fn();
-    const traceCb = vi.fn();
-    const commitCb = vi.fn();
-    hub.subscribe("tenant", "42", tenantCb);
-    hub.subscribe("trace", "42:trace-1", traceCb);
-    hub.subscribe("commit", "42:abc123", commitCb);
-
-    hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
-
-    expect(tenantCb).toHaveBeenCalledOnce();
-    expect(traceCb).toHaveBeenCalledOnce();
-    expect(commitCb).toHaveBeenCalledOnce();
-  });
-
-  it("unsubscribe removes the callback", () => {
-    const callback = vi.fn();
-    const unsub = hub.subscribe("author", "42:dev@example.com", callback);
-    unsub();
 
     hub.dispatch(makePayload({ authorEmail: "dev@example.com" }));
 

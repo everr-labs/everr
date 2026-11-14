@@ -31,78 +31,42 @@ function renderWithQueryClient(children: ReactNode) {
 }
 
 describe("TraceFilters rail", () => {
-  it("renders Search, Status, Namespace, Duration and the attribute section", () => {
-    renderWithQueryClient(
-      <TraceFilters
-        repo={makeRepo()}
-        timeRange={defaultTimeRange}
-        value={defaultValue}
-        identities={[]}
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
-    expect(screen.getByText("Search")).toBeInTheDocument();
-    expect(screen.getByText("Status")).toBeInTheDocument();
-    expect(screen.getByText("Namespace")).toBeInTheDocument();
-    expect(screen.getByText("Min ms")).toBeInTheDocument();
-    expect(screen.getByText("Attributes")).toBeInTheDocument();
-  });
-
-  it("renders the span-name search inside the rail", () => {
-    renderWithQueryClient(
-      <TraceFilters
-        repo={makeRepo()}
-        timeRange={defaultTimeRange}
-        value={defaultValue}
-        identities={[]}
-        onChange={vi.fn()}
-      />,
-    );
-    const rail = screen.getByRole("complementary", { name: "Trace filters" });
-    expect(rail).toContainElement(screen.getByPlaceholderText("Filter by span name"));
-  });
-
-  it("never renders Service or Environment: those belong to the persistent zone", () => {
+  it("renders the page filters below the persistent zone, and no persistent filters itself", () => {
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={defaultValue}
         identities={[{ serviceNamespace: "", serviceName: "web" }]}
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Service")).not.toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
-  });
-
-  it("renders the persistent zone above the page filters when given one", () => {
-    renderWithQueryClient(
-      <TraceFilters
-        repo={makeRepo()}
-        timeRange={defaultTimeRange}
-        value={defaultValue}
-        identities={[]}
         persistentFilters={<div>persistent zone</div>}
         onChange={vi.fn()}
       />,
     );
     const rail = screen.getByRole("complementary", { name: "Trace filters" });
+    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.getByText("Namespace")).toBeInTheDocument();
+    expect(screen.getByText("Min ms")).toBeInTheDocument();
+    expect(screen.getByText("Attributes")).toBeInTheDocument();
+    expect(rail).toContainElement(screen.getByPlaceholderText("Filter by span name"));
     const zone = screen.getByText("persistent zone");
     const status = screen.getByText("Status");
     expect(rail).toContainElement(zone);
-    // Node.compareDocumentPosition returns 4 when zone comes before status.
     expect(zone.compareDocumentPosition(status)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // Service and Environment belong to the persistent zone.
+    expect(screen.queryByText("Service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
   });
 
-  it("shows a legacy deployment.environment attribute as a removable pill", () => {
+  it("clear resets the page zone, including the search text", () => {
+    const onChange = vi.fn();
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={{
           ...defaultValue,
+          status: "error",
+          name: "checkout",
           attributes: [
             {
               source: "resource",
@@ -113,7 +77,7 @@ describe("TraceFilters rail", () => {
           ],
         }}
         identities={[]}
-        onChange={vi.fn()}
+        onChange={onChange}
       />,
     );
     // The top zone of the rail sets Environment, and it writes its own search
@@ -121,19 +85,7 @@ describe("TraceFilters rail", () => {
     // and the user must be able to remove it. The query still applies that
     // entry, so a hidden entry narrows the results for no visible reason.
     expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
-  });
 
-  it("clear resets the page zone, including the search text", () => {
-    const onChange = vi.fn();
-    renderWithQueryClient(
-      <TraceFilters
-        repo={makeRepo()}
-        timeRange={defaultTimeRange}
-        value={{ ...defaultValue, status: "error", name: "checkout" }}
-        identities={[]}
-        onChange={onChange}
-      />,
-    );
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     expect(onChange).toHaveBeenCalledWith({
       namespace: [],

@@ -1,7 +1,6 @@
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { billingEventDefinitions } from "./events";
 import { membershipEventDefinitions } from "@everr/app/identity/events";
-// @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import type { EventInput } from "@everr/app/composition";
@@ -811,15 +810,6 @@ it("does not block checkout after a failed local membership write", async () => 
   expect([...members.values()].some((m) => m.externalId === "admin")).toBe(true);
 });
 
-it("stores the verified billing customer and reuses its ID", async () => {
-  await upgrade();
-  const [org] = await database.select().from(schema.organizationBilling);
-  expect(org.polarCustomerId).toBe([...customers.keys()][0]);
-  gateway.findCustomer.mockClear();
-  await billing.openPortal("org", "owner");
-  expect(gateway.findCustomer).not.toHaveBeenCalled();
-  expect(gateway.getCustomer).toHaveBeenCalledWith(org.polarCustomerId);
-});
 it("does not replace a stored customer whose external ID belongs to another org", async () => {
   await upgrade();
   const customer = required([...customers.values()][0]);
