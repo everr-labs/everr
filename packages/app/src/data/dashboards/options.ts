@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
-import type { QueryResultRow } from "#app/components/dashboards/visualizations/index.tsx";
+import type {
+  QueryResultRow,
+  ResolvedTimeRange,
+} from "#app/components/dashboards/visualizations/index.tsx";
 import { createLimiter } from "#app/lib/limiter.ts";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
@@ -57,14 +60,18 @@ export const panelQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
-    queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
+    queryFn: async ({
+      signal,
+    }): Promise<{ rows: QueryResultRow[]; timeRange?: ResolvedTimeRange }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
-      return panelLimiter(signal, () =>
-        runPanelQuery({
-          data: { source, from, to, variables, variableMeta },
-        }),
+      // The key keeps the relative range (`now-1h`) so a refresh hits the same
+      // cache entry. The server resolves it when the query runs and returns
+      // the exact window it queried, which the panel's axis renders.
+      const { rows, timeRange } = await panelLimiter(signal, () =>
+        runPanelQuery({ data: { source, from, to, variables, variableMeta } }),
       );
+      return { rows, timeRange: { from: new Date(timeRange.from), to: new Date(timeRange.to) } };
     },
     enabled:
       source.kind === "ClickHouseSQL" ? source.sql.trim().length > 0 : source.kind === "TestData",

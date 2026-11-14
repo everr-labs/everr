@@ -40,16 +40,21 @@ function sourceIsActive(source: PanelQuerySource): boolean {
   return source.kind === "TestData";
 }
 
-export function buildPanelQueryRequest(
+function usedVariableNames(source: PanelQuerySource, ctx: VariableContext): string[] {
+  if (source.kind !== "ClickHouseSQL") return [];
+  return extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
+}
+
+function buildPanelQueryRequest(
   source: PanelQuerySource,
   ctx: VariableContext,
+  usedNames: string[],
 ): PanelQueryRequest {
   // Only ClickHouse SQL carries `$variable` tokens; other sources skip the
   // whole variable-resolution path (no missing/waiting/options states).
   if (source.kind !== "ClickHouseSQL") {
     return { source, waitingForOptions: false };
   }
-  const usedNames = extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
   const missingName = usedNames.find((n) => ctx.values[n] === undefined);
   const waitingForOptions = usedNames.some((n) => ctx.pendingAllNames.includes(n));
   const optionsError = usedNames.map((n) => ctx.allErrors[n]).find((e) => e !== undefined);
@@ -67,7 +72,12 @@ export function buildPanelQueryRequests(
   sources: PanelQuerySource[],
   ctx: VariableContext,
 ): PanelQueryRequest[] {
-  return sources.map((source) => buildPanelQueryRequest(source, ctx));
+  // Every ClickHouse query in a panel is keyed and gated on the variables used
+  // by any of them, so a variable change re-runs the whole panel together.
+  // Re-running only the query that uses it would leave its siblings on an
+  // older window, and the panel would mix data from two different `now`s.
+  const panelNames = [...new Set(sources.flatMap((source) => usedVariableNames(source, ctx)))];
+  return sources.map((source) => buildPanelQueryRequest(source, ctx, panelNames));
 }
 
 export type PanelQueriesStatus = "pending" | "error" | "success";
@@ -117,11 +127,27 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
   return { status: "success", data: active.map((s) => s.rows ?? []) };
 }
 
+/**
+ * The window the newest fetch queried. The server resolves each query's
+ * relative range when it runs, and a multi-query panel's queries can run a few
+ * seconds apart, so the latest window is used. Placeholder data belongs to the
+ * previous key, so its window is ignored.
+ */
+export function latestQueriedRange(
+  results: readonly { data?: { timeRange?: ResolvedTimeRange }; isPlaceholderData?: boolean }[],
+): ResolvedTimeRange | undefined {
+  let latest: ResolvedTimeRange | undefined;
+  for (const r of results) {
+    const range = r.isPlaceholderData ? undefined : r.data?.timeRange;
+    if (range && (!latest || range.to.getTime() > latest.to.getTime())) latest = range;
+  }
+  return latest;
+}
+
 export interface DashboardPanelData extends CombinedPanelResult {
   /**
-   * Absolute range the visualization renders against (axis domain, brush).
-   * Resolved here from the effective time range so the panel never reads it a
-   * second time.
+   * Absolute range the visualization renders against (axis domain, brush):
+   * the exact window the shown data was queried for.
    */
   timeRange: ResolvedTimeRange;
 }
@@ -189,14 +215,18 @@ export function useDashboardPanelData(
     [requests, results],
   );
 
-  // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
-  // so depending on it directly would never hit the cache.
+  // Before any query has returned there is no queried window yet; resolve the
+  // range here so a loading panel still has an axis. Memoize on primitives:
+  // `timeRange` is a fresh object each render.
   const { from, to } = timeRange;
-  const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
+  const fallback = useMemo(() => {
+    const { fromDate, toDate } = resolveTimeRange({ from, to });
+    return { from: fromDate, to: toDate };
+  }, [from, to]);
   // Keep the last complete batch and its axis range together while replacement
   // queries finish. A panel can have several queries that resolve separately.
   return useRetainedPanelData(panel, {
     ...combined,
-    timeRange: { from: viz.fromDate, to: viz.toDate },
+    timeRange: latestQueriedRange(results) ?? fallback,
   });
 }

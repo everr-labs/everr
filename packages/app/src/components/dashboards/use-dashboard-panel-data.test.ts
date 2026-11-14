@@ -7,9 +7,9 @@ vi.mock("#app/db/client.ts", () => ({ db: {} }));
 
 import type { PanelQuerySource } from "./query-array";
 import {
-  buildPanelQueryRequest,
   buildPanelQueryRequests,
   combineQueryStates,
+  latestQueriedRange,
   type SingleQueryState,
 } from "./use-dashboard-panel-data";
 
@@ -36,11 +36,12 @@ function state(partial: Partial<SingleQueryState>): SingleQueryState {
 }
 
 describe("buildPanelQueryRequests", () => {
-  it("resolves variables per ClickHouse query independently", () => {
+  it("keys every query in a panel on the variables any of them uses", () => {
     const reqs = buildPanelQueryRequests([ch("select $region"), ch("select 1")], ctx);
     expect(reqs[0]!.variables).toEqual({ region: "us" });
     expect(reqs[0]!.missingName).toBeUndefined();
-    expect(reqs[1]!.variables).toBeUndefined();
+    // So changing $region re-runs the sibling too and both share one window.
+    expect(reqs[1]!.variables).toEqual({ region: "us" });
   });
 
   it("flags a query whose variable has no value", () => {
@@ -60,11 +61,11 @@ describe("buildPanelQueryRequests", () => {
   });
 
   it("surfaces a used variable's options error", () => {
-    const req = buildPanelQueryRequest(ch("select $region"), {
+    const [req] = buildPanelQueryRequests([ch("select $region")], {
       ...ctx,
       allErrors: { region: 'Variable "$region" has too many values' },
     });
-    expect(req.optionsError).toBe('Variable "$region" has too many values');
+    expect(req!.optionsError).toBe('Variable "$region" has too many values');
   });
 
   it("does no variable handling for a TestData source", () => {
@@ -72,11 +73,11 @@ describe("buildPanelQueryRequests", () => {
       kind: "TestData",
       spec: { scenario: "csv", columns: ["a"], rows: [] },
     };
-    const req = buildPanelQueryRequest(source, { ...ctx, values: {} });
-    expect(req.source).toEqual(source);
-    expect(req.variables).toBeUndefined();
-    expect(req.missingName).toBeUndefined();
-    expect(req.waitingForOptions).toBe(false);
+    const [req] = buildPanelQueryRequests([source], { ...ctx, values: {} });
+    expect(req!.source).toEqual(source);
+    expect(req!.variables).toBeUndefined();
+    expect(req!.missingName).toBeUndefined();
+    expect(req!.waitingForOptions).toBe(false);
   });
 });
 
@@ -143,5 +144,33 @@ describe("combineQueryStates", () => {
     const result = combineQueryStates([state({ active: false, rows: undefined })]);
     expect(result.status).toBe("success");
     expect(result.data).toBeUndefined();
+  });
+});
+
+describe("latestQueriedRange", () => {
+  const range = (from: number, to: number) => ({ from: new Date(from), to: new Date(to) });
+
+  it("picks the newest window so a refreshed relative range moves the axis", () => {
+    const newest = range(2_000, 5_000);
+    expect(
+      latestQueriedRange([
+        { data: { timeRange: range(1_000, 4_000) } },
+        { data: undefined },
+        { data: { timeRange: newest } },
+      ]),
+    ).toBe(newest);
+  });
+
+  it("ignores placeholder data kept from the previous range", () => {
+    expect(
+      latestQueriedRange([
+        { data: { timeRange: range(1_000, 4_000) }, isPlaceholderData: true },
+        { data: undefined },
+      ]),
+    ).toBeUndefined();
+  });
+
+  it("is undefined before any query has returned", () => {
+    expect(latestQueriedRange([{ data: undefined }])).toBeUndefined();
   });
 });
