@@ -37,11 +37,17 @@ function state(partial: Partial<SingleQueryState>): SingleQueryState {
 }
 
 describe("buildPanelQueryRequests", () => {
-  it("resolves variables per ClickHouse query independently", () => {
+  it("keys every query in a panel on the variables any of them uses", () => {
     const reqs = buildPanelQueryRequests([ch("select $region"), ch("select 1")], ctx);
     expect(reqs[0]!.variables).toEqual({ region: "us" });
     expect(reqs[0]!.missingName).toBeUndefined();
-    expect(reqs[1]!.variables).toBeUndefined();
+    // So changing $region re-runs the sibling too and both share one window.
+    expect(reqs[1]!.variables).toEqual({ region: "us" });
+  });
+
+  it("resolves only a single query's own variables", () => {
+    const req = buildPanelQueryRequest(ch("select 1"), ctx);
+    expect(req.variables).toBeUndefined();
   });
 
   it("flags a query whose variable has no value", () => {
@@ -159,6 +165,15 @@ describe("latestQueriedRange", () => {
         { data: { timeRange: newest } },
       ]),
     ).toBe(newest);
+  });
+
+  it("ignores placeholder data kept from the previous range", () => {
+    expect(
+      latestQueriedRange([
+        { data: { timeRange: range(1_000, 4_000) }, isPlaceholderData: true },
+        { data: undefined },
+      ]),
+    ).toBeUndefined();
   });
 
   it("is undefined before any query has returned", () => {

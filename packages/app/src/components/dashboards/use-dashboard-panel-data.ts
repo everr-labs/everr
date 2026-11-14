@@ -40,16 +40,25 @@ function sourceIsActive(source: PanelQuerySource): boolean {
   return source.kind === "TestData";
 }
 
+function usedVariableNames(source: PanelQuerySource, ctx: VariableContext): string[] {
+  if (source.kind !== "ClickHouseSQL") return [];
+  return extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
+}
+
+/**
+ * `usedNames` defaults to the variables this source references. A panel passes
+ * the union across all of its queries instead (see `buildPanelQueryRequests`).
+ */
 export function buildPanelQueryRequest(
   source: PanelQuerySource,
   ctx: VariableContext,
+  usedNames = usedVariableNames(source, ctx),
 ): PanelQueryRequest {
   // Only ClickHouse SQL carries `$variable` tokens; other sources skip the
   // whole variable-resolution path (no missing/waiting/options states).
   if (source.kind !== "ClickHouseSQL") {
     return { source, waitingForOptions: false };
   }
-  const usedNames = extractVariableTokens(source.sql).filter((n) => ctx.definedNames.has(n));
   const missingName = usedNames.find((n) => ctx.values[n] === undefined);
   const waitingForOptions = usedNames.some((n) => ctx.pendingAllNames.includes(n));
   const optionsError = usedNames.map((n) => ctx.allErrors[n]).find((e) => e !== undefined);
@@ -67,7 +76,12 @@ export function buildPanelQueryRequests(
   sources: PanelQuerySource[],
   ctx: VariableContext,
 ): PanelQueryRequest[] {
-  return sources.map((source) => buildPanelQueryRequest(source, ctx));
+  // Every ClickHouse query in a panel is keyed and gated on the variables used
+  // by any of them, so a variable change re-runs the whole panel together.
+  // Re-running only the query that uses it would leave its siblings on an
+  // older window, and the panel would mix data from two different `now`s.
+  const panelNames = [...new Set(sources.flatMap((source) => usedVariableNames(source, ctx)))];
+  return sources.map((source) => buildPanelQueryRequest(source, ctx, panelNames));
 }
 
 export type PanelQueriesStatus = "pending" | "error" | "success";
@@ -121,13 +135,14 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
  * The window the newest fetch queried. Each query pins its relative range to
  * exact dates when it runs, and a multi-query panel's queries can resolve at
  * slightly different moments, so the latest one covers all of their data.
+ * Placeholder data belongs to the previous key, so its window is ignored.
  */
 export function latestQueriedRange(
-  results: readonly { data?: { timeRange: ResolvedTimeRange } }[],
+  results: readonly { data?: { timeRange?: ResolvedTimeRange }; isPlaceholderData?: boolean }[],
 ): ResolvedTimeRange | undefined {
   let latest: ResolvedTimeRange | undefined;
   for (const r of results) {
-    const range = r.data?.timeRange;
+    const range = r.isPlaceholderData ? undefined : r.data?.timeRange;
     if (range && (!latest || range.to.getTime() > latest.to.getTime())) latest = range;
   }
   return latest;

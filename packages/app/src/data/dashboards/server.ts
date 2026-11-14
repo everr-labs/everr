@@ -1,8 +1,8 @@
 import { bucketSeconds } from "@everr/ui/lib/bucket";
 import {
-  DEFAULT_TIME_RANGE,
   resolveTimeRange,
   toClickHouseDateTimeSeconds,
+  withTimeRange,
 } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -30,18 +30,23 @@ import { testDataSpec } from "./testdata/spec";
 const PANEL_TARGET_POINTS = 500;
 
 /**
- * Shared panel and variable parameters. Round bounds outward to whole seconds
- * for DateTime columns, and size the bucket width to the panel point target.
+ * Shared panel and variable parameters, including the adaptive `{step}`.
+ * Resolve a (possibly relative) range once, at query time. Bounds are rounded
+ * outward to whole seconds because DateTime columns refuse fractional literals.
+ * `window` is the exact range the query covers, returned to the client so the
+ * panel axis renders over it.
  */
-function dashboardQueryParams(range: { from?: string; to?: string }) {
-  const { fromDate, toDate } = resolveTimeRange({
-    from: range.from ?? DEFAULT_TIME_RANGE.from,
-    to: range.to ?? DEFAULT_TIME_RANGE.to,
-  });
+function resolveDashboardQuery(range: { from?: string; to?: string }) {
+  const { fromDate, toDate } = resolveTimeRange(withTimeRange(range));
+  const from = new Date(Math.floor(fromDate.getTime() / 1000) * 1000);
+  const to = new Date(Math.ceil(toDate.getTime() / 1000) * 1000);
   return {
-    from: toClickHouseDateTimeSeconds(fromDate, "floor"),
-    to: toClickHouseDateTimeSeconds(toDate, "ceil"),
-    step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
+    params: {
+      from: toClickHouseDateTimeSeconds(from, "floor"),
+      to: toClickHouseDateTimeSeconds(to, "ceil"),
+      step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
+    },
+    window: { from: from.toISOString(), to: to.toISOString() },
   };
 }
 
@@ -234,6 +239,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
     }),
   )
   .handler(async ({ data: { source, from, to, variables, variableMeta }, context }) => {
+    const { params, window } = resolveDashboardQuery({ from, to });
     // Synthetic data for the gallery / dev dashboards: deterministic, no
     // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
     if (source.kind === "TestData") {
@@ -241,9 +247,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
       // can pass the raw plugin spec. A malformed spec throws → surfaces as a
       // panel query error; the gallery's specs are validated at apply time.
       const spec = testDataSpec.parse(source.spec);
-      return {
-        rows: generateTestData(spec, dashboardQueryParams({ from, to })),
-      };
+      return { rows: generateTestData(spec, params), timeRange: window };
     }
 
     const interpolated = variables
@@ -252,11 +256,8 @@ export const runPanelQuery = createAuthenticatedServerFn({
     // User-supplied SQL: run it through the per-org SQL API user, whose tenant
     // filter is a row policy bound to the user — not a `SETTINGS`-based filter
     // a malicious query could override to read another tenant's rows.
-    const rows = await context.sql.query<QueryRow>(
-      interpolated,
-      dashboardQueryParams({ from, to }),
-    );
-    return { rows };
+    const rows = await context.sql.query<QueryRow>(interpolated, params);
+    return { rows, timeRange: window };
   });
 
 // Hard-capped by the SQL API profile's `max_result_rows` (packages/app/clickhouse/
@@ -295,7 +296,7 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
     // options query can reference any of them without erroring.
     const rows = await context.sql.query<Record<string, unknown>>(
       withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
-      dashboardQueryParams({ from, to }),
+      resolveDashboardQuery({ from, to }).params,
     );
 
     // A full result set means ClickHouse cut rows off at the limit, so there may
