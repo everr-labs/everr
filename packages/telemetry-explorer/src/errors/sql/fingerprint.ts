@@ -9,6 +9,11 @@ import { attributeExists, attributeText } from "../../sql/json-attributes";
 // the query reads three subcolumns and never the whole LogAttributes column.
 export const ERROR_FINGERPRINT_SQL = `errorFingerprint(ServiceName, ${attributeText("LogAttributes", "error.fingerprint")}, ${attributeText("LogAttributes", "exception.type")}, ${attributeText("LogAttributes", "exception.message")})`;
 
+// An error's message with its variable parts (ids, numbers, emails, URLs, and
+// such) replaced by placeholders: the text the fingerprint hashes. It reads as
+// the error's name and carries much less user data than the message itself.
+export const ERROR_MESSAGE_TEMPLATE_SQL = `errorMessageTemplate(${attributeText("LogAttributes", "exception.message")})`;
+
 export const EXCEPTION_LOG_FILTER_SQL = `
   ${attributeExists("ResourceAttributes", "service.name")}
   AND SeverityNumber >= 17
@@ -30,4 +35,21 @@ export const EXCEPTION_LOG_FILTER_SQL = `
  */
 export function errorIssueCountExpr(): string {
   return `uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL})`;
+}
+
+// A ready-to-run query that lists this Error's Occurrences: the same
+// exception-log filter and fingerprint expression the app groups Errors by
+// (documented in the everr-use-telemetry skill), narrowed to one Fingerprint.
+// The Errors page's agent prompt and the issues Everr opens both hand it over.
+export function errorOccurrencesQuery(fingerprint: string): string {
+  return [
+    "SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,",
+    "  toString(LogAttributes.`exception.stacktrace`) AS stacktrace",
+    "FROM logs",
+    "WHERE Timestamp > now() - INTERVAL 7 DAY",
+    `  AND ${EXCEPTION_LOG_FILTER_SQL.trim()}`,
+    `  AND (${ERROR_FINGERPRINT_SQL.trim()}) = '${fingerprint}'`,
+    "ORDER BY Timestamp DESC",
+    "LIMIT 50",
+  ].join("\n");
 }

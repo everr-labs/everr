@@ -7,7 +7,13 @@ export {
 } from "./data/repository";
 export * from "./data/schemas";
 export * from "./data/types";
-export { errorIssueCountExpr } from "./sql/fingerprint";
+export {
+  ERROR_FINGERPRINT_SQL,
+  ERROR_MESSAGE_TEMPLATE_SQL,
+  EXCEPTION_LOG_FILTER_SQL,
+  errorIssueCountExpr,
+  errorOccurrencesQuery,
+} from "./sql/fingerprint";
 export { DetailRouteDialog } from "./ui/detail-route-dialog";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
 export {
@@ -15,6 +21,7 @@ export {
   type ErrorIssuesProps,
   type ErrorIssuesSearchValue,
   type RenderErrorIssueLink,
+  type RenderErrorTracked,
 } from "./ui/error-issues";
 export { findErrorOccurrenceByKey, getErrorOccurrenceKey } from "./ui/error-occurrence-key";
 export type { RenderOccurrenceLink } from "./ui/error-occurrence-bar";

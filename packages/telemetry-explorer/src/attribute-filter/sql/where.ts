@@ -1,4 +1,10 @@
-import { attributeKeysColumn, attributeText } from "../../sql/json-attributes";
+import {
+  attributeExistsAny,
+  attributeKeyNames,
+  attributeKeysColumn,
+  attributeText,
+  attributeTextAny,
+} from "../../sql/json-attributes";
 import type { AttributeFilter, AttributeSource } from "../schemas";
 
 // Builds the attribute predicates shared by every domain's WHERE clause.
@@ -20,8 +26,13 @@ export function buildAttributeClauses(
     const column = columnFor(filter.source);
     const keyParam = `attrKey${index}`;
     const valsParam = `attrVals${index}`;
-    const exists = `has(${attributeKeysColumn(column)}, {${keyParam}:String})`;
-    const text = attributeText(column, filter.key);
+    // A key semconv renamed matches under either name, so the key is spelled
+    // into the SQL instead of the parameter the single-name case uses.
+    const renamed = attributeKeyNames(filter.key).length > 1;
+    const exists = renamed
+      ? attributeExistsAny(column, filter.key)
+      : `has(${attributeKeysColumn(column)}, {${keyParam}:String})`;
+    const text = renamed ? attributeTextAny(column, filter.key) : attributeText(column, filter.key);
 
     switch (filter.op) {
       case "in":

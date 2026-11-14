@@ -27,6 +27,7 @@ function template(file: string) {
 beforeAll(() => {
   dataDir = mkdtempSync(join(tmpdir(), "everr-error-trend-"));
   session = new Session(dataDir);
+  run(template("create_error_message_template_function.sql"));
   run(template("create_error_fingerprint_function.sql"));
   run(
     template("logs_json_table.sql")

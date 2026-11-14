@@ -71,6 +71,18 @@ function readJsonEachRow(out: unknown): Record<string, unknown>[] {
 
 export type QueryParams = Record<string, unknown>;
 
+export type TestLogRow = {
+  service: string;
+  resource?: Record<string, string>;
+  /** Log attributes, such as `exception.type` for an error log. */
+  attributes?: Record<string, string>;
+  /** 17 and up is an error. */
+  severity?: number;
+  traceId?: string;
+  /** Defaults to the engine's now. */
+  at?: Date;
+};
+
 export interface ChdbDatabase {
   insert(rows: object[], deduplicationToken?: string): void;
   historyRows(): Record<string, unknown>[];
@@ -80,6 +92,8 @@ export interface ChdbDatabase {
   runQuery(statement: string, params?: QueryParams): SqlApiLikeResult;
   /** Replace what `app.test_signal` holds, which is what a rule selects. */
   setSignal(rows: Record<string, unknown>[]): void;
+  /** Log rows, with only the columns a service's resource needs. */
+  insertLogs(rows: TestLogRow[]): void;
   truncate(): void;
   close(): void;
 }
@@ -129,6 +143,20 @@ export function createChdbDatabase(): ChdbDatabase {
   for (const statement of sqlStatements(alertEventsSql)) {
     if (isAccessControl(statement)) continue;
     run(withoutTtl(statement));
+  }
+
+  // The columns of the production logs table that say which service wrote a
+  // row, what its resource is, and what error it reports. Nothing here reads
+  // log bodies.
+  run(
+    "CREATE TABLE app.logs (Timestamp DateTime64(9) DEFAULT now64(9), ServiceName String, TraceId String DEFAULT '', SeverityNumber UInt8 DEFAULT 0, ResourceAttributes JSON, ResourceAttributesKeys Array(String), LogAttributes JSON, LogAttributesKeys Array(String)) ENGINE = MergeTree ORDER BY (ServiceName, Timestamp)",
+  );
+  // The shipped functions, errorFingerprint among them, in the order the
+  // migrations define them, so queries over errors group as in production.
+  for (const { sql } of [...clickHouseMigrations].sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    for (const statement of sqlStatements(sql)) {
+      if (/^CREATE (OR REPLACE )?FUNCTION\b/.test(statement)) run(statement);
+    }
   }
 
   // The table a rule's query reads. Cases used to declare the query's result
@@ -228,7 +256,33 @@ export function createChdbDatabase(): ChdbDatabase {
       );
       return readJsonEachRow(out);
     },
+    insertLogs(rows) {
+      if (rows.length === 0) return;
+      run(
+        `INSERT INTO app.logs FORMAT JSONEachRow\n${rows
+          .map((row) => {
+            const resource = { "service.name": row.service, ...row.resource };
+            const attributes = row.attributes ?? {};
+            return JSON.stringify({
+              // The engine's clock by default, not the test's faked one: the
+              // queries reading these rows compare against ClickHouse's now().
+              ...(row.at
+                ? { Timestamp: row.at.toISOString().replace("T", " ").replace("Z", "") }
+                : {}),
+              ServiceName: row.service,
+              TraceId: row.traceId ?? "",
+              SeverityNumber: row.severity ?? 0,
+              ResourceAttributes: resource,
+              ResourceAttributesKeys: Object.keys(resource),
+              LogAttributes: attributes,
+              LogAttributesKeys: Object.keys(attributes),
+            });
+          })
+          .join("\n")}`,
+      );
+    },
     truncate() {
+      run("TRUNCATE TABLE app.logs");
       run(`TRUNCATE TABLE ${HISTORY_TABLE}`);
     },
     close() {

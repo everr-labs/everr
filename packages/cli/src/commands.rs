@@ -15,7 +15,7 @@ pub async fn run_command(
             CloudSubcommand::Login(login) => auth::login(login).await?,
             CloudSubcommand::Logout => auth::logout().await?,
             CloudSubcommand::Status(args) => auth::status(args).await?,
-            CloudSubcommand::Query(args) => core::cloud_query(args, client(false)?).await?,
+            CloudSubcommand::Query(args) => core::cloud_query(args, client(true)?).await?,
         },
         Commands::Ci(args) => match args.command {
             CiSubcommand::Status(args) => core::status(args, client(false)?).await?,

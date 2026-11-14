@@ -69,8 +69,16 @@ const telegramConfigArb = fc
   .record({ bot_token: botTokenArb, chat_ids: chatIdsArb })
   .map((config): AlertingChannelConfig => ({ type: "telegram", ...config }));
 
+const linearConfigArb = hexArb.map((key): AlertingChannelConfig => ({
+  type: "linear",
+  api_key: `lin_api_${key}`,
+  team: "ENG",
+  labels: ["everr-fix"],
+  max_open: 5,
+}));
+
 /** A stored channel of any kind the app can send through. */
-const configArb = fc.oneof(urlConfigArb, webhookConfigArb, telegramConfigArb);
+const configArb = fc.oneof(urlConfigArb, webhookConfigArb, telegramConfigArb, linearConfigArb);
 
 /** The fields a reader can see without the key: the kind, Telegram chats,
  *  and webhook header names. Secrets stay out of this shape. */
@@ -86,6 +94,12 @@ function legible(config: AlertingChannelConfig) {
     case "slack":
     case "discord":
       return { type: config.type };
+    case "github_issues":
+      return config;
+    case "linear": {
+      const { api_key: _secret, ...rest } = config;
+      return rest;
+    }
   }
 }
 
@@ -100,6 +114,10 @@ function secretsOf(config: AlertingChannelConfig): string[] {
     case "slack":
     case "discord":
       return [config.url];
+    case "github_issues":
+      return [];
+    case "linear":
+      return [config.api_key];
   }
 }
 

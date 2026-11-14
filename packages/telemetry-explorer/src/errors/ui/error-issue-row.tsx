@@ -12,12 +12,17 @@ export type RenderErrorIssueLink = (input: {
   children: ReactNode;
 }) => ReactNode;
 
+/** What the host app tracks for an Error, such as the issue it opened. */
+export type RenderErrorTracked = (fingerprint: string) => ReactNode;
+
 export function ErrorIssueRow({
   issue,
   renderIssueLink,
+  renderTracked,
 }: {
   issue: ErrorIssueSummary;
   renderIssueLink: RenderErrorIssueLink;
+  renderTracked?: RenderErrorTracked;
 }) {
   const type = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body;
@@ -51,6 +56,9 @@ export function ErrorIssueRow({
           ),
         })}
         <CopyId value={issue.fingerprint} label="fingerprint" className="hidden md:inline-flex" />
+        {renderTracked ? (
+          <span className="relative z-10 shrink-0">{renderTracked(issue.fingerprint)}</span>
+        ) : null}
       </div>
 
       {/* Fixed widths, and shrink-0, so that each column stays in one line down

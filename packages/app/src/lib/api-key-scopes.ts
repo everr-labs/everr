@@ -24,6 +24,12 @@ export const API_KEY_SCOPES = {
     description: "Create and update dashboards, runbooks, and alerts with everr apply.",
     actions: ["read", "write", "delete"] as const,
   },
+  query: {
+    label: "Query telemetry",
+    description:
+      "Read the organization's logs, traces, metrics, and errors with everr cloud query, for example from an agent fixing an error in CI.",
+    actions: ["read"] as const,
+  },
 } as const;
 
 export type ApiKeyScope = keyof typeof API_KEY_SCOPES;

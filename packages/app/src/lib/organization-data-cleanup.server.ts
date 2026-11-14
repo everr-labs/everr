@@ -14,6 +14,7 @@ import {
   githubInstallationOrganizations,
   previews,
   runbooks,
+  serviceRepositories,
   workflowJobs,
   workflowRuns,
 } from "#app/db/schema/index.ts";
@@ -49,6 +50,9 @@ export async function deletePostgresOrganizationData(
     await tx.delete(previews).where(eq(previews.organizationId, organizationId));
     await tx.delete(workflowJobs).where(eq(workflowJobs.organizationId, organizationId));
     await tx.delete(workflowRuns).where(eq(workflowRuns.organizationId, organizationId));
+    await tx
+      .delete(serviceRepositories)
+      .where(eq(serviceRepositories.organizationId, organizationId));
     await tx
       .delete(githubInstallationOrganizations)
       .where(eq(githubInstallationOrganizations.organizationId, organizationId));

@@ -5,11 +5,13 @@ import {
   sendChannelNotification,
 } from "#app/data/alerting/delivery/channel-sender.server.ts";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
+import { isIssueChannel } from "#app/data/alerting/delivery/issue-channels.ts";
 import { AlertDeliveryTaskPayloadSchema } from "#app/data/alerting/delivery/tasks.ts";
 import { db } from "#app/db/client.ts";
 import { alertChannels, alertDeliveries } from "#app/db/schema/index.ts";
 import { errorMessage } from "#app/telemetry/logger.ts";
 import { sanitizeAlertError } from "../history/content";
+import { deliverIssue } from "./deliver-issue";
 import { recordAlertNotification, setAlertSpanAttributes } from "../telemetry";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
@@ -133,7 +135,16 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     );
     channelType = config.type;
     setAlertSpanAttributes({ channelType });
-    await sendChannelNotification(config, row.delivery.notification);
+    if (isIssueChannel(config)) {
+      await deliverIssue({
+        organizationId: row.delivery.organizationId,
+        channelId: channel.id,
+        config,
+        dedupKey,
+      });
+    } else {
+      await sendChannelNotification(config, row.delivery.notification);
+    }
   } catch (cause) {
     // A permanent failure (a 4xx other than 408/429: a revoked webhook, a
     // malformed payload) cannot succeed on retry, so it is recorded

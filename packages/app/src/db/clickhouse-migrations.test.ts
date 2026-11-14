@@ -101,19 +101,22 @@ describe("ClickHouse migrations", () => {
     );
   });
 
-  it("gives the local collector's chDB the same errorFingerprint as App and Cloud", () => {
+  it.each([
+    ["errorMessageTemplate", "create_error_message_template_function.sql"],
+    ["errorFingerprint", "create_error_fingerprint_function.sql"],
+  ])("gives the local collector's chDB the same %s as App and Cloud", (name, file) => {
     const collectorCopy = readFileSync(
       new URL(
-        "../../../../collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql",
+        `../../../../collector/exporter/chdbexporter/internal/sqltemplates/${file}`,
         import.meta.url,
       ),
       "utf8",
     );
     const definitions = (sql: string) =>
       sqlStatements(sql).filter((statement) =>
-        /^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?errorFingerprint\b/.test(statement),
+        new RegExp(`^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?${name}\\b`).test(statement),
       );
-    // A change to the function lands in a new file, so compare the latest definition.
+    // A change to a function lands in a new file, so compare the latest definition.
     const latest = [...clickHouseMigrations]
       .sort(byMigrationName)
       .flatMap(({ sql }) => definitions(sql))

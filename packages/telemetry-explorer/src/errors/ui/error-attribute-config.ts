@@ -15,4 +15,5 @@ export const ERRORS_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
 export const ERRORS_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
   "resource:deployment.environment",
+  "resource:deployment.environment.name",
 ]);

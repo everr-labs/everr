@@ -25,10 +25,10 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 ## Local additions and fixes
 
-- Registers the `errorFingerprint` UDF when the logs exporter starts
-  (`internal.CreateErrorFingerprintFunction`), so `everr local query` and the
+- Registers the `errorMessageTemplate` and `errorFingerprint` UDFs when the
+  logs exporter starts (`internal.CreateErrorFingerprintFunction`), so `everr local query` and the
   local browser UI group Errors the way the cloud does. Must match
-  the latest `packages/app/clickhouse` migration that defines it;
+  the latest `packages/app/clickhouse` migration that defines each;
   `packages/app/src/db/clickhouse-migrations.test.ts` compares them.
 - Rebuilds the local store when its schema version changes
   (`schema_version.go`). The store carries the version it was built at in an

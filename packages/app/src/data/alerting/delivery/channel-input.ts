@@ -28,7 +28,17 @@ export type ChannelConfigDraft = {
   botToken: string;
   chatIds: string[];
   headers: WebhookHeaderDraft[];
+  repo: string;
+  labels: string[];
+  assignees: string[];
+  maxOpen: string;
+  apiKey: string;
+  team: string;
+  assignee: string;
 };
+
+const DEFAULT_ISSUE_LABEL = "everr-fix";
+const DEFAULT_ISSUE_MAX_OPEN = 5;
 
 export const EMPTY_CHANNEL_DRAFT: ChannelConfigDraft = {
   type: "slack",
@@ -36,6 +46,13 @@ export const EMPTY_CHANNEL_DRAFT: ChannelConfigDraft = {
   botToken: "",
   chatIds: [],
   headers: [],
+  repo: "",
+  labels: [DEFAULT_ISSUE_LABEL],
+  assignees: [],
+  maxOpen: String(DEFAULT_ISSUE_MAX_OPEN),
+  apiKey: "",
+  team: "",
+  assignee: "",
 };
 
 /** The draft an edit starts from: the stored kind and the chats, never the
@@ -54,6 +71,22 @@ export function channelConfigDraft(stored: AlertingChannelConfig): ChannelConfig
             retainedName: header.name,
           }))
         : [],
+    ...(stored.type === "github_issues"
+      ? {
+          repo: stored.repo ?? "",
+          labels: stored.labels,
+          assignees: stored.assignees,
+          maxOpen: String(stored.max_open),
+        }
+      : {}),
+    ...(stored.type === "linear"
+      ? {
+          team: stored.team,
+          labels: stored.labels,
+          assignee: stored.assignee ?? "",
+          maxOpen: String(stored.max_open),
+        }
+      : {}),
   };
 }
 
@@ -65,7 +98,18 @@ function sameHeaderName(left: string, right: string): boolean {
  *  A header row's own fields are addressed by their index in the draft list. */
 export type ChannelDraftErrors = Partial<
   Record<
-    "url" | "botToken" | "chatIds" | "headers" | `headers[${number}].${"name" | "value"}`,
+    | "url"
+    | "botToken"
+    | "chatIds"
+    | "headers"
+    | `headers[${number}].${"name" | "value"}`
+    | "repo"
+    | "labels"
+    | "assignees"
+    | "maxOpen"
+    | "apiKey"
+    | "team"
+    | "assignee",
     string
   >
 >;
@@ -137,6 +181,13 @@ function draftErrorsFromIssues(
   for (const { path, message } of issues) {
     if (path[0] === "bot_token") errors.botToken ??= message;
     else if (path[0] === "chat_ids") errors.chatIds ??= message;
+    else if (path[0] === "repo") errors.repo ??= message;
+    else if (path[0] === "labels") errors.labels ??= message;
+    else if (path[0] === "assignees") errors.assignees ??= message;
+    else if (path[0] === "max_open") errors.maxOpen ??= message;
+    else if (path[0] === "api_key") errors.apiKey ??= message;
+    else if (path[0] === "team") errors.team ??= message;
+    else if (path[0] === "assignee") errors.assignee ??= message;
     else errors.url ??= message;
   }
   return errors;
@@ -195,5 +246,45 @@ export function readChannelDraft(
         ? { config: parsed.data }
         : { errors: draftErrorsFromIssues(parsed.error.issues) };
     }
+    case "github_issues": {
+      const maxOpen = readMaxOpen(draft.maxOpen);
+      if (maxOpen === null) return { errors: { maxOpen: "Enter a whole number" } };
+      const repo = draft.repo.trim();
+      const parsed = AlertingChannelConfigInputSchema.safeParse({
+        type: draft.type,
+        ...(repo ? { repo } : {}),
+        labels: draft.labels,
+        assignees: draft.assignees,
+        max_open: maxOpen,
+      });
+      return parsed.success
+        ? { config: parsed.data }
+        : { errors: draftErrorsFromIssues(parsed.error.issues) };
+    }
+    case "linear": {
+      const errors: ChannelDraftErrors = {};
+      if (!draft.apiKey && !keepsSecret) errors.apiKey = "API key is required";
+      if (!draft.team.trim()) errors.team = "Team key is required";
+      const maxOpen = readMaxOpen(draft.maxOpen);
+      if (maxOpen === null) errors.maxOpen = "Enter a whole number";
+      if (Object.keys(errors).length > 0 || maxOpen === null) return { errors };
+      const assignee = draft.assignee.trim();
+      const parsed = AlertingChannelConfigInputSchema.safeParse({
+        type: draft.type,
+        ...(draft.apiKey ? { api_key: draft.apiKey } : {}),
+        team: draft.team,
+        labels: draft.labels,
+        ...(assignee ? { assignee } : {}),
+        max_open: maxOpen,
+      });
+      return parsed.success
+        ? { config: parsed.data }
+        : { errors: draftErrorsFromIssues(parsed.error.issues) };
+    }
   }
+}
+
+function readMaxOpen(raw: string): number | null {
+  const value = Number(raw.trim());
+  return raw.trim() === "" || !Number.isInteger(value) ? null : value;
 }

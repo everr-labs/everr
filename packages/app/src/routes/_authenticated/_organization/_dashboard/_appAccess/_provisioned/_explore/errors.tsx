@@ -8,6 +8,8 @@ import {
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
+import { NewErrorIssues } from "#app/components/error-issues/new-error-issues.tsx";
+import { TrackedIssueLink } from "#app/components/error-issues/tracked-issue-link.tsx";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
@@ -54,6 +56,8 @@ function ErrorsPage() {
       search={{ q, service, fingerprint, sort, attributes }}
       environment={environment}
       persistentFilters={<ExplorePersistentFilters />}
+      banner={<NewErrorIssues />}
+      renderTracked={renderTrackedIssue}
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear page filters, which routes through this same
@@ -74,4 +78,8 @@ function ErrorsPage() {
       )}
     />
   );
+}
+
+function renderTrackedIssue(fingerprint: string) {
+  return <TrackedIssueLink fingerprint={fingerprint} />;
 }

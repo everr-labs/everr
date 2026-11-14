@@ -13,7 +13,7 @@ import {
 import { activeClickHouse, type TestClickHouse } from "./test-clickhouse";
 
 type FetchResponse = { status: number; body?: string };
-type FetchResponder = FetchResponse | ((url: string) => FetchResponse);
+type FetchResponder = FetchResponse | ((url: string, body: unknown) => FetchResponse);
 
 export interface AlertingHarness {
   db: TestDatabase["db"];
@@ -78,7 +78,7 @@ export async function createAlertingHarness(
         headers[key] = value;
       });
       calls.push({ url, body, headers });
-      const response = typeof responder === "function" ? responder(url) : responder;
+      const response = typeof responder === "function" ? responder(url, body) : responder;
       return new Response(response.body ?? "", { status: response.status });
     }),
   );

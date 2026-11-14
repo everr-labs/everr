@@ -28,6 +28,7 @@ import {
 import { testAlertingChannel } from "#app/data/alerting/delivery/server.ts";
 import type { NotificationChannelView } from "#app/data/alerting/delivery/view.ts";
 import { ALERTING_WEBHOOK_HEADERS_MAX } from "#app/data/alerting/delivery/webhook-headers.ts";
+import { ALERTING_ISSUE_MAX_OPEN_LIMIT } from "#app/data/alerting/schema.ts";
 import type { AlertingChannelConfigInput } from "#app/data/alerting/types.ts";
 import { CHANNEL_OPTIONS, CHANNEL_URL_FIELD } from "./channel-mark";
 
@@ -164,6 +165,7 @@ function ChannelForm({
   // action. A blank draft still means keep the stored secret.
   const keepsSecret = storedType === type;
   const urlField = CHANNEL_URL_FIELD[type];
+  const issueChannel = type === "github_issues" || type === "linear";
   const busy = pending || test.isPending;
 
   if (editing && confirmingDelete) {
@@ -370,14 +372,173 @@ function ChannelForm({
             </form.Field>
           </>
         )}
+        {type === "github_issues" && (
+          <form.Field name="draft.repo">
+            {(field) => (
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-repo">Repository</Label>
+                <Input
+                  id="channel-repo"
+                  className="font-mono"
+                  value={field.state.value}
+                  disabled={busy}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                  aria-describedby="channel-repo-hint"
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="owner/name"
+                />
+                <p id="channel-repo-hint" className="text-muted-foreground text-xs">
+                  Leave blank to open issues in the repository each rule was applied from. Public
+                  repositories are refused, because issues contain production data.
+                </p>
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
+        {type === "linear" && (
+          <>
+            <form.Field name="draft.apiKey">
+              {(field) => (
+                <div className="space-y-1.5">
+                  <Label htmlFor="channel-api-key">API key</Label>
+                  <SecretInput
+                    key={type}
+                    id="channel-api-key"
+                    className="font-mono"
+                    value={field.state.value}
+                    disabled={busy}
+                    hasStoredSecret={keepsSecret}
+                    aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                    onValueChange={(apiKey) => field.handleChange(apiKey)}
+                    placeholder="lin_api_..."
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="draft.team">
+              {(field) => (
+                <div className="space-y-1.5">
+                  <Label htmlFor="channel-team">Team key</Label>
+                  <Input
+                    id="channel-team"
+                    className="w-32 font-mono"
+                    value={field.state.value}
+                    disabled={busy}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="ENG"
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
+          </>
+        )}
+        {issueChannel && (
+          <form.Field name="draft.labels">
+            {(field) => (
+              <div className="space-y-1.5">
+                <span className="text-xs/relaxed leading-none font-medium">Labels</span>
+                <TagsInput
+                  aria-label="Labels"
+                  placeholder="everr-fix"
+                  value={field.state.value}
+                  onValueChange={(labels) => field.handleChange(labels)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {type === "linear"
+                    ? "A Linear rule or agent that starts on this label picks the issue up."
+                    : "A workflow or agent that starts on this label picks the issue up."}
+                </p>
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
+        {type === "github_issues" && (
+          <form.Field name="draft.assignees">
+            {(field) => (
+              <div className="space-y-1.5">
+                <span className="text-xs/relaxed leading-none font-medium">Assignees</span>
+                <TagsInput
+                  aria-label="Assignees"
+                  placeholder="GitHub login"
+                  value={field.state.value}
+                  onValueChange={(assignees) => field.handleChange(assignees)}
+                />
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
+        {type === "linear" && (
+          <form.Field name="draft.assignee">
+            {(field) => (
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-assignee">Assignee</Label>
+                <Input
+                  id="channel-assignee"
+                  value={field.state.value}
+                  disabled={busy}
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                  aria-describedby="channel-assignee-hint"
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Email or name"
+                />
+                <p id="channel-assignee-hint" className="text-muted-foreground text-xs">
+                  A person or an agent. Assigning an issue to an agent delegates it.
+                </p>
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
+        {issueChannel && (
+          <form.Field name="draft.maxOpen">
+            {(field) => (
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-max-open">Open issues limit</Label>
+                <Input
+                  id="channel-max-open"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={ALERTING_ISSUE_MAX_OPEN_LIMIT}
+                  className="w-24"
+                  value={field.state.value}
+                  disabled={busy}
+                  aria-invalid={field.state.meta.errors.length > 0 || undefined}
+                  aria-describedby="channel-max-open-hint"
+                  onChange={(e) => field.handleChange(e.target.value)}
+                />
+                <p id="channel-max-open-hint" className="text-muted-foreground text-xs">
+                  {type === "linear"
+                    ? "New alerts are withheld while this many issues this channel opened are still open."
+                    : "New alerts are withheld while this many Everr issues with these labels are open in the repository."}
+                </p>
+                <FieldError errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+        )}
         {(test.isSuccess || test.isError) && (
           <p
             role={test.data?.ok ? "status" : "alert"}
             className={cn("font-mono text-xs", test.data?.ok ? "text-chart-2" : "text-destructive")}
           >
             {test.data?.ok
-              ? `Delivered in ${test.data.latency_ms}ms`
-              : `Not delivered: ${test.data?.error ?? test.error?.message ?? "unknown error"}`}
+              ? issueChannel
+                ? `Access checked in ${test.data.latency_ms}ms`
+                : `Delivered in ${test.data.latency_ms}ms`
+              : `${issueChannel ? "No access" : "Not delivered"}: ${test.data?.error ?? test.error?.message ?? "unknown error"}`}
           </p>
         )}
       </div>
@@ -395,7 +556,13 @@ function ChannelForm({
         )}
         <div className="ml-auto flex items-center gap-2">
           <Button variant="outline" disabled={busy} onClick={() => void form.handleSubmit(TEST)}>
-            {test.isPending ? "Sending…" : "Send test"}
+            {issueChannel
+              ? test.isPending
+                ? "Checking…"
+                : "Check access"
+              : test.isPending
+                ? "Sending…"
+                : "Send test"}
           </Button>
           <Button disabled={busy} aria-busy={pending} onClick={() => void form.handleSubmit(SAVE)}>
             {editing ? "Save channel" : "Create channel"}

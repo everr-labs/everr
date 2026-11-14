@@ -21,6 +21,7 @@ import { Route as appRoutesWelcomeSetupRouteImport } from './app/routes/_welcome
 import { Route as ApiApplyRouteImport } from './routes/api/apply'
 import { Route as ApiCliRouteImport } from './routes/api/cli'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiQueryRouteImport } from './routes/api/query'
 import { Route as McpSplatRouteImport } from './routes/mcp/$'
 import { Route as McpConsentRouteImport } from './routes/mcp/consent'
 import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
@@ -151,6 +152,11 @@ const ApiCliRoute = ApiCliRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQueryRoute = ApiQueryRouteImport.update({
+  id: '/api/query',
+  path: '/api/query',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpSplatRoute = McpSplatRouteImport.update({
@@ -699,6 +705,7 @@ export interface FileRoutesByFullPath {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/api/query': typeof ApiQueryRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -772,6 +779,7 @@ export interface FileRoutesByTo {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/api/query': typeof ApiQueryRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -844,6 +852,7 @@ export interface FileRoutesById {
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
+  '/api/query': typeof ApiQueryRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
@@ -928,6 +937,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/api/query'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
@@ -1001,6 +1011,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/api/query'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
@@ -1072,6 +1083,7 @@ export interface FileRouteTypes {
     | '/api/apply'
     | '/api/cli'
     | '/api/health'
+    | '/api/query'
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
@@ -1155,6 +1167,7 @@ export interface RootRouteChildren {
   ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiQueryRoute: typeof ApiQueryRoute
   McpSplatRoute: typeof McpSplatRoute
   McpConsentRoute: typeof McpConsentRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
@@ -1249,6 +1262,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/query': {
+      id: '/api/query'
+      path: '/api/query'
+      fullPath: '/api/query'
+      preLoaderRoute: typeof ApiQueryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp/$': {
@@ -2287,6 +2307,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
+  ApiQueryRoute: ApiQueryRoute,
   McpSplatRoute: McpSplatRoute,
   McpConsentRoute: McpConsentRoute,
   WebhookGithubRoute: WebhookGithubRoute,

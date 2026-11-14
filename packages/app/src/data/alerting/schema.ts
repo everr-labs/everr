@@ -114,6 +114,41 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
 // marker: an omitted secret is the only way to retain a saved one.
 export const ALERTING_REDACTED_SECRET = "***";
 
+// The owner and name rules GitHub enforces on a repository's full name.
+const GITHUB_REPOSITORY_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
+const ALERTING_ISSUE_LABELS_MAX = 10;
+const ALERTING_ISSUE_ASSIGNEES_MAX = 10;
+export const ALERTING_ISSUE_MAX_OPEN_LIMIT = 50;
+
+// An issue channel carries no secret: it authenticates as the organization's
+// GitHub App installation, so the stored and the input shapes are the same.
+const AlertingGithubIssuesConfigSchema = z.object({
+  type: z.literal("github_issues"),
+  // Absent means the repository the rule was applied from.
+  repo: z
+    .string()
+    .trim()
+    .regex(GITHUB_REPOSITORY_RE, { error: "repository must be owner/name" })
+    .optional(),
+  labels: z.array(z.string().trim().min(1).max(50)).max(ALERTING_ISSUE_LABELS_MAX),
+  assignees: z.array(z.string().trim().min(1).max(39)).max(ALERTING_ISSUE_ASSIGNEES_MAX),
+  // How many issues this channel may have open at once. A new instance past
+  // the cap is withheld, so an error storm cannot flood a repository.
+  max_open: z.number().int().min(1).max(ALERTING_ISSUE_MAX_OPEN_LIMIT),
+});
+
+const IssueLabelsSchema = z.array(z.string().trim().min(1).max(80)).max(ALERTING_ISSUE_LABELS_MAX);
+// Linear team keys are short uppercase identifiers, like ENG.
+const LinearTeamKeySchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9]{1,10}$/, { error: "team key must be the team's identifier, like ENG" })
+  .transform((key) => key.toUpperCase());
+// A person's email, or the name of a person or an agent. Assigning an issue
+// to an agent is how Linear delegates it.
+const LinearAssigneeSchema = z.string().trim().min(1).max(255).optional();
+const LinearMaxOpenSchema = z.number().int().min(1).max(ALERTING_ISSUE_MAX_OPEN_LIMIT);
+
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   // `headers` stays optional with no default. Channels saved before headers
   // existed have no key, and a webhook with none stores none.
@@ -128,6 +163,15 @@ export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
     type: z.literal("telegram"),
     bot_token: z.string(),
     chat_ids: z.array(z.string()),
+  }),
+  AlertingGithubIssuesConfigSchema,
+  z.object({
+    type: z.literal("linear"),
+    api_key: z.string(),
+    team: LinearTeamKeySchema,
+    labels: IssueLabelsSchema,
+    assignee: LinearAssigneeSchema,
+    max_open: LinearMaxOpenSchema,
   }),
 ]);
 
@@ -161,6 +205,15 @@ export const AlertingChannelConfigInputSchema = z.discriminatedUnion("type", [
     type: z.literal("telegram"),
     bot_token: AlertingChannelSecretInputSchema.optional(),
     chat_ids: z.array(z.string()),
+  }),
+  AlertingGithubIssuesConfigSchema,
+  z.object({
+    type: z.literal("linear"),
+    api_key: AlertingChannelSecretInputSchema.optional(),
+    team: LinearTeamKeySchema,
+    labels: IssueLabelsSchema,
+    assignee: LinearAssigneeSchema,
+    max_open: LinearMaxOpenSchema,
   }),
 ]);
 

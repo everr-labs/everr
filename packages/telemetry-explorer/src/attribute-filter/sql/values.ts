@@ -1,5 +1,10 @@
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
-import { attributeKeysColumn, attributeText } from "../../sql/json-attributes";
+import {
+  attributeExistsAny,
+  attributeKeyNames,
+  attributeKeysColumn,
+  attributeTextAny,
+} from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
 import type { AttributeSource } from "../schemas";
 import type { BuiltQuery } from "./types";
@@ -35,7 +40,8 @@ export function buildAttributeValuesQuery(
   const timeColumn = opts.timeColumn ?? "Timestamp";
   const timeBound = opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
-  const value = attributeText(column, input.key);
+  // Under either name for a key semconv renamed.
+  const value = attributeTextAny(column, input.key);
   const { fromISO, toISO } = resolveTimeRange(input.timeRange);
   const params: Record<string, unknown> = {
     fromTime: fromISO,
@@ -45,7 +51,9 @@ export function buildAttributeValuesQuery(
   const filters = [
     `${timeColumn} >= ${timeBound("fromTime")}`,
     `${timeColumn} <= ${timeBound("toTime")}`,
-    `has(${attributeKeysColumn(column)}, {key:String})`,
+    attributeKeyNames(input.key).length > 1
+      ? attributeExistsAny(column, input.key)
+      : `has(${attributeKeysColumn(column)}, {key:String})`,
     `${value} != ''`,
   ];
   if (opts.rowPredicate) {

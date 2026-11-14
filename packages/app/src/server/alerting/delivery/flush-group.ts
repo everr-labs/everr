@@ -1,5 +1,7 @@
-import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { readRedactedChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import { CHANNEL_TEXT_MIN } from "#app/data/alerting/delivery/channel-text-limits.ts";
+import { isIssueChannel } from "#app/data/alerting/delivery/issue-channels.ts";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "#app/data/alerting/delivery/config.ts";
 import type { ChannelNotification } from "#app/data/alerting/delivery/providers/message.ts";
 import {
@@ -11,6 +13,7 @@ import {
 import { loadActiveSilences } from "#app/data/alerting/silences/repository.ts";
 import { currentTraceLink } from "#app/data/alerting/trace-link.ts";
 import { db } from "#app/db/client.ts";
+import type { Transaction } from "#app/db/database.ts";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -20,6 +23,7 @@ import {
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
+  alertTrackerIssues,
 } from "#app/db/schema/index.ts";
 import { truncateWithEllipsis } from "#app/lib/truncate.ts";
 import { addWorkerJobInTransaction } from "#app/server/worker/jobs.ts";
@@ -91,6 +95,80 @@ export function formatNotification(events: NotificationEvent[]): ChannelNotifica
     body: lines.join("\n"),
     status: firing > 0 ? "firing" : "resolved",
   };
+}
+
+/**
+ * Whether a channel files issues. Read from the envelope's public part, so the
+ * flush never needs the key. An unreadable config is treated as a message
+ * channel: the send path then fails it with a reason in the trail.
+ */
+function filesIssues(channel: typeof alertChannels.$inferSelect): boolean {
+  try {
+    return isIssueChannel(readRedactedChannelConfig(channel.encryptedConfig));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The events an issue channel acts on. A resolve only comments on its
+ * instance's issue, so a resolve is left out when the instance has no issue
+ * on this channel and no fire still on its way there: the cap withheld the
+ * issue, or opening it failed for good. Sending it would only record a
+ * delivery that did nothing.
+ */
+async function issueChannelEvents<
+  E extends Pick<
+    typeof alertEvents.$inferSelect,
+    "eventType" | "sourceDefinitionId" | "instanceFingerprint"
+  >,
+>(tx: Transaction, organizationId: string, channelId: string, events: E[]): Promise<E[]> {
+  const resolves = events.filter((event) => event.eventType === "instance_resolved");
+  if (resolves.length === 0) return events;
+  const fingerprints = [...new Set(resolves.map((event) => event.instanceFingerprint))];
+  const [tracked, inFlight] = await Promise.all([
+    tx
+      .select({
+        sourceDefinitionId: alertTrackerIssues.alertDefinitionId,
+        instanceFingerprint: alertTrackerIssues.instanceFingerprint,
+      })
+      .from(alertTrackerIssues)
+      .where(
+        and(
+          eq(alertTrackerIssues.channelId, channelId),
+          inArray(alertTrackerIssues.instanceFingerprint, fingerprints),
+        ),
+      ),
+    tx
+      .select({
+        sourceDefinitionId: alertEvents.sourceDefinitionId,
+        instanceFingerprint: alertEvents.instanceFingerprint,
+      })
+      .from(alertDeliveries)
+      .innerJoin(
+        alertDeliveryEvents,
+        eq(alertDeliveryEvents.deliveryDedupKey, alertDeliveries.dedupKey),
+      )
+      .innerJoin(alertEvents, eq(alertEvents.id, alertDeliveryEvents.eventId))
+      .where(
+        and(
+          eq(alertDeliveries.organizationId, organizationId),
+          eq(alertDeliveries.channelId, channelId),
+          or(
+            eq(alertDeliveries.status, "pending"),
+            and(
+              eq(alertDeliveries.status, "failed"),
+              lt(alertDeliveries.attempts, ALERT_DELIVERY_MAX_ATTEMPTS),
+            ),
+          ),
+          inArray(alertEvents.instanceFingerprint, fingerprints),
+        ),
+      ),
+  ]);
+  const withIssue = new Set([...tracked, ...inFlight].map(instanceKey));
+  return events.filter(
+    (event) => event.eventType !== "instance_resolved" || withIssue.has(instanceKey(event)),
+  );
 }
 
 async function directRuleChannels(
@@ -258,7 +336,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   const noChannelDrops =
     channels.length === 0 && notificationEvents.length > 0 ? notificationEvents : [];
   const notification = formatNotification(notificationEvents);
+  // Resolves that no channel carried, because every channel files issues and
+  // none had an issue for the instance. Filled inside the transaction.
+  let noIssueDrops: typeof notificationEvents = [];
   await db.transaction(async (tx) => {
+    const carried = new Set<string>();
     // Re-read under lock: another writer may have moved nextFlushAt while this
     // flush was evaluating suppression, and that schedule must not be lost.
     const [fresh] = await tx
@@ -271,44 +353,71 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     let created = 0;
     const dedupEventIds = notificationEvents.map((event) => event.id).sort();
     for (const { channel } of notificationEvents.length > 0 ? channels : []) {
-      const dedupKey = alertDeliveryHash(
-        group.id,
-        channel.id,
-        group.nextFlushAt.toISOString(),
-        ...dedupEventIds,
-      );
-      const inserted = await tx
-        .insert(alertDeliveries)
-        .values({
-          dedupKey,
-          organizationId: group.organizationId,
-          notificationGroupId: group.id,
-          channelId: channel.id,
-          channelName: channel.name,
-          notification,
-        })
-        .onConflictDoNothing()
-        .returning({ dedupKey: alertDeliveries.dedupKey });
-      if (inserted.length === 0) continue;
-      created += 1;
-      await tx.insert(alertDeliveryEvents).values(
-        notificationEvents.map((event) => ({
-          organizationId: group.organizationId,
-          deliveryDedupKey: dedupKey,
-          eventId: event.id,
-        })),
-      );
-      await addWorkerJobInTransaction(
-        tx,
-        ALERT_SEND_DELIVERY_TASK,
-        { dedupKey, ...currentTraceLink() },
-        {
-          jobKey: `${ALERT_SEND_DELIVERY_TASK}:${dedupKey}`,
-          jobKeyMode: "replace",
-          maxAttempts: ALERT_DELIVERY_MAX_ATTEMPTS,
-        },
-      );
+      // A message channel gets the group as one notification. An issue
+      // channel gets one delivery per event, because each instance has its
+      // own issue to open or update.
+      const batches = filesIssues(channel)
+        ? (await issueChannelEvents(tx, group.organizationId, channel.id, notificationEvents)).map(
+            (event) => ({
+              events: [event],
+              notification: formatNotification([event]),
+              dedupKey: alertDeliveryHash(
+                group.id,
+                channel.id,
+                group.nextFlushAt.toISOString(),
+                event.id,
+              ),
+            }),
+          )
+        : [
+            {
+              events: notificationEvents,
+              notification,
+              dedupKey: alertDeliveryHash(
+                group.id,
+                channel.id,
+                group.nextFlushAt.toISOString(),
+                ...dedupEventIds,
+              ),
+            },
+          ];
+      for (const batch of batches) {
+        for (const event of batch.events) carried.add(event.id);
+        const inserted = await tx
+          .insert(alertDeliveries)
+          .values({
+            dedupKey: batch.dedupKey,
+            organizationId: group.organizationId,
+            notificationGroupId: group.id,
+            channelId: channel.id,
+            channelName: channel.name,
+            notification: batch.notification,
+          })
+          .onConflictDoNothing()
+          .returning({ dedupKey: alertDeliveries.dedupKey });
+        if (inserted.length === 0) continue;
+        created += 1;
+        await tx.insert(alertDeliveryEvents).values(
+          batch.events.map((event) => ({
+            organizationId: group.organizationId,
+            deliveryDedupKey: batch.dedupKey,
+            eventId: event.id,
+          })),
+        );
+        await addWorkerJobInTransaction(
+          tx,
+          ALERT_SEND_DELIVERY_TASK,
+          { dedupKey: batch.dedupKey, ...currentTraceLink() },
+          {
+            jobKey: `${ALERT_SEND_DELIVERY_TASK}:${batch.dedupKey}`,
+            jobKeyMode: "replace",
+            maxAttempts: ALERT_DELIVERY_MAX_ATTEMPTS,
+          },
+        );
+      }
     }
+    noIssueDrops =
+      channels.length > 0 ? notificationEvents.filter((event) => !carried.has(event.id)) : [];
     const flushedAt = new Date();
     if (claimedEventIds.size > 0) {
       await tx
@@ -361,7 +470,12 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     // deliveries that were never committed.
     setAlertSpanAttributes({ deliveries: created });
   });
-  if (droppedRows.length > 0 || droppedUnannounced.length > 0 || noChannelDrops.length > 0) {
+  if (
+    droppedRows.length > 0 ||
+    droppedUnannounced.length > 0 ||
+    noChannelDrops.length > 0 ||
+    noIssueDrops.length > 0
+  ) {
     await recordAlertHistory(
       null,
       [
@@ -373,6 +487,8 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         // A rule or tier with no channels attached: nothing was sent, but
         // the flush still marked these flushed.
         ...noChannelDrops.map((event) => journalTerminalRow(event, { reason: "no_channels" })),
+        // A resolve no issue channel had an issue for: nothing to comment on.
+        ...noIssueDrops.map((event) => journalTerminalRow(event, { reason: "no_issue" })),
       ],
       { convergesOnRetry: true },
     );

@@ -36,6 +36,37 @@ export function attributeExists(column: string, key: string): string {
   return `has(${attributeKeysColumn(column)}, ${quoteLiteral(key)})`;
 }
 
+// Keys semconv renamed, with the names they replaced. Services in the wild
+// send either, so a filter or a value list on the current key also reads the
+// old one.
+const PREVIOUS_KEYS: Readonly<Record<string, readonly string[]>> = {
+  "deployment.environment.name": ["deployment.environment"],
+};
+
+/** The key and the older names it replaced, current first. */
+export function attributeKeyNames(key: string): readonly string[] {
+  return [key, ...(PREVIOUS_KEYS[key] ?? [])];
+}
+
+/** Whether any name of the key is present. */
+export function attributeExistsAny(column: string, key: string): string {
+  const names = attributeKeyNames(key);
+  if (names.length === 1) return attributeExists(column, key);
+  return `(${names.map((name) => attributeExists(column, name)).join(" OR ")})`;
+}
+
+/** The value under the first name of the key that is present, '' when none is. */
+export function attributeTextAny(column: string, key: string): string {
+  const names = attributeKeyNames(key);
+  return names
+    .slice(0, -1)
+    .reduceRight(
+      (rest, name) =>
+        `if(${attributeExists(column, name)}, ${attributeText(column, name)}, ${rest})`,
+      attributeText(column, names[names.length - 1]),
+    );
+}
+
 // ClickHouse returns a JSON column as a nested object: a key `http.route`
 // comes back as {"http":{"route":...}}. OTel attribute keys are flat, so the
 // nesting is undone by joining with dots. Every leaf becomes text; 64-bit

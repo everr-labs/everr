@@ -8,6 +8,7 @@
     "writing-good-alerts",
     "link-alerts-to-runbooks",
     "set-up-notifications",
+    "fix-errors-with-agents",
     "---CI---",
     "setup-new-repo",
     "debug-ci",

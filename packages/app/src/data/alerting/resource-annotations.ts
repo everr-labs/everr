@@ -4,6 +4,13 @@ export const ANN_LABEL_PREFIX = "everr.label.";
 export const ANN_DISPLAY_NAME = "everr.display.name";
 export const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
 
+// "error" on Everr's rule for new errors. Delivery only opens each error's
+// issue, with the description and evidence and none of an alert's facts.
+// Whether the error came back after its fix, or stayed away, is the error
+// follow-up's to say (see `followUpErrorIssues`): an alert resolving or firing
+// again says neither.
+export const ANN_ISSUES_KIND = "everr.issues.kind";
+
 export const ANN_ALERTING_SUMMARY = "summary";
 export const ANN_ALERTING_DESCRIPTION = "description";
 export const ANN_ALERTING_LINK_ALERT = "link.alert";

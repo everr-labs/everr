@@ -16,6 +16,7 @@ import type {
   NotificationOverrideView,
 } from "#app/data/alerting/delivery/view.ts";
 import type { AlertingSeverity } from "#app/data/alerting/types.ts";
+import { ERROR_ISSUES_CHANNEL_NAME } from "#app/data/error-issues/detection.ts";
 import { SEVERITY_DOT, TIER_LABEL } from "./alert-status";
 import { ChannelMark, channelDetail } from "./channel-mark";
 import { LoadingRows, ROW_HOVER, ROW_TARGET } from "./list-row";
@@ -80,6 +81,7 @@ function Receives({ channel }: { channel: NotificationChannelView }) {
  * way in for a mouse and one for a keyboard.
  */
 function ChannelRow({ channel, onOpen }: { channel: NotificationChannelView; onOpen: () => void }) {
+  if (channel.name === ERROR_ISSUES_CHANNEL_NAME) return <ManagedChannelRow channel={channel} />;
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- pointer-only row convenience, the name inside is the real button
     <li
@@ -105,6 +107,36 @@ function ChannelRow({ channel, onOpen }: { channel: NotificationChannelView; onO
           table's own columns once it is not. */}
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 pl-10 @[52rem]/list:contents">
         <Receives channel={channel} />
+      </div>
+    </li>
+  );
+}
+
+/** The channel behind the Errors page switch. It changes there, so the row
+ *  links to it instead of opening the editor. */
+function ManagedChannelRow({ channel }: { channel: NotificationChannelView }) {
+  return (
+    <li className={cn(COLUMNS, "border-t px-3 py-2.5 text-sm")}>
+      <div className="flex min-w-0 items-center gap-3">
+        <ChannelMark type={channel.config.type} />
+        <div className="min-w-0">
+          <span className="block font-medium">{channel.name}</span>
+          <div className="truncate font-mono text-xs text-muted-foreground">
+            {channelDetail(channel.config)}
+          </div>
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1 pl-10 text-xs text-muted-foreground @[52rem]/list:contents">
+        <span>
+          Managed by Everr ·{" "}
+          <Link
+            to="/errors"
+            search={{ q: "", fingerprint: "", occurrence: "" }}
+            className="underline"
+          >
+            Change on the Errors page
+          </Link>
+        </span>
       </div>
     </li>
   );

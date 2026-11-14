@@ -7,10 +7,10 @@ describe("environmentFilter", () => {
     expect(environmentFilter([])).toBeNull();
   });
 
-  it("builds a deployment.environment resource 'in' filter", () => {
+  it("builds a deployment.environment.name resource 'in' filter", () => {
     expect(environmentFilter(["prod", "staging"])).toEqual({
       source: "resource",
-      key: "deployment.environment",
+      key: "deployment.environment.name",
       op: "in",
       values: ["prod", "staging"],
     });
@@ -32,7 +32,7 @@ describe("withEnvironment", () => {
       ...base,
       {
         source: "resource",
-        key: "deployment.environment",
+        key: "deployment.environment.name",
         op: "in",
         values: ["prod"],
       },
