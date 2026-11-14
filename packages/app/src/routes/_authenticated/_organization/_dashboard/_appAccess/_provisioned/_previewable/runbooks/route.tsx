@@ -7,6 +7,8 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks",
 )({
   ...railFrameRouteOptions,
+  // The toggle sits in this layout, on every runbooks page.
+  staticData: { ...railFrameRouteOptions.staticData, railToggle: true },
   search: { middlewares: [retainSearchParams(["full"])] },
   component: RunbooksLayout,
 });

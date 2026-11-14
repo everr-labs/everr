@@ -9,12 +9,18 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@everr/ui/components/sidebar";
 import { Link } from "@tanstack/react-router";
 import { NavMain } from "#app/components/nav-main.tsx";
+import { useOnNavigate } from "#app/hooks/use-on-navigate.ts";
 import { navGroups } from "#app/lib/navigation.ts";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  // On a phone the sidebar is a sheet over the page, which a navigation from
+  // it, or from the user menu portaled outside it, should leave.
+  const { setOpenMobile } = useSidebar();
+  useOnNavigate(() => setOpenMobile(false));
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>

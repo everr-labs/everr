@@ -25,5 +25,10 @@ declare module "@tanstack/react-router" {
      * page scroll for matches carrying this.
      */
     fullBleed?: boolean;
+    /**
+     * The page shows a `FrameToggle` for the rail frame it sits in, so on a
+     * phone the rail can leave the layout and open as a sheet from it.
+     */
+    railToggle?: boolean;
   }
 }

@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
@@ -11,7 +12,13 @@ import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { createTextMeasurer, rowLabelAxis } from "./echarts/axis";
 import { gridOption, plotWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
-import { linearTimeScale, TimeAxis, TimeTrackOverlay, useTimeTrack } from "./time-track";
+import {
+  linearTimeScale,
+  TimeAxis,
+  TOUCH_SCRUB,
+  TimeTrackOverlay,
+  useTimeTrack,
+} from "./time-track";
 
 echarts.use([CustomChart]);
 
@@ -204,7 +211,7 @@ export function LaneTimelineChart({
       <div className="min-h-0 flex-1 overflow-y-auto" onScroll={track.clearHover}>
         <div
           data-slot="time-track"
-          className="relative h-full"
+          className={cn("relative h-full", TOUCH_SCRUB)}
           style={{ minHeight: lanes.length * MIN_LANE_HEIGHT }}
           {...track.handlers}
         >

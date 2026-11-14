@@ -9,6 +9,12 @@ import { usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
 
 const BRUSH_COLOR = SERIES_COLORS[0];
 
+/**
+ * For the element that takes `useTimeTrack`'s handlers: sideways drags belong
+ * to the chart's readout, vertical swipes and pinches still to the page.
+ */
+export const TOUCH_SCRUB = "touch-pan-y touch-pinch-zoom";
+
 /** Where instants fall along a plot's time axis, as a 0..1 share of it. */
 export interface TimeScale {
   timeAt: (ratio: number) => number;
@@ -103,14 +109,29 @@ export function useTimeTrack<T>({
     clearCursor();
   }, [clearCursor]);
 
+  const hoverAt = (e: React.MouseEvent) => {
+    const plot = plotRect(e);
+    const at = plot && pointerAt(e, plot);
+    if (!plot || !at || !inPlot(at)) return clearHover();
+    const time = scale?.timeAt(vertical ? at.y : at.x) ?? 0;
+    const target = itemAt({ ...at, time, plot, clientY: e.clientY });
+    setHover(target === null ? null : { target, x: e.clientX, y: e.clientY, size });
+    if (scale) setCursor(target !== null && cursorTime ? cursorTime(target) : time);
+  };
+
+  // A finger reads instead of zooming: a tap or a sideways drag moves the
+  // readout (the chart's `TOUCH_SCRUB` class leaves vertical swipes to the
+  // page's scroll), so the brush stays a mouse gesture.
   const handlers = {
     onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType === "touch") return hoverAt(e);
       const plot = plotRect(e);
       if (!scale || !plot || e.button !== 0 || !inPlot(pointerAt(e, plot))) return;
       setDrag({ plot, from: timeAt(e, plot), to: null });
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     onPointerMove: (e: React.PointerEvent) => {
+      if (e.pointerType === "touch") return hoverAt(e);
       if (drag) setDrag({ ...drag, to: timeAt(e, drag.plot) });
     },
     onPointerUp: () => {
@@ -124,16 +145,12 @@ export function useTimeTrack<T>({
       }
       setDrag(null);
     },
-    onPointerCancel: () => setDrag(null),
-    onMouseMove: (e: React.MouseEvent) => {
-      const plot = plotRect(e);
-      const at = plot && pointerAt(e, plot);
-      if (!plot || !at || !inPlot(at)) return clearHover();
-      const time = scale?.timeAt(vertical ? at.y : at.x) ?? 0;
-      const target = itemAt({ ...at, time, plot, clientY: e.clientY });
-      setHover(target === null ? null : { target, x: e.clientX, y: e.clientY, size });
-      if (scale) setCursor(target !== null && cursorTime ? cursorTime(target) : time);
+    onPointerCancel: (e: React.PointerEvent) => {
+      setDrag(null);
+      // The page took the swipe to scroll: drop the readout with it.
+      if (e.pointerType === "touch") clearHover();
     },
+    onMouseMove: hoverAt,
     onMouseLeave: clearHover,
   };
 

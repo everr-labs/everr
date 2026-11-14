@@ -1,11 +1,14 @@
 import { isValid, resolve } from "@everr/datemath";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { ChevronDownIcon, Clock } from "lucide-react";
+import { ChevronDownIcon, Clock, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useIsMobile } from "../hooks/use-mobile";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
+import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { Input } from "./input";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 export type { TimeRange };
@@ -86,6 +89,10 @@ export function TimeRangePicker({
   value: TimeRange;
   onChange: (range: TimeRange) => void;
 }) {
+  // A phone gets a full-screen sheet: the two-column popover can't fit, and
+  // the ranges want finger-sized rows. `false` on the server, so the popover
+  // is what renders before hydration; the trigger looks the same either way.
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState(value.from);
   const [customTo, setCustomTo] = useState(value.to);
@@ -143,6 +150,78 @@ export function TimeRangePicker({
     setOpen(nextOpen);
   };
 
+  const triggerContent = (
+    <>
+      <Clock data-icon="inline-start" className="size-3.5" aria-hidden="true" />
+      {/* A custom absolute range reads long; on a phone it truncates so
+          the header keeps its other controls. */}
+      <span className="truncate max-sm:max-w-28">{formatTimeRangeDisplay(value)}</span>
+      <ChevronDownIcon className="size-3 max-sm:hidden" />
+    </>
+  );
+
+  const searchInput = (
+    <Input
+      type="search"
+      placeholder="Search relative range..."
+      aria-label="search"
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      className="rounded-none bg-transparent border-none h-10 px-3 focus:ring-0 focus-visible:ring-0"
+    />
+  );
+  const quickRanges = (
+    <QuickRangeList
+      groups={filteredGroups}
+      value={value}
+      touch={isMobile}
+      onPick={handlePresetClick}
+    />
+  );
+  const customRange = (
+    <CustomRangeForm
+      from={customFrom}
+      to={customTo}
+      onFromChange={setCustomFrom}
+      onToChange={setCustomTo}
+      state={customRangeState}
+      onApply={handleApply}
+      touch={isMobile}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetTrigger render={<Button variant="outline" className="gap-1.5" />}>
+          {triggerContent}
+        </SheetTrigger>
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="gap-0 pb-[env(safe-area-inset-bottom)] data-[side=bottom]:h-dvh"
+        >
+          <div className="flex h-12 shrink-0 items-center justify-between border-b pr-1.5 pl-4">
+            <SheetTitle>Time range</SheetTitle>
+            <SheetClose render={<Button variant="ghost" size="icon" aria-label="Close" />}>
+              <XIcon />
+            </SheetClose>
+          </div>
+          {currentRangePreview.from && currentRangePreview.to && (
+            <p className="shrink-0 border-b px-4 py-2 text-muted-foreground text-xs">
+              {currentRangePreview.from} to {currentRangePreview.to}
+            </p>
+          )}
+          <div className="shrink-0 border-b">{searchInput}</div>
+          <ScrollArea className="min-h-0 flex-1" viewportClassName="p-2">
+            {quickRanges}
+          </ScrollArea>
+          <div className="shrink-0 border-t p-4">{customRange}</div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
@@ -150,9 +229,7 @@ export function TimeRangePicker({
           delay={0}
           render={<PopoverTrigger render={<Button variant="outline" className="gap-1.5" />} />}
         >
-          <Clock data-icon="inline-start" className="size-3.5" aria-hidden="true" />
-          {formatTimeRangeDisplay(value)}
-          <ChevronDownIcon className="size-3" />
+          {triggerContent}
         </TooltipTrigger>
         {currentRangePreview.from && currentRangePreview.to && (
           <TooltipContent>
@@ -164,111 +241,155 @@ export function TimeRangePicker({
         <div className="flex divide-x divide-border">
           {/* Left panel: quick ranges */}
           <div className="flex w-[200px] flex-col">
-            <div className="border-b">
-              <Input
-                type="search"
-                placeholder="Search relative range..."
-                aria-label="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="rounded-none bg-transparent border-none h-10 px-3 focus:ring-0 focus-visible:ring-0"
-              />
-            </div>
+            <div className="border-b">{searchInput}</div>
             <ScrollArea className="max-h-[320px]" viewportClassName="p-1">
-              {filteredGroups.length === 0 ? (
-                <div className="px-2 py-3 text-xs text-muted-foreground text-center">
-                  No matches
-                </div>
-              ) : (
-                filteredGroups.map((group, groupIndex) => (
-                  <div key={group.label}>
-                    {groupIndex > 0 && <div className="bg-border/50 -mx-1 my-1 h-px" />}
-                    <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
-                      {group.label}
-                    </div>
-                    {group.ranges.map((range) => {
-                      const isActive = range.from === value.from && range.to === value.to;
-                      return (
-                        <button
-                          key={`${range.from}-${range.to}`}
-                          type="button"
-                          className={`w-full text-left min-h-7 rounded-md px-2 py-1 text-xs/relaxed transition-colors ${
-                            isActive
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "text-foreground hover:bg-accent hover:text-accent-foreground"
-                          }`}
-                          onClick={() => handlePresetClick(range.from, range.to)}
-                        >
-                          {range.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
-              )}
+              {quickRanges}
             </ScrollArea>
           </div>
 
           {/* Right panel: custom range */}
-          <div className="flex-1 p-3 space-y-3">
-            <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
-
-            <div className="space-y-1.5 flex flex-col">
-              <label
-                htmlFor="time-range-from"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                From
-              </label>
-              <Input
-                id="time-range-from"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                placeholder="now-7d"
-              />
-              <div className="text-[11px] h-3.5">
-                {customRangeState.fromPreview ? (
-                  <span className="text-muted-foreground">→ {customRangeState.fromPreview}</span>
-                ) : customFrom ? (
-                  <span className="text-destructive">Invalid expression</span>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="space-y-1.5 flex flex-col">
-              <label htmlFor="time-range-to" className="text-xs font-medium text-muted-foreground">
-                To
-              </label>
-              <Input
-                id="time-range-to"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-                placeholder="now"
-              />
-              <div className="text-[11px] h-3.5">
-                {customRangeState.toPreview ? (
-                  <span className="text-muted-foreground">→ {customRangeState.toPreview}</span>
-                ) : customTo ? (
-                  <span className="text-destructive">Invalid expression</span>
-                ) : null}
-              </div>
-            </div>
-
-            {customRangeState.rangeInverted && (
-              <p className="text-destructive text-[11px]">
-                &quot;From&quot; must be before &quot;To&quot;
-              </p>
-            )}
-            <Button
-              className="w-full mt-1"
-              disabled={!customRangeState.canApply}
-              onClick={handleApply}
-            >
-              Apply time range
-            </Button>
-          </div>
+          <div className="flex-1 p-3">{customRange}</div>
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function QuickRangeList({
+  groups,
+  value,
+  touch,
+  onPick,
+}: {
+  groups: QuickRangeGroup[];
+  value: TimeRange;
+  /** The phone sheet: finger-sized rows. */
+  touch: boolean;
+  onPick: (from: string, to: string) => void;
+}) {
+  if (groups.length === 0) {
+    return <div className="px-2 py-3 text-xs text-muted-foreground text-center">No matches</div>;
+  }
+  return groups.map((group, groupIndex) => (
+    <div key={group.label}>
+      {groupIndex > 0 && <div className="bg-border/50 -mx-1 my-1 h-px" />}
+      <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">{group.label}</div>
+      {group.ranges.map((range) => {
+        const isActive = range.from === value.from && range.to === value.to;
+        return (
+          <button
+            key={`${range.from}-${range.to}`}
+            type="button"
+            className={cn(
+              "w-full text-left rounded-md px-2 transition-colors",
+              touch ? "min-h-11 py-2 text-sm" : "min-h-7 py-1 text-xs/relaxed",
+              isActive
+                ? "bg-primary/10 text-primary font-medium"
+                : "text-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+            onClick={() => onPick(range.from, range.to)}
+          >
+            {range.label}
+          </button>
+        );
+      })}
+    </div>
+  ));
+}
+
+function CustomRangeForm({
+  from,
+  to,
+  onFromChange,
+  onToChange,
+  state,
+  onApply,
+  touch,
+}: {
+  from: string;
+  to: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  state: {
+    canApply: boolean;
+    fromPreview: string | null;
+    toPreview: string | null;
+    rangeInverted: boolean;
+  };
+  onApply: () => void;
+  /** The phone sheet's bottom bar: From and To side by side, a taller button. */
+  touch: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
+      <div className={cn(touch ? "flex gap-3" : "space-y-3")}>
+        <RangeField
+          id="time-range-from"
+          label="From"
+          value={from}
+          onChange={onFromChange}
+          placeholder="now-7d"
+          preview={state.fromPreview}
+        />
+        <RangeField
+          id="time-range-to"
+          label="To"
+          value={to}
+          onChange={onToChange}
+          placeholder="now"
+          preview={state.toPreview}
+        />
+      </div>
+      {state.rangeInverted && (
+        <p className="text-destructive text-[11px]">
+          &quot;From&quot; must be before &quot;To&quot;
+        </p>
+      )}
+      <Button
+        className={cn("w-full mt-1", touch && "h-10")}
+        disabled={!state.canApply}
+        onClick={onApply}
+      >
+        Apply time range
+      </Button>
+    </div>
+  );
+}
+
+function RangeField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  preview,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  preview: string | null;
+}) {
+  return (
+    <div className="min-w-0 flex-1 space-y-1.5 flex flex-col">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+      <div className="text-[11px] h-3.5 truncate">
+        {preview ? (
+          <span className="text-muted-foreground">→ {preview}</span>
+        ) : value ? (
+          <span className="text-destructive">Invalid expression</span>
+        ) : null}
+      </div>
+    </div>
   );
 }

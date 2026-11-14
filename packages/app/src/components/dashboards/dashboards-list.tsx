@@ -190,7 +190,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
                   onClick={() => setNeedsDataDisclosure(showNeedsData ? "closed" : "open")}
                   aria-expanded={showNeedsData}
                   title="Nothing sent in the last 7 days"
-                  className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
+                  className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left max-md:py-2 font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
                 >
                   {showNeedsData ? (
                     <ChevronDown className="size-3 shrink-0" />
@@ -231,7 +231,7 @@ function GroupLabel({
           onClick={onToggle}
           className={cn(
             groupLabelClass,
-            "flex w-full items-center gap-1 rounded-md px-1 text-left hover:text-foreground",
+            "flex w-full items-center gap-1 rounded-md px-1 text-left hover:text-foreground max-md:py-2",
           )}
         >
           {open ? (

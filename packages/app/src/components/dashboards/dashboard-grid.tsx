@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
-import { persesToRGL } from "#app/data/dashboards/convert.ts";
+import { persesToRGL, stackLayout } from "#app/data/dashboards/convert.ts";
 import { GRID_COLS } from "#app/data/dashboards/schema.ts";
 import { DashboardPanel } from "./dashboard-panel";
 import { DashboardToolbar } from "./dashboard-toolbar";
@@ -15,6 +15,13 @@ import { useDashboard } from "./use-dashboard";
 import { SharedTimeCursorProvider } from "./visualizations/shared-time-cursor";
 
 const ROW_HEIGHT = 30;
+
+/**
+ * Below this pane width the authored columns get too thin to read (a half-width
+ * panel is ~170px on a phone), so every panel stacks at the full width instead.
+ * Measured on the pane, not the viewport: the rail takes its share on wider screens.
+ */
+const STACK_BELOW_WIDTH = 640;
 
 export function DashboardGrid({
   address,
@@ -39,11 +46,13 @@ export function DashboardGrid({
   });
   useRestoredGridScroll(containerRef);
 
+  const stacked = width < STACK_BELOW_WIDTH;
   const layout = useMemo(() => {
     const firstLayout = dashboard.spec.layouts[0];
     if (!firstLayout) return [];
-    return persesToRGL(firstLayout.spec.items);
-  }, [dashboard]);
+    const authored = persesToRGL(firstLayout.spec.items);
+    return stacked ? stackLayout(authored, GRID_COLS) : authored;
+  }, [dashboard, stacked]);
 
   return (
     <div>

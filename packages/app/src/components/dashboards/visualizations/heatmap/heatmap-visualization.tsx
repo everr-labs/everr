@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useEChart } from "@everr/ui/hooks/use-echart";
@@ -18,7 +19,13 @@ import { createTextMeasurer, plainAxisOption, rowLabelAxis } from "../echarts/ax
 import { gridOption, plotWithin } from "../echarts/plot-rect";
 import type { VisualizationProps } from "../index";
 import { PanelEmptyState } from "../panel-empty-state";
-import { linearTimeScale, TimeAxis, TimeTrackOverlay, useTimeTrack } from "../time-track";
+import {
+  linearTimeScale,
+  TimeAxis,
+  TOUCH_SCRUB,
+  TimeTrackOverlay,
+  useTimeTrack,
+} from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapSchemeColors } from "./heatmap-colors";
 import { buildHeatmapModel } from "./heatmap-data";
@@ -220,7 +227,7 @@ export function HeatmapVisualization({
       {/* A scroll moves the rows from under the pointer: drop their hover. */}
       <div className="min-h-0 flex-1 overflow-y-auto" onScroll={track.clearHover}>
         <div
-          className="relative h-full"
+          className={cn("relative h-full", TOUCH_SCRUB)}
           style={{ minHeight: model.yBuckets.length * MIN_ROW_HEIGHT }}
           {...track.handlers}
         >

@@ -13,7 +13,7 @@ import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useId } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
 import type { ListVariable, TextVariable, Variable } from "#app/data/dashboards/schema.ts";
 import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
@@ -56,6 +56,8 @@ export function useHasVisibleVariables(): boolean {
 export type VariableBarLayout = "stacked" | "inline";
 
 export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout }) {
+  // Unique per bar: the toolbar renders a second one in its Filters popover.
+  const idPrefix = useId();
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
@@ -99,6 +101,7 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
             key={variable.spec.name}
             variable={variable}
             layout={layout}
+            id={`${idPrefix}-${variable.spec.name}`}
             value={typeof currentValue === "string" ? currentValue : ""}
             onCommit={(value) => setValue(variable.spec.name, value)}
           />
@@ -107,6 +110,7 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
             key={variable.spec.name}
             variable={variable}
             layout={layout}
+            id={`${idPrefix}-${variable.spec.name}`}
             value={values[variable.spec.name]}
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
@@ -125,22 +129,23 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
 function TextVariableField({
   variable,
   layout,
+  id,
   value,
   onCommit,
 }: {
   variable: TextVariable;
   layout: VariableBarLayout;
+  id: string;
   value: string;
   onCommit: (value: string) => void;
 }) {
-  const name = variable.spec.name;
   return (
     <div className={fieldClass(layout)}>
-      <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
       <Input
-        id={`var-${name}`}
+        id={id}
         key={value}
         defaultValue={value}
         className="h-8 w-40"
@@ -158,17 +163,18 @@ function TextVariableField({
 function ListVariableField({
   variable,
   layout,
+  id,
   value,
   optionsState,
   onChange,
 }: {
   variable: ListVariable;
   layout: VariableBarLayout;
+  id: string;
   value: string | string[] | undefined;
   optionsState: VariableOptionsState | undefined;
   onChange: (value: string | string[]) => void;
 }) {
-  const name = variable.spec.name;
   const multi = variable.spec.allowMultiple === true;
   const allowAll = variable.spec.allowAllValue === true;
   const { options, isPending, error, truncated } = optionsState ?? {
@@ -204,14 +210,14 @@ function ListVariableField({
 
   return (
     <div className={fieldClass(layout)}>
-      <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
-              id={`var-${name}`}
+              id={id}
               variant="outline"
               size="sm"
               title={error ?? (selected.length > 0 ? selected.join(", ") : undefined)}

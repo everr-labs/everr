@@ -23,7 +23,7 @@ export function PreviewIndicator() {
       >
         <GitBranch className="size-3.5 shrink-0 text-amber-400" />
         <span className="sr-only">Previewing </span>
-        <span className="max-w-[12rem] truncate">{preview}</span>
+        <span className="max-w-[12rem] truncate max-sm:max-w-20">{preview}</span>
         <button
           type="button"
           onClick={exitPreview}

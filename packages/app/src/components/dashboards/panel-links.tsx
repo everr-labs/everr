@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { flushSync } from "react-dom";
+import { TOUCH_TARGET } from "../touch-target";
 
 /** Where a dashboard lives in the app: the address its panel pages hang under. */
 export type DashboardAddress =
@@ -152,8 +153,7 @@ interface AnchorProps {
   children: ReactNode;
 }
 
-const iconLinkClass =
-  "flex rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2";
+const iconLinkClass = `flex rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 ${TOUCH_TARGET}`;
 
 /**
  * `vars` is not retained across navigation (other dashboards have other

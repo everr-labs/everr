@@ -1,3 +1,4 @@
+import { cn } from "@everr/ui/lib/utils";
 import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -31,7 +32,7 @@ import {
 } from "@everr/ui/components/series-legend";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
 import type { VisualizationProps } from "../index";
-import { type TimeScale, TimeTrackOverlay, useTimeTrack } from "../time-track";
+import { TOUCH_SCRUB, type TimeScale, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { buildBarChartModel, X_KEY } from "./bar-chart-data";
 import type { BarChartSpec } from "./spec";
@@ -463,7 +464,10 @@ export function BarChartVisualization({
   const tooltipX = tooltipRow?.[X_KEY];
 
   return (
-    <div className="relative h-full w-full text-muted-foreground" {...track.handlers}>
+    <div
+      className={cn("relative h-full w-full text-muted-foreground", TOUCH_SCRUB)}
+      {...track.handlers}
+    >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       {/* The canvas has no text of its own: say what it shows. */}
       <p className="sr-only">

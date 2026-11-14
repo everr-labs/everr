@@ -7,10 +7,12 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
+import { cn } from "@everr/ui/lib/utils";
+import { Toggletip, ToggletipContent, ToggletipTrigger } from "@everr/ui/components/toggletip";
 import { AlertCircle, CircleHelp, Info } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import type { PanelChromeProps } from "./panel-types";
+import { TOUCH_TARGET } from "./touch-target";
 
 export interface PanelShellProps extends PanelChromeProps {
   status: "pending" | "error" | "success";
@@ -24,20 +26,23 @@ function PanelTitle({ title, description }: { title?: string; description?: stri
     <CardTitle className="flex items-center gap-1.5">
       {title && <span>{title}</span>}
       {description && (
-        <Tooltip>
-          <TooltipTrigger
+        <Toggletip>
+          <ToggletipTrigger
             render={
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                className={cn(
+                  "text-muted-foreground hover:text-foreground shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2",
+                  TOUCH_TARGET,
+                )}
                 aria-label={title ? `About ${title}` : "Panel description"}
               />
             }
           >
             <Info className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipContent className="max-w-80 whitespace-pre-wrap">{description}</TooltipContent>
-        </Tooltip>
+          </ToggletipTrigger>
+          <ToggletipContent className="whitespace-pre-wrap">{description}</ToggletipContent>
+        </Toggletip>
       )}
     </CardTitle>
   );
@@ -48,20 +53,20 @@ function StatTitle({ title, titleHint }: { title: string; titleHint?: ReactNode 
   return (
     <CardDescription className="inline-flex items-center gap-1">
       {title}
-      <Tooltip>
-        <TooltipTrigger
+      <Toggletip>
+        <ToggletipTrigger
           render={
             <button
               type="button"
-              className="text-muted-foreground hover:text-foreground"
+              className={cn("text-muted-foreground hover:text-foreground", TOUCH_TARGET)}
               aria-label={`What is ${title}?`}
             />
           }
         >
           <CircleHelp className="size-3.5" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-64">{titleHint}</TooltipContent>
-      </Tooltip>
+        </ToggletipTrigger>
+        <ToggletipContent className="max-w-64">{titleHint}</ToggletipContent>
+      </Toggletip>
     </CardDescription>
   );
 }

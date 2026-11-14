@@ -6,7 +6,8 @@ import { loadPanel, panelBreadcrumb } from "./-panel-route.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug/panel/$panelKey",
 )({
-  staticData: { breadcrumb: panelBreadcrumb },
+  // Carries the dashboard toolbar and its list toggle (see RailFrame).
+  staticData: { breadcrumb: panelBreadcrumb, railToggle: true },
   loader: ({ params: { slug, panelKey } }) =>
     loadPanel(getBuiltinDashboard(slug)?.document.spec.panels, panelKey),
   component: PanelPage,
