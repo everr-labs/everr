@@ -117,11 +117,26 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
   return { status: "success", data: active.map((s) => s.rows ?? []) };
 }
 
+/**
+ * The window the newest fetch queried. Each query pins its relative range to
+ * exact dates when it runs, and a multi-query panel's queries can resolve at
+ * slightly different moments, so the latest one covers all of their data.
+ */
+export function latestQueriedRange(
+  results: readonly { data?: { timeRange: ResolvedTimeRange } }[],
+): ResolvedTimeRange | undefined {
+  let latest: ResolvedTimeRange | undefined;
+  for (const r of results) {
+    const range = r.data?.timeRange;
+    if (range && (!latest || range.to.getTime() > latest.to.getTime())) latest = range;
+  }
+  return latest;
+}
+
 export interface DashboardPanelData extends CombinedPanelResult {
   /**
-   * Absolute range the visualization renders against (axis domain, brush).
-   * Resolved here from the effective time range so the panel never reads it a
-   * second time.
+   * Absolute range the visualization renders against (axis domain, brush):
+   * the exact window the shown data was queried for.
    */
   timeRange: ResolvedTimeRange;
 }
@@ -189,14 +204,18 @@ export function useDashboardPanelData(
     [requests, results],
   );
 
-  // Memoize on the primitive bounds: `timeRange` is a fresh object each render,
-  // so depending on it directly would never hit the cache.
+  // Before any query has returned there is no queried window yet; resolve the
+  // range here so a loading panel still has an axis. Memoize on primitives:
+  // `timeRange` is a fresh object each render.
   const { from, to } = timeRange;
-  const viz = useMemo(() => resolveTimeRange({ from, to }), [from, to]);
+  const fallback = useMemo(() => {
+    const { fromDate, toDate } = resolveTimeRange({ from, to });
+    return { from: fromDate, to: toDate };
+  }, [from, to]);
   // Keep the last complete batch and its axis range together while replacement
   // queries finish. A panel can have several queries that resolve separately.
   return useRetainedPanelData(panel, {
     ...combined,
-    timeRange: { from: viz.fromDate, to: viz.toDate },
+    timeRange: latestQueriedRange(results) ?? fallback,
   });
 }

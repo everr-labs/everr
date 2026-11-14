@@ -1,6 +1,10 @@
+import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
-import type { QueryResultRow } from "#app/components/dashboards/visualizations/index.tsx";
+import type {
+  QueryResultRow,
+  ResolvedTimeRange,
+} from "#app/components/dashboards/visualizations/index.tsx";
 import { createLimiter } from "#app/lib/limiter.ts";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
@@ -57,15 +61,33 @@ export const panelQueryOptions = (
 ) =>
   queryOptions({
     queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
-    queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
-      // `none` is never enabled, but the queryFn must still type-check.
-      if (source.kind === "none") return { rows: [] };
-      return panelLimiter(signal, () =>
-        runPanelQuery({
-          data: { source, from, to, variables, variableMeta },
-        }),
-      );
-    },
+    queryFn: async ({
+      signal,
+    }): Promise<{ rows: QueryResultRow[]; timeRange: ResolvedTimeRange }> =>
+      panelLimiter(signal, async () => {
+        // The key keeps the relative range (`now-1h`) so a refresh hits the
+        // same cache entry, but each fetch pins it to exact dates here: the
+        // server queries that window and the panel's axis renders it, so the
+        // two can't drift apart. Resolved after the limiter's queue wait so
+        // the window is current when the query actually runs.
+        const { fromDate, toDate } = resolveTimeRange({
+          from: from ?? DEFAULT_TIME_RANGE.from,
+          to: to ?? DEFAULT_TIME_RANGE.to,
+        });
+        const timeRange = { from: fromDate, to: toDate };
+        // `none` is never enabled, but the queryFn must still type-check.
+        if (source.kind === "none") return { rows: [], timeRange };
+        const { rows } = await runPanelQuery({
+          data: {
+            source,
+            from: fromDate.toISOString(),
+            to: toDate.toISOString(),
+            variables,
+            variableMeta,
+          },
+        });
+        return { rows, timeRange };
+      }),
     enabled:
       source.kind === "ClickHouseSQL" ? source.sql.trim().length > 0 : source.kind === "TestData",
     // Data for a given (source, range, variables) key never goes stale on its
