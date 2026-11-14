@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { CodeBlock } from "@everr/ui/components/code-block";
+import { HighlightedCode } from "@everr/ui/components/highlighted-code";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
@@ -345,7 +346,7 @@ export function AlertDetailPanel({
                   a one-line value, because reading it is how anyone decides
                   whether the alert is measuring the right thing. */}
               <CodeBlock className="rounded-md border bg-background/70" codeClassName="font-mono">
-                <code>{detail.definition.query}</code>
+                <HighlightedCode language="sql" code={detail.definition.query} />
               </CodeBlock>
             </div>
           </Section>

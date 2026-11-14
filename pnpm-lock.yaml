@@ -411,12 +411,6 @@ importers:
       graphile-worker:
         specifier: ^0.16.6
         version: 0.16.6(supports-color@7.2.0)(typescript@6.0.3)
-      highlight.js:
-        specifier: ^11.12.0
-        version: 11.12.0
-      lowlight:
-        specifier: ^3.3.0
-        version: 3.3.0
       lucide-react:
         specifier: 'catalog:'
         version: 1.14.0(react@19.2.6)
@@ -1161,6 +1155,12 @@ importers:
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
+      highlight.js:
+        specifier: ^11.12.0
+        version: 11.12.0
+      lowlight:
+        specifier: ^3.3.0
+        version: 3.3.0
       lucide-react:
         specifier: 'catalog:'
         version: 1.14.0(react@19.2.6)

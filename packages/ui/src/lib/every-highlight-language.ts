@@ -1,12 +1,13 @@
+/// <reference types="vite-plus/client" />
 import type { LanguageFn } from "highlight.js";
 
 // Every grammar highlight.js ships, keyed by its file name. Loaded on its own
-// (see highlighted-code.tsx), so only runbooks with a fence outside the common
-// set download it. The `.js.js` files are CommonJS twins of the same grammars.
+// (see components/highlighted-code.tsx), so only pages showing code outside
+// the common set download it. The `.js.js` files are CommonJS twins of the same grammars.
 const modules = import.meta.glob<LanguageFn>(
   [
-    "/node_modules/highlight.js/es/languages/*.js",
-    "!/node_modules/highlight.js/es/languages/*.js.js",
+    "../../node_modules/highlight.js/es/languages/*.js",
+    "!../../node_modules/highlight.js/es/languages/*.js.js",
   ],
   { eager: true, import: "default" },
 );

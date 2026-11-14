@@ -1,4 +1,5 @@
 @import "@everr/ui/src/styles/global.css";
+@import "@everr/ui/styles/highlight.css";
 @import "@everr/telemetry-explorer/styles.css";
 
 @plugin "@tailwindcss/typography";
@@ -189,45 +190,6 @@
   border-top: 1px solid var(--border);
   font-size: 0.875rem;
   color: var(--muted-foreground);
-}
-
-/* Syntax highlighting (highlight.js classes), muted to sit with the theme. */
-.runbook-prose .hljs-keyword,
-.runbook-prose .hljs-built_in,
-.runbook-prose .hljs-literal,
-.runbook-prose .hljs-type,
-.runbook-prose .hljs-meta {
-  color: oklch(0.74 0.14 300);
-}
-
-.runbook-prose .hljs-string,
-.runbook-prose .hljs-regexp,
-.runbook-prose .hljs-symbol {
-  color: oklch(0.8 0.13 150);
-}
-
-.runbook-prose .hljs-number {
-  color: oklch(0.82 0.13 75);
-}
-
-.runbook-prose .hljs-title,
-.runbook-prose .hljs-function,
-.runbook-prose .hljs-variable,
-.runbook-prose .hljs-template-variable {
-  color: oklch(0.78 0.11 240);
-}
-
-.runbook-prose .hljs-attr,
-.runbook-prose .hljs-attribute,
-.runbook-prose .hljs-property,
-.runbook-prose .hljs-params {
-  color: oklch(0.8 0.09 200);
-}
-
-.runbook-prose .hljs-comment,
-.runbook-prose .hljs-quote {
-  color: var(--muted-foreground);
-  font-style: italic;
 }
 
 /* The bare HTML a runbook may use. */
