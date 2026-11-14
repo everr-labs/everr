@@ -2,7 +2,7 @@ import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
 import { ExploreSearchSchema, ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { LogsSearchSchema } from "@everr/telemetry-explorer/logs";
 import { TraceSearchParamsSchema } from "@everr/telemetry-explorer/traces";
-import { describe, expect, it } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 // Regression test for: service/environment being stripped by child-route
 // validateSearch when navigating between Explore sections.
@@ -27,31 +27,13 @@ const INPUT = {
   environment: ["prod"],
 };
 
-describe("explore child route schemas preserve service and environment", () => {
-  it("logs schema preserves service and environment", () => {
-    const out = LogsSearchSchema.parse(INPUT);
-    expect(out.service).toEqual(["api"]);
-    expect(out.environment).toEqual(["prod"]);
-  });
-
-  it("errors schema preserves service and environment", () => {
-    const out = ErrorsSearchSchema.parse(INPUT);
-    expect(out.service).toEqual(["api"]);
-    expect(out.environment).toEqual(["prod"]);
-  });
-
-  it("traces schema preserves service and environment", () => {
-    const out = TracesSearchSchema.parse(INPUT);
-    expect(out.service).toEqual(["api"]);
-    expect(out.environment).toEqual(["prod"]);
-  });
-});
-
-// Belt-and-suspenders: the _explore layout schema also preserves them.
-describe("_explore layout schema preserves service and environment", () => {
-  it("validateSearch keeps service and environment", () => {
-    const out = ExploreSearchSchema.parse(INPUT);
-    expect(out.service).toEqual(["api"]);
-    expect(out.environment).toEqual(["prod"]);
-  });
+it.each([
+  ["logs", LogsSearchSchema],
+  ["errors", ErrorsSearchSchema],
+  ["traces", TracesSearchSchema],
+  ["_explore layout", ExploreSearchSchema],
+] as const)("%s schema preserves service and environment", (_name, schema) => {
+  const out = schema.parse(INPUT);
+  expect(out.service).toEqual(["api"]);
+  expect(out.environment).toEqual(["prod"]);
 });

@@ -11,10 +11,6 @@ import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export const alertingIntegrationTests = [
-  `${appDirectory}src/{data,server}/alerting/**/*.integration.test.ts`,
-];
-
 export function createAppTestConfig(
   composition: AppComposition = installationComposition,
   root = appDirectory,
@@ -37,7 +33,18 @@ export function createAppTestConfig(
     plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
     test: {
       clearMocks: false,
-      environment: "jsdom",
+      // Only component tests (.test.tsx) pay for a jsdom environment.
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: "node",
+            environment: "node",
+            include: ["**/*.test.ts"],
+          },
+        },
+        { extends: true, test: { name: "dom", environment: "jsdom", include: ["**/*.test.tsx"] } },
+      ],
       setupFiles: [join(appDirectory, "src/test-setup.ts")],
       reporters: ["verbose"],
       env: {

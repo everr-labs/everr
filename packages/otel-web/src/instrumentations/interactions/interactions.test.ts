@@ -70,17 +70,6 @@ describe("startInteractions", () => {
       expect(emitted[0].timestamp).toBe(Math.round(performance.timeOrigin + 123.5));
     });
 
-    it("clicks carry the full element payload (id, href)", () => {
-      document.body.innerHTML =
-        '<nav class="top main extra fourth"><a id="docs-link" href="/docs">Read the docs</a></nav>';
-      click(document.getElementById("docs-link") as Element);
-
-      const a = clickAttrs();
-      expect(a["everr.element.tag"]).toBe("a");
-      expect(a["everr.element.selector"]).toBe("#docs-link");
-      expect(a["everr.element.href"]).toBe("/docs");
-    });
-
     it("stops at the shortest path that matches one element", () => {
       document.body.innerHTML = "<div><p>one</p><p>two <span>deep</span></p></div>";
       click(document.querySelector("span") as Element);

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { context, propagation, ROOT_CONTEXT, trace } from "@opentelemetry/api";
 import {
   InMemoryLogRecordExporter,

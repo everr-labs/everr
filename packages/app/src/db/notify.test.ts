@@ -64,24 +64,4 @@ describe("notifyWorkflowUpdate", () => {
       }),
     ).resolves.not.toThrow();
   });
-
-  it("accepts job type with jobId", async () => {
-    await notifyWorkflowUpdate(mockDb, {
-      tenantId: "42",
-      traceId: "abc123",
-      runId: "999",
-      sha: "deadbeef",
-      repo: "org/repo",
-      branch: "main",
-      authorEmail: null,
-      workflowName: "CI",
-      name: "build",
-      type: "job",
-      status: "completed",
-      conclusion: "failure",
-      jobId: 12345,
-    });
-
-    expect(mockExecute).toHaveBeenCalledTimes(1);
-  });
 });

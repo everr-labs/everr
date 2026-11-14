@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { sql } from "drizzle-orm";
 import {
   afterAll,

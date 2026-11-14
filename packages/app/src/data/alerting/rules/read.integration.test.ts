@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 /**
  * The app's PostgreSQL reads of Alert rules, against a real engine.
  *
@@ -94,19 +92,15 @@ describe("the Alert rules the app reads", () => {
     expect(rulePath(rule)).toBe("payments/latency");
   });
 
-  it("reports not found for a path no Alert rule has", async () => {
-    await insertRule(harness().db, { slug: "checkout-latency" });
-
-    await expect(loadRule(TEST_ORG, "default/no-such-rule")).rejects.toThrow();
-  });
-
-  it("reports not found for a Preview copy's path", async () => {
+  it("reports not found for a path no live Alert rule has", async () => {
     const preview = await insertPreview(harness().db);
+    await insertRule(harness().db, { slug: "checkout-latency" });
     await insertRule(harness().db, {
       slug: "preview-only",
       previewId: preview.id,
     });
 
+    await expect(loadRule(TEST_ORG, "default/no-such-rule")).rejects.toThrow();
     await expect(loadRule(TEST_ORG, "default/preview-only")).rejects.toThrow();
   });
 

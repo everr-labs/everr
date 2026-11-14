@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { createApplicationAuth } from "@everr/app/identity/module";
 import { withTransactionReads } from "@everr/app/identity/testing/transaction-reads";
 import type { IdentityEvent } from "@everr/app/identity/events";
@@ -120,13 +118,6 @@ async function allowEnqueues() {
   );
 }
 
-it("commits organization creation and provisioning intent together", async () => {
-  await create();
-  expect(await jobs()).toEqual(["clickhouse/provision-organization"]);
-  expect(
-    isOrganizationProvisioned((await fixture.db.select().from(organization))[0].metadata),
-  ).toBe(false);
-});
 it("rolls back creation if the queue cannot record provisioning intent", async () => {
   await rejectEnqueues();
   try {

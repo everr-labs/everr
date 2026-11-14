@@ -19,39 +19,16 @@ describe("evaluate", () => {
     vi.useRealTimers();
   });
 
-  it("subtracts seconds", () => {
-    const result = evaluate(parse("now-30s"), { now: NOW });
-    expect(result).toEqual(new Date("2025-06-15T11:59:30.000Z"));
-  });
-
-  it("adds minutes", () => {
-    const result = evaluate(parse("now+15m"), { now: NOW });
-    expect(result).toEqual(new Date("2025-06-15T12:15:00.000Z"));
-  });
-
-  it("subtracts hours", () => {
-    const result = evaluate(parse("now-3h"), { now: NOW });
-    expect(result).toEqual(new Date("2025-06-15T09:00:00.000Z"));
-  });
-
-  it("subtracts days", () => {
-    const result = evaluate(parse("now-7d"), { now: NOW });
-    expect(result).toEqual(new Date("2025-06-08T12:00:00.000Z"));
-  });
-
-  it("adds weeks", () => {
-    const result = evaluate(parse("now+2w"), { now: NOW });
-    expect(result).toEqual(new Date("2025-06-29T12:00:00.000Z"));
-  });
-
-  it("subtracts months", () => {
-    const result = evaluate(parse("now-1M"), { now: NOW });
-    expect(result).toEqual(new Date("2025-05-15T12:00:00.000Z"));
-  });
-
-  it("adds years", () => {
-    const result = evaluate(parse("now+1y"), { now: NOW });
-    expect(result).toEqual(new Date("2026-06-15T12:00:00.000Z"));
+  it.each([
+    ["now-30s", "2025-06-15T11:59:30.000Z"],
+    ["now+15m", "2025-06-15T12:15:00.000Z"],
+    ["now-3h", "2025-06-15T09:00:00.000Z"],
+    ["now-7d", "2025-06-08T12:00:00.000Z"],
+    ["now+2w", "2025-06-29T12:00:00.000Z"],
+    ["now-1M", "2025-05-15T12:00:00.000Z"],
+    ["now+1y", "2026-06-15T12:00:00.000Z"],
+  ])("evaluates %s", (expression, iso) => {
+    expect(evaluate(parse(expression), { now: NOW })).toEqual(new Date(iso));
   });
 
   it("handles absolute date anchor", () => {

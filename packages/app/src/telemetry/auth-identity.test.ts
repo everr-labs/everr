@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { trace } from "@opentelemetry/api";
 import {
   InMemoryLogRecordExporter,
@@ -579,14 +578,13 @@ it("preserves existing span identity but clears subsequent attribution when the 
   ).toEqual({ "user.id": user.id });
 });
 
-it.each(
-  (["compact", "jwt", "jwe"] as const).flatMap((strategy) =>
-    ["/get-access-token", "/refresh-token", "/account-info"].map((endpoint) => ({
-      strategy,
-      endpoint,
-    })),
-  ),
-)(
+// Each cache strategy and each authoritative endpoint runs once. The hook has
+// no per-endpoint branch, so crossing them would add nothing.
+it.each([
+  { strategy: "compact", endpoint: "/get-access-token" },
+  { strategy: "jwt", endpoint: "/refresh-token" },
+  { strategy: "jwe", endpoint: "/account-info" },
+] as const)(
   "requires an authoritative session for $endpoint while retaining $strategy cache identity in telemetry",
   async ({ strategy, endpoint }) => {
     const refreshAccessToken = vi.fn(async () => ({

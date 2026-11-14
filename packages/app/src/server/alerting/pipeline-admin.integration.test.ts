@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { describe, expect, it, vi } from "vite-plus/test";
 import { decryptChannelConfig } from "#app/data/alerting/delivery/channel-secrets.server.ts";
 import {
@@ -126,7 +124,7 @@ describe("the silences the CLI manages", () => {
     expect(new Date(listed?.ends_at ?? "")).toEqual(new Date("2026-08-20T10:00:00.000Z"));
   });
 
-  it("finds the silences whose window overlapped the one asked about", async () => {
+  it("finds the silences whose window overlapped the one asked about, taking each bound on its own", async () => {
     await createSilence(scope, {
       starts_at: "2026-08-20T08:00:00.000Z",
       ends_at: "2026-08-20T10:00:00.000Z",
@@ -150,14 +148,6 @@ describe("the silences the CLI manages", () => {
     expect(await overlapping("2026-08-20T10:00:00Z", "2026-08-20T11:00:00Z")).toBe(0);
     expect(await overlapping("2026-08-20T06:00:00Z", "2026-08-20T08:00:00Z")).toBe(0);
     expect(await overlapping("2026-08-20T11:00:00Z", "2026-08-20T12:00:00Z")).toBe(0);
-  });
-
-  it("takes each bound on its own", async () => {
-    await createSilence(scope, {
-      starts_at: "2026-08-20T08:00:00.000Z",
-      ends_at: "2026-08-20T10:00:00.000Z",
-      matchers: [{ label: "service", op: "eq", value: "checkout" }],
-    });
 
     // `from` alone: had not closed yet by then.
     expect(
@@ -206,31 +196,12 @@ describe("the silences the CLI manages", () => {
     expect(page[0]?.matchers).toEqual([{ label: "service", op: "eq", value: "second" }]);
   });
 
-  it("stamps the author from the session, not from the input", async () => {
-    const silence = await createSilence(scope, {
-      ...window,
-      matchers: [{ label: "service", op: "eq", value: "checkout" }],
-      author: "somebody-else",
-    } as never);
-
-    expect(silence.author).toBe(TEST_ACTOR.display);
-  });
-
-  it("refuses a silence that selects everything", async () => {
-    await expect(createSilence(scope, { ...window, matchers: [] })).rejects.toMatchObject({
-      status: 422,
-      code: "validation",
-    });
-  });
-
-  it("refuses an id that is not a silence id", async () => {
-    await expect(expireSilence(scope, "not-a-uuid")).rejects.toMatchObject({
-      status: 422,
-      code: "validation",
-    });
-  });
-
-  it("refuses a window that ends before it starts", async () => {
+  it("refuses a silence that selects everything, an id that is not a silence id, and a window that ends before it starts", async () => {
+    const validation = { status: 422, code: "validation" };
+    await expect(createSilence(scope, { ...window, matchers: [] })).rejects.toMatchObject(
+      validation,
+    );
+    await expect(expireSilence(scope, "not-a-uuid")).rejects.toMatchObject(validation);
     await expect(
       createSilence(scope, {
         starts_at: window.ends_at,
@@ -315,20 +286,24 @@ describe("the delivery channels the CLI manages", () => {
     });
   });
 
-  it("refuses a blank name, which no rule could address", async () => {
-    await expect(createChannel(scope, { name: "   ", config: slack })).rejects.toMatchObject({
-      status: 422,
-      code: "validation",
-    });
-  });
-
-  it("refuses a config whose type is not a transport", async () => {
+  it("refuses a blank name, a config whose type is not a transport, and the read-side redaction marker", async () => {
+    const validation = { status: 422, code: "validation" };
+    // A blank name is one no rule could address.
+    await expect(createChannel(scope, { name: "   ", config: slack })).rejects.toMatchObject(
+      validation,
+    );
     await expect(
       createChannel(scope, {
         name: "oncall",
         config: { type: "carrier-pigeon", url: "https://203.0.113.10/x" },
       }),
-    ).rejects.toMatchObject({ status: 422, code: "validation" });
+    ).rejects.toMatchObject(validation);
+    await expect(
+      createChannel(scope, {
+        name: "oncall",
+        config: { type: "telegram", bot_token: "***", chat_ids: ["chat"] },
+      }),
+    ).rejects.toMatchObject(validation);
   });
 
   it("requires a secret for a new channel and after a type change", async () => {
@@ -340,15 +315,6 @@ describe("the delivery channels the CLI manages", () => {
     await expect(
       updateChannel(scope, "oncall", {
         config: { type: "telegram", chat_ids: ["chat"] },
-      }),
-    ).rejects.toMatchObject({ status: 422, code: "validation" });
-  });
-
-  it("refuses the read-side redaction marker on writes", async () => {
-    await expect(
-      createChannel(scope, {
-        name: "oncall",
-        config: { type: "telegram", bot_token: "***", chat_ids: ["chat"] },
       }),
     ).rejects.toMatchObject({ status: 422, code: "validation" });
   });

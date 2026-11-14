@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
-import { panelKeyFromRef, persesToRGL } from "./convert";
+import { persesToRGL } from "./convert";
 import type { GridItem } from "./schema";
-
-describe("panelKeyFromRef", () => {
-  it("extracts panel key from $ref", () => {
-    expect(panelKeyFromRef("#/spec/panels/myPanel")).toBe("myPanel");
-  });
-});
 
 describe("persesToRGL", () => {
   it("converts Perses GridItems to react-grid-layout Layout", () => {

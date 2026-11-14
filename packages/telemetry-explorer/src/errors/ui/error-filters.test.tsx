@@ -26,71 +26,27 @@ const baseValue = {
 };
 
 describe("ErrorFilters", () => {
-  it("renders Search, Order and the attribute section in the rail", () => {
+  it("renders Search, Order and the attribute section in the rail, and emits sort changes", async () => {
+    const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
         value={baseValue}
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
-    expect(screen.getByText("Search")).toBeInTheDocument();
-    expect(screen.getByText("Order")).toBeInTheDocument();
-    expect(screen.getByText("Attributes")).toBeInTheDocument();
-  });
-
-  it("never renders Service or Environment: those belong to the persistent zone", () => {
-    renderWithQueryClient(
-      <ErrorFilters
-        repo={repo}
-        timeRange={{ from: "now-1h", to: "now" }}
-        value={baseValue}
-        onChange={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Service")).not.toBeInTheDocument();
-    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
-  });
-
-  it("renders the message search inside the rail", () => {
-    renderWithQueryClient(
-      <ErrorFilters
-        repo={repo}
-        timeRange={{ from: "now-1h", to: "now" }}
-        value={baseValue}
-        onChange={vi.fn()}
+        onChange={onChange}
       />,
     );
     const rail = screen.getByRole("complementary", { name: "Error filters" });
+    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.getByText("Order")).toBeInTheDocument();
+    expect(screen.getByText("Attributes")).toBeInTheDocument();
     expect(rail).toContainElement(screen.getByPlaceholderText("Search errors"));
-  });
+    // Service and Environment belong to the persistent zone.
+    expect(screen.queryByText("Service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
 
-  it("shows a legacy deployment.environment attribute as a removable pill", () => {
-    renderWithQueryClient(
-      <ErrorFilters
-        repo={repo}
-        timeRange={{ from: "now-1h", to: "now" }}
-        value={{
-          ...baseValue,
-          attributes: [
-            {
-              source: "resource",
-              key: "deployment.environment",
-              op: "in",
-              values: ["prod"],
-            },
-          ],
-        }}
-        onChange={vi.fn()}
-      />,
-    );
-    // The top zone of the rail sets Environment, and it writes its own search
-    // param. An older entry, for example from a saved link, must stay visible
-    // and the user must be able to remove it. The query still applies that
-    // entry, so a hidden entry narrows the results for no visible reason.
-    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Count" }));
+    expect(onChange).toHaveBeenCalledWith({ sort: "count" });
   });
 
   it("clear resets the search and attributes but not the sort order", () => {
@@ -115,6 +71,12 @@ describe("ErrorFilters", () => {
         onChange={onChange}
       />,
     );
+    // The top zone of the rail sets Environment, and it writes its own search
+    // param. An older entry, for example from a saved link, must stay visible
+    // and the user must be able to remove it. The query still applies that
+    // entry, so a hidden entry narrows the results for no visible reason.
+    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [] });
   });
@@ -136,26 +98,16 @@ describe("ErrorFilters", () => {
     expect(patch).not.toHaveProperty("environment");
   });
 
-  it("an active persistent filter alone does not surface the clear control", () => {
+  it.each([
+    ["an active persistent filter", { value: baseValue, persistentFilterCount: 1 }],
+    ["the sort control", { value: { ...baseValue, sort: "count" as const } }],
+  ])("%s alone does not surface the clear control", (_, props) => {
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
-        value={baseValue}
-        persistentFilterCount={1}
         onChange={vi.fn()}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
-  });
-
-  it("the sort control alone does not surface the clear control", () => {
-    renderWithQueryClient(
-      <ErrorFilters
-        repo={repo}
-        timeRange={{ from: "now-1h", to: "now" }}
-        value={{ ...baseValue, sort: "count" }}
-        onChange={vi.fn()}
+        {...props}
       />,
     );
     expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();

@@ -1,5 +1,4 @@
 import type * as RuntimeTypes from "./runtime";
-// @vitest-environment node
 import type { EventEmitter } from "node:events";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 

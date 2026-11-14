@@ -1,6 +1,5 @@
 import { createEventPublisher } from "#app/server/events/publisher.ts";
 import { organizationEventDefinitions } from "#app/identity/events.ts";
-// @vitest-environment node
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -76,25 +75,24 @@ it("recognizes completion already saved by the former organization onboarding", 
   );
 });
 
-it.each([
-  null,
-  "",
-  "null",
-  "{}",
-  '{"onboardingCompleted":false}',
-  '{"onboardingCompleted":"true"}',
-])(
-  "treats unset or nonboolean completion as incomplete and can complete it (%s)",
-  async (metadata) => {
+it("treats unset or nonboolean completion as incomplete and can complete it", async () => {
+  for (const metadata of [
+    null,
+    "",
+    "null",
+    "{}",
+    '{"onboardingCompleted":false}',
+    '{"onboardingCompleted":"true"}',
+  ]) {
     await database
       .update(schema.organization)
       .set({ metadata })
       .where(eq(schema.organization.id, scope.organizationId));
-    expect((await store.getStatus(scope)).onboardingCompleted).toBe(false);
+    expect((await store.getStatus(scope)).onboardingCompleted, String(metadata)).toBe(false);
     expect(await store.complete(scope)).toEqual({ onboardingCompleted: true });
     expect((await store.getStatus(scope)).onboardingCompleted).toBe(true);
-  },
-);
+  }
+});
 
 it("makes completion idempotent and preserves other metadata including changes since Home was loaded", async () => {
   const initialMetadata = {

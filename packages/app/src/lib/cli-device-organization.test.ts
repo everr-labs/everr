@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { betterAuth } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { deviceAuthorization, organization } from "better-auth/plugins";

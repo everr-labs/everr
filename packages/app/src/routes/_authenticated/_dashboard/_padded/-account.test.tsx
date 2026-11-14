@@ -261,25 +261,9 @@ describe("/account route", () => {
     expect(mocks.changePassword).not.toHaveBeenCalled();
   });
 
-  it("allows account deletion to start without an active organization", async () => {
+  it("deletes the account without an active organization and shows the server's ownership block", async () => {
     const user = userEvent.setup();
     mocks.useActiveOrganization.mockReturnValue({ data: null });
-    renderPage();
-    expect(screen.getByText("Danger Zone")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
-    await user.type(screen.getByLabelText("Confirmation"), "DELETE");
-    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
-
-    await waitFor(() => {
-      expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledWith({
-        data: { confirmation: "DELETE" },
-      });
-    });
-  });
-
-  it("shows the workspace ownership block from the server", async () => {
-    const user = userEvent.setup();
     mocks.deleteCurrentUserAccount.mockRejectedValueOnce(
       new Error(
         "You can't delete your account while you are an owner of a workspace. Transfer ownership of: Acme.",
@@ -291,13 +275,17 @@ describe("/account route", () => {
     await user.type(screen.getByLabelText("Confirmation"), "DELETE");
     await user.click(screen.getByRole("button", { name: "Delete permanently" }));
 
-    expect(
-      await screen.findByRole("alert", {
-        name: "",
-      }),
-    ).toHaveTextContent(
+    expect(await screen.findByRole("alert", { name: "" })).toHaveTextContent(
       "You can't delete your account while you are an owner of a workspace. Transfer ownership of: Acme.",
     );
     expect(mocks.navigate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await waitFor(() => {
+      expect(mocks.deleteCurrentUserAccount).toHaveBeenLastCalledWith({
+        data: { confirmation: "DELETE" },
+      });
+    });
+    expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledTimes(2);
   });
 });

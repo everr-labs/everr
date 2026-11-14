@@ -2,17 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 import { regionToNumericId } from "./country-codes";
 
 describe("regionToNumericId", () => {
-  it("resolves alpha-2 codes", () => {
+  it("resolves alpha-2 and alpha-3 codes, ignoring case and whitespace", () => {
     expect(regionToNumericId("US")).toBe("840");
     expect(regionToNumericId("DE")).toBe("276");
-  });
-
-  it("resolves alpha-3 codes", () => {
+    expect(regionToNumericId("GB")).toBe("826");
     expect(regionToNumericId("USA")).toBe("840");
     expect(regionToNumericId("DEU")).toBe("276");
-  });
-
-  it("is case- and whitespace-insensitive", () => {
+    expect(regionToNumericId("GBR")).toBe("826");
     expect(regionToNumericId("  us ")).toBe("840");
     expect(regionToNumericId("usa")).toBe("840");
   });
@@ -20,13 +16,6 @@ describe("regionToNumericId", () => {
   it("returns undefined for unknown codes", () => {
     expect(regionToNumericId("ZZ")).toBeUndefined();
     expect(regionToNumericId("")).toBeUndefined();
-  });
-
-  it("resolves spot-check codes", () => {
-    expect(regionToNumericId("us")).toBe("840");
-    expect(regionToNumericId("DEU")).toBe("276");
-    expect(regionToNumericId("GB")).toBe("826");
-    expect(regionToNumericId("GBR")).toBe("826");
   });
 
   it("covers the full alpha-2 country set", () => {

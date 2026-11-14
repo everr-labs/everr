@@ -64,27 +64,17 @@ describe("runbookSpecSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects unknown keys in markdown (catches typos like 'flie')", () => {
-    const r = runbookSpecSchema.safeParse({
-      markdown: { inline: "x", flie: "y" },
-    });
-    expect(r.success).toBe(false);
-  });
-
-  it("rejects unknown keys on a page (catches typos like 'pagse')", () => {
-    const r = runbookSpecSchema.safeParse({
-      markdown: md,
-      pages: [{ name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] }],
-    });
-    expect(r.success).toBe(false);
-  });
-
-  it("rejects unknown top-level spec keys (catches typos like 'varaibles')", () => {
-    const r = runbookSpecSchema.safeParse({
-      markdown: md,
-      varaibles: [{ kind: "TextVariable", spec: { name: "s", value: "v" } }],
-    });
-    expect(r.success).toBe(false);
+  it("rejects an unknown key anywhere, so a typo cannot pass silently", () => {
+    for (const spec of [
+      { markdown: { inline: "x", flie: "y" } },
+      { markdown: md, pages: [{ name: "a", markdown: md, pagse: [{ name: "b", markdown: md }] }] },
+      {
+        markdown: md,
+        varaibles: [{ kind: "TextVariable", spec: { name: "s", value: "v" } }],
+      },
+    ]) {
+      expect(runbookSpecSchema.safeParse(spec).success).toBe(false);
+    }
   });
 
   it("accepts shared panels and variables (dashboard schemas)", () => {

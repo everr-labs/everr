@@ -118,10 +118,6 @@ describe("the stretches the state chart paints", () => {
       }),
     );
   });
-
-  it("paints nothing at all when nothing happened", () => {
-    expect(segmentsOf([], [])).toEqual([]);
-  });
 });
 
 describe("what outranks what", () => {

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createApplicationAuth } from "@everr/app/identity/module";
 import { createAuthTestDatabase } from "@everr/app/identity/testing/database";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";

@@ -11,22 +11,10 @@ describe("dashboardTimeDefaults", () => {
     });
   });
 
-  it("ignores an invalid time range", () => {
-    expect(dashboardTimeDefaults({ timeRange: { from: "banana", to: "now" } })).toBeUndefined();
-  });
-
-  it("ignores a reversed time range", () => {
-    expect(dashboardTimeDefaults({ timeRange: { from: "now", to: "now-6h" } })).toBeUndefined();
-  });
-
   it("derives refresh from a supported refreshInterval", () => {
     expect(dashboardTimeDefaults({ refreshInterval: "30s" })).toEqual({
       refresh: "30s",
     });
-  });
-
-  it("ignores an unsupported refreshInterval", () => {
-    expect(dashboardTimeDefaults({ refreshInterval: "2h" })).toBeUndefined();
   });
 
   it("derives both together", () => {
@@ -38,8 +26,15 @@ describe("dashboardTimeDefaults", () => {
     ).toEqual({ from: "now-6h", to: "now", refresh: "1m" });
   });
 
-  it("returns undefined when the spec declares nothing", () => {
-    expect(dashboardTimeDefaults({})).toBeUndefined();
+  it("ignores an invalid, reversed, or unsupported value", () => {
+    for (const spec of [
+      { timeRange: { from: "banana", to: "now" } },
+      { timeRange: { from: "now", to: "now-6h" } },
+      { refreshInterval: "2h" },
+      {},
+    ]) {
+      expect(dashboardTimeDefaults(spec), JSON.stringify(spec)).toBeUndefined();
+    }
   });
 });
 
@@ -79,25 +74,13 @@ describe("dashboardFromResource", () => {
     expect(dashboard.spec.timeRange).toEqual({ from: "now/M", to: "now" });
   });
 
-  it("falls back to duration when the explicit range is invalid", () => {
-    const dashboard = dashboardFromResource(
-      resource({
-        timeRange: { from: "banana", to: "now" },
-        duration: "7d",
-      }),
-    );
-
-    expect(dashboard.spec.timeRange).toEqual({ from: "now-7d", to: "now" });
-  });
-
-  it("falls back to duration when the explicit range is reversed", () => {
-    const dashboard = dashboardFromResource(
-      resource({
-        timeRange: { from: "now", to: "now-6h" },
-        duration: "7d",
-      }),
-    );
-
-    expect(dashboard.spec.timeRange).toEqual({ from: "now-7d", to: "now" });
+  it("falls back to duration when the explicit range is invalid or reversed", () => {
+    for (const timeRange of [
+      { from: "banana", to: "now" },
+      { from: "now", to: "now-6h" },
+    ]) {
+      const dashboard = dashboardFromResource(resource({ timeRange, duration: "7d" }));
+      expect(dashboard.spec.timeRange).toEqual({ from: "now-7d", to: "now" });
+    }
   });
 });
