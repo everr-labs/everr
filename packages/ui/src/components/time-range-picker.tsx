@@ -207,12 +207,8 @@ export function TimeRangePicker({
               <XIcon />
             </SheetClose>
           </div>
-          {currentRangePreview.from && currentRangePreview.to && (
-            <p className="shrink-0 border-b px-4 py-2 text-muted-foreground text-xs">
-              {currentRangePreview.from} to {currentRangePreview.to}
-            </p>
-          )}
-          <div className="shrink-0 border-b">{searchInput}</div>
+          {/* No search box or resolved-range line here: the whole list fits a
+              scroll, and the keyboard a search box raises would cover it. */}
           <ScrollArea className="min-h-0 flex-1" viewportClassName="p-2">
             {quickRanges}
           </ScrollArea>
