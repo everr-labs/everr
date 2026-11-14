@@ -29,6 +29,7 @@ import {
   encryptChannelConfig,
   readRedactedChannelConfig,
 } from "./channel-secrets.server";
+import { isIssueChannel } from "./issue-channels";
 
 function resolveWebhookHeaders(
   input: { name: string; value?: string }[] | undefined,
@@ -106,6 +107,15 @@ function resolveChannelConfig(
         chat_ids: input.chat_ids,
       };
     }
+    case "github_issues":
+      return input;
+    case "linear": {
+      const apiKey = input.api_key ?? (previous?.type === "linear" ? previous.api_key : undefined);
+      if (!apiKey) {
+        throwAlertingPersistenceError(422, "validation", "Linear API key is required");
+      }
+      return { ...input, api_key: apiKey };
+    }
   }
 }
 
@@ -148,7 +158,10 @@ export async function createChannel({ organizationId }: AlertingMutationScope, r
   // complete delivery setup. The existence check and the insert are one
   // statement, so the race window is a concurrent create's uncommitted row;
   // if two firsts both slip through, the default just holds both, which the
-  // model allows.
+  // model allows. An issue channel is never made the default on its own: that
+  // would open an issue for every alert the organization has. Rules opt into
+  // it by name.
+  if (isIssueChannel(config)) return channelView(row);
   await db.execute(sql`
     INSERT INTO alert_default_channels (organization_id, tier, channel_id)
     SELECT ${organizationId}, 'all', ${id}
@@ -276,7 +289,7 @@ export async function testChannel(organizationId: string, body: unknown) {
       ? decryptChannelConfig(organizationId, stored.id, stored.encryptedConfig)
       : null;
     const config = resolveChannelConfig(input.config, previous);
-    await sendChannelTest(config);
+    await sendChannelTest(organizationId, config);
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {
     return {

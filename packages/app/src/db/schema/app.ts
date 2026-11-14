@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -255,4 +256,23 @@ export const previews = pgTable(
     uniqueIndex("previews_id_tenant_repo_uq").on(table.id, table.organizationId, table.repoid),
     uniqueIndex("previews_tenant_repo_name_uq").on(table.organizationId, table.repoid, table.name),
   ],
+);
+
+/**
+ * The repository a service's code lives in, where someone set it by hand.
+ * Everr works the link out from telemetry and CI on its own; a row here is a
+ * correction, and it wins over what Everr works out.
+ */
+export const serviceRepositories = pgTable(
+  "service_repositories",
+  {
+    organizationId: text("organization_id").notNull(),
+    // `service.name`, as the service reports it.
+    serviceName: text("service_name").notNull(),
+    // `owner/name` on GitHub.
+    repository: text("repository").notNull(),
+    updatedBy: text("updated_by"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.organizationId, table.serviceName] })],
 );

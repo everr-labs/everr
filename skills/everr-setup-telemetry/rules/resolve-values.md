@@ -30,6 +30,16 @@ Check in order:
 
 Do not hardcode literal versions such as `1.0.0` into application code or committed env files. Reference a build or deployment variable whenever possible.
 
+## `vcs.repository.url.full`
+
+Check in order:
+
+1. Existing `vcs.repository.url.full` in OTel configuration.
+2. `repository` in `package.json`, `[project.urls]` in `pyproject.toml`, `repository` in `Cargo.toml`, or the `module` path in `go.mod` when it names a hosted repository.
+3. `git remote get-url origin`, rewritten to its HTTPS form (`git@github.com:acme/checkout.git` becomes `https://github.com/acme/checkout`).
+
+Drop credentials and a trailing `.git`. In a monorepo every service gets the same repository URL.
+
 ## `deployment.environment.name`
 
 Check in order:

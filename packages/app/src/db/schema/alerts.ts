@@ -520,3 +520,76 @@ export const alertDeliveryEvents = pgTable(
     index("alert_delivery_events_event_idx").on(table.eventId),
   ],
 );
+
+// The issue an alert instance opened through an issue channel. One row per
+// channel and instance for the life of the instance, so a recurrence after a
+// resolve updates the issue it already has instead of opening another.
+export const alertTrackerIssues = pgTable(
+  "alert_tracker_issues",
+  {
+    organizationId: text("organization_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    alertDefinitionId: uuid("alert_definition_id").notNull(),
+    instanceFingerprint: text("instance_fingerprint").notNull(),
+    // The instance's labels, so a reader can tell which alert row the issue
+    // is for, such as the error behind an issue for a new error.
+    instanceLabels: jsonb("instance_labels").notNull().$type<Record<string, string>>().default({}),
+    provider: text("provider", { enum: ["github", "linear"] }).notNull(),
+    // Where the issue lives: `owner/name` for GitHub, the team id for Linear.
+    location: text("location").notNull(),
+    // The provider's handle for the issue: the issue number for GitHub, the
+    // issue id for Linear.
+    externalId: text("external_id").notNull(),
+    url: text("url").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.channelId, table.alertDefinitionId, table.instanceFingerprint],
+    }),
+    foreignKey({
+      columns: [table.organizationId, table.channelId],
+      foreignColumns: [alertChannels.organizationId, alertChannels.id],
+      name: "alert_tracker_issues_channel_tenant_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.organizationId, table.alertDefinitionId],
+      foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
+      name: "alert_tracker_issues_definition_tenant_fk",
+    }).onDelete("cascade"),
+  ],
+);
+
+// An issue delivery waiting for something that stops being true on its own:
+// a repository for its service, or room under the channel's limit of open
+// issues. The delivery itself is failed terminally until it is sent again.
+// It goes with the delivery, so retention clears it too.
+export const alertHeldIssueDeliveries = pgTable(
+  "alert_held_issue_deliveries",
+  {
+    organizationId: text("organization_id").notNull(),
+    deliveryDedupKey: text("delivery_dedup_key").notNull(),
+    reason: text("reason", { enum: ["repository", "capacity"] }).notNull(),
+    // `service.name` of the error, for a delivery waiting for its repository.
+    serviceName: text("service_name"),
+    // Where the issue would open, for a delivery waiting for room there: the
+    // limit counts per repository on GitHub.
+    location: text("location"),
+    heldAt: timestamp("held_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.organizationId, table.deliveryDedupKey] }),
+    foreignKey({
+      columns: [table.organizationId, table.deliveryDedupKey],
+      foreignColumns: [alertDeliveries.organizationId, alertDeliveries.dedupKey],
+      name: "alert_held_issue_deliveries_delivery_fk",
+    }).onDelete("cascade"),
+    index("alert_held_issue_deliveries_reason_idx").on(table.reason, table.heldAt),
+    index("alert_held_issue_deliveries_service_idx").on(
+      table.organizationId,
+      table.serviceName,
+      table.heldAt,
+    ),
+  ],
+);

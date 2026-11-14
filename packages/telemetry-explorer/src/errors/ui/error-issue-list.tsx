@@ -7,7 +7,11 @@ import { useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { ErrorIssueSummary } from "../data/types";
-import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
+import {
+  ErrorIssueRow,
+  type RenderErrorIssueLink,
+  type RenderErrorTracked,
+} from "./error-issue-row";
 
 const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
@@ -23,6 +27,7 @@ export function ErrorIssueList({
   onLoadMore,
   onClearFilters,
   renderIssueLink,
+  renderTracked,
 }: {
   issues: ErrorIssueSummary[];
   isPending: boolean;
@@ -35,6 +40,7 @@ export function ErrorIssueList({
   /** Absent when there is no page filter to clear. */
   onClearFilters?: () => void;
   renderIssueLink: RenderErrorIssueLink;
+  renderTracked?: RenderErrorTracked;
 }) {
   const endReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) onLoadMore();
@@ -42,9 +48,13 @@ export function ErrorIssueList({
 
   const itemContent = useCallback(
     (_index: number, issue: ErrorIssueSummary) => (
-      <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />
+      <ErrorIssueRow
+        issue={issue}
+        renderIssueLink={renderIssueLink}
+        renderTracked={renderTracked}
+      />
     ),
-    [renderIssueLink],
+    [renderIssueLink, renderTracked],
   );
 
   const components = useMemo(

@@ -31,3 +31,20 @@ export const EXCEPTION_LOG_FILTER_SQL = `
 export function errorIssueCountExpr(): string {
   return `uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL})`;
 }
+
+// A ready-to-run query that lists this Error's Occurrences: the same
+// exception-log filter and fingerprint expression the app groups Errors by
+// (documented in the everr-use-telemetry skill), narrowed to one Fingerprint.
+// The Errors page's agent prompt and the issues Everr opens both hand it over.
+export function errorOccurrencesQuery(fingerprint: string): string {
+  return [
+    "SELECT toString(Timestamp) AS timestamp, ServiceName, TraceId,",
+    "  toString(LogAttributes.`exception.stacktrace`) AS stacktrace",
+    "FROM logs",
+    "WHERE Timestamp > now() - INTERVAL 7 DAY",
+    `  AND ${EXCEPTION_LOG_FILTER_SQL.trim()}`,
+    `  AND (${ERROR_FINGERPRINT_SQL.trim()}) = '${fingerprint}'`,
+    "ORDER BY Timestamp DESC",
+    "LIMIT 50",
+  ].join("\n");
+}

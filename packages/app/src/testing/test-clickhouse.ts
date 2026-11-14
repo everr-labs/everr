@@ -1,5 +1,10 @@
 import { storage } from "@composition/storage";
-import { type ChdbDatabase, createChdbDatabase, type QueryParams } from "./chdb-database";
+import {
+  type ChdbDatabase,
+  createChdbDatabase,
+  type QueryParams,
+  type TestLogRow,
+} from "./chdb-database";
 
 export interface SqlApiResult<T> {
   rows: T[];
@@ -34,6 +39,12 @@ export class TestClickHouse {
   // Called through the harness's `clickhouse` property.
   setSignal(rows: Record<string, unknown>[]): void {
     this.database().setSignal(rows);
+  }
+
+  /** Rows for `app.logs`, which reads about services go to. */
+  // fallow-ignore-next-line unused-class-member
+  insertLogs(rows: TestLogRow[]): void {
+    this.database().insertLogs(rows);
   }
 
   /** Every row app.alert_events actually holds, read back out of it. */

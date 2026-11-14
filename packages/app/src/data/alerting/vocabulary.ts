@@ -34,6 +34,10 @@ export const ALERTING_LIFECYCLE_REASONS = [
   // it: the rule names none and the default destination has no row for the
   // tier. Nothing was sent, and the chain still needs an outcome.
   "no_channels",
+  // A resolve for an instance that never got an issue on its issue channels
+  // (the open-issue cap withheld it, or opening it failed): there is no issue
+  // to comment on, so nothing is sent.
+  "no_issue",
 ] as const;
 
 export type AlertingLifecycleReason = (typeof ALERTING_LIFECYCLE_REASONS)[number];

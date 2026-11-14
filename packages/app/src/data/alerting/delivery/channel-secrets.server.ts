@@ -99,8 +99,13 @@ export function readRedactedChannelConfig(encrypted: string): AlertingChannelCon
 
 function redactChannelConfig(config: AlertingChannelConfig): AlertingChannelConfig {
   switch (config.type) {
+    case "github_issues":
+      // No secret: the App installation is the credential.
+      return config;
     case "telegram":
       return { ...config, bot_token: REDACTED };
+    case "linear":
+      return { ...config, api_key: REDACTED };
     case "discord":
     case "slack":
       return { ...config, url: REDACTED };

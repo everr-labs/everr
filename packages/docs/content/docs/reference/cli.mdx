@@ -34,6 +34,7 @@ These commands also work with the self-hosted installation selected by the saved
   - `--json`: return `url`, account and organization identity, and `ingestEndpoint`, without the token
 - `everr cloud query "<SQL>"`: run read-only SQL against the saved session's installation
   - `--format <json|ndjson|table>`: choose the output format (default: `table` in a terminal, `ndjson` otherwise)
+  - Without a browser, for example in CI or an agent's sandbox, set `EVERR_API_KEY` to an Organization API Key with the `Query telemetry` capability and `EVERR_API_URL` to the installation's URL. Query uses the key instead of the saved session.
 
 During exporter setup, use `everr cloud status --json` to discover `ingestEndpoint`, the installation's OTLP/HTTP base URL. Save that URL in your exporter's configuration. It is fetched from the server when status is called and is not cached in the session file. A null endpoint means the server has not advertised one; app and ingestion URLs can differ.
 

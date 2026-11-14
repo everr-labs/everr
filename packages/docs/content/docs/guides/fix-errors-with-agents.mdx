@@ -1,0 +1,65 @@
+---
+title: Fix new errors with an agent
+description: Turn every new production error into a GitHub or Linear issue a coding agent can pick up, and give the agent what it needs to read the error from Everr.
+---
+
+Everr can open an issue for each error it sees for the first time in an environment. A coding agent that works from issues then investigates the error in Everr and opens a pull request with the fix.
+
+## Turn it on
+
+On the **Errors** page, choose **Set up** in the bar above the list. Pick where issues open and which environment to watch, usually `production`.
+
+- **GitHub Issues**: each error opens in the repository of the service that raised it. Everr finds the repository from the service's `vcs.repository.url.full` or `vcs.repository.name` resource attribute, from a `service.version` that is a commit Everr saw built in CI, or from a repository you pick for the service in the dialog. Everr's GitHub App must be installed on the repository, and the repository must be private.
+- **Linear**: each error opens in the team you choose, with your Linear API key.
+
+Each issue is labeled `everr-fix`. At most 5 are open at a time. An error from a service with no repository, or one that arrives while 5 are open, waits for up to a week. When room frees, the error happening most often opens first.
+
+## Hand issues to an agent
+
+Start the agent the way it expects to be started:
+
+- **By assignment.** Put the agent's account in **Assign to** (GitHub) or **Assignee** (Linear). Every new issue is assigned to it.
+- **By label.** Run the agent from a workflow that triggers on the `everr-fix` label.
+
+```yaml
+# .github/workflows/everr-fix.yml
+name: Fix errors Everr reports
+on: { issues: { types: [labeled] } }
+jobs:
+  fix:
+    if: github.event.label.name == 'everr-fix'
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write, issues: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: everr-labs/everr-action@v0
+        with: { install-cli: "true", resource-usage: "false" }
+      # Run your coding agent here, with the issue body as its task.
+      - run: your-agent --task "$ISSUE_BODY"
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          EVERR_API_KEY: ${{ secrets.EVERR_API_KEY }}
+          EVERR_API_URL: ${{ vars.EVERR_API_URL }}
+```
+
+## Give the agent access to Everr
+
+An issue names the error and carries the query that pulls its occurrences, with their stack traces and trace ids. It copies no telemetry: messages and stack traces can hold user data, and an issue outlives Everr's retention and access rules. The agent reads the details from Everr instead.
+
+1. Create an API key with the **Query telemetry** capability on the **API Keys** page. Give it only that capability.
+2. Store it where the agent runs as `EVERR_API_KEY`, and the installation's URL as `EVERR_API_URL`.
+3. Make the `everr` CLI available to the agent. `everr cloud query` then uses the key.
+
+An agent connected to the Everr MCP server can run the same query with its `query` tool instead.
+
+## Let the agent confirm its fix
+
+The local collector has the same tables and the same error fingerprint as your installation, so the query in the issue runs locally too. The agent starts a collector with `everr local start -d`, reproduces the failing path with the service exporting OpenTelemetry to the collector's `otlp:` endpoint, and runs the query with `everr local query`. The local store keeps earlier runs, so the agent notes the time before each run and adds `AND Timestamp >= '<that time>'` to the query: it returns the reproduced occurrence before the fix and none after it. The fingerprint includes the service name, so the local run must report the same `service.name` as production.
+
+## What happens to an issue later
+
+- When the error comes back after its issue was closed as done, Everr reopens the issue and comments with the new occurrence.
+- An issue closed as not planned stays closed.
+- Everr does not comment when an error goes quiet, since that does not mean it was fixed.
+
+The issues and the rule behind them are managed by Everr. They show on the **Notifications** and **Triage** pages, and you change them from the **Errors** page.

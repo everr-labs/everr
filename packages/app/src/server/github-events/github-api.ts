@@ -174,3 +174,63 @@ export async function* paginate<T>(
     nextUrl = extractNextLink(resp.headers.get("link"));
   }
 }
+
+// ---------------------------------------------------------------------------
+// App-level lookups
+// ---------------------------------------------------------------------------
+
+/**
+ * The installation of this App that can reach `owner/name`, or null when the
+ * App is not installed there. Asked as the App, so it answers for any
+ * repository, not only those an installation token can already see.
+ */
+export async function getRepositoryInstallationId(repo: string): Promise<number | null> {
+  const resp = await fetch(`https://api.github.com/repos/${repo}/installation`, {
+    headers: {
+      Authorization: `Bearer ${createAppJwt()}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (resp.status === 404) {
+    await resp.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  if (!resp.ok) {
+    await resp.body?.cancel().catch(() => undefined);
+    throw new GitHubApiError(
+      resp.status,
+      `Failed to look up the repository installation: status=${resp.status}`,
+    );
+  }
+  const data: { id: number } = await resp.json();
+  return data.id;
+}
+
+let appSlug: Promise<string> | undefined;
+
+/** The App's slug, which makes its bot login `<slug>[bot]`. It never changes
+ *  while the process runs, so it is asked for once. */
+export function getAppSlug(): Promise<string> {
+  appSlug ??= (async () => {
+    const resp = await fetch("https://api.github.com/app", {
+      headers: {
+        Authorization: `Bearer ${createAppJwt()}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) {
+      await resp.body?.cancel().catch(() => undefined);
+      throw new GitHubApiError(resp.status, `Failed to read the GitHub App: status=${resp.status}`);
+    }
+    const data: { slug: string } = await resp.json();
+    return data.slug;
+  })().catch((cause: unknown) => {
+    appSlug = undefined;
+    throw cause;
+  });
+  return appSlug;
+}

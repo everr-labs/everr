@@ -33,7 +33,7 @@ export class ChannelSendError extends Error {
  * their own request instead of going through `postJson`, so a dead endpoint
  * costs one attempt rather than the whole retry budget.
  */
-function isPermanentStatus(status: number): boolean {
+export function isPermanentStatus(status: number): boolean {
   return status >= 400 && status < 500 && !RETRYABLE_CLIENT_ERROR_STATUSES.has(status);
 }
 

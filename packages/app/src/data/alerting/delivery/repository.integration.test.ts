@@ -35,6 +35,20 @@ const harness = registerAlertingHarness();
 const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
 
 describe("the default destination", () => {
+  it("does not make an issue channel the default, even as the first channel", async () => {
+    await createChannel(scope, {
+      name: "errors-to-github",
+      config: { type: "github_issues", labels: [], assignees: [], max_open: 5 },
+    });
+    expect(await listDefaultDestination(TEST_ORG)).toEqual({ tiers: {} });
+
+    await createChannel(scope, {
+      name: "#oncall",
+      config: { type: "slack", url: "https://203.0.113.10/hook" },
+    });
+    expect(await listDefaultDestination(TEST_ORG)).toEqual({ tiers: { all: ["#oncall"] } });
+  });
+
   it("reads back the names by tier, in name order", async () => {
     const oncall = await insertChannel(harness().db, { name: "#oncall" });
     const pager = await insertChannel(harness().db, {

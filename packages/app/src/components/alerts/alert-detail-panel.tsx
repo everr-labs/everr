@@ -4,10 +4,12 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
 import type { RuleInventoryState } from "#app/data/alerting/rules/read.ts";
 import type { SilenceCancelTarget, SilenceSeed } from "#app/data/alerting/silences/commands.ts";
 import type { AlertDetail } from "#app/data/alerting/triage/view.ts";
+import { ERROR_ISSUES_REPOID } from "#app/data/error-issues/detection.ts";
 import { AlertInstanceChart } from "./alert-instance-chart";
 import { STATUS_META, StatusIcon } from "./alert-status";
 import { Section } from "./detail-section";
@@ -133,6 +135,8 @@ export function AlertDetailPanel({
   // Off, not muted: `status` already says so, and everything below the header
   // is frozen at the moment evaluation stopped.
   const paused = detail?.status === "paused";
+  // Everr's own rule behind the Errors page switch: turned on and off there.
+  const managed = detail?.definition.repository === ERROR_ISSUES_REPOID;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/10">
@@ -204,14 +208,27 @@ export function AlertDetailPanel({
                 {detail.forClause}
               </p>
               <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={pausePending}
-                  onClick={() => onTogglePaused(!paused)}
-                >
-                  {paused ? "Resume" : "Pause"}
-                </Button>
+                {managed ? (
+                  <span className="text-xs text-muted-foreground">
+                    Managed by Everr ·{" "}
+                    <Link
+                      to="/errors"
+                      search={{ q: "", fingerprint: "", occurrence: "" }}
+                      className="underline"
+                    >
+                      Change on the Errors page
+                    </Link>
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pausePending}
+                    onClick={() => onTogglePaused(!paused)}
+                  >
+                    {paused ? "Resume" : "Pause"}
+                  </Button>
+                )}
                 {/* Only rules that declare `link.runbook` get the button: an
                     action that goes nowhere is worse than a missing one. */}
                 {detail.definition.runbook && (

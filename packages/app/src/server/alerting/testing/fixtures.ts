@@ -63,6 +63,7 @@ interface RuleOverrides {
   nextEvaluationAt?: Date;
   previewId?: string | null;
   notificationChannels?: string[];
+  repoid?: string;
 }
 
 function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
@@ -113,7 +114,7 @@ export async function insertRule(db: Db, overrides: RuleOverrides = {}): Promise
       .insert(alertDefinitions)
       .values({
         organizationId: overrides.organizationId ?? TEST_ORG,
-        repoid: "repo_test",
+        repoid: overrides.repoid ?? "repo_test",
         project: overrides.project ?? "default",
         slug: overrides.slug ?? "checkout-latency",
         spec: ruleSpec(overrides),
@@ -198,30 +199,53 @@ export async function insertChannel(
   overrides: {
     organizationId?: string;
     name?: string;
-    type?: "slack" | "discord" | "webhook" | "telegram";
+    type?: "slack" | "discord" | "webhook" | "telegram" | "github_issues" | "linear";
     // Telegram only: several chat ids exercise the fan-out, and a chosen
     // token is what a leak test looks for in an error trail.
     botToken?: string;
     chatIds?: string[];
+    // GitHub Issues only.
+    repo?: string;
+    // Linear only.
+    assignee?: string;
+    // Issue channels only.
+    maxOpen?: number;
   } = {},
 ) {
   const organizationId = overrides.organizationId ?? TEST_ORG;
   const name = overrides.name ?? "oncall";
   const type = overrides.type ?? "slack";
   const config =
-    type === "telegram"
+    type === "linear"
       ? {
           type,
-          bot_token: overrides.botToken ?? "bot-token",
-          chat_ids: overrides.chatIds ?? ["1"],
+          api_key: "lin_api_test",
+          team: "ENG",
+          labels: ["everr-fix"],
+          ...(overrides.assignee ? { assignee: overrides.assignee } : {}),
+          max_open: overrides.maxOpen ?? 5,
         }
-      : // An IP literal, not a hostname: the real sender validates the
-        // outbound URL with a live DNS lookup before it ever reaches the
-        // stubbed `fetch` (SSRF guard), and "example.test" does not resolve.
-        // 203.0.113.0/24 (RFC 5737 TEST-NET-3) is reserved for documentation,
-        // never routed, and not on the guard's blocked-range list, so the
-        // lookup is skipped and the send reaches the stub.
-        { type, url: `https://203.0.113.10/${type}` };
+      : type === "github_issues"
+        ? {
+            type,
+            ...(overrides.repo ? { repo: overrides.repo } : {}),
+            labels: ["everr-fix"],
+            assignees: [],
+            max_open: overrides.maxOpen ?? 5,
+          }
+        : type === "telegram"
+          ? {
+              type,
+              bot_token: overrides.botToken ?? "bot-token",
+              chat_ids: overrides.chatIds ?? ["1"],
+            }
+          : // An IP literal, not a hostname: the real sender validates the
+            // outbound URL with a live DNS lookup before it ever reaches the
+            // stubbed `fetch` (SSRF guard), and "example.test" does not resolve.
+            // 203.0.113.0/24 (RFC 5737 TEST-NET-3) is reserved for documentation,
+            // never routed, and not on the guard's blocked-range list, so the
+            // lookup is skipped and the send reaches the stub.
+            { type, url: `https://203.0.113.10/${type}` };
   // The id is generated here and the sealed config goes in with it, the way
   // `createChannel` (delivery/repository.ts) does it.
   const id = randomUUID();
@@ -273,12 +297,15 @@ export async function insertDefaultChannels(
 export async function insertDirectRule(
   db: Db,
   overrides: RuleOverrides & {
-    channelType?: "slack" | "discord" | "webhook" | "telegram";
+    channelType?: "slack" | "discord" | "webhook" | "telegram" | "github_issues" | "linear";
     // Only needed to pin a specific name; the default below already can't
     // collide.
     channelName?: string;
     botToken?: string;
     chatIds?: string[];
+    repo?: string;
+    assignee?: string;
+    maxOpen?: number;
   } = {},
 ): Promise<RuleFixture> {
   // Slug alone is not unique enough to derive from: a live rule and a
@@ -298,6 +325,9 @@ export async function insertDirectRule(
     type: overrides.channelType ?? "slack",
     botToken: overrides.botToken,
     chatIds: overrides.chatIds,
+    repo: overrides.repo,
+    assignee: overrides.assignee,
+    maxOpen: overrides.maxOpen,
     name: channelName,
   });
   return rule;

@@ -23,6 +23,30 @@ vi.mock("#app/data/errors/remote-repo.ts", () => ({
   remoteErrorsRepo: {},
 }));
 
+vi.mock("#app/data/error-issues/server.ts", () => ({
+  getErrorIssuesState: vi.fn(),
+  getErrorIssueEnvironments: vi.fn(),
+  getTrackedErrorIssues: vi.fn(),
+  turnOnErrorIssues: vi.fn(),
+  turnOffErrorIssues: vi.fn(),
+}));
+
+vi.mock("#app/data/service-repositories/server.ts", () => ({
+  getServiceRepositoryLinks: vi.fn(),
+  linkServiceRepository: vi.fn(),
+  sendHeldServiceIssues: vi.fn(),
+}));
+
+vi.mock("#app/data/alerting/delivery/server.ts", () => ({ getAlertNotifications: vi.fn() }));
+
+vi.mock("#app/data/alerting/triage/server.ts", () => ({
+  getAlertDetail: vi.fn(),
+  getAlertRuleOptions: vi.fn(),
+  getAlertSilences: vi.fn(),
+  getAlertTriage: vi.fn(),
+  getRuleStateHistory: vi.fn(),
+}));
+
 vi.mock("#app/data/runs/options.ts", () => ({
   runSpansOptions: vi.fn(() => ({
     queryKey: ["runs", "spans", "test"],

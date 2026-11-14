@@ -10,9 +10,9 @@ import { PAGE_SIZE } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
 import { ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
-import type { RenderErrorIssueLink } from "./error-issue-row";
+import type { RenderErrorIssueLink, RenderErrorTracked } from "./error-issue-row";
 
-export type { RenderErrorIssueLink };
+export type { RenderErrorIssueLink, RenderErrorTracked };
 
 export type ErrorIssuesSearchValue = {
   q: string;
@@ -31,8 +31,12 @@ export type ErrorIssuesProps = {
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that the pages share.
   persistentFilters?: ReactNode;
+  // Above the list: the host app's actions on errors as a whole.
+  banner?: ReactNode;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
+  // Beside each Error: what the host app tracks for it.
+  renderTracked?: RenderErrorTracked;
 };
 
 export function ErrorIssues({
@@ -42,8 +46,10 @@ export function ErrorIssues({
   search,
   environment = [],
   persistentFilters,
+  banner,
   onSearchChange,
   renderIssueLink,
+  renderTracked,
 }: ErrorIssuesProps) {
   const issuesQuery = useInfiniteQuery({
     ...errorIssuesInfiniteOptions(repo, {
@@ -76,6 +82,7 @@ export function ErrorIssues({
             onChange={onSearchChange}
           />
           <main className="flex min-h-0 min-w-0 flex-col">
+            {banner}
             <ErrorIssueList
               issues={issues}
               isPending={issuesQuery.isPending}
@@ -96,6 +103,7 @@ export function ErrorIssues({
                   : undefined
               }
               renderIssueLink={renderIssueLink}
+              renderTracked={renderTracked}
             />
           </main>
         </div>

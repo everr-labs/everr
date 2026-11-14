@@ -4,6 +4,12 @@ export const ANN_LABEL_PREFIX = "everr.label.";
 export const ANN_DISPLAY_NAME = "everr.display.name";
 export const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
 
+// "true" on a rule whose resolve says nothing about a fix, such as an error
+// no longer counting as new. Its issues are then commented on only when an
+// issue closed as done is reopened, never when the alert stops or fires
+// again on an issue still open.
+export const ANN_ISSUES_QUIET = "everr.issues.quiet";
+
 export const ANN_ALERTING_SUMMARY = "summary";
 export const ANN_ALERTING_DESCRIPTION = "description";
 export const ANN_ALERTING_LINK_ALERT = "link.alert";

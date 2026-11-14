@@ -36,7 +36,11 @@ Use this to separate production, staging, development, preview, and test telemet
 
 ### `service.version`
 
-Use this for deployment tracking and regression comparison. Derive it from build metadata, tags, commit SHAs, or CI variables.
+Use this for deployment tracking and regression comparison. Derive it from build metadata, tags, commit SHAs, or CI variables. A value that is the commit SHA lets Everr match the service to the repository whose CI built it.
+
+### `vcs.repository.url.full`
+
+The URL of the repository the service's code lives in, such as `https://github.com/acme/checkout`. Everr uses it to file an issue for a new error in the right repository. Hardcode it in the setup module's resource config next to `service.name`: it changes only when the code moves.
 
 ### `service.instance.id`
 
@@ -58,5 +62,6 @@ For local debug runs, a local version value such as `local-dev` is acceptable if
 - Different service-name casing by environment.
 - Hardcoded `service.version` that does not change with deployments.
 - Missing `deployment.environment.name`, causing environments to mix.
+- A `vcs.repository.url.full` with credentials in it, such as a token in an HTTPS clone URL.
 - Reusing the same `service.instance.id` across replicas or worker processes.
 - Putting secrets, hostnames, pod names, raw user identifiers, or request payloads in resource attributes.

@@ -44,6 +44,7 @@ import {
   githubInstallationOrganizations,
   previews,
   runbooks,
+  serviceRepositories,
   workflowJobs,
   workflowRuns,
 } from "#app/db/schema/index.ts";
@@ -85,6 +86,7 @@ describe("deletePostgresOrganizationData", () => {
       previews,
       workflowJobs,
       workflowRuns,
+      serviceRepositories,
       githubInstallationOrganizations,
       apikey,
     ]);
@@ -102,6 +104,7 @@ describe("deletePostgresOrganizationData", () => {
     }
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
+    expect(mockEq).toHaveBeenCalledWith(serviceRepositories.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(githubInstallationOrganizations.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(apikey.configId, "ingest");
     expect(mockEq).toHaveBeenCalledWith(apikey.referenceId, ORG);

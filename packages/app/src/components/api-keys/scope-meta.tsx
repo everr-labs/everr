@@ -1,4 +1,4 @@
-import { FileCode2, type LucideIcon, RadioTower } from "lucide-react";
+import { FileCode2, type LucideIcon, RadioTower, SearchCode } from "lucide-react";
 import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 
 /**
@@ -9,4 +9,5 @@ import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 export const SCOPE_ICONS: Record<ApiKeyScope, LucideIcon> = {
   ingest: RadioTower,
   apply: FileCode2,
+  query: SearchCode,
 };

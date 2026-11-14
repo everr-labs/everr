@@ -15,4 +15,5 @@ export const LOGS_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
 export const LOGS_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
   "resource:deployment.environment",
+  "resource:deployment.environment.name",
 ]);

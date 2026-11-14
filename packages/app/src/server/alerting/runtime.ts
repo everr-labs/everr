@@ -4,6 +4,7 @@ import {
   ALERT_PROCESS_EVENT_TASK,
   ALERT_SEND_DELIVERY_TASK,
 } from "#app/data/alerting/delivery/tasks.ts";
+import { releaseCapacityHolds } from "#app/data/alerting/delivery/held-issues.server.ts";
 import { ALERT_PROJECT_LIFECYCLE_TASK } from "#app/data/alerting/history/tasks.ts";
 import { ALERT_EVALUATE_TASK } from "#app/data/alerting/scheduling/evaluation-jobs.server.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
@@ -18,6 +19,7 @@ import { withAlertJobSpan } from "./telemetry";
 
 const ALERT_SCAN_TASK = "alerts/scan";
 const ALERT_RETENTION_TASK = "alerts/retention";
+const ALERT_RELEASE_HOLDS_TASK = "alerts/release-holds";
 
 /**
  * The task list is the one place every alerting job passes through, so the
@@ -60,6 +62,9 @@ export const alertTaskList: TaskList = {
   [ALERT_PROJECT_LIFECYCLE_TASK]: alertJob("alerts.jobs.project_lifecycle", async (payload) => {
     await projectAlertLifecycle(payload);
   }),
+  [ALERT_RELEASE_HOLDS_TASK]: alertJob("alerts.jobs.release_holds", async () => {
+    await releaseCapacityHolds();
+  }),
   [ALERT_RETENTION_TASK]: alertJob("alerts.jobs.retention", async () => {
     const counts = await cleanupAlertingHistory();
     const deleted = Object.values(counts).reduce((sum, count) => sum + count, 0);
@@ -81,6 +86,15 @@ export const alertCronItems: ParsedCronItem[] = parseCronItems([
     task: ALERT_SCAN_TASK,
     match: "* * * * *",
     identifier: "alerts-scan",
+    options: { backfillPeriod: 0 },
+  },
+  {
+    task: ALERT_RELEASE_HOLDS_TASK,
+    // Each run tries one waiting issue per channel and place, which costs
+    // one count of open issues there. Often enough that a closed issue is
+    // replaced within minutes.
+    match: "*/10 * * * *",
+    identifier: "alerts-release-holds",
     options: { backfillPeriod: 0 },
   },
   {

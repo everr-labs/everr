@@ -9,19 +9,30 @@ import type { ComponentType, SVGProps } from "react";
 // currentColor, the webhook glyph keeps its red accent but follows the text
 // color for the rest.
 import DiscordIcon from "#app/assets/discord.svg?react";
+import GithubIcon from "#app/assets/github.svg?react";
+import LinearIcon from "#app/assets/linear.svg?react";
 import SlackIcon from "#app/assets/slack.svg?react";
 import TelegramIcon from "#app/assets/telegram.svg?react";
 import WebhookIcon from "#app/assets/webhook.svg?react";
 import type { ChannelType } from "#app/data/alerting/delivery/channel-input.ts";
 import type { AlertingChannelConfig } from "#app/data/alerting/types.ts";
 
-const CHANNEL_TYPES: ChannelType[] = ["slack", "discord", "webhook", "telegram"];
+const CHANNEL_TYPES: ChannelType[] = [
+  "slack",
+  "discord",
+  "webhook",
+  "telegram",
+  "github_issues",
+  "linear",
+];
 
 export const CHANNEL_LABEL: Record<ChannelType, string> = {
   webhook: "Webhook",
   slack: "Slack",
   discord: "Discord",
   telegram: "Telegram",
+  github_issues: "GitHub Issues",
+  linear: "Linear",
 };
 
 const CHANNEL_ICON: Record<ChannelType, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -29,6 +40,8 @@ const CHANNEL_ICON: Record<ChannelType, ComponentType<SVGProps<SVGSVGElement>>> 
   discord: DiscordIcon,
   webhook: WebhookIcon,
   telegram: TelegramIcon,
+  github_issues: GithubIcon,
+  linear: LinearIcon,
 };
 
 /** The type picker's entries, built once: they never change. */
@@ -83,9 +96,18 @@ export function ChannelMark({
 }
 
 /** What a redacted config still says: the kind, and for Telegram the chats
- *  it reaches. A webhook names its headers. Never the URL, the token, or a
- *  header value, which the read never returns. */
+ *  it reaches. A webhook names its headers, an issue channel where its
+ *  issues go. Never the URL, the token, or a header value, which the read
+ *  never returns. */
 export function channelDetail(config: AlertingChannelConfig): string {
+  if (config.type === "github_issues") {
+    // The same order the delivery follows: the repository the alert's service
+    // names, then this channel's, then the rule's.
+    return `GitHub Issues · each service's repository, else ${config.repo ?? "the rule's"}`;
+  }
+  if (config.type === "linear") {
+    return `Linear · ${config.team}${config.assignee ? ` · ${config.assignee}` : ""}`;
+  }
   if (config.type === "telegram") return `Telegram · ${config.chat_ids.join(", ")}`;
   if (config.type === "webhook" && config.headers && config.headers.length > 0) {
     return `Webhook · ${config.headers.map((header) => header.name).join(", ")}`;

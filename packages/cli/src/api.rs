@@ -173,12 +173,40 @@ impl ApiClient {
             http.request.method = "POST",
         );
         async move {
+            // An API key queries through /api/query: the /api/cli routes take
+            // a logged-in session only.
+            let url = match self.auth_kind {
+                AuthKind::Token => format!("{}/api/query", self.base_url),
+                AuthKind::Session => format!("{}/sql", self.base_endpoint),
+            };
             let request = self
                 .http
-                .post(format!("{}/sql", self.base_endpoint))
+                .post(url)
                 .header(CONTENT_TYPE, "text/plain")
                 .headers(current_trace_headers())
                 .body(sql.to_string());
+            if let AuthKind::Token = self.auth_kind {
+                let response = request.send().await.context("CLI SQL request failed")?;
+                let status = response.status();
+                // `cloud login` cannot fix a bad key, so a rejection names the key.
+                if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                    anyhow::bail!(
+                        "query was rejected ({status}): the API key (EVERR_API_KEY) is invalid \
+                         or lacks the Query telemetry capability."
+                    );
+                }
+                if !status.is_success() {
+                    let text = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "<failed to read body>".to_string());
+                    return Err(http_status_error(status, text, "CLI SQL"));
+                }
+                return response
+                    .text()
+                    .await
+                    .context("failed to read CLI SQL response body");
+            }
             let response = self
                 .send_checked(request, "CLI SQL request failed", "CLI SQL")
                 .await?;
@@ -604,6 +632,42 @@ mod api_client_tests {
             error.to_string(),
             "Session expired. Run `everr cloud login` to re-authenticate."
         );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sql_with_an_api_key_goes_to_the_key_route() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/query")
+            .match_header("authorization", "Bearer ek_key")
+            .with_status(200)
+            .with_body("{\"n\":1}\n")
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_token(&server.url(), "ek_key").unwrap();
+        assert_eq!(client.post_sql("SELECT 1 AS n").await.unwrap(), "{\"n\":1}\n");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sql_with_a_rejected_api_key_names_the_key_not_login() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/query")
+            .with_status(403)
+            .with_body(r#"{"error":"API key is not authorized to query telemetry"}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_token(&server.url(), "ek_key").unwrap();
+        let error = client.post_sql("SELECT 1").await.unwrap_err();
+
+        assert!(!is_reauthentication_required(&error));
+        let message = error.to_string();
+        assert!(message.contains("Query telemetry"), "got: {message}");
+        assert!(!message.contains("cloud login"), "got: {message}");
         mock.assert_async().await;
     }
 

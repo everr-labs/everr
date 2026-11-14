@@ -16,4 +16,5 @@ export const TRACES_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
   "resource:service.namespace",
   "resource:deployment.environment",
+  "resource:deployment.environment.name",
 ]);

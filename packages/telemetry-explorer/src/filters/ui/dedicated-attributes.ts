@@ -6,5 +6,7 @@ import type { PromotedAttribute } from "../../attribute-filter/ui/attribute-meta
 // key, so the attribute picker cannot offer a second filter for it.
 export const ENVIRONMENT_ATTRIBUTE: PromotedAttribute = {
   source: "resource",
-  key: "deployment.environment",
+  // The current semconv name. Filters and value lists on it also read the
+  // older `deployment.environment`, which many services still send.
+  key: "deployment.environment.name",
 };

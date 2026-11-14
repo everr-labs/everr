@@ -11,11 +11,9 @@ const TELEGRAM = {
 describe("channelConfigDraft", () => {
   it("starts an edit from the kind and the chats, never the secret", () => {
     expect(channelConfigDraft(TELEGRAM)).toEqual({
+      ...EMPTY_CHANNEL_DRAFT,
       type: "telegram",
-      url: "",
-      botToken: "",
       chatIds: ["-100"],
-      headers: [],
     });
     expect(channelConfigDraft(SLACK)).toEqual({
       ...EMPTY_CHANNEL_DRAFT,
@@ -187,6 +185,78 @@ describe("webhook headers on a draft", () => {
     };
     expect(readChannelDraft(draft, null)).toEqual({
       errors: { "headers[0].name": "header Content-Type cannot be set" },
+    });
+  });
+});
+
+describe("an issue channel draft", () => {
+  const ISSUES = {
+    type: "github_issues" as const,
+    repo: "acme/api",
+    labels: ["everr-fix"],
+    assignees: ["octocat"],
+    max_open: 3,
+  };
+
+  it("round-trips a saved channel through the editor", () => {
+    expect(readChannelDraft(channelConfigDraft(ISSUES), "github_issues")).toEqual({
+      config: ISSUES,
+    });
+  });
+
+  it("leaves the repository out when the field is blank", () => {
+    expect(
+      readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "github_issues", repo: "  " }, null),
+    ).toEqual({
+      config: { type: "github_issues", labels: ["everr-fix"], assignees: [], max_open: 5 },
+    });
+  });
+
+  it("points at the field that blocks the save", () => {
+    const draft = { ...channelConfigDraft(ISSUES) };
+    expect(readChannelDraft({ ...draft, repo: "not a repo" }, "github_issues")).toEqual({
+      errors: { repo: "repository must be owner/name" },
+    });
+    expect(readChannelDraft({ ...draft, maxOpen: "2.5" }, "github_issues")).toEqual({
+      errors: { maxOpen: "Enter a whole number" },
+    });
+    expect("errors" in readChannelDraft({ ...draft, maxOpen: "0" }, "github_issues")).toBe(true);
+  });
+});
+
+describe("a Linear channel draft", () => {
+  const LINEAR = {
+    type: "linear" as const,
+    api_key: "***",
+    team: "ENG",
+    labels: ["everr-fix"],
+    assignee: "Fix Agent",
+    max_open: 3,
+  };
+
+  it("keeps the stored API key when the field is left blank on an edit", () => {
+    expect(readChannelDraft(channelConfigDraft(LINEAR), "linear")).toEqual({
+      config: {
+        type: "linear",
+        team: "ENG",
+        labels: ["everr-fix"],
+        assignee: "Fix Agent",
+        max_open: 3,
+      },
+    });
+  });
+
+  it("requires a key and a team on a new channel", () => {
+    expect(readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "linear" }, null)).toEqual({
+      errors: { apiKey: "API key is required", team: "Team key is required" },
+    });
+  });
+
+  it("reads the team key in any case", () => {
+    expect(
+      readChannelDraft({ ...EMPTY_CHANNEL_DRAFT, type: "linear", apiKey: "k", team: "eng" }, null),
+    ).toEqual({
+      config: { type: "linear", api_key: "k", team: "ENG", labels: ["everr-fix"], max_open: 5 },
     });
   });
 });

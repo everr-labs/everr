@@ -32,6 +32,16 @@ describe("buildAttributeClauses", () => {
     });
   });
 
+  it("matches a key semconv renamed under its older name too", () => {
+    const { clauses } = buildAttributeClauses(
+      [{ source: "resource", key: "deployment.environment.name", op: "in", values: ["prod"] }],
+      columnFor,
+    );
+    expect(clauses[0]).toBe(
+      "(has(ResourceAttributesKeys, 'deployment.environment.name') OR has(ResourceAttributesKeys, 'deployment.environment')) AND if(has(ResourceAttributesKeys, 'deployment.environment.name'), toString(ResourceAttributes.`deployment.environment.name`), toString(ResourceAttributes.`deployment.environment`)) IN {attrVals0:Array(String)}",
+    );
+  });
+
   it("treats not_in as present-with-a-different-value (excludes missing)", () => {
     const { clauses } = buildAttributeClauses(
       [{ source: "log", key: "http.method", op: "not_in", values: ["GET"] }],

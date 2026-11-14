@@ -98,6 +98,7 @@ it.each([true, false])(
       pgPool: runtimeMocks.pool,
       parsedCronItems: expect.arrayContaining([
         expect.objectContaining({ task: "alerts/scan" }),
+        expect.objectContaining({ task: "alerts/release-holds" }),
         expect.objectContaining({ task: "alerts/retention" }),
         ...runtimeMocks.previewsCronItems,
       ]),
@@ -107,6 +108,7 @@ it.each([true, false])(
       "alerts/flush-group",
       "alerts/process-event",
       "alerts/project-lifecycle",
+      "alerts/release-holds",
       "alerts/retention",
       "alerts/scan",
       "alerts/send-delivery",
