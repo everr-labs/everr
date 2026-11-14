@@ -226,18 +226,31 @@ describe("TracesRepository.search", () => {
       }),
     ).rejects.toThrow("invalid table name");
   });
+});
 
-  it("propagates query errors", async () => {
-    query.mockRejectedValueOnce(new Error("clickhouse exploded"));
-
-    await expect(
+// A swallowed error would show an outage as "no traces" or "trace not found".
+it.each([
+  [
+    "search",
+    () =>
       makeRepo().search({
         fromTs: "2026-05-20 11:00:00.000",
         toTs: "2026-05-20 13:00:00.000",
         ...searchBase,
       }),
-    ).rejects.toThrow("clickhouse exploded");
-  });
+  ],
+  ["getTrace", () => makeRepo().getTrace({ traceId: "t1" })],
+  [
+    "listServiceIdentities",
+    () =>
+      makeRepo().listServiceIdentities({
+        fromTs: "2026-05-20 11:00:00.000",
+        toTs: "2026-05-20 13:00:00.000",
+      }),
+  ],
+])("%s propagates query errors", async (_method, call) => {
+  query.mockRejectedValueOnce(new Error("clickhouse exploded"));
+  await expect(call()).rejects.toThrow("clickhouse exploded");
 });
 
 describe("TracesRepository.getTrace", () => {

@@ -96,6 +96,9 @@ describe("LogsRepository attribute discovery", () => {
       { key: "host.name", source: "resource" },
       { key: "http.method", source: "log" },
     ]);
+    const [sql] = vi.mocked(client.execute).mock.calls[0] ?? [];
+    for (const column of ["ResourceAttributes", "LogAttributes", "ScopeAttributes"])
+      expect(sql).toContain(column);
   });
 
   it("attributeValues decodes the v column", async () => {

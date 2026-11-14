@@ -54,6 +54,7 @@ describe("the Silences the Triage screen reads", () => {
     const open = await insertSilence(harness().db, {
       startsAt: at(-2),
       endsAt: at(1),
+      matchers: ruleMatcher,
     });
     await insertSilence(harness().db, { startsAt: at(-4), endsAt: at(-1) });
     const scheduled = await insertSilence(harness().db, {
@@ -67,7 +68,9 @@ describe("the Silences the Triage screen reads", () => {
     // Open by the window test, so a caller can list it as scheduled...
     expect(new Set(silences.map((row) => row.id))).toEqual(new Set([open.id, scheduled.id]));
     // ...but nothing is muted until it starts.
-    expect(silenceFor(RULE_ID, "warning", silences, new Date())).toBeNull();
+    expect(silenceFor(RULE_ID, "warning", silences, new Date())?.id).toBe(open.id);
+    const scheduledOnly = silences.filter((row) => row.id === scheduled.id);
+    expect(silenceFor(RULE_ID, "warning", scheduledOnly, new Date())).toBeNull();
   });
 
   it("takes each window bound on its own, and only Silences that select the rule", async () => {

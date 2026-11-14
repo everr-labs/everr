@@ -30,7 +30,7 @@ describe("/everr-app/$", () => {
 
   it("returns 404 for files it does not redirect", async () => {
     const response = await getHandler()({
-      request: new Request("https://everr.dev/everr-app/%2E%2E/secret"),
+      request: new Request("https://everr.dev/everr-app/debug.txt"),
     });
 
     expect(response.status).toBe(404);

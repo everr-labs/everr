@@ -246,8 +246,10 @@ it("does not contact Polar for a new Hobby owner, then creates its team at the f
   expect(org.plan).toBe("hobby");
   expect(org.polarCustomerId).toBe([...customers.keys()][0]);
   expect(gateway.createTeam).toHaveBeenCalledOnce();
+  gateway.findCustomer.mockClear();
   await billing.openPortal("org", "owner");
   expect(gateway.getCustomer).toHaveBeenCalledWith(org.polarCustomerId);
+  expect(gateway.findCustomer).not.toHaveBeenCalled();
   await billing.startUpgradeCheckout("org", "owner");
   expect(gateway.createTeam).toHaveBeenCalledOnce();
   expect(gateway.createCheckout).toHaveBeenCalledOnce();
