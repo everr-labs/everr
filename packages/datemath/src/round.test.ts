@@ -1,118 +1,81 @@
 import { describe, expect, it } from "vite-plus/test";
 import { roundDate } from "./round.js";
 
-// Wednesday, 2025-06-15 14:30:45.123
+// Sunday, 2025-06-15 14:30:45.123; its week runs from Monday June 9.
 const BASE = new Date(2025, 5, 15, 14, 30, 45, 123);
 
-describe("roundDate - round down", () => {
-  it("rounds down to second", () => {
-    const result = roundDate(BASE, "s", false);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 30, 45, 0));
-  });
-
-  it("rounds down to minute", () => {
-    const result = roundDate(BASE, "m", false);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 30, 0, 0));
-  });
-
-  it("rounds down to hour", () => {
-    const result = roundDate(BASE, "h", false);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 0, 0, 0));
-  });
-
-  it("rounds down to day", () => {
-    const result = roundDate(BASE, "d", false);
-    expect(result).toEqual(new Date(2025, 5, 15, 0, 0, 0, 0));
-  });
-
-  it("rounds down to week (Monday)", () => {
-    // June 15, 2025 is a Sunday → should round to Monday June 9
-    const result = roundDate(BASE, "w", false);
-    expect(result).toEqual(new Date(2025, 5, 9, 0, 0, 0, 0));
-    expect(result.getDay()).toBe(1); // Monday
-  });
-
-  it("rounds down to week when already Monday", () => {
-    const monday = new Date(2025, 5, 9, 10, 0, 0, 0);
-    const result = roundDate(monday, "w", false);
-    expect(result).toEqual(new Date(2025, 5, 9, 0, 0, 0, 0));
-  });
-
-  it("rounds down to month", () => {
-    const result = roundDate(BASE, "M", false);
-    expect(result).toEqual(new Date(2025, 5, 1, 0, 0, 0, 0));
-  });
-
-  it("rounds down to year", () => {
-    const result = roundDate(BASE, "y", false);
-    expect(result).toEqual(new Date(2025, 0, 1, 0, 0, 0, 0));
-  });
-});
-
-describe("roundDate - round up", () => {
-  it("rounds up to second", () => {
-    const result = roundDate(BASE, "s", true);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 30, 45, 999));
-  });
-
-  it("rounds up to minute", () => {
-    const result = roundDate(BASE, "m", true);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 30, 59, 999));
-  });
-
-  it("rounds up to hour", () => {
-    const result = roundDate(BASE, "h", true);
-    expect(result).toEqual(new Date(2025, 5, 15, 14, 59, 59, 999));
-  });
-
-  it("rounds up to day", () => {
-    const result = roundDate(BASE, "d", true);
-    expect(result).toEqual(new Date(2025, 5, 15, 23, 59, 59, 999));
-  });
-
-  it("rounds up to week (Sunday)", () => {
-    // June 15, 2025 is a Sunday → week starts Monday June 9, ends Sunday June 15
-    const result = roundDate(BASE, "w", true);
-    expect(result).toEqual(new Date(2025, 5, 15, 23, 59, 59, 999));
-    expect(result.getDay()).toBe(0); // Sunday
-  });
-
-  it("rounds up to month", () => {
-    const result = roundDate(BASE, "M", true);
-    // June has 30 days
-    expect(result).toEqual(new Date(2025, 5, 30, 23, 59, 59, 999));
-  });
-
-  it("rounds up to month - February leap year", () => {
-    const feb = new Date(2024, 1, 15, 12, 0, 0, 0);
-    const result = roundDate(feb, "M", true);
-    expect(result).toEqual(new Date(2024, 1, 29, 23, 59, 59, 999));
-  });
-
-  it("rounds up to month - February non-leap year", () => {
-    const feb = new Date(2025, 1, 15, 12, 0, 0, 0);
-    const result = roundDate(feb, "M", true);
-    expect(result).toEqual(new Date(2025, 1, 28, 23, 59, 59, 999));
-  });
-
-  it("rounds up to year", () => {
-    const result = roundDate(BASE, "y", true);
-    expect(result).toEqual(new Date(2025, 11, 31, 23, 59, 59, 999));
+describe.each([
+  [
+    "down",
+    false,
+    [
+      ["s", new Date(2025, 5, 15, 14, 30, 45, 0)],
+      ["m", new Date(2025, 5, 15, 14, 30, 0, 0)],
+      ["h", new Date(2025, 5, 15, 14, 0, 0, 0)],
+      ["d", new Date(2025, 5, 15, 0, 0, 0, 0)],
+      ["w", new Date(2025, 5, 9, 0, 0, 0, 0)],
+      ["M", new Date(2025, 5, 1, 0, 0, 0, 0)],
+      ["y", new Date(2025, 0, 1, 0, 0, 0, 0)],
+    ],
+  ],
+  [
+    "up",
+    true,
+    [
+      ["s", new Date(2025, 5, 15, 14, 30, 45, 999)],
+      ["m", new Date(2025, 5, 15, 14, 30, 59, 999)],
+      ["h", new Date(2025, 5, 15, 14, 59, 59, 999)],
+      ["d", new Date(2025, 5, 15, 23, 59, 59, 999)],
+      ["w", new Date(2025, 5, 15, 23, 59, 59, 999)],
+      ["M", new Date(2025, 5, 30, 23, 59, 59, 999)],
+      ["y", new Date(2025, 11, 31, 23, 59, 59, 999)],
+    ],
+  ],
+] as const)("roundDate - round %s", (_, roundUp, cases) => {
+  it.each(cases)("to %s", (unit, expected) => {
+    expect(roundDate(BASE, unit, roundUp)).toEqual(expected);
   });
 });
 
 describe("roundDate - edge cases", () => {
-  it("handles Saturday for week rounding", () => {
-    // June 14, 2025 is a Saturday
-    const saturday = new Date(2025, 5, 14, 12, 0, 0, 0);
-    const result = roundDate(saturday, "w", false);
-    expect(result).toEqual(new Date(2025, 5, 9, 0, 0, 0, 0));
-  });
-
-  it("handles month with 31 days", () => {
-    const jan = new Date(2025, 0, 15, 12, 0, 0, 0);
-    const result = roundDate(jan, "M", true);
-    expect(result).toEqual(new Date(2025, 0, 31, 23, 59, 59, 999));
+  it.each([
+    [
+      "a Monday down to its own start",
+      new Date(2025, 5, 9, 10, 0, 0, 0),
+      "w",
+      false,
+      new Date(2025, 5, 9, 0, 0, 0, 0),
+    ],
+    [
+      "a Saturday down to the previous Monday",
+      new Date(2025, 5, 14, 12, 0, 0, 0),
+      "w",
+      false,
+      new Date(2025, 5, 9, 0, 0, 0, 0),
+    ],
+    [
+      "February up in a leap year",
+      new Date(2024, 1, 15, 12, 0, 0, 0),
+      "M",
+      true,
+      new Date(2024, 1, 29, 23, 59, 59, 999),
+    ],
+    [
+      "February up in a non-leap year",
+      new Date(2025, 1, 15, 12, 0, 0, 0),
+      "M",
+      true,
+      new Date(2025, 1, 28, 23, 59, 59, 999),
+    ],
+    [
+      "a 31-day month up",
+      new Date(2025, 0, 15, 12, 0, 0, 0),
+      "M",
+      true,
+      new Date(2025, 0, 31, 23, 59, 59, 999),
+    ],
+  ] as const)("rounds %s", (_, date, unit, roundUp, expected) => {
+    expect(roundDate(date, unit, roundUp)).toEqual(expected);
   });
 
   it("does not mutate the input date", () => {

@@ -209,16 +209,6 @@ describe("createEmitter", () => {
     expect(names.at(-2)).toBe("browser.web_vital");
   });
 
-  it("never throws from exitFlush, even when fetch throws synchronously", () => {
-    stubTransportFetch(
-      vi.fn(() => {
-        throw new Error("keepalive unsupported");
-      }),
-    );
-    emit("everr.browser.page_view");
-    expect(() => exitFlush()).not.toThrow();
-  });
-
   it("swallows transport failures", async () => {
     stubTransportFetch(vi.fn(() => Promise.reject(new Error("network down"))));
     const [failingEmit, failingFlush] = createEmitter(

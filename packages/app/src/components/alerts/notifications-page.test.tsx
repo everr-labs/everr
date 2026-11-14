@@ -113,7 +113,9 @@ function renderPage(
 
 describe("NotificationsPage", () => {
   it("names every way an alert went nowhere, with the act that closes it", async () => {
-    renderPage(DATA);
+    const onNewChannel = vi.fn();
+    renderPage(DATA, { onNewChannel });
+    const user = userEvent.setup();
     const gaps = await screen.findByRole("list", { name: /not delivered/i });
     const rows = within(gaps).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
@@ -123,18 +125,15 @@ describe("NotificationsPage", () => {
     expect(rows[1]).toHaveTextContent("names #sre-legacy, which does not exist");
     expect(rows[1]).toHaveTextContent("6 alerts recorded undelivered");
     expect(within(rows[1]).getByRole("button")).toHaveTextContent("Create #sre-legacy");
-  });
 
-  it("seeds a new channel with the name a gap row asked for", async () => {
-    const onNewChannel = vi.fn();
-    renderPage(DATA, { onNewChannel });
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Create #sre-legacy" }));
+    await user.click(screen.getByRole("button", { name: "Create #sre-legacy" }));
     expect(onNewChannel).toHaveBeenCalledWith("#sre-legacy");
   });
 
-  it("reads each channel's tiers from the channel's side", async () => {
-    renderPage(DATA);
+  it("reads tiers from each channel's side and from each default target, then opens a channel", async () => {
+    const onEditChannel = vi.fn();
+    renderPage(DATA, { onEditChannel });
+    const user = userEvent.setup();
     const channels = await screen.findByRole("list", { name: /channels/i });
     const rows = within(channels).getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("Critical");
@@ -144,30 +143,22 @@ describe("NotificationsPage", () => {
     expect(rows[0]).toHaveTextContent("+ 1 rule by name");
     expect(rows[2]).toHaveTextContent("not in use");
     expect(channels).not.toHaveTextContent(/\bsent\b|\bfailed\b/);
-  });
 
-  it("opens a channel from its name", async () => {
-    const onEditChannel = vi.fn();
-    renderPage(DATA, { onEditChannel });
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "pager" }));
-    expect(onEditChannel).toHaveBeenCalledWith(expect.objectContaining({ name: "pager" }));
-  });
-
-  it("draws one default target per tier while split, in the overrides' grammar", async () => {
-    renderPage(DATA);
-    const targets = await screen.findByRole("list", {
-      name: /default targets/i,
-    });
-    const rows = within(targets).getAllByRole("listitem");
-    expect(rows.map((row) => row.textContent)).toEqual([
+    // One default target per tier while split, in the overrides' grammar.
+    const targets = within(screen.getByRole("list", { name: /default targets/i })).getAllByRole(
+      "listitem",
+    );
+    expect(targets.map((row) => row.textContent)).toEqual([
       expect.stringContaining("Critical"),
       expect.stringContaining("Warning"),
       expect.stringContaining("Info"),
     ]);
-    expect(rows[0]).toHaveTextContent("#oncall");
-    expect(rows[0]).toHaveTextContent("pager");
-    expect(rows[2]).toHaveTextContent("no channel · not delivered");
+    expect(targets[0]).toHaveTextContent("#oncall");
+    expect(targets[0]).toHaveTextContent("pager");
+    expect(targets[2]).toHaveTextContent("no channel · not delivered");
+
+    await user.click(screen.getByRole("button", { name: "pager" }));
+    expect(onEditChannel).toHaveBeenCalledWith(expect.objectContaining({ name: "pager" }));
   });
 
   it("says nothing at all when every alert had a channel to go to", async () => {

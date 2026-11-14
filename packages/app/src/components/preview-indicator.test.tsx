@@ -18,14 +18,8 @@ beforeEach(() => {
 });
 
 describe("PreviewIndicator", () => {
-  it("renders nothing on live (no preview param)", () => {
-    mocks.useSearch.mockReturnValue({ preview: undefined });
-    const { container } = render(<PreviewIndicator />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("treats a whitespace-only preview as live", () => {
-    mocks.useSearch.mockReturnValue({ preview: "   " });
+  it.each([undefined, "   "])("renders nothing on live (preview %j)", (preview) => {
+    mocks.useSearch.mockReturnValue({ preview });
     const { container } = render(<PreviewIndicator />);
     expect(container).toBeEmptyDOMElement();
   });

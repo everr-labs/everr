@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { Route } from "./__root";

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
 afterEach(() => vi.unstubAllEnvs());

@@ -1,5 +1,4 @@
 import { serverLogger } from "#app/telemetry/logger.ts";
-// @vitest-environment node
 import { betterAuth } from "better-auth";
 import { eq } from "drizzle-orm";
 import { user } from "#app/db/schema/index.ts";

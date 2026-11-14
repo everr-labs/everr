@@ -32,6 +32,7 @@ export class TestClickHouse {
 
   /** What `app.test_signal` holds, which is what a default rule selects. */
   // Called through the harness's `clickhouse` property.
+  // fallow-ignore-next-line unused-class-member
   setSignal(rows: Record<string, unknown>[]): void {
     this.database().setSignal(rows);
   }

@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 import { sendInvitationEmail, sendPasswordResetEmail, sendVerificationEmail } from "./email.server";

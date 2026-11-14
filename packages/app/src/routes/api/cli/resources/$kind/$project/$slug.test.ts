@@ -87,21 +87,14 @@ describe("GET .../$kind/$project/$slug", () => {
     expect(mockedGet).not.toHaveBeenCalled();
   });
 
-  it("404s an unknown built-in without touching the database", async () => {
+  it.each([
+    { kind: "dashboard", slug: "nope" },
+    { kind: "runbook", slug: "log-overview" },
+  ])("404s built-in $kind/$slug without touching the database", async ({ kind, slug }) => {
     const res = await get()({
       request: new Request(url),
       context: rwCtx,
-      params: { kind: "dashboard", project: "built-in", slug: "nope" },
-    });
-    expect(res.status).toBe(404);
-    expect(mockedGet).not.toHaveBeenCalled();
-  });
-
-  it("404s non-dashboard kinds under the built-in pseudo-project", async () => {
-    const res = await get()({
-      request: new Request(url),
-      context: rwCtx,
-      params: { kind: "runbook", project: "built-in", slug: "log-overview" },
+      params: { kind, project: "built-in", slug },
     });
     expect(res.status).toBe(404);
     expect(mockedGet).not.toHaveBeenCalled();

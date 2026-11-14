@@ -67,8 +67,9 @@ it.each([
   },
 );
 
-it("sends the selected owner role instead of falling back to member", async () => {
+it("sends the selected owner role and links the returned invitation ID as is", async () => {
   mocks.emailEnabled = false;
+  mocks.invite.mockResolvedValueOnce({ data: { id: 42 }, error: null });
   const user = userEvent.setup();
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -80,25 +81,10 @@ it("sends the selected owner role instead of falling back to member", async () =
   await user.click(screen.getByRole("combobox", { name: "Role" }));
   await user.click(await screen.findByRole("option", { name: "Owner" }));
   await user.click(screen.getByRole("button", { name: "Create invitation" }));
-  expect(await screen.findByText(`${window.location.origin}/invite/invite-123`)).toBeVisible();
+  expect(await screen.findByText(`${window.location.origin}/invite/42`)).toBeVisible();
   expect(mocks.invite).toHaveBeenCalledWith({
     email: "owner@example.test",
     role: "owner",
     fetchOptions: { headers: { [INVITATION_EMAIL_HEADER]: "false" } },
   });
-});
-
-it("preserves the invitation ID returned by the auth client without validating it", async () => {
-  mocks.emailEnabled = false;
-  mocks.invite.mockResolvedValueOnce({ data: { id: 42 }, error: null });
-  const user = userEvent.setup();
-  render(
-    <QueryClientProvider client={new QueryClient()}>
-      <InviteMemberDialog />
-    </QueryClientProvider>,
-  );
-  await user.click(screen.getByRole("button", { name: "Invite member" }));
-  await user.type(screen.getByRole("textbox", { name: "Email" }), "invitee@example.test");
-  await user.click(screen.getByRole("button", { name: "Create invitation" }));
-  expect(await screen.findByText(`${window.location.origin}/invite/42`)).toBeVisible();
 });

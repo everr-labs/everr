@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { EventEmitter } from "node:events";
 import {
   createTestDatabase,

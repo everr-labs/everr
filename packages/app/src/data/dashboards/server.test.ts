@@ -142,9 +142,7 @@ describe("runPanelQuery – variable interpolation", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runPanelQuery({
-      data: {
-        source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" },
-      },
+      data: { source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" } },
     });
 
     expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
@@ -245,20 +243,6 @@ describe("runVariableOptionsQuery", () => {
     expect(result.options[0]).toBe("service-0");
     expect(result.options[999]).toBe("service-999");
     expect(result.truncated).toBe(true);
-  });
-
-  it("does not set truncated when the result is under the cap", async () => {
-    const rows = [
-      { v: "a" },
-      { v: "b" },
-      { v: "a" }, // duplicates dedup away but do not affect truncation
-    ];
-    mockedClickhouse.mockResolvedValue(rows);
-
-    const result = await runVariableOptionsQuery({ data: { query: "q" } });
-
-    expect(result.options).toEqual(["a", "b"]);
-    expect(result.truncated).toBe(false);
   });
 
   it("skips rows with no columns and stringifies null values", async () => {

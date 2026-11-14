@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import type { DbExecutor } from "@everr/app/db/client";
 import { organization } from "@everr/app/db/schema";
 import {

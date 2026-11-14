@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { env } from "@everr/app/env";
 import { expect, it } from "vite-plus/test";

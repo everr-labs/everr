@@ -54,7 +54,7 @@ describe("ReactTelemetryErrorBoundary", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders a controlled fallback when a child render fails", () => {
+  it("renders a controlled fallback and reports the failure through the SDK error boundary", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(
@@ -64,17 +64,6 @@ describe("ReactTelemetryErrorBoundary", () => {
     );
 
     expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
-  });
-
-  it("reports render failures through the SDK error boundary", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-
-    render(
-      <ReactTelemetryErrorBoundary>
-        <BrokenChild />
-      </ReactTelemetryErrorBoundary>,
-    );
-
     expect(telemetryMocks.reportRenderError).toHaveBeenCalledOnce();
     const [error, info] = telemetryMocks.reportRenderError.mock.calls[0];
     expect(error).toBeInstanceOf(ThrowsOnRender);

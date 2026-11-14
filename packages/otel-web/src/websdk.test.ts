@@ -118,14 +118,6 @@ describe("init (persistence: memory)", () => {
     ]);
   });
 
-  it("emits no leave on hide when pageviews() is not composed", async () => {
-    start({
-      instrumentations: [errors(), interactions(), performanceInstrumentation(), network()],
-    });
-    dispatchEvent(new Event("pagehide"));
-    expect(await records()).toHaveLength(0);
-  });
-
   it("resolves each record's own page URL to a pattern and survives a throwing resolver", async () => {
     start();
     setRouteResolver({
@@ -191,6 +183,7 @@ describe("init (persistence: memory)", () => {
       instrumentations: [errors(), interactions(), performanceInstrumentation(), network()],
     });
     history.pushState(null, "", "/nope");
+    dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
   });
 

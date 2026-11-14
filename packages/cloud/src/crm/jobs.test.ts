@@ -1,5 +1,4 @@
 import { serverLogger } from "@everr/app/telemetry/logger";
-// @vitest-environment node
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { userCreated } from "@everr/app/identity/events";

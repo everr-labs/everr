@@ -118,7 +118,10 @@ async function directRuleChannels(
     .orderBy(asc(alertChannels.name));
 }
 
-export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
+export async function flushAlertGroup(
+  rawPayload: unknown,
+  { claimCap = FLUSH_GROUP_MEMBER_CLAIM_CAP }: { claimCap?: number } = {},
+): Promise<void> {
   const { groupId } = AlertGroupTaskPayloadSchema.parse(rawPayload);
   // Claim under the same lock processAlertEvent takes. Without it, a delete
   // built from a stale snapshot destroys a membership inserted between this
@@ -132,7 +135,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
     setAlertSpanAttributes({ tenant: group.organizationId });
-    const rows = await deliverableGroupMemberQuery(tx, group.id, FLUSH_GROUP_MEMBER_CLAIM_CAP);
+    const rows = await deliverableGroupMemberQuery(tx, group.id, claimCap);
     if (rows.length === 0) {
       // Nothing claimed. Park on the idle sentinel rather than leave
       // nextFlushAt in the past, or the next event dispatched here skips its
@@ -152,7 +155,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // itself, and it is the reason a big group's tail pages late.
   setAlertSpanAttributes({
     batchSize: rows.length,
-    batchCapped: rows.length >= FLUSH_GROUP_MEMBER_CLAIM_CAP,
+    batchCapped: rows.length >= claimCap,
   });
   // Only these memberships are this flush's to remove. Anything added while
   // suppression is evaluated below belongs to the next flush.

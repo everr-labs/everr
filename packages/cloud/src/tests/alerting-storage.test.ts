@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createChdbDatabase } from "@everr/app/testing/alerting-storage";
 import { expect, it } from "vite-plus/test";
 

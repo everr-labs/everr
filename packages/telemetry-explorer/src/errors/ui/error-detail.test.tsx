@@ -94,7 +94,7 @@ function renderDetail(selectedKey = "") {
 }
 
 describe("ErrorDetail", () => {
-  it("shows the Error, then the latest occurrence, with the group counts", async () => {
+  it("shows the Error, then the latest occurrence with its stack trace and attributes", async () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { level: 1, name: "TypeError" })).toBeInTheDocument();
@@ -105,17 +105,32 @@ describe("ErrorDetail", () => {
     expect(screen.getByText("Occurrence 1 of 2")).toBeInTheDocument();
     // 312 occurrences are in the range and the page loaded two of them.
     expect(screen.getByText("latest 2 of 312")).toBeInTheDocument();
-  });
 
-  it("steps to an older occurrence through a link and stops at the ends", async () => {
-    renderDetail();
-
-    const pager = await screen.findByRole("navigation", { name: "Occurrences" });
+    // Steps to an older occurrence through a link and stops at the ends.
+    const pager = screen.getByRole("navigation", { name: "Occurrences" });
     expect(within(pager).getByRole("button", { name: "Newer occurrence" })).toBeDisabled();
     expect(within(pager).getByRole("link", { name: "Older occurrence" })).toHaveAttribute(
       "href",
       `?occurrence=${encodeURIComponent(getErrorOccurrenceKey(older))}`,
     );
+
+    // The stack trace stays as the runtime wrote it.
+    const stack = screen.getByText(
+      /at renderRow \(http:\/\/localhost:5173\/src\/list\.tsx:42:13\)/,
+    );
+    expect(stack.tagName).toBe("CODE");
+    expect(stack).toHaveTextContent("TypeError: Cannot read properties of undefined");
+    expect(stack).toHaveTextContent("at commitRoot");
+
+    // Attributes are listed by source, without the ones shown above.
+    const log = screen.getByRole("region", { name: "Log attributes" });
+    expect(within(log).getByText("http.route")).toBeInTheDocument();
+    expect(within(log).getByText("/users/:id")).toBeInTheDocument();
+    expect(within(log).queryByText("exception.stacktrace")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Resource attributes" })).getByText("1.4.2"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Scope attributes" })).not.toBeInTheDocument();
   });
 
   it("shows the occurrence that the search param selects", async () => {
@@ -126,30 +141,6 @@ describe("ErrorDetail", () => {
     expect(screen.getByText("/orders/:id")).toBeInTheDocument();
     const pager = screen.getByRole("navigation", { name: "Occurrences" });
     expect(within(pager).getByRole("button", { name: "Older occurrence" })).toBeDisabled();
-  });
-
-  it("shows the stack trace as the runtime wrote it", async () => {
-    renderDetail();
-
-    const stack = await screen.findByText(
-      /at renderRow \(http:\/\/localhost:5173\/src\/list\.tsx:42:13\)/,
-    );
-    expect(stack.tagName).toBe("CODE");
-    expect(stack).toHaveTextContent("TypeError: Cannot read properties of undefined");
-    expect(stack).toHaveTextContent("at commitRoot");
-  });
-
-  it("lists the attributes by source, without the ones shown above", async () => {
-    renderDetail();
-
-    const log = await screen.findByRole("region", { name: "Log attributes" });
-    expect(within(log).getByText("http.route")).toBeInTheDocument();
-    expect(within(log).getByText("/users/:id")).toBeInTheDocument();
-    expect(within(log).queryByText("exception.stacktrace")).not.toBeInTheDocument();
-    expect(
-      within(screen.getByRole("region", { name: "Resource attributes" })).getByText("1.4.2"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Scope attributes" })).not.toBeInTheDocument();
   });
 
   it("ignores an attribute filter that the next occurrence has no field for", async () => {

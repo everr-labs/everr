@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import { afterAll, beforeAll, expect, it, vi } from "vite-plus/test";

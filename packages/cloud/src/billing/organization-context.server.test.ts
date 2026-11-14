@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { betterAuth, generateId } from "better-auth";
 import { type MemoryDB, memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";

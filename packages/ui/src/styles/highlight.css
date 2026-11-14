@@ -1,0 +1,58 @@
+/*
+ * Styles for `HighlightedCode` (components/highlighted-code.tsx). Plain CSS
+ * rather than Tailwind classes, so only apps that import this file ship them.
+ */
+
+.hl-line {
+  display: inline-block;
+  min-width: 100%;
+}
+
+/* A marked line reaches out over its block's 1rem side padding. */
+.hl-line[data-marked] {
+  margin-inline: -1rem;
+  min-width: calc(100% + 2rem);
+  border-left: 2px solid var(--primary);
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
+  padding-right: 1rem;
+  padding-left: calc(1rem - 2px);
+}
+
+/* Syntax highlighting (highlight.js classes), muted to sit with the theme. */
+.hljs .hljs-keyword,
+.hljs .hljs-built_in,
+.hljs .hljs-literal,
+.hljs .hljs-type,
+.hljs .hljs-meta {
+  color: oklch(0.74 0.14 300);
+}
+
+.hljs .hljs-string,
+.hljs .hljs-regexp,
+.hljs .hljs-symbol {
+  color: oklch(0.8 0.13 150);
+}
+
+.hljs .hljs-number {
+  color: oklch(0.82 0.13 75);
+}
+
+.hljs .hljs-title,
+.hljs .hljs-function,
+.hljs .hljs-variable,
+.hljs .hljs-template-variable {
+  color: oklch(0.78 0.11 240);
+}
+
+.hljs .hljs-attr,
+.hljs .hljs-attribute,
+.hljs .hljs-property,
+.hljs .hljs-params {
+  color: oklch(0.8 0.09 200);
+}
+
+.hljs .hljs-comment,
+.hljs .hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}

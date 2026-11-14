@@ -28,25 +28,17 @@ const baseProps = {
 };
 
 describe("LogFiltersBar", () => {
-  it("renders Search, Severity, Trace and the attribute section in the rail", () => {
+  it("renders Search, Severity, Trace and the attribute section in the rail, and no persistent filters", () => {
     renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
-    expect(screen.getByRole("complementary", { name: "Log filters" })).toBeInTheDocument();
+    const rail = screen.getByRole("complementary", { name: "Log filters" });
     expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Severity")).toBeInTheDocument();
     expect(screen.getByText("Trace")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
-  });
-
-  it("never renders Service or Environment: those belong to the persistent zone", () => {
-    renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
+    expect(rail).toContainElement(screen.getByPlaceholderText("Search messages, errors, IDs"));
+    // Service and Environment belong to the persistent zone.
     expect(screen.queryByText("Service")).not.toBeInTheDocument();
     expect(screen.queryByText("Environment")).not.toBeInTheDocument();
-  });
-
-  it("renders the message search inside the rail", () => {
-    renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
-    const rail = screen.getByRole("complementary", { name: "Log filters" });
-    expect(rail).toContainElement(screen.getByPlaceholderText("Search messages, errors, IDs"));
   });
 
   it("clear resets the search, levels, attributes and trace id", () => {
@@ -68,6 +60,12 @@ describe("LogFiltersBar", () => {
         onChange={onChange}
       />,
     );
+    // The top zone of the rail sets Environment, and it writes its own search
+    // param. An older entry, for example from a saved link, must stay visible
+    // and the user must be able to remove it. The query still applies that
+    // entry, so a hidden entry narrows the results for no visible reason.
+    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     // q clears to undefined and not to "". The rail sends the same shape as the
     // search param, so an empty search stays out of the URL.
@@ -100,29 +98,6 @@ describe("LogFiltersBar", () => {
       <LogFiltersBar {...baseProps} persistentFilterCount={2} onChange={vi.fn()} />,
     );
     expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
-  });
-
-  it("shows a legacy deployment.environment attribute as a removable pill", () => {
-    // The top zone of the rail sets Environment, and it writes its own search
-    // param. An older entry, for example from a saved link, must stay visible
-    // and the user must be able to remove it. The query still applies that
-    // entry, so a hidden entry narrows the results for no visible reason.
-    renderWithQueryClient(
-      <LogFiltersBar
-        {...baseProps}
-        attributes={[
-          {
-            source: "resource",
-            key: "deployment.environment",
-            op: "in",
-            values: ["prod"],
-          },
-        ]}
-        onChange={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
   });
 
   it("syncs the Trace input when the traceId prop is cleared externally", () => {

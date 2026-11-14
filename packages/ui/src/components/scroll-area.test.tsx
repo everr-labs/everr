@@ -25,39 +25,25 @@ afterEach(() => {
 });
 
 describe("ScrollArea", () => {
-  it("renders its children inside the viewport", () => {
+  it("renders its children in the viewport and forwards the viewport ref, viewport props and render element", () => {
+    let viewport: HTMLDivElement | null = null;
     render(
-      <ScrollArea className="h-20">
+      <ScrollArea
+        render={<main />}
+        viewportRef={(node) => {
+          viewport = node;
+        }}
+        viewportProps={{ "data-scroll-to-top": "" }}
+      >
         <p>span attributes</p>
       </ScrollArea>,
     );
     const child = screen.getByText("span attributes");
-    expect(child.closest("[data-slot='scroll-area-viewport']")).not.toBeNull();
-  });
-
-  it("forwards the viewport ref to the scrolling element", () => {
-    let viewport: HTMLDivElement | null = null;
-    render(
-      <ScrollArea
-        viewportRef={(node) => {
-          viewport = node;
-        }}
-      >
-        <p>content</p>
-      </ScrollArea>,
-    );
-    expect(viewport).not.toBeNull();
+    expect(child.closest("[data-slot='scroll-area-viewport']")).toBe(viewport);
     expect(viewport).toHaveAttribute("data-slot", "scroll-area-viewport");
-  });
-
-  it("forwards viewportProps to the viewport element", () => {
-    render(
-      <ScrollArea viewportProps={{ "data-scroll-to-top": "" }}>
-        <p>content</p>
-      </ScrollArea>,
-    );
-    const viewport = screen.getByText("content").closest("[data-slot='scroll-area-viewport']");
     expect(viewport).toHaveAttribute("data-scroll-to-top", "");
+    // The landmark of a semantic render element is kept.
+    expect(screen.getByRole("main")).toBeInTheDocument();
   });
 
   it("renders only the vertical scrollbar by default", async () => {
@@ -99,15 +85,6 @@ describe("ScrollArea", () => {
     expect(b?.style.overflowY).toBe("");
   });
 
-  it("keeps the landmark of a semantic render element", () => {
-    render(
-      <ScrollArea render={<main />}>
-        <p>content</p>
-      </ScrollArea>,
-    );
-    expect(screen.getByRole("main")).toBeInTheDocument();
-  });
-
   it("renders both scrollbars when orientation is both", async () => {
     overflowBothAxes();
     const { container } = render(
@@ -133,13 +110,14 @@ describe("ScrollArea", () => {
 });
 
 describe("ScrollAreaScroller", () => {
-  it("puts the ref and the virtuoso attributes on the scrolling viewport", () => {
+  it("puts the ref and the virtuoso attributes on the viewport, and sizes and scrolls through the root", () => {
     let scroller: HTMLDivElement | null = null;
-    render(
+    const { container } = render(
       <ScrollAreaScroller
         ref={(node) => {
           scroller = node;
         }}
+        className="h-full"
         data-virtuoso-scroller
         tabIndex={0}
         style={{ position: "relative", overflowY: "auto" }}
@@ -151,25 +129,11 @@ describe("ScrollAreaScroller", () => {
     expect(scroller).toHaveAttribute("data-virtuoso-scroller");
     expect(scroller).toHaveAttribute("tabindex", "0");
     expect(scroller).toHaveStyle({ position: "relative" });
-  });
-
-  it("leaves the overflow of the viewport to the scroll area", () => {
-    const { container } = render(
-      <ScrollAreaScroller style={{ overflowY: "auto" }}>
-        <p>rows</p>
-      </ScrollAreaScroller>,
-    );
+    // The scroll area owns the overflow of the viewport.
     const viewport = container.querySelector<HTMLDivElement>("[data-slot='scroll-area-viewport']");
     expect(viewport?.style.overflowY).toBe("");
-  });
-
-  it("sizes the root, not the viewport, from className", () => {
-    const { container } = render(
-      <ScrollAreaScroller className="h-full">
-        <p>rows</p>
-      </ScrollAreaScroller>,
-    );
+    // className sizes the root, not the viewport.
     expect(container.querySelector("[data-slot='scroll-area']")).toHaveClass("h-full");
-    expect(container.querySelector("[data-slot='scroll-area-viewport']")).not.toHaveClass("h-full");
+    expect(scroller).not.toHaveClass("h-full");
   });
 });

@@ -186,7 +186,7 @@ describe("shared trace explorer", () => {
     },
   );
 
-  it("keeps the waterfall in place when a visible row is selected", async () => {
+  it("scrolls the other view to a span selected in one view or found by search", async () => {
     vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
       callback(0);
       return 0;
@@ -195,47 +195,26 @@ describe("shared trace explorer", () => {
     await screen.findByRole("button", { name: "Select child" });
     fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
     await screen.findByTestId("flamegraph");
+
+    // A visible waterfall row stays where it is, and the flamegraph follows.
     fireEvent.click(screen.getByRole("button", { name: "Select child" }));
     expect(props.onSpanChange).toHaveBeenCalledWith("child");
     expect(mocks.scrollToIndex).not.toHaveBeenCalled();
     expect(mocks.scrollToSpan).toHaveBeenCalledWith("child");
-  });
 
-  it("reveals the waterfall row when a span is selected in the flamegraph", async () => {
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 0;
-    });
-    const { props } = renderExplorer();
-    await screen.findByRole("button", { name: "Select child" });
-    fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
-    fireEvent.click(await screen.findByRole("button", { name: "Select flamegraph child" }));
+    vi.clearAllMocks();
+    fireEvent.click(screen.getByRole("button", { name: "Select flamegraph child" }));
     expect(props.onSpanChange).toHaveBeenCalledWith("child");
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith({
-      index: 1,
-      align: "center",
-    });
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith({ index: 1, align: "center" });
     expect(mocks.scrollToSpan).not.toHaveBeenCalled();
-  });
 
-  it("reveals search matches in both views", async () => {
-    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
-      callback(0);
-      return 0;
-    });
-    renderExplorer();
-    await screen.findByRole("button", { name: "Select child" });
-    fireEvent.click(screen.getByRole("button", { name: /Flamegraph/ }));
-    await screen.findByTestId("flamegraph");
+    vi.clearAllMocks();
     fireEvent.change(screen.getByRole("textbox", { name: "Search spans" }), {
       target: { value: "child" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Next matching span" }));
     expect(mocks.scrollToSpan).toHaveBeenCalledWith("child");
-    expect(mocks.scrollToIndex).toHaveBeenCalledWith({
-      index: 1,
-      align: "center",
-    });
+    expect(mocks.scrollToIndex).toHaveBeenCalledWith({ index: 1, align: "center" });
   });
 
   it("expands new parents after a refresh while preserving existing choices", async () => {
@@ -295,15 +274,8 @@ describe("shared trace explorer", () => {
     expect(prepareLayout).toHaveBeenCalledTimes(1);
   });
 
-  it("returns to the trace list through the host's back callback", async () => {
-    const { props } = renderExplorer();
-    await screen.findByRole("heading", { name: "root" });
-    fireEvent.click(screen.getByRole("button", { name: "Back to traces" }));
-    expect(props.onBack).toHaveBeenCalledTimes(1);
-  });
-
   it("loads by trace ID even when the URL includes a time window", async () => {
-    const { repo } = renderExplorer(
+    const { repo, props } = renderExplorer(
       TraceDetailParamsSchema.parse({
         start: "2026-10-06 12:00:00.000",
         end: "2026-10-06 12:00:01.000",
@@ -322,6 +294,8 @@ describe("shared trace explorer", () => {
       "aria-expanded",
       "false",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Back to traces" }));
+    expect(props.onBack).toHaveBeenCalledTimes(1);
   });
 
   it("uses URL-controlled selection across both hosts and clears it on close", async () => {

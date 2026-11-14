@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite-plus";
+import { configDefaults, defineConfig } from "vite-plus";
 export default defineConfig({
   plugins: [react()],
   resolve: { tsconfigPaths: true },
@@ -9,7 +9,27 @@ export default defineConfig({
     // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
     // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
     clearMocks: false,
-    environment: "jsdom",
-    setupFiles: ["./src/test-setup.ts"],
+    // .test.ts files skip the setup file, which used to undo vi.stubGlobal.
+    unstubGlobals: true,
+    // Only component tests (.test.tsx) pay for a jsdom environment.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "node",
+          environment: "node",
+          exclude: [...configDefaults.exclude, "**/*.test.tsx"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "dom",
+          environment: "jsdom",
+          include: ["**/*.test.tsx"],
+          setupFiles: ["./src/test-setup.ts"],
+        },
+      },
+    ],
   },
 });

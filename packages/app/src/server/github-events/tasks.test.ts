@@ -1,5 +1,4 @@
 import type * as IdentityTypes from "#app/telemetry/identity.ts";
-// @vitest-environment node
 import type { JobHelpers } from "graphile-worker";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { WebhookJobData } from "./types";

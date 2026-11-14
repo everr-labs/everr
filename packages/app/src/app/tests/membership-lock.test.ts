@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import type { PoolClient } from "pg";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { createWorkspaceIdentityRequests } from "#app/app/request.ts";

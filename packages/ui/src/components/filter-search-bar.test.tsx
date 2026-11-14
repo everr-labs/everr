@@ -42,48 +42,33 @@ describe("FilterSearchBar", () => {
     expect(onChange).toHaveBeenCalledWith("boom");
   });
 
-  it("shows a clear button only when a value is committed and clears it", () => {
+  it("shows a clear button named after its field only when a value is committed", () => {
     const onChange = vi.fn();
     const { rerender } = render(
-      <FilterSearchBar id="s" label="Search" value="" onChange={onChange} placeholder="p" />,
+      <FilterSearchBar id="s" label="Trace" value="" onChange={onChange} placeholder="p" />,
     );
-    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear trace" })).not.toBeInTheDocument();
 
     rerender(
-      <FilterSearchBar id="s" label="Search" value="boom" onChange={onChange} placeholder="p" />,
+      <FilterSearchBar id="s" label="Trace" value="abc123" onChange={onChange} placeholder="p" />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear trace" }));
     expect(onChange).toHaveBeenCalledWith("");
   });
-  it("commits the draft on blur so leaving the field runs the search", () => {
-    const onChange = vi.fn();
-    render(<FilterSearchBar id="s" label="Search" value="" onChange={onChange} placeholder="p" />);
-    const input = screen.getByLabelText("Search");
-    fireEvent.change(input, { target: { value: " boom " } });
-    fireEvent.blur(input);
-    expect(onChange).toHaveBeenCalledWith("boom");
-  });
 
-  it("does not commit on blur when the draft matches the committed value", () => {
+  it("commits the trimmed draft on blur only when it differs from the committed value", () => {
     const onChange = vi.fn();
     render(
       <FilterSearchBar id="s" label="Search" value="boom" onChange={onChange} placeholder="p" />,
     );
-    fireEvent.blur(screen.getByLabelText("Search"));
+    const input = screen.getByLabelText("Search");
+    fireEvent.blur(input);
     expect(onChange).not.toHaveBeenCalled();
-  });
 
-  it("names the clear button after the field it clears", () => {
-    render(
-      <FilterSearchBar
-        id="logs-trace-id"
-        label="Trace"
-        value="abc123"
-        onChange={vi.fn()}
-        placeholder="Any trace"
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Clear trace" })).toBeInTheDocument();
+    // Leaving the field runs the search.
+    fireEvent.change(input, { target: { value: " bang " } });
+    fireEvent.blur(input);
+    expect(onChange).toHaveBeenCalledWith("bang");
   });
 
   it("hides the clear button while the input has focus, and only then", () => {

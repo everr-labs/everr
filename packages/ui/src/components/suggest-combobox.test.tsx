@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -51,11 +50,11 @@ function renderCombobox({
   return { queryFn, onChange };
 }
 
-it("loads suggestions only once opened", async () => {
+it("loads suggestions only once opened and commits a selected one", async () => {
   const user = userEvent.setup();
-  const { queryFn } = renderCombobox({
+  const { queryFn, onChange } = renderCombobox({
     items: [
-      { value: "severity", tag: "synthetic" },
+      { value: "critical", tag: "synthetic" },
       { value: "rule-1", hint: "High 5xx rate" },
     ],
   });
@@ -63,20 +62,9 @@ it("loads suggestions only once opened", async () => {
   expect(queryFn).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole("combobox", { name: "Matcher value" }));
-
-  await screen.findByText("severity");
-  expect(queryFn).toHaveBeenCalledTimes(1);
-});
-
-it("commits a selected suggestion and closes", async () => {
-  const user = userEvent.setup();
-  const { onChange } = renderCombobox({
-    items: [{ value: "critical" }, { value: "warning" }],
-  });
-
-  await user.click(screen.getByRole("combobox", { name: "Matcher value" }));
   await user.click(await screen.findByText("critical"));
 
+  expect(queryFn).toHaveBeenCalledTimes(1);
   expect(onChange).toHaveBeenCalledWith("critical");
 });
 

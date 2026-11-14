@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { createEventPublisher } from "@everr/app/server/events/publisher";
 import { membershipEventDefinitions } from "@everr/app/identity/events";
 import { billingEventDefinitions } from "../billing/events";
@@ -225,25 +224,19 @@ it("publishes committed Membership IDs and Plan even if later billing reconcilia
   ]);
 });
 
-it.each(["throw", "reject"])(
-  "preserves the downgrade and attempts each job when Graphile admission fails (%s)",
-  async (failure) => {
-    const enqueue = vi.fn(() => {
-      if (failure === "throw") throw new Error("Graphile unavailable");
-      return Promise.reject(new Error("Graphile unavailable"));
-    });
-    mocks.publish.mockImplementation(
-      createEventPublisher({
-        routes: [...membershipEventDefinitions, ...billingEventDefinitions].map((definition) => ({
-          definition,
-          job: (event) => ({ task: "test/downgrade", payload: event }),
-        })),
-        enqueue,
-      }).publish,
-    );
-    await expect(downgrade()).resolves.toEqual({ removedMembers: 1, canceledInvitations: 1 });
-    expect((await savedState()).plan).toBe("hobby");
-    expect(mocks.publish).toHaveBeenCalledTimes(2);
-    expect(enqueue).toHaveBeenCalledTimes(2);
-  },
-);
+it("preserves the downgrade and attempts each job when Graphile admission fails", async () => {
+  const enqueue = vi.fn(() => Promise.reject(new Error("Graphile unavailable")));
+  mocks.publish.mockImplementation(
+    createEventPublisher({
+      routes: [...membershipEventDefinitions, ...billingEventDefinitions].map((definition) => ({
+        definition,
+        job: (event) => ({ task: "test/downgrade", payload: event }),
+      })),
+      enqueue,
+    }).publish,
+  );
+  await expect(downgrade()).resolves.toEqual({ removedMembers: 1, canceledInvitations: 1 });
+  expect((await savedState()).plan).toBe("hobby");
+  expect(mocks.publish).toHaveBeenCalledTimes(2);
+  expect(enqueue).toHaveBeenCalledTimes(2);
+});

@@ -36,12 +36,7 @@ function setup(attributes: AttributeFilter[], onChange = vi.fn()) {
 }
 
 describe("AttributeValueCombobox", () => {
-  it("renders its label", () => {
-    setup([]);
-    expect(screen.getByText("Environment")).toBeInTheDocument();
-  });
-
-  it("shows the selected count badge from the matching 'in' entry", () => {
+  it("shows its label and the selected count badge from the matching 'in' entry", () => {
     setup([
       {
         source: "resource",
@@ -50,6 +45,7 @@ describe("AttributeValueCombobox", () => {
         values: ["prod", "staging"],
       },
     ]);
+    expect(screen.getByText("Environment")).toBeInTheDocument();
     // FilterCombobox shows the first value plus a "+N" badge for the rest.
     expect(screen.getByText("prod")).toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();

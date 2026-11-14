@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Mail, Webhook } from "lucide-react";
@@ -41,25 +40,29 @@ function renderCombobox({ onChange = vi.fn() } = {}) {
   return { onChange };
 }
 
-it("shows the selected option's label on the trigger", () => {
-  renderCombobox();
+it("shows the picked label on the trigger and the supporting copy in the options, then commits a pick", async () => {
+  const user = userEvent.setup();
+  const { onChange } = renderCombobox();
   const trigger = screen.getByRole("combobox", { name: "Channel type" });
   expect(trigger).toHaveTextContent("Webhook");
   expect(trigger).not.toHaveTextContent("Send alerts to an HTTP endpoint.");
-});
 
-it("shows supporting copy inside the expanded options", async () => {
-  const user = userEvent.setup();
-  renderCombobox();
+  await user.click(trigger);
 
-  await user.click(screen.getByRole("combobox", { name: "Channel type" }));
+  const webhook = await screen.findByRole("option", { name: /Webhook/ });
+  expect(webhook).toHaveTextContent("Send alerts to an HTTP endpoint.");
+  expect(webhook).toHaveAttribute("data-checked");
+  const email = screen.getByRole("option", { name: /Email/ });
+  expect(email).toHaveTextContent("Send alerts to an email address.");
+  expect(email).not.toHaveAttribute("data-checked");
 
-  expect(await screen.findByRole("option", { name: /Webhook/ })).toHaveTextContent(
-    "Send alerts to an HTTP endpoint.",
-  );
-  expect(screen.getByRole("option", { name: /Email/ })).toHaveTextContent(
-    "Send alerts to an email address.",
-  );
+  await user.click(email);
+
+  expect(onChange).toHaveBeenCalledWith("email");
+  // Base UI keeps the popover mounted for its closing animation, so the rows
+  // go one frame after the click, not with it.
+  await waitFor(() => expect(screen.queryByRole("option")).not.toBeInTheDocument());
+  expect(trigger).toHaveTextContent("Email");
 });
 
 it("shows the placeholder while no value is picked", () => {
@@ -75,30 +78,6 @@ it("shows the placeholder while no value is picked", () => {
   expect(screen.getByRole("combobox", { name: "Receiver" })).toHaveTextContent("Pick a receiver");
 });
 
-it("commits a picked option and closes", async () => {
-  const user = userEvent.setup();
-  const { onChange } = renderCombobox();
-
-  await user.click(screen.getByRole("combobox", { name: "Channel type" }));
-  await user.click(await screen.findByRole("option", { name: /Email/ }));
-
-  expect(onChange).toHaveBeenCalledWith("email");
-  // Base UI keeps the popover mounted for its closing animation, so the rows
-  // go one frame after the click, not with it.
-  await waitFor(() => expect(screen.queryByRole("option")).not.toBeInTheDocument());
-  expect(screen.getByRole("combobox", { name: "Channel type" })).toHaveTextContent("Email");
-});
-
-it("marks the current value's row as checked", async () => {
-  const user = userEvent.setup();
-  renderCombobox();
-
-  await user.click(screen.getByRole("combobox", { name: "Channel type" }));
-
-  expect(await screen.findByRole("option", { name: /Webhook/ })).toHaveAttribute("data-checked");
-  expect(screen.getByRole("option", { name: /Email/ })).not.toHaveAttribute("data-checked");
-});
-
 const GROUPED: OptionComboboxItem[] = [
   {
     value: "demo/always-firing",
@@ -112,18 +91,7 @@ const GROUPED: OptionComboboxItem[] = [
   },
 ];
 
-it("lists options under their group headings", async () => {
-  const user = userEvent.setup();
-  render(<OptionCombobox label="Rule" value={null} onChange={vi.fn()} options={GROUPED} />);
-
-  await user.click(screen.getByRole("combobox", { name: "Rule" }));
-
-  await screen.findByRole("option", { name: /Always firing/ });
-  const headings = [...document.querySelectorAll("[cmdk-group-heading]")];
-  expect(headings.map((h) => h.textContent)).toEqual(["demo", "checkout"]);
-});
-
-it("finds a rule by its label, not only its value, when searchable", async () => {
+it("lists options under their group headings and finds them by label when searchable", async () => {
   const user = userEvent.setup();
   render(
     <OptionCombobox
@@ -138,6 +106,12 @@ it("finds a rule by its label, not only its value, when searchable", async () =>
   );
 
   await user.click(screen.getByRole("combobox", { name: "Rule" }));
+
+  await screen.findByRole("option", { name: /Always firing/ });
+  const headings = [...document.querySelectorAll("[cmdk-group-heading]")];
+  expect(headings.map((h) => h.textContent)).toEqual(["demo", "checkout"]);
+
+  // The label matches, not only the value.
   await user.type(screen.getByPlaceholderText("Search rules…"), "checkout lat");
 
   expect(screen.getByRole("option", { name: /Checkout latency/ })).toBeVisible();

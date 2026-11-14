@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";

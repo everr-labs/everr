@@ -20,7 +20,6 @@ const mocked = vi.hoisted(() => ({
     __handler: FunctionMiddlewareHandler;
   }>,
   createServerFnMiddleware: vi.fn(),
-  createServerFnResult: {},
   getRequest: vi.fn(),
   getActiveMemberRole: vi.fn(),
   getSession: vi.fn(),
@@ -33,6 +32,16 @@ function getHandler(): FunctionMiddlewareHandler {
   }
 
   return mocked.handler;
+}
+
+function serverFnChain(serverFn: unknown): FunctionMiddlewareHandler {
+  const { middleware } = serverFn as {
+    middleware: Array<{ __handler: FunctionMiddlewareHandler }>;
+  };
+  return composeMiddleware(
+    middleware.map((definition) => definition.__handler),
+    ({ next }) => next(),
+  );
 }
 
 function getRequireOrgHandler(): FunctionMiddlewareHandler {
@@ -50,7 +59,9 @@ beforeEach(() => {
   mocked.middlewareDefinition = null;
   mocked.allDefinitions = [];
   mocked.createServerFnMiddleware.mockReset();
-  mocked.createServerFnMiddleware.mockReturnValue(mocked.createServerFnResult);
+  mocked.createServerFnMiddleware.mockImplementation(
+    (middleware: Array<{ __handler: FunctionMiddlewareHandler }>) => ({ middleware }),
+  );
   mocked.getRequest.mockReset();
   mocked.getActiveMemberRole.mockReset();
   mocked.getSession.mockReset();
@@ -117,28 +128,62 @@ async function loadModule() {
 }
 
 describe("createAuthenticatedServerFn", () => {
-  it("wires the auth middleware into createServerFn", async () => {
+  it("blocks data functions until the organization's storage is ready", async () => {
     const { createAuthenticatedServerFn } = await loadModule();
+    vi.mocked(assertStorageReady).mockImplementationOnce(() => {
+      throw new StorageNotReadyError();
+    });
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    const next = vi.fn();
 
-    // Data functions require both membership and completed provisioning.
-    const [, , requireOrgDef] = mocked.allDefinitions;
-    expect(createAuthenticatedServerFn).toBe(mocked.createServerFnResult);
-    expect(mocked.createServerFnMiddleware).toHaveBeenCalledWith([requireOrgDef]);
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: new Request("http://localhost/_server"),
+        next,
+      }),
+    ).rejects.toMatchObject({ name: "StorageNotReadyError" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects a user who is not a member of the active organization", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockResolvedValue([]);
+    const next = vi.fn();
+
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: new Request("http://localhost/_server"),
+        next,
+      }),
+    ).rejects.toThrow("Not a member of the active organization");
+    expect(next).not.toHaveBeenCalled();
   });
 });
 
 describe("createOrganizationAdminServerFn", () => {
-  it("wires the organization admin middleware into createServerFn", async () => {
-    const { createOrganizationAdminServerFn } = await loadModule();
+  it("rejects an ordinary member through the exported server function", async () => {
+    const { createOrganizationAdminServerFn, NotOrganizationAdminError } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+    mocked.getOrganization.mockResolvedValue([{ id: "org", metadata: null, memberRole: "member" }]);
+    const next = vi.fn();
 
-    const [, , , requireOrganizationAdminDef] = mocked.allDefinitions;
-    expect(createOrganizationAdminServerFn).toBe(mocked.createServerFnResult);
-    expect(mocked.createServerFnMiddleware).toHaveBeenLastCalledWith([
-      expect.objectContaining({
-        options: requireOrganizationAdminDef?.options,
-        __handler: expect.any(Function),
+    await expect(
+      serverFnChain(createOrganizationAdminServerFn)({
+        request: new Request("http://localhost/_server"),
+        next,
       }),
-    ]);
+    ).rejects.toBeInstanceOf(NotOrganizationAdminError);
+    expect(next).not.toHaveBeenCalled();
   });
 
   it.each(["admin", "owner", "member, admin"])("allows an %s", async (role) => {

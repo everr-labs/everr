@@ -123,25 +123,21 @@ describe("POST /api/apply", () => {
     });
   });
 
-  it("returns 400 on an invalid body", async () => {
-    const res = await POST({ request: req({}), context: ctx });
-    expect(res.status).toBe(400);
-    expect(applyResources).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 on unknown state keys", async () => {
-    const res = await POST({
-      request: req({
+  it.each([
+    { name: "empty body", body: {} },
+    {
+      name: "unknown state keys",
+      body: {
         repoid: "repo-1",
-        state: {
-          dashboards: [],
-          runbooks: [],
-          alerts: [],
-          unexpected: [],
-        },
-      }),
-      context: ctx,
-    });
+        state: { dashboards: [], runbooks: [], alerts: [], unexpected: [] },
+      },
+    },
+    {
+      name: "empty preview name",
+      body: { repoid: "repo-1", state: { dashboards: [], runbooks: [], alerts: [] }, preview: "" },
+    },
+  ])("returns 400 on an invalid body: $name", async ({ body }) => {
+    const res = await POST({ request: req(body), context: ctx });
     expect(res.status).toBe(400);
     expect(applyResources).not.toHaveBeenCalled();
   });
@@ -287,17 +283,5 @@ describe("POST /api/apply", () => {
     expect(res.status).toBe(200);
     expect(applyResources).toHaveBeenCalledWith(expect.objectContaining({ preview: "gio/x" }));
     expect(await res.json()).toMatchObject({ preview: "gio/x" });
-  });
-
-  it("rejects an empty preview name", async () => {
-    const res = await POST({
-      request: req({
-        repoid: "repo-1",
-        state: { dashboards: [], runbooks: [], alerts: [] },
-        preview: "",
-      }),
-      context: ctx,
-    });
-    expect(res.status).toBe(400);
   });
 });

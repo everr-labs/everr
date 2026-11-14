@@ -71,13 +71,18 @@ describe("TracesRepository.search", () => {
       attributes: [{ source: "span", key: "http.route", op: "missing", values: [] }],
     });
 
-    const [sql] = query.mock.calls[0] ?? [];
+    const [sql, params] = query.mock.calls[0] ?? [];
     const page = sql.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(params).toMatchObject({ minDurationNs: "1000000" });
     expect(page).toBeDefined();
     expect(page).toContain("ServiceName IN {service:Array(String)}");
     expect(page).toContain("TraceId NOT IN");
     expect(page).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
+    expect(page).not.toContain("durationNsRaw <= toUInt64({maxDurationNs:String})");
     expect(page).toContain("countIf(StatusCode = 'Error') > 0");
+    // Both filter on aggregates, so ClickHouse only accepts them under HAVING.
+    expect(page).toMatch(/HAVING[\s\S]*durationNsRaw >= /);
+    expect(page).toMatch(/HAVING[\s\S]*countIf\(StatusCode = 'Error'\) > 0/);
     expect(page).toContain("TraceId < {cursorTraceId:String}");
     const summary = sql.split("), aggregated AS (")[1];
     expect(summary).not.toMatch(/HAVING|NOT IN|ServiceName IN/);
@@ -104,12 +109,7 @@ describe("TracesRepository.search", () => {
     const result = await makeRepo().search({
       fromTs: "2026-05-20 12:30:00.000",
       toTs: "2026-05-20 13:00:00.000",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      limit: 25,
+      ...searchBase,
     });
 
     expect(result).toEqual([row]);
@@ -125,49 +125,26 @@ describe("TracesRepository.search", () => {
     });
   });
 
-  it("uses the selected time range without adaptive narrowing", async () => {
-    query.mockResolvedValueOnce(traceRows(2));
+  it.each([2, 1])(
+    "queries the selected time range once, without narrowing or widening it (%i rows)",
+    async (rowCount) => {
+      query.mockResolvedValueOnce(traceRows(rowCount));
 
-    await makeRepo().search({
-      fromTs: "2026-05-13 21:15:54.183",
-      toTs: "2026-05-27 21:15:54.183",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      limit: 2,
-    });
+      await makeRepo().search({
+        ...searchBase,
+        fromTs: "2026-05-13 21:15:54.183",
+        toTs: "2026-05-27 21:15:54.183",
+        limit: 2,
+      });
 
-    expect(query).toHaveBeenCalledTimes(1);
-    const [, params] = query.mock.calls[0] ?? [];
-    expect(params).toMatchObject({
-      fromTs: "2026-05-13 21:15:54.183",
-      toTs: "2026-05-27 21:15:54.183",
-      limit: 2,
-    });
-  });
-
-  it("does not retry wider windows when a page is short", async () => {
-    query.mockResolvedValueOnce(traceRows(1));
-
-    await makeRepo().search({
-      fromTs: "2026-05-13 21:15:54.183",
-      toTs: "2026-05-27 21:15:54.183",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      limit: 2,
-    });
-
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(query.mock.calls[0]?.[1]).toMatchObject({
-      fromTs: "2026-05-13 21:15:54.183",
-      toTs: "2026-05-27 21:15:54.183",
-    });
-  });
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(query.mock.calls[0]?.[1]).toMatchObject({
+        fromTs: "2026-05-13 21:15:54.183",
+        toTs: "2026-05-27 21:15:54.183",
+        limit: 2,
+      });
+    },
+  );
 
   it("uses the cursor as the next page upper bound and tie breaker", async () => {
     query.mockResolvedValueOnce(traceRows(2));
@@ -177,11 +154,7 @@ describe("TracesRepository.search", () => {
       toTs: "2026-05-27 21:15:54.183",
       cursorStartTs: "2026-05-27 21:00:00.000",
       cursorTraceId: "trace-z",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
+      ...searchBase,
       limit: 2,
     });
 
@@ -197,42 +170,21 @@ describe("TracesRepository.search", () => {
     });
   });
 
-  it("uses a configured local traces table", async () => {
+  it("uses a configured local traces table with string timestamp parameters", async () => {
     query.mockResolvedValueOnce([]);
 
     const repo = new TracesRepository(client, { tableName: "otel_traces" });
     await repo.search({
+      ...searchBase,
       fromTs: "2026-05-20 11:00:00.000",
       toTs: "2026-05-20 13:00:00.000",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      limit: 25,
+      namespace: ["app"],
     });
 
     const [sql] = query.mock.calls[0] ?? [];
     expect(sql).toContain("FROM otel_traces");
     expect(sql).not.toContain("FROM traces");
-  });
-
-  it("uses string timestamp parameters for local sql transport compatibility", async () => {
-    query.mockResolvedValueOnce([]);
-
-    const repo = new TracesRepository(client, { tableName: "otel_traces" });
-    await repo.search({
-      fromTs: "2026-05-20 11:00:00.000",
-      toTs: "2026-05-20 13:00:00.000",
-      namespace: ["app"],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      limit: 25,
-    });
-
-    const [sql] = query.mock.calls[0] ?? [];
+    // String parameters keep the local SQL transport compatible.
     expect(sql).not.toContain("{fromTs:DateTime64(9)}");
     expect(sql).not.toContain("{toTs:DateTime64(9)}");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
@@ -273,55 +225,35 @@ describe("TracesRepository.search", () => {
       repo.search({
         fromTs: "2026-05-20 11:00:00.000",
         toTs: "2026-05-20 13:00:00.000",
-        namespace: [],
-        service: [],
-        name: "",
-        status: "all",
-        attributes: [],
-        limit: 25,
+        ...searchBase,
       }),
     ).rejects.toThrow("invalid table name");
   });
+});
 
-  it("adds HAVING clauses for duration + status filters and skips empty ones", async () => {
-    query.mockResolvedValueOnce([]);
-
-    await makeRepo().search({
-      fromTs: "2026-05-20 11:00:00.000",
-      toTs: "2026-05-20 13:00:00.000",
-      namespace: [],
-      service: [],
-      name: "",
-      minDurationNs: "1000",
-      status: "error",
-      attributes: [],
-      limit: 50,
-    });
-
-    const [sql, params] = query.mock.calls[0] ?? [];
-    expect(sql).toContain("HAVING");
-    expect(sql).toContain("durationNsRaw >= toUInt64({minDurationNs:String})");
-    expect(sql).not.toContain("durationNsRaw <= toUInt64({maxDurationNs:String})");
-    expect(sql).toContain("countIf(StatusCode = 'Error') > 0");
-    expect(params).toMatchObject({ minDurationNs: "1000" });
-  });
-
-  it("propagates query errors", async () => {
-    query.mockRejectedValueOnce(new Error("clickhouse exploded"));
-
-    await expect(
+// A swallowed error would show an outage as "no traces" or "trace not found".
+it.each([
+  [
+    "search",
+    () =>
       makeRepo().search({
         fromTs: "2026-05-20 11:00:00.000",
         toTs: "2026-05-20 13:00:00.000",
-        namespace: [],
-        service: [],
-        name: "",
-        status: "all",
-        attributes: [],
-        limit: 25,
+        ...searchBase,
       }),
-    ).rejects.toThrow("clickhouse exploded");
-  });
+  ],
+  ["getTrace", () => makeRepo().getTrace({ traceId: "t1" })],
+  [
+    "listServiceIdentities",
+    () =>
+      makeRepo().listServiceIdentities({
+        fromTs: "2026-05-20 11:00:00.000",
+        toTs: "2026-05-20 13:00:00.000",
+      }),
+  ],
+])("%s propagates query errors", async (_method, call) => {
+  query.mockRejectedValueOnce(new Error("clickhouse exploded"));
+  await expect(call()).rejects.toThrow("clickhouse exploded");
 });
 
 describe("TracesRepository.getTrace", () => {
@@ -417,15 +349,6 @@ describe("TracesRepository.getTrace", () => {
       "exception.type": "E",
     });
   });
-
-  it("propagates query errors", async () => {
-    query.mockRejectedValueOnce(new Error("not found"));
-    await expect(
-      makeRepo().getTrace({
-        traceId: "missing",
-      }),
-    ).rejects.toThrow("not found");
-  });
 });
 
 describe("TracesRepository.listServiceIdentities", () => {
@@ -450,16 +373,6 @@ describe("TracesRepository.listServiceIdentities", () => {
       toTs: "2026-05-20 13:00:00.000",
     });
   });
-
-  it("propagates query errors", async () => {
-    query.mockRejectedValueOnce(new Error("permission denied"));
-    await expect(
-      makeRepo().listServiceIdentities({
-        fromTs: "2026-05-20 11:00:00.000",
-        toTs: "2026-05-20 13:00:00.000",
-      }),
-    ).rejects.toThrow("permission denied");
-  });
 });
 
 describe("trace search attribute filtering", () => {
@@ -469,10 +382,7 @@ describe("trace search attribute filtering", () => {
     await makeRepo().search({
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
+      ...searchBase,
       limit: 50,
       attributes: [{ source: "span", key: "http.route", op: "in", values: ["/x"] }],
     });
@@ -551,11 +461,7 @@ describe("trace search attribute filtering", () => {
     await makeRepo().search({
       fromTs: "2026-06-01 00:00:00",
       toTs: "2026-06-01 01:00:00",
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
+      ...searchBase,
       limit: 50,
     });
 

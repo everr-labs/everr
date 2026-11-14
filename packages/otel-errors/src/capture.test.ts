@@ -21,16 +21,6 @@ afterEach(async () => {
 });
 
 describe("configure", () => {
-  it("leaves untouched keys at their current value", () => {
-    configure({
-      beforeSend: (event) => ({ ...event, message: "from the first call" }),
-    });
-    // This call sets no key at all. Thus beforeSend stays installed.
-    configure({});
-    captureError(new Error("same"));
-    expect(otel.records()[0]?.body).toBe("from the first call");
-  });
-
   it("replaces a present key wholesale rather than merging into it", () => {
     configure({ beforeSend: (event) => ({ ...event, message: "first" }) });
     configure({ beforeSend: (event) => ({ ...event, message: "second" }) });

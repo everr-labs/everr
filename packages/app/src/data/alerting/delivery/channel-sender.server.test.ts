@@ -117,52 +117,21 @@ it("refuses a webhook header that would rewrite the request, and names no value"
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("marks a 400 permanent: retrying an identical malformed request cannot help", async () => {
-  fetchMock.mockResolvedValueOnce(new Response("bad payload", { status: 400 }));
-
-  const error = await sendChannelNotification(
-    { type: "webhook", url: HOOK_URL },
-    { title: "t", body: "b" },
-  ).catch((caught: unknown) => caught);
-
-  expect(error).toBeInstanceOf(ChannelSendError);
-  expect((error as ChannelSendError).permanent).toBe(true);
-});
-
-it("marks a 500 transient: worth retrying", async () => {
-  fetchMock.mockResolvedValueOnce(new Response("", { status: 500 }));
-
-  const error = await sendChannelNotification(
-    { type: "webhook", url: HOOK_URL },
-    { title: "t", body: "b" },
-  ).catch((caught: unknown) => caught);
-
-  expect(error).toBeInstanceOf(ChannelSendError);
-  expect((error as ChannelSendError).permanent).toBe(false);
-});
-
-it.each([408, 429])("keeps %d retryable even though it is a 4xx", async (status) => {
-  fetchMock.mockResolvedValueOnce(new Response("", { status }));
-
-  const error = await sendChannelNotification(
-    { type: "webhook", url: HOOK_URL },
-    { title: "t", body: "b" },
-  ).catch((caught: unknown) => caught);
-
-  expect((error as ChannelSendError).permanent).toBe(false);
-});
-
 // Every channel feeds the same retry decision in send-delivery.ts, which reads
 // `cause instanceof ChannelSendError && cause.permanent`. A channel that
 // classifies nothing spends the whole attempt budget on an endpoint that has
-// already refused it.
+// already refused it. A 4xx is permanent (retrying an identical request cannot
+// help) except 408 and 429.
 it.each([
+  ["webhook" as const, 400, true],
+  ["webhook" as const, 408, false],
+  ["webhook" as const, 429, false],
+  ["webhook" as const, 403, true],
+  ["webhook" as const, 500, false],
   ["slack" as const, 403, true],
   ["slack" as const, 500, false],
   ["discord" as const, 403, true],
   ["discord" as const, 500, false],
-  ["webhook" as const, 403, true],
-  ["webhook" as const, 500, false],
 ])("classifies a %s %d failure", async (type, status, permanent) => {
   fetchMock.mockResolvedValueOnce(new Response("", { status }));
 
