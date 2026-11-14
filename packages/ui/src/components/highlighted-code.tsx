@@ -30,12 +30,12 @@ function register(grammars: Record<string, LanguageFn>) {
   }
 }
 
-// The languages runbooks use most ship with the page. Any other one loads
+// The languages pages show most ship with the page. Any other one loads
 // every grammar highlight.js has, once, the first time a fence needs it.
 const lowlight = createLowlight();
 register({ bash, go, javascript, json, python, sql, typescript, yaml });
 
-/** Fences that name no language worth loading grammars for. */
+/** Languages that name nothing worth loading grammars for. */
 const PLAIN = new Set(["text", "txt", "plain", "plaintext"]);
 
 // If the chunk fails to load (a deploy replaced it, the network dropped), the
@@ -43,7 +43,7 @@ const PLAIN = new Set(["text", "txt", "plain", "plaintext"]);
 // retried: `use` would ask again on every render, retrying in a loop.
 let everyLanguage: Promise<void> | undefined;
 function loadEveryLanguage(): Promise<void> {
-  everyLanguage ??= import("./every-language").then(
+  everyLanguage ??= import("@everr/ui/lib/every-highlight-language").then(
     (grammars) => register(grammars.everyLanguage),
     () => {},
   );
@@ -51,7 +51,7 @@ function loadEveryLanguage(): Promise<void> {
 }
 
 /**
- * The grammar a fence's language names, by its id or any alias, lowercased.
+ * The grammar a language names, by its id or any alias, lowercased.
  * Null for no language or a plain one; suspends while a language outside the
  * common set loads.
  */
@@ -62,8 +62,8 @@ function useGrammarKey(language: string | undefined): string | null {
   return names.has(key) ? key : null;
 }
 
-/** A fence language's proper name, or the language as written when
- * highlight.js doesn't know it. */
+/** A language's proper name, or the language as written when highlight.js
+ * doesn't know it. */
 export function LanguageName({ language }: { language: string }) {
   const key = useGrammarKey(language);
   return key ? names.get(key) : language;
@@ -102,34 +102,34 @@ function splitLines(nodes: TokenNode[]): TokenNode[][] {
   return lines;
 }
 
-/** One line of code, marked when the fence highlights it. */
+/** One line of code, set apart when marked. Styled by
+ * `@everr/ui/styles/highlight.css`, kept out of Tailwind so pages that never
+ * show code don't ship its rules. */
 function Line({ tokens, marked }: { tokens: TokenNode[]; marked: boolean }) {
   return createElement(
     "span",
-    {
-      className: marked
-        ? "-mx-4 inline-block min-w-[calc(100%+2rem)] border-l-2 border-primary bg-primary/9 pr-4 pl-[calc(1rem-2px)]"
-        : "inline-block min-w-full",
-      "data-marked": marked || undefined,
-    },
+    { className: "hl-line", "data-marked": marked || undefined },
     ...tokens.map(renderNode),
   );
 }
+
+const NONE: ReadonlySet<number> = new Set();
 
 /**
  * `code` highlighted as `language`, line by line, with the lines numbered in
  * `marked` (from 1) set apart. A language outside the common set suspends
  * while every grammar loads; one highlight.js doesn't know stays plain, as
- * does a fence with no language.
+ * does code with no language. Render it inside a `<pre>`, and import
+ * `@everr/ui/styles/highlight.css` once in the app's stylesheet.
  */
 export function HighlightedCode({
   language,
   code,
-  marked,
+  marked = NONE,
 }: {
   language: string | undefined;
   code: string;
-  marked: ReadonlySet<number>;
+  marked?: ReadonlySet<number>;
 }) {
   const key = useGrammarKey(language);
   // Not again on a copy or a wrap toggle, which re-render the block.
