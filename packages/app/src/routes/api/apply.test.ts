@@ -198,6 +198,8 @@ describe("POST /api/apply", () => {
     state: { dashboards: [], runbooks: [], alerts: [] },
   };
 
+  const DENIED_BODY = { error: expect.stringMatching(/read-only/i) };
+
   it.each([
     { name: "read-only key, mutative apply", applyActions: ["read"], dryRun: false, status: 403 },
     {
@@ -224,6 +226,7 @@ describe("POST /api/apply", () => {
     });
     expect(res.status).toBe(status);
     expect(applyResources).toHaveBeenCalledTimes(status === 403 ? 0 : 1);
+    expect(await res.json()).toMatchObject(status === 403 ? DENIED_BODY : { results: [] });
   });
 
   it("forwards preview to applyResources and echoes it", async () => {

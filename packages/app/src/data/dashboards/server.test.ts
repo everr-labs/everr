@@ -138,6 +138,16 @@ describe("runPanelQuery – variable interpolation", () => {
     );
   });
 
+  it("runs the SQL unchanged when no variables are provided", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({
+      data: { source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" } },
+    });
+
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
+  });
+
   it("binds from/to and an adaptive {step} bucket as query params", async () => {
     mockedClickhouse.mockResolvedValue([]);
 

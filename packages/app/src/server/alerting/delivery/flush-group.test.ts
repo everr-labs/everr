@@ -203,10 +203,9 @@ describe("formatNotification", () => {
     const { title, body } = formatNotification(events);
     expect(title).toBe("Everr alert: 300 firing");
     const lines = body.split("\n");
-    expect(lines.at(-1)).toMatch(/^…and \d+ more events in this group$/);
-    const shown = lines.length - 1;
-    expect(shown).toBeLessThanOrEqual(20);
-    expect(lines.at(-1)).toBe(`…and ${300 - shown} more events in this group`);
+    // Short lines, so the event cap binds before the character budget does.
+    expect(lines.slice(0, -1)).toHaveLength(20);
+    expect(lines.at(-1)).toBe("…and 280 more events in this group");
     expect(body.length).toBeLessThan(CHANNEL_TEXT_MAX.discord - title.length - 4);
   });
 

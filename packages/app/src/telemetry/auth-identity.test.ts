@@ -578,8 +578,8 @@ it("preserves existing span identity but clears subsequent attribution when the 
   ).toEqual({ "user.id": user.id });
 });
 
-// Every cache strategy and every endpoint is covered once; the cache-hit test
-// above already crosses each strategy with an authoritative endpoint.
+// Each cache strategy and each authoritative endpoint runs once. The hook has
+// no per-endpoint branch, so crossing them would add nothing.
 it.each([
   { strategy: "compact", endpoint: "/get-access-token" },
   { strategy: "jwt", endpoint: "/refresh-token" },

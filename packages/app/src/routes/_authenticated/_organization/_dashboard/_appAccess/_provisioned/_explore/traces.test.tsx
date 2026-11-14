@@ -113,6 +113,13 @@ describe("/traces route", () => {
     return router;
   }
 
+  it("renders the trace as a full page, not the list, when its URL is opened directly", async () => {
+    renderTracesRoute(["/traces/trace-1"]);
+
+    expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
+    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
+  });
+
   it("opens a full-page trace and preserves list filters without adding trace timestamps", async () => {
     const user = userEvent.setup();
     const router = renderTracesRoute(["/traces?from=now-1h&to=now"]);

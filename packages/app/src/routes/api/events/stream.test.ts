@@ -110,7 +110,12 @@ describe("GET /api/events/stream", () => {
     );
   });
 
-  it("forwards the payload directly to the SSE stream when a notification arrives", async () => {
+  it.each([
+    { query: "scope=tenant", subscribe: () => mockedSubscribeTenant },
+    { query: "scope=trace&key=t1", subscribe: () => mockedSubscribe },
+    { query: "scope=commit&key=abc", subscribe: () => mockedSubscribe },
+    { query: "scope=author&key=dev%40example.com", subscribe: () => mockedSubscribeAuthor },
+  ])("forwards each notification to the SSE stream for $query", async ({ query, subscribe }) => {
     const { createSSEStream } = await import("#app/lib/sse.ts");
     const mockSendEvent = vi.fn();
     vi.mocked(createSSEStream).mockReturnValueOnce({
@@ -119,16 +124,11 @@ describe("GET /api/events/stream", () => {
       response: vi.fn(() => new Response(null)),
     });
 
-    let capturedCallback: ((payload: NotifyPayload) => void) | undefined;
-    mockedSubscribeTenant.mockImplementationOnce((_tenantId, cb) => {
-      capturedCallback = cb;
-      return vi.fn();
-    });
-
     await getHandler()({
-      request: new Request("http://localhost/api/events/stream?scope=tenant"),
+      request: new Request(`http://localhost/api/events/stream?${query}`),
       context: { session: mockSession },
     });
+    const onNotify = subscribe().mock.lastCall?.at(-1) as (payload: NotifyPayload) => void;
 
     const mockPayload: NotifyPayload = {
       tenantId: "42",
@@ -137,7 +137,7 @@ describe("GET /api/events/stream", () => {
       sha: "abc",
       repo: "org/repo",
       branch: "main",
-      authorEmail: null,
+      authorEmail: "dev@example.com",
       workflowName: "CI",
       name: "CI",
       type: "run",
@@ -145,7 +145,7 @@ describe("GET /api/events/stream", () => {
       conclusion: "success",
       jobId: null,
     };
-    capturedCallback?.(mockPayload);
+    onNotify(mockPayload);
 
     expect(mockSendEvent).toHaveBeenCalledWith(mockPayload);
   });

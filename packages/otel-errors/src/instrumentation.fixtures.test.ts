@@ -34,14 +34,20 @@ const FIXTURES = [
 
 function spawnFixture(name: string): Promise<FixtureResult> {
   const fixture = resolve(PKG_ROOT, "test/fixtures", name);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const child = execFile(
       process.execPath,
       [fixture],
       { encoding: "utf8", timeout: 15_000 },
       (_error, stdout, stderr) => {
         const lines = stdout.trim().split("\n").filter(Boolean);
-        const records = lines.map((l) => JSON.parse(l) as Line);
+        let records: Line[];
+        try {
+          records = lines.map((l) => JSON.parse(l) as Line);
+        } catch {
+          reject(new Error(`${name} printed a line that is not JSON:\n${stdout}\n${stderr}`));
+          return;
+        }
         resolve({
           status: child.exitCode,
           stderr,

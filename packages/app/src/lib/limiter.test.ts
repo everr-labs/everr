@@ -41,6 +41,25 @@ describe("createLimiter", () => {
     expect(maxActive).toBe(2);
   });
 
+  it("starts queued tasks in the order they were submitted", async () => {
+    const run = createLimiter(1);
+    const started: number[] = [];
+    const gate = deferred<void>();
+    const tasks = [1, 2, 3].map((id) =>
+      run(undefined, async () => {
+        started.push(id);
+        if (id === 1) await gate.promise;
+      }),
+    );
+
+    await tick();
+    expect(started).toEqual([1]);
+
+    gate.resolve();
+    await Promise.all(tasks);
+    expect(started).toEqual([1, 2, 3]);
+  });
+
   it("skips an already-aborted task without running its work", async () => {
     const run = createLimiter(2);
     let ran = false;

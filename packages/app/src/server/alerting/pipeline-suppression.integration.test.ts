@@ -8,6 +8,7 @@ import {
   alertDeliveries,
   alertEvents,
   alertInstances,
+  alertNotificationGroups,
   alertSilences,
 } from "#app/db/schema/index.ts";
 import {
@@ -287,7 +288,7 @@ describe("the alerting pipeline's suppression", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    await insertDirectRule(harness().db, {
+    const pagingRule = await insertDirectRule(harness().db, {
       slug: "paging-rule",
       severity: "critical",
       forSecs: 0,
@@ -300,7 +301,14 @@ describe("the alerting pipeline's suppression", () => {
     // Both rules breach at the same severity; only the one that is not a
     // preview may ever notify.
     expect(harness().fetchCalls()).toHaveLength(1);
-    expect(await harness().db.select().from(alertDeliveries)).toHaveLength(1);
+    const deliveries = await harness()
+      .db.select({ ruleId: alertNotificationGroups.directAlertDefinitionId })
+      .from(alertDeliveries)
+      .innerJoin(
+        alertNotificationGroups,
+        eq(alertDeliveries.notificationGroupId, alertNotificationGroups.id),
+      );
+    expect(deliveries).toEqual([{ ruleId: pagingRule.id }]);
 
     const firedBySlug = new Map(
       harness()

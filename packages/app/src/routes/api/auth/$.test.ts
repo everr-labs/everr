@@ -11,9 +11,9 @@ import { Route } from "./$";
 
 type AuthHandler = (args: { request: Request }) => Response | Promise<Response>;
 
-function getHandler(method: "GET") {
+function getHandler(method: "GET" | "POST") {
   const routeOptions = Route.options as {
-    server?: { handlers?: { GET?: AuthHandler } };
+    server?: { handlers?: Partial<Record<"GET" | "POST", AuthHandler>> };
   };
   const handler = routeOptions.server?.handlers?.[method];
   if (!handler) throw new Error(`Missing ${method} handler for auth route.`);
@@ -32,5 +32,14 @@ describe("/api/auth/$ route", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("Location")).toBe("/auth/error?error=email_doesn%27t_match");
     expect(mocks.handler).not.toHaveBeenCalled();
+  });
+
+  it.each(["GET", "POST"] as const)("hands any other %s request to Better Auth", async (method) => {
+    const handled = new Response("ok");
+    mocks.handler.mockResolvedValue(handled);
+    const request = new Request("http://localhost:5173/api/auth/get-session", { method });
+
+    expect(await getHandler(method)({ request })).toBe(handled);
+    expect(mocks.handler).toHaveBeenCalledWith(request);
   });
 });
