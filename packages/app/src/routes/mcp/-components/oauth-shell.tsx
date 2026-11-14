@@ -16,7 +16,7 @@ export function OAuthShell({
   children: ReactNode;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm animate-fade-up motion-reduce:animate-none">
         <header className="mb-6 text-center">
           <span className="font-heading text-sm font-bold uppercase tracking-[0.25em] text-foreground">

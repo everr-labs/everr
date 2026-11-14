@@ -13,7 +13,7 @@ export function RootErrorComponent({ error }: ErrorComponentProps) {
   }, [error]);
 
   return (
-    <div className="flex h-screen items-center justify-center p-6">
+    <div className="flex h-dvh items-center justify-center p-6">
       <RetryError
         title="Something went wrong"
         message="An unexpected error occurred. Reloading the page usually fixes it."

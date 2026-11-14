@@ -72,7 +72,7 @@ export const getRouter = () => {
     scrollToTopSelectors: ["[data-scroll-to-top]"],
     // defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
-      <div className="flex items-center justify-center h-screen font-heading text-lg">
+      <div className="flex items-center justify-center h-dvh font-heading text-lg">
         <Loader2 className="size-5 animate-spin text-primary" />
       </div>
     ),
