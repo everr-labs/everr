@@ -7,7 +7,9 @@ export default defineConfig({
     // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
     // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
     clearMocks: false,
-    projects: ["packages/*"],
+    // Only the packages with a test config. A directory without one (such as
+    // storybook) would otherwise become a project with default settings.
+    projects: ["packages/*/vitest.config.ts"],
     reporters: ["verbose"],
     coverage: {
       enabled: true,
