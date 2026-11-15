@@ -123,8 +123,10 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
 
   if (layout !== "inline") return fields;
   // Inline mode is self-contained: the clip that makes the per-field
-  // hairlines work lives here, not in whichever parent seats the bar.
-  return <div className="overflow-hidden">{fields}</div>;
+  // hairlines work lives here, not in whichever parent seats the bar. Only
+  // the left edge, where the hairlines sit, is clipped: the other sides grow
+  // past the box so a control's focus ring is not cut.
+  return <div className="[clip-path:inset(-8px_-8px_-8px_0)]">{fields}</div>;
 }
 
 function TextVariableField({
