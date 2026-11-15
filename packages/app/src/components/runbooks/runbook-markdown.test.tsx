@@ -114,8 +114,11 @@ describe("RunbookMarkdown code blocks", () => {
 
   it("heads each block with its title or language, marks lines and copies the code", async () => {
     const writeText = stubClipboard();
-    renderRunbook(
-      '```sql\nSELECT 1\n```\n\n    plain\n\n```console title="deploy.sh" {2}\n$ kubectl apply -f app.yaml\ndeployment configured\n$ kubectl rollout status deploy/app\n```',
+    // Inside act, so React retries the console block once its grammar loads.
+    await act(async () =>
+      renderRunbook(
+        '```sql\nSELECT 1\n```\n\n    plain\n\n```console title="deploy.sh" {2}\n$ kubectl apply -f app.yaml\ndeployment configured\n$ kubectl rollout status deploy/app\n```',
+      ),
     );
 
     const figures = screen.getAllByRole("figure");
@@ -124,11 +127,14 @@ describe("RunbookMarkdown code blocks", () => {
       "Text",
       "deploy.sh",
     ]);
-    expect(
-      [...(figures[2]?.querySelectorAll("pre code > span") ?? [])].map((line) =>
-        line.hasAttribute("data-marked"),
-      ),
-    ).toEqual([false, true, false]);
+    // The lines get their marks once the grammar has loaded.
+    await waitFor(() =>
+      expect(
+        [...(figures[2]?.querySelectorAll("pre code > span") ?? [])].map((line) =>
+          line.hasAttribute("data-marked"),
+        ),
+      ).toEqual([false, true, false]),
+    );
 
     const [sql, , session] = screen.getAllByRole("button", { name: "Copy code" });
     // Without the fence's trailing newline.

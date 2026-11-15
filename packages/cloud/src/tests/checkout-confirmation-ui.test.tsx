@@ -19,6 +19,7 @@ import { Route } from "../routes/_authenticated/_organization/_dashboard/_padded
 
 const Page = Route.options.component as ComponentType;
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.spyOn(Route, "useSearch").mockImplementation(mocks.search);
 });
 afterEach(() => {

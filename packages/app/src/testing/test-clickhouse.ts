@@ -59,7 +59,9 @@ export class TestClickHouse {
   }
 
   reset(): void {
-    this.chdb?.setSignal([]);
+    // A case can change the signal's columns. The next case starts from the
+    // columns the table had at the start.
+    this.chdb?.resetSignal();
     this.chdb?.truncate();
   }
 

@@ -79,6 +79,8 @@ export interface ChdbDatabase {
   runQuery(statement: string, params?: QueryParams): SqlApiLikeResult;
   /** Replace what `app.test_signal` holds, which is what a rule selects. */
   setSignal(rows: Record<string, unknown>[]): void;
+  /** Empty `app.test_signal` and give it back the columns it started with. */
+  resetSignal(): void;
   truncate(): void;
   close(): void;
 }
@@ -144,10 +146,12 @@ export function createChdbDatabase(): ChdbDatabase {
     );
     signalColumns = columns.map(([name]) => name);
   };
-  createSignalTable([
-    ["service", "String"],
-    ["value", "Float64"],
-  ]);
+  const createDefaultSignalTable = () =>
+    createSignalTable([
+      ["service", "String"],
+      ["value", "Float64"],
+    ]);
+  createDefaultSignalTable();
 
   const database: ChdbDatabase = {
     runQuery(statement, params) {
@@ -188,6 +192,7 @@ export function createChdbDatabase(): ChdbDatabase {
           .join("\n")}`,
       );
     },
+    resetSignal: createDefaultSignalTable,
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
       // Direct fixture inserts need the retention stamp normally supplied by the writer.

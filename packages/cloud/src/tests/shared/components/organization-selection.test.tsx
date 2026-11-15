@@ -4,15 +4,15 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
+const removedOrganization = {
+  id: "removed",
+  name: "Removed organization",
+  slug: "removed",
+  createdAt: "2026-01-01T00:00:00Z",
+};
+
 const mocks = vi.hoisted(() => ({
-  organizations: [
-    {
-      id: "removed",
-      name: "Removed organization",
-      slug: "removed",
-      createdAt: "2026-01-01T00:00:00Z",
-    },
-  ],
+  organizations: [] as Array<{ id: string; name: string; slug: string; createdAt: string }>,
   invalidate: vi.fn(),
   refetch: () => Promise.resolve(),
 }));
@@ -78,6 +78,8 @@ function CachedOrganizationMenu() {
 }
 
 it("refreshes memberships when the chooser replaces a menu with cached organizations", async () => {
+  mocks.organizations = [removedOrganization];
+  mocks.invalidate.mockReset();
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -86,6 +88,11 @@ it("refreshes memberships when the chooser replaces a menu with cached organizat
       <CachedOrganizationMenu />
     </QueryClientProvider>,
   );
+  // The auth client keeps the list for the whole file. Load it again, so the
+  // menu caches this test's organizations and not those of an earlier test.
+  await act(async () => {
+    await mocks.refetch();
+  });
   expect(await screen.findByText("Removed organization")).toBeVisible();
 
   mocks.organizations = [

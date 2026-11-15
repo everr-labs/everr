@@ -33,6 +33,10 @@ export function createAppTestConfig(
     plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
     test: {
       clearMocks: false,
+      isolate: false,
+      // Random file and test order, so a test that depends on another fails
+      // early. A failure prints its seed: rerun with --sequence.seed=<seed>.
+      sequence: { shuffle: true },
       // Only component tests (.test.tsx) pay for a jsdom environment.
       projects: [
         {
@@ -45,7 +49,10 @@ export function createAppTestConfig(
         },
         { extends: true, test: { name: "dom", environment: "jsdom", include: ["**/*.test.tsx"] } },
       ],
-      setupFiles: [join(appDirectory, "src/test-setup.ts")],
+      setupFiles: [
+        join(appDirectory, "../../vitest.file-isolation.ts"),
+        join(appDirectory, "src/test-setup.ts"),
+      ],
       reporters: ["verbose"],
       env: {
         ...parse(readFileSync(join(root, ".env.example"), "utf8")),

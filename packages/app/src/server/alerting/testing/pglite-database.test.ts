@@ -40,6 +40,10 @@ afterAll(async () => {
 });
 
 describe("createTestDatabase", () => {
+  afterEach(async () => {
+    await database.truncate();
+  });
+
   it("applies migrations once", async () => {
     await database.db.insert(alertDefinitions).values(RULE);
     await applyTestSchema(database.client);
@@ -60,6 +64,9 @@ describe("createTestDatabase", () => {
   });
 
   it("truncate clears app tables and jobs together", async () => {
+    await database.db.insert(alertDefinitions).values(RULE);
+    await database.db.execute(sql`select graphile_worker.add_job('alerts/evaluate', '{}'::json)`);
+
     await database.truncate();
 
     const rules = await database.db.select().from(alertDefinitions);
