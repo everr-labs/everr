@@ -1,6 +1,6 @@
 import { CursorLine } from "@everr/ui/components/cursor-line";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
-import { type RefObject, useCallback, useState } from "react";
+import { type RefObject, useCallback, useEffect, useState } from "react";
 import { SERIES_COLORS } from "./data-utils";
 import { TIME_AXIS_HEIGHT, timeAxisTicks } from "./echarts/axis";
 import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "./echarts/plot-rect";
@@ -108,6 +108,17 @@ export function useTimeTrack<T>({
     setHover(null);
     clearCursor();
   }, [clearCursor]);
+
+  // The readout's tooltip sits at fixed screen coordinates, so a scroll
+  // anywhere would leave it behind the chart. A tap's readout has no
+  // pointer-leave to clear it, and a mouse's comes back on its next move.
+  // `scroll` doesn't bubble: listen in the capture phase to catch the panes.
+  const hovering = hover !== null;
+  useEffect(() => {
+    if (!hovering) return;
+    window.addEventListener("scroll", clearHover, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", clearHover, { capture: true });
+  }, [hovering, clearHover]);
 
   const hoverAt = (e: React.MouseEvent) => {
     const plot = plotRect(e);
