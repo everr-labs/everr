@@ -33,6 +33,7 @@ export function ErrorDetailRouteContent({
       fingerprint={fingerprint}
       timeRange={timeRange}
       service={service}
+      withRecording={search.withRecording}
       occurrence={search.occurrence}
       onBack={onBack}
       onClose={onClose}

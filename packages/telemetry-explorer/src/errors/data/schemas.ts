@@ -32,6 +32,7 @@ export const ErrorIssueSearchSchema = TimeRangeSearchSchema.extend({
   occurrence: searchString,
   sort: ErrorSortSchema.default("lastSeen").catch("lastSeen"),
   attributes: attributesField(["resource", "log", "scope"]).catch([]),
+  withRecording: z.boolean().default(false).catch(false),
 });
 export type ErrorIssueSearch = z.infer<typeof ErrorIssueSearchSchema>;
 

@@ -12,6 +12,8 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
+import type { SessionRecordingsHost } from "../../recordings/host";
+import { clipSubjectOfOccurrence } from "../../recordings/subject";
 import { errorIssueOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorOccurrence } from "../data/types";
@@ -29,6 +31,8 @@ export type ErrorDetailProps = {
   fingerprint: string;
   timeRange: TimeRange;
   service: string[];
+  /** The list's recording switch. With a host, only recorded occurrences are shown. */
+  withRecording: boolean;
   /** Selected occurrence key (timestamp|rank), or "" for the latest. */
   occurrence: string;
   onBack?: () => void;
@@ -36,6 +40,7 @@ export type ErrorDetailProps = {
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
 };
 
 export function ErrorDetail({
@@ -43,18 +48,20 @@ export function ErrorDetail({
   fingerprint,
   timeRange,
   service,
+  withRecording,
   occurrence,
   onBack,
   onClose,
   renderOccurrenceLink,
   renderTracePanel,
+  sessionRecordings,
 }: ErrorDetailProps) {
   const issueQuery = useQuery(
     errorIssueOptions(repo, {
       fingerprint,
       timeRange,
       service,
-      withRecording: false,
+      withRecording: sessionRecordings !== undefined && withRecording,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
   );
@@ -96,6 +103,7 @@ export function ErrorDetail({
   const selected = findErrorOccurrenceByKey(detail.occurrences, occurrence) ?? detail.latest;
   const message = selected.exceptionMessage || selected.body;
   const componentStack = selected.logAttributes["everr.react.component_stack"] ?? "";
+  const recordingSubject = clipSubjectOfOccurrence(selected);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -117,6 +125,7 @@ export function ErrorDetail({
             bound belongs to a child: on the viewport it would narrow the
             scrolling box itself and pull the scrollbar in with it. */}
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
+          {recordingSubject && sessionRecordings?.renderPlayer(recordingSubject)}
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}
             message={selected.exceptionMessage}

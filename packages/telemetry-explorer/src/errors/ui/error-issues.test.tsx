@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubNarrowViewport } from "../../test-utils/viewport";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import type { ErrorsRepositoryLike } from "../data/repository";
 
 vi.mock("react-virtuoso", () => ({
@@ -41,17 +42,22 @@ const emptySearch: ErrorIssuesSearchValue = {
   fingerprint: "",
   sort: "lastSeen",
   attributes: [],
+  withRecording: false,
 };
 
 function ErrorsPageHarness({
   initial = emptySearch,
   environment = [],
   persistentFilters,
+  sessionRecordings,
+  repo: givenRepo,
   onSearchChange,
 }: {
   initial?: ErrorIssuesSearchValue;
   environment?: string[];
   persistentFilters?: ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
+  repo?: ErrorsRepositoryLike;
   onSearchChange?: (patch: Partial<ErrorIssuesSearchValue>) => void;
 }) {
   const [search, setSearch] = useState(initial);
@@ -60,7 +66,7 @@ function ErrorsPageHarness({
   const [queryClient] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   );
-  const [repo] = useState(makeRepo);
+  const [repo] = useState(() => givenRepo ?? makeRepo());
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorIssues
@@ -69,6 +75,7 @@ function ErrorsPageHarness({
         search={search}
         environment={environment}
         persistentFilters={persistentFilters}
+        sessionRecordings={sessionRecordings}
         onSearchChange={(patch) => {
           onSearchChange?.(patch);
           setSearch((prev) => ({ ...prev, ...patch }));
@@ -128,7 +135,7 @@ describe("Errors page filter rail", () => {
     await user.click(screen.getByRole("button", { name: "Clear page filters" }));
 
     const patch = onSearchChange.mock.calls[0]?.[0];
-    expect(patch).toEqual({ q: "", attributes: [] });
+    expect(patch).toEqual({ q: "", attributes: [], withRecording: false });
     expect(patch).not.toHaveProperty("sort");
     expect(patch).not.toHaveProperty("service");
   });
@@ -152,5 +159,47 @@ describe("Errors page filter rail", () => {
     await user.click(screen.getByRole("button", { name: /Filters/ }));
     expect(screen.getByRole("complementary", { name: "Error filters" })).toBeInTheDocument();
     expect(screen.getByText("persistent zone")).toBeInTheDocument();
+  });
+});
+
+describe("Errors page session recording filter", () => {
+  const host: SessionRecordingsHost = { renderPlayer: () => null };
+  const searchedWith = (repo: ErrorsRepositoryLike) =>
+    vi.mocked(repo.searchIssues).mock.calls.map(([input]) => input.withRecording);
+
+  it("without a host, draws no switch and ignores withRecording from the URL", async () => {
+    const repo = makeRepo();
+    render(<ErrorsPageHarness repo={repo} initial={{ ...emptySearch, withRecording: true }} />);
+
+    await waitFor(() => expect(repo.searchIssues).toHaveBeenCalled());
+    expect(searchedWith(repo)).toEqual([false]);
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
+  });
+
+  it("with a host, searches only recorded Errors once the switch is on", async () => {
+    const user = userEvent.setup();
+    const repo = makeRepo();
+    render(<ErrorsPageHarness repo={repo} sessionRecordings={host} />);
+
+    await waitFor(() => expect(repo.searchIssues).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("switch", { name: "With session recording" }));
+
+    await waitFor(() => expect(searchedWith(repo)).toEqual([false, true]));
+    expect(screen.getByRole("switch", { name: "With session recording" })).toBeChecked();
+  });
+
+  it("counts the switch on the narrow Filters button", async () => {
+    stubNarrowViewport();
+    render(
+      <ErrorsPageHarness
+        sessionRecordings={host}
+        initial={{ ...emptySearch, withRecording: true }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("1"),
+    );
   });
 });

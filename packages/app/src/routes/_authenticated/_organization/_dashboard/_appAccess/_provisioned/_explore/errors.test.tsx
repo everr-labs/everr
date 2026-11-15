@@ -195,6 +195,7 @@ describe("/errors route", () => {
         fingerprint: "",
         sort: "lastSeen",
         attributes: [],
+        withRecording: false,
       }),
     );
   });

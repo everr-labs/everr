@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { type ComponentProps, useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
+import type { SessionRecordingsHost } from "../../../recordings/host";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
@@ -50,6 +51,7 @@ export type TraceExplorerProps = {
   search: {
     span?: string;
   };
+  sessionRecordings?: SessionRecordingsHost;
   onBack: () => void;
   onSpanChange: (spanId: string | undefined) => void;
 };
@@ -161,6 +163,7 @@ function TraceViewer({
   layoutKey,
   traceId,
   search,
+  sessionRecordings,
   onSpanChange,
   onBack,
 }: Props & { model: TraceModel; layoutKey: (string | number)[] }) {
@@ -406,6 +409,7 @@ function TraceViewer({
           </Button>
         </div>
       </div>
+      {sessionRecordings?.renderPlayer({ kind: "trace", traceId })}
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel defaultSize="72%" minSize="35%">
           <div className="flex h-full min-h-0 flex-col">
