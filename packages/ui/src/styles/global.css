@@ -39,6 +39,8 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
+  --color-level-debug: var(--level-debug);
+  --color-level-trace: var(--level-trace);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -143,6 +145,20 @@
   --success: oklch(0.792 0.209 151.711);
   --warning: oklch(0.795 0.184 86.047);
   --info: oklch(0.746 0.16 232.661);
+  /* Log levels below info. Error, warning and info use the status colours
+     above. */
+  --level-debug: oklch(0.702 0.183 293.541);
+  --level-trace: oklch(0.696 0.17 162.48);
+  /* Trace services: eight hues spaced around the wheel at the same lightness
+     and chroma as the statuses, so no service outshouts an error. */
+  --trace-service-1: oklch(0.72 0.16 25);
+  --trace-service-2: oklch(0.72 0.16 70);
+  --trace-service-3: oklch(0.78 0.16 115);
+  --trace-service-4: oklch(0.74 0.16 155);
+  --trace-service-5: oklch(0.74 0.13 200);
+  --trace-service-6: oklch(0.7 0.14 245);
+  --trace-service-7: oklch(0.7 0.16 290);
+  --trace-service-8: oklch(0.72 0.17 335);
   --border: oklch(1 0 0 / 7.5%);
   --input: oklch(1 0 0 / 11%);
   --ring: oklch(0.6 0.012 270);

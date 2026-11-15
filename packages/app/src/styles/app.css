@@ -1,6 +1,5 @@
 @import "@everr/ui/src/styles/global.css";
 @import "@everr/ui/styles/highlight.css";
-@import "@everr/telemetry-explorer/styles.css";
 
 @plugin "@tailwindcss/typography";
 
