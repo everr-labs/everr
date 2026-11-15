@@ -6,5 +6,5 @@ import type { PromotedAttribute } from "../../attribute-filter/ui/attribute-meta
 // key, so the attribute picker cannot offer a second filter for it.
 export const ENVIRONMENT_ATTRIBUTE: PromotedAttribute = {
   source: "resource",
-  key: "deployment.environment",
+  key: "deployment.environment.name",
 };
