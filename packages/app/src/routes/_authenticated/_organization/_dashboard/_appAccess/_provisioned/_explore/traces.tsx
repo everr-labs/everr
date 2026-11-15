@@ -4,6 +4,7 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute, Link, stripSearchParams, useSearch } from "@tanstack/react-router";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
+import { sessionRecordingsHost } from "./-recording/host";
 
 // service/environment live in the shared _explore topbar but must also be in
 // the child schema so the leaf route's validateSearch doesn't strip them.
@@ -49,6 +50,7 @@ function TracesSearchPage() {
       }}
       environment={environment}
       persistentFilters={<ExplorePersistentFilters />}
+      sessionRecordings={sessionRecordingsHost}
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).

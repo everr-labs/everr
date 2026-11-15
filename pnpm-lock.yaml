@@ -369,6 +369,9 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: ^2.7.1
         version: 2.7.1(@opentelemetry/api@1.9.1)
+      '@rrweb/replay':
+        specifier: 2.1.7
+        version: 2.1.7
       '@t3-oss/env-core':
         specifier: 'catalog:'
         version: 0.13.11(typescript@6.0.3)(valibot@1.5.0(typescript@6.0.3))(zod@4.6.5)
@@ -5076,6 +5079,9 @@ packages:
 
   '@rrweb/record@2.1.7':
     resolution: {integrity: sha512-lIAbWdH8JwRuujURxTBtgrlsPvyBUGXUa9aB5hK8s5DdHgagyLFkIaAWhtthuOwT3o4o4+w38yUVPLc3W2oOrw==}
+
+  '@rrweb/replay@2.1.7':
+    resolution: {integrity: sha512-KqS3iUxafAL8dO8fwCEydrOc3rYbGwnV73wac4JO5s1I7fgd6toX3tJFKnAuIUnbAcgSO+DQZ7GrsGX8hOAODQ==}
 
   '@rrweb/types@2.2.2':
     resolution: {integrity: sha512-b9BNYEBcQF9dGQ5JJOoqBEFM7HlLmOdKgCfS2qkQj3gevF1wyuJIGPDGpaAYpl0H24fFOHGw6IdbYH6qrZNk1w==}
@@ -14594,6 +14600,11 @@ snapshots:
     dependencies:
       '@rrweb/types': 2.2.2
       '@rrweb/utils': 2.2.2
+      rrweb: 2.2.2
+
+  '@rrweb/replay@2.1.7':
+    dependencies:
+      '@rrweb/types': 2.2.2
       rrweb: 2.2.2
 
   '@rrweb/types@2.2.2': {}
