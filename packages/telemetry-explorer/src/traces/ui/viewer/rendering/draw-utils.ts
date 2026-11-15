@@ -3,7 +3,7 @@
 // Adapted for Everr. See README.md for upstream provenance and changes.
 
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { resolveThemeColor } from "../theme-colors";
+import { ERROR_TINT_OPACITY, resolveThemeColor, spanTextColor } from "../theme-colors";
 import {
   DASHED_BORDER_LINE_DASH,
   EVENT_DOT_SIZE_RATIO,
@@ -168,7 +168,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
 
   if (span.hasError) {
     ctx.save();
-    ctx.globalAlpha = shouldDim ? 0.05 : 0.3;
+    ctx.globalAlpha = shouldDim ? 0.05 : ERROR_TINT_OPACITY;
     ctx.fillStyle = resolveThemeColor("var(--destructive)");
     ctx.fill();
     ctx.globalAlpha = shouldDim ? 0.15 : 1;
@@ -262,7 +262,7 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
   ctx.clip();
 
   ctx.font = LABEL_FONT;
-  ctx.fillStyle = isSelectedOrHovered ? color : "rgba(0, 0, 0, 0.7)";
+  ctx.fillStyle = isSelectedOrHovered ? color : spanTextColor(color, span.hasError);
   ctx.textBaseline = "middle";
 
   const textY = y + spanBarHeight / 2;

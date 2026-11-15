@@ -7,13 +7,14 @@ import {
 } from "@everr/ui/components/resizable";
 import { RetryError } from "@everr/ui/components/retry-error";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@everr/ui/components/dropdown-menu";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { cn } from "@everr/ui/lib/utils";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
@@ -33,7 +34,7 @@ import type { VirtuosoHandle } from "react-virtuoso";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
-import { serviceColor } from "../shared/service-color";
+import { serviceColors } from "../shared/service-color";
 import { type FlamegraphHandle, TraceFlamegraph, type ViewRange } from "./flamegraph";
 import { matchesSpan, SPAN_CATEGORIES, type SpanCategory, type TraceModel } from "./model";
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
@@ -167,8 +168,8 @@ function TraceViewer({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<SpanCategory>("All");
   const [errorsOnly, setErrorsOnly] = useState(false);
-  const [colorBy, setColorBy] = useState<string | null>("service.name");
-  const [previewField, setPreviewField] = useState<string | null>("");
+  const [colorBy, setColorBy] = useState("service.name");
+  const [previewField, setPreviewField] = useState("");
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set<string>());
   const openNodes = useMemo(
     () =>
@@ -206,11 +207,10 @@ function TraceViewer({
     [model],
   );
   const colorGroups = useMemo(
-    () => [
-      ...new Set(model.waterfall.map((node) => spanColorGroup(node, colorBy ?? "service.name"))),
-    ],
+    () => [...new Set(model.waterfall.map((node) => spanColorGroup(node, colorBy)))],
     [model, colorBy],
   );
+  const colors = useMemo(() => serviceColors(colorGroups), [colorGroups]);
 
   const selectSpan = useCallback(
     (id: string, source: "flamegraph" | "waterfall" | "search" = "search") => {
@@ -359,32 +359,20 @@ function TraceViewer({
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
         <span className="text-muted-foreground text-xs">Color by</span>
-        <Select value={colorBy} onValueChange={setColorBy}>
-          <SelectTrigger size="sm" aria-label="Color spans by">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {["service.name", "service.namespace", "host.name"].map((key) => (
-              <SelectItem key={key} value={key}>
-                {key}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AttributeMenu
+          label="Color spans by"
+          value={colorBy}
+          options={COLOR_BY_FIELDS}
+          onChange={setColorBy}
+        />
         <span className="text-muted-foreground ml-2 text-xs">Preview</span>
-        <Select value={previewField} onValueChange={setPreviewField}>
-          <SelectTrigger size="sm" aria-label="Preview span attribute" className="max-w-56">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">None</SelectItem>
-            {previewFields.map((key) => (
-              <SelectItem key={key} value={key}>
-                {key}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <AttributeMenu
+          label="Preview span attribute"
+          value={previewField}
+          options={previewFields}
+          emptyLabel="None"
+          onChange={setPreviewField}
+        />
         <div className="ml-auto flex items-center gap-1">
           <Button
             variant="ghost"
@@ -426,11 +414,14 @@ function TraceViewer({
               aria-expanded={flamegraphOpen}
               onClick={() => setFlamegraphOpen((prev) => !prev)}
             >
-              {flamegraphOpen ? (
-                <ChevronDown className="size-3" />
-              ) : (
-                <ChevronRight className="size-3" />
-              )}
+              {/* A right chevron turning down, as the waterfall rows do. A down
+                  chevron would be flipped by the global aria-expanded rule. */}
+              <ChevronRight
+                className={cn(
+                  "size-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none",
+                  flamegraphOpen && "rotate-90",
+                )}
+              />
               Flamegraph
               <span className="text-muted-foreground ml-auto text-[10px] font-normal">
                 Pinch to zoom · drag to pan
@@ -447,7 +438,8 @@ function TraceViewer({
                       selectedSpanId={selectedId}
                       matchingIds={matchingSet}
                       filterActive={filterActive}
-                      colorBy={colorBy ?? "service.name"}
+                      colorBy={colorBy}
+                      colors={colors}
                       range={range}
                       onRangeChange={setZoomRange}
                       onSelect={(id) => selectSpan(id, "flamegraph")}
@@ -467,8 +459,9 @@ function TraceViewer({
                     openNodes={openNodes}
                     matchingIds={matchingSet}
                     filterActive={filterActive}
-                    colorBy={colorBy ?? "service.name"}
-                    previewField={previewField ?? ""}
+                    colorBy={colorBy}
+                    colors={colors}
+                    previewField={previewField}
                     range={range}
                     virtuosoRef={waterfallRef}
                     onSelect={(id) => selectSpan(id, "waterfall")}
@@ -490,7 +483,7 @@ function TraceViewer({
                   <span
                     className="size-2 rounded-sm"
                     style={{
-                      backgroundColor: serviceColor(group),
+                      backgroundColor: colors.get(group),
                     }}
                   />
                   {group}
@@ -525,5 +518,48 @@ function TraceViewer({
         )}
       </ResizablePanelGroup>
     </section>
+  );
+}
+
+const COLOR_BY_FIELDS = ["service.name", "service.namespace", "host.name"];
+
+/** Picks one attribute key. `emptyLabel` adds a leading "no attribute" choice,
+ *  whose value is the empty string. */
+function AttributeMenu({
+  label,
+  value,
+  options,
+  emptyLabel,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  emptyLabel?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="outline" size="sm" aria-label={label} className="max-w-56 font-normal" />
+        }
+      >
+        <span className="truncate">{value || emptyLabel}</span>
+        <ChevronDown className="text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-auto min-w-(--anchor-width)" listClassName="max-h-72">
+        <DropdownMenuRadioGroup value={value} onValueChange={(next: string) => onChange(next)}>
+          {emptyLabel !== undefined && (
+            <DropdownMenuRadioItem value="">{emptyLabel}</DropdownMenuRadioItem>
+          )}
+          {options.map((key) => (
+            <DropdownMenuRadioItem key={key} value={key}>
+              {key}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

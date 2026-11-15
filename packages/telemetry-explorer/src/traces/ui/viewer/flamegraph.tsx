@@ -44,6 +44,7 @@ export function TraceFlamegraph({
   matchingIds,
   filterActive,
   colorBy,
+  colors,
   range,
   onRangeChange,
   onSelect,
@@ -55,6 +56,7 @@ export function TraceFlamegraph({
   matchingIds: ReadonlySet<string>;
   filterActive: boolean;
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
   range: ViewRange;
   onRangeChange: (range: ViewRange) => void;
   onSelect: (id: string) => void;
@@ -92,6 +94,7 @@ export function TraceFlamegraph({
     eventRectsRef,
     matchingSpanIds: filterActive ? matchingIds : null,
     colorBy,
+    colors,
   });
 
   // URL selection controls the external scroll surface, not local selection state.

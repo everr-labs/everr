@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { serviceColor } from "./service-color";
+import { serviceColor, serviceColors } from "./service-color";
 
 describe("serviceColor", () => {
   it("returns a stable color for the same name", () => {
@@ -17,5 +17,18 @@ describe("serviceColor", () => {
 
   it("returns a CSS variable reference", () => {
     expect(serviceColor("svc")).toMatch(/^var\(--trace-service-\d\)$/);
+  });
+});
+
+describe("serviceColors", () => {
+  it("gives every group in a view its own color", () => {
+    // These two hash to the same slot.
+    const colors = serviceColors(["web-frontend", "api-gateway", "inventory-service"]);
+    expect(new Set(colors.values()).size).toBe(3);
+  });
+
+  it("keeps the hashed color for the first group to claim a slot", () => {
+    const colors = serviceColors(["web-frontend", "api-gateway"]);
+    expect(colors.get("web-frontend")).toBe(serviceColor("web-frontend"));
   });
 });
