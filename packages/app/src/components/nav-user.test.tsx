@@ -47,13 +47,13 @@ it.each(["owner", "member"])(
     render(
       <SidebarProvider>
         <UserMenu
-          beforeOrganization={<DropdownMenuItem>General action</DropdownMenuItem>}
+          organizationSwitcher={<DropdownMenuItem>Switch organization</DropdownMenuItem>}
           organizationItems={<DropdownMenuItem>Admin action</DropdownMenuItem>}
         />
       </SidebarProvider>,
     );
     await user.click(screen.getByRole("button", { name: /Test User/ }));
-    expect(await screen.findByRole("menuitem", { name: "General action" })).toBeVisible();
+    expect(await screen.findByRole("menuitem", { name: "Switch organization" })).toBeVisible();
     expect(screen.queryByRole("menuitem", { name: "Admin action" }) !== null).toBe(
       role === "owner",
     );
