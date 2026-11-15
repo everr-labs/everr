@@ -56,6 +56,7 @@ export function ErrorIssues({
       sort: search.sort,
       limit: PAGE_SIZE,
       attributes: withEnvironment(search.attributes, environment),
+      withRecording: false,
     }),
     placeholderData: keepPreviousData,
   });

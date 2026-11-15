@@ -7,6 +7,7 @@
     "./errors": "./src/errors/index.ts",
     "./filters": "./src/filters/index.ts",
     "./logs": "./src/logs/index.ts",
+    "./recordings": "./src/recordings/index.ts",
     "./runs": "./src/runs/index.ts",
     "./sql": "./src/sql/index.ts",
     "./traces": "./src/traces/index.ts",

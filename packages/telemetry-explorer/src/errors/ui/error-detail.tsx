@@ -57,6 +57,7 @@ export function ErrorDetail({
       timeRange,
       refresh,
       service,
+      withRecording: false,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
   );
