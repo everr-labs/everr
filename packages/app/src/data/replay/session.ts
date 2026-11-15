@@ -770,6 +770,28 @@ export async function pageAt(
   };
 }
 
+export type ClipEvents = { events: RrwebEvent[]; gaps: Gap[] };
+
+/**
+ * The events of one Clip in time order, for the in-app player, ending at the
+ * Clip's end. `atMs` is the Clip's start: its span is searched an hour around it.
+ */
+export async function clipEvents(
+  organizationId: string,
+  clipId: string,
+  atMs: number,
+): Promise<ClipEvents> {
+  const clip = await loadClipById(organizationId, clipId, atMs);
+  if (!clip) throw new ReplayError("outside_clip", "no recording clip found near at");
+  const { byStream, gaps } = await loadSegments(organizationId, [clip]);
+  const { events, gaps: streamGaps } = reassemble(byStream.get(clip.streamId) ?? [], clip.streamId);
+  const endMs = clip.end.getTime();
+  return {
+    events: events.filter((e) => e.timestamp <= endMs).sort((a, b) => a.timestamp - b.timestamp),
+    gaps: [...gaps, ...streamGaps],
+  };
+}
+
 export function replayHttpError(error: unknown): Response {
   if (error instanceof ReplayError) {
     const status =

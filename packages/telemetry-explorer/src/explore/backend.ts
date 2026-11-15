@@ -2,6 +2,7 @@ import type { ErrorsRepositoryLike, RelatedSpan } from "../errors";
 import type { LogsExplorerProps, LogsRepositoryLike } from "../logs";
 import type { MetricsRepositoryLike } from "../metrics";
 import type { ProfilesRepositoryLike, RuntimeMetricsRepositoryLike } from "../profiles";
+import type { SessionRecordingsHost } from "../recordings";
 import type { TracesRepositoryLike } from "../traces";
 import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -42,6 +43,8 @@ export interface ExploreBackend {
   useErrorTraceSpans: (traceId: string, enabled: boolean) => ErrorTraceSpans;
   /** The link from a log row to its CI run, for an app that has CI runs. */
   ciRunLinks?: Pick<LogsExplorerProps, "resolveJobId" | "renderRunLink">;
+  /** Plays session recordings, for an app that stores them. */
+  sessionRecordings?: SessionRecordingsHost;
 }
 
 /** The router context an app that mounts the Explore routes must provide. */
