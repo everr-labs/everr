@@ -9,16 +9,16 @@ export default defineConfig({
       // Remove to preserve subpath imports as written (the new default).
       // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
       resolveDepSubpath: true,
+      // The react bundle must keep its import of the package name. If the build
+      // resolves it, the react bundle contains the entry of one runtime, and the
+      // selection by the "." export conditions of the consumer is lost.
+      neverBundle: ["@everr/otel-web"],
     },
     entry: {
       index: "src/index.ts",
       react: "src/react.ts",
       server: "src/server.ts",
     },
-    // The react bundle must keep its import of the package name. If the build
-    // resolves it, the react bundle contains the entry of one runtime, and the
-    // selection by the "." export conditions of the consumer is lost.
-    external: ["@everr/otel-web"],
     format: ["esm"],
     dts: true,
     platform: "browser",

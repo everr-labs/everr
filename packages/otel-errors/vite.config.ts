@@ -9,6 +9,7 @@ export default defineConfig({
       // Remove to preserve subpath imports as written (the new default).
       // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
       resolveDepSubpath: true,
+      neverBundle: [/^@opentelemetry\//, /^node:/],
     },
     entry: {
       node: "src/node.ts",
@@ -17,7 +18,6 @@ export default defineConfig({
     format: ["esm", "cjs"],
     dts: true,
     platform: "neutral",
-    external: [/^@opentelemetry\//, /^node:/],
     define: {
       __PACKAGE_VERSION__: JSON.stringify(packageVersion),
     },

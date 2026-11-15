@@ -7,11 +7,11 @@ export default defineConfig({
       // Remove to preserve subpath imports as written (the new default).
       // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
       resolveDepSubpath: true,
+      neverBundle: [/^@opentelemetry\//, /^@tanstack\//, /^@everr\//, /^node:/],
     },
     entry: { index: "src/index.ts" },
     format: ["esm", "cjs"],
     dts: true,
     platform: "node",
-    external: [/^@opentelemetry\//, /^@tanstack\//, /^@everr\//, /^node:/],
   },
 });
