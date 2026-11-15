@@ -3,11 +3,14 @@
 // Adapted for Everr. See README.md for upstream provenance and changes.
 
 import { formatDuration } from "@everr/ui/lib/formatting";
+import { splitSpanName } from "../../http-method";
 import { ERROR_TINT_OPACITY, resolveThemeColor, spanTextColor } from "../theme-colors";
 import {
   DASHED_BORDER_LINE_DASH,
   EVENT_DOT_SIZE_RATIO,
   LABEL_FONT,
+  METHOD_FONT,
+  METHOD_GAP,
   LABEL_PADDING_X,
   MAX_EVENT_DOT_SIZE,
   MAX_SPAN_BAR_HEIGHT,
@@ -282,16 +285,41 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
 
     // Name left-aligned, truncated to fit remaining space
     if (nameSpace > 20) {
-      ctx.textAlign = "left";
-      ctx.fillText(truncateText(ctx, name, nameSpace), leftX, textY);
+      drawSpanName(ctx, name, leftX, textY, nameSpace);
     }
   } else {
     // Name only, truncated to fit
-    ctx.textAlign = "left";
-    ctx.fillText(truncateText(ctx, name, availableWidth), leftX, textY);
+    drawSpanName(ctx, name, leftX, textY, availableWidth);
   }
 
   ctx.restore();
+}
+
+// The HTTP method in the monospace face the trace list and the waterfall use.
+// It keeps the label's colour: the label sits on the service colour, where the
+// method's own sky or amber would not read.
+function drawSpanName(
+  ctx: CanvasRenderingContext2D,
+  name: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+): void {
+  ctx.textAlign = "left";
+  const { method, label } = splitSpanName(name);
+  if (method) {
+    ctx.font = METHOD_FONT;
+    const methodWidth = ctx.measureText(method).width;
+    const labelX = x + methodWidth + METHOD_GAP;
+    if (labelX - x < maxWidth) {
+      ctx.fillText(method, x, y);
+      ctx.font = LABEL_FONT;
+      if (label) ctx.fillText(truncateText(ctx, label, maxWidth - (labelX - x)), labelX, y);
+      return;
+    }
+    ctx.font = LABEL_FONT;
+  }
+  ctx.fillText(truncateText(ctx, name, maxWidth), x, y);
 }
 
 function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {

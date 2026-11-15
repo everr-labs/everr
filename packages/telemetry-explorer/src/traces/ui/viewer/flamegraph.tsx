@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { SpanName } from "../span-name";
 import type { TraceModel } from "./model";
 import type { VisualLayout } from "./rendering/compute-visual-layout";
 import type { EventRect, SpanRect } from "./rendering/types";
@@ -309,7 +310,7 @@ export function TraceFlamegraph({
           }}
         >
           <div className="truncate font-medium">
-            {hover.event?.event.name ?? hover.span.span.name}
+            {hover.event ? hover.event.event.name : <SpanName name={hover.span.span.name} />}
           </div>
           <div className="text-muted-foreground mt-1 truncate">
             {hover.span.span.resource["service.name"]}
