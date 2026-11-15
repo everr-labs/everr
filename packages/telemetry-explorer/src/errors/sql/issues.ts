@@ -1,4 +1,5 @@
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { recordedLogPredicateSql } from "../../recordings/sql/coverage";
 import type { GetErrorIssuesQueryInput, SearchErrorIssuesInput } from "../data/schemas";
 import { errorsAttributeColumn } from "./attribute-columns";
 import { ERROR_FINGERPRINT_SQL, EXCEPTION_LOG_FILTER_SQL } from "./fingerprint";
@@ -39,7 +40,10 @@ function buildBaseParams(
 }
 
 function buildExceptionLogsCte(
-  input: Pick<SearchErrorIssuesInput, "fromTs" | "toTs" | "q" | "service" | "attributes">,
+  input: Pick<
+    SearchErrorIssuesInput,
+    "fromTs" | "toTs" | "q" | "service" | "attributes" | "withRecording"
+  >,
   tableName: string,
 ): BuiltQuery {
   const params = buildBaseParams(input);
@@ -60,6 +64,19 @@ function buildExceptionLogsCte(
   const attr = buildAttributeClauses(input.attributes ?? [], errorsAttributeColumn);
   filters.push(...attr.clauses);
   Object.assign(params, attr.params);
+
+  if (input.withRecording) {
+    filters.push(
+      recordedLogPredicateSql(
+        { traces: "traces", logs: tableName },
+        {
+          from: "parseDateTime64BestEffort({fromTs:String}, 9)",
+          to: "parseDateTime64BestEffort({toTs:String}, 9)",
+        },
+        EXCEPTION_LOG_FILTER_SQL,
+      ),
+    );
+  }
 
   return {
     params,

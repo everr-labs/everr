@@ -22,6 +22,7 @@ const baseInput = {
   maxMs: undefined,
   status: "all" as const,
   attributes: [],
+  withRecording: false,
   limit: 50,
 };
 

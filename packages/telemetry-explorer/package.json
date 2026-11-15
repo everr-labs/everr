@@ -22,6 +22,7 @@
     "./logs": "./src/logs/index.ts",
     "./metrics": "./src/metrics/index.ts",
     "./profiles": "./src/profiles/index.ts",
+    "./recordings": "./src/recordings/index.ts",
     "./runs": "./src/runs/index.ts",
     "./sql": "./src/sql/index.ts",
     "./traces": "./src/traces/index.ts",

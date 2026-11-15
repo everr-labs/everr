@@ -67,6 +67,7 @@ describe("Error trend against ClickHouse", () => {
       limit: 50,
       offset: 0,
       attributes: [],
+      withRecording: false,
     });
 
     expect(issues).toHaveLength(1);

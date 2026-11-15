@@ -95,6 +95,7 @@ export class ErrorsRepository {
         limit: 1,
         offset: 0,
         attributes: [],
+        withRecording: input.withRecording,
       },
       this.tableName,
     );

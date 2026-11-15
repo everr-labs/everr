@@ -53,6 +53,7 @@ export function ErrorDetail({
       fingerprint,
       timeRange,
       service,
+      withRecording: false,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
     // Another error's detail never stands in for this one.

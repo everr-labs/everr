@@ -14,6 +14,7 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { recordedTraceIdsSql } from "../../recordings/sql/coverage";
 import { attributeText, flattenAttributes, type JsonAttributes } from "../../sql/json-attributes";
 import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
 import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
@@ -160,6 +161,12 @@ export class TracesRepository {
         );
         Object.assign(params, built.params);
       });
+
+    if (input.withRecording) {
+      pageWhereParts.push(
+        `TraceId IN (${recordedTraceIdsSql(this.tableName, { from: FROM_TS_SQL, to: TO_TS_SQL })})`,
+      );
+    }
 
     // durationNsRaw is an aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
