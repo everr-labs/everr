@@ -13,4 +13,5 @@ export const productClient = {
     "/choose-organization",
   ],
   telemetryEndpoint: "https://ingest.everr.dev",
+  sessionRecordings: true,
 } satisfies ProductClient<typeof additionalBuiltinManifest>;

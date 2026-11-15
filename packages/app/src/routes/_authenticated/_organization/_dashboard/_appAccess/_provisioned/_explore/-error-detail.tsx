@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 import { runSpansOptions } from "#app/data/runs/options.ts";
+import { sessionRecordingsHost } from "./-recording/host";
 
 export function ErrorDetailRouteContent({
   fingerprint,
@@ -34,6 +35,7 @@ export function ErrorDetailRouteContent({
       timeRange={timeRange}
       service={service}
       withRecording={search.withRecording}
+      sessionRecordings={sessionRecordingsHost}
       occurrence={search.occurrence}
       onBack={onBack}
       onClose={onClose}
