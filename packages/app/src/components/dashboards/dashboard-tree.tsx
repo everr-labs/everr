@@ -3,7 +3,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import { ChevronRight, Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "#app/components/preview-status-badge.tsx";
-import { railRowActiveProps, railRowClass, rowIndent } from "#app/components/rail/rail-row.tsx";
+import { railRowClass, rowIndent } from "#app/components/rail/rail-row.tsx";
 import {
   buildTree,
   type DashboardSummary,
@@ -129,7 +129,7 @@ function FolderRows({
   return (
     <>
       <div
-        className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
+        className="flex items-center gap-1 rounded-md py-1 pr-1 text-foreground/75 transition-[background-color,color] duration-200 ease-sidebar hover:bg-accent/50 hover:text-foreground active:bg-accent active:text-foreground motion-reduce:transition-none"
         style={{ paddingLeft: `${rowIndent(depth, "folder")}px` }}
       >
         <button
@@ -145,8 +145,8 @@ function FolderRows({
               isExpanded && "rotate-90",
             )}
           />
-          <Folder className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{node.name}</span>
+          <Folder className="size-4 shrink-0" />
+          <span className="truncate text-sm">{node.name}</span>
         </button>
       </div>
       {isExpanded ? (
@@ -198,9 +198,8 @@ function DashboardRow({
       params={{ project: dashboard.project, slug: dashboard.slug }}
       className={cn(railRowClass, "flex min-w-0 items-center gap-2 pr-1", removed && "opacity-50")}
       style={{ paddingLeft: `${rowIndent(depth, "resource")}px` }}
-      activeProps={railRowActiveProps}
     >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <Icon className="size-4 shrink-0" />
       <span className="truncate text-sm">{dashboard.name}</span>
       {path && <span className="truncate text-xs text-muted-foreground">{path}</span>}
       <PreviewStatusBadge status={dashboard.previewStatus} />

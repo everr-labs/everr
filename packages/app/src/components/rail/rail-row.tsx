@@ -3,11 +3,16 @@ import { cn } from "@everr/ui/lib/utils";
 import { createLink, type LinkComponentProps, type RegisteredRouter } from "@tanstack/react-router";
 import type { ComponentPropsWithRef, ReactElement } from "react";
 
-/** The look every navigable row in a rail shares. */
-export const railRowClass = "rounded-md py-1.5 transition-colors hover:bg-muted/50";
-export const railRowActiveProps = {
-  className: "bg-muted text-foreground [&>svg]:text-primary",
-};
+/** The look every navigable row in a rail shares, matching the app sidebar:
+ *  a dimmed label and icon that brighten on hover, and a press that fills the
+ *  row with the selected row's background, so a click flows straight into the
+ *  selected state. The selected look keys on the `data-status` a router link
+ *  sets, which outranks the hover and rest classes whatever their order. */
+export const railRowClass = cn(
+  "rounded-md py-1.5 text-foreground/75 [&>svg]:text-foreground/60 transition-[background-color,color] duration-200 ease-sidebar motion-reduce:transition-none",
+  "hover:bg-muted/50 hover:text-foreground hover:[&>svg]:text-foreground active:bg-muted active:text-foreground",
+  "data-[status=active]:bg-muted data-[status=active]:text-foreground data-[status=active]:[&>svg]:text-primary",
+);
 
 /** The heading over a group of rail rows. */
 export const groupLabelClass = kickerClass;
@@ -37,14 +42,9 @@ function RailRowAnchor({ label, icon: Icon, className, ...anchorProps }: RailRow
   return (
     <a
       {...anchorProps}
-      className={cn(
-        railRowClass,
-        "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
-        "data-[status=active]:bg-muted data-[status=active]:text-foreground data-[status=active]:[&>svg]:text-primary",
-        className,
-      )}
+      className={cn(railRowClass, "flex w-full items-center gap-2.5 px-2 text-left", className)}
     >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <Icon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
     </a>
   );
