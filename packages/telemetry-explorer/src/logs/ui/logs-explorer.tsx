@@ -421,7 +421,7 @@ export function LogsExplorer({
         >
           <DialogContent
             showCloseButton={false}
-            className="flex h-[85vh] w-[90vw] max-w-none gap-0 overflow-hidden rounded-lg p-0 sm:max-w-4xl"
+            className="flex h-[85vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden rounded-lg p-0 sm:max-w-4xl"
           >
             <DialogTitle className="sr-only">Log event</DialogTitle>
             {selectedLogState ? (
