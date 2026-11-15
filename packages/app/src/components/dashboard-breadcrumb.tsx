@@ -7,7 +7,9 @@ import {
   BreadcrumbSeparator,
 } from "@everr/ui/components/breadcrumb";
 import { Link, useMatches } from "@tanstack/react-router";
+import { cn } from "@everr/ui/lib/utils";
 import { Fragment } from "react";
+import { findNavSection } from "#app/lib/navigation.ts";
 import type { BreadcrumbSegment } from "#app/router-types.ts";
 
 export function DashboardBreadcrumb() {
@@ -36,11 +38,20 @@ export function DashboardBreadcrumb() {
 
   if (crumbs.length === 0) return null;
 
+  const section = findNavSection(matches.at(-1)?.pathname ?? "");
+
   return (
     <Breadcrumb className="min-w-0">
       {/* One line: the header is a fixed 48px, so the current page truncates
           instead of wrapping out of it. */}
       <BreadcrumbList className="flex-nowrap">
+        {/* The section's sidebar icon, in its colour, so the page carries the
+            colour of the place you clicked. */}
+        {section && (
+          <BreadcrumbItem aria-hidden className={cn(section.group.accent, "shrink-0")}>
+            <section.item.icon className="size-3.5 text-(--nav-accent)" />
+          </BreadcrumbItem>
+        )}
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
           return (

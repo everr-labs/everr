@@ -62,15 +62,15 @@ export const HEADING_COMPONENTS = {
 
 // Each kind's accent, which the callout's border, tint and title take.
 const CALLOUTS: Record<CalloutKind, { title: string; icon: typeof Info; accent: string }> = {
-  note: { title: "Note", icon: Info, accent: "[--callout:oklch(0.72_0.12_240)]" },
-  tip: { title: "Tip", icon: Lightbulb, accent: "[--callout:oklch(0.75_0.14_150)]" },
+  note: { title: "Note", icon: Info, accent: "[--callout:var(--info)]" },
+  tip: { title: "Tip", icon: Lightbulb, accent: "[--callout:var(--success)]" },
   important: {
     title: "Important",
     icon: MessageSquareWarning,
-    accent: "[--callout:oklch(0.72_0.14_300)]",
+    accent: "[--callout:var(--ctp-mauve)]",
   },
-  warning: { title: "Warning", icon: TriangleAlert, accent: "[--callout:oklch(0.8_0.14_75)]" },
-  caution: { title: "Caution", icon: OctagonAlert, accent: "[--callout:oklch(0.68_0.19_25)]" },
+  warning: { title: "Warning", icon: TriangleAlert, accent: "[--callout:var(--warning)]" },
+  caution: { title: "Caution", icon: OctagonAlert, accent: "[--callout:var(--destructive)]" },
 };
 
 function isCalloutKind(value: unknown): value is CalloutKind {

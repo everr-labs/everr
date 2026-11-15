@@ -90,13 +90,13 @@ export function DashboardLayout() {
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {search.github_install === "linked" && (
-            <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <div className="mx-3 mt-3 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
               GitHub installation linked successfully.
             </div>
           )}
 
           {search.github_install === "error" && (
-            <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <div className="mx-3 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Failed to link GitHub installation
               {search.reason ? ` (${search.reason})` : ""}.
             </div>

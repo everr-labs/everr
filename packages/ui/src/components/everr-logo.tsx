@@ -26,7 +26,7 @@ type EverrLogoProps = VariantProps<typeof everrLogoVariants> & {
 
 export function EverrLogo({ className, size = "default", variant = "default" }: EverrLogoProps) {
   return (
-    <span className={cn(everrLogoVariants({ size, variant, className }))}>
+    <span className={cn("text-white", everrLogoVariants({ size, variant, className }))}>
       <EverrLogoMark variant={variant ?? "default"} aria-hidden="true" />
       everr
     </span>
@@ -37,7 +37,7 @@ type EverrLogoMarkProps = ComponentProps<"svg"> & {
   variant?: NonNullable<VariantProps<typeof everrLogoVariants>["variant"]>;
 };
 
-export function EverrLogoMark({ variant = "default", ...props }: EverrLogoMarkProps) {
+export function EverrLogoMark({ variant = "default", className, ...props }: EverrLogoMarkProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -49,6 +49,7 @@ export function EverrLogoMark({ variant = "default", ...props }: EverrLogoMarkPr
       strokeMiterlimit={2}
       aria-hidden="true"
       {...props}
+      className={cn("text-white", className)}
     >
       <path d={everrLogoPaths.body} />
       <path d={everrLogoPaths.antenna} />

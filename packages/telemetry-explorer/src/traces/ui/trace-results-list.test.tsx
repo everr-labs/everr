@@ -129,8 +129,8 @@ describe("TraceResultsList", () => {
       ],
     });
 
-    expect(screen.getByText("404").className).not.toContain("red");
-    expect(screen.getByText("200").className).toContain("red");
+    expect(screen.getByText("404").className).not.toContain("text-destructive");
+    expect(screen.getByText("200").className).toContain("text-destructive");
     // Colour is not the only signal for that state.
     expect(screen.getByLabelText("404, No errors")).toBeInTheDocument();
     expect(screen.getByLabelText("200, 2 errors")).toBeInTheDocument();

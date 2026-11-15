@@ -88,18 +88,18 @@ describe("getSuccessRateVariant", () => {
 
 describe("getFailureRateColor", () => {
   it("returns red for high failure rates", () => {
-    expect(getFailureRateColor(50)).toBe("text-red-600");
-    expect(getFailureRateColor(100)).toBe("text-red-600");
+    expect(getFailureRateColor(50)).toBe("text-destructive");
+    expect(getFailureRateColor(100)).toBe("text-destructive");
   });
 
   it("returns orange for medium failure rates", () => {
-    expect(getFailureRateColor(20)).toBe("text-orange-500");
-    expect(getFailureRateColor(49)).toBe("text-orange-500");
+    expect(getFailureRateColor(20)).toBe("text-orange-400");
+    expect(getFailureRateColor(49)).toBe("text-orange-400");
   });
 
   it("returns yellow for low failure rates", () => {
-    expect(getFailureRateColor(19)).toBe("text-yellow-600");
-    expect(getFailureRateColor(0)).toBe("text-yellow-600");
+    expect(getFailureRateColor(19)).toBe("text-warning");
+    expect(getFailureRateColor(0)).toBe("text-warning");
   });
 });
 

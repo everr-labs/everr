@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 const TONE = {
   neutral: { wash: "bg-muted/20", icon: "text-muted-foreground" },
-  warning: { wash: "bg-chart-2/5", icon: "text-chart-2" },
+  warning: { wash: "bg-warning/5", icon: "text-warning" },
   danger: { wash: "bg-destructive/6", icon: "text-destructive" },
 } as const;
 

@@ -154,7 +154,7 @@ export function TimeSeriesChartVisualization({
         clip: true,
         stack: stacked ? "stack" : undefined,
         stackStrategy: "all",
-        areaStyle: stacked ? { color, opacity: dimmed ? 0.03 : 0.16 } : undefined,
+        areaStyle: stacked ? { color, opacity: dimmed ? 0.06 : 0.4 } : undefined,
         lineStyle: { color, width: lineWidth, opacity: dimmed ? 0.15 : 1 },
         itemStyle: { color },
         ...curveOptions(curveType),

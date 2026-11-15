@@ -43,7 +43,7 @@ function SpecWarningsIndicator({ warnings }: { warnings: string[] }) {
         render={
           <button
             type="button"
-            className={cn("text-amber-500 hover:text-amber-400", TOUCH_TARGET)}
+            className={cn("text-warning/85 hover:text-warning", TOUCH_TARGET)}
             aria-label="Invalid panel options"
           />
         }

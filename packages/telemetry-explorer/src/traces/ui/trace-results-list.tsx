@@ -253,7 +253,7 @@ function TraceStatusBadge({ errorCount, statusCode }: { errorCount: number; stat
       className={cn(
         "rounded px-1.5 font-mono",
         failed
-          ? "border-red-500/40 bg-red-500/10 text-red-400"
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
           : "border-transparent bg-transparent text-muted-foreground",
       )}
     >

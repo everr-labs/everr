@@ -25,10 +25,10 @@ const badgeVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Diff/status tones (e.g. the preview overlay). 400-shade text on a
         // faint tinted fill reads legibly on the app's near-black surfaces.
-        added: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-        changed: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-        conflict: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-400",
-        removed: "border-red-500/40 bg-red-500/10 text-red-400",
+        added: "border-success/40 bg-success/10 text-success",
+        changed: "border-warning/40 bg-warning/10 text-warning",
+        conflict: "border-ctp-pink/40 bg-ctp-pink/10 text-ctp-pink",
+        removed: "border-destructive/40 bg-destructive/10 text-destructive",
       },
     },
     defaultVariants: {

@@ -194,7 +194,7 @@ function RepositoryImport() {
         ) : null}
 
         {importMutation.isSuccess ? (
-          <div className="border border-emerald-500/30 bg-emerald-500/5 p-3 text-emerald-600 text-sm">
+          <div className="border border-success/30 bg-success/5 p-3 text-success text-sm">
             Import complete. Workflow data will appear gradually.{" "}
             <Link to="/runs" className="font-medium underline">
               View runs

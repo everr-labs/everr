@@ -26,7 +26,7 @@ const columns: Column<TopFailingJob>[] = [
   },
   {
     header: "Failure Rate",
-    cell: (job) => <span className="font-mono text-xs text-red-600">{job.failureRate}%</span>,
+    cell: (job) => <span className="font-mono text-xs text-destructive">{job.failureRate}%</span>,
   },
 ];
 

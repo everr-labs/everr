@@ -6,10 +6,10 @@ const bannerVariants = cva("flex items-center gap-2 text-sm", {
   variants: {
     variant: {
       neutral: "text-muted-foreground",
-      info: "bg-sky-500 text-foreground",
-      success: "bg-emerald-500 text-emerald-300",
-      warning: "bg-amber-500 text-amber-300",
-      danger: "bg-red-500 text-red-300",
+      info: "bg-info text-ctp-crust",
+      success: "bg-success text-ctp-crust",
+      warning: "bg-warning text-ctp-crust",
+      danger: "bg-destructive text-ctp-crust",
     },
   },
   defaultVariants: { variant: "neutral" },
@@ -24,10 +24,10 @@ const bannerFrameVariants = cva(
     variants: {
       variant: {
         neutral: "after:ring-border",
-        info: "after:ring-sky-500",
-        success: "after:ring-emerald-500",
-        warning: "after:ring-amber-500",
-        danger: "after:ring-red-500",
+        info: "after:ring-info",
+        success: "after:ring-success",
+        warning: "after:ring-warning",
+        danger: "after:ring-destructive",
       },
     },
     defaultVariants: { variant: "neutral" },

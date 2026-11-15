@@ -22,7 +22,7 @@ interface WorkflowJobTimelineProps {
 
 const BAR_BG: Record<string, string> = {
   success: "bg-green-600",
-  failure: "bg-red-600",
+  failure: "bg-destructive",
   in_progress: "bg-yellow-500",
   queued: "bg-blue-500",
   waiting: "bg-blue-500",

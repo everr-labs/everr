@@ -33,7 +33,7 @@ function LocalTelemetrySection() {
         <dd className="m-0 flex items-center gap-2 text-[var(--settings-text)]">
           <span
             className={`size-1.5 shrink-0 rounded-full ${
-              status?.status === "running" ? "bg-emerald-500" : "bg-amber-400"
+              status?.status === "running" ? "bg-success" : "bg-warning"
             }`}
             aria-hidden="true"
           />

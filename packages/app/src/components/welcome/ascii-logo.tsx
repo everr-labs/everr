@@ -258,7 +258,7 @@ export function AsciiLogo() {
   }, []);
 
   return (
-    <div className="absolute inset-0 text-foreground" aria-hidden="true">
+    <div className="absolute inset-0 text-white" aria-hidden="true">
       <EverrLogoMark className="absolute top-[49%] left-1/2 w-[72%] max-w-[640px] -translate-x-1/2 -translate-y-1/2" />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
     </div>

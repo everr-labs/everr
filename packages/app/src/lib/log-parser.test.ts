@@ -67,7 +67,7 @@ describe("parseGitHubMarker", () => {
 
 describe("getMarkerClass", () => {
   it("returns correct classes for each marker type", () => {
-    expect(getMarkerClass("error")).toContain("red");
+    expect(getMarkerClass("error")).toContain("destructive");
     expect(getMarkerClass("warning")).toContain("yellow");
     expect(getMarkerClass("notice")).toContain("blue");
     expect(getMarkerClass("command")).toContain("cyan");

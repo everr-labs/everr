@@ -186,7 +186,7 @@ export function AlertDetailPanel({
         {/* The warning belongs beside the state line: everything below the
             header is the frozen data it warns about. */}
         {paused && (
-          <p className="rounded-md border border-chart-2/40 bg-chart-2/8 px-3 py-2 text-xs text-chart-2">
+          <p className="rounded-md border border-warning/40 bg-warning/8 px-3 py-2 text-xs text-warning">
             Instances and state below are frozen at the moment this rule stopped evaluating.
           </p>
         )}

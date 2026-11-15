@@ -6,11 +6,14 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
+import { useLocation } from "@tanstack/react-router";
 import { useRef } from "react";
+import { findNavSection } from "#app/lib/navigation.ts";
 
 /**
  * Empty state for resources managed as code (alerts, dashboards, runbooks):
@@ -28,6 +31,7 @@ export function ResourceEmptyState({
   assistantPrompt: string;
   docsHref?: string;
 }) {
+  const section = findNavSection(useLocation({ select: (location) => location.pathname }));
   const promptRef = useRef<HTMLElement>(null);
   const { state: copyState, copy: copyPrompt } = useCopyToClipboard(assistantPrompt, {
     selectOnFailure: promptRef,
@@ -36,6 +40,17 @@ export function ResourceEmptyState({
   return (
     <Empty className="border-0 py-16">
       <EmptyHeader className="max-w-lg">
+        {section && (
+          <EmptyMedia
+            aria-hidden
+            className={cn(
+              section.group.accent,
+              "size-10 rounded-xl bg-(--nav-accent)/12 text-(--nav-accent) [&_svg]:size-5",
+            )}
+          >
+            <section.item.icon />
+          </EmptyMedia>
+        )}
         <EmptyTitle as="h2" className="text-xl font-bold">
           {title}
         </EmptyTitle>
@@ -43,7 +58,10 @@ export function ResourceEmptyState({
       </EmptyHeader>
       <EmptyContent className="mt-4 w-full max-w-2xl">
         <div className="flex w-full items-center gap-4 rounded-xl bg-card shadow-(--shadow-surface) py-3 pr-3 pl-5 text-left">
-          <span aria-hidden className="select-none font-mono font-semibold text-primary text-sm">
+          <span
+            aria-hidden
+            className="select-none font-mono font-semibold text-muted-foreground text-sm"
+          >
             {">_"}
           </span>
           <code

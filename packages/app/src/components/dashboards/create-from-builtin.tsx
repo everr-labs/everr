@@ -54,7 +54,7 @@ export function CreateFromBuiltin({ slug, name }: { slug: string; name: string }
             visible on failure, announced-only for the transient "copied". */}
         <p
           role="status"
-          className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}
+          className={cn("mt-2 text-warning text-xs", copyState !== "failed" && "sr-only")}
         >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&

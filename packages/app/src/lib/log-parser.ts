@@ -45,7 +45,7 @@ export function parseGitHubMarker(line: string): { type: MarkerType; message?: s
 export function getMarkerClass(type: MarkerType | undefined): string {
   switch (type) {
     case "error":
-      return "bg-red-500/10 text-red-400";
+      return "bg-destructive/10 text-destructive";
     case "warning":
       return "bg-yellow-500/10 text-yellow-400";
     case "notice":

@@ -168,10 +168,15 @@ export function CommandBar() {
               ))}
             </CommandGroup>
             {navGroups.map((group) => (
-              <CommandGroup key={group.label ?? "pinned"} heading={group.label ?? "Navigation"}>
+              <CommandGroup
+                key={group.label ?? "pinned"}
+                heading={group.label ?? "Navigation"}
+                className={group.accent}
+              >
                 {group.items.map((item) => (
                   <CommandItem
                     key={item.url}
+                    className="*:[svg]:text-(--nav-accent)/75 data-[selected=true]:*:[svg]:text-(--nav-accent)"
                     onSelect={() => {
                       toggleCommandBar(false);
                       void navigate({ to: item.url });
