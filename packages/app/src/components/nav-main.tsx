@@ -1,3 +1,5 @@
+import { cn } from "@everr/ui/lib/utils";
+import { kickerClass } from "@everr/ui/lib/typography";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -20,7 +22,9 @@ export function NavMain({ groups }: { groups: NavGroup[] }) {
           {groupIndex > 0 && <CollapsedGroupDivider />}
           <SidebarGroup>
             {group.label && (
-              <SidebarGroupLabel className="text-sidebar-foreground/50 text-[10px] font-medium uppercase tracking-[0.12em] group-data-[collapsible=icon]:pointer-events-none">
+              <SidebarGroupLabel
+                className={cn(kickerClass, "group-data-[collapsible=icon]:pointer-events-none")}
+              >
                 {group.label}
               </SidebarGroupLabel>
             )}

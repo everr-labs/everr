@@ -1,3 +1,4 @@
+import { kickerClass } from "@everr/ui/lib/typography";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
@@ -154,9 +155,7 @@ export function RailFrame({
               aria-label={label}
               className="outline-none flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3"
             >
-              <SheetTitle className="text-muted-foreground text-[0.6875rem] font-medium tracking-wider uppercase">
-                {label}
-              </SheetTitle>
+              <SheetTitle className={kickerClass}>{label}</SheetTitle>
               {rail}
             </nav>
           </SheetContent>

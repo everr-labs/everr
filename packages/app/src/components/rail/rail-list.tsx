@@ -29,6 +29,7 @@ export function RailList({
         render={<nav aria-label={label} />}
         className="min-h-0 flex-1"
         viewportClassName={cn("flex flex-col pb-3", className)}
+        fadeEdges
       >
         {children}
       </ScrollArea>

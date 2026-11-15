@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Composite charts, live regions, and custom controls require their ARIA roles on the existing elements. */
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {
   Collapsible,
@@ -12,13 +13,14 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Check, ChevronDown, Copy, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink } from "lucide-react";
 import { type ReactNode, useRef } from "react";
 import { INSTALL_COMMAND } from "#app/common/install-command.ts";
 import { type HomeStatus, homeView } from "#app/common/onboarding.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
 import { homeStatusQueryOptions, useCompleteOnboarding } from "#app/data/onboarding/options.ts";
 import { type OnboardingStep, onboardingProgressKey, useSetupProgress } from "./use-setup-progress";
+import { mutationErrorStatus } from "#app/lib/mutation-status.ts";
 
 const LOCAL_GUIDE = "https://everr.dev/docs/learn/instrument-your-app";
 const PRODUCTION_GUIDE = "https://everr.dev/docs/guides/production-telemetry";
@@ -39,7 +41,7 @@ function CopyBlock({ text, label }: { text: string; label: string }) {
           {text}
         </code>
         <Button type="button" size="icon-sm" variant="ghost" aria-label={label} onClick={copy}>
-          {state === "copied" ? <Check /> : <Copy />}
+          <CopyStateIcon copied={state === "copied"} />
         </Button>
       </div>
       <p
@@ -350,7 +352,7 @@ function HomeContent({
               No data yet?
               <ChevronDown
                 aria-hidden="true"
-                className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180"
+                className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-out group-data-[panel-open]:rotate-180"
               />
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-3 px-4 pb-3 text-sm leading-relaxed text-muted-foreground">
@@ -377,8 +379,12 @@ function HomeContent({
       title: "To production",
       keepMounted: true,
       footer: (
-        <Button disabled={busy} onClick={() => void finish()}>
-          {complete.isPending && <Loader2 className="animate-spin" data-icon="inline-start" />}
+        <Button
+          disabled={busy}
+          loading={complete.isPending}
+          status={mutationErrorStatus(complete)}
+          onClick={() => void finish()}
+        >
           Finish onboarding
           <Check data-icon="inline-end" />
         </Button>

@@ -202,7 +202,7 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
                         >
                           <ChevronRight
                             className={cn(
-                              "size-3 transition-transform",
+                              "size-3 transition-transform duration-200 ease-out",
                               !isCollapsed && "rotate-90",
                             )}
                           />

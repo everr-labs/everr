@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {
   Empty,
@@ -41,7 +42,7 @@ export function ResourceEmptyState({
         <EmptyDescription className="text-sm/relaxed">{description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent className="mt-4 w-full max-w-2xl">
-        <div className="flex w-full items-center gap-4 rounded-xl border bg-muted/30 py-3 pr-3 pl-5 text-left">
+        <div className="flex w-full items-center gap-4 rounded-xl bg-card shadow-(--shadow-surface) py-3 pr-3 pl-5 text-left">
           <span aria-hidden className="select-none font-mono font-semibold text-primary text-sm">
             {">_"}
           </span>
@@ -54,10 +55,12 @@ export function ResourceEmptyState({
           <Button
             type="button"
             size="sm"
+            variant="outline"
             aria-label="Copy assistant prompt"
-            className="min-w-16 shrink-0"
+            className="min-w-20 shrink-0"
             onClick={copyPrompt}
           >
+            <CopyStateIcon copied={copyState === "copied"} />
             {copyState === "copied" ? "Copied" : "Copy"}
           </Button>
         </div>

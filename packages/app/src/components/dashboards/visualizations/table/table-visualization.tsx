@@ -15,8 +15,12 @@ function buildColumns(rows: QueryResultRow[], spec: TableSpec): Column<QueryResu
   return Object.keys(first).map((key) => {
     const valueFormat = spec.columns[key]?.valueFormat ?? spec.valueFormat;
     const formatter = createValueFormatter(valueFormat);
+    const numeric =
+      rows.some((row) => row[key] != null) &&
+      rows.every((row) => row[key] == null || typeof row[key] === "number");
     return {
       header: key,
+      align: numeric ? "end" : "start",
       cell: (row: QueryResultRow) => {
         const val = row[key];
         if (val == null) return <span className="text-muted-foreground">NULL</span>;

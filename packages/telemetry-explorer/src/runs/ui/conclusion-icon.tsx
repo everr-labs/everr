@@ -1,5 +1,6 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { cn } from "@everr/ui/lib/utils";
-import { Ban, CheckCircle, CircleDashed, Clock, Loader2, XCircle } from "lucide-react";
+import { Ban, CheckCircle, CircleDashed, Clock, XCircle } from "lucide-react";
 
 interface ConclusionIconProps {
   conclusion: string;
@@ -13,7 +14,7 @@ export function ConclusionIcon({ conclusion, className }: ConclusionIconProps) {
     case "failure":
       return <XCircle className={cn("text-red-600", className)} />;
     case "in_progress":
-      return <Loader2 className={cn("text-yellow-500 animate-spin", className)} />;
+      return <Spinner className={cn("text-yellow-500", className)} />;
     case "queued":
     case "waiting":
     case "requested":

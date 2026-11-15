@@ -1,3 +1,8 @@
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@everr/ui/components/collapsible";
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
@@ -73,25 +78,25 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   );
 
   return (
-    <section className="relative z-10 border-b bg-background">
-      <button
-        type="button"
-        className="group flex h-9 w-full items-center px-3 text-left text-xs transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30"
-        aria-expanded={showVolume}
-        onClick={() => onShowVolumeChange(!showVolume)}
-      >
+    <Collapsible
+      render={<section />}
+      open={showVolume}
+      onOpenChange={onShowVolumeChange}
+      className="relative z-10 border-b bg-background"
+    >
+      <CollapsibleTrigger className="group flex h-9 w-full items-center px-3 text-left text-xs transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30">
         <span className="flex min-w-0 items-center gap-2 font-medium">
           <ChevronRight
             className={cn(
-              "text-muted-foreground size-3.5 transition-transform",
+              "text-muted-foreground size-3.5 transition-transform duration-200 ease-out",
               showVolume && "rotate-90",
             )}
           />
           <span>{title}</span>
         </span>
-      </button>
+      </CollapsibleTrigger>
 
-      {showVolume ? (
+      <CollapsibleContent>
         <div className="px-3 pb-2">
           {isPending ? (
             <Skeleton className="h-[104px] w-full" />
@@ -111,7 +116,7 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
             </div>
           )}
         </div>
-      ) : null}
-    </section>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

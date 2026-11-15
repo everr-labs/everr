@@ -12,7 +12,7 @@ import {
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { type CSSProperties, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { serviceColor } from "../shared/service-color";
@@ -117,7 +117,12 @@ export function TraceWaterfall({
                     aria-label={`${openNodes.has(node.spanId) ? "Collapse" : "Expand"} ${node.name}`}
                     onClick={() => onToggle(node.spanId)}
                   >
-                    {openNodes.has(node.spanId) ? <ChevronDown /> : <ChevronRight />}
+                    <ChevronRight
+                      className={cn(
+                        "transition-transform duration-200 ease-out",
+                        openNodes.has(node.spanId) && "rotate-90",
+                      )}
+                    />
                   </Button>
                 ) : (
                   <span className="w-5 shrink-0" />

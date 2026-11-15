@@ -1,8 +1,8 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import { DialogFooter } from "@everr/ui/components/dialog";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
-import { Check, Copy } from "lucide-react";
 import { useRef } from "react";
 
 export function InvitationLink({ url, onClose }: { url: string; onClose: () => void }) {
@@ -26,7 +26,7 @@ export function InvitationLink({ url, onClose }: { url: string; onClose: () => v
           Done
         </Button>
         <Button onClick={copy}>
-          {state === "copied" ? <Check className="size-4" /> : <Copy className="size-4" />}
+          <CopyStateIcon copied={state === "copied"} iconClassName="size-4" />
           {state === "copied" ? "Copied" : "Copy link"}
         </Button>
       </DialogFooter>

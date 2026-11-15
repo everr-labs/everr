@@ -106,6 +106,7 @@ export function AlertDetailPanel({
   silencePending,
   onTogglePaused,
   pausePending,
+  requestedPause,
 }: {
   /** Known before the detail loads, and the only identity the header can show
    *  while the query is in flight. */
@@ -130,10 +131,13 @@ export function AlertDetailPanel({
    *  of it, so they belong where the rule is on screen in full. */
   onTogglePaused: (paused: boolean) => void;
   pausePending: boolean;
+  /** A pause or resume in flight. The banner and the button follow it at once;
+   *  the state line keeps the server's word until the refetch lands. */
+  requestedPause?: boolean;
 }) {
   // Off, not muted: `status` already says so, and everything below the header
   // is frozen at the moment evaluation stopped.
-  const paused = detail?.status === "paused";
+  const paused = requestedPause ?? detail?.status === "paused";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/10">

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { toast } from "sonner";
 import {
   recreateCancelledSilence,
@@ -38,7 +39,6 @@ export function useSilenceControls() {
   // the other.
   const cancelSilence = useMutation({
     mutationFn: cancelAlertSilence,
-    onError: (error: Error) => toast.error(error.message),
   });
 
   /**
@@ -48,15 +48,19 @@ export function useSilenceControls() {
    * a cancel from the triage board and one from the Silences page must read
    * the same.
    */
-  const cancel = (target: SilenceCancelTarget, onFailed?: () => void) =>
+  const cancel = (target: SilenceCancelTarget, onFailed?: () => void) => {
+    const progress = progressToast(`Cancelling silence · ${target.label}…`);
     cancelSilence.mutate(
       { data: { id: target.id } },
       {
-        // The message is the mutation's; this is for a caller that staked
-        // something on the cancel landing and has to take it back. A screen
+        // The progress toast turns into the error; `onFailed` is for a caller
+        // that staked something on the cancel landing and has to take it back. A screen
         // cannot see the failure any other way: the row comes back exactly as
         // it went in.
-        onError: () => onFailed?.(),
+        onError: (error: Error) => {
+          progress.error(error.message);
+          onFailed?.();
+        },
         // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the callback promise returned while refreshing cancelled silences.
         onSuccess: async () => {
           // Measured before the refetch, not after: the window Undo recreates
@@ -64,7 +68,7 @@ export function useSilenceControls() {
           // first billed their latency to the silence.
           const recreate = recreateCancelledSilence(target, Date.now());
           await refresh();
-          toast.success(
+          progress.success(
             `Silence cancelled · ${target.label} resumes notifying`,
             recreate
               ? {
@@ -87,6 +91,7 @@ export function useSilenceControls() {
         },
       },
     );
+  };
 
   // Neither mutation is returned. `cancelSilence` no longer carries the
   // success path, so a caller reaching for `.mutate` would get a cancel that
@@ -99,6 +104,10 @@ export function useSilenceControls() {
     cancel,
     /** A write is in flight; every silence control on the screen goes inert. */
     pending: silence.isPending || cancelSilence.isPending,
+    /** The silence being cancelled right now. Screens show it as gone at once
+     *  rather than after the write and the refetch; if the write fails, this
+     *  clears and the silence reappears, so there is nothing to roll back. */
+    cancellingId: cancelSilence.isPending ? (cancelSilence.variables?.data.id ?? null) : null,
     seed,
     /** Opens the dialog on a seed. Every "silence" button on every screen. */
     openSilence: setSeed,

@@ -40,8 +40,10 @@ export function CommandBar() {
 
   const { data: dashboardList } = useQuery(dashboardListOptions(preview));
 
-  const toggleCommandBar = useCallback((open: boolean) => {
-    if (document.startViewTransition) {
+  // The search button morphs into the dialog when clicked. ⌘K skips the morph:
+  // a shortcut used dozens of times a day should open instantly.
+  const toggleCommandBar = useCallback((open: boolean, morph = true) => {
+    if (morph && document.startViewTransition) {
       document.startViewTransition(() => {
         flushSync(() => {
           if (open) {
@@ -62,7 +64,7 @@ export function CommandBar() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        toggleCommandBar(!open);
+        toggleCommandBar(!open, false);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
@@ -87,7 +89,11 @@ export function CommandBar() {
         <span className="flex-1 text-left text-muted-foreground">Search...</span>
         <Kbd>⌘+K</Kbd>
       </Button>
-      <CommandDialog open={open} onOpenChange={toggleCommandBar} className="transition-none">
+      <CommandDialog
+        open={open}
+        onOpenChange={(next, details) => toggleCommandBar(next, details.reason !== "escape-key")}
+        className="transition-none"
+      >
         <Command className="p-0">
           <CommandInput
             placeholder="Search..."

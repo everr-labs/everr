@@ -93,7 +93,7 @@ function TriageRow({
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">{SINCE_LABEL[alert.status]}</span>
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
           <span className="font-mono text-sm tabular-nums">{alert.since}</span>
           {alert.pending && (
             <span className="font-mono text-xs text-muted-foreground tabular-nums">

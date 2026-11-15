@@ -12,6 +12,7 @@ import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { authClient } from "#app/lib/auth-client.ts";
+import { mutationStatus } from "#app/lib/mutation-status.ts";
 
 const defaultValues = {
   currentPassword: "",
@@ -51,7 +52,7 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
       {hasPassword && (
         <CardContent>
           <form
-            className="space-y-4"
+            className="max-w-md space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
               if (change.isPending) return;
@@ -128,8 +129,13 @@ export function PasswordSettings({ hasPassword }: { hasPassword: boolean }) {
                 Password changed.
               </p>
             )}
-            <Button type="submit" disabled={change.isPending}>
-              {change.isPending ? "Changing password..." : "Change password"}
+            <Button
+              type="submit"
+              disabled={change.isPending}
+              loading={change.isPending}
+              status={mutationStatus(change)}
+            >
+              Change password
             </Button>
           </form>
         </CardContent>

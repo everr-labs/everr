@@ -1,4 +1,5 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
@@ -12,7 +13,7 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronDown } from "lucide-react";
 import { useCallback, useId } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
 import type { ListVariable, TextVariable, Variable } from "#app/data/dashboards/schema.ts";
@@ -230,7 +231,7 @@ function ListVariableField({
         >
           <span className="truncate">{triggerLabel}</span>
           {isPending ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <Spinner className="size-3.5 text-muted-foreground" />
           ) : error ? (
             <AlertCircle className="size-3.5" />
           ) : (

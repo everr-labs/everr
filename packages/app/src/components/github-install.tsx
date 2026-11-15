@@ -1,5 +1,6 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Check, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getGithubAppInstallStatus } from "#app/data/github.ts";
 
@@ -74,7 +75,7 @@ export function GithubInstall({
 
       {waitingForInstallation ? (
         <div className="flex items-center gap-2 border border-amber-500/30 bg-amber-500/5 p-3 text-amber-500 text-sm">
-          <Loader2 className="size-4 animate-spin" />
+          <Spinner />
           Waiting for the GitHub installation to complete...
         </div>
       ) : null}

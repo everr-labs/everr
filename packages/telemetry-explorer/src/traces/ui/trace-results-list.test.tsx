@@ -117,10 +117,10 @@ describe("TraceResultsList", () => {
     expect(links[2]?.querySelector("[data-slot=badge]")).toBeNull();
   });
 
-  it("shows the HTTP status code, coloured from whether any span errored", () => {
+  it("shows the HTTP status code, marked as failed only when a span errored", () => {
     // A 404 that the service handles is not a failure. The trace has no span
-    // with an error, so the badge stays green although the code is 4xx. The
-    // column then agrees with the Status filter, which also reads the spans.
+    // with an error, so the code stays plain although it is 4xx. The column
+    // then agrees with the Status filter, which also reads the spans.
     renderList({
       rows: [
         row({ traceId: "handled", rootStatusCode: "404", errorCount: 0 }),
@@ -129,7 +129,7 @@ describe("TraceResultsList", () => {
       ],
     });
 
-    expect(screen.getByText("404").className).toContain("emerald");
+    expect(screen.getByText("404").className).not.toContain("red");
     expect(screen.getByText("200").className).toContain("red");
     // Colour is not the only signal for that state.
     expect(screen.getByLabelText("404, No errors")).toBeInTheDocument();

@@ -1,6 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link, useMatchRoute } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, Folder, LayoutDashboard, NotebookText } from "lucide-react";
+import { ChevronRight, Folder, LayoutDashboard, NotebookText } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "#app/components/preview-status-badge.tsx";
 import { railRowActiveProps, railRowClass, rowIndent } from "#app/components/rail/rail-row.tsx";
@@ -139,11 +139,12 @@ function FolderRows({
           aria-expanded={isExpanded}
           onClick={() => onToggle(node.path)}
         >
-          {isExpanded ? (
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
+          <ChevronRight
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out",
+              isExpanded && "rotate-90",
+            )}
+          />
           <Folder className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm font-medium">{node.name}</span>
         </button>

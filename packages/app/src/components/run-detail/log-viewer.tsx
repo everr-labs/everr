@@ -1,3 +1,4 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import AnsiImport from "ansi-to-react";
 
 // Handle CJS interop — Vite may double-wrap the default export
@@ -11,7 +12,7 @@ import { buttonVariants } from "@everr/ui/components/button";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2 } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { LogEntry } from "#app/data/runs/schemas.ts";
@@ -129,7 +130,10 @@ export function LogViewer({
             </a>
             <span />
             <ChevronRight
-              className={cn("size-3 shrink-0 transition-transform", !isCollapsed && "rotate-90")}
+              className={cn(
+                "size-3 shrink-0 transition-transform duration-200 ease-out",
+                !isCollapsed && "rotate-90",
+              )}
             />
             <Ansi useClasses linkify>
               {line.body}
@@ -234,7 +238,7 @@ export function LogViewer({
       Header: isLoadingPrevious
         ? () => (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
-              <Loader2 className="size-3 animate-spin" />
+              <Spinner className="size-3" />
               Loading older logs...
             </div>
           )
@@ -242,7 +246,7 @@ export function LogViewer({
       Footer: isLoadingNext
         ? () => (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
-              <Loader2 className="size-3 animate-spin" />
+              <Spinner className="size-3" />
               Loading newer logs...
             </div>
           )

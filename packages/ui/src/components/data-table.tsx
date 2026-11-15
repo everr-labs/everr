@@ -1,12 +1,14 @@
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
-import type { MouseEvent, ReactNode } from "react";
+import { type AnimationEvent, type MouseEvent, type ReactNode, useState } from "react";
 
 export interface Column<T> {
   header: ReactNode;
   cell: (row: T) => ReactNode;
   className?: string;
   cellClassName?: string;
+  /** `end` right-aligns header and cells, so numbers line up by place value. */
+  align?: "start" | "end";
 }
 
 interface DataTableProps<T> {
@@ -30,6 +32,44 @@ interface DataTableProps<T> {
    * originates on that link so it doesn't double-navigate.
    */
   onRowClick?: (row: T, event: MouseEvent) => void;
+  /**
+   * Rows added after the first render fade and grow in; removed rows fade and
+   * collapse out, so the eye sees where they went. For tables that change by
+   * the reader's own actions, not ones that refresh on a timer.
+   */
+  animateRows?: boolean;
+}
+
+type RowPhase = "idle" | "enter" | "exit";
+interface RowEntry<T> {
+  key: string;
+  row: T;
+  phase: RowPhase;
+}
+
+/**
+ * The rows to render: the current data, plus rows that just left and are
+ * still animating out, kept at the position they left from.
+ */
+function reconcileRows<T>(
+  data: T[],
+  previous: RowEntry<T>[],
+  rowKey: (row: T, index: number) => string,
+): RowEntry<T>[] {
+  const before = new Map(previous.map((entry) => [entry.key, entry]));
+  const next: RowEntry<T>[] = data.map((row, index) => {
+    const key = rowKey(row, index);
+    const old = before.get(key);
+    const phase: RowPhase = old && old.phase !== "exit" ? old.phase : "enter";
+    return { key, row, phase };
+  });
+  const present = new Set(next.map((entry) => entry.key));
+  previous.forEach((entry, index) => {
+    if (!present.has(entry.key)) {
+      next.splice(Math.min(index, next.length), 0, { ...entry, phase: "exit" });
+    }
+  });
+  return next;
 }
 
 export function DataTable<T>({
@@ -43,8 +83,28 @@ export function DataTable<T>({
   scrollable = true,
   containerClassName,
   onRowClick,
+  animateRows = false,
 }: DataTableProps<T>) {
-  if (data.length === 0 && emptyState) {
+  // Derived during render, not in an effect: when `data` changes, the rows
+  // that left are kept (marked "exit") until their animation ends.
+  const [seenData, setSeenData] = useState(data);
+  const [entries, setEntries] = useState<RowEntry<T>[]>(() =>
+    data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" })),
+  );
+  if (animateRows && data !== seenData) {
+    setSeenData(data);
+    setEntries(reconcileRows(data, entries, rowKey));
+  }
+  const rows: RowEntry<T>[] = animateRows
+    ? entries
+    : data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" }));
+
+  const handleRowAnimationEnd = (key: string) => (event: AnimationEvent) => {
+    if (event.animationName !== "data-table-row-exit") return;
+    setEntries((current) => current.filter((e) => !(e.key === key && e.phase === "exit")));
+  };
+
+  if (rows.length === 0 && emptyState) {
     // oxlint-disable-next-line react/jsx-no-useless-fragment -- Preserve the existing fragment boundary for the caller-provided empty state.
     return <>{emptyState}</>;
   }
@@ -62,9 +122,10 @@ export function DataTable<T>({
               key={i}
               className={cn(
                 "whitespace-nowrap",
+                col.align === "end" && "text-right",
                 col.className ??
                   (bordered
-                    ? "border-b border-r border-border px-3 py-2 font-medium last:border-r-0"
+                    ? "border-b border-border px-3 py-2 font-medium"
                     : cn("pb-2", !isLast(i) && "pr-4", isFirst(i) && "pl-3", isLast(i) && "pr-3")),
               )}
             >
@@ -74,12 +135,17 @@ export function DataTable<T>({
         </tr>
       </thead>
       <tbody className={bordered ? "[&>tr:last-child>td]:border-b-0" : ""}>
-        {data.map((row, rowIndex) => (
+        {rows.map(({ key, row, phase }, rowIndex) => (
           <tr
-            key={rowKey(row, rowIndex)}
-            onClick={onRowClick ? (event) => onRowClick(row, event) : undefined}
+            key={key}
+            data-row-phase={phase === "idle" ? undefined : phase}
+            aria-hidden={phase === "exit" || undefined}
+            onAnimationEnd={phase === "exit" ? handleRowAnimationEnd(key) : undefined}
+            onClick={onRowClick && phase !== "exit" ? (event) => onRowClick(row, event) : undefined}
             className={cn(
               "hover:bg-muted/50",
+              phase === "exit" && "pointer-events-none",
+              onRowClick && "cursor-pointer active:bg-muted",
               !bordered && "border-b last:border-0",
               rowClassName?.(row, rowIndex),
             )}
@@ -88,14 +154,28 @@ export function DataTable<T>({
               <td
                 // oxlint-disable-next-line react/no-array-index-key -- Columns have a fixed order for this table; row identity is supplied separately by rowKey.
                 key={i}
-                className={
+                className={cn(
+                  col.align === "end" && "text-right",
                   col.cellClassName ??
-                  (bordered
-                    ? "border-b border-r border-border px-3 py-2 last:border-r-0"
-                    : cn("py-2", !isLast(i) && "pr-4", isFirst(i) && "pl-3", isLast(i) && "pr-3"))
-                }
+                    (bordered
+                      ? "border-b border-border px-3 py-2"
+                      : cn(
+                          "py-2",
+                          !isLast(i) && "pr-4",
+                          isFirst(i) && "pl-3",
+                          isLast(i) && "pr-3",
+                        )),
+                )}
               >
-                {col.cell(row)}
+                {animateRows ? (
+                  // Two wrappers so the cell can collapse to zero height:
+                  // a grid track animates from 1fr to 0fr, a table row cannot.
+                  <div className="data-table-cell">
+                    <div>{col.cell(row)}</div>
+                  </div>
+                ) : (
+                  col.cell(row)
+                )}
               </td>
             ))}
           </tr>

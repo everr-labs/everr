@@ -37,7 +37,7 @@ function SecretInput({
 
   if (locked) {
     return (
-      <InputGroup className="h-8" data-disabled={disabled || undefined}>
+      <InputGroup data-disabled={disabled || undefined}>
         <InputGroupAddon>
           <LockKeyhole aria-hidden="true" />
         </InputGroupAddon>
@@ -63,7 +63,7 @@ function SecretInput({
   }
 
   return (
-    <InputGroup className="h-8" data-disabled={disabled || undefined}>
+    <InputGroup data-disabled={disabled || undefined}>
       <InputGroupInput
         {...props}
         // oxlint-disable-next-line jsx-a11y/no-autofocus -- Focus starts in the primary field when this user-opened dialog mounts.

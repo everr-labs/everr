@@ -1,3 +1,4 @@
+import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import { createLink, type LinkComponentProps, type RegisteredRouter } from "@tanstack/react-router";
 import type { ComponentPropsWithRef, ReactElement } from "react";
@@ -9,8 +10,7 @@ export const railRowActiveProps = {
 };
 
 /** The heading over a group of rail rows. */
-export const groupLabelClass =
-  "font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider";
+export const groupLabelClass = kickerClass;
 
 /**
  * Left padding of a row at `depth`. A folder's disclosure chevron sits in the

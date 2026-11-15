@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { completeSetup } from "#app/app/setup.ts";
 import { authClient } from "#app/lib/auth-client.ts";
+import { mutationErrorStatus } from "#app/lib/mutation-status.ts";
 
 export const Route = createFileRoute("/_welcome/setup")({
   head: () => ({ meta: [{ title: "Everr - Set up your workspace" }] }),
@@ -95,8 +96,14 @@ function SetupPage() {
               />
               <p className="text-xs text-muted-foreground">At least 8 characters.</p>
             </div>
-            <Button type="submit" className="w-full" disabled={setup.isPending}>
-              {setup.isPending ? "Setting up..." : "Create workspace"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={setup.isPending}
+              loading={setup.isPending}
+              status={mutationErrorStatus(setup)}
+            >
+              Create workspace
             </Button>
           </form>
         )}

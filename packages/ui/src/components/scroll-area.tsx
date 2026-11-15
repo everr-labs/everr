@@ -45,6 +45,9 @@ interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
   viewportRef?: React.Ref<HTMLDivElement>;
   viewportProps?: ScrollAreaPrimitive.Viewport.Props & Record<`data-${string}`, string>;
   orientation?: "vertical" | "horizontal" | "both";
+  /** Fade the vertical edges while content is scrolled out of view. Leave off
+   *  where a sticky header sits inside the viewport: the mask fades it too. */
+  fadeEdges?: boolean;
 }
 
 function ScrollArea({
@@ -61,6 +64,7 @@ function ScrollArea({
     ...viewportProps
   } = {},
   orientation = "vertical",
+  fadeEdges = false,
   ...props
 }: ScrollAreaProps) {
   const vertical = orientation === "vertical" || orientation === "both";
@@ -78,7 +82,7 @@ function ScrollArea({
     >
       <ScrollAreaViewport
         ref={viewportRef}
-        className={viewportClassName}
+        className={cn(fadeEdges && "scroll-fade-y", viewportClassName)}
         // Base UI writes `overflow: scroll` on both axes, so the axis this
         // scroll area does not own has to be clipped back inline. Without it
         // an `orientation="vertical"` area still scrolls sideways, with no

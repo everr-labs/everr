@@ -1,6 +1,7 @@
 import { Label } from "@everr/ui/components/label";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Boxes, Layers } from "lucide-react";
+import { useId } from "react";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-filter-options";
@@ -33,6 +34,7 @@ export function ExploreGlobalFilters({
   onServiceChange: (values: string[]) => void;
   onEnvironmentChange: (values: string[]) => void;
 }) {
+  const id = useId();
   // A list, and not two blocks of markup, so that the two filters stay the same.
   // They use one control with different words, and the user reads them as a
   // pair.
@@ -67,8 +69,15 @@ export function ExploreGlobalFilters({
     <>
       {filters.map(({ label, ...pill }) => (
         <div key={label} className="flex flex-col gap-1">
-          <Label className="text-muted-foreground text-xs">{label}</Label>
-          <ExploreFilterPill label={label} {...pill} className="w-full max-w-none" />
+          <Label id={`${id}-${label}`} className="text-muted-foreground text-xs">
+            {label}
+          </Label>
+          <ExploreFilterPill
+            label={label}
+            labelId={`${id}-${label}`}
+            {...pill}
+            className="w-full max-w-none"
+          />
         </div>
       ))}
     </>

@@ -1,3 +1,4 @@
+import { kickerClass } from "@everr/ui/lib/typography";
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { cn } from "@everr/ui/lib/utils";
 import { useMemo } from "react";
@@ -120,7 +121,7 @@ function MiniChart({
 function SummaryItem({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{label}</span>
+      <span className={kickerClass}>{label}</span>
       <span className="font-mono text-sm font-medium tabular-nums">{value}</span>
       {sub && (
         <span className="text-muted-foreground font-mono text-[10px] tabular-nums">{sub}</span>
@@ -203,9 +204,7 @@ export function ResourceUsagePanel({ data, stepWindow }: ResourceUsagePanelProps
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-background px-2 py-1.5">
-      <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">
-        {title}
-      </span>
+      <span className={kickerClass}>{title}</span>
       {children}
     </div>
   );

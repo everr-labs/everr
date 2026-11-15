@@ -12,7 +12,7 @@ import {
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
-import { toast } from "sonner";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { formatDate } from "./format-date";
 import { useRevokeInvitation } from "./queries";
 import type { Invitation } from "./queries";
@@ -25,9 +25,10 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
   const revoke = useRevokeInvitation();
 
   const handleRevoke = (invitationId: string, email: string) => {
+    const progress = progressToast(`Revoking invitation to ${email}…`);
     revoke.mutate(invitationId, {
-      onSuccess: () => toast.success(`Invitation to ${email} revoked`),
-      onError: (err) => toast.error(err.message),
+      onSuccess: () => progress.success(`Invitation to ${email} revoked`),
+      onError: (err) => progress.error(err.message),
     });
   };
 
@@ -76,5 +77,5 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
     },
   ];
 
-  return <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} />;
+  return <DataTable data={invitations} columns={columns} rowKey={(row) => row.id} animateRows />;
 }

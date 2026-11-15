@@ -25,7 +25,7 @@ export function StatSparkline({ points, color }: { points: StatTile["points"]; c
           smooth: true,
           smoothMonotone: "x",
           lineStyle: { color, width: 1.5 },
-          areaStyle: { color, opacity: 0.2 },
+          areaStyle: { color, opacity: 0.1 },
         },
       ],
     });

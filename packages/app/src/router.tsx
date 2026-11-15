@@ -1,7 +1,7 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { routeTree } from "@composition/routes";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
 import { RootErrorComponent } from "./components/root-error";
@@ -73,7 +73,7 @@ export const getRouter = () => {
     // defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
       <div className="flex items-center justify-center h-dvh font-heading text-lg">
-        <Loader2 className="size-5 animate-spin text-primary" />
+        <Spinner className="size-5 text-primary" />
       </div>
     ),
   });

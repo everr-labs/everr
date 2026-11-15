@@ -1,9 +1,10 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useRef } from "react";
 import { createFromBuiltinPrompt } from "#app/data/dashboards/built-in/prompt.ts";
 
@@ -46,7 +47,7 @@ export function CreateFromBuiltin({ slug, name }: { slug: string; name: string }
           onClick={copy}
           aria-label="Copy assistant prompt"
         >
-          {copyState === "copied" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          <CopyStateIcon copied={copyState === "copied"} iconClassName="size-3.5" />
           {copyState === "copied" ? "Copied" : "Copy prompt"}
         </Button>
         {/* One status line serves sighted and screen-reader users alike:

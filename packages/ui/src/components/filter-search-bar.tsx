@@ -59,7 +59,7 @@ export function FilterSearchBar({
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         {label}
       </Label>
-      <InputGroup className="h-9">
+      <InputGroup>
         <InputGroupAddon>
           <Icon
             className={cn(
@@ -84,7 +84,6 @@ export function FilterSearchBar({
             commit();
           }}
           placeholder={placeholder}
-          className="text-sm"
         />
         {/* The hint and the clear button share one slot, so only one of them
             renders at a time. */}

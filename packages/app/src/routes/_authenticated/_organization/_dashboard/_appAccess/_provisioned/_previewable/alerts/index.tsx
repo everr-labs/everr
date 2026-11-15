@@ -103,7 +103,16 @@ function AlertingTriagePage() {
           ) : (
             alerts.length > 0 && (
               <TriageList
-                alerts={alerts}
+                // A silence being cancelled already shows as gone.
+                alerts={
+                  silence.cancellingId === null
+                    ? alerts
+                    : alerts.map((alert) =>
+                        alert.silence?.id === silence.cancellingId
+                          ? { ...alert, silence: undefined }
+                          : alert,
+                      )
+                }
                 openPath={openPath}
                 onOpen={openAlert}
                 onSilence={(path) => silence.openSilence(ruleSilenceSeed(path))}

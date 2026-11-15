@@ -1,15 +1,8 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Check,
-  Eye,
-  Loader2,
-  type LucideIcon,
-  RefreshCw,
-  ShieldCheck,
-  Terminal,
-} from "lucide-react";
+import { Check, Eye, type LucideIcon, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
 import { useState } from "react";
 import { setActiveMcpOrganization, submitMcpConsent } from "#app/data/mcp/oauth.ts";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -185,7 +178,7 @@ function Consent() {
                             {org.name}
                           </span>
                           {switching ? (
-                            <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+                            <Spinner className="text-primary" />
                           ) : isActive ? (
                             <Check className="size-4 shrink-0 text-primary" />
                           ) : null}
@@ -213,9 +206,9 @@ function Consent() {
           size="lg"
           className="flex-1"
           disabled={busy !== null}
+          loading={busy === "deny"}
           onClick={() => void decide(false)}
         >
-          {busy === "deny" ? <Loader2 className="animate-spin" /> : null}
           Deny
         </Button>
         <Button
@@ -223,9 +216,9 @@ function Consent() {
           size="lg"
           className="flex-1"
           disabled={busy !== null}
+          loading={busy === "approve"}
           onClick={() => void decide(true)}
         >
-          {busy === "approve" ? <Loader2 className="animate-spin" /> : null}
           Approve
         </Button>
       </div>

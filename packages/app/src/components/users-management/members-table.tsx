@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { useState } from "react";
-import { toast } from "sonner";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { formatDate } from "./format-date";
 import { type Member, type OrgRole, useRemoveMember, useUpdateMemberRole } from "./queries";
 
@@ -48,15 +48,16 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
     if (!rolePending) return;
     const { memberId, memberName, nextRole } = rolePending;
     const clearIfStillMine = () => setRolePending((p) => (p?.memberId === memberId ? null : p));
+    const progress = progressToast(`Making ${memberName} ${nextRole}…`);
     updateRole.mutate(
       { memberId, role: nextRole },
       {
         onSuccess: () => {
-          toast.success(`${memberName} is now ${nextRole}`);
+          progress.success(`${memberName} is now ${nextRole}`);
           clearIfStillMine();
         },
         onError: (err) => {
-          toast.error(err.message);
+          progress.error(err.message);
           clearIfStillMine();
         },
       },
@@ -64,9 +65,10 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   };
 
   const handleRemove = (memberId: string, memberName: string) => {
+    const progress = progressToast(`Removing ${memberName}…`);
     remove.mutate(memberId, {
-      onSuccess: () => toast.success(`${memberName} removed`),
-      onError: (err) => toast.error(err.message),
+      onSuccess: () => progress.success(`${memberName} removed`),
+      onError: (err) => progress.error(err.message),
     });
   };
 
@@ -175,6 +177,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
         data={members}
         columns={columns}
         rowKey={(row) => row.id}
+        animateRows
         emptyState={
           <p className="py-8 text-center text-sm text-muted-foreground">No members found.</p>
         }

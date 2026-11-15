@@ -15,6 +15,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useEffectEvent } from "react";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { toast } from "sonner";
 import { z } from "zod";
 import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
@@ -54,11 +55,14 @@ function useAlertRulePause() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: setAlertRulePaused,
-    onSuccess: async (result, variables) => {
+    onMutate: (variables) =>
+      progressToast(`${variables.data.paused ? "Pausing" : "Resuming"} ${variables.data.path}…`),
+    onSuccess: async (result, variables, progress) => {
       await invalidateAlertTriage(queryClient);
-      toast.success(`${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`);
+      progress.success(`${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _variables, progress) =>
+      progress ? progress.error(error.message) : toast.error(error.message),
   });
 }
 
@@ -138,10 +142,26 @@ export function useAlertDetail() {
 
   // Built once, in one subtree, so the same panel moves between the column and
   // the sheet rather than being mounted twice.
+  // Pause and silence cancels show on screen the moment they are asked for.
+  // Derived from the in-flight request rather than written into the cache, so
+  // a refused write simply falls back to the server's state.
+  const requestedPause =
+    setPaused.isPending && setPaused.variables.data.path === openPath
+      ? setPaused.variables.data.paused
+      : undefined;
+  const shownDetail = detail.data
+    ? {
+        ...detail.data,
+        ...(silence.cancellingId !== null &&
+          detail.data.activeSilenceId === silence.cancellingId && { activeSilenceId: null }),
+      }
+    : null;
+
   const panel = openPath ? (
     <AlertDetailPanel
       path={openPath}
-      detail={detail.data ?? null}
+      detail={shownDetail}
+      requestedPause={requestedPause}
       onClose={closePanel}
       onCancelSilence={silence.cancel}
       onSilence={silence.openSilence}

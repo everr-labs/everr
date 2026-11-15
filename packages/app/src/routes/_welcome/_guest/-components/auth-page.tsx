@@ -1,6 +1,5 @@
 import { Button } from "@everr/ui/components/button";
 import { Separator } from "@everr/ui/components/separator";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { siGoogle } from "simple-icons";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -88,13 +87,10 @@ export function GoogleAuthButton({
       variant="outline"
       className="w-full"
       disabled={disabled || isSubmitting}
+      loading={isSubmitting}
       onClick={() => void handleGoogleSignIn()}
     >
-      {isSubmitting ? (
-        <Loader2 data-icon="inline-start" className="animate-spin" />
-      ) : (
-        <GoogleIcon />
-      )}
+      <GoogleIcon />
       {label}
     </Button>
   );

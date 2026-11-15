@@ -51,7 +51,7 @@ function ToggletipContent({
           initialFocus={false}
           aria-labelledby={textId}
           className={cn(
-            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 bg-foreground text-background z-50 w-fit max-w-[min(20rem,calc(100vw-1rem))] origin-(--transform-origin) rounded-md px-3 py-1.5 text-xs outline-hidden",
+            "motion-popup bg-foreground shadow-[0_4px_16px_-4px_oklch(0_0_0/50%)] text-background z-50 w-fit max-w-[min(20rem,calc(100vw-1rem))] origin-(--transform-origin) rounded-md px-3 py-1.5 text-xs outline-hidden",
             className,
           )}
           {...props}

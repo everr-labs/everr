@@ -7,16 +7,16 @@ export { toNumber };
 /** Shared series palette. Index 0 doubles as the accent color for brush
  * selections and sparklines. */
 export const SERIES_COLORS = [
-  "hsl(263, 90%, 65%)",
-  "hsl(56, 90%, 65%)",
-  "hsl(195, 90%, 65%)",
-  "hsl(27, 90%, 65%)",
-  "hsl(215, 90%, 65%)",
-  "hsl(126, 90%, 65%)",
-  "hsl(167, 90%, 65%)",
-  "hsl(356, 90%, 65%)",
-  "hsl(185, 90%, 65%)",
-  "hsl(311, 90%, 65%)",
+  "hsl(258, 72%, 74%)",
+  "hsl(46, 78%, 66%)",
+  "hsl(196, 68%, 64%)",
+  "hsl(22, 78%, 67%)",
+  "hsl(222, 72%, 70%)",
+  "hsl(146, 48%, 60%)",
+  "hsl(172, 52%, 58%)",
+  "hsl(352, 72%, 70%)",
+  "hsl(186, 58%, 62%)",
+  "hsl(302, 48%, 72%)",
 ];
 
 /** Clean clock intervals a time axis may tick at, ascending. */

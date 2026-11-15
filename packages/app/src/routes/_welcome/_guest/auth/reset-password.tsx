@@ -3,7 +3,6 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -129,15 +128,13 @@ function ResetPassword() {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={isSubmitting || !token}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Resetting...
-              </>
-            ) : (
-              "Reset password"
-            )}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting || !token}
+            loading={isSubmitting}
+          >
+            Reset password
           </Button>
         </form>
       )}

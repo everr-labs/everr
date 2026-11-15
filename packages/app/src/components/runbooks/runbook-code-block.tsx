@@ -1,8 +1,8 @@
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import { HighlightedCode, LanguageName } from "@everr/ui/components/highlighted-code";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
-import { Check, Copy } from "lucide-react";
 import { Suspense, useMemo, useRef } from "react";
 
 /** The options a fence's info string carries after its language. */
@@ -75,7 +75,7 @@ export function RunbookCodeBlock({
         <span className="flex items-center gap-1.5">
           <output
             className={cn(
-              "transition-all duration-200",
+              "transition-[translate,opacity] duration-200 ease-out",
               copied || state === "failed"
                 ? "translate-x-0 opacity-100"
                 : "translate-x-1 opacity-0",
@@ -91,18 +91,7 @@ export function RunbookCodeBlock({
             onClick={copy}
             className="relative text-muted-foreground group-hover:text-foreground"
           >
-            <Copy
-              className={cn(
-                "absolute transition-all duration-200",
-                copied ? "scale-50 rotate-[-30deg] opacity-0" : "scale-100 rotate-0 opacity-100",
-              )}
-            />
-            <Check
-              className={cn(
-                "absolute text-primary transition-all duration-200",
-                copied ? "scale-100 rotate-0 opacity-100" : "scale-50 rotate-30 opacity-0",
-              )}
-            />
+            <CopyStateIcon copied={copied} className={cn(copied && "text-primary")} />
           </Button>
         </span>
       </figcaption>

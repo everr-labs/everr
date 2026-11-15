@@ -1,3 +1,4 @@
+import { AnimatedStatValue } from "./animated-stat-value";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash } from "lucide-react";
 import { useMemo } from "react";
@@ -100,7 +101,11 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
                 )}
                 style={!background && color ? { color } : undefined}
               >
-                {value === undefined ? noValue : formatted?.value}
+                {value === undefined ? (
+                  noValue
+                ) : (
+                  <AnimatedStatValue value={value} format={formatter.parts} />
+                )}
                 {formatted?.unit && (
                   <span
                     className={cn(

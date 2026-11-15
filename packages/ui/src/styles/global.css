@@ -15,6 +15,12 @@
   --radius-4xl: calc(var(--radius) + 16px);
   --animate-highlight-fade: highlight-fade 1.5s ease-out forwards;
   --ease-sidebar: cubic-bezier(0.19, 1, 0.22, 1);
+  /* Strong ease-out for anything entering or reacting to input; the built-in
+     curves are too weak to feel responsive. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-shimmer: shimmer 1.8s cubic-bezier(0.77, 0, 0.175, 1) infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -51,39 +57,49 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+
+  /* Near-black with a faint cool cast. Surfaces step up in small, even
+     increments so layers read as depth, not as patches of grey. */
+  --background: oklch(0.135 0.004 270);
+  --foreground: oklch(0.975 0.002 270);
+  --card: oklch(0.165 0.005 270);
+  --card-foreground: oklch(0.975 0.002 270);
+  --popover: oklch(0.185 0.006 270);
+  --popover-foreground: oklch(0.975 0.002 270);
   --primary: oklch(0.937 0.264 119.7);
   --primary-foreground: oklch(0.1 0.031 120.757);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.225 0.007 270);
+  --secondary-foreground: oklch(0.975 0.002 270);
+  --muted: oklch(0.215 0.006 270);
+  --muted-foreground: oklch(0.69 0.012 270);
+  --accent: oklch(0.235 0.008 270);
+  --accent-foreground: oklch(0.985 0.002 270);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --scrollbar-thumb: oklch(1 0 0 / 18%);
-  --scrollbar-thumb-hover: oklch(1 0 0 / 32%);
+  --border: oklch(1 0 0 / 7.5%);
+  --input: oklch(1 0 0 / 11%);
+  --ring: oklch(0.6 0.012 270);
+  --scrollbar-thumb: oklch(1 0 0 / 14%);
+  --scrollbar-thumb-hover: oklch(1 0 0 / 28%);
   --chart-1: oklch(0.905 0.182 98.111);
   --chart-2: oklch(0.795 0.184 86.047);
   --chart-3: oklch(0.681 0.162 75.834);
   --chart-4: oklch(0.554 0.135 66.442);
   --chart-5: oklch(0.476 0.114 61.907);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.15 0.005 270);
+  --sidebar-foreground: oklch(0.975 0.002 270);
   --sidebar-primary: oklch(0.937 0.264 119.7);
   --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-accent: oklch(1 0 0 / 6%);
+  --sidebar-accent-foreground: oklch(0.985 0.002 270);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.6 0.012 270);
+
+  /* Floating surfaces: a hairline, a soft contact shadow and a wide ambient
+     one, plus a faint top highlight that catches the light. */
+  --shadow-elevated:
+    inset 0 1px 0 0 oklch(1 0 0 / 5%), 0 0 0 1px oklch(1 0 0 / 8%),
+    0 2px 4px -1px oklch(0 0 0 / 35%), 0 12px 32px -8px oklch(0 0 0 / 55%);
+  --shadow-surface: inset 0 1px 0 0 oklch(1 0 0 / 3.5%), 0 0 0 1px oklch(1 0 0 / 5.5%);
 }
 
 @layer base {
@@ -117,7 +133,47 @@
     background-color: var(--scrollbar-thumb-hover);
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 28%, transparent);
+    color: var(--foreground);
+  }
+
+  /* A trigger's down chevron flips while its menu, popover or panel is open.
+     Keyed on aria-expanded, which every such trigger sets. Not on
+     data-popup-open: a tooltip on the same trigger sets that one too. */
+  svg.lucide-chevron-down {
+    transition: rotate 200ms var(--ease-out);
+  }
+
+  :is(button, [role="combobox"], [role="button"])[aria-expanded="true"] svg.lucide-chevron-down {
+    rotate: 180deg;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    svg.lucide-chevron-down {
+      transition: none;
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
   body {
+    /* Equal-width digits, so values that refresh in place do not jitter. */
+    font-variant-numeric: tabular-nums;
     /* iOS Safari positions the drawer overlay absolutely, so the body has to
        cover the viewport even after the page scrolls. */
     position: relative;
@@ -133,7 +189,416 @@
 
 @layer utilities {
   .animate-fade-up {
-    animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: fade-up 0.6s var(--ease-out) both;
+  }
+}
+
+/* Popovers, menus, selects and tooltips. Transitions rather than keyframes,
+   so a popup closed mid-entry reverses from where it is instead of jumping.
+   Scale starts near 1 (never 0) and grows from the trigger via
+   --transform-origin. Exit is quicker than entry: the user already decided. */
+@utility motion-popup {
+  transition-property: opacity, scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 110ms;
+  }
+
+  /* Tooltips after the first one in a group show instantly. */
+  &[data-instant] {
+    transition-duration: 0ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-starting-style],
+    &[data-ending-style] {
+      scale: 1;
+    }
+  }
+}
+
+/* Centered dialogs grow from the middle of the screen. */
+@utility motion-dialog {
+  transition-property: opacity, scale;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 140ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-starting-style],
+    &[data-ending-style] {
+      scale: 1;
+    }
+  }
+}
+
+@utility motion-backdrop {
+  transition-property: opacity;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 140ms;
+  }
+}
+
+/* Raised button surfaces. The lime is lit in its own hue: a pale-lime top
+   edge and a deep olive bottom edge instead of white and black, and a contact
+   shadow tinted green so it reads as the button's shadow, not a grey smudge. */
+@utility surface-primary {
+  background-image: linear-gradient(to bottom, oklch(0.95 0.235 119), oklch(0.89 0.25 122));
+  box-shadow:
+    inset 0 1px 0 0 oklch(0.99 0.13 112 / 90%),
+    inset 0 -1px 0 0 oklch(0.62 0.19 126 / 55%),
+    0 0 0 1px oklch(0.58 0.18 125 / 55%),
+    0 1px 2px 0 oklch(0.22 0.07 128 / 70%),
+    0 3px 8px -3px oklch(0.45 0.16 125 / 45%);
+
+  @media (hover: hover) {
+    &:hover {
+      background-image: linear-gradient(to bottom, oklch(0.97 0.225 118), oklch(0.91 0.245 121));
+    }
+  }
+}
+
+@utility surface-raised {
+  box-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 8%),
+    0 1px 2px 0 oklch(0 0 0 / 40%);
+}
+
+/* Fades a Base UI scroll viewport's vertical edges while content is hidden
+   past them. The fade grows with the hidden distance (up to 24px), so it is
+   absent at the very top and bottom. Opt-in: a mask would also fade sticky
+   headers. */
+@utility scroll-fade-y {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black min(24px, var(--scroll-area-overflow-y-start, 0px)),
+    black calc(100% - min(24px, var(--scroll-area-overflow-y-end, 0px))),
+    transparent 100%
+  );
+}
+
+/* Button loading state (see Button's `loading` prop). The label's letters
+   lift out one after another, left to right, and drop back in the same order;
+   the spinner rises and draws itself in. Transitions, so a request finishing
+   mid-way reverses from wherever it got to. */
+.button-ripple-item {
+  display: inline-block;
+  transition-property: translate, opacity, filter;
+  transition-duration: 260ms;
+  transition-timing-function: var(--ease-out);
+  transition-delay: calc(var(--ripple-index, 0) * 14ms);
+}
+
+/* Entry waits 150ms: most requests finish sooner, and then nothing shows.
+   A transition that has not started yet is simply cancelled. */
+[data-loading] .button-ripple-item {
+  translate: 0 -0.6em;
+  opacity: 0;
+  filter: blur(2px);
+  transition-delay: calc(150ms + var(--ripple-index, 0) * 14ms);
+}
+
+/* After a success the label stays out while the check plays, then ripples
+   back. An animation rather than a delay, so it also clears the label when
+   the request was too fast for the loading state to have shown. Fill is
+   `backwards` only: its last frame is the resting state anyway, and a fill
+   that outlives the animation stops the next run's delayed transition. */
+[data-status="success"] .button-ripple-item {
+  animation: button-label-return 1.25s var(--ease-out) backwards;
+  animation-delay: calc(var(--ripple-index, 0) * 14ms);
+}
+
+@keyframes button-label-return {
+  0%,
+  78% {
+    translate: 0 0.6em;
+    opacity: 0;
+    filter: blur(2px);
+  }
+  100% {
+    translate: 0 0;
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.button-spinner {
+  opacity: 0;
+  scale: 0.6;
+  translate: 0 0.5em;
+  transition-property: opacity, scale, translate;
+  transition-duration: 280ms;
+  transition-timing-function: var(--ease-out);
+}
+
+[data-loading] .button-spinner {
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+  transition-delay: 240ms;
+}
+
+/* Success: the ring closes, the check draws in, both hold, then fade as the
+   label ripples back. Keyframes, because it plays once and then is done. */
+.button-success {
+  opacity: 0;
+}
+
+[data-status="success"] .button-success {
+  animation: button-success 1.1s var(--ease-out) backwards;
+}
+
+.button-success-ring,
+.button-success-check {
+  stroke-dasharray: 0 100;
+}
+
+[data-status="success"] .button-success-ring {
+  animation: button-draw 360ms var(--ease-out) both;
+}
+
+[data-status="success"] .button-success-check {
+  animation: button-draw 260ms var(--ease-out) 220ms both;
+}
+
+[data-status="error"] {
+  animation: button-shake 360ms var(--ease-out);
+}
+
+@keyframes button-success {
+  0% {
+    opacity: 0;
+    scale: 0.8;
+  }
+  15%,
+  75% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
+@keyframes button-draw {
+  from {
+    stroke-dasharray: 0 100;
+  }
+  to {
+    stroke-dasharray: 100 0;
+  }
+}
+
+@keyframes button-shake {
+  0%,
+  100% {
+    translate: 0;
+  }
+  20% {
+    translate: -4px;
+  }
+  40% {
+    translate: 3px;
+  }
+  60% {
+    translate: -2px;
+  }
+  80% {
+    translate: 1px;
+  }
+}
+
+/* The shared Spinner: the arc grows and shrinks while the whole turns. */
+.spinner {
+  animation: spinner-turn 0.9s linear infinite;
+}
+
+.spinner-arc {
+  animation: spinner-arc 1.4s var(--ease-in-out) infinite;
+}
+
+@keyframes spinner-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes spinner-arc {
+  0% {
+    stroke-dasharray: 1 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 55 150;
+    stroke-dashoffset: -18;
+  }
+  100% {
+    stroke-dasharray: 55 150;
+    stroke-dashoffset: -99;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-ripple-item,
+  [data-loading] .button-ripple-item {
+    translate: none;
+    filter: none;
+    transition-delay: 0ms;
+  }
+
+  .button-spinner,
+  [data-loading] .button-spinner {
+    scale: 1;
+    translate: none;
+  }
+
+  [data-status="error"] {
+    animation: none;
+  }
+
+  [data-status="success"] .button-ripple-item {
+    animation-name: fade-in-only;
+    animation-delay: 900ms;
+  }
+}
+
+/* DataTable `animateRows`. A row cannot animate its height, so each cell's
+   content sits in a grid track that goes between 0fr and 1fr while the cell's
+   own vertical padding follows. Exit is quicker than entry. */
+.data-table-cell {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.data-table-cell > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+tr[data-row-phase="enter"] > td {
+  animation: data-table-row-enter 280ms var(--ease-out) backwards;
+}
+
+tr[data-row-phase="enter"] > td > .data-table-cell {
+  animation: data-table-cell-grow 280ms var(--ease-out) backwards;
+}
+
+tr[data-row-phase="exit"] > td {
+  animation: data-table-row-exit 220ms var(--ease-out) forwards;
+}
+
+tr[data-row-phase="exit"] > td > .data-table-cell {
+  animation: data-table-cell-shrink 220ms var(--ease-out) forwards;
+}
+
+@keyframes data-table-row-enter {
+  from {
+    padding-block: 0;
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+
+@keyframes data-table-cell-grow {
+  from {
+    grid-template-rows: 0fr;
+  }
+}
+
+@keyframes data-table-row-exit {
+  to {
+    padding-block: 0;
+    opacity: 0;
+    border-color: transparent;
+  }
+}
+
+@keyframes data-table-cell-shrink {
+  to {
+    grid-template-rows: 0fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr[data-row-phase] > td,
+  tr[data-row-phase] > td > .data-table-cell {
+    animation-duration: 1ms;
+  }
+}
+
+/* Tactile press feedback for buttons and other click targets. */
+@utility press {
+  transition-property: scale, color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+
+  &:active:not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    scale: 0.97;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      scale: 1 !important;
+    }
+  }
+}
+
+/* Content replacing a loading state. Runs once on mount, so data that
+   refreshes in place never re-animates. */
+@utility animate-reveal {
+  animation: reveal 280ms var(--ease-out) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in-only;
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+@keyframes fade-in-only {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
   }
 }
 
@@ -151,7 +616,7 @@
 ::view-transition-old(command-bar),
 ::view-transition-new(command-bar) {
   animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
   overflow: clip;
   object-fit: none;
 }

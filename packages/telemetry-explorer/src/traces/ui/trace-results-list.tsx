@@ -213,23 +213,19 @@ function TraceRow({
 }
 
 // Two tones for nine methods. The methods that read share one tone, and the
-// methods that change state share the other. The badge always shows the method
-// as text, so colour is never the only signal. The tints use the same 400-shade
-// text on a light fill as the status tones in the Badge component, which are
-// set for the dark surfaces of the app.
+// methods that change state share the other. Tinted text only, no chip: a
+// chip on every row competes with the one that matters, a failed trace. The
+// method is always spelled out, so colour is never the only signal.
 function HttpMethodBadge({ method }: { method: string }) {
   return (
-    <Badge
-      variant="outline"
+    <span
       className={cn(
-        "shrink-0 rounded px-1 font-mono tracking-wide",
-        isSafeMethod(method)
-          ? "border-sky-500/40 bg-sky-500/10 text-sky-400"
-          : "border-amber-500/40 bg-amber-500/10 text-amber-400",
+        "w-11 shrink-0 font-mono font-medium text-[0.625rem] tracking-wide",
+        isSafeMethod(method) ? "text-sky-400/90" : "text-amber-400/90",
       )}
     >
       {method}
-    </Badge>
+    </span>
   );
 }
 
@@ -252,11 +248,13 @@ function TraceStatusBadge({ errorCount, statusCode }: { errorCount: number; stat
       // The code alone does not show whether the trace failed. The label gives
       // that state as text for a user who cannot see the colour.
       aria-label={statusCode ? `${statusCode}, ${errorLabel}` : errorLabel}
+      // Only a failure gets a chip. A healthy trace is the norm, so its code
+      // stays plain text and the failures stand out in the column.
       className={cn(
         "rounded px-1.5 font-mono",
         failed
           ? "border-red-500/40 bg-red-500/10 text-red-400"
-          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+          : "border-transparent bg-transparent text-muted-foreground",
       )}
     >
       {statusCode || (failed ? "Error" : "OK")}
