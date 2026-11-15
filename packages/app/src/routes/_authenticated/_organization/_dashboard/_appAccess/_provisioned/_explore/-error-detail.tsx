@@ -34,6 +34,7 @@ export function ErrorDetailRouteContent({
       timeRange={timeRange}
       refresh={refresh ?? "off"}
       service={service}
+      withRecording={search.withRecording}
       occurrence={search.occurrence}
       onBack={onBack}
       onClose={onClose}

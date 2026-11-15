@@ -3,6 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-qu
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import { listServiceIdentitiesOptions, tracesSearchInfiniteOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
@@ -24,6 +25,7 @@ export type TraceSearchValue = {
   maxMs: number | undefined;
   status: SpanStatusFilter;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 export type TracesSearchProps = {
@@ -35,6 +37,7 @@ export type TracesSearchProps = {
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that the pages share.
   persistentFilters?: ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
   onSearchChange: (patch: Partial<TraceSearchValue>) => void;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
 };
@@ -46,9 +49,11 @@ export function TracesSearch({
   search,
   environment = [],
   persistentFilters,
+  sessionRecordings,
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
+  const withRecording = sessionRecordings !== undefined && search.withRecording;
   const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange, refresh }));
   const {
     data,
@@ -71,7 +76,7 @@ export function TracesSearch({
       maxMs: search.maxMs,
       status: search.status,
       attributes: withEnvironment(search.attributes, environment),
-      withRecording: false,
+      withRecording,
       limit: TRACES_PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,
@@ -92,7 +97,9 @@ export function TracesSearch({
               maxMs: search.maxMs,
               status: search.status,
               attributes: search.attributes,
+              withRecording,
             }}
+            recordingFilter={sessionRecordings !== undefined}
             identities={identitiesQuery.data ?? []}
             persistentFilters={persistentFilters}
             persistentFilterCount={countPersistentFilters(search.service, environment)}
@@ -118,10 +125,10 @@ export function TracesSearch({
                   timeRange={timeRange}
                   filterCount={
                     countPersistentFilters(search.service, environment) +
-                    countTracePageFilters(search)
+                    countTracePageFilters({ ...search, withRecording })
                   }
                   onClearFilters={
-                    countTracePageFilters(search) > 0
+                    countTracePageFilters({ ...search, withRecording }) > 0
                       ? () =>
                           // The same effect as "Clear page filters" in the
                           // rail. Service and Environment keep their values.
@@ -132,6 +139,7 @@ export function TracesSearch({
                             maxMs: undefined,
                             status: "all",
                             attributes: [],
+                            withRecording: false,
                           })
                       : undefined
                   }

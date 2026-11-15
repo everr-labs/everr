@@ -70,6 +70,7 @@ function ErrorsListView() {
     sort,
     refresh,
     attributes,
+    withRecording,
   } = withTimeRange(search);
   // `service`/`environment` are default-free in the schema (so retainSearchParams
   // can persist them), so coalesce to [] before the filters read `.length`.
@@ -83,7 +84,7 @@ function ErrorsListView() {
           repo={localErrorsRepo}
           timeRange={timeRange}
           refresh={refresh ?? ""}
-          search={{ q, service, fingerprint, sort, attributes }}
+          search={{ q, service, fingerprint, sort, attributes, withRecording }}
           environment={environment}
           persistentFilters={
             <ExplorePersistentFilters
@@ -131,6 +132,7 @@ export function ErrorDetailPage() {
         timeRange={timeRange}
         refresh={refresh ?? ""}
         service={service ?? []}
+        withRecording={search.withRecording}
         occurrence={search.occurrence}
         onClose={() => {
           // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { stubNarrowViewport } from "../../test-utils/viewport";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import type { TracesRepositoryLike } from "../data/repository";
 
 vi.mock("react-virtuoso", () => ({
@@ -59,6 +60,7 @@ const emptySearch: TraceSearchValue = {
   maxMs: undefined,
   status: "all",
   attributes: [],
+  withRecording: false,
 };
 
 /**
@@ -69,11 +71,15 @@ function TracesPageHarness({
   initial = emptySearch,
   environment = [],
   persistentFilters,
+  sessionRecordings,
+  repo: givenRepo,
   onSearchChange,
 }: {
   initial?: TraceSearchValue;
   environment?: string[];
   persistentFilters?: ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
+  repo?: TracesRepositoryLike;
   onSearchChange?: (patch: Partial<TraceSearchValue>) => void;
 }) {
   const [search, setSearch] = useState(initial);
@@ -82,7 +88,7 @@ function TracesPageHarness({
   const [queryClient] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   );
-  const [repo] = useState(makeRepo);
+  const [repo] = useState(() => givenRepo ?? makeRepo());
   return (
     <QueryClientProvider client={queryClient}>
       <TracesSearch
@@ -92,6 +98,7 @@ function TracesPageHarness({
         search={search}
         environment={environment}
         persistentFilters={persistentFilters}
+        sessionRecordings={sessionRecordings}
         onSearchChange={(patch) => {
           onSearchChange?.(patch);
           setSearch((prev) => ({ ...prev, ...patch }));
@@ -177,5 +184,47 @@ describe("Traces page filter rail", () => {
     await user.click(screen.getByRole("button", { name: /Filters/ }));
     expect(screen.getByRole("complementary", { name: "Trace filters" })).toBeInTheDocument();
     expect(screen.getByText("persistent zone")).toBeInTheDocument();
+  });
+});
+
+describe("Traces page session recording filter", () => {
+  const host: SessionRecordingsHost = { renderPlayer: () => null };
+  const searchedWith = (repo: TracesRepositoryLike) =>
+    vi.mocked(repo.search).mock.calls.map(([input]) => input.withRecording);
+
+  it("without a host, draws no switch and ignores withRecording from the URL", async () => {
+    const repo = makeRepo();
+    render(<TracesPageHarness repo={repo} initial={{ ...emptySearch, withRecording: true }} />);
+
+    await waitFor(() => expect(repo.search).toHaveBeenCalled());
+    expect(searchedWith(repo)).toEqual([false]);
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
+  });
+
+  it("with a host, searches only recorded traces once the switch is on", async () => {
+    const user = userEvent.setup();
+    const repo = makeRepo();
+    render(<TracesPageHarness repo={repo} sessionRecordings={host} />);
+
+    await waitFor(() => expect(repo.search).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("switch", { name: "With session recording" }));
+
+    await waitFor(() => expect(searchedWith(repo)).toEqual([false, true]));
+    expect(screen.getByRole("switch", { name: "With session recording" })).toBeChecked();
+  });
+
+  it("counts the switch on the narrow Filters button", async () => {
+    stubNarrowViewport();
+    render(
+      <TracesPageHarness
+        sessionRecordings={host}
+        initial={{ ...emptySearch, withRecording: true }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Filters/ })).toHaveTextContent("1"),
+    );
   });
 });

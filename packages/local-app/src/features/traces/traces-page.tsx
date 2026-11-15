@@ -52,6 +52,7 @@ export function TracesPage() {
             maxMs: search.maxMs,
             status: search.status,
             attributes: search.attributes,
+            withRecording: search.withRecording,
           }}
           environment={environment}
           persistentFilters={

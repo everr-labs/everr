@@ -7,6 +7,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { RecordingFilterSwitch } from "../../recordings/ui/recording-filter-switch";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ServiceIdentity } from "../data/types";
@@ -25,12 +26,15 @@ type FilterValue = {
   maxMs?: number;
   status: StatusValue;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 type TraceFiltersProps = {
   repo: TracesRepositoryLike;
   timeRange: TimeRange;
   value: FilterValue;
+  /** Draws the "With session recording" switch. */
+  recordingFilter: boolean;
   identities: ServiceIdentity[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that are shared between pages.
@@ -47,12 +51,14 @@ export function countTracePageFilters(value: {
   maxMs?: number;
   status: string;
   attributes: readonly unknown[];
+  withRecording: boolean;
 }): number {
   return (
     (value.namespace.length > 0 ? 1 : 0) +
     (value.name.length > 0 ? 1 : 0) +
     (value.minMs !== undefined || value.maxMs !== undefined ? 1 : 0) +
     (value.status !== "all" ? 1 : 0) +
+    (value.withRecording ? 1 : 0) +
     value.attributes.length
   );
 }
@@ -61,6 +67,7 @@ export function TraceFilters({
   repo,
   timeRange,
   value,
+  recordingFilter,
   identities,
   persistentFilters,
   persistentFilterCount = 0,
@@ -90,6 +97,7 @@ export function TraceFilters({
           maxMs: undefined,
           status: "all",
           attributes: [],
+          withRecording: false,
         })
       }
     >
@@ -151,6 +159,13 @@ export function TraceFilters({
           onCommit={(maxMs) => onChange({ maxMs })}
         />
       </div>
+
+      {recordingFilter && (
+        <RecordingFilterSwitch
+          checked={value.withRecording}
+          onCheckedChange={(withRecording) => onChange({ withRecording })}
+        />
+      )}
 
       <AttributeFilterSection
         repo={repo}
