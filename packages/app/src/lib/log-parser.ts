@@ -47,7 +47,7 @@ export function getMarkerClass(type: MarkerType | undefined): string {
     case "error":
       return "bg-destructive/10 text-destructive";
     case "warning":
-      return "bg-yellow-500/10 text-yellow-400";
+      return "bg-warning/10 text-warning";
     case "notice":
       return "bg-blue-500/10 text-blue-400";
     case "command":
