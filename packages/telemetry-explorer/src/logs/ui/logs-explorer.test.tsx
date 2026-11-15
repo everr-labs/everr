@@ -204,3 +204,66 @@ describe("Logs page filter rail", () => {
     expect(screen.getByText("persistent zone")).toBeInTheDocument();
   });
 });
+
+describe("Logs page inspector", () => {
+  const log = {
+    id: "log-1",
+    identity: {
+      timestampRaw: "2026-11-14 23:04:58.653",
+      traceId: "",
+      spanId: "",
+      serviceName: "checkout-api",
+      bodyHash: "1",
+    },
+    timestamp: "2026-11-14T23:04:58.653Z",
+    level: "error",
+    body: "failed to reconcile inventory",
+  };
+
+  function renderWithLog() {
+    const repo = makeRepo();
+    vi.mocked(repo.explorer).mockResolvedValue({ logs: [log] } as never);
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <LogsExplorer
+          repo={repo}
+          timeRange={{ from: "now-1h", to: "now" }}
+          search={emptySearch}
+          onSearchChange={() => {}}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("on a phone opens a log's details in a drawer, without the expand button", async () => {
+    stubNarrowViewport();
+    const user = userEvent.setup();
+    renderWithLog();
+
+    await user.click(await screen.findByRole("button", { name: /failed to reconcile inventory/ }));
+
+    const sheet = await screen.findByRole("dialog", { name: "Log event" });
+    expect(within(sheet).getByRole("button", { name: "Close log details" })).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("button", { name: "Expand log details" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: /log/i })).not.toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole("button", { name: "Close log details" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Log event" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("from 1024px shows a log's details in the column beside the list", async () => {
+    const user = userEvent.setup();
+    renderWithLog();
+
+    await user.click(await screen.findByRole("button", { name: /failed to reconcile inventory/ }));
+
+    expect(await screen.findByRole("button", { name: "Expand log details" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Log event" })).not.toBeInTheDocument();
+  });
+});

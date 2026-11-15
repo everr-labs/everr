@@ -49,11 +49,14 @@ export function DashboardLayout() {
   }
 
   return (
-    <SidebarProvider>
+    // The shell is pinned to the viewport (`fixed inset-0`) instead of sized
+    // with a viewport unit: mobile browsers disagree on what `100vh`/`100dvh`
+    // cover next to their own toolbars (DuckDuckGo on iOS leaves the page
+    // scrollable past its end), while a fixed box always matches the area the
+    // browser actually shows. Every pane scrolls on its own; the document never does.
+    <SidebarProvider className="fixed inset-0 min-h-0">
       <AppSidebar />
-      {/* `dvh`, not `vh`: on mobile browsers `100vh` reaches under the browser's
-          own toolbar, which would hide the bottom of every scrolling pane. */}
-      <SidebarInset className="h-dvh min-w-0 pt-12">
+      <SidebarInset className="min-h-0 min-w-0 pt-12">
         {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
             content but leaves fixed elements pinned, so the topnav stays put.
             SidebarInset compensates with pt-12. */}

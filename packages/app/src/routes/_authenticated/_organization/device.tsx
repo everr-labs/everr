@@ -83,7 +83,7 @@ function CliDeviceApprovalPage() {
   }
 
   return (
-    <main className="bg-muted/20 flex min-h-screen items-center justify-center px-4 py-10">
+    <main className="bg-muted/20 flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
         <h1 className="text-center text-4xl font-semibold tracking-tight">Authenticate Device</h1>
         <p className="text-muted-foreground mt-3 text-center text-base">
@@ -178,7 +178,7 @@ function CliDeviceApprovalPage() {
 
 function DeviceApprovalError() {
   return (
-    <main className="bg-muted/20 flex min-h-screen items-center justify-center px-4 py-10">
+    <main className="bg-muted/20 flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
         <section className="bg-background rounded-2xl border px-6 py-10 text-center sm:px-12">
           <p className="text-2xl font-semibold">Invalid device request</p>

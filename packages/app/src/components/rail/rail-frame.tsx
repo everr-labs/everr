@@ -9,6 +9,7 @@ import {
   type ReactNode,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import * as z from "zod";
@@ -87,6 +88,7 @@ export function RailFrame({
   // CSS, so the server markup is already right on a phone.
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetNavRef = useRef<HTMLElement>(null);
   // Picking a row is done with the list, and so is any other navigation.
   useOnNavigate(() => setSheetOpen(false));
   const sheet = collapsible && isMobile;
@@ -109,8 +111,9 @@ export function RailFrame({
       */}
         <aside
           // `inert` follows the wide layout, the one that animates the rail
-          // away; below `md` a hidden rail is `display: none` anyway.
-          inert={full}
+          // away. On a phone `full` doesn't hide it: a stacked rail stays
+          // usable, and a sheet rail is `display: none` anyway.
+          inert={full && !isMobile}
           aria-label={label}
           className={cn(
             "min-h-0 min-w-0 overflow-hidden border-b bg-muted/15 md:border-r md:border-b-0",
@@ -137,14 +140,20 @@ export function RailFrame({
         <Sheet open={sheetOpen && isMobile} onOpenChange={setSheetOpen}>
           {/* Styled like the Explore filter rail's sheet: the rail at its
               own width over the dimmed page, under the same small heading.
-              A tap doesn't focus the search box, which would raise the
-              phone's keyboard over the list. */}
+              Focus lands on the list itself, never the search box, which
+              would raise the phone's keyboard over it. The toggle opens the
+              sheet from code, so Base UI can't tell a tap from a click. */}
           <SheetContent
             side="left"
             className="w-[300px] p-0 sm:max-w-[300px]"
-            initialFocus={(openType) => openType !== "touch"}
+            initialFocus={sheetNavRef}
           >
-            <nav aria-label={label} className="flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3">
+            <nav
+              ref={sheetNavRef}
+              tabIndex={-1}
+              aria-label={label}
+              className="outline-none flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3"
+            >
               <SheetTitle className="text-muted-foreground text-[0.6875rem] font-medium tracking-wider uppercase">
                 {label}
               </SheetTitle>

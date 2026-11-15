@@ -70,7 +70,7 @@ function TagsInput({
         placeholder={value.length === 0 ? placeholder : undefined}
         disabled={disabled}
         value={draft}
-        className="placeholder:text-muted-foreground min-w-24 flex-1 bg-transparent text-sm outline-none md:text-xs/relaxed"
+        className="placeholder:text-muted-foreground min-w-24 flex-1 bg-transparent text-base outline-none md:text-xs/relaxed"
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === ",") {

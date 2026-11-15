@@ -3,8 +3,13 @@ import { everrLogoPaths } from "@everr/ui/components/everr-logo-paths";
 import { useLayoutEffect, useRef } from "react";
 
 const CHARACTERS = " .,:+=*%#@";
-const CELL_WIDTH = 7;
-const CELL_HEIGHT = 11;
+// A character cell is 7x11px with a 10px font when the mark is large. On a
+// small screen the cell shrinks with the mark (down to 4px wide) so the
+// robot keeps enough characters across to read as a shape.
+const CELL_ASPECT = 11 / 7;
+const MAX_CELL_WIDTH = 7;
+const MIN_CELL_WIDTH = 4;
+const MIN_COLUMNS_ACROSS_MARK = 60;
 const FRAME_INTERVAL = 1000 / 30;
 const IDLE_GAZES = [
   [0, 0],
@@ -54,6 +59,9 @@ export function AsciiLogo() {
     let bounds = canvas.getBoundingClientRect();
     let width = 0;
     let height = 0;
+    let size = 0;
+    let cellWidth = MAX_CELL_WIDTH;
+    let cellHeight = MAX_CELL_WIDTH * CELL_ASPECT;
     let columns = 0;
     let rows = 0;
     let frame = 0;
@@ -105,11 +113,10 @@ export function AsciiLogo() {
       const tilt = reducedMotion
         ? 0
         : Math.sin(time * 0.7) * 0.012 + gazeX * 0.025 + reaction * 0.045;
-      const size = Math.min(width * 0.72, height * 0.57, 640);
 
       sampleContext.resetTransform();
       sampleContext.clearRect(0, 0, sampleCanvas.width, sampleCanvas.height);
-      sampleContext.scale(2 / CELL_WIDTH, 2 / CELL_HEIGHT);
+      sampleContext.scale(2 / cellWidth, 2 / cellHeight);
       sampleContext.translate(width * 0.5, height * 0.49 + bob);
       sampleContext.rotate(tilt);
       sampleContext.scale(size / 657, size / 657);
@@ -126,7 +133,7 @@ export function AsciiLogo() {
       const pixels = sampleContext.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
       context.fillStyle = "#000";
       context.fillRect(0, 0, width, height);
-      context.font = '10px "Menlo", "Consolas", monospace';
+      context.font = `${(10 * cellWidth) / MAX_CELL_WIDTH}px "Menlo", "Consolas", monospace`;
       context.textAlign = "center";
       context.textBaseline = "middle";
 
@@ -160,8 +167,8 @@ export function AsciiLogo() {
           context.globalAlpha = 0.35 + coverage * 0.6;
           context.fillText(
             CHARACTERS[character],
-            (column + 0.5) * CELL_WIDTH,
-            (row + 0.5) * CELL_HEIGHT,
+            (column + 0.5) * cellWidth,
+            (row + 0.5) * cellHeight,
           );
         }
       }
@@ -189,12 +196,15 @@ export function AsciiLogo() {
       bounds = canvas.getBoundingClientRect();
       width = bounds.width;
       height = bounds.height;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const ratio = Math.min(window.devicePixelRatio || 1, 3);
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      columns = Math.ceil(width / CELL_WIDTH);
-      rows = Math.ceil(height / CELL_HEIGHT);
+      size = Math.min(width * 0.72, height * 0.57, 640);
+      cellWidth = clamp(size / MIN_COLUMNS_ACROSS_MARK, MIN_CELL_WIDTH, MAX_CELL_WIDTH);
+      cellHeight = cellWidth * CELL_ASPECT;
+      columns = Math.ceil(width / cellWidth);
+      rows = Math.ceil(height / cellHeight);
       sampleCanvas.width = columns * 2;
       sampleCanvas.height = rows * 2;
       restart();

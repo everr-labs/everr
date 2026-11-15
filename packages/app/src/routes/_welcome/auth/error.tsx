@@ -35,7 +35,7 @@ function AuthErrorPage() {
   const content = getAuthErrorContent(error);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+    <main className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="flex w-full max-w-sm flex-col gap-8">
         <div className="text-center">
           <div className="mx-auto mb-4 flex size-10 items-center justify-center rounded-md bg-destructive/10 text-destructive">

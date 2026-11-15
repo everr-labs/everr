@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@base-ui/react": "^1.4.1",
+    "@base-ui/react": "^1.9.0",
     "@everr/datemath": "workspace:*",
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@tanstack/react-query": "catalog:",

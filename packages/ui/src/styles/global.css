@@ -118,6 +118,9 @@
   }
 
   body {
+    /* iOS Safari positions the drawer overlay absolutely, so the body has to
+       cover the viewport even after the page scrolls. */
+    position: relative;
     @apply font-sans bg-background text-foreground;
   }
   code {
