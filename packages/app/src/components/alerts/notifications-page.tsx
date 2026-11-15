@@ -171,7 +171,7 @@ function GapRow({
     <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 border-t px-3 py-2.5 text-sm">
       <div className="min-w-0">
         <div>{what}</div>
-        <div className="mt-0.5 font-mono text-xs text-chart-2 tabular-nums">{cost}</div>
+        <div className="mt-0.5 font-mono text-xs text-warning tabular-nums">{cost}</div>
       </div>
       <Button variant="outline" size="sm" className="-my-1" disabled={pending} onClick={onAction}>
         {action}
@@ -197,7 +197,7 @@ function ChannelChips({
             key={name}
             className={cn(
               "inline-flex h-6 items-center gap-1 rounded-md border pr-1.5 pl-1",
-              channel ? "text-muted-foreground" : "border-chart-2/50 pl-1.5 text-chart-2",
+              channel ? "text-muted-foreground" : "border-warning/50 pl-1.5 text-warning",
             )}
           >
             {channel && (
@@ -232,7 +232,7 @@ function DefaultTargetRow({
       {/* The overrides list keeps a severity here; a tier is its own. */}
       <div className="hidden @[52rem]/list:block" />
       {names.length === 0 ? (
-        <span className="col-span-2 font-mono text-xs text-chart-2 @[52rem]/list:col-span-1">
+        <span className="col-span-2 font-mono text-xs text-warning @[52rem]/list:col-span-1">
           no channel · not delivered
         </span>
       ) : (

@@ -46,7 +46,7 @@ function ThresholdLabel({ condition }: { condition: string }) {
             y1="3"
             x2="14"
             y2="3"
-            stroke="var(--chart-2)"
+            stroke="var(--warning)"
             strokeWidth="1.5"
             strokeDasharray="3 3"
           />

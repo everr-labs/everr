@@ -13,7 +13,7 @@ type SilenceState = AlertSilenceRecord["state"];
 export const STATE_META: Record<SilenceState, { label: string; dot: string; text: string }> = {
   active: {
     label: "Active",
-    dot: "bg-chart-2",
+    dot: "bg-warning",
     text: "text-foreground",
   },
   // Hollow rather than filled: it is a window that exists but is not muting
@@ -21,7 +21,7 @@ export const STATE_META: Record<SilenceState, { label: string; dot: string; text
   // several rows is the one costing them notifications right now.
   scheduled: {
     label: "Scheduled",
-    dot: "border border-chart-2 bg-transparent",
+    dot: "border border-warning bg-transparent",
     text: "text-foreground",
   },
   expired: {

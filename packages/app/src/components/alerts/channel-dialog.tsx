@@ -373,7 +373,7 @@ function ChannelForm({
         {(test.isSuccess || test.isError) && (
           <p
             role={test.data?.ok ? "status" : "alert"}
-            className={cn("font-mono text-xs", test.data?.ok ? "text-chart-2" : "text-destructive")}
+            className={cn("font-mono text-xs", test.data?.ok ? "text-success" : "text-destructive")}
           >
             {test.data?.ok
               ? `Delivered in ${test.data.latency_ms}ms`

@@ -54,7 +54,7 @@ function TriageRow({
             name: these identifiers are long, and squeezing them onto the name
             line truncates the one word the reader is scanning for. */}
         {alert.error && (
-          <span className="w-fit max-w-full truncate rounded border border-chart-5/45 px-1.5 py-px font-mono text-xs text-chart-2">
+          <span className="w-fit max-w-full truncate rounded border border-warning/45 px-1.5 py-px font-mono text-xs text-warning">
             {alert.error}
           </span>
         )}
