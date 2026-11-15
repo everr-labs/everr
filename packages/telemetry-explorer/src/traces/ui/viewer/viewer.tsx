@@ -40,6 +40,7 @@ import { matchesSpan, SPAN_CATEGORIES, type SpanCategory, type TraceModel } from
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
 import { spanColorGroup } from "./rendering/types";
 import { getAncestorSpanIds, getVisibleSpans } from "./rendering/waterfall-utils";
+import { SpanName } from "../span-name";
 import { SpanDetails } from "./span-details";
 import { TraceWaterfall } from "./waterfall";
 
@@ -266,7 +267,9 @@ function TraceViewer({
           <ArrowLeft />
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-medium">{root?.name ?? "Trace"}</h1>
+          <h1 className="truncate text-sm font-medium">
+            {root ? <SpanName name={root.name} /> : "Trace"}
+          </h1>
           <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
             <span>{root?.source.serviceName}</span>
             <span className="font-mono">{formatDuration(model.durationMs, "ms")}</span>

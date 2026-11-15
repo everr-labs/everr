@@ -16,6 +16,7 @@ import { ChevronRight } from "lucide-react";
 import { type CSSProperties, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { serviceColor } from "../shared/service-color";
+import { SpanName } from "../span-name";
 import { TimeRuler, type ViewRange } from "./flamegraph";
 import type { TraceNode } from "./model";
 import { spanColorGroup } from "./rendering/types";
@@ -141,7 +142,7 @@ export function TraceWaterfall({
                   title={`${node.source.serviceName}: ${node.name}`}
                 >
                   <span className="text-muted-foreground mr-2">{node.source.serviceName}</span>
-                  {node.name}
+                  <SpanName name={node.name} />
                 </button>
                 {status && (
                   <span

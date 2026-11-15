@@ -18,8 +18,8 @@ import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
-import { isSafeMethod, splitSpanName } from "./http-method";
 import { serviceColor } from "./shared/service-color";
+import { SpanName } from "./span-name";
 
 const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
@@ -139,7 +139,6 @@ function TraceRow({
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
 }) {
   const started = parseTimestampAsUTC(row.startTs);
-  const name = splitSpanName(row.rootName);
   // The link wraps only the name but its `after` pseudo-element stretches over
   // the whole row, so the entire row navigates while the copy control and
   // tooltips stay as siblings (lifted above the overlay with z-10) instead of
@@ -152,15 +151,11 @@ function TraceRow({
           className:
             "flex min-w-0 items-center gap-1.5 font-medium after:absolute after:inset-0 after:content-['']",
           children: (
-            <>
-              {name.method && <HttpMethodBadge method={name.method} />}
-              {/* A space character, and not only the flex gap. Without it the
-                    accessible name becomes "POST/api/users". A run of space
-                    characters is not a flex item, so the layout does not
-                    change. */}
-              {name.method && name.label ? " " : null}
-              {name.label && <span className="truncate">{name.label}</span>}
-            </>
+            <SpanName
+              name={row.rootName}
+              methodClassName="w-11 shrink-0"
+              labelClassName="truncate"
+            />
           ),
         })}
         <TraceIdBadge traceId={row.traceId} />
@@ -209,23 +204,6 @@ function TraceRow({
         </TooltipContent>
       </Tooltip>
     </div>
-  );
-}
-
-// Two tones for nine methods. The methods that read share one tone, and the
-// methods that change state share the other. Tinted text only, no chip: a
-// chip on every row competes with the one that matters, a failed trace. The
-// method is always spelled out, so colour is never the only signal.
-function HttpMethodBadge({ method }: { method: string }) {
-  return (
-    <span
-      className={cn(
-        "w-11 shrink-0 font-mono font-medium text-[0.625rem] tracking-wide",
-        isSafeMethod(method) ? "text-sky-400/90" : "text-amber-400/90",
-      )}
-    >
-      {method}
-    </span>
   );
 }
 
