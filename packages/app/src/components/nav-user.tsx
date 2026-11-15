@@ -101,8 +101,12 @@ export function UserMenu({ beforeOrganization, organizationItems }: UserMenuProp
                 <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
               </div>
             </div>
-            <DropdownMenuSeparator />
-            {beforeOrganization}
+            {beforeOrganization ? (
+              <>
+                <DropdownMenuSeparator />
+                {beforeOrganization}
+              </>
+            ) : null}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
