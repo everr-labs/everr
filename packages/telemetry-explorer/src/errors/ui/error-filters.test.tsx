@@ -23,6 +23,7 @@ const baseValue = {
   fingerprint: "",
   sort: "lastSeen" as const,
   attributes: [],
+  withRecording: false,
 };
 
 describe("ErrorFilters", () => {
@@ -33,6 +34,7 @@ describe("ErrorFilters", () => {
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
         value={baseValue}
+        recordingFilter={false}
         onChange={onChange}
       />,
     );
@@ -68,6 +70,7 @@ describe("ErrorFilters", () => {
             },
           ],
         }}
+        recordingFilter={false}
         onChange={onChange}
       />,
     );
@@ -78,7 +81,7 @@ describe("ErrorFilters", () => {
     expect(screen.getByRole("button", { name: "Remove Environment filter" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
-    expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [] });
+    expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [], withRecording: false });
   });
 
   it("clear never touches the persistent filters", () => {
@@ -89,6 +92,7 @@ describe("ErrorFilters", () => {
         timeRange={{ from: "now-1h", to: "now" }}
         value={{ ...baseValue, q: "TypeError" }}
         persistentFilterCount={1}
+        recordingFilter={false}
         onChange={onChange}
       />,
     );
@@ -106,10 +110,47 @@ describe("ErrorFilters", () => {
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
+        recordingFilter={false}
         onChange={vi.fn()}
         {...props}
       />,
     );
     expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ErrorFilters session recording switch", () => {
+  function renderRail(props: { recordingFilter: boolean; withRecording?: boolean }) {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={{ ...baseValue, withRecording: props.withRecording ?? false }}
+        recordingFilter={props.recordingFilter}
+        onChange={onChange}
+      />,
+    );
+    return onChange;
+  }
+
+  it("is drawn only where the host has session recordings", () => {
+    renderRail({ recordingFilter: false });
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("turns the filter on", () => {
+    const onChange = renderRail({ recordingFilter: true });
+    const toggle = screen.getByRole("switch", { name: "With session recording" });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith({ withRecording: true });
+  });
+
+  it("counts as a page filter and is reset by Clear page filters", () => {
+    const onChange = renderRail({ recordingFilter: true, withRecording: true });
+    expect(screen.getByRole("switch", { name: "With session recording" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [], withRecording: false });
   });
 });

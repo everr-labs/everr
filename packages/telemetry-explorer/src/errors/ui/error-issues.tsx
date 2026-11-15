@@ -4,6 +4,7 @@ import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import { errorIssuesInfiniteOptions } from "../data/options";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
@@ -22,6 +23,7 @@ export type ErrorIssuesSearchValue = {
   fingerprint: string;
   sort: ErrorSort;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 export type ErrorIssuesProps = {
@@ -32,6 +34,7 @@ export type ErrorIssuesProps = {
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that the pages share.
   persistentFilters?: ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
   /** The error the reader opened last, marked so they find it again on return. */
@@ -44,10 +47,12 @@ export function ErrorIssues({
   search,
   environment = [],
   persistentFilters,
+  sessionRecordings,
   onSearchChange,
   renderIssueLink,
   lastOpenedFingerprint,
 }: ErrorIssuesProps) {
+  const withRecording = sessionRecordings !== undefined && search.withRecording;
   const issuesQuery = useInfiniteQuery({
     ...errorIssuesInfiniteOptions(repo, {
       timeRange,
@@ -57,7 +62,7 @@ export function ErrorIssues({
       sort: search.sort,
       limit: PAGE_SIZE,
       attributes: withEnvironment(search.attributes, environment),
-      withRecording: false,
+      withRecording,
     }),
     placeholderData: keepPreviousData,
   });
@@ -73,7 +78,8 @@ export function ErrorIssues({
           <ErrorFilters
             repo={repo}
             timeRange={timeRange}
-            value={search}
+            value={{ ...search, withRecording }}
+            recordingFilter={sessionRecordings !== undefined}
             persistentFilters={persistentFilters}
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
@@ -96,13 +102,13 @@ export function ErrorIssues({
                   timeRange={timeRange}
                   filterCount={
                     countPersistentFilters(search.service, environment) +
-                    countErrorPageFilters(search)
+                    countErrorPageFilters({ ...search, withRecording })
                   }
                   // The same effect as "Clear page filters" in the rail. The
                   // sort order, Service and Environment keep their values.
                   onClearFilters={
-                    countErrorPageFilters(search) > 0
-                      ? () => onSearchChange({ q: "", attributes: [] })
+                    countErrorPageFilters({ ...search, withRecording }) > 0
+                      ? () => onSearchChange({ q: "", attributes: [], withRecording: false })
                       : undefined
                   }
                 />

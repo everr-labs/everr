@@ -4,6 +4,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-qu
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import { listServiceIdentitiesOptions, tracesSearchInfiniteOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
@@ -25,6 +26,7 @@ export type TraceSearchValue = {
   maxMs: number | undefined;
   status: SpanStatusFilter;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 export type TracesSearchProps = {
@@ -35,6 +37,7 @@ export type TracesSearchProps = {
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that the pages share.
   persistentFilters?: ReactNode;
+  sessionRecordings?: SessionRecordingsHost;
   onSearchChange: (patch: Partial<TraceSearchValue>) => void;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
   /** The trace the reader opened last, marked so they find it again on return. */
@@ -47,10 +50,12 @@ export function TracesSearch({
   search,
   environment = [],
   persistentFilters,
+  sessionRecordings,
   onSearchChange,
   renderTraceLink,
   lastOpenedTraceId,
 }: TracesSearchProps) {
+  const withRecording = sessionRecordings !== undefined && search.withRecording;
   // Warms the read the namespace filter shares, so the picker opens loaded.
   useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
   const {
@@ -74,7 +79,7 @@ export function TracesSearch({
       maxMs: search.maxMs,
       status: search.status,
       attributes: withEnvironment(search.attributes, environment),
-      withRecording: false,
+      withRecording,
       limit: TRACES_PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,
@@ -95,7 +100,9 @@ export function TracesSearch({
               maxMs: search.maxMs,
               status: search.status,
               attributes: search.attributes,
+              withRecording,
             }}
+            recordingFilter={sessionRecordings !== undefined}
             persistentFilters={persistentFilters}
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
@@ -121,10 +128,10 @@ export function TracesSearch({
                   timeRange={timeRange}
                   filterCount={
                     countPersistentFilters(search.service, environment) +
-                    countTracePageFilters(search)
+                    countTracePageFilters({ ...search, withRecording })
                   }
                   onClearFilters={
-                    countTracePageFilters(search) > 0
+                    countTracePageFilters({ ...search, withRecording }) > 0
                       ? () =>
                           // The same effect as "Clear page filters" in the
                           // rail. Service and Environment keep their values.
@@ -135,6 +142,7 @@ export function TracesSearch({
                             maxMs: undefined,
                             status: "all",
                             attributes: [],
+                            withRecording: false,
                           })
                       : undefined
                   }

@@ -44,6 +44,7 @@ export function TracesRoute() {
             maxMs: search.maxMs,
             status: search.status,
             attributes: search.attributes,
+            withRecording: search.withRecording,
           }}
           environment={environment}
           persistentFilters={<ExplorePersistentFilters />}

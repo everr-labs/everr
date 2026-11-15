@@ -21,7 +21,7 @@ export function ErrorsRoute() {
   const search = useRouteSearch(errorsRoute.validateSearch);
   const patchSearch = useSearchPatch();
   const { service = [], environment = [] } = search;
-  const { timeRange, q, fingerprint, sort, attributes } = withTimeRange(search);
+  const { timeRange, q, fingerprint, sort, attributes, withRecording } = withTimeRange(search);
   const lastOpenedFingerprint = useLastOpened(useParams({ strict: false }).fingerprint);
 
   return (
@@ -30,7 +30,7 @@ export function ErrorsRoute() {
         <ErrorIssues
           repo={repos.errors}
           timeRange={timeRange}
-          search={{ q, service, fingerprint, sort, attributes }}
+          search={{ q, service, fingerprint, sort, attributes, withRecording }}
           environment={environment}
           persistentFilters={<ExplorePersistentFilters />}
           onSearchChange={(patch) =>
@@ -70,6 +70,7 @@ export function ErrorPageRoute() {
       timeRange={timeRange}
       service={service}
       occurrence={search.occurrence}
+      withRecording={search.withRecording}
       onBack={() =>
         void navigate({
           to: "/errors",

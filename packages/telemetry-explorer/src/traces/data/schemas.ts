@@ -22,6 +22,7 @@ export const TraceSearchParamsSchema = TimeRangeSearchSchema.extend({
   maxMs: z.number().int().nonnegative().optional(),
   status: SpanStatusFilterSchema.default("all"),
   attributes: attributesField(["resource", "span"]),
+  withRecording: z.boolean().default(false).catch(false),
 });
 export type TraceSearchParams = z.infer<typeof TraceSearchParamsSchema>;
 
