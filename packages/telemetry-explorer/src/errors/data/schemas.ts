@@ -45,6 +45,7 @@ export const SearchErrorIssuesInputSchema = z.object({
   limit: z.coerce.number().int().positive().max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
   attributes: attributesField(["resource", "log", "scope"]),
+  withRecording: z.boolean().default(false),
 });
 export type SearchErrorIssuesInput = z.infer<typeof SearchErrorIssuesInputSchema>;
 
@@ -53,6 +54,9 @@ export const GetErrorIssueInputSchema = z.object({
   fromTs: z.string().min(1),
   toTs: z.string().min(1),
   service: z.array(z.string()).default([]),
+  // Scopes the summary and the occurrences the way `service` does, so the
+  // default occurrence of a recorded Error is one that plays.
+  withRecording: z.boolean().default(false),
   occurrenceLimit: z.number().int().positive().max(200).default(50),
 });
 export type GetErrorIssueInput = z.infer<typeof GetErrorIssueInputSchema>;

@@ -68,6 +68,7 @@ export function TracesSearch({
       maxMs: search.maxMs,
       status: search.status,
       attributes: withEnvironment(search.attributes, environment),
+      withRecording: false,
       limit: TRACES_PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,

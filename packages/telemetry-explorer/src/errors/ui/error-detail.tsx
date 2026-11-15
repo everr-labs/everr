@@ -54,6 +54,7 @@ export function ErrorDetail({
       fingerprint,
       timeRange,
       service,
+      withRecording: false,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
   );

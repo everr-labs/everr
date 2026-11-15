@@ -49,6 +49,7 @@ export const SearchTracesInputSchema = z.object({
   maxDurationNs: z.string().optional(),
   status: SpanStatusFilterSchema.default("all"),
   attributes: attributesField(["resource", "span"]),
+  withRecording: z.boolean().default(false),
   limit: z.number().int().positive().max(500).default(50),
 });
 export type SearchTracesInput = z.infer<typeof SearchTracesInputSchema>;
