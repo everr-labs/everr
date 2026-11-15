@@ -6,7 +6,7 @@ import { OrganizationMenuItems, WelcomeActions, WorkspaceMenu } from "../navigat
 export const layouts: ApplicationLayouts = {
   UserMenu: () => (
     <UserMenu
-      beforeOrganization={<WorkspaceMenu />}
+      organizationSwitcher={<WorkspaceMenu />}
       organizationItems={<OrganizationMenuItems />}
     />
   ),

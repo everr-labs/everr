@@ -29,12 +29,12 @@ import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
 
 export interface UserMenuProps {
-  beforeOrganization?: ReactNode;
+  organizationSwitcher?: ReactNode;
   /** Rendered inside the organization group, only for organization admins. */
   organizationItems?: ReactNode;
 }
 
-export function UserMenu({ beforeOrganization, organizationItems }: UserMenuProps) {
+export function UserMenu({ organizationSwitcher, organizationItems }: UserMenuProps) {
   const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
@@ -101,8 +101,12 @@ export function UserMenu({ beforeOrganization, organizationItems }: UserMenuProp
                 <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
               </div>
             </div>
-            <DropdownMenuSeparator />
-            {beforeOrganization}
+            {organizationSwitcher ? (
+              <>
+                <DropdownMenuSeparator />
+                {organizationSwitcher}
+              </>
+            ) : null}
             {activeOrg && isAdmin ? (
               <>
                 <DropdownMenuSeparator />
