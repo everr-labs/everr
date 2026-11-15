@@ -36,6 +36,8 @@ afterEach(async () => {
   client = undefined;
   vi.unstubAllGlobals();
   history.replaceState(null, "", "/");
+  localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe("init (persistence: memory)", () => {

@@ -1,7 +1,9 @@
 import "@testing-library/jest-dom/vitest";
+import { context, metrics, propagation, trace } from "@opentelemetry/api";
+import { logs } from "@opentelemetry/api-logs";
 import "@everr/ui/testing/jsdom-shims";
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vite-plus/test";
+import { afterAll, afterEach, vi } from "vite-plus/test";
 import { composeMiddleware, type FunctionMiddlewareHandler } from "./lib/test-middleware";
 
 // ---------------------------------------------------------------------------
@@ -205,6 +207,17 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
 // ---------------------------------------------------------------------------
 afterEach(() => {
   cleanup();
+});
+
+// The OpenTelemetry API keeps its providers on globalThis, and the API only
+// accepts a provider while none is set. Test files share a worker, so each one
+// clears the providers it registered, or the next file cannot register its own.
+afterAll(() => {
+  trace.disable();
+  context.disable();
+  propagation.disable();
+  metrics.disable();
+  logs.disable();
 });
 
 // Consumer tests use the configured auth double. Session recovery has database-backed tests.

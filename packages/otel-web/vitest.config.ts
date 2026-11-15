@@ -17,9 +17,13 @@ export default defineConfig({
     // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
     // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
     clearMocks: false,
+    isolate: false,
+    // Random file and test order, so a test that depends on another fails
+    // early. A failure prints its seed: rerun with --sequence.seed=<seed>.
+    sequence: { shuffle: true },
     reporters: ["verbose"],
     environment: "jsdom",
-    setupFiles: ["./src/test-setup.ts"],
+    setupFiles: ["../../vitest.file-isolation.ts", "./src/test-setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**"],

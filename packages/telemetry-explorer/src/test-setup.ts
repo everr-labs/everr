@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import "@everr/ui/testing/jsdom-shims";
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vite-plus/test";
 
 // jsdom lacks a few browser APIs that base-ui (popover positioning) and cmdk
 // (command list highlighting) call during render. Provide noop polyfills so
@@ -15,3 +17,7 @@ if (!globalThis.ResizeObserver) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+afterEach(() => {
+  cleanup();
+});

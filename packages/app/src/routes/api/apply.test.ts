@@ -54,6 +54,9 @@ const req = (body: unknown) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Some tests queue a result for a call that the action gate then refuses.
+  // Drop the queued results, so they do not reach the next test.
+  applyResources.mockReset();
 });
 
 describe("POST /api/apply", () => {

@@ -207,8 +207,10 @@ it.each([
       { id: "org_1", name: "Acme" },
       { id: "org_2", name: "Other" },
     ];
-    mocks.setActive.mockClear();
-    mocks.invalidate.mockClear();
+    mocks.role = "owner";
+    mocks.githubEnabled = false;
+    mocks.setActive.mockReset().mockResolvedValue({ error: null });
+    mocks.invalidate.mockReset();
     render(
       <QueryClientProvider client={new QueryClient()}>
         <layouts.Welcome signedIn={signedIn} activeOrganizationId="org_1">

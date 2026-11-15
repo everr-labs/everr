@@ -49,13 +49,15 @@ afterEach(() => {
 });
 
 describe("logger", () => {
-  // This test must operate before each call to bindEmit in this file. The
-  // warning before a construction is data at module level, and the first
-  // connection replaces it permanently.
-  it("warns instead of throwing before init", () => {
+  // The warning before a construction is data at module level, and the first
+  // connection replaces it permanently. Fresh modules give the state before
+  // any connection, whatever ran before this test.
+  it("warns instead of throwing before init", async () => {
+    vi.resetModules();
+    const { logger: freshLogger } = await import("./logger.js");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      expect(() => logger.info("too early")).not.toThrow();
+      expect(() => freshLogger.info("too early")).not.toThrow();
       expect(warn).toHaveBeenCalledWith("[everr] SDK not initialized");
     } finally {
       warn.mockRestore();

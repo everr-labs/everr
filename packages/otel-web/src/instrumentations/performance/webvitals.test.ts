@@ -487,9 +487,10 @@ describe("through the client pipeline", () => {
   });
 
   it("emits browser.web_vital with the envelope and the prefixed attribution", async () => {
-    // The true timers also install the original performance object again,
-    // because the test timers change performance.now. Thus the test installs the
-    // timeline replacement again after this operation.
+    // The fake timers replace performance, and the timeline stub replaces it
+    // again. Remove the stub first, so the true timers can install the original
+    // performance object, and then install the timeline replacement again.
+    vi.unstubAllGlobals();
     vi.useRealTimers();
     stubTiming();
     let batches: OtlpBatch[];
@@ -520,8 +521,8 @@ describe("through the client pipeline", () => {
   });
 
   it("ships hidden-time reports on the keepalive exit flush", async () => {
-    // Restoring real timers restores the original performance object (fake
-    // timers patch performance.now), so the timeline stub goes back on after.
+    // Same as above: remove the stub, restore the true timers, stub again.
+    vi.unstubAllGlobals();
     vi.useRealTimers();
     stubTiming();
     let batches: OtlpBatch[];

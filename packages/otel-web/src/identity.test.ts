@@ -28,6 +28,8 @@ beforeEach(() => {
 
 afterEach(() => {
   revoke();
+  // revoke() removes only the user.* keys. Remove the other ambient keys too.
+  setAttributes(Object.fromEntries(Object.keys(getAttributes()).map((key) => [key, null])));
   vi.restoreAllMocks();
   localStorage.clear();
 });

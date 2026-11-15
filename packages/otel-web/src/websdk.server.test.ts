@@ -73,9 +73,11 @@ afterEach(async () => {
 });
 
 describe("init (server)", () => {
-  // This test is the first test in the file, and this is correct. The warning
-  // occurs only before the first call to new WebSDK() in this module.
+  // The warning occurs only before the first call to new WebSDK() in the
+  // module. Fresh modules give that state, whatever ran before this test.
   it("gates logger on init but never gates error capture", async () => {
+    vi.resetModules();
+    const { captureError, logger, WebSDK } = await import("./server.js");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     logger.info("before init");
     expect(warn).toHaveBeenCalledTimes(1);
