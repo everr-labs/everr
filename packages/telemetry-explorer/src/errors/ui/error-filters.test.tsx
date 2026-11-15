@@ -62,7 +62,7 @@ describe("ErrorFilters", () => {
           attributes: [
             {
               source: "resource",
-              key: "deployment.environment",
+              key: "deployment.environment.name",
               op: "in",
               values: ["prod"],
             },

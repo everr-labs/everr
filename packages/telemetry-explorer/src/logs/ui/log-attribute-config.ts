@@ -9,10 +9,10 @@ export const LOGS_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
 ];
 
 // The top zone of the rail sets both keys. service.name is the Service filter and
-// deployment.environment is the Environment filter, and each keeps its value in
+// deployment.environment.name is the Environment filter, and each keeps its value in
 // its own search param. If the attribute picker offered these keys, the user
 // could add a second filter for a key that a control already sets.
 export const LOGS_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
-  "resource:deployment.environment",
+  "resource:deployment.environment.name",
 ]);
