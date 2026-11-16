@@ -257,6 +257,26 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Tailwind 4's reset leaves buttons on the arrow cursor. Everything that
+     acts on a click shows the pointer instead; disabled controls keep the
+     arrow, and a cursor class (cursor-text, a resize handle) still wins. */
+  :is(
+    button,
+    summary,
+    select,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]:not([data-disabled="false"])) {
+    cursor: pointer;
+  }
+
   /* The same selection as the docs site: solid primary, dark text. */
   ::selection {
     background-color: var(--primary);

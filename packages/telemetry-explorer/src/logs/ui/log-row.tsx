@@ -43,7 +43,7 @@ export const LogRow = memo(function LogRow({
         // Below `md` the time sits on its own line above the message, which then
         // has the full width: beside it, a time column wide enough for
         // "11:05:35 PM" would leave a phone's message a few words per line.
-        "relative group grid w-full cursor-default grid-cols-1 items-start py-0.5 text-left font-mono text-[0.75rem] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:py-0",
+        "relative group grid w-full grid-cols-1 items-start py-0.5 text-left font-mono text-[0.75rem] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:py-0",
         // The time column is as wide as its longest time, counted in
         // characters: the row's font is the cells' monospace one, so a `ch`
         // is one of their characters. 19ch is "Nov 10, 12:54:11 PM", 11ch
