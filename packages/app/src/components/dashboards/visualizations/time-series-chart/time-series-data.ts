@@ -91,27 +91,13 @@ function buildSeriesData(
   return result;
 }
 
-/**
- * ECharts stacks by data index, so every series needs a point at each merged
- * timestamp. A missing or null sample contributes nothing to the bucket, so
- * fill it with 0;
- * leaving it undefined would corrupt the running stack offset for the series
- * above it.
- */
-export function buildStackedData(chartData: ChartRow[], series: ChartSeries[]): SeriesPoint[][] {
-  return series.map(({ id }) =>
-    chartData.map((row): SeriesPoint => {
-      const value = row[id];
-      return [row[TS_KEY], typeof value === "number" ? value : 0];
-    }),
-  );
-}
-
 export interface ChartModel {
   /** Merged timeline (all series by timestamp) for crosshair/tooltip lookup. */
   chartData: ChartRow[];
   /** Each line connects its own samples regardless of other series' timestamps. */
   series: ChartSeries[];
+  /** The time range the timeline and the lines are clamped to. */
+  domain: readonly [from: number, to: number];
 }
 
 /**
@@ -214,5 +200,6 @@ export function buildChartModel(
   return {
     chartData: clampMerged(byTs, domain),
     series,
+    domain,
   };
 }

@@ -60,6 +60,29 @@ describe("TimeSeriesChartVisualization", () => {
     expect(axis.max).toBeGreaterThanOrEqual(100);
   });
 
+  it("draws a dense series with a few points per pixel, spike included", () => {
+    const from = props.timeRange.from.getTime();
+    const rows = Array.from({ length: 12_000 }, (_, i) => ({
+      ts: from + i * 10,
+      value: i === 7_777 ? 500 : 1 + (i % 3),
+    }));
+    render(
+      <TimeSeriesChartVisualization
+        {...props}
+        spec={timeSeriesChartSpec.parse({})}
+        data={[rows]}
+      />,
+    );
+
+    const chart = vi.mocked(echarts.init).mock.results.at(-1)!.value;
+    const [series] = chart.getOption().series;
+    // The chart is 600 pixels wide, and its plot a little less.
+    expect(series.data.length).toBeLessThanOrEqual(4 * 600);
+    expect(series.data).toContainEqual([from + 77_770, 500]);
+    const [axis] = chart.getOption().yAxis;
+    expect(axis.max).toBeGreaterThanOrEqual(500);
+  });
+
   it("keeps the selected group isolated after result order changes", () => {
     const spec = timeSeriesChartSpec.parse({ showLegend: true });
     const rows = [

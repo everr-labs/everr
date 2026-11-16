@@ -30,7 +30,8 @@ import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
 import { linearTimeScale, TOUCH_SCRUB, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import type { TimeSeriesChartSpec } from "./spec";
-import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
+import { plotLines } from "./plot-lines";
+import { buildChartModel, TS_KEY } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
 
 const PLAIN_MARKER_RADIUS = 4;
@@ -74,51 +75,24 @@ export function TimeSeriesChartVisualization({
     [timeRange],
   );
 
-  const { chartData, series: modelSeries } = useMemo(
-    () => buildChartModel(data ?? [], domain),
-    [data, domain],
-  );
+  // Full resolution: hover, the tooltip and the legend read this.
+  const model = useMemo(() => buildChartModel(data ?? [], domain), [data, domain]);
+  const { chartData, series: modelSeries } = model;
   const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
     modelSeries,
     showLegend,
   );
 
-  const stackedData = useMemo(
-    () => (stacked ? buildStackedData(chartData, modelSeries) : null),
-    [stacked, chartData, modelSeries],
+  // What is drawn, before the chart knows its width.
+  const lines = useMemo(() => plotLines(model, stacked), [model, stacked]);
+  const { scale: yAxis, format: formatAxisValue } = useMemo(
+    () =>
+      niceValueAxis(formatter, lines.extent[0], lines.extent[1], {
+        min: typeof yAxisSpec?.min === "number" ? yAxisSpec.min : undefined,
+        max: typeof yAxisSpec?.max === "number" ? yAxisSpec.max : undefined,
+      }),
+    [formatter, lines, yAxisSpec],
   );
-
-  // Measure over what is actually drawn: the stacked
-  // tops when stacking, otherwise each line's own samples (which can reach one
-  // bucket left of the x domain).
-  const { scale: yAxis, format: formatAxisValue } = useMemo(() => {
-    let lo = stackedData ? 0 : Number.POSITIVE_INFINITY;
-    let hi = stackedData ? 0 : Number.NEGATIVE_INFINITY;
-    if (stackedData) {
-      for (let i = 0; i < chartData.length; i++) {
-        let top = 0;
-        for (const points of stackedData) {
-          const v = points[i]?.[1];
-          if (typeof v === "number") top += v;
-          lo = Math.min(lo, top);
-          hi = Math.max(hi, top);
-        }
-      }
-    } else {
-      for (const { data: points } of modelSeries) {
-        for (const [, v] of points) {
-          if (typeof v === "number") {
-            lo = Math.min(lo, v);
-            hi = Math.max(hi, v);
-          }
-        }
-      }
-    }
-    return niceValueAxis(formatter, lo, hi, {
-      min: typeof yAxisSpec?.min === "number" ? yAxisSpec.min : undefined,
-      max: typeof yAxisSpec?.max === "number" ? yAxisSpec.max : undefined,
-    });
-  }, [chartData.length, formatter, stackedData, modelSeries, yAxisSpec]);
   const hasChart = !!data && chartData.length > 0 && modelSeries.length > 0;
 
   const mounted = useEChart(chartElementRef, hasChart);
@@ -136,12 +110,19 @@ export function TimeSeriesChartVisualization({
     };
   }, [theme, yAxis, formatAxisValue, gridBottom]);
 
+  // The plot inside the chart element, from the size ECharts already knows:
+  // reading it from the DOM here would force a layout on every pointer move.
+  const plot = mounted && grid ? plotWithin(mounted, grid) : null;
+  // Thinned to the plot's pixels here, so a resize draws again from the rows
+  // the panel already holds: its query never sees the width.
+  const plotWidth = plot?.width ?? 0;
+  const pixelRatio = chart?.getDevicePixelRatio() ?? 1;
+  const drawn = useMemo(() => lines.forPlot(plotWidth, pixelRatio), [lines, plotWidth, pixelRatio]);
+
   useEffect(() => {
     if (!mounted || !grid) return;
     const { chart, theme } = mounted;
-    const series: LineSeriesOption[] = modelSeries.map((item, index) => {
-      const { id, color } = item;
-      const points = stackedData?.[index] ?? item.data;
+    const series: LineSeriesOption[] = drawn.map(({ id, color, points }) => {
       const dimmed = activeSeries !== null && activeSeries !== id;
       return {
         id,
@@ -177,13 +158,12 @@ export function TimeSeriesChartVisualization({
     connectNulls,
     curveType,
     domain,
+    drawn,
     formatAxisValue,
     grid,
     lineWidth,
-    modelSeries,
     mounted,
     stacked,
-    stackedData,
     yAxis,
   ]);
 
@@ -261,9 +241,6 @@ export function TimeSeriesChartVisualization({
     tooltipState?.cursorValue ?? null,
     tooltipState?.tolerance ?? 0,
   );
-  // The plot inside the chart element, from the size ECharts already knows:
-  // reading it from the DOM here would force a layout on every pointer move.
-  const plot = mounted && grid ? plotWithin(mounted, grid) : null;
   const localX = (timestamp: number) =>
     plot ? plot.left + ((timestamp - domain[0]) / (domain[1] - domain[0])) * plot.width : 0;
   const markerX = tooltipTs === undefined ? null : localX(tooltipTs);
