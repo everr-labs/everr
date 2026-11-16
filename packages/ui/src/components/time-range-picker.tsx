@@ -159,7 +159,7 @@ const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
  *  days (a calendar pick ends at 23:59:59, a second short of one). */
 function formatDuration(ms: number): string {
   const days = ms / 86_400_000;
-  if (days >= 1 && Math.abs(days - Math.round(days)) < 0.001)
+  if (Math.round(days) >= 1 && Math.abs(days - Math.round(days)) < 0.001)
     return plural(Math.round(days), "day");
   const hours = ms / 3_600_000;
   if (hours >= 48) return plural(Math.round(days), "day");
@@ -209,6 +209,9 @@ export function TimeRangePicker({
   // picked (null when no pick is in progress).
   const [month, setMonth] = useState(() => new Date());
   const [pickStart, setPickStart] = useState<Date | null>(null);
+  // The day under the pointer while a pick is in progress: the range a second
+  // click would make, shown before the click.
+  const [hoverDay, setHoverDay] = useState<Date | null>(null);
   const [search, setSearch] = useState("");
   // The highlighted row, by its key. Opening starts it on the current range,
   // like a select; a new search moves it to the first result, so Enter picks
@@ -281,6 +284,7 @@ export function TimeRangePicker({
       setCustomFrom(toEditable(value.from));
       setCustomTo(toEditable(value.to));
       setPickStart(null);
+      setHoverDay(null);
       setMonth(resolvePreview(value.to, true)?.date ?? new Date());
       setSearch("");
       setHighlight(rangeKey(value));
@@ -354,6 +358,12 @@ export function TimeRangePicker({
   // it keeps plain finger-sized rows.
   const touchRanges = <TouchRangeList value={value} onPick={handlePresetClick} />;
   // Desktop only: the phone sheet has the room for the fields alone.
+  const preview =
+    pickStart && hoverDay
+      ? pickStart <= hoverDay
+        ? { from: pickStart, to: hoverDay }
+        : { from: hoverDay, to: pickStart }
+      : undefined;
   const calendar = (
     <Calendar
       mode="range"
@@ -370,6 +380,12 @@ export function TimeRangePicker({
       // Nothing to see in the future: telemetry stops at now.
       disabled={{ after: new Date() }}
       endMonth={new Date()}
+      onDayMouseEnter={(day) => setHoverDay(day)}
+      modifiers={{
+        preview,
+        preview_start: preview?.from ?? false,
+        preview_end: preview?.to ?? false,
+      }}
     />
   );
   const customRange = (
@@ -441,7 +457,11 @@ export function TimeRangePicker({
           <div className="relative w-[200px]">
             <div className="absolute inset-0 flex flex-col">{quickRanges}</div>
           </div>
-          <div className="p-3">{calendar}</div>
+          {/* The hover preview clears when the pointer leaves the calendar,
+              not each day: between two days it would flash off for a frame. */}
+          <div className="p-3" onMouseLeave={() => setHoverDay(null)}>
+            {calendar}
+          </div>
         </div>
         {/* The fields span both columns: the calendar fills them, and so can
             typing (a time, or relative math like now-7d/d). */}

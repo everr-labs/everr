@@ -11,6 +11,7 @@ import { DayPicker } from "react-day-picker";
 function Calendar({
   className,
   classNames,
+  modifiersClassNames,
   showOutsideDays = true,
   ...props
 }: React.ComponentProps<typeof DayPicker>) {
@@ -53,6 +54,14 @@ function Calendar({
         disabled: "pointer-events-none opacity-30",
         hidden: "invisible",
         ...classNames,
+      }}
+      // The range a second click would make, lighter than the picked one.
+      // Set the "preview" modifiers to use it.
+      modifiersClassNames={{
+        preview: "bg-white/[0.04] first:rounded-l-md last:rounded-r-md",
+        preview_start: "rounded-l-md",
+        preview_end: "rounded-r-md",
+        ...modifiersClassNames,
       }}
       components={{ Chevron: CalendarChevron }}
       {...props}
