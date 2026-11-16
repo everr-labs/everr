@@ -19,7 +19,7 @@ Signed-in users explore their organization's telemetry on `/logs`, `/traces` and
 - Sidebar `EXPLORE` group: `Logs`, `Errors`, `Traces`; `CI/CD` group: `Runs`, `Cost Analysis`.
 - Direct URLs; filters live in the query string (for example `/logs?levels=[]&attributes=[]&showVolume=true`).
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

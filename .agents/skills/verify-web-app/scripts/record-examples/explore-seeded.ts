@@ -1,5 +1,5 @@
-// verify-everr web-record example: the seeded Explore pages after `web-seed`.
-// Run: $V web-record --steps .agents/skills/verify-everr/scripts/record-examples/explore-seeded.ts
+// verify-web-app web-record example: the seeded Explore pages after `web-seed`.
+// Run: $V web-record --steps .agents/skills/verify-web-app/scripts/record-examples/explore-seeded.ts
 // Generic on purpose: everything comes from the recorder (r.base = this run's web origin) and the
 // constants web-seed uses, so it works in any web run that ran web-auth.md Sign up and web-seed.
 // Copy it next to your evidence and edit it for a PR-specific journey; do not hardcode ports or paths.

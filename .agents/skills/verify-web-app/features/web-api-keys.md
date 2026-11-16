@@ -17,7 +17,7 @@ An organization admin creates organization-scoped `ek_` keys on `/api-keys`, cho
 - Sidebar admin area, or open `/api-keys` directly. Choose `New key`.
 - The Home onboarding links here when it needs a key.
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

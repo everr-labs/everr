@@ -18,7 +18,7 @@ A new user creates an account with name, email and password, lands on a short "S
 - Open `/auth/sign-in`, fill Email, Password, submit. `Forgot password?` and `Sign in with Google` are other entry points (see Gotchas).
 - Log out from the user menu at the bottom of the sidebar.
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

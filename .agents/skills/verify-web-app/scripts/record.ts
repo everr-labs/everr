@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// verify-everr web-record: record a scripted browser journey as an H.264 mp4 plus key frames.
-// Normally run as `verify-everr web-record --steps <file>`, which fills --base-url, --storage-state and
+// verify-web-app web-record: record a scripted browser journey as an H.264 mp4 plus key frames.
+// Normally run as `verify-web-app web-record --steps <file>`, which fills --base-url, --storage-state and
 // --out from the current web run. Standalone: `node record.ts ...` (Node >= 23 strips the types).
 //
 // Usage:
@@ -21,7 +21,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 function die(message: string): never {
-  console.error(`verify-everr web-record: ${message}`);
+  console.error(`verify-web-app web-record: ${message}`);
   process.exit(1);
 }
 

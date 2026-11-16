@@ -17,7 +17,7 @@ When a browser clip exists for an error or a failed request, the error detail pa
 - `/errors`, click the error row (default `Last 7 days`), scroll to Replay.
 - `/traces`, click the failed `GET /verify-api/checkout` trace.
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

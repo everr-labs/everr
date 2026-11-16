@@ -67,7 +67,7 @@ Process Compose declares fixed development settings, which override application 
 
 Instance identity comes from the canonical checkout path. Branch changes in the same checkout preserve data; distinct paths use distinct Docker projects and volumes. The entry script uses macOS `shlock` or Linux `flock` to prevent concurrent starts in one checkout.
 
-The verification helper runs this same graph with its own `DEV_STATE_DIR`, `COMPOSE_PROJECT_NAME`, Portless service names and supervisor socket. It can coexist with the usual development stack without sharing databases, queues or routes. See the [verification skill](../.agents/skills/verify-everr/SKILL.md) for launch and cleanup.
+The verification helper runs this same graph with its own `DEV_STATE_DIR`, `COMPOSE_PROJECT_NAME`, Portless service names and supervisor socket. It can coexist with the usual development stack without sharing databases, queues or routes. See the [web app verification skill](../.agents/skills/verify-web-app/SKILL.md) for launch and cleanup.
 
 ## Implementation
 

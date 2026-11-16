@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// verify-everr: launch, inspect, drive, and tear down an ISOLATED everr local instance
-// (collector + chDB + local UI), and the web app (web.ts), for verification runs.
-// Run directly (`./verify-everr.ts ...` or `node verify-everr.ts ...`); Node >= 23 strips the types.
+// verify-cli: launch, inspect, drive, and tear down an ISOLATED everr local instance
+// (collector + chDB + local UI) for verification runs.
+// Run directly (`./verify-cli.ts ...` or `node verify-cli.ts ...`); Node >= 24 strips the types.
 import { type Dirent, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -39,23 +39,21 @@ import {
   teeAppend,
   which,
   writeEnvFile,
-} from "./common.ts";
-import { WEB_COMMANDS, WEB_USAGE, timeWebCommand } from "./web.ts";
+} from "../../verify-shared/common.ts";
 
-const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr
+const USAGE = `# verify-cli: launch, inspect, drive, and tear down an ISOLATED everr
 # local instance (collector + chDB + local UI) for verification runs.
 #
-#   verify-everr build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
-#   verify-everr launch [RUN_ID]        # start an isolated detached instance, wait until queryable
-#   verify-everr doctor                 # read-only: is this run's instance worth driving?
-#   verify-everr env                    # print the export lines for the current run
-#   verify-everr cli <label> -- ARGS... # run everr ARGS in the run's env, record evidence
-#   verify-everr cli-until <label> <text> -- ARGS... # retry a read until stdout has text
-#   verify-everr ui-get <path>          # GET a path on this run's local UI
-#   verify-everr ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
-#   verify-everr browser-env            # export lines for agent-browser: AGENT_BROWSER_SESSION, UI, SHOTS
-#   verify-everr cleanup                # stop this run's instance, delete scratch, KEEP evidence
-#   verify-everr web-*                  # web app (packages/app) commands, below
+#   verify-cli build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
+#   verify-cli launch [RUN_ID]        # start an isolated detached instance, wait until queryable
+#   verify-cli doctor                 # read-only: is this run's instance worth driving?
+#   verify-cli env                    # print the export lines for the current run
+#   verify-cli cli <label> -- ARGS... # run everr ARGS in the run's env, record evidence
+#   verify-cli cli-until <label> <text> -- ARGS... # retry a read until stdout has text
+#   verify-cli ui-get <path>          # GET a path on this run's local UI
+#   verify-cli ui-cmd <command> [json]# POST /api/commands/<command> like the browser does
+#   verify-cli browser-env            # export lines for agent-browser: AGENT_BROWSER_SESSION, UI, SHOTS
+#   verify-cli cleanup                # stop this run's instance, delete scratch, KEEP evidence
 #
 # State: the current run id lives in $REPO/.verify-everr/current.
 # Scratch (deleted by cleanup):  \${EVERR_VERIFY_SCRATCH:-/tmp/verify-everr}/<RUN_ID>/
@@ -83,7 +81,7 @@ function loadRun(): Run {
   let id: string;
   if (fromEnv) id = fromEnv;
   else {
-    if (!existsSync(CURRENT)) die("no current run; run 'verify-everr launch' first");
+    if (!existsSync(CURRENT)) die("no current run; run 'verify-cli launch' first");
     id = readPointer(CURRENT);
   }
   const runId = parseRunId(id);
@@ -120,10 +118,10 @@ function cmdBuild(): number {
 }
 
 async function cmdLaunch(arg: string | undefined): Promise<number> {
-  if (!isExecutable(BIN)) die(`${BIN} missing; run 'verify-everr build' first`);
+  if (!isExecutable(BIN)) die(`${BIN} missing; run 'verify-cli build' first`);
   const live = readPointer(CURRENT);
   if (live && existsSync(path.join(runDir(live), "env"))) {
-    die(`run ${live} is still live; run 'verify-everr cleanup' first (one instance per checkout)`);
+    die(`run ${live} is still live; run 'verify-cli cleanup' first (one instance per checkout)`);
   }
   const id = parseRunId(arg || defaultRunId());
   const dir = runDir(id);
@@ -175,7 +173,7 @@ async function cmdLaunch(arg: string | undefined): Promise<number> {
   process.stdout.write(readText(path.join(art, "launch.stdout")) ?? "");
   if (rc !== 0) {
     process.stderr.write(readText(path.join(art, "launch.stderr")) ?? "");
-    die(`local start exited ${rc} (see ${dir}/logs/local.log); run 'verify-everr cleanup'`);
+    die(`local start exited ${rc} (see ${dir}/logs/local.log); run 'verify-cli cleanup'`);
   }
   // Ready means queryable, not just listening: wait until SQL over the tables answers.
   const deadline = Date.now() + 60000;
@@ -230,7 +228,7 @@ async function cmdDoctor(): Promise<number> {
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
   const stale = newerThan(["packages/cli/src", "packages/local-app/src", "collector/cmd"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
-    console.log("WARN sources newer than binary (rebuild with 'verify-everr build'):");
+    console.log("WARN sources newer than binary (rebuild with 'verify-cli build'):");
     for (const f of stale) console.log(`       ${f}`);
   }
   check("binary is a debug build", version.stdout.includes("debug build"));
@@ -266,7 +264,7 @@ function cmdEnv(): number {
 /** Drop a leading `--` separator. */
 const afterDashes = (args: string[]) => (args[0] === "--" ? args.slice(1) : args);
 
-/** verify-everr cli <label> -- everr args...: run everr in the run's env, record evidence. */
+/** verify-cli cli <label> -- everr args...: run everr in the run's env, record evidence. */
 function cmdCli(r: Run, label: string, args: string[], quiet = false): number {
   const out = path.join(r.art, "cli", label);
   mkdirSync(out, { recursive: true });
@@ -324,7 +322,7 @@ async function printResponse(url: string, init: RequestInit = {}): Promise<numbe
     process.stdout.write(Buffer.from(await res.arrayBuffer()));
     return 0;
   } catch (e) {
-    console.error(`verify-everr: ${url}: ${e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e)}`);
+    console.error(`verify-cli: ${url}: ${e instanceof Error ? (e.cause instanceof Error ? e.cause.message : e.message) : String(e)}`);
     return 1;
   }
 }
@@ -426,15 +424,9 @@ async function main(argv: string[]): Promise<number> {
       return cmdBrowserEnv();
     case "cleanup":
       return cmdCleanup();
-    default: {
-      const web = cmd ? WEB_COMMANDS[cmd] : undefined;
-      if (web) {
-        timeWebCommand(cmd);
-        return web(args);
-      }
-      console.log(`${USAGE}\n${WEB_USAGE}`);
+    default:
+      console.log(USAGE);
       return 2;
-    }
   }
 }
 

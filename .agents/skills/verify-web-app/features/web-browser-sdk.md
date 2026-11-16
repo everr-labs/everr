@@ -15,7 +15,7 @@ An integrator adds `@everr/otel-web` to their page with a public `ek_` key that 
 - `/api-keys`, `Public keys`, `New public key` with the site's origin, then the key in the SDK's `ingestKey` (the docs' browser quick start).
 - The page under test is the skill's SDK page (`web-sdk-page`), a minimal integrator page built from this checkout's `packages/otel-web/src`.
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 
@@ -37,7 +37,7 @@ Preconditions:
   Every command exits `0`; `sdk-02-otlp-requests.txt` has `OPTIONS .../v1/logs ... 204`, `OPTIONS .../v1/traces ... 204`, and `POST` lines for both with `200` (`sdk-cors`). A `401` or a missing `POST` after a `204` means the key or its origin was refused; a preflight that is not `204` means CORS.
 - **Rows.** Run `$V web-ch sdk-rows "SELECT 'log' AS k, EventName AS e, count() AS c FROM app.logs WHERE ServiceName = 'verify-sdk-web' GROUP BY e UNION ALL SELECT 'span', SpanName, count() FROM app.traces WHERE ServiceName = 'verify-sdk-web' GROUP BY SpanName"`. One `exception` log and one `GET /verify-api/checkout` span (`sdk-errors`, `sdk-network`). Recording on: `$V web-ch sdk-recordings "SELECT uniq(LogAttributes.everr.recording.clip.id) AS clips, count() AS segments FROM app.recordings WHERE ServiceName = 'verify-sdk-web'"` has `clips` 1 and `segments` >= 1, and `SELECT count() FROM app.logs WHERE EventName = 'everr.browser.recording.segment'` is `0` (`sdk-recording`).
 - **In the app.** Run `agent-browser open "$WEB/errors?service=%5B%22verify-sdk-web%22%5D" && agent-browser wait --text "VerifySdkError: checkout exploded" && ab_save sdk-03-errors`. `sdk-03-errors.txt` has the Occurrences count `1` on its own line, then `occurrence`, and `Showing all 1 matching errors`. The replay of that clip is `web-replay.md`.
-- **Local endpoint, no key.** With a live CLI run (`$V launch`, `DOCTOR OK`): `$V web-sdk-page --local`, `eval "$($V web-browser-env)"`, open `$SDK_URL`, click `#boom` and `#fail-fetch`, then `$V cli-until sdk-local-rows VerifySdkError -- local query "SELECT ServiceName, Body FROM logs WHERE ServiceName = 'verify-sdk-web' LIMIT 5" --format ndjson`. Found; the network log shows `OPTIONS ... 204` and `POST ... 200` against the CLI run's OTLP port (`sdk-local`).
+- **Local endpoint, no key.** With a live [verify-cli](../../verify-cli/SKILL.md) run (`VCLI=.agents/skills/verify-cli/scripts/verify-cli.ts`; `$VCLI launch`, `DOCTOR OK`): `$V web-sdk-page --local`, `eval "$($V web-browser-env)"`, open `$SDK_URL`, click `#boom` and `#fail-fetch`, then `$VCLI cli-until sdk-local-rows VerifySdkError -- local query "SELECT ServiceName, Body FROM logs WHERE ServiceName = 'verify-sdk-web' LIMIT 5" --format ndjson`. Found; the network log shows `OPTIONS ... 204` and `POST ... 200` against the CLI run's OTLP port (`sdk-local`).
 - **Proof.** `sdk-page/` (entry, build log, `page.txt`), `web/sdk-*`, `db/sdk-rows/`, `db/sdk-recordings/`, `cli/sdk-local-rows/`.
 
 ## Gotchas

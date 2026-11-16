@@ -74,7 +74,7 @@ reports
 .stryker-tmp
 .vitest/
 
-# verify-everr skill evidence (.agents/skills/verify-everr)
+# verify-* skill evidence (.agents/skills/verify-*)
 .verify-everr/
 
 # Worktree development state and binaries

@@ -18,7 +18,7 @@ Dashboards and runbooks are resources an organization applies as code (`everr ap
 - `everr apply` from a repo with `everr.yaml`, then sidebar `MONITOR` > `Dashboards` / `Runbooks`.
 - Panel header > `Open the panel full screen` (PR #528 and later).
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 
@@ -29,7 +29,7 @@ Preconditions:
 - **Apply.** Run:
 
   ```bash
-  B=.agents/skills/verify-everr/scripts/apply-examples/dashboard-runbook.json
+  B=.agents/skills/verify-web-app/scripts/apply-examples/dashboard-runbook.json
   $V web-apply "$B" --dry-run && $V web-apply "$B"
   ```
 

@@ -16,7 +16,7 @@ The local UI served by `everr local start` (page title `Everr Local`) has a side
 - Open the `ui:` URL printed by `everr local start` (or run `everr local ui`), choose `Logs` in the sidebar, type in `Search`.
 - Routes: `/logs`, `/traces`, `/traces/<traceId>`, `/errors`, `/errors/<fingerprint>`, `/settings`, `/developer`.
 
-## Driving it with verify-everr
+## Driving it with verify-cli
 
 Preconditions:
 

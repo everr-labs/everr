@@ -13,7 +13,7 @@ A fresh App installation asks for a workspace name and owner account at `/setup`
 
 Open the self-hosted App URL. A fresh database redirects to `/setup`; configured installations show sign-in or Home.
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

@@ -14,7 +14,7 @@
 
 - `everr wrap <command> [args...]` in a terminal, typically around a dev server or test run (`everr wrap pnpm test`).
 
-## Driving it with verify-everr
+## Driving it with verify-cli
 
 Preconditions:
 

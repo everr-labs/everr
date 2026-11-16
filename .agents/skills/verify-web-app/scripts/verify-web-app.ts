@@ -1,4 +1,7 @@
+#!/usr/bin/env node
+// verify-web-app: launch, inspect, drive, and tear down an ISOLATED App/Cloud stack for verification runs.
 // Web verification drives the same pnpm dev graph as development, with isolated data and service names.
+// Run directly (`./verify-web-app.ts ...` or `node verify-web-app.ts ...`); Node >= 24 strips the types.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import {
@@ -19,10 +22,10 @@ import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import { createRequire } from "node:module";
 import { connect } from "node:http2";
 import { createConnection } from "node:net";
+import { fileURLToPath } from "node:url";
 import {
   REPO,
   SCRATCH_ROOT,
-  SCRIPT_DIR,
   STATE_DIR,
   type Proc,
   type RunId,
@@ -59,37 +62,39 @@ import {
   teeAppend,
   writeEnvFile,
   which,
-} from "./common.ts";
+} from "../../verify-shared/common.ts";
 
-export const WEB_USAGE = `# Web verification through pnpm dev (both products, Cloud selected by default):
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+const WEB_USAGE = `# Web verification through pnpm dev (both products, Cloud selected by default):
 #
-#   verify-everr web-preflight           check the toolchain web-launch needs; one line with the fix per missing piece
-#   verify-everr web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]
+#   verify-web-app web-preflight           check the toolchain web-launch needs; one line with the fix per missing piece
+#   verify-web-app web-launch [RUN_ID] [--app app|cloud] [--ignore-memory]
 #                                        isolated pnpm dev graph, data, service names, and supervisor socket
 #                                        (runs web-preflight first)
-#   verify-everr web-doctor              read-only health of this web run
-#   verify-everr web-env                 print this run's non-secret connection metadata
-#   verify-everr web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
+#   verify-web-app web-doctor              read-only health of this web run
+#   verify-web-app web-env                 print this run's non-secret connection metadata
+#   verify-web-app web-browser-env         export lines for agent-browser: AGENT_BROWSER_SESSION, WEB, SHOTS,
 #                                        SDK_PAGE_ORIGIN, and SDK_URL once web-sdk-page ran
-#   verify-everr web-http <label> <METHOD> <path> [curl args...]   HTTP against the app, recorded
-#   verify-everr web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
-#   verify-everr web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
-#   verify-everr web-ch <label> "<SQL>"            ClickHouse SQL (default user) in this run, recorded
-#   verify-everr web-key-save <name>     read text containing a full ek_ key on stdin, keep it in the run's scratch dir
-#   verify-everr web-key <name>          print a saved full key (never the truncated ek_xxx... list prefix)
-#   verify-everr web-onboard             finish the Home onboarding in the run's browser (banner-safe), recorded
-#   verify-everr web-apply <body.json> [--key-name N] [--dry-run]   POST /api/apply with a Manage-as-code key, recorded
-#   verify-everr web-net <label> <seconds> [--reload]   clear the browser's network log, (reload,) wait, save
+#   verify-web-app web-http <label> <METHOD> <path> [curl args...]   HTTP against the app, recorded
+#   verify-web-app web-webhook <label> <event> <payload.json>  signed GitHub webhook (run's own secret)
+#   verify-web-app web-psql <label> "<SQL>"          read-only psql in this run's Postgres, recorded
+#   verify-web-app web-ch <label> "<SQL>"            ClickHouse SQL (default user) in this run, recorded
+#   verify-web-app web-key-save <name>     read text containing a full ek_ key on stdin, keep it in the run's scratch dir
+#   verify-web-app web-key <name>          print a saved full key (never the truncated ek_xxx... list prefix)
+#   verify-web-app web-onboard             finish the Home onboarding in the run's browser (banner-safe), recorded
+#   verify-web-app web-apply <body.json> [--key-name N] [--dry-run]   POST /api/apply with a Manage-as-code key, recorded
+#   verify-web-app web-net <label> <seconds> [--reload]   clear the browser's network log, (reload,) wait, save
 #                                        it, count /_serverFn/ calls per function and new page errors
-#   verify-everr web-report [RUN_ID]     write <evidence>/report.md: every video and screenshot with its caption
-#   verify-everr web-seed [--key-name N | --key-file F]   send fixed logs/spans/error over OTLP with a saved
+#   verify-web-app web-report [RUN_ID]     write <evidence>/report.md: every video and screenshot with its caption
+#   verify-web-app web-seed [--key-name N | --key-file F]   send fixed logs/spans/error over OTLP with a saved
 #                                        key (default name: secret), wait until they land
-#   verify-everr web-collector-restart   restart the selected native collector through Process Compose
-#   verify-everr web-record --steps F [record.ts args]   record a scripted journey as mp4 + key frames into
+#   verify-web-app web-collector-restart   restart the selected native collector through Process Compose
+#   verify-web-app web-record --steps F [record.ts args]   record a scripted journey as mp4 + key frames into
 #                                        <evidence>/video/ (base URL and the run browser's session filled in)
-#   verify-everr web-sdk-page [--local]  bundle packages/otel-web/src into a test page, serve it on SDK_PAGE_ORIGIN
+#   verify-web-app web-sdk-page [--local]  bundle packages/otel-web/src into a test page, serve it on SDK_PAGE_ORIGIN
 #                                        with the saved 'public' key (or the CLI run's collector, no key, with --local)
-#   verify-everr web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
+#   verify-web-app web-cleanup             stop dev server + compose down -v (this project only), KEEP evidence`;
 
 const WEB_STATE = path.join(STATE_DIR, "current-web");
 
@@ -110,7 +115,7 @@ function phase(name: string): () => void {
 
 /** Time this web-* command and its sub-steps into <evidence>/timings.tsv
  * (phase, start, end, seconds, status). Rows are written on exit, so a step that dies still gets its end. */
-export function timeWebCommand(cmd: string): void {
+function timeWebCommand(cmd: string): void {
   const selected = readPointer(WEB_STATE) || process.env.WEB_RUN_ID || "";
   phase(cmd);
   process.once("exit", (code: number) => {
@@ -176,7 +181,7 @@ function webRunId(): string {
 
 function webLoad(): WebRun {
   const id = webRunId();
-  if (!id) die("no current web run; run 'verify-everr web-launch' first");
+  if (!id) die("no current web run; run 'verify-web-app web-launch' first");
   const runId = parseRunId(id);
   if (!existsSync(path.join(webDir(runId), "run.env"))) {
     die(`web run ${runId} has no ${webDir(runId)}/run.env (already cleaned up?)`);
@@ -857,7 +862,7 @@ async function cmdWebSdkPage(args: string[]): Promise<number> {
   if (local) {
     const cliRun = readPointer(path.join(STATE_DIR, "current"));
     const cliEnv = cliRun ? path.join(SCRATCH_ROOT, cliRun, "env") : "";
-    otlp = (cliEnv && readEnvFile(cliEnv).EVERR_OTLP_HTTP_ORIGIN) || die("--local needs a live CLI run ('verify-everr launch')");
+    otlp = (cliEnv && readEnvFile(cliEnv).EVERR_OTLP_HTTP_ORIGIN) || die("--local needs a live CLI run ('verify-cli launch')");
   } else {
     key = readKey(w, ["--key-name", "public"]);
   }
@@ -1304,7 +1309,7 @@ async function cmdWebCleanup(): Promise<number> {
     for (const name of volumes.stdout.split("\n").filter(Boolean)) failed(`Remaining volume: ${name}`);
   } else if (existsSync(dir)) failed(`Cannot clean up ${dir}: run.env is missing`);
   if (!complete) {
-    teeAppend(cleanupLog, `Cleanup incomplete; state kept at ${dir}. Retry with WEB_RUN_ID=${runId} ${shellQuote(["node", path.join(SCRIPT_DIR, "verify-everr.ts"), "web-cleanup"])}.`);
+    teeAppend(cleanupLog, `Cleanup incomplete; state kept at ${dir}. Retry with WEB_RUN_ID=${runId} ${shellQuote(["node", path.join(SCRIPT_DIR, "verify-web-app.ts"), "web-cleanup"])}.`);
     return 1;
   }
   rmSync(toDelete, { recursive: true, force: true });
@@ -1314,7 +1319,7 @@ async function cmdWebCleanup(): Promise<number> {
   return 0;
 }
 
-export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
+const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<number>> = {
   "web-preflight": cmdWebPreflight,
   "web-launch": cmdWebLaunch,
   "web-doctor": cmdWebDoctor,
@@ -1336,3 +1341,12 @@ export const WEB_COMMANDS: Record<string, (args: string[]) => number | Promise<n
   "web-record": cmdWebRecord,
   "web-cleanup": cmdWebCleanup,
 };
+
+const [cmd, ...args] = process.argv.slice(2);
+const command = cmd ? WEB_COMMANDS[cmd] : undefined;
+if (!cmd || !command) {
+  console.log(WEB_USAGE);
+  process.exit(2);
+}
+timeWebCommand(cmd);
+process.exit(await command(args));

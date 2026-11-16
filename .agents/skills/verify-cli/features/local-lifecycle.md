@@ -18,7 +18,7 @@
 - `everr local stop`.
 - `everr local ui` opens the running UI in the default browser (not driven here: needs a desktop browser handler).
 
-## Driving it with verify-everr
+## Driving it with verify-cli
 
 Preconditions:
 

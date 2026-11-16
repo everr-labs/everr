@@ -15,7 +15,7 @@
 - `everr skills install [--all] [--project|--global] [--agent ...] [--dry-run]`.
 - `everr skills update [names...]`, `everr skills uninstall [names...|--all --yes] [--dry-run]`.
 
-## Driving it with verify-everr
+## Driving it with verify-cli
 
 Preconditions:
 

@@ -19,7 +19,7 @@ Admins connect GitHub from `/github`: `Install GitHub App` opens `/api/github/in
 - Sidebar admin area or `/github`, then `Install GitHub App` (opens a new tab).
 - GitHub itself POSTs to `/webhook/github` (in dev through smee, `SMEE_CHANNEL`).
 
-## Driving it with verify-everr
+## Driving it with verify-web-app
 
 Preconditions:
 

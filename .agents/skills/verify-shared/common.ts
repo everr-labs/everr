@@ -1,4 +1,4 @@
-// Shared paths and helpers for the verify-everr helper (verify-everr.ts, web.ts).
+// Shared paths and helpers for the verify-* skill helpers (verify-cli, verify-web-app, verify-collector, verify-docs).
 import { type StdioOptions, spawnSync } from "node:child_process";
 import {
   accessSync,
@@ -17,8 +17,8 @@ import path from "node:path";
 import { setTimeout as sleepMs } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-export const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-export const REPO = path.resolve(SCRIPT_DIR, "../../../..");
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+export const REPO = path.resolve(SCRIPT_DIR, "../../..");
 export const BIN = path.join(REPO, "target/debug/everr");
 export const STATE_DIR = path.join(REPO, ".verify-everr");
 export const SCRATCH_ROOT = process.env.EVERR_VERIFY_SCRATCH || "/tmp/verify-everr";
@@ -26,7 +26,7 @@ export const SCRATCH_ROOT = process.env.EVERR_VERIFY_SCRATCH || "/tmp/verify-eve
 export const sleep = (ms: number): Promise<void> => sleepMs(ms);
 
 export function die(message: string): never {
-  console.error(`verify-everr: ${message}`);
+  console.error(`${path.basename(process.argv[1] ?? "verify", ".ts")}: ${message}`);
   process.exit(1);
 }
 
@@ -169,10 +169,9 @@ export async function closeBrowser(session: string, log: string): Promise<void> 
 }
 
 /** Shell lines for driving a run's browser: session, origin, evidence dir (created), and
- * `ab_save <label> [caption]` (the caption, the claim the screenshot backs, goes to <label>.caption for web-report).
+ * `ab_save <label> [caption]` (the caption, the claim the screenshot backs, goes to <label>.caption).
  * The short sleep lets the compositor paint: right after a client-side navigation the DOM (and get text)
- * is already new while a screenshot still shows the previous frame. */
-/** Shell lines for `eval`; an undefined value unsets the variable. */
+ * is already new while a screenshot still shows the previous frame. An undefined value unsets the variable. */
 export function printBrowserEnv(vars: Record<string, string | undefined>, shots: string): number {
   mkdirSync(shots, { recursive: true });
   for (const [k, v] of Object.entries({ ...vars, SHOTS: shots })) {
