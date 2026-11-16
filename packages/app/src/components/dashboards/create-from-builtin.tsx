@@ -1,12 +1,6 @@
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
-import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
-import { Button } from "@everr/ui/components/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
-import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
-import { cn } from "@everr/ui/lib/utils";
-import { Sparkles } from "lucide-react";
-import { useRef } from "react";
+import { GitFork } from "lucide-react";
 import { createFromBuiltinPrompt } from "#app/data/dashboards/built-in/prompt.ts";
+import { PromptHandoff } from "./prompt-handoff";
 
 /**
  * The only create path a built-in offers: hand the Agent a prompt that reads
@@ -15,52 +9,17 @@ import { createFromBuiltinPrompt } from "#app/data/dashboards/built-in/prompt.ts
  * would exist in no repository, so apply could never reconcile it.
  */
 export function CreateFromBuiltin({ slug, name }: { slug: string; name: string }) {
-  const prompt = createFromBuiltinPrompt({ slug, name });
-  const promptRef = useRef<HTMLElement>(null);
-  const { state: copyState, copy } = useCopyToClipboard(prompt, {
-    selectOnFailure: promptRef,
-  });
-
   return (
-    <Popover>
-      <PopoverTrigger render={<Button size="sm" />}>
-        <Sparkles className="size-3.5" />
-        Fork this dashboard
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-96">
-        <p className="text-muted-foreground text-xs/relaxed">
-          Paste this into your coding assistant. It reads this built-in dashboard, saves an adapted
-          copy as code in your repository, and applies it.
-        </p>
-        <div className="mt-3 flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
-          <code
-            ref={promptRef}
-            className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[0.6875rem]/relaxed text-foreground/90"
-          >
-            {prompt}
-          </code>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          className="mt-3 w-full"
-          onClick={copy}
-          aria-label="Copy assistant prompt"
-        >
-          <CopyStateIcon copied={copyState === "copied"} iconClassName="size-3.5" />
-          {copyState === "copied" ? "Copied" : "Copy prompt"}
-        </Button>
-        {/* One status line serves sighted and screen-reader users alike:
-            visible on failure, announced-only for the transient "copied". */}
-        <p
-          role="status"
-          className={cn("mt-2 text-warning text-xs", copyState !== "failed" && "sr-only")}
-        >
-          {copyState === "copied" && "Prompt copied to clipboard."}
-          {copyState === "failed" &&
-            "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </p>
-      </PopoverContent>
-    </Popover>
+    <PromptHandoff
+      trigger={
+        <>
+          <GitFork className="size-3.5" />
+          Fork this dashboard
+        </>
+      }
+      title="Fork into your repository"
+      description="Paste this into your coding assistant and finish the last line with what to change. It saves an adapted copy as code and runs everr apply."
+      prompt={createFromBuiltinPrompt({ slug, name })}
+    />
   );
 }
