@@ -96,7 +96,6 @@ func run(ctx context.Context, argv []string) error {
 		return fmt.Errorf("run wrapped command `%s`: %w", command.display, startErr)
 	}
 	stopRelay := relaySignals(child.Process, !interactive)
-	defer stopRelay()
 
 	records := make(chan logRecord, batchSize*4)
 	exported := make(chan error, 1)
@@ -108,6 +107,9 @@ func run(ctx context.Context, argv []string) error {
 	forwarders.Go(func() { forwardErrs[1] = forwardStream(stderrR, os.Stderr, "stderr", records) })
 
 	waitErr := child.Wait()
+	// A background process can keep the pipes open long after the child is
+	// reaped; signals must not be swallowed while forwarders drain.
+	stopRelay()
 	forwarders.Wait()
 	if _, exited := errors.AsType[*exec.ExitError](waitErr); waitErr != nil && !exited {
 		return fmt.Errorf("wait for wrapped command: %w", waitErr)
