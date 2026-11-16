@@ -83,8 +83,10 @@ export const RuleStateChart = memo(function RuleStateChart({
       : (visible.find((s) => hovered.at <= s.from && hovered.at >= s.to) ?? null);
 
   return (
+    // An inactive stretch is a hairline, not a filled track: a full grey bar
+    // reads as a loading placeholder, so a quiet rule looked unloaded.
     <div
-      className="relative h-3.5 overflow-hidden rounded-sm bg-muted/40"
+      className="relative h-3.5 overflow-hidden rounded-sm before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-border"
       role="img"
       onMouseMove={scrub.onMouseMove}
       onMouseLeave={scrub.onMouseLeave}
@@ -95,7 +97,12 @@ export const RuleStateChart = memo(function RuleStateChart({
           // oxlint-disable-next-line react/no-array-index-key -- Immutable source events can share timestamps or IDs; the ordinal distinguishes those duplicates.
           key={`${s.state}-${s.from}-${s.to}-${i}`}
           className={cn("absolute inset-y-0 rounded-[2px]", STATUS_META[s.state].fill)}
-          style={{ left: `${s.left}%`, width: `${s.width}%` }}
+          // At least 2px, so a few minutes of firing in a 7-day window still
+          // leaves a mark, kept inside the track when it ends at "now".
+          style={{
+            left: `min(${s.left}%, calc(100% - 2px))`,
+            width: `max(${s.width}%, 2px)`,
+          }}
         />
       ))}
       {hovered && (
