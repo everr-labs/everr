@@ -87,4 +87,17 @@ case ":${PATH}:" in
 esac
 
 echo
-echo "Start local telemetry: everr local start"
+cat <<'EOF'
+Next steps:
+
+  1. Install agent skills from your project root:
+     everr skills install --all --project
+
+  2. Start local telemetry and the local UI:
+     everr local start
+
+  3. Connect to Everr Cloud (optional):
+     everr cloud login
+
+Docs: https://everr.dev/docs/learn/install
+EOF
