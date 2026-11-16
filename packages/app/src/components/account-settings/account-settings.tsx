@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { GoogleConnection } from "#app/components/account-settings/google-connection.tsx";
 import { PasswordSettings } from "#app/components/account-settings/password-settings.tsx";
 import { ProfileSettings } from "#app/components/account-settings/profile-settings.tsx";
+import { McpConnectionsSettings } from "#app/components/account-settings/mcp-connections-settings.tsx";
 import { linkedAccountsQueryOptions } from "#app/components/account-settings/queries.ts";
 import { SessionsSettings } from "#app/components/account-settings/sessions-settings.tsx";
 import { PageHeader } from "#app/components/page-header.tsx";
@@ -53,6 +54,7 @@ export function AccountSettings({ googleSignInEnabled, children }: AccountSettin
             userId={session.user.id}
             currentSessionId={session.session.id}
           />
+          <McpConnectionsSettings userId={session.user.id} />
         </>
       )}
 
