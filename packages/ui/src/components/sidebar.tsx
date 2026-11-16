@@ -5,6 +5,7 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Separator } from "@everr/ui/components/separator";
+import { TOOLTIP_DELAY_MS } from "@everr/ui/components/tooltip";
 import {
   Sheet,
   SheetContent,
@@ -198,7 +199,6 @@ function SidebarProvider({
   );
 }
 
-const RAIL_TOOLTIP_OPEN_DELAY_MS = 300;
 const RAIL_TOOLTIP_CLOSE_GRACE_MS = 100;
 const RAIL_TOOLTIP_WARM_MS = 400;
 const RAIL_TOOLTIP_OFFSET_PX = 6;
@@ -254,7 +254,7 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
       }
       openTimer.current = window.setTimeout(() => {
         apply(next);
-      }, RAIL_TOOLTIP_OPEN_DELAY_MS);
+      }, TOOLTIP_DELAY_MS);
     },
     [apply],
   );

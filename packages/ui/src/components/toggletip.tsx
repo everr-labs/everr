@@ -1,6 +1,7 @@
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { cn } from "@everr/ui/lib/utils";
 import { useId } from "react";
+import { TOOLTIP_DELAY_MS } from "@everr/ui/components/tooltip";
 
 /**
  * A tooltip that also opens on tap, for hints a reader may need on a touch
@@ -16,7 +17,7 @@ function ToggletipTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
     <PopoverPrimitive.Trigger
       data-slot="toggletip-trigger"
       openOnHover
-      delay={0}
+      delay={TOOLTIP_DELAY_MS}
       closeDelay={0}
       {...props}
     />

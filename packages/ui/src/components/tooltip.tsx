@@ -1,7 +1,12 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 
-function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
+/** How long the pointer rests on a trigger before its tooltip opens, so
+ *  passing over one does not flash it. Once one is open, the next opens at
+ *  once (Base UI's group timeout). */
+export const TOOLTIP_DELAY_MS = 300;
+
+function TooltipProvider({ delay = TOOLTIP_DELAY_MS, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
 }
 

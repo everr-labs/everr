@@ -435,7 +435,6 @@ export function TimeRangePicker({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger
-          delay={0}
           render={<PopoverTrigger render={<Button variant="outline" className="gap-1.5" />} />}
         >
           {triggerContent}
