@@ -21,6 +21,7 @@ import { Route as ApiApplyRouteImport } from './../../app/src/routes/api/apply'
 import { Route as ApiCliRouteImport } from './../../app/src/routes/api/cli'
 import { Route as ApiHealthRouteImport } from './../../app/src/routes/api/health'
 import { Route as McpSplatRouteImport } from './../../app/src/routes/mcp/$'
+import { Route as McpBlockedClientRouteImport } from './../../app/src/routes/mcp/blocked-client'
 import { Route as McpConsentRouteImport } from './../../app/src/routes/mcp/consent'
 import { Route as WebhookGithubRouteImport } from './../../app/src/routes/webhook/github'
 import { Route as AuthenticatedDashboardPaddedRouteImport } from './../../app/src/routes/_authenticated/_dashboard/_padded'
@@ -156,6 +157,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const McpSplatRoute = McpSplatRouteImport.update({
   id: '/mcp/$',
   path: '/mcp/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpBlockedClientRoute = McpBlockedClientRouteImport.update({
+  id: '/mcp/blocked-client',
+  path: '/mcp/blocked-client',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpConsentRoute = McpConsentRouteImport.update({
@@ -762,6 +768,7 @@ export interface FileRoutesByFullPath {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/blocked-client': typeof McpBlockedClientRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
@@ -837,6 +844,7 @@ export interface FileRoutesByTo {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/blocked-client': typeof McpBlockedClientRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
@@ -911,6 +919,7 @@ export interface FileRoutesById {
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
+  '/mcp/blocked-client': typeof McpBlockedClientRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
   '/_authenticated/_dashboard/_padded': typeof AuthenticatedDashboardPaddedRouteWithChildren
@@ -1000,6 +1009,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/blocked-client'
     | '/mcp/consent'
     | '/webhook/github'
     | '/device'
@@ -1075,6 +1085,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/blocked-client'
     | '/mcp/consent'
     | '/webhook/github'
     | '/device'
@@ -1148,6 +1159,7 @@ export interface FileRouteTypes {
     | '/api/cli'
     | '/api/health'
     | '/mcp/$'
+    | '/mcp/blocked-client'
     | '/mcp/consent'
     | '/webhook/github'
     | '/_authenticated/_dashboard/_padded'
@@ -1237,6 +1249,7 @@ export interface RootRouteChildren {
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   McpSplatRoute: typeof McpSplatRoute
+  McpBlockedClientRoute: typeof McpBlockedClientRoute
   McpConsentRoute: typeof McpConsentRoute
   WebhookGithubRoute: typeof WebhookGithubRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -1330,6 +1343,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp/$'
       fullPath: '/mcp/$'
       preLoaderRoute: typeof McpSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/blocked-client': {
+      id: '/mcp/blocked-client'
+      path: '/mcp/blocked-client'
+      fullPath: '/mcp/blocked-client'
+      preLoaderRoute: typeof McpBlockedClientRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp/consent': {
@@ -2441,6 +2461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   McpSplatRoute: McpSplatRoute,
+  McpBlockedClientRoute: McpBlockedClientRoute,
   McpConsentRoute: McpConsentRoute,
   WebhookGithubRoute: WebhookGithubRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

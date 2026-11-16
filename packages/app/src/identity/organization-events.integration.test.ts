@@ -55,6 +55,7 @@ function createAuth(
       events,
       baseURL: "http://localhost:3000",
       secret: "organization-fact-integration-secret-long-enough",
+      mcpRedirectAllowlist: [],
       email: { enabled: false, sendInvitation() {}, sendPasswordReset() {}, sendVerification() {} },
       canInviteMembers: async () => true,
     },
