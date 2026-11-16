@@ -13,6 +13,9 @@ import (
 // the command already reported the outcome.
 type ExitError struct {
 	Code int
+	// Wrapped marks the exit code of a command run by `everr wrap`, which
+	// says nothing about whether the CLI itself failed.
+	Wrapped bool
 }
 
 func (e *ExitError) Error() string { return fmt.Sprintf("exit status %d", e.Code) }

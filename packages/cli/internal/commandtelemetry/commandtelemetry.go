@@ -172,9 +172,7 @@ func Start(ctx context.Context, cmd *cobra.Command, argv []string) (_ context.Co
 	emit(ctx, logger, log.SeverityInfo, eventName, attrs)
 
 	return ctx, func(err error) {
-		// An ExitError carries an outcome the command already reported, such
-		// as the wrapped command's exit code. It is not a CLI failure.
-		if _, reported := errors.AsType[*cmdutil.ExitError](err); reported {
+		if exit, ok := errors.AsType[*cmdutil.ExitError](err); ok && exit.Wrapped {
 			span.End()
 			return
 		}

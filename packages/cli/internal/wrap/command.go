@@ -134,7 +134,7 @@ func run(ctx context.Context, argv []string) error {
 	if code == 0 {
 		return nil
 	}
-	return cmdutil.Exit(code)
+	return &cmdutil.ExitError{Code: code, Wrapped: true}
 }
 
 // relaySignals keeps wrap alive until the child exits so its last logs and
