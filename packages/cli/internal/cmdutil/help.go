@@ -16,6 +16,9 @@ import (
 const RootName = "everr"
 
 func RenderHelp(w io.Writer, cmd *cobra.Command) {
+	// cobra adds -h/--help only to the command it executes, so `help <cmd>`
+	// would render cmd without that row.
+	cmd.InitDefaultHelpFlag()
 	about := cmd.Long
 	if about == "" {
 		about = cmd.Short
