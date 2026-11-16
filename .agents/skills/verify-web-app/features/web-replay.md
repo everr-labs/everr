@@ -1,6 +1,6 @@
 # Web session recordings
 
-In Cloud, when a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, between the toolbar and the flamegraph) and the error detail (first, above the stack trace) show a `Session recording` section: a `Play` button, the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), `TRUNCATED` when the buffer did not reach back to the requested start, gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record. The page looks up the covering Clips with the `getCoveringClips` server function; the Clip's events load through `getClipEvents` only when `Play` is pressed, and playback starts 10 s before the trace or the error. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording. The self-hosted App shows neither the switch nor the section.
+In Cloud, when a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, a resizable panel between the toolbar and the flamegraph) and the error detail (first, above the stack trace) show a `Session recording` section: a `Play` button, the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), `TRUNCATED` when the buffer did not reach back to the requested start, gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record. The page looks up the covering Clips with the `getCoveringClips` server function; the Clip's events load through `getClipEvents` only when `Play` is pressed, and playback starts 10 s before the trace or the error and runs to the Clip's end. A click on the picture plays or pauses. In the trace view the closed player is one row; `Play` opens it to 40% of the space below the toolbar, the `Resize session recording and trace` handle sets its height, and `Hide` or a drag past its minimum closes it back to the row. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording. The self-hosted App shows neither the switch nor the section.
 
 ## Sub-features
 
@@ -9,6 +9,7 @@ In Cloud, when a browser session recording (a Clip) covers a trace or an error, 
 - `replay-invariant` every row of a filtered list opens a detail that shows the `Session recording` section.
 - `replay-lazy` opening a detail calls `getCoveringClips` and never `getClipEvents` before `Play`.
 - `replay-play` `Play` loads the events once, the player runs, the button turns into `Pause`, and the clock advances.
+- `replay-split` in the trace view the closed player is 32px tall, `Play` opens it, the handle resizes it, and `Hide` returns it to 32px; the next `Play` reopens it at the height it had.
 - `replay-masking` text in the replay iframe is masked (asterisks), and the iframe's `sandbox` is `allow-same-origin` only (no scripts).
 - `replay-gaps` the trigger, `TRUNCATED` and gap badges match the stored `recording` span and Segment indexes.
 - `replay-no-loop` with the default range (`Last 7 days`), an open detail settles: at most 10 server function calls in 10 s.
@@ -103,6 +104,17 @@ Preconditions:
   ```
 
   Exit `0`; `replay-08-trace.txt` has `GET /verify-api/checkout` and a `TRIGGER` badge.
+- **Split.** On that trace view, run:
+
+  ```bash
+  S='section[aria-label="Session recording"]'
+  H="Math.round(document.querySelector('$S').closest('[data-panel]').getBoundingClientRect().height)"
+  agent-browser eval "$H"
+  agent-browser click "$S button[aria-label=\"Play\"]" && agent-browser wait "$S iframe" && agent-browser eval "$H"
+  agent-browser find role button click --name "Hide" && agent-browser eval "$H"
+  ```
+
+  The heights are `32`, then about 40% of the space below the toolbar, then `32` again (`replay-split`).
 - **Hidden on self-hosted.** With the App session, run:
 
   ```bash
