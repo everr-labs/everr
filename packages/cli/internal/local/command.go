@@ -110,7 +110,7 @@ func runUI(ctx context.Context, w io.Writer) error {
 		return reportUnavailable(w, status)
 	}
 	origin := build.LocalUIOrigin()
-	if err := openBrowser(origin); err != nil {
+	if err := cmdutil.OpenBrowser(origin); err != nil {
 		return fmt.Errorf("Could not open the local UI. Open this URL manually: %s: %w", origin, err)
 	}
 	fmt.Fprintf(w, "ui: %s\n", origin)

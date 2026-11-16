@@ -12,8 +12,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/browser"
-
 	"github.com/everr-labs/everr/packages/cli/internal/api"
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
@@ -225,9 +223,7 @@ func Status(ctx context.Context, out io.Writer, asJSON bool) error {
 }
 
 func openBrowserWithPrompt(out io.Writer, verificationURL, userCode string) {
-	// pkg/browser forwards the opener's output, which must not reach stdout.
-	browser.Stdout, browser.Stderr = io.Discard, io.Discard
-	if err := browser.OpenURL(verificationURL); err != nil {
+	if err := cmdutil.OpenBrowser(verificationURL); err != nil {
 		fmt.Fprintf(os.Stderr, "Could not open browser automatically.\nOpen this URL manually: %s (%v)\n", verificationURL, err)
 	}
 

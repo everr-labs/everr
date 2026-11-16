@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/zstd"
-	"github.com/pkg/browser"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
@@ -27,6 +26,7 @@ import (
 	"github.com/everr-labs/everr/packages/cli/internal/atomicfile"
 	"github.com/everr-labs/everr/packages/cli/internal/banner"
 	"github.com/everr-labs/everr/packages/cli/internal/build"
+	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
 )
 
 const (
@@ -296,14 +296,9 @@ func openStartedUI(args startArgs) {
 	if args.noOpen || args.quiet {
 		return
 	}
-	if err := openBrowser(build.LocalUIOrigin()); err != nil {
+	if err := cmdutil.OpenBrowser(build.LocalUIOrigin()); err != nil {
 		fmt.Fprintf(os.Stderr, "Could not open the local UI: %v\n", err)
 	}
-}
-
-func openBrowser(url string) error {
-	browser.Stdout, browser.Stderr = io.Discard, io.Discard
-	return browser.OpenURL(url)
 }
 
 // extractChDBLibrary unpacks the embedded libchdb into a cache directory
