@@ -20,7 +20,6 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
-  --animate-shimmer: shimmer 1.8s cubic-bezier(0.77, 0, 0.175, 1) infinite;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -675,6 +674,35 @@ tr[data-row-phase="exit"] > td > .data-table-cell {
 }
 
 @keyframes fade-in-only {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Loading placeholder.
+   - It appears only after 300ms. Most loads finish sooner, and a placeholder
+     that flashes for a moment reads as a glitch.
+   - The sheen is fixed to the viewport, so one sweep crosses every
+     placeholder on screen together instead of each one sweeping its own width
+     at its own speed.
+   - Constant motion, so linear: easing would make the sweep surge and stall. */
+@utility skeleton {
+  background-color: oklch(1 0 0 / 4%);
+  background-image: linear-gradient(90deg, transparent 40%, oklch(1 0 0 / 5%) 50%, transparent 60%);
+  background-size: 200vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation:
+    skeleton-in 200ms var(--ease-out) 300ms both,
+    shimmer 1.6s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    background-image: none;
+    animation: skeleton-in 200ms var(--ease-out) 300ms both;
+  }
+}
+
+@keyframes skeleton-in {
   from {
     opacity: 0;
   }

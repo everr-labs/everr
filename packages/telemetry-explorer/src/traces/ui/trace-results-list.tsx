@@ -16,12 +16,10 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
 import { SpanName } from "./span-name";
 
-const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
 
 type Props = {
@@ -86,8 +84,7 @@ export function TraceResultsList({
     [rows.length, hasMore, isLoadingMore],
   );
 
-  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
-  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isPending) return <ResultsSkeleton />;
   if (isError) {
     return (
       <RetryError

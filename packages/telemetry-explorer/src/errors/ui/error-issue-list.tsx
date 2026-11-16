@@ -5,11 +5,9 @@ import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { ErrorIssueSummary } from "../data/types";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
 
-const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
 
 export function ErrorIssueList({
@@ -69,8 +67,7 @@ export function ErrorIssueList({
     [isFetchingNextPage, hasNextPage, issues.length],
   );
 
-  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
-  if (isPending) return showSkeleton ? <ListSkeleton /> : null;
+  if (isPending) return <ListSkeleton />;
   if (isError) {
     return (
       <RetryError

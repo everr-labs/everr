@@ -8,13 +8,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { RunListItem } from "../schemas";
 import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
-const SKELETON_DELAY_MS = 600;
 
 // Runs are timed to the second (and the live timer ticks every second), so
 // render whole seconds — `Xs` under a minute, `Ym Zs` above — rather than the
@@ -93,8 +91,7 @@ export function RunsResultsList({
     [runs.length, totalCount, hasMore, isLoadingMore],
   );
 
-  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
-  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isPending) return <ResultsSkeleton />;
   // Only blank the view when there's nothing to show. A failed `fetchNextPage`
   // flips `isError` while keeping the already-loaded pages, so we keep the list
   // mounted and let the user retry by scrolling rather than wiping it.
