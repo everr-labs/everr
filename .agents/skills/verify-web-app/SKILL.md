@@ -20,7 +20,7 @@ Not covered:
 Everything goes through one helper: `.agents/skills/verify-web-app/scripts/verify-web-app.ts` (below: `V`), TypeScript that Node >= 24 runs directly (no build step or separate dependency install). Run it from anywhere (`$V ...`, or `node $V ...`); it resolves the repo from its own path.
 
 ```bash
-V=.agents/skills/verify-web-app/scripts/verify-web-app.ts
+V="$(git rev-parse --show-toplevel)/.agents/skills/verify-web-app/scripts/verify-web-app.ts"
 ```
 
 ## Launch
@@ -191,7 +191,7 @@ Proof standards:
 - Exercise the real user path: the UI routes, OTLP through the run's collector, `/api/apply`. Never call internal setters or test-only endpoints.
 - A screenshot alone is not proof. Pair the UI end state with a second view: a reload (new page load), a different route, or a `web-psql` row.
 - Never seed users or sessions with SQL or internal endpoints. Create them through the UI journey.
-- Telemetry goes in only through `web-seed` (OTLP through the run's collector with a UI-created key). Never insert into `otel.*`/`app.*` with `web-ch`: that skips the key check and tenant stamping the proof is about.
+- Telemetry goes in only through the run's collector with a UI-created key: `web-seed` (OTLP with a secret key) or the browser SDK on `web-sdk-page` (public key). Never insert into `otel.*`/`app.*` with `web-ch`: that skips the key check and tenant stamping the proof is about.
 - Mocks only at the boundaries in the "Web app boundary" table. Everything else in the run is real and local.
 
 ## Cleanup

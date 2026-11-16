@@ -20,6 +20,7 @@ import {
   http,
   isAlive,
   listDir,
+  lockLaunch,
   parseRunId,
   portPids,
   printBrowserEnv,
@@ -112,6 +113,13 @@ function groupMembers(pgid: number): number[] {
   });
 }
 
+/** The processes cleanup may stop. A pid is not reused while its process group has members, so the
+ * survivors of a leader that exited (the vite child that owns the port) are still this run's. */
+function ourGroup(pid: number, marker: string): number[] {
+  if (ownsGroup(pid, marker)) return groupMembers(pid);
+  return isAlive(pid) ? [] : groupMembers(pid);
+}
+
 const secs = (ms: number) => (ms / 1000).toFixed(1);
 
 async function waitFor(what: string, timeoutMs: number, probe: () => Promise<boolean>, failed: () => string | undefined): Promise<number> {
@@ -131,6 +139,7 @@ async function cmdLaunch(args: string[]): Promise<number> {
   if (!existsSync(VP)) die(`${VP} missing; run 'pnpm install' at the repo root`);
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor < 23) die(`node ${process.version} is too old; the repo uses Node 24. Put Node 24 first on PATH`);
+  lockLaunch(CURRENT);
   const live = readPointer(CURRENT);
   if (live && existsSync(path.join(runDir(live), "env"))) {
     die(`run ${live} is still live; run 'verify-docs cleanup' first (one server per checkout)`);
@@ -138,6 +147,8 @@ async function cmdLaunch(args: string[]): Promise<number> {
   const id = parseRunId(positional[0] || defaultRunId());
   const dir = runDir(id);
   const art = artDir(id);
+  // The scratch root is shared by every checkout on the machine.
+  if (existsSync(path.join(dir, "env"))) die(`${dir} already holds a run with id '${id}' (another checkout?); choose another RUN_ID`);
   mkdirSync(dir, { recursive: true });
   mkdirSync(art, { recursive: true });
   const port = await freePort();
@@ -321,8 +332,11 @@ function cmdNet(label: string | undefined): number {
   writeFileSync(path.join(out, `${name}.requests.txt`), listed.stdout);
   const buckets: Record<"app" | "dead-sink" | "github-stars" | "unexpected", string[]> = { app: [], "dead-sink": [], "github-stars": [], unexpected: [] };
   for (const line of listed.stdout.split("\n")) {
-    const m = line.match(/^\[\S+\] (\w+) (\S+)/);
-    if (!m) continue;
+    if (!line.trim() || /^No requests captured/i.test(line.trim())) continue;
+    // `[id] METHOD URL (type) status`; the id prefix is optional so a build that omits it still parses.
+    const m = line.match(/^(?:\[\S+\] )?([A-Z]+) (\S+)/);
+    // A line this does not understand could hide a request, so it fails the audit instead of passing it.
+    if (!m) die(`cannot parse this 'agent-browser network requests' line (output format changed?): ${line}`);
     const url = m[2];
     if (url.startsWith("data:") || url.startsWith("blob:")) continue;
     if (url.startsWith(`${r.origin}/`)) buckets.app.push(line);
@@ -373,8 +387,9 @@ async function cmdCleanup(): Promise<number> {
   const proc = recorded({ dir });
   const envFile = path.join(dir, "env");
   const port = existsSync(envFile) ? readEnvFile(envFile).DOCS_PORT : undefined;
-  if (proc && ownsGroup(proc.pid, proc.marker)) {
-    teeAppend(stopLog, `stopping process group ${proc.pid}`);
+  const members = proc ? ourGroup(proc.pid, proc.marker) : [];
+  if (proc && members.length) {
+    teeAppend(stopLog, `stopping process group ${proc.pid} [${members.join(" ")}]`);
     try {
       process.kill(-proc.pid, "SIGTERM");
     } catch {}
@@ -390,10 +405,14 @@ async function cmdCleanup(): Promise<number> {
   } else if (proc) {
     teeAppend(stopLog, `server pid ${proc.pid} is not running our command (already stopped, or the pid was reused); not killing it`);
   }
-  if (port && portPids(port)) teeAppend(stopLog, `WARN port ${port} still held by ${portPids(port)} (not ours to kill: it is outside the recorded process group)`);
   await closeBrowser(browserSession(`docs-${runId}`), stopLog);
   for (const f of ["docs.log", "build.log"]) {
     if (existsSync(path.join(dir, f))) copyFileSync(path.join(dir, f), path.join(art, f));
+  }
+  const held = port ? portPids(port) : "";
+  if (held) {
+    teeAppend(stopLog, `port ${port} still held by ${held}, outside the recorded process group, so not ours to kill; scratch kept. Stop it and rerun cleanup.`);
+    return 1;
   }
   rmSync(toDelete, { recursive: true, force: true });
   if (readPointer(CURRENT) === runId) rmSync(CURRENT, { force: true });

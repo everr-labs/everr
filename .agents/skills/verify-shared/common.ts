@@ -10,6 +10,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
@@ -75,6 +76,18 @@ export function readText(file: string): string | undefined {
 /** Contents of a one-line state file (`.verify-everr/current`), or "" if absent. */
 export function readPointer(file: string): string {
   return (readText(file) ?? "").trim();
+}
+
+/** Hold `<pointer>.lock` until this process exits, so two overlapping launches cannot both pass the "no live run" check. */
+export function lockLaunch(pointer: string): void {
+  const lock = `${pointer}.lock`;
+  mkdirSync(path.dirname(lock), { recursive: true });
+  try {
+    mkdirSync(lock);
+  } catch {
+    die(`another launch is running in this checkout (${lock}); if none is, remove that directory`);
+  }
+  process.on("exit", () => rmSync(lock, { recursive: true, force: true }));
 }
 
 export type Proc = { status: number; stdout: string; stderr: string };

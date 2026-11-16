@@ -17,7 +17,7 @@ Not covered: the Vercel or Docker deploy (`Dockerfile`, `TRUST_PROXY`), the Post
 Everything goes through one helper: `.agents/skills/verify-docs/scripts/verify-docs.ts` (below: `V`), TypeScript that Node >= 24 runs directly (no build step or separate dependency install). Run it from anywhere; it resolves the repo from its own path.
 
 ```bash
-V=.agents/skills/verify-docs/scripts/verify-docs.ts
+V="$(git rev-parse --show-toplevel)/.agents/skills/verify-docs/scripts/verify-docs.ts"
 ```
 
 ## Launch
@@ -105,7 +105,7 @@ The page makes requests besides its own origin: PostHog (`VITE_POSTHOG_HOST`), t
 $V net <label>       # after the page has been idle for about 10s
 ```
 
-Classifies every request in the session as `app` (this run's origin), `dead-sink` (`http://127.0.0.1:9`), `github-stars` (the URL above) or `unexpected`, writes `net/<label>.{requests,summary}.txt`, and exits 1 if anything is `unexpected`. A pass needs `dead-sink` greater than zero: that shows the SDKs are live and aimed at the dead port (measured on the home page: PostHog `config.js`, `config` and `flags`, plus OTLP `OPTIONS` and `POST` to `/v1/logs` and `/v1/traces` within about 8s of load). On a `launch --prod` server only the PostHog requests reached the dead sink within 12s (no OTLP `POST`s; measured), which still shows the sink is wired. Zero dead-sink requests prints a NOTE and proves nothing yet. Run it at the end of every browser feature, before cleanup.
+Classifies every request in the session as `app` (this run's origin), `dead-sink` (`http://127.0.0.1:9`), `github-stars` (the URL above) or `unexpected`, writes `net/<label>.{requests,summary}.txt`, and exits 1 if anything is `unexpected` or if a line of the request log does not parse (a changed `agent-browser` output format must not read as "no requests"). A pass needs `dead-sink` greater than zero: that shows the SDKs are live and aimed at the dead port (measured on the home page: PostHog `config.js`, `config` and `flags`, plus OTLP `OPTIONS` and `POST` to `/v1/logs` and `/v1/traces` within about 8s of load). On a `launch --prod` server only the PostHog requests reached the dead sink within 12s (no OTLP `POST`s; measured), which still shows the sink is wired. Zero dead-sink requests prints a NOTE and proves nothing yet. Run it at the end of every browser feature, before cleanup.
 
 ## Evidence
 
@@ -133,7 +133,7 @@ Proof standards:
 $V cleanup
 ```
 
-Stops the recorded process group (SIGTERM, then SIGKILL after 10s) only if the recorded pid is still the group leader running our command, so a reused pid or a server someone else started is never touched. It reports any port holder outside that group and leaves it alone. It closes this run's `agent-browser` session, copies the logs into the evidence dir, deletes `/tmp/verify-everr/docs-<RUN_ID>/` and `.verify-everr/current-docs`, then lists the evidence that survived. Run it after every attempt, including failed ones. Never kill by process name or by port alone: other agents and you run their own dev servers, including `vp dev` for this package.
+Stops the recorded process group (SIGTERM, then SIGKILL after 10s) if the recorded pid is still the group leader running our command, or if that leader has exited and members of its group survive (a pid is not reused while its group has members). A reused pid or a server someone else started is never touched. It closes this run's `agent-browser` session, copies the logs into the evidence dir, deletes `/tmp/verify-everr/docs-<RUN_ID>/` and `.verify-everr/current-docs`, then lists the evidence that survived. If the port is still held after that, by a process outside the group, it leaves that process alone, exits 1 and keeps the scratch dir. Run it after every attempt, including failed ones. Never kill by process name or by port alone: other agents and you run their own dev servers, including `vp dev` for this package.
 
 ## Helpers
 

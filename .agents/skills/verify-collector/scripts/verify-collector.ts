@@ -3,7 +3,7 @@
 // throwaway ClickHouse with the repo's schema and a stub key verifier, drive its public listeners,
 // and tear it all down. Run directly (`./verify-collector.ts ...` or `node verify-collector.ts ...`).
 import { spawn } from "node:child_process";
-import { createHmac, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import {
   type Dirent,
   appendFileSync,
@@ -33,6 +33,7 @@ import {
   freePort,
   isAlive,
   listDir,
+  lockLaunch,
   parseRunId,
   portOf,
   portPids,
@@ -58,7 +59,7 @@ const USAGE = `# verify-collector: run the Everr collector distribution built fr
 #   verify-collector key <name>                   print one key (secret, other, public, apply-only)
 #   verify-collector otlp <label> <logs|traces|metrics> [--key N | --auth V | --no-auth] [--origin O] [--marker M] [--body F]
 #   verify-collector grpc <label> [--key N | --no-auth] [--marker M]   OTLP/gRPC logs export
-#   verify-collector webhook <label> <event> <payload.json> [--tenant T | --no-tenant] [--bad-signature] [--keep-times]
+#   verify-collector webhook <label> <event> <payload.json> [--tenant T | --no-tenant] [--bad-signature] [--keep-times]   payload path from the repo root
 #   verify-collector http <label> <METHOD> <URL> [-H 'K: V']... [--data-file F]
 #   verify-collector ch <label> [--param k=v]... (<SQL> | --file F)      read ClickHouse as default, db app
 #   verify-collector ch-until <label> <text> [--param k=v]... (<SQL> | --file F)   retry until stdout has text
@@ -74,6 +75,7 @@ const CURRENT = path.join(STATE_DIR, "current-collector");
 const COMPOSE_FILE = path.join(REPO, "scripts/dev/compose.yaml");
 const SCHEMA_DIR = path.join(REPO, "packages/app/clickhouse");
 const STATEMENTS_TS = path.join(REPO, "packages/app/src/db/clickhouse-statements.ts");
+const ORIGIN_POLICY_TS = path.join(REPO, "packages/app/src/lib/public-ingest-keys.ts");
 const COLLECTOR_SRC = ["receiver", "extension", "processor", "connector", "exporter", "internal", "semconv", "config"];
 // Same throwaway password process-compose.yaml uses for every dev ClickHouse user.
 const CH_PASSWORD = "dev";
@@ -81,7 +83,10 @@ const FORGED_TENANT = "forged-by-client";
 
 const runDir = (id: string) => path.join(SCRATCH_ROOT, `collector-${id}`);
 const artDir = (id: string) => path.join(STATE_DIR, "artifacts", `collector-${id}`);
-const composeProject = (id: string) => `verify-everr-collector-${id}`;
+// Compose projects are machine-wide, so the name carries the checkout: the same run id in two
+// checkouts must not address (and `down -v`) one project.
+const CHECKOUT = createHash("sha256").update(REPO).digest("hex").slice(0, 8);
+const composeProject = (id: string) => `verify-everr-collector-${CHECKOUT}-${id}`;
 
 type Target = "cloud" | "self-hosted";
 type ProfileName = "cloud" | "app" | "deploy";
@@ -101,7 +106,9 @@ type Run = {
   verifySecret: string;
   webhookSecret: string;
   collectorPid: number;
+  collectorStarted: string;
   stubPid: number;
+  stubStarted: string;
 };
 
 type Key = {
@@ -244,9 +251,10 @@ function keysFor(id: string): Record<string, Key> {
 }
 
 type VerifyResult = { status: number; body?: Record<string, unknown>; name: string };
+type OriginPolicy = (metadata: unknown, origin: string | null) => boolean;
 
-/** Mirrors packages/app/src/routes/api/internal/verify-key.ts and originPolicyAllows. */
-function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: string, sent: string | undefined, raw: string): VerifyResult {
+/** Mirrors packages/app/src/routes/api/internal/verify-key.ts. The origin decision is the application's own originPolicyAllows. */
+function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: string, sent: string | undefined, raw: string, originAllowed: OriginPolicy): VerifyResult {
   if (sent !== secret) return { status: 403, name: "-" };
   let body: unknown;
   try {
@@ -260,10 +268,8 @@ function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: stri
   if (!found) return { status: 401, name: "unknown" };
   const [name, k] = found;
   if (!k.scopes.includes("ingest")) return { status: 403, name };
-  const origin = typeof b.origin === "string" ? b.origin : null;
-  const normalized = origin === null ? null : URL.canParse(origin) ? new URL(origin).origin : "invalid";
-  const allowed = k.allowedOrigins === undefined ? origin === null : normalized !== null && k.allowedOrigins.includes(normalized);
-  if (!allowed) return { status: 403, name };
+  const metadata = k.allowedOrigins ? { public: true, allowedOrigins: k.allowedOrigins } : undefined;
+  if (!originAllowed(metadata, typeof b.origin === "string" ? b.origin : null)) return { status: 403, name };
   return {
     status: 200,
     name,
@@ -271,8 +277,9 @@ function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: stri
   };
 }
 
-function cmdVerifyStub(dir: string): void {
+async function cmdVerifyStub(dir: string): Promise<void> {
   const r = JSON.parse(readFileSync(path.join(dir, "run.json"), "utf8")) as Run;
+  const { originPolicyAllows } = (await import(pathToFileURL(ORIGIN_POLICY_TS).href)) as { originPolicyAllows: OriginPolicy };
   const keys = loadKeys(r);
   const tenant = PROFILES[r.profile].tenant;
   const server = http.createServer((req, res) => {
@@ -282,7 +289,7 @@ function cmdVerifyStub(dir: string): void {
     req.on("end", () => {
       const sent = req.headers["x-internal-secret"];
       const d = req.url === "/api/internal/verify-key" && req.method === "POST"
-        ? verifyDecision(keys, tenant, r.verifySecret, Array.isArray(sent) ? sent[0] : sent, raw)
+        ? verifyDecision(keys, tenant, r.verifySecret, Array.isArray(sent) ? sent[0] : sent, raw, originPolicyAllows)
         : { status: 404, name: "-" };
       let origin: string | undefined;
       try {
@@ -364,6 +371,12 @@ async function waitFor(what: string, seconds: number, ok: () => Promise<boolean>
   }
 }
 
+/** `ps` start time of a pid, "" when it is gone. With the pid it names one process, so a reused pid is never taken for ours. */
+const startedAt = (pid: number): string =>
+  pid > 0 ? run("ps", ["-o", "lstart=", "-p", String(pid)], { env: { ...process.env, LC_ALL: "C" } }).stdout.trim() : "";
+
+const ours = (pid: number, started: string): boolean => started !== "" && startedAt(pid) === started;
+
 function startProcess(r: Run, file: string, args: string[], env: Record<string, string>, log: string): number {
   const fd = openSync(log, "a");
   const child = spawn(file, args, { detached: true, stdio: ["ignore", fd, fd], env, cwd: r.dir });
@@ -401,6 +414,7 @@ async function collectorReady(r: Run): Promise<boolean> {
 }
 
 async function cmdLaunch(args: string[]): Promise<number> {
+  lockLaunch(CURRENT);
   const live = readPointer(CURRENT);
   if (live && existsSync(path.join(runDir(live), "run.json"))) die(`run ${live} is still live; run 'verify-collector cleanup' first`);
   const profileArg = flag(args, "--profile") ?? "cloud";
@@ -414,6 +428,8 @@ async function cmdLaunch(args: string[]): Promise<number> {
 
   const dir = runDir(id);
   const art = artDir(id);
+  // The scratch root is shared by every checkout on the machine.
+  if (existsSync(path.join(dir, "run.json"))) die(`${dir} already holds a run with id '${id}' (another checkout?); choose another RUN_ID`);
   mkdirSync(path.join(dir, "queue"), { recursive: true });
   mkdirSync(art, { recursive: true });
   const port = async () => `http://127.0.0.1:${await freePort()}`;
@@ -432,7 +448,9 @@ async function cmdLaunch(args: string[]): Promise<number> {
     verifySecret: randomBytes(24).toString("hex"),
     webhookSecret: randomBytes(24).toString("hex"),
     collectorPid: 0,
+    collectorStarted: "",
     stubPid: 0,
+    stubStarted: "",
   };
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   writeFileSync(path.join(dir, "github-app.pem"), privateKey.export({ type: "pkcs1", format: "pem" }), { mode: 0o600 });
@@ -470,10 +488,12 @@ async function cmdLaunch(args: string[]): Promise<number> {
   await applySchema(r, p.target);
 
   r.stubPid = startProcess(r, process.execPath, [SELF, "_verify-stub", dir], { PATH: process.env.PATH ?? "" }, path.join(dir, "verify-stub.log"));
+  r.stubStarted = startedAt(r.stubPid);
   saveRun(r);
   await waitFor("stub verifier", 15, async () => (await send("POST", `${r.verify}/api/internal/verify-key`, {}, "{}")).status === 403, () => isAlive(r.stubPid));
 
   r.collectorPid = startCollector(r);
+  r.collectorStarted = startedAt(r.collectorPid);
   saveRun(r);
   await waitFor("collector", 60, () => collectorReady(r), () => isAlive(r.collectorPid), collectorLog(r));
 
@@ -745,7 +765,7 @@ async function cmdWebhook(r: Run, args: string[]): Promise<number> {
   const [label, event, payload] = positional(args);
   required(label, "label");
   required(event, "event");
-  const body = Buffer.from(shiftToNow(readFileSync(required(payload, "payload file"), "utf8"), args.includes("--keep-times")));
+  const body = Buffer.from(shiftToNow(readFileSync(path.resolve(REPO, required(payload, "payload file")), "utf8"), args.includes("--keep-times")));
   const secret = args.includes("--bad-signature") ? "not-the-webhook-secret" : r.webhookSecret;
   const k = loadKeys(r).secret;
   // The headers packages/app/src/server/github-events/collector.ts adds when it replays a delivery.
@@ -820,32 +840,32 @@ async function cmdChUntil(r: Run, args: string[]): Promise<number> {
   return found ? 0 : 1;
 }
 
-async function stopPid(pid: number, origins: string[], graceS: number, log: string): Promise<void> {
-  const holds = () => origins.some((o) => o && portPids(portOf(o)).split(" ").includes(String(pid)));
-  if (!pid || !isAlive(pid)) return;
-  if (!holds()) {
-    teeAppend(log, `pid ${pid} no longer owns this run's ports; not signalling it`);
+/** Stop a process this run started. A recorded pid that now names another process is left alone. */
+async function stopPid(pid: number, started: string, graceS: number, log: string): Promise<void> {
+  if (!ours(pid, started)) return;
+  const begun = Date.now();
+  process.kill(pid, "SIGTERM");
+  while (ours(pid, started) && Date.now() - begun < graceS * 1000) await sleep(200);
+  if (!ours(pid, started)) {
+    teeAppend(log, `pid ${pid} exited ${((Date.now() - begun) / 1000).toFixed(1)}s after SIGTERM`);
     return;
   }
-  const started = Date.now();
-  process.kill(pid, "SIGTERM");
-  while (isAlive(pid) && Date.now() - started < graceS * 1000) await sleep(200);
-  if (isAlive(pid)) {
-    teeAppend(log, `pid ${pid} still alive after ${graceS}s; SIGKILL`);
-    process.kill(pid, "SIGKILL");
-  } else teeAppend(log, `pid ${pid} exited ${((Date.now() - started) / 1000).toFixed(1)}s after SIGTERM`);
+  teeAppend(log, `pid ${pid} still alive after ${graceS}s; SIGKILL`);
+  process.kill(pid, "SIGKILL");
+  for (let i = 0; i < 25 && ours(pid, started); i++) await sleep(200);
 }
 
 async function cmdRestart(r: Run): Promise<number> {
   const log = path.join(r.art, "restart.txt");
   teeAppend(log, `restart at ${stamp()}`);
-  await stopPid(r.collectorPid, [r.otlpHttp, r.otlpGrpc, r.github, r.health], 60, log);
+  await stopPid(r.collectorPid, r.collectorStarted, 60, log);
   const tail = (readText(collectorLog(r)) ?? "").split("\n").filter((l) => /Shutdown complete|Starting shutdown|\terror\t/.test(l)).slice(-5);
   for (const l of tail) teeAppend(log, `  ${l}`);
   const p = PROFILES[r.profile];
   copyFileSync(path.join(REPO, p.config), path.join(r.art, "collector-config.yaml"));
   teeAppend(log, `config snapshot refreshed from ${p.config}`);
   r.collectorPid = startCollector(r);
+  r.collectorStarted = startedAt(r.collectorPid);
   saveRun(r);
   await waitFor("collector after restart", 60, () => collectorReady(r), () => isAlive(r.collectorPid), collectorLog(r));
   teeAppend(log, `COLLECTOR RESTARTED run=${r.id} pid=${r.collectorPid}`);
@@ -896,8 +916,8 @@ async function cmdCleanup(): Promise<number> {
   const r = state === undefined ? undefined : (JSON.parse(state) as Run);
   const project = composeProject(runId);
   if (r) {
-    await stopPid(r.collectorPid, [r.otlpHttp, r.otlpGrpc, r.github, r.health], 60, log);
-    await stopPid(r.stubPid, [r.verify], 10, log);
+    await stopPid(r.collectorPid, r.collectorStarted, 60, log);
+    await stopPid(r.stubPid, r.stubStarted, 10, log);
     for (const f of ["collector.log", "verify.log", "verify-stub.log"]) {
       if (existsSync(path.join(dir, f))) copyFileSync(path.join(dir, f), path.join(art, f));
     }
@@ -915,8 +935,11 @@ async function cmdCleanup(): Promise<number> {
   ].filter(Boolean);
   const open = r ? [r.otlpHttp, r.otlpGrpc, r.github, r.health, r.verify].filter((o) => o && portPids(portOf(o))) : [];
   for (const o of open) teeAppend(log, `WARN ${o} still listening`);
-  if (left.length || down.status !== 0 || open.length) {
-    teeAppend(log, `left for ${project}: ${[...left, ...open].join(" ")}; scratch kept. Fix it and rerun cleanup.`);
+  // A process that is alive but not listening (a collector still starting) would be lost with run.json.
+  const alive = r ? [[r.collectorPid, r.collectorStarted] as const, [r.stubPid, r.stubStarted] as const].filter(([pid, started]) => ours(pid, started)).map(([pid]) => `pid ${pid}`) : [];
+  for (const p of alive) teeAppend(log, `WARN ${p} still running`);
+  if (left.length || down.status !== 0 || open.length || alive.length) {
+    teeAppend(log, `left for ${project}: ${[...left, ...open, ...alive].join(" ")}; scratch kept. Fix it and rerun cleanup.`);
     return 1;
   }
   teeAppend(log, `docker resources for ${project}: none left`);
@@ -927,12 +950,19 @@ async function cmdCleanup(): Promise<number> {
   return 0;
 }
 
-const DRIVE = new Set(["otlp", "grpc", "webhook", "http", "ch", "ch-until"]);
+// Drive commands and the evidence folder each one writes under.
+const DRIVE = new Map([["otlp", "http"], ["grpc", "grpc"], ["webhook", "http"], ["http", "http"], ["ch", "db"], ["ch-until", "db"]]);
 
 async function main(argv: string[]): Promise<number> {
   const [cmd, ...args] = argv;
-  // Labels name evidence folders: one flat, safe path segment.
-  if (DRIVE.has(cmd) && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(positional(args)[0] ?? "")) die(`${cmd} needs a label of letters, digits, '.', '_', '-' first`);
+  const kind = DRIVE.get(cmd);
+  if (kind) {
+    // Labels name evidence folders: one flat, safe path segment, checked before the command sends anything.
+    const label = positional(args)[0] ?? "";
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(label)) die(`${cmd} needs a label of letters, digits, '.', '_', '-' first`);
+    const out = path.join(loadRun().art, kind, label);
+    if (existsSync(out)) die(`evidence ${out} exists; labels must be unique within a run (nothing was sent)`);
+  }
   switch (cmd) {
     case "launch":
       return cmdLaunch(args);
@@ -965,7 +995,7 @@ async function main(argv: string[]): Promise<number> {
     case "cleanup":
       return cmdCleanup();
     case "_verify-stub":
-      cmdVerifyStub(required(args[0], "run dir"));
+      await cmdVerifyStub(required(args[0], "run dir"));
       return -1;
     default:
       console.log(USAGE);

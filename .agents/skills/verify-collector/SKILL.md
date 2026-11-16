@@ -31,7 +31,7 @@ Not covered by any skill yet: `collector/config.example.yml` (it hardcodes `clic
 Everything goes through one helper: `.agents/skills/verify-collector/scripts/verify-collector.ts` (below: `V`), TypeScript that Node >= 24 runs directly (no build step or dependency install). Run it from anywhere (`$V ...`, or `node $V ...`); it resolves the repo from its own path.
 
 ```bash
-V=.agents/skills/verify-collector/scripts/verify-collector.ts
+V="$(git rev-parse --show-toplevel)/.agents/skills/verify-collector/scripts/verify-collector.ts"
 ```
 
 ## Launch
@@ -55,7 +55,7 @@ Launch, in order:
 1. Refuses if `.verify-everr/current-collector` names a live run.
 2. Picks free loopback ports, generates the run's shared secret, webhook secret, a throwaway GitHub App private key (App id `1`) and four keys (`$V keys`).
 3. Runs `make -C collector build` for the profile's target (output in `build.log`), so the binary always matches the checkout.
-4. Starts the profile's ClickHouse service from `scripts/dev/compose.yaml` as Compose project `verify-everr-collector-<RUN_ID>`, published on a Docker-chosen `127.0.0.1` port, and waits for `SELECT 1`.
+4. Starts the profile's ClickHouse service from `scripts/dev/compose.yaml` as Compose project `verify-everr-collector-<checkout hash>-<RUN_ID>` (the hash keeps the same run id in two checkouts apart), published on a Docker-chosen `127.0.0.1` port, and waits for `SELECT 1`.
 5. Applies `packages/app/clickhouse/*.sql` for the target in file-name order, statement by statement with the application's own `sqlStatements` (`packages/app/src/db/clickhouse-statements.ts`) and the passwords `process-compose.yaml` uses (`dev`). `schema.txt` lists each file.
 6. Starts the stub verifier (the helper itself, `_verify-stub`), then the collector with the config's environment variables only (no `OTEL_*` or developer settings leak in). `deploy/collector.yaml` binds `0.0.0.0` on fixed ports, so its run adds `listeners.overlay.yaml` as a second `--config` that moves the listeners to the run's loopback ports. (`--set` does not work: this distribution has no `yaml:` config provider.)
 7. Ready means the same probe as `process-compose.yaml`: unauthenticated `POST /v1/logs` is `401`, the GitHub listener answers an unsigned `GET` with `400`, plus both OTLP ports owned by the collector's pid and, for `deploy`, `health_check` `200`. Ready line:
@@ -64,7 +64,7 @@ Launch, in order:
    COLLECTOR READY run=<id> profile=<p> otlp_http=http://127.0.0.1:<p> otlp_grpc=http://127.0.0.1:<p> github=http://127.0.0.1:<p>/webhook/github clickhouse=http://127.0.0.1:<p> verify=http://127.0.0.1:<p>
    ```
 
-A failed launch leaves the run selected; run `$V cleanup` before the next launch. One run per checkout; runs in other checkouts and other skills coexist. Never point the helper at a development stack (`dev-*` or `verify-everr-<hash>-*` Compose projects, or collectors on their ports): they are not yours.
+A failed launch leaves the run selected; run `$V cleanup` before the next launch. One run per checkout; runs in other checkouts and other skills coexist. The scratch root is shared by all checkouts, so launch refuses a run id whose scratch dir already holds a run. Never point the helper at a development stack (`dev-*` or `verify-everr-<hash>-*` Compose projects, or collectors on their ports): they are not yours.
 
 ## Doctor
 
@@ -122,7 +122,7 @@ Proof standards:
 $V cleanup
 ```
 
-Sends SIGTERM to the collector and the stub pids recorded in `run.json`, only while they still own this run's ports (SIGKILL after 60s and 10s), copies the logs into evidence, then runs `docker compose -p verify-everr-collector-<RUN_ID> -f scripts/dev/compose.yaml down -v` and checks that no container, volume or network with that project label is left. It deletes `/tmp/verify-everr/collector-<RUN_ID>/` (guarded by the scratch root) and `.verify-everr/current-collector` if it names this run, then lists the evidence. If Docker resources remain or a port is still open it exits 1 and keeps the scratch dir; fix Docker access and rerun (`RUN_ID=<id> $V cleanup` for a run that is no longer selected). It never touches another Compose project or kills by process name. Run it after every attempt, including failed launches.
+Sends SIGTERM to the collector and the stub recorded in `run.json` (SIGKILL after 60s and 10s). Each is recorded as pid plus start time, so a pid that was reused by another process is never signalled. It copies the logs into evidence, then runs `docker compose -p <project> -f scripts/dev/compose.yaml down -v` (`$V env` prints the project as `COMPOSE_PROJECT`) and checks that no container, volume or network with that project label is left. It deletes `/tmp/verify-everr/collector-<RUN_ID>/` (guarded by the scratch root) and `.verify-everr/current-collector` if it names this run, then lists the evidence. If Docker resources remain, a port is still open or a recorded process is still running, it exits 1 and keeps the scratch dir; fix Docker access and rerun (`RUN_ID=<id> $V cleanup` for a run that is no longer selected). It never touches another Compose project or kills by process name. Run it after every attempt, including failed launches.
 
 ## Helpers
 

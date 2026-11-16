@@ -45,7 +45,7 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `collector/extension/everrapikeyauth/**` | `ingest-auth.md`, `browser-cors.md`, `otlp-ingest.md` |
 | `collector/receiver/githubactionsreceiver/**` | `github-webhook.md` (`workflow_run` needs verify-web-app with a real GitHub App) |
 | `collector/processor/everrusageprocessor/**`, `collector/connector/everrusageconnector/**`, `collector/extension/everrusageextension/**` | `usage-accounting.md` |
-| `collector/config/manifest.*.yaml`, `collector/go.mod`, `collector/internal/**`, `collector/semconv/**` | every feature, with `--profile cloud` and again with `--profile deploy` |
+| `collector/config/manifest.*.yaml`, `collector/go.mod`, `collector/internal/**`, `collector/semconv/**` | every feature with `--profile cloud`, then `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md` with `--profile deploy` (that profile has no GitHub listener and no usage accounting) |
 | `scripts/dev/collector-cloud.yaml` | every feature with `--profile cloud` |
 | `scripts/dev/collector-app.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md`, `github-webhook.md` with `--profile app` |
 | `deploy/collector.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md` with `--profile deploy` |

@@ -43,7 +43,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 ## Changed path -> features
 
-Pick recipes from the paths a change touches (`git diff --name-only origin/main...`). Always run Launch and Doctor first.
+Pick recipes from the paths a change touches (`git diff --name-only origin/main...`). Run Launch and Doctor before each recipe: `local-lifecycle.md` and `wrap.md` end by stopping the instance, so the next recipe needs `$V cleanup` and a new launch.
 
 | Changed path | Run |
 | --- | --- |

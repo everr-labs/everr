@@ -17,7 +17,7 @@ Not covered: Cloud-backed CLI commands (`cloud`, `ci`, `apply`, `resources`) nee
 Everything goes through one helper: `.agents/skills/verify-cli/scripts/verify-cli.ts` (below: `V`), TypeScript that Node >= 24 runs directly (no build step or separate dependency install). Run it from anywhere (`$V ...`, or `node $V ...`); it resolves the repo from its own path.
 
 ```bash
-V=.agents/skills/verify-cli/scripts/verify-cli.ts
+V="$(git rev-parse --show-toplevel)/.agents/skills/verify-cli/scripts/verify-cli.ts"
 ```
 
 ## Launch
