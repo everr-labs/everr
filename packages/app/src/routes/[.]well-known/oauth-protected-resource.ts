@@ -1,24 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
-import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
+import { protectedResourceMetadataResponse } from "#app/lib/mcp-resource-client.ts";
 
+// The MCP auth challenge pointed here before the RFC 9728 path
+// (/.well-known/oauth-protected-resource/mcp), and the MCP spec still lists it
+// as the fallback for clients without the challenge: keep it.
 export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
-  server: {
-    handlers: {
-      GET: async () => {
-        // Advertise observability:read (the resource scope) plus offline_access
-        // so DCR clients (e.g. Claude Code) register for a refresh token; without
-        // it, the client registers narrowly and the authorize step rejects its
-        // offline_access request. The helper only forbids `openid` here.
-        const meta = await mcpResourceClient().getProtectedResourceMetadata({
-          resource: MCP_RESOURCE,
-          authorization_servers: [AUTH_ISSUER],
-          scopes_supported: ["observability:read", "offline_access"],
-        });
-        return Response.json(meta, {
-          headers: { "access-control-allow-origin": "*" },
-        });
-      },
-    },
-  },
+  server: { handlers: { GET: () => protectedResourceMetadataResponse() } },
 });

@@ -87,7 +87,9 @@ function createTransport() {
   return withMcpAuth(mcpTransport, verifyToken, {
     required: true,
     requiredScopes: ["observability:read"],
-    resourceMetadataPath: "/.well-known/oauth-protected-resource",
+    // RFC 9728 places the metadata of the resource <host>/mcp here. The
+    // unsuffixed URL serves the same document, for clients that saved it.
+    resourceMetadataPath: "/.well-known/oauth-protected-resource/mcp",
     // Without it, the challenge's metadata URL comes from X-Forwarded-Host/-Proto
     // whatever TRUST_PROXY says; the metadata itself is built from BETTER_AUTH_URL
     resourceUrl: AUTH_BASE,

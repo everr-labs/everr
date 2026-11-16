@@ -104,7 +104,7 @@ describe("MCP transport lifecycle", () => {
 
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain(
-      'resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource"',
+      'resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/mcp"',
     );
     expect(mocks.transport).not.toHaveBeenCalled();
   });

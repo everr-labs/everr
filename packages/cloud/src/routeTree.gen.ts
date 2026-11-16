@@ -23,6 +23,7 @@ import { Route as ApiHealthRouteImport } from './../../app/src/routes/api/health
 import { Route as McpSplatRouteImport } from './../../app/src/routes/mcp/$'
 import { Route as McpConsentRouteImport } from './../../app/src/routes/mcp/consent'
 import { Route as WebhookGithubRouteImport } from './../../app/src/routes/webhook/github'
+import { Route as Char91DotChar93wellKnownOauthProtectedResourceMcpRouteImport } from './../../app/src/routes/[.]well-known/oauth-protected-resource/mcp'
 import { Route as AuthenticatedDashboardPaddedRouteImport } from './../../app/src/routes/_authenticated/_dashboard/_padded'
 import { Route as routesAuthenticatedOrganization_dashboardRouteImport } from './../../app/src/routes/_authenticated/_organization/-_dashboard'
 import { Route as AuthenticatedOrganizationDeviceRouteImport } from './../../app/src/routes/_authenticated/_organization/device'
@@ -172,6 +173,12 @@ const WebhookGithubRoute = WebhookGithubRouteImport.update({
   path: '/webhook/github',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotChar93wellKnownOauthProtectedResourceMcpRoute =
+  Char91DotChar93wellKnownOauthProtectedResourceMcpRouteImport.update({
+    id: '/mcp',
+    path: '/mcp',
+    getParentRoute: () => Char91DotChar93wellKnownOauthProtectedResourceRoute,
+  } as any)
 const AuthenticatedDashboardPaddedRoute =
   AuthenticatedDashboardPaddedRouteImport.update({
     id: '/_padded',
@@ -781,13 +788,14 @@ const AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdJobsJobId
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
-  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/.well-known/oauth-protected-resource/mcp': typeof Char91DotChar93wellKnownOauthProtectedResourceMcpRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
   '/choose-organization': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInChooseOrganizationRoute
   '/create-organization': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInCreateOrganizationRoute
@@ -860,13 +868,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/.well-known/oauth-authorization-server': typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
-  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren
   '/api/apply': typeof ApiApplyRoute
   '/api/cli': typeof ApiCliRouteWithChildren
   '/api/health': typeof ApiHealthRoute
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/.well-known/oauth-protected-resource/mcp': typeof Char91DotChar93wellKnownOauthProtectedResourceMcpRoute
   '/device': typeof AuthenticatedOrganizationDeviceRoute
   '/choose-organization': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInChooseOrganizationRoute
   '/create-organization': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInCreateOrganizationRoute
@@ -934,7 +943,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof routes_authenticatedRouteWithChildren
   '/_welcome': typeof routes_welcomeRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
-  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren
   '/_authenticated/_dashboard': typeof routesAuthenticated_dashboardRouteWithChildren
   '/_authenticated/_organization': typeof routesAuthenticated_organizationRouteWithChildren
   '/_welcome/_guest': typeof WelcomeGuestRouteWithChildren
@@ -945,6 +954,7 @@ export interface FileRoutesById {
   '/mcp/$': typeof McpSplatRoute
   '/mcp/consent': typeof McpConsentRoute
   '/webhook/github': typeof WebhookGithubRoute
+  '/.well-known/oauth-protected-resource/mcp': typeof Char91DotChar93wellKnownOauthProtectedResourceMcpRoute
   '/_authenticated/_dashboard/_padded': typeof AuthenticatedDashboardPaddedRouteWithChildren
   '/_authenticated/_organization/_dashboard': typeof routesAuthenticatedOrganization_dashboardRouteWithChildren
   '/_authenticated/_organization/device': typeof AuthenticatedOrganizationDeviceRoute
@@ -1038,6 +1048,7 @@ export interface FileRouteTypes {
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/.well-known/oauth-protected-resource/mcp'
     | '/device'
     | '/choose-organization'
     | '/create-organization'
@@ -1117,6 +1128,7 @@ export interface FileRouteTypes {
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/.well-known/oauth-protected-resource/mcp'
     | '/device'
     | '/choose-organization'
     | '/create-organization'
@@ -1194,6 +1206,7 @@ export interface FileRouteTypes {
     | '/mcp/$'
     | '/mcp/consent'
     | '/webhook/github'
+    | '/.well-known/oauth-protected-resource/mcp'
     | '/_authenticated/_dashboard/_padded'
     | '/_authenticated/_organization/_dashboard'
     | '/_authenticated/_organization/device'
@@ -1280,7 +1293,7 @@ export interface RootRouteChildren {
   routes_authenticatedRoute: typeof routes_authenticatedRouteWithChildren
   routes_welcomeRoute: typeof routes_welcomeRouteWithChildren
   Char91DotChar93wellKnownOauthAuthorizationServerRoute: typeof Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren
-  Char91DotChar93wellKnownOauthProtectedResourceRoute: typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
+  Char91DotChar93wellKnownOauthProtectedResourceRoute: typeof Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren
   ApiApplyRoute: typeof ApiApplyRoute
   ApiCliRoute: typeof ApiCliRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
@@ -1393,6 +1406,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/webhook/github'
       preLoaderRoute: typeof WebhookGithubRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource/mcp': {
+      id: '/.well-known/oauth-protected-resource/mcp'
+      path: '/mcp'
+      fullPath: '/.well-known/oauth-protected-resource/mcp'
+      preLoaderRoute: typeof Char91DotChar93wellKnownOauthProtectedResourceMcpRouteImport
+      parentRoute: typeof Char91DotChar93wellKnownOauthProtectedResourceRoute
     }
     '/_authenticated/_dashboard/_padded': {
       id: '/_authenticated/_dashboard/_padded'
@@ -2463,6 +2483,21 @@ const Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren =
     Char91DotChar93wellKnownOauthAuthorizationServerRouteChildren,
   )
 
+interface Char91DotChar93wellKnownOauthProtectedResourceRouteChildren {
+  Char91DotChar93wellKnownOauthProtectedResourceMcpRoute: typeof Char91DotChar93wellKnownOauthProtectedResourceMcpRoute
+}
+
+const Char91DotChar93wellKnownOauthProtectedResourceRouteChildren: Char91DotChar93wellKnownOauthProtectedResourceRouteChildren =
+  {
+    Char91DotChar93wellKnownOauthProtectedResourceMcpRoute:
+      Char91DotChar93wellKnownOauthProtectedResourceMcpRoute,
+  }
+
+const Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren =
+  Char91DotChar93wellKnownOauthProtectedResourceRoute._addFileChildren(
+    Char91DotChar93wellKnownOauthProtectedResourceRouteChildren,
+  )
+
 interface ApiCliResourcesKindProjectSlugRouteChildren {
   ApiCliResourcesKindProjectSlugAdoptRoute: typeof ApiCliResourcesKindProjectSlugAdoptRoute
 }
@@ -2539,7 +2574,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotChar93wellKnownOauthAuthorizationServerRoute:
     Char91DotChar93wellKnownOauthAuthorizationServerRouteWithChildren,
   Char91DotChar93wellKnownOauthProtectedResourceRoute:
-    Char91DotChar93wellKnownOauthProtectedResourceRoute,
+    Char91DotChar93wellKnownOauthProtectedResourceRouteWithChildren,
   ApiApplyRoute: ApiApplyRoute,
   ApiCliRoute: ApiCliRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
