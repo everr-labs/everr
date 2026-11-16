@@ -2,6 +2,7 @@ import { isValid, parse, resolve } from "@everr/datemath";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { CheckIcon, ChevronDownIcon, Clock, XIcon } from "lucide-react";
 import { type KeyboardEvent, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useIsMobile } from "../hooks/use-mobile";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
 import { cn } from "../lib/utils";
@@ -153,20 +154,6 @@ function formatAbsolute(date: Date): string {
   });
 }
 
-const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
-
-/** "3 days", "6 hours", "45 minutes": whole days when the range is whole
- *  days (a calendar pick ends at 23:59:59, a second short of one). */
-function formatDuration(ms: number): string {
-  const days = ms / 86_400_000;
-  if (Math.round(days) >= 1 && Math.abs(days - Math.round(days)) < 0.001)
-    return plural(Math.round(days), "day");
-  const hours = ms / 3_600_000;
-  if (hours >= 48) return plural(Math.round(days), "day");
-  if (hours >= 1) return plural(Math.round(hours), "hour");
-  return plural(Math.max(1, Math.round(ms / 60_000)), "minute");
-}
-
 export function formatTimeRangeDisplay(range: TimeRange): string {
   const preset = QUICK_RANGES.find((q) => q.from === range.from && q.to === range.to);
   if (preset) return preset.label;
@@ -235,16 +222,6 @@ export function TimeRangePicker({
       fromInvalid: from === null && customFrom.trim() !== "",
       toInvalid: to === null && customTo.trim() !== "",
       rangeInverted,
-      // Relative math ("now-7d/d") resolves to a moment the field doesn't
-      // show, so the summary spells it out; typed dates already read as one.
-      resolved:
-        from && to && !(isAbsolute(customFrom) && isAbsolute(customTo))
-          ? `${from.label} → ${to.label}`
-          : null,
-      duration:
-        from && to && !rangeInverted
-          ? formatDuration(to.date.getTime() - from.date.getTime())
-          : null,
     };
   }, [customFrom, customTo]);
 
@@ -383,7 +360,11 @@ export function TimeRangePicker({
       mode="range"
       selected={
         customRangeState.fromDate && customRangeState.toDate
-          ? { from: customRangeState.fromDate, to: customRangeState.toDate }
+          ? {
+              from: customRangeState.fromDate,
+              // A range that ends at midnight ends on the day before.
+              to: new Date(customRangeState.toDate.getTime() - 1),
+            }
           : undefined
       }
       onSelect={(_range, day) => handleDayPick(day)}
@@ -417,7 +398,6 @@ export function TimeRangePicker({
         setKeepTimes(true);
       }}
       state={customRangeState}
-      picking={pickStart !== null}
       onApply={handleApply}
       touch={isMobile}
     />
@@ -545,7 +525,6 @@ function CustomRangeForm({
   onFromChange,
   onToChange,
   state,
-  picking,
   onApply,
   touch,
 }: {
@@ -558,11 +537,9 @@ function CustomRangeForm({
     fromInvalid: boolean;
     toInvalid: boolean;
     rangeInverted: boolean;
-    resolved: string | null;
-    duration: string | null;
+    fromDate: Date | null;
+    toDate: Date | null;
   };
-  /** One day is picked on the calendar and a second click would extend it. */
-  picking: boolean;
   onApply: () => void;
   /** The phone sheet: stacked fields and a taller button. */
   touch: boolean;
@@ -603,9 +580,8 @@ function CustomRangeForm({
         />
       </div>
       <div className={cn("flex items-center gap-3", touch && "flex-col items-stretch")}>
-        {/* One line for what the fields add up to: the length of the range,
-            where relative math lands, or what's wrong. Always there, so the
-            button never moves. */}
+        {/* One line under the fields: the time zone they are read in, or
+            what's wrong with them. Always there, so the button never moves. */}
         <p
           aria-live="polite"
           className={cn(
@@ -613,10 +589,7 @@ function CustomRangeForm({
             error ? "text-destructive" : "text-muted-foreground",
           )}
         >
-          {error ??
-            [state.resolved, state.duration, picking && "click another day to extend"]
-              .filter(Boolean)
-              .join(" · ")}
+          {error ?? localTimeLabel(state.fromDate, state.toDate)}
         </p>
         <Button
           size={touch ? "default" : "sm"}
@@ -660,7 +633,25 @@ function RangeField({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            const input = e.currentTarget;
+            const step = stepAtCaret(
+              value,
+              input.selectionStart ?? value.length,
+              e.key === "ArrowUp" ? 1 : -1,
+              e.shiftKey,
+            );
+            if (step) {
+              e.preventDefault();
+              // Rendered now, so the selection lands on the new text.
+              flushSync(() => onChange(step.value));
+              input.setSelectionRange(step.select[0], step.select[1]);
+              return;
+            }
+          }
+          onKeyDown(e);
+        }}
         placeholder={placeholder}
         aria-invalid={invalid || undefined}
         spellCheck={false}
@@ -669,4 +660,71 @@ function RangeField({
       />
     </InputGroup>
   );
+}
+
+// The parts of "2026-11-10 09:30:00", by position, and how far Shift steps
+// each one: a quarter hour, a quarter day, a week.
+const DATE_PARTS = [
+  { start: 0, end: 4, big: 1, add: (d: Date, n: number) => d.setFullYear(d.getFullYear() + n) },
+  { start: 5, end: 7, big: 3, add: (d: Date, n: number) => d.setMonth(d.getMonth() + n) },
+  { start: 8, end: 10, big: 7, add: (d: Date, n: number) => d.setDate(d.getDate() + n) },
+  { start: 11, end: 13, big: 6, add: (d: Date, n: number) => d.setHours(d.getHours() + n) },
+  { start: 14, end: 16, big: 15, add: (d: Date, n: number) => d.setMinutes(d.getMinutes() + n) },
+  { start: 17, end: 19, big: 10, add: (d: Date, n: number) => d.setSeconds(d.getSeconds() + n) },
+];
+
+/**
+ * Up and Down on a field, as in a native date input: the part under the
+ * caret steps by one (Shift: a bigger step), and stays selected. A date steps
+ * the way a clock does (23:00 plus an hour is the next day); relative math
+ * steps its one number wherever the caret is ("now-7d" to "now-8d"). Null when there is nothing to step.
+ */
+function stepAtCaret(
+  value: string,
+  caret: number,
+  direction: 1 | -1,
+  big: boolean,
+): { value: string; select: [number, number] } | null {
+  const date = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (date) {
+    const [y, mo, d, h, mi, sec] = date.slice(1).map((n) => Number(n ?? 0));
+    const part = DATE_PARTS.find(
+      (p) => caret >= p.start && caret <= p.end && p.end <= value.length,
+    );
+    if (!part) return null;
+    const next = new Date(y ?? 0, (mo ?? 1) - 1, d, h, mi, sec);
+    part.add(next, direction * (big ? part.big : 1));
+    const day = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+    const time = `${pad(next.getHours())}:${pad(next.getMinutes())}`;
+    // Seconds stay shown if they were, so every part keeps its position.
+    const seconds = date[6] === undefined ? "" : `:${pad(next.getSeconds())}`;
+    return { value: `${day} ${time}${seconds}`, select: [part.start, part.end] };
+  }
+  const relative = /^(now\s*[-+]\s*)(\d+)([smhdwMy].*)$/.exec(value);
+  if (relative) {
+    const [, head = "", amount = "", tail = ""] = relative;
+    const n = Math.max(1, Number(amount) + direction * (big ? 10 : 1));
+    return {
+      value: `${head}${n}${tail}`,
+      select: [head.length, head.length + String(n).length],
+    };
+  }
+  return null;
+}
+
+function utcOffset(date: Date): string {
+  const minutes = -date.getTimezoneOffset();
+  const abs = Math.abs(minutes);
+  const sign = minutes < 0 ? "-" : "+";
+  return `UTC${sign}${Math.floor(abs / 60)}${abs % 60 ? `:${pad(abs % 60)}` : ""}`;
+}
+
+/** "Europe/Lisbon, UTC+1": the zone the fields are read in, with the offset
+ *  at the range's own dates (a July range in Lisbon is UTC+1, even in
+ *  winter). Both offsets when the range crosses a daylight-saving change. */
+function localTimeLabel(from: Date | null, to: Date | null): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const start = utcOffset(from ?? new Date());
+  const end = utcOffset(to ?? from ?? new Date());
+  return `${zone}, ${start === end ? start : `${start} → ${end}`}`;
 }

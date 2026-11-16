@@ -170,6 +170,28 @@ describe("TimeRangePicker", () => {
     expect(onChange).toHaveBeenCalledWith({ from: at(9, 30), to: at(18, 0) });
   });
 
+  it("steps the part under the caret with the arrow keys", async () => {
+    const { user } = renderPicker();
+    await openPicker(user);
+    const from = screen.getByLabelText("From");
+
+    setInputValue(from, "2026-03-09 23:30");
+    // The caret is at the end, on the minutes. Shift takes a quarter hour.
+    await user.type(from, "{ArrowUp}");
+    expect(from).toHaveValue("2026-03-09 23:31");
+    await user.type(from, "{Shift>}{ArrowUp}{/Shift}");
+    expect(from).toHaveValue("2026-03-09 23:46");
+    // The hour, carried into the next day.
+    from.focus();
+    (from as HTMLInputElement).setSelectionRange(12, 12);
+    await user.keyboard("{ArrowUp}");
+    expect(from).toHaveValue("2026-03-10 00:46");
+
+    setInputValue(from, "now-7d");
+    await user.type(from, "{ArrowDown}");
+    expect(from).toHaveValue("now-6d");
+  });
+
   it("reads a typed date as local time", async () => {
     const { user, onChange } = renderPicker();
     await openPicker(user);
