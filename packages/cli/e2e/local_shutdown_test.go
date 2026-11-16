@@ -83,3 +83,27 @@ func TestSIGTERMStopsTheSupervisorWhileAnOTLPClientIsStalled(t *testing.T) {
 	i.assertStopped(t)
 	assertPipelineDrained(t, stderr.String())
 }
+
+// A fault in Go code must crash the supervisor. If chDB's fault handlers
+// replace Go's, the process freezes instead.
+func TestSIGSEGVCrashesTheSupervisorOnceChDBRuns(t *testing.T) {
+	i := newInstance(t)
+	foreground := i.Command("local", "start", "--no-open")
+	if err := foreground.Start(); err != nil {
+		t.Fatal(err)
+	}
+	exited := make(chan error, 1)
+	go func() { exited <- foreground.Wait() }()
+	t.Cleanup(func() { _ = foreground.Process.Kill() })
+	i.waitReady(t)
+
+	if err := foreground.Process.Signal(syscall.SIGSEGV); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-exited:
+	case <-time.After(shutdownBound):
+		t.Fatalf("supervisor still running %s after SIGSEGV", shutdownBound)
+	}
+	i.assertStopped(t)
+}
