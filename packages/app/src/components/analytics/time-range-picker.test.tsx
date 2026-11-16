@@ -157,6 +157,19 @@ describe("TimeRangePicker", () => {
     expect(onChange).toHaveBeenCalledWith({ from: start.toISOString(), to: end.toISOString() });
   });
 
+  it("keeps typed times when a day is picked", async () => {
+    const { user, onChange } = renderPicker();
+    await openPicker(user);
+    setInputValue(screen.getByLabelText("From"), "2026-03-09 09:30");
+    setInputValue(screen.getByLabelText("To"), "2026-03-10 18:00");
+    await user.click(screen.getByRole("button", { name: /^Today/ }));
+    await user.click(screen.getByRole("button", { name: "Apply time range" }));
+    const today = new Date();
+    const at = (h: number, m: number) =>
+      new Date(today.getFullYear(), today.getMonth(), today.getDate(), h, m).toISOString();
+    expect(onChange).toHaveBeenCalledWith({ from: at(9, 30), to: at(18, 0) });
+  });
+
   it("reads a typed date as local time", async () => {
     const { user, onChange } = renderPicker();
     await openPicker(user);

@@ -1,7 +1,7 @@
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
-import { DayPicker } from "react-day-picker";
+import { type DayProps, DayPicker } from "react-day-picker";
 
 /**
  * A month calendar (react-day-picker) in the app's dropdown style: the same
@@ -27,9 +27,9 @@ function Calendar({
         caption_label: "text-xs font-medium",
         nav: "absolute inset-x-0 top-0 flex items-center justify-between",
         button_previous:
-          "text-muted-foreground hover:bg-white/[0.07] hover:text-foreground focus-visible:ring-ring inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-30",
+          "text-muted-foreground hover:bg-white/[0.07] hover:text-foreground focus-visible:ring-ring inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2 aria-disabled:pointer-events-none aria-disabled:opacity-30",
         button_next:
-          "text-muted-foreground hover:bg-white/[0.07] hover:text-foreground focus-visible:ring-ring inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-30",
+          "text-muted-foreground hover:bg-white/[0.07] hover:text-foreground focus-visible:ring-ring inline-flex size-7 items-center justify-center rounded-md outline-none focus-visible:ring-2 aria-disabled:pointer-events-none aria-disabled:opacity-30",
         month_grid: "border-collapse",
         weekdays: "flex",
         weekday: "text-muted-foreground w-9 text-[0.6875rem] font-normal",
@@ -52,7 +52,6 @@ function Calendar({
           "[&>button]:after:bg-current [&>button]:after:absolute [&>button]:after:bottom-1 [&>button]:after:left-1/2 [&>button]:after:size-0.75 [&>button]:after:-translate-x-1/2 [&>button]:after:rounded-full",
         outside: "text-muted-foreground/45",
         disabled: "pointer-events-none opacity-30",
-        hidden: "invisible",
         ...classNames,
       }}
       // The range a second click would make, lighter than the picked one.
@@ -63,9 +62,26 @@ function Calendar({
         preview_end: "rounded-r-md",
         ...modifiersClassNames,
       }}
-      components={{ Chevron: CalendarChevron }}
+      components={{ Chevron: CalendarChevron, Day: CalendarDay }}
       {...props}
     />
+  );
+}
+
+// Past the last month you can go to, react-day-picker leaves the outside days
+// blank, and a fixed six-row month ends on an empty row. They show here as
+// plain numbers, dimmed by the outside and disabled styles of their cell.
+function CalendarDay({ day, modifiers, children, ...props }: DayProps) {
+  return (
+    <td {...props}>
+      {modifiers.hidden && day.outside ? (
+        <span aria-hidden className="inline-flex size-9 items-center justify-center tabular-nums">
+          {day.date.getDate()}
+        </span>
+      ) : (
+        children
+      )}
+    </td>
   );
 }
 

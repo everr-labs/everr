@@ -16,7 +16,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "./command";
-import { Input } from "./input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "./input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
@@ -212,6 +212,10 @@ export function TimeRangePicker({
   // The day under the pointer while a pick is in progress: the range a second
   // click would make, shown before the click.
   const [hoverDay, setHoverDay] = useState<Date | null>(null);
+  // Set once a field is typed in: from then on, picking days keeps the times
+  // typed. Before that the times are the stored range's (a zoom's 14:23, say),
+  // which a new day pick shouldn't carry over.
+  const [keepTimes, setKeepTimes] = useState(false);
   const [search, setSearch] = useState("");
   // The highlighted row, by its key. Opening starts it on the current range,
   // like a select; a new search moves it to the first result, so Enter picks
@@ -270,10 +274,13 @@ export function TimeRangePicker({
   const handleDayPick = (day: Date) => {
     const start = pickStart ?? day;
     const [first, last] = start <= day ? [start, day] : [day, start];
+    const typedFrom = keepTimes ? customRangeState.fromDate : null;
+    const typedTo = keepTimes ? customRangeState.toDate : null;
     const from = new Date(first);
-    from.setHours(0, 0, 0, 0);
+    from.setHours(typedFrom?.getHours() ?? 0, typedFrom?.getMinutes() ?? 0, 0, 0);
     const to = new Date(last);
-    to.setHours(23, 59, 59, 0);
+    if (typedTo) to.setHours(typedTo.getHours(), typedTo.getMinutes(), typedTo.getSeconds(), 0);
+    else to.setHours(23, 59, 59, 0);
     setCustomFrom(toLocalInput(from));
     setCustomTo(toLocalInput(to));
     setPickStart(pickStart ? null : day);
@@ -285,6 +292,7 @@ export function TimeRangePicker({
       setCustomTo(toEditable(value.to));
       setPickStart(null);
       setHoverDay(null);
+      setKeepTimes(false);
       setMonth(resolvePreview(value.to, true)?.date ?? new Date());
       setSearch("");
       setHighlight(rangeKey(value));
@@ -337,7 +345,13 @@ export function TimeRangePicker({
         {filteredGroups.map((group, groupIndex) => (
           <div key={group.label}>
             {groupIndex > 0 && <CommandSeparator className="bg-border/50 mx-0" />}
-            <CommandGroup heading={group.label}>
+            {/* Headings stay pinned while their group scrolls under them, so
+                the list never opens on half a heading. The group's own
+                overflow clip would turn sticky off. */}
+            <CommandGroup
+              heading={group.label}
+              className="overflow-visible **:[[cmdk-group-heading]]:bg-popover **:[[cmdk-group-heading]]:sticky **:[[cmdk-group-heading]]:top-0 **:[[cmdk-group-heading]]:z-10 **:[[cmdk-group-heading]]:-mx-1 **:[[cmdk-group-heading]]:px-3.5"
+            >
               {group.ranges.map((range) => (
                 <CommandItem
                   key={rangeKey(range)}
@@ -395,10 +409,12 @@ export function TimeRangePicker({
       onFromChange={(next) => {
         setCustomFrom(next);
         setPickStart(null);
+        setKeepTimes(true);
       }}
       onToChange={(next) => {
         setCustomTo(next);
         setPickStart(null);
+        setKeepTimes(true);
       }}
       state={customRangeState}
       picking={pickStart !== null}
@@ -633,16 +649,14 @@ function RangeField({
   invalid: boolean;
 }) {
   return (
-    <div className="relative min-w-0 flex-1">
-      {/* The label sits in the field, like a prefix: two short fields side
-          by side, without a row of labels above them. */}
-      <label
-        htmlFor={id}
-        className="text-muted-foreground pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-xs"
-      >
-        {label}
-      </label>
-      <Input
+    // The label is an addon at the field's start, behind a divider, so it
+    // reads as the field's name and not as part of its value. It hugs its
+    // text: the fields sit side by side, so their values never need to line up.
+    <InputGroup className="min-w-0 flex-1">
+      <InputGroupAddon className="border-border/60 h-full border-r px-2.5 py-0">
+        <label htmlFor={id}>{label}</label>
+      </InputGroupAddon>
+      <InputGroupInput
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -651,8 +665,8 @@ function RangeField({
         aria-invalid={invalid || undefined}
         spellCheck={false}
         autoComplete="off"
-        className="pl-12 tabular-nums"
+        className="pl-2.5! tabular-nums"
       />
-    </div>
+    </InputGroup>
   );
 }
