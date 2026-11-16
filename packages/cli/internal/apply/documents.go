@@ -82,22 +82,38 @@ func parseYAML(contents []byte) (any, error) {
 		}
 		return nil, errors.New("deserializing from YAML containing more than one document is not supported")
 	}
-	return yamlToJSON(&doc)
+	// Like serde_yaml, allow alias expansion to visit at most 100 times as
+	// many nodes as the file holds, so a few nested anchors cannot expand
+	// into gigabytes.
+	aliases := 100 * countYAMLNodes(&doc)
+	return yamlToJSON(&doc, &aliases)
 }
 
-func yamlToJSON(node *yaml.Node) (any, error) {
+func countYAMLNodes(node *yaml.Node) int {
+	n := 1
+	for _, child := range node.Content {
+		n += countYAMLNodes(child)
+	}
+	return n
+}
+
+func yamlToJSON(node *yaml.Node, aliases *int) (any, error) {
 	switch node.Kind {
 	case yaml.DocumentNode:
 		if len(node.Content) == 0 {
 			return nil, nil
 		}
-		return yamlToJSON(node.Content[0])
+		return yamlToJSON(node.Content[0], aliases)
 	case yaml.AliasNode:
-		return yamlToJSON(node.Alias)
+		*aliases--
+		if *aliases < 0 {
+			return nil, errors.New("repetition limit exceeded")
+		}
+		return yamlToJSON(node.Alias, aliases)
 	case yaml.SequenceNode:
 		out := make([]any, 0, len(node.Content))
 		for _, item := range node.Content {
-			value, err := yamlToJSON(item)
+			value, err := yamlToJSON(item, aliases)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +131,7 @@ func yamlToJSON(node *yaml.Node) (any, error) {
 			if _, dup := out[key]; dup {
 				return nil, fmt.Errorf("line %d: duplicate entry with key %q", keyNode.Line, key)
 			}
-			value, err := yamlToJSON(node.Content[i+1])
+			value, err := yamlToJSON(node.Content[i+1], aliases)
 			if err != nil {
 				return nil, err
 			}
