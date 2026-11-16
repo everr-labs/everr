@@ -37,7 +37,15 @@ var (
 	chdbResultBuffer       func(result *cResult) *byte
 	chdbResultLen          func(result *cResult) uint
 	chdbResultError        func(result *cResult) string
+	sigaction              func(sig int32, act, old *sigactionBuf)
 )
+
+// sigactionBuf holds a libc struct sigaction (16 bytes on darwin, 152 on
+// glibc) without decoding it. Both put the handler first.
+type sigactionBuf struct {
+	handler uintptr
+	_       [248]byte
+}
 
 var library struct {
 	once sync.Once
@@ -69,6 +77,8 @@ func loadLibrary(path string) error {
 		purego.RegisterLibFunc(&chdbResultBuffer, lib, "chdb_result_buffer")
 		purego.RegisterLibFunc(&chdbResultLen, lib, "chdb_result_length")
 		purego.RegisterLibFunc(&chdbResultError, lib, "chdb_result_error")
+		// libchdb imports sigaction, so this resolves to libc's.
+		purego.RegisterLibFunc(&sigaction, lib, "sigaction")
 	})
 	if library.err != nil {
 		return library.err
@@ -99,7 +109,22 @@ func newLibSession(libraryPath, dataPath string) (Session, error) {
 		bytes := append([]byte(arg), 0)
 		cArgv[i] = &bytes[0]
 	}
+	// chdb_connect installs ClickHouse's signal handlers over Go's, after
+	// which a nil dereference in Go code freezes the process instead of
+	// panicking. Only the handler is compared because glibc leaves stack
+	// bytes in the rest of the struct.
+	var saved [32]sigactionBuf
+	for sig := int32(1); sig < 32; sig++ {
+		sigaction(sig, nil, &saved[sig])
+	}
 	conn := chdbConnect(len(cArgv), cArgv)
+	for sig := int32(1); sig < 32; sig++ {
+		var current sigactionBuf
+		sigaction(sig, nil, &current)
+		if current.handler != saved[sig].handler {
+			sigaction(sig, &saved[sig], nil)
+		}
+	}
 	if conn == nil {
 		return nil, errors.New("could not create a chdb connection")
 	}
