@@ -149,6 +149,36 @@ func TestCLICommandTelemetryDoesNotRecordWrappedCommand(t *testing.T) {
 	assertNotContains(t, body, "sh", "printf", "secret")
 }
 
+func TestCLICommandTelemetryRecordsAFailedCommandAsError(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	collectorEnv(t, collector.URL).Run("apply", "missing-dir").Failure(t, 1)
+
+	bodies := collector.bodiesUntil(func(bodies []string) bool { return anyBody(bodies, "everr.cli.command.result") })
+	if !anyBody(bodies, "everr.cli.command.result", "everr.cli.status", "error") {
+		t.Fatal("a failed command recorded no error result")
+	}
+}
+
+func TestCLICommandTelemetryDoesNotCountAWrappedFailureAsCLIError(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	collectorEnv(t, collector.URL).Run("wrap", "--", "sh", "-c", "exit 3").Failure(t, 3)
+
+	bodies := collector.bodiesUntil(hasCLICommandBody)
+	cliCommandBody(t, bodies)
+	if anyBody(bodies, "everr.cli.command.result") {
+		t.Fatal("the wrapped command's exit code was recorded as a CLI command result")
+	}
+}
+
+func TestCLICommandTelemetryIgnoresACommandGroupPrintingHelp(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	collectorEnv(t, collector.URL).Run("local").Failure(t, 2)
+
+	if hasCLICommandBody(collector.bodiesUntil(hasCLICommandBody)) {
+		t.Fatal("a command group printing its help was recorded as a CLI command")
+	}
+}
+
 func TestWrapForwardsPartialOutputBeforeNewline(t *testing.T) {
 	collector := newOTLPServer(t, 0)
 	// The child holds the rest of its output until the test has seen the
