@@ -36,13 +36,48 @@ function bucketTitle(bucket: HistogramBucket) {
   return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;
 }
 
+// Tick spacings, in minutes: the first that puts at most MAX_TICKS on the
+// axis wins. Past a week, whole weeks.
+const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440, 2880, 10_080];
+const MAX_TICKS = 8;
+
+const minutesOfLocal = (ms: number) =>
+  Math.floor((ms - new Date(ms).getTimezoneOffset() * 60_000) / 60_000);
+
+/**
+ * Axis labels on round local times: a tick on each bucket where a new step
+ * (an hour, 6 hours, a day) begins, and "" elsewhere. A tick at midnight
+ * names the day, so a multi-day range reads "Nov 10 · 12:00 PM · Nov 11".
+ */
+export function axisLabels(buckets: readonly HistogramBucket[]): string[] {
+  const first = buckets[0];
+  const last = buckets.at(-1);
+  if (!first || !last) return [];
+  const span = (Date.parse(last.endTimestamp) - Date.parse(first.timestamp)) / 60_000;
+  const step =
+    TICK_STEPS.find((s) => span / s <= MAX_TICKS) ?? Math.ceil(span / MAX_TICKS / 10_080) * 10_080;
+  let previous: number | null = null;
+  return buckets.map((bucket) => {
+    const start = Date.parse(bucket.timestamp);
+    const minutes = minutesOfLocal(start);
+    const period = Math.floor(minutes / step);
+    const isTick = previous === null ? minutes % step === 0 : period !== previous;
+    previous = period;
+    if (!isTick) return "";
+    // The round time the tick stands for: the bucket's start, or just before.
+    const at = new Date(start - (minutes - period * step) * 60_000);
+    return at.getHours() === 0 && at.getMinutes() === 0
+      ? at.toLocaleDateString([], { month: "short", day: "numeric" })
+      : time(at);
+  });
+}
+
 /**
  * A collapsible stacked-bar histogram of volume over time, one stack segment
  * per key. Dragging across buckets selects their time range.
  */
 export function VolumeHistogram<K extends string, B extends HistogramBucket & Record<K, number>>({
   title,
-  emptyMessage,
   buckets,
   hasData,
   stack,
@@ -52,7 +87,6 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   onShowVolumeChange,
 }: {
   title: string;
-  emptyMessage: string;
   buckets: B[];
   hasData: boolean;
   stack: readonly VolumeStack<K>[];
@@ -63,7 +97,7 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
 }) {
   const chart = useMemo(
     () => ({
-      labels: buckets.map((bucket) => time(new Date(bucket.timestamp))),
+      labels: axisLabels(buckets),
       titles: buckets.map(bucketTitle),
       series: stack.map(({ key, label, color }): ChartSeries => ({
         id: key,
@@ -105,14 +139,16 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
               {...chart}
               axes={HISTOGRAM_AXES}
               compact
+              sparseLabels
               className="h-[104px] w-full"
               onSelect={(from, to) =>
                 onRangeSelect(new Date(buckets[from].timestamp), new Date(buckets[to].endTimestamp))
               }
             />
           ) : (
-            <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-sm">
-              {emptyMessage}
+            // Short: the list below says why nothing matched, and what to try.
+            <div className="text-muted-foreground flex h-[104px] items-center justify-center rounded-md border border-dashed text-xs">
+              Nothing to chart
             </div>
           )}
         </div>

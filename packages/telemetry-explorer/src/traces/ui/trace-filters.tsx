@@ -39,6 +39,24 @@ type TraceFiltersProps = {
   onChange: (patch: Partial<FilterValue>) => void;
 };
 
+/** The page filters set (Service and Environment are counted apart). */
+export function countTracePageFilters(value: {
+  namespace: readonly unknown[];
+  name: string;
+  minMs?: number;
+  maxMs?: number;
+  status: string;
+  attributes: readonly unknown[];
+}): number {
+  return (
+    (value.namespace.length > 0 ? 1 : 0) +
+    (value.name.length > 0 ? 1 : 0) +
+    (value.minMs !== undefined || value.maxMs !== undefined ? 1 : 0) +
+    (value.status !== "all" ? 1 : 0) +
+    value.attributes.length
+  );
+}
+
 export function TraceFilters({
   repo,
   timeRange,
@@ -56,12 +74,7 @@ export function TraceFilters({
   );
 
   // The count for the bottom zone of the rail, which includes the search text.
-  const pageFilterCount =
-    (value.namespace.length > 0 ? 1 : 0) +
-    (value.name.length > 0 ? 1 : 0) +
-    (value.minMs !== undefined || value.maxMs !== undefined ? 1 : 0) +
-    (value.status !== "all" ? 1 : 0) +
-    value.attributes.length;
+  const pageFilterCount = countTracePageFilters(value);
 
   return (
     <ExploreFilterRail
@@ -108,7 +121,7 @@ export function TraceFilters({
             All
           </ToggleGroupItem>
           <ToggleGroupItem value="ok" className="flex-1">
-            Ok
+            OK
           </ToggleGroupItem>
           <ToggleGroupItem value="error" className="flex-1">
             Error

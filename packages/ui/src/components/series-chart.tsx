@@ -59,6 +59,9 @@ interface SeriesChartProps {
   compact?: boolean;
   /** Sizes the chart; it needs a height. */
   className?: string;
+  /** The caller picked which points to label (the rest are ""): draw every
+   *  label given, instead of a share of them chosen by spacing. */
+  sparseLabels?: boolean;
 }
 
 interface Pointer {
@@ -105,6 +108,7 @@ export function SeriesChart({
   onSelect,
   compact = false,
   className,
+  sparseLabels = false,
 }: SeriesChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [pointer, setPointer] = useState<Pointer | null>(null);
@@ -183,6 +187,7 @@ export function SeriesChart({
           axisLabel: {
             ...text,
             hideOverlap: true,
+            ...(sparseLabels ? { interval: 0 } : {}),
             formatter: (_: string, index: number) => labels[index] ?? "",
           },
         },
@@ -238,7 +243,19 @@ export function SeriesChart({
       },
       { notMerge: true },
     );
-  }, [activeSeries, axes, chart, compact, grid, labels, series, shadeFrom, shadeTo, theme]);
+  }, [
+    activeSeries,
+    axes,
+    chart,
+    compact,
+    grid,
+    labels,
+    series,
+    shadeFrom,
+    shadeTo,
+    sparseLabels,
+    theme,
+  ]);
 
   /** The point under the pointer; outside the plot, null, or with
    * `clamped` the nearest point at its edge (a drag running past it). */

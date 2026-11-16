@@ -1,11 +1,10 @@
-import { Button } from "@everr/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { useCallback, useMemo } from "react";
+import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
+import { showingAll } from "../../filters/ui/no-results";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
 
 const VIRTUOSO_OVERSCAN = 600;
@@ -19,7 +18,7 @@ export function ErrorIssueList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
-  onClearFilters,
+  empty,
   renderIssueLink,
 }: {
   issues: ErrorIssueSummary[];
@@ -30,8 +29,8 @@ export function ErrorIssueList({
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
-  /** Absent when there is no page filter to clear. */
-  onClearFilters?: () => void;
+  /** What shows when nothing matches. */
+  empty: ReactNode;
   renderIssueLink: RenderErrorIssueLink;
 }) {
   const endReached = useCallback(() => {
@@ -59,7 +58,7 @@ export function ErrorIssueList({
           ) : hasNextPage ? (
             <span>Showing {issues.length.toLocaleString()} errors</span>
           ) : (
-            <span>Showing all {issues.length.toLocaleString()} matching errors</span>
+            <span>{showingAll(issues.length, "error")}</span>
           )}
         </div>
       ),
@@ -77,21 +76,7 @@ export function ErrorIssueList({
       />
     );
   }
-  if (issues.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No errors</EmptyTitle>
-          <EmptyDescription>No errors match the current filters.</EmptyDescription>
-        </EmptyHeader>
-        {onClearFilters ? (
-          <Button variant="outline" size="sm" onClick={onClearFilters}>
-            Clear filters
-          </Button>
-        ) : null}
-      </Empty>
-    );
-  }
+  if (issues.length === 0) return empty;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

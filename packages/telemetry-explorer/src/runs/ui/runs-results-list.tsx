@@ -1,6 +1,4 @@
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -9,6 +7,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { RunListItem } from "../schemas";
+import { showingAll } from "../../filters/ui/no-results";
 import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
 
@@ -45,7 +44,8 @@ interface RunsResultsListProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
-  onClearFilters: () => void;
+  /** What shows when nothing matches. */
+  empty: ReactNode;
   renderRunLink: RenderRunLink;
   renderRowActions?: RenderRunRowActions;
 }
@@ -60,7 +60,7 @@ export function RunsResultsList({
   hasMore,
   isLoadingMore,
   onLoadMore,
-  onClearFilters,
+  empty,
   renderRunLink,
   renderRowActions,
 }: RunsResultsListProps) {
@@ -105,7 +105,7 @@ export function RunsResultsList({
     );
   }
   if (runs.length === 0) {
-    return <EmptyState onClearFilters={onClearFilters} />;
+    return empty;
   }
 
   return (
@@ -256,7 +256,7 @@ function ResultsFooter({
           {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} runs
         </span>
       ) : (
-        <span>Showing all {count.toLocaleString()} matching runs</span>
+        <span>{showingAll(count, "run")}</span>
       )}
     </div>
   );
@@ -278,19 +278,5 @@ function ResultsSkeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>No runs</EmptyTitle>
-        <EmptyDescription>No workflow runs match the current filters.</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onClearFilters}>
-        Clear filters
-      </Button>
-    </Empty>
   );
 }

@@ -22,6 +22,14 @@ export type ErrorFiltersValue = {
   attributes: AttributeFilter[];
 };
 
+/** The page filters set (Service and Environment are counted apart). */
+export function countErrorPageFilters(value: {
+  q: string;
+  attributes: readonly unknown[];
+}): number {
+  return (value.q.length > 0 ? 1 : 0) + value.attributes.length;
+}
+
 export function ErrorFilters({
   repo,
   timeRange,
@@ -42,7 +50,7 @@ export function ErrorFilters({
 
   // Sort sets an order and does not filter. It always has a value, so it never
   // counts as active, and "Clear page filters" does not change it.
-  const pageFilterCount = (value.q.length > 0 ? 1 : 0) + value.attributes.length;
+  const pageFilterCount = countErrorPageFilters(value);
 
   return (
     <ExploreFilterRail

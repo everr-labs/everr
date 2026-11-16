@@ -1,6 +1,4 @@
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -16,6 +14,7 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
+import { showingAll } from "../../filters/ui/no-results";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
 import { SpanName } from "./span-name";
@@ -32,7 +31,8 @@ type Props = {
   isLoadingMore: boolean;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
   onLoadMore: () => void;
-  onClearFilters: () => void;
+  /** What shows when nothing matches. */
+  empty: ReactNode;
 };
 
 export type TraceLinkRenderProps = {
@@ -51,7 +51,7 @@ export function TraceResultsList({
   isLoadingMore,
   renderTraceLink,
   onLoadMore,
-  onClearFilters,
+  empty,
 }: Props) {
   const maxDuration = useMemo(() => {
     let max = 0n;
@@ -95,7 +95,7 @@ export function TraceResultsList({
     );
   }
   if (rows.length === 0) {
-    return <EmptyState onClearFilters={onClearFilters} />;
+    return empty;
   }
 
   return (
@@ -295,7 +295,7 @@ function ResultsFooter({
       ) : hasMore ? (
         <span>Showing {count.toLocaleString()} traces</span>
       ) : (
-        <span>Showing all {count.toLocaleString()} matching traces</span>
+        <span>{showingAll(count, "trace")}</span>
       )}
     </div>
   );
@@ -314,19 +314,5 @@ function ResultsSkeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>No traces</EmptyTitle>
-        <EmptyDescription>No traces match the current filters.</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onClearFilters}>
-        Clear filters
-      </Button>
-    </Empty>
   );
 }

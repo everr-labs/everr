@@ -24,9 +24,8 @@ export function LogHistogram({ buckets, ...props }: LogHistogramProps) {
     <VolumeHistogram
       {...props}
       title="Log volume"
-      emptyMessage="No log volume in this range"
       buckets={buckets}
-      hasData={buckets.length > 0}
+      hasData={buckets.some((bucket) => bucket.total > 0)}
       stack={LEVEL_STACK}
     />
   );

@@ -25,6 +25,17 @@ export interface RunsFiltersProps {
   onChange: (patch: Partial<RunsFiltersValue>) => void;
 }
 
+/** The filters set. */
+export function countRunFilters(value: RunsFiltersValue): number {
+  return (
+    (value.runId !== undefined ? 1 : 0) +
+    (value.repos.length > 0 ? 1 : 0) +
+    (value.conclusions.length > 0 ? 1 : 0) +
+    (value.branches.length > 0 ? 1 : 0) +
+    (value.workflowNames.length > 0 ? 1 : 0)
+  );
+}
+
 export function RunsFilters({ repo, timeRange, value, onChange }: RunsFiltersProps) {
   const { runId, repos, branches, conclusions, workflowNames } = value;
 
@@ -42,12 +53,7 @@ export function RunsFilters({ repo, timeRange, value, onChange }: RunsFiltersPro
   // window. Each control counts one time, whatever number of values it holds,
   // so the badge means the same thing here as on Logs and Traces.
   //
-  const pageFilterCount =
-    (runId !== undefined ? 1 : 0) +
-    (repos.length > 0 ? 1 : 0) +
-    (conclusions.length > 0 ? 1 : 0) +
-    (branches.length > 0 ? 1 : 0) +
-    (workflowNames.length > 0 ? 1 : 0);
+  const pageFilterCount = countRunFilters(value);
 
   return (
     <ExploreFilterRail

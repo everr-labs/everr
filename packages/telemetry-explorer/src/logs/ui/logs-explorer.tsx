@@ -20,7 +20,8 @@ import {
 } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogExplorerRow, LogLevel } from "../schemas";
-import { LogFiltersBar } from "./log-filters";
+import { NoResults, showingAll } from "../../filters/ui/no-results";
+import { countLogPageFilters, LogFiltersBar } from "./log-filters";
 import { LogHistogram } from "./log-histogram";
 import { LogInspectorPanel } from "./log-inspector";
 import { DEFAULT_HISTOGRAM_BUCKETS, PAGE_SIZE } from "./log-level-meta";
@@ -122,7 +123,7 @@ function LogStream({
               {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
             </span>
           ) : (
-            <span>Showing all {logs.length.toLocaleString()} matching events</span>
+            <span>{showingAll(logs.length, "event")}</span>
           )}
         </div>
       ),
@@ -363,9 +364,28 @@ export function LogsExplorer({
                     onSelect={handleSelectLog}
                   />
                 ) : (
-                  <div className="text-muted-foreground flex h-full min-h-80 items-center justify-center text-sm">
-                    No logs found
-                  </div>
+                  <NoResults
+                    // Its box is not a flex column, unlike the other
+                    // explorers', so the state fills it to stay centred.
+                    className="h-full"
+                    noun="logs"
+                    timeRange={timeRange}
+                    filterCount={
+                      countPersistentFilters(filters.services, environment) +
+                      countLogPageFilters(filters)
+                    }
+                    onClearFilters={
+                      countLogPageFilters(filters) > 0
+                        ? () =>
+                            applyFilters({
+                              q: undefined,
+                              levels: [],
+                              attributes: [],
+                              traceId: undefined,
+                            })
+                        : undefined
+                    }
+                  />
                 )}
               </div>
             </div>

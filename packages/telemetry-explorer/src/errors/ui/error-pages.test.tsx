@@ -55,7 +55,7 @@ function listProps() {
     isError: false,
     error: null,
     onRetry: vi.fn(),
-    onClearFilters: vi.fn(),
+    empty: <p>Nothing here</p>,
     hasNextPage: false,
     isFetchingNextPage: false,
     onLoadMore: vi.fn(),
@@ -95,17 +95,9 @@ describe("ErrorIssueList", () => {
     expect(screen.getByTitle("web, api, jobs")).toHaveTextContent("web+2");
   });
 
-  it("offers to clear the filters when no Error matches, only when a page filter is set", async () => {
-    const props = listProps();
-    const { rerender } = render(<ErrorIssueList {...props} issues={[]} />);
-
-    expect(screen.getByText("No errors")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-    expect(props.onClearFilters).toHaveBeenCalledTimes(1);
-
-    rerender(<ErrorIssueList {...props} onClearFilters={undefined} issues={[]} />);
-    expect(screen.getByText("No errors")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+  it("shows the empty state it is given when no Error matches", () => {
+    render(<ErrorIssueList {...listProps()} issues={[]} />);
+    expect(screen.getByText("Nothing here")).toBeInTheDocument();
   });
 
   it("shows the query error with a retry", async () => {

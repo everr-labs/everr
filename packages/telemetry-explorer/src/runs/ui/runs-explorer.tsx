@@ -9,7 +9,8 @@ import {
   type RunListItem,
   type RunStatusFilter,
 } from "../schemas";
-import { RunsFilters } from "./runs-filters";
+import { NoResults } from "../../filters/ui/no-results";
+import { countRunFilters, RunsFilters } from "./runs-filters";
 import { RunsHistogram } from "./runs-histogram";
 import { type RenderRunLink, type RenderRunRowActions, RunsResultsList } from "./runs-results-list";
 
@@ -94,6 +95,7 @@ export function RunsExplorer({
   }, [data]);
   const totalCount = data?.pages?.[0]?.totalCount;
 
+  const filterValue = { runId, repos, branches, conclusions, workflowNames };
   const clearFilters = () =>
     onSearchChange({
       runId: undefined,
@@ -110,13 +112,7 @@ export function RunsExplorer({
           <RunsFilters
             repo={repo}
             timeRange={timeRange}
-            value={{
-              runId,
-              repos,
-              branches,
-              conclusions,
-              workflowNames,
-            }}
+            value={filterValue}
             onChange={onSearchChange}
           />
 
@@ -143,7 +139,14 @@ export function RunsExplorer({
                   isLoadingMore={isFetchingNextPage}
                   // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
                   onLoadMore={fetchNextPage}
-                  onClearFilters={clearFilters}
+                  empty={
+                    <NoResults
+                      noun="runs"
+                      timeRange={timeRange}
+                      filterCount={countRunFilters(filterValue)}
+                      onClearFilters={clearFilters}
+                    />
+                  }
                   renderRunLink={renderRunLink}
                   renderRowActions={renderRowActions}
                 />

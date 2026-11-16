@@ -21,7 +21,6 @@ export function RunsHistogram({ buckets, ...props }: RunsHistogramProps) {
     <VolumeHistogram
       {...props}
       title="Run volume"
-      emptyMessage="No runs in this range"
       buckets={buckets}
       hasData={buckets.some((bucket) => bucket.total > 0)}
       stack={CONCLUSION_STACK}

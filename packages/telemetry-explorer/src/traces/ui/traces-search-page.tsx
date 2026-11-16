@@ -6,7 +6,8 @@ import { countPersistentFilters } from "../../filters/ui/explore-global-filters"
 import { listServiceIdentitiesOptions, tracesSearchInfiniteOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter, SpanStatusFilter } from "../data/schemas";
-import { TraceFilters } from "./trace-filters";
+import { NoResults } from "../../filters/ui/no-results";
+import { countTracePageFilters, TraceFilters } from "./trace-filters";
 import { type TraceLinkRenderProps, TraceResultsList } from "./trace-results-list";
 
 export type { TraceLinkRenderProps };
@@ -109,17 +110,30 @@ export function TracesSearch({
               renderTraceLink={renderTraceLink}
               // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               onLoadMore={() => fetchNextPage()}
-              onClearFilters={() =>
-                // The same effect as "Clear page filters" in the rail. Service
-                // and Environment keep their values.
-                onSearchChange({
-                  namespace: [],
-                  name: "",
-                  minMs: undefined,
-                  maxMs: undefined,
-                  status: "all",
-                  attributes: [],
-                })
+              empty={
+                <NoResults
+                  noun="traces"
+                  timeRange={timeRange}
+                  filterCount={
+                    countPersistentFilters(search.service, environment) +
+                    countTracePageFilters(search)
+                  }
+                  onClearFilters={
+                    countTracePageFilters(search) > 0
+                      ? () =>
+                          // The same effect as "Clear page filters" in the
+                          // rail. Service and Environment keep their values.
+                          onSearchChange({
+                            namespace: [],
+                            name: "",
+                            minMs: undefined,
+                            maxMs: undefined,
+                            status: "all",
+                            attributes: [],
+                          })
+                      : undefined
+                  }
+                />
               }
             />
           </main>
