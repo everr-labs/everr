@@ -23,7 +23,7 @@ export const Route = createFileRoute(
 )({
   staticData: {
     breadcrumb: (match: { params?: { workflowName?: string } }) => [
-      { label: "Cost Analysis", link: <Link to="/cost-analysis" /> },
+      { label: "Cost analysis", link: <Link to="/cost-analysis" /> },
       {
         label: match.params?.workflowName
           ? decodeURIComponent(match.params.workflowName)
@@ -57,7 +57,7 @@ function WorkflowCostDetailPage() {
         <div className="flex items-start gap-2">
           <Link
             to="/cost-analysis"
-            aria-label="Back to Cost Analysis"
+            aria-label="Back to cost analysis"
             className={cn(
               buttonVariants({ variant: "ghost", size: "icon-sm" }),
               "mt-1 shrink-0 text-muted-foreground hover:text-foreground",
@@ -111,12 +111,12 @@ function WorkflowCostDetailPage() {
           )}
         </TimeRangePanel>
 
-        <TimeRangePanel title="Avg $ / Run" queries={[wfSummary]} variant="stat" icon={Coins}>
+        <TimeRangePanel title="Avg $ / run" queries={[wfSummary]} variant="stat" icon={Coins}>
           {(s) => formatCost(s.avgCostPerRun)}
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Billed Minutes"
+          title="Billed minutes"
           titleHint="What GitHub charges for: each job's duration rounded up to the next whole minute, then summed. Always ≥ compute minutes."
           queries={[wfSummary]}
           variant="stat"
@@ -126,7 +126,7 @@ function WorkflowCostDetailPage() {
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Avg Wall-clock / Run"
+          title="Avg wall-clock / run"
           titleHint="Real elapsed time per run — what developers wait for. Jobs run in parallel, so this is below total compute minutes."
           queries={[wfSummary]}
           variant="stat"

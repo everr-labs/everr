@@ -70,7 +70,7 @@ export const navGroups: NavGroup[] = [
     accent: "[--nav-accent:var(--ctp-teal)]",
     items: [
       { title: "Runs", url: "/runs", icon: Activity },
-      { title: "Cost Analysis", url: "/cost-analysis", icon: ChartLine },
+      { title: "Cost analysis", url: "/cost-analysis", icon: ChartLine },
     ],
   },
 ];

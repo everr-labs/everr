@@ -23,7 +23,7 @@ import { TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis",
 )({
-  staticData: { breadcrumb: "Cost Analysis" },
+  staticData: { breadcrumb: "Cost analysis" },
   validateSearch: TimeRangeSearchSchema,
   component: CostAnalysisPage,
   loaderDeps: ({ search }) => withTimeRange(search),
@@ -36,7 +36,7 @@ export const Route = createFileRoute(
     ]);
   },
   head: () => ({
-    meta: [{ title: "Everr - Cost Analysis" }],
+    meta: [{ title: "Everr - Cost analysis" }],
   }),
 });
 
@@ -84,8 +84,8 @@ function DimensionToggle({
       }}
       aria-label="Breakdown dimension"
     >
-      <ToggleGroupItem value="repo">By Repository</ToggleGroupItem>
-      <ToggleGroupItem value="runner">By Runner</ToggleGroupItem>
+      <ToggleGroupItem value="repo">By repository</ToggleGroupItem>
+      <ToggleGroupItem value="runner">By runner</ToggleGroupItem>
     </ToggleGroup>
   );
 }
@@ -99,11 +99,11 @@ function CostAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Cost Analysis" lede="Estimated CI runner spend based on runner usage" />
+      <PageHeader title="Cost analysis" lede="Estimated CI runner spend based on runner usage" />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TimeRangePanel
-          title="Estimated Cost"
+          title="Estimated cost"
           queries={[costOverviewOptions]}
           variant="stat"
           icon={DollarSign}
@@ -112,7 +112,7 @@ function CostAnalysisPage() {
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Total Minutes"
+          title="Total minutes"
           titleHint="Actual elapsed runner time across all jobs, summed second-by-second. Useful for measuring real usage and pipeline duration."
           queries={[costOverviewOptions]}
           variant="stat"
@@ -122,8 +122,8 @@ function CostAnalysisPage() {
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Billed Minutes"
-          titleHint="What GitHub actually charges for: each job's duration rounded up to the next whole minute, then summed. Always ≥ Total Minutes."
+          title="Billed minutes"
+          titleHint="What GitHub actually charges for: each job's duration rounded up to the next whole minute, then summed. Always ≥ total minutes."
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Receipt}
@@ -132,8 +132,8 @@ function CostAnalysisPage() {
         </TimeRangePanel>
 
         <TimeRangePanel
-          title="Self-Hosted Minutes"
-          titleHint="Actual elapsed minutes for jobs running on self-hosted runners (no GitHub-hosted runner charges). Subset of Total Minutes."
+          title="Self-hosted minutes"
+          titleHint="Actual elapsed minutes for jobs running on self-hosted runners (no GitHub-hosted runner charges). Subset of total minutes."
           queries={[costOverviewOptions]}
           variant="stat"
           icon={Server}
@@ -143,7 +143,7 @@ function CostAnalysisPage() {
       </div>
 
       <TimeRangePanel
-        title="Actions Usage"
+        title="Actions usage"
         queries={[breakdownQuery]}
         action={
           <div className="flex items-center gap-2">
@@ -156,7 +156,7 @@ function CostAnalysisPage() {
       </TimeRangePanel>
 
       <TimeRangePanel
-        title="Cost by Workflow"
+        title="Cost by workflow"
         description="Per-workflow cost breakdown"
         queries={[costByWorkflowOptions]}
         inset="flush-content"
