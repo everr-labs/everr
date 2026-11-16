@@ -5,6 +5,7 @@ import {
 } from "@everr/tanstack-start-otel";
 import { createMiddleware, createStart } from "@tanstack/react-start";
 import { getRouter } from "#app/router.tsx";
+import { denyFramingMiddleware } from "#app/server/deny-framing.ts";
 import { isExpectedServerFunctionError } from "#app/telemetry/expected-errors.ts";
 import { withTelemetryIdentityScope } from "#app/telemetry/identity.ts";
 
@@ -14,6 +15,7 @@ export const startInstance = createStart(() => ({
   // server.
   defaultSsr: false,
   requestMiddleware: [
+    denyFramingMiddleware,
     createMiddleware({ type: "request" }).server(({ next }) =>
       withTelemetryIdentityScope(() => next()),
     ),
