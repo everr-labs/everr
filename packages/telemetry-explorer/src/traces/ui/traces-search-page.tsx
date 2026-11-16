@@ -1,4 +1,4 @@
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
@@ -99,6 +99,7 @@ export function TracesSearch({
           />
           <main className="flex min-h-0 min-w-0 flex-col">
             <TraceResultsList
+              withDay={rangeSpansDays(timeRange)}
               rows={rows}
               isPending={isPending}
               isError={isError}

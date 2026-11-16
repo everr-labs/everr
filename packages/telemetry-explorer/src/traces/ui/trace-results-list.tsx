@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
   formatRelativeTime,
-  formatTimestampTimeOfDay,
+  formatRowTimestamp,
   parseTimestampAsUTC,
 } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
@@ -33,6 +33,8 @@ type Props = {
   onLoadMore: () => void;
   /** What shows when nothing matches. */
   empty: ReactNode;
+  /** Show the day with the start time: the list covers more than one day. */
+  withDay?: boolean;
 };
 
 export type TraceLinkRenderProps = {
@@ -52,6 +54,7 @@ export function TraceResultsList({
   renderTraceLink,
   onLoadMore,
   empty,
+  withDay = false,
 }: Props) {
   const maxDuration = useMemo(() => {
     let max = 0n;
@@ -68,9 +71,14 @@ export function TraceResultsList({
 
   const itemContent = useCallback(
     (_index: number, row: TraceSummary) => (
-      <TraceRow row={row} maxDuration={maxDuration} renderTraceLink={renderTraceLink} />
+      <TraceRow
+        row={row}
+        maxDuration={maxDuration}
+        renderTraceLink={renderTraceLink}
+        withDay={withDay}
+      />
     ),
-    [maxDuration, renderTraceLink],
+    [maxDuration, renderTraceLink, withDay],
   );
 
   const components = useMemo(
@@ -100,7 +108,7 @@ export function TraceResultsList({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ResultsHeader />
+      <ResultsHeader withDay={withDay} />
       <Virtuoso
         className="min-h-0 flex-1"
         data={rows}
@@ -114,14 +122,14 @@ export function TraceResultsList({
   );
 }
 
-function ResultsHeader() {
+function ResultsHeader({ withDay }: { withDay: boolean }) {
   return (
     <div className="text-muted-foreground bg-background flex items-center gap-2 border-b px-3 py-1.5 text-xs font-medium">
       <span className="min-w-0 flex-1">Trace</span>
       <span className="hidden w-28 shrink-0 md:inline">Service</span>
       <span className="w-24 text-right">Duration</span>
       <span className="hidden w-16 text-right md:inline">Status</span>
-      <span className="hidden w-20 text-right lg:inline">Started</span>
+      <span className={cn("hidden text-right lg:inline", withDay ? "w-36" : "w-20")}>Started</span>
     </div>
   );
 }
@@ -130,10 +138,12 @@ function TraceRow({
   row,
   maxDuration,
   renderTraceLink,
+  withDay,
 }: {
   row: TraceSummary;
   maxDuration: bigint;
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
+  withDay: boolean;
 }) {
   const started = parseTimestampAsUTC(row.startTs);
   // The link wraps only the name but its `after` pseudo-element stretches over
@@ -184,10 +194,15 @@ function TraceRow({
       <Tooltip>
         <TooltipTrigger
           render={
-            <span className="text-muted-foreground relative z-10 hidden w-20 text-right text-xs tabular-nums lg:inline" />
+            <span
+              className={cn(
+                "text-muted-foreground relative z-10 hidden text-right text-xs tabular-nums lg:inline",
+                withDay ? "w-36" : "w-20",
+              )}
+            />
           }
         >
-          {formatTimestampTimeOfDay(row.startTs)}
+          {formatRowTimestamp(row.startTs, withDay)}
         </TooltipTrigger>
         <TooltipContent side="left">
           {started ? (

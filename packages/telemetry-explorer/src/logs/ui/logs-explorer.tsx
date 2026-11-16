@@ -5,7 +5,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer"
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useIsMobile, useIsNarrow } from "@everr/ui/hooks/use-mobile";
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -67,6 +67,7 @@ function LogStream({
   isFetchingNextPage,
   onLoadMore,
   onSelect,
+  withDay,
 }: {
   logs: LogExplorerRow[];
   selectedLogKey?: string;
@@ -75,6 +76,7 @@ function LogStream({
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
   onSelect: (log: LogExplorerRow, key: string) => void;
+  withDay: boolean;
 }) {
   const [isSelecting, setIsSelecting] = useState(false);
 
@@ -100,10 +102,11 @@ function LogStream({
           rowKey={rowKey}
           isSelected={selectedLogKey === rowKey}
           onSelect={onSelect}
+          withDay={withDay}
         />
       );
     },
-    [selectedLogKey, onSelect],
+    [selectedLogKey, onSelect, withDay],
   );
 
   const components = useMemo(
@@ -355,6 +358,7 @@ export function LogsExplorer({
                   />
                 ) : logs.length ? (
                   <LogStream
+                    withDay={rangeSpansDays(timeRange)}
                     logs={logs}
                     selectedLogKey={selectedLogState?.key}
                     totalCount={totalCount}

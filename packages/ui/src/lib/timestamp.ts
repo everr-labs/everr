@@ -21,6 +21,21 @@ export function formatTimestampTimeOfDay(timestamp: string): string {
   return parsed ? parsed.toLocaleTimeString() : "—";
 }
 
+/** A row's time, local: "2:54:11 PM", or "Nov 10, 2:54:11 PM" when the list
+ *  covers more than one day and the time alone would be ambiguous. */
+export function formatRowTimestamp(timestamp: string, withDay: boolean): string {
+  const parsed = parseTimestampAsUTC(timestamp);
+  if (!parsed) return "—";
+  if (!withDay) return parsed.toLocaleTimeString();
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export function formatRelativeTime(timestamp: string): string {
   const date = parseTimestampAsUTC(timestamp);
   if (!date) return "—";
