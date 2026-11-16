@@ -4,6 +4,7 @@ import type { Emit, SendEvent } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
 import { pageviews } from "../pageviews/index.js";
 import { performance as performanceInstrumentation } from "./index.js";
+import { createSessionContext } from "../../state/session.js";
 import { startInp } from "./inp.js";
 
 // The jsdom environment has no Event Timing and no PerformanceObserver
@@ -39,6 +40,9 @@ const tracer = createTracer((_traceId, _spanId, name, start, end, attrs) => {
     attrs,
   });
 });
+
+const [, page] = createSessionContext(location.href, undefined);
+const ctx = { emit, tracer, page, onNavigation: () => () => {} };
 
 const slow = () => spans.filter((s) => s.name === "slow_interaction");
 const vitals = () => emitted.filter((e) => e.name === "browser.web_vital");
@@ -146,7 +150,7 @@ beforeEach(() => {
     configurable: true,
   });
   stubTiming();
-  stop = startInp(emit, tracer, true, true);
+  stop = startInp(ctx, true, true);
 });
 
 afterEach(() => {
@@ -425,7 +429,7 @@ describe("output gating", () => {
   it("suppresses slow records when slow is off, still reports the vital", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, tracer, true, false);
+    stop = startInp(ctx, true, false);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(0);
@@ -436,7 +440,7 @@ describe("output gating", () => {
   it("suppresses the vital when vital is off, still emits slow records", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, tracer, false, true);
+    stop = startInp(ctx, false, true);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(1);
@@ -449,7 +453,7 @@ describe("lifecycle", () => {
   it("is a no-op without Event Timing support", () => {
     stop();
     vi.unstubAllGlobals();
-    const noop = startInp(emit, tracer, true, true);
+    const noop = startInp(ctx, true, true);
     noop();
     expect(emitted).toHaveLength(0);
     expect(spans).toHaveLength(0);
@@ -624,7 +628,7 @@ describe("candidate list and epochs", () => {
       }
     }
     vi.stubGlobal("PerformanceObserver", ThrowingPO);
-    const stopInert = startInp(emit, tracer, true, true);
+    const stopInert = startInp(ctx, true, true);
     expect(() => stopInert()).not.toThrow();
     expect(emitted).toHaveLength(0);
   });
