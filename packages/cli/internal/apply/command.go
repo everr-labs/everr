@@ -204,12 +204,11 @@ func Confirm(question string, yes, warn bool, refusal string) (bool, error) {
 		return false, errors.New(refusal)
 	}
 	proceed := false
-	theme := cmdutil.PromptTheme()
+	run := cmdutil.RunPrompt
 	if warn {
-		theme = cmdutil.WarnPromptTheme()
+		run = cmdutil.RunWarnPrompt
 	}
-	prompt := huh.NewConfirm().Title(question).Value(&proceed)
-	if err := huh.NewForm(huh.NewGroup(prompt)).WithTheme(theme).Run(); err != nil {
+	if err := run(huh.NewConfirm().Title(question).Value(&proceed)); err != nil {
 		return false, err
 	}
 	return proceed, nil

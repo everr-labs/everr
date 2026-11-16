@@ -3,8 +3,8 @@ package cmdutil
 import (
 	"image/color"
 	"os"
-	"sync"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -28,31 +28,29 @@ func paletteFor(isDark bool) palette {
 	}
 }
 
-// huh v2 only learns the background from a message the host program has to
-// request, and a form never does, so it would always pick the light palette.
-// Prompts only run on a terminal, which makes this the one place to ask.
-var terminalIsDark = sync.OnceValue(func() bool {
-	return lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
-})
+// RunPrompt shows a single prompt in the brand colors.
+func RunPrompt(field huh.Field) error { return runPrompt(field, false, "◆") }
 
-// PromptTheme styles interactive prompts in the brand colors.
-func PromptTheme() huh.Theme {
-	return huh.ThemeFunc(func(bool) *huh.Styles {
-		return promptTheme(terminalIsDark(), false, "◆")
-	})
+// RunWarnPrompt shows a prompt that gates a change to live data: amber, with
+// a ▲ marker.
+func RunWarnPrompt(field huh.Field) error { return runPrompt(field, true, "▲") }
+
+func runPrompt(field huh.Field, warn bool, marker string) error {
+	if _, noColor := os.LookupEnv("NO_COLOR"); !noColor {
+		field = askBackground{field}
+	}
+	theme := huh.ThemeFunc(func(isDark bool) *huh.Styles { return promptTheme(isDark, warn, marker) })
+	return huh.NewForm(huh.NewGroup(field)).WithTheme(theme).Run()
 }
 
-// WarnPromptTheme styles a prompt that gates a change to live data: amber,
-// with a ▲ marker.
-func WarnPromptTheme() huh.Theme {
-	return huh.ThemeFunc(func(bool) *huh.Styles {
-		return promptTheme(terminalIsDark(), true, "▲")
-	})
-}
+// askBackground asks the terminal for its background color when the prompt
+// takes focus, which a huh form never does on its own. Bubble Tea reads the
+// reply while the prompt runs and huh passes it to the theme, so a terminal
+// that never answers delays nothing and gets the light palette.
+type askBackground struct{ huh.Field }
 
-// RunPrompt shows a single prompt in the brand theme.
-func RunPrompt(field huh.Field) error {
-	return huh.NewForm(huh.NewGroup(field)).WithTheme(PromptTheme()).Run()
+func (f askBackground) Focus() tea.Cmd {
+	return tea.Batch(f.Field.Focus(), tea.RequestBackgroundColor)
 }
 
 func promptTheme(isDark, warn bool, marker string) *huh.Styles {
@@ -66,6 +64,11 @@ func promptTheme(isDark, warn bool, marker string) *huh.Styles {
 	f.Base = f.Base.BorderForeground(accent)
 	f.Card = f.Base
 	f.Title = f.Title.Foreground(accent).Bold(true).SetString(marker)
+	if os.Getenv("TERM") == "dumb" {
+		// huh answers TERM=dumb with its accessible mode, which prints the
+		// title as styled instead of dropping what the terminal can't show.
+		f.Title = f.Title.UnsetForeground().UnsetBold()
+	}
 	f.Description = f.Description.Foreground(c.muted)
 	f.ErrorIndicator = f.ErrorIndicator.Foreground(c.danger)
 	f.ErrorMessage = f.ErrorMessage.Foreground(c.danger)
