@@ -1,4 +1,4 @@
-import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
+import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import type { ErrorIssueSummary } from "../data/types";
@@ -69,10 +69,9 @@ export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
       // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
       onClick={handleCopy}
     >
-      <CopyStateIcon copied={copied} data-icon="inline-start" />
       {/* On a narrow screen the label leaves the row to the title of the Error.
           It stays in the accessible name of the button. */}
-      <span className="max-sm:sr-only">{copied ? "Copied" : "Copy agent prompt"}</span>
+      <CopyStateContent copied={copied} label="Copy agent prompt" labelClassName="max-sm:sr-only" />
     </Button>
   );
 }
