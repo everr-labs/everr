@@ -7,3 +7,11 @@
     display: none;
   }
 }
+
+.stat-chart-tile {
+  container-type: inline-size;
+}
+
+.stat-chart-value {
+  line-height: 1.2;
+}

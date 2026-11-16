@@ -1,6 +1,6 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Hash } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { queryLabel } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import { createValueFormatter } from "../value-format";
@@ -10,22 +10,24 @@ import {
   resolveStatSparklineColor,
   resolveStatTileColor,
 } from "./stat-colors";
+import { statColumns } from "./stat-layout";
 import { computeStatTiles } from "./stat-series";
 import { StatSparkline } from "./stat-sparkline";
 import "./stat-chart.css";
 import { PanelEmptyState } from "../panel-empty-state";
 
-/** Value text scales down as tiles crowd the panel. */
-function valueSizeClass(tileCount: number): string {
-  if (tileCount <= 2) return "text-4xl";
-  if (tileCount <= 4) return "text-3xl";
-  return "text-2xl";
+/**
+ * Largest value text size, scaled down as tiles crowd the panel. The actual
+ * size also shrinks with the tile width.
+ */
+function maxValueSize(tileCount: number): string {
+  if (tileCount <= 2) return "var(--text-4xl)";
+  if (tileCount <= 4) return "var(--text-3xl)";
+  return "var(--text-2xl)";
 }
 
-function unitSizeClass(tileCount: number): string {
-  if (tileCount <= 2) return "text-2xl";
-  if (tileCount <= 4) return "text-xl";
-  return "text-lg";
+function endsRow(index: number, columns: number, count: number): boolean {
+  return index === count - 1 || (index + 1) % columns === 0;
 }
 
 export function StatChartVisualization({ spec, data }: VisualizationProps<StatChartSpec>) {
@@ -45,18 +47,30 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
     [data, calculation],
   );
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
+  const [width, setWidth] = useState(0);
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   if (!data || !hasAnyValue) {
     return <PanelEmptyState icon={Hash} data={data} unusable="The result has no numeric values." />;
   }
 
   const multi = tiles.length > 1;
-  const valueSize = valueSizeClass(tiles.length);
-  const unitSize = unitSizeClass(tiles.length);
+  const valueSize = maxValueSize(tiles.length);
+  const columns = statColumns(tiles.length, width);
 
   return (
-    <div className="stat-chart flex h-full w-full flex-wrap items-stretch justify-center overflow-hidden">
-      {tiles.map((tile) => {
+    <div
+      ref={measureRef}
+      className="stat-chart flex h-full w-full flex-wrap items-stretch justify-center overflow-hidden"
+    >
+      {tiles.map((tile, index) => {
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
         const formatted = value === undefined ? undefined : formatter.parts(value);
@@ -74,19 +88,21 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
           <div
             key={`${tile.frame}-${tile.label}`}
             className={cn(
-              "relative flex min-w-24 flex-1 flex-col overflow-hidden",
-              multi && "border-r border-border/30 last:border-r-0",
+              "stat-chart-tile relative flex flex-none flex-col overflow-hidden border-border/30",
+              multi && !endsRow(index, columns, tiles.length) && "border-r",
+              index >= columns && "border-t",
             )}
-            style={
-              background && appearance
+            style={{
+              width: `${100 / columns}%`,
+              ...(background && appearance
                 ? {
                     color: appearance.foreground,
                     ...(multi
                       ? { backgroundColor: color, backgroundImage: appearance.gradient }
                       : {}),
                   }
-                : undefined
-            }
+                : {}),
+            }}
           >
             <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center px-3 pb-4">
               {(multi || showLabel) && (
@@ -94,17 +110,20 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
               )}
               <p
                 className={cn(
-                  valueSize,
-                  "font-semibold tabular-nums",
+                  "stat-chart-value font-semibold whitespace-nowrap tabular-nums",
                   value === undefined && !background && "text-muted-foreground",
                 )}
-                style={!background && color ? { color } : undefined}
+                style={{
+                  // Shrink with the tile so narrow tiles (e.g. on mobile) don't clip the value.
+                  fontSize: `min(${valueSize}, 16cqi)`,
+                  ...(!background && color ? { color } : {}),
+                }}
               >
                 {formatted === undefined ? noValue : formatted.value}
                 {formatted?.unit && (
                   <span
                     className={cn(
-                      unitSize,
+                      "text-[0.67em]",
                       formatted.separator && "ml-1",
                       !background && "text-muted-foreground",
                     )}
