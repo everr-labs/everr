@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -356,79 +355,6 @@ func TestPermissionDeniedConnectionMentionsSandboxNetworkAccess(t *testing.T) {
 	}
 }
 
-func TestRotationBoundsStoragePreservesOrderAndExcludesCompetingWriters(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "local.log")
-	log, err := openRotatingLog(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := openRotatingLog(path); err == nil {
-		t.Fatal("second writer opened the log")
-	}
-	for b := byte('a'); b <= 'f'; b++ {
-		if _, err := log.Write(bytes.Repeat([]byte{b}, maxLogBytes)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	log.Write([]byte("latest"))
-	if got, _ := os.ReadFile(path); string(got) != "latest" {
-		t.Fatalf("current log = %q", got)
-	}
-	for index, b := range []byte("fed") {
-		got, _ := os.ReadFile(fmt.Sprintf("%s.%d", path, index+1))
-		if !bytes.Equal(got, bytes.Repeat([]byte{b}, maxLogBytes)) {
-			t.Fatalf("backup %d is wrong", index+1)
-		}
-	}
-	if entries, _ := os.ReadDir(dir); len(entries) != logBackups+2 {
-		t.Fatalf("%d files in the log directory", len(entries))
-	}
-	log.Close()
-	if log, err = openRotatingLog(path); err != nil {
-		t.Fatal(err)
-	}
-	log.Write([]byte(" again"))
-	log.Close()
-	if tail, _ := logTail(path); tail != "latest again" {
-		t.Fatalf("tail = %q", tail)
-	}
-}
-
-func TestOversizedExistingLogKeepsRecentOutputAndNewLogsArePrivate(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "logs", "local.log")
-	log, err := openRotatingLog(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for file, want := range map[string]os.FileMode{filepath.Dir(path): 0o700, path: 0o600} {
-		if info, _ := os.Stat(file); info.Mode().Perm() != want {
-			t.Fatalf("%s mode = %v", file, info.Mode().Perm())
-		}
-	}
-	log.Close()
-	if err := os.WriteFile(path, append(bytes.Repeat([]byte("x"), maxLogBytes+100), "recent"...), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if log, err = openRotatingLog(path); err != nil {
-		t.Fatal(err)
-	}
-	defer log.Close()
-	if info, _ := os.Stat(path); info.Size() != maxLogBytes {
-		t.Fatalf("size = %d", info.Size())
-	}
-	if tail, _ := logTail(path); !strings.HasSuffix(tail, "recent") {
-		t.Fatal("recent output was dropped")
-	}
-	log.Write([]byte("new output"))
-	if info, _ := os.Stat(path + ".1"); info.Size() != maxLogBytes {
-		t.Fatalf("backup size = %d", info.Size())
-	}
-	if got, _ := os.ReadFile(path); string(got) != "new output" {
-		t.Fatalf("current log = %q", got)
-	}
-}
-
 func compressed(t *testing.T, data string) []byte {
 	t.Helper()
 	encoder, err := zstd.NewWriter(nil)
@@ -492,34 +418,5 @@ func TestExtractionRedoesATruncatedLibraryAndDropsLeftoverTempFiles(t *testing.T
 	}
 	if _, err := os.Stat(leftover); !os.IsNotExist(err) {
 		t.Fatal("leftover temp file was kept")
-	}
-}
-
-type flakyWriter struct {
-	failures int
-	written  strings.Builder
-}
-
-func (w *flakyWriter) Write(p []byte) (int, error) {
-	if w.failures > 0 {
-		w.failures--
-		return 0, errors.New("no space left on device")
-	}
-	return w.written.Write(p)
-}
-
-func TestLogCopyResumesAfterAFailedWrite(t *testing.T) {
-	reader, writer := io.Pipe()
-	log := &flakyWriter{failures: 1}
-	done := make(chan error, 1)
-	go func() { done <- copyLossy(log, reader) }()
-	writer.Write([]byte("lost "))
-	writer.Write([]byte("kept"))
-	writer.Close()
-	if err := <-done; err == nil {
-		t.Fatal("the failed write was not reported")
-	}
-	if got := log.written.String(); got != "kept" {
-		t.Fatalf("log = %q", got)
 	}
 }

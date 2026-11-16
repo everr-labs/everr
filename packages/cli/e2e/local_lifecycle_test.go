@@ -189,13 +189,25 @@ func TestDetachedAndForegroundInstancesShareTheFullLifecycle(t *testing.T) {
 	}
 	i.waitLog(t, marker)
 
+	// The log is checked for its size once a second.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(logDir, "local.log.1")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the log was not rotated")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	assertContains(t, i.Run("local", "stop").Success(t).Stdout, "Everr stopped")
 	i.assertStopped(t)
 	archived, err := os.ReadFile(filepath.Join(logDir, "local.log.1"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(archived) != 5*1024*1024 || !bytes.HasPrefix(archived, seed) {
+	if len(archived) < 5*1024*1024 || !bytes.HasPrefix(archived, seed) {
 		t.Fatalf("archived log has %d bytes", len(archived))
 	}
 	current, err := os.ReadFile(filepath.Join(logDir, "local.log"))

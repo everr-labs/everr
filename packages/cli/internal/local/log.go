@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -18,6 +19,9 @@ import (
 const (
 	maxLogBytes = 5 * 1024 * 1024
 	logBackups  = 3
+	// logCheckInterval is how often the log's size is checked, so a log can
+	// outgrow maxLogBytes by what is written in one interval.
+	logCheckInterval = time.Second
 )
 
 // logPath is the detached supervisor's log file.
@@ -46,11 +50,12 @@ func defaultLogDir(home, state string) string {
 	return filepath.Join(state, app)
 }
 
-// StartLogCapture redirects stdout and stderr into the rotating local log
-// when this process is the detached supervisor, so output from the
-// supervisor, the in-process collector, and the Go runtime all land there.
-// stop restores the original descriptors and waits for the log to be
-// written.
+// StartLogCapture points stdout and stderr at the local log when this process
+// is the detached supervisor, so output from the supervisor, the in-process
+// collector, and the Go runtime all land there. The descriptors name the log
+// file itself rather than a pipe this process drains: the runtime stops every
+// goroutine before it prints a crash, and nothing would be left to drain it.
+// stop restores the original descriptors.
 func StartLogCapture() (stop func(), captured bool, err error) {
 	if _, ok := os.LookupEnv(backgroundInstanceIDEnv); !ok {
 		return func() {}, false, nil
@@ -63,57 +68,68 @@ func StartLogCapture() (stop func(), captured bool, err error) {
 	if err != nil {
 		return nil, false, err
 	}
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		log.Close()
-		return nil, false, err
+	var saved []int
+	restore := func() {
+		for i, dup := range saved {
+			_ = unix.Dup2(dup, log.fds[i])
+			_ = unix.Close(dup)
+		}
 	}
-	saved := [2]int{}
-	for i, fd := range []int{1, 2} {
-		if saved[i], err = unix.Dup(fd); err != nil {
+	for _, fd := range log.fds {
+		dup, err := unix.Dup(fd)
+		if err != nil {
+			restore()
 			log.Close()
 			return nil, false, err
 		}
+		saved = append(saved, dup)
 	}
-	if err := unix.Dup2(int(writer.Fd()), 1); err != nil {
+	if err := log.redirect(log.file); err != nil {
+		restore()
 		log.Close()
 		return nil, false, err
 	}
-	if err := unix.Dup2(int(writer.Fd()), 2); err != nil {
-		_ = unix.Dup2(saved[0], 1)
-		log.Close()
-		return nil, false, err
-	}
-	writer.Close()
 
-	done := make(chan error, 1)
+	quit := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
-		err := copyLossy(log, reader)
-		done <- errors.Join(err, log.Close())
+		defer close(done)
+		ticker := time.NewTicker(logCheckInterval)
+		defer ticker.Stop()
+		failing := false
+		for {
+			select {
+			case <-quit:
+				return
+			case <-ticker.C:
+				err := log.rotateIfFull()
+				if err != nil && !failing {
+					fmt.Fprintf(os.Stderr, "could not rotate the local supervisor log: %v\n", err)
+				}
+				failing = err != nil
+			}
+		}
 	}()
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			// Restoring fds 1 and 2 closes the pipe's last write ends, so the
-			// copy sees EOF once everything written so far is in the log.
-			for i, fd := range []int{1, 2} {
-				_ = unix.Dup2(saved[i], fd)
-				_ = unix.Close(saved[i])
-			}
-			if err := <-done; err != nil {
-				fmt.Fprintln(os.Stderr, "could not finish writing the local supervisor log")
-			}
+			close(quit)
+			<-done
+			restore()
+			log.Close()
 		})
 	}, true, nil
 }
 
-// rotatingLog keeps at most maxLogBytes per file plus logBackups rotated
-// copies, and holds a lock so two supervisors never write one log.
+// rotatingLog is the local log file that fds 1 and 2 write to. It keeps at
+// most maxLogBytes per file, checked every logCheckInterval, plus logBackups
+// rotated copies, and holds a lock so two supervisors never write one log.
 type rotatingLog struct {
 	path string
 	file *os.File
-	size int64
 	lock *os.File
+	// fds are the descriptors that write to file.
+	fds []int
 }
 
 func openRotatingLog(path string) (_ *rotatingLog, err error) {
@@ -136,15 +152,14 @@ func openRotatingLog(path string) (_ *rotatingLog, err error) {
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		return nil, busyError{fmt.Errorf("another instance is writing to this local log directory; use EVERR_LOCAL_LOG_DIR for a separate instance: %w", err)}
 	}
-	if file, err = openLogFile(path); err != nil {
+	if file, err = os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600); err != nil {
 		return nil, err
 	}
 	info, err := file.Stat()
 	if err != nil {
 		return nil, err
 	}
-	size := info.Size()
-	if size > maxLogBytes {
+	if size := info.Size(); size > maxLogBytes {
 		tail := make([]byte, maxLogBytes)
 		if _, err := file.ReadAt(tail, size-maxLogBytes); err != nil && !errors.Is(err, io.EOF) {
 			return nil, err
@@ -155,40 +170,40 @@ func openRotatingLog(path string) (_ *rotatingLog, err error) {
 		if _, err := file.Write(tail); err != nil {
 			return nil, err
 		}
-		size = maxLogBytes
 	}
-	return &rotatingLog{path: path, file: file, size: size, lock: lock}, nil
+	return &rotatingLog{path: path, file: file, lock: lock, fds: []int{1, 2}}, nil
 }
 
-// copyLossy copies src to log until EOF, dropping what log fails to write.
-// It never stops reading: once the pipe filled up, writes to fds 1 and 2
-// would block and hang the process. log retries rotating and writing on
-// every call, so logging resumes once the disk has room again. It returns the
-// first write error.
-func copyLossy(log io.Writer, src io.Reader) error {
-	buf := make([]byte, 32*1024)
-	var first error
-	for {
-		n, readErr := src.Read(buf)
-		if n > 0 {
-			if _, err := log.Write(buf[:n]); err != nil && first == nil {
-				first = err
-			}
-		}
-		if readErr == io.EOF {
-			return first
-		}
-		if readErr != nil {
-			return errors.Join(first, readErr)
+func (l *rotatingLog) redirect(file *os.File) error {
+	for _, fd := range l.fds {
+		if err := unix.Dup2(int(file.Fd()), fd); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
-func openLogFile(path string) (*os.File, error) {
-	return os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o600)
+func (l *rotatingLog) rotateIfFull() error {
+	info, err := l.file.Stat()
+	if err != nil || info.Size() < maxLogBytes {
+		return err
+	}
+	return l.rotate()
 }
 
-func (l *rotatingLog) rotate() error {
+// rotate moves the log to path.1 and its backups one place up, then points
+// fds 1 and 2 at a new log. The new file is created first, so a failure to
+// create it, as on a full disk, leaves the log as it was for the next try.
+func (l *rotatingLog) rotate() (err error) {
+	next, err := os.OpenFile(l.path+".next", os.O_CREATE|os.O_WRONLY|os.O_APPEND|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			next.Close()
+		}
+	}()
 	for index := logBackups; index >= 1; index-- {
 		from := l.path
 		if index > 1 {
@@ -198,32 +213,15 @@ func (l *rotatingLog) rotate() error {
 			return err
 		}
 	}
-	file, err := openLogFile(l.path)
-	if err != nil {
+	if err := os.Rename(next.Name(), l.path); err != nil {
+		return err
+	}
+	if err := l.redirect(next); err != nil {
 		return err
 	}
 	l.file.Close()
-	l.file, l.size = file, 0
+	l.file = next
 	return nil
-}
-
-func (l *rotatingLog) Write(p []byte) (int, error) {
-	written := 0
-	for len(p) > 0 {
-		if l.size >= maxLogBytes {
-			if err := l.rotate(); err != nil {
-				return written, err
-			}
-		}
-		n := int(min(int64(len(p)), maxLogBytes-l.size))
-		if _, err := l.file.Write(p[:n]); err != nil {
-			return written, err
-		}
-		l.size += int64(n)
-		written += n
-		p = p[n:]
-	}
-	return written, nil
 }
 
 func (l *rotatingLog) Close() error {
