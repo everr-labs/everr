@@ -25,7 +25,7 @@ jobs:
             runner: blacksmith-6vcpu-macos-15
             asset: everr
           - name: linux-arm64
-            runner: blacksmith-2vcpu-ubuntu-2404-arm
+            runner: ubuntu-24.04-arm
             asset: everr-linux-arm64
           - name: linux-x86_64
             runner: ubuntu-24.04
