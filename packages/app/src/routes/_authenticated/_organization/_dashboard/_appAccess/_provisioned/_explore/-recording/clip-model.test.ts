@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { clock, gapLabels, hasFullSnapshot, startOffsetMs, timelineModel } from "./clip-model";
+import {
+  clock,
+  gapLabels,
+  hasFullSnapshot,
+  startOffsetMs,
+  throughClipEnd,
+  timelineModel,
+} from "./clip-model";
 
 const T = 1_700_000_000_000;
 const clip = (focusStartMs: number, focusEndMs = focusStartMs) => ({
@@ -63,5 +70,24 @@ describe("clock", () => {
   it("reads minutes and seconds", () => {
     expect(clock(52_400)).toBe("0:52");
     expect(clock(125_000)).toBe("2:05");
+  });
+});
+
+describe("throughClipEnd", () => {
+  const events = [
+    { type: 2, timestamp: T, data: {} },
+    { type: 3, timestamp: T + 8_000, data: {} },
+  ];
+
+  it("ends the events at the Clip's end, so a quiet tail still plays", () => {
+    expect(throughClipEnd(events, T + 12_000)).toEqual([
+      ...events,
+      { type: 5, timestamp: T + 12_000, data: { tag: "everr.clip.end", payload: {} } },
+    ]);
+  });
+
+  it("leaves events that already reach the end as they are", () => {
+    expect(throughClipEnd(events, T + 8_000)).toBe(events);
+    expect(throughClipEnd([], T)).toEqual([]);
   });
 });

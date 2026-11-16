@@ -1,6 +1,11 @@
-import type { ClipSubject, CoveringClip } from "@everr/telemetry-explorer/recordings";
+import type {
+  ClipSubject,
+  CoveringClip,
+  PlayerPlacement,
+} from "@everr/telemetry-explorer/recordings";
+import { ResizablePanel, ResizablePanelGroup } from "@everr/ui/components/resizable";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -80,16 +85,25 @@ function eventsResponse(events: unknown[], status = 200): Response {
   });
 }
 
-function renderPlayer(subject: ClipSubject) {
+function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "inline") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = sessionRecordingsHost;
   if (!host) throw new Error("the Cloud product stores recordings");
   const wrap = (node: ReactNode) => (
-    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {placement === "split" ? (
+        <ResizablePanelGroup orientation="vertical">
+          {node}
+          <ResizablePanel id="trace">Waterfall</ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        node
+      )}
+    </QueryClientProvider>
   );
-  const view = render(wrap(host.renderPlayer(subject)));
+  const view = render(wrap(host.renderPlayer(subject, placement)));
   return {
-    rerender: (next: ClipSubject) => view.rerender(wrap(host.renderPlayer(next))),
+    rerender: (next: ClipSubject) => view.rerender(wrap(host.renderPlayer(next, placement))),
   };
 }
 
@@ -203,5 +217,60 @@ describe("session recording panel", () => {
 
     expect(await screen.findByText("This clip is too large to play here.")).toBeInTheDocument();
     expect(getClipEvents).toHaveBeenCalledTimes(1);
+  });
+  it("plays to the Clip's end, past the last event, and a click on the picture pauses it", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
+    await waitFor(() => expect(replayers.created).toHaveLength(1));
+    const player = replayers.created[0];
+    expect(player?.events.at(-1)).toMatchObject({ type: 5, timestamp: T + 60_000 });
+
+    if (player) player.time = 20_000;
+    const root = player?.config.root;
+    if (!(root instanceof HTMLElement)) throw new Error("the player is mounted in the stage");
+    fireEvent.click(root);
+    expect(player?.calls.at(-1)).toBe("pause 20000");
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+    fireEvent.click(root);
+    expect(player?.calls.at(-1)).toBe("play 20000");
+  });
+
+  it("restarts from the lead-in once the Clip has finished", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
+    await waitFor(() => expect(replayers.created).toHaveLength(1));
+    const player = replayers.created[0];
+    act(() => player?.emit("finish"));
+
+    expect(screen.getByRole("slider", { name: "Seek" })).toHaveValue("60000");
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(player?.calls.at(-1)).toBe("play 15000");
+  });
+
+  it("opens in the split with Play and closes back to its row with Hide", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    renderPlayer({ kind: "trace", traceId: "t1" }, "split");
+
+    const panel = await section();
+    expect(
+      screen.getByRole("separator", { name: "Resize session recording and trace" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(await screen.findByRole("slider", { name: "Seek" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument(),
+    );
+    expect(panel).toHaveTextContent("1:00");
   });
 });
