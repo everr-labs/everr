@@ -13,8 +13,8 @@ function clipSubjectKey(subject: ClipSubject): string {
 export const sessionRecordingsHost: SessionRecordingsHost | undefined =
   productClient.sessionRecordings
     ? {
-        renderPlayer: (subject) => (
-          <RecordingPanel key={clipSubjectKey(subject)} subject={subject} />
+        renderPlayer: (subject, placement) => (
+          <RecordingPanel key={clipSubjectKey(subject)} subject={subject} placement={placement} />
         ),
       }
     : undefined;

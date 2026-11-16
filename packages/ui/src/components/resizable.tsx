@@ -38,4 +38,5 @@ function ResizableHandle({
   );
 }
 
+export { usePanelRef } from "react-resizable-panels";
 export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
