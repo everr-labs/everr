@@ -4,6 +4,7 @@ package commandtelemetry
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net/http"
 	"runtime"
@@ -27,6 +28,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/internaltelemetry"
@@ -169,6 +172,12 @@ func Start(ctx context.Context, cmd *cobra.Command, argv []string) (_ context.Co
 	emit(ctx, logger, log.SeverityInfo, eventName, attrs)
 
 	return ctx, func(err error) {
+		// An ExitError carries an outcome the command already reported, such
+		// as the wrapped command's exit code. It is not a CLI failure.
+		if _, reported := errors.AsType[*cmdutil.ExitError](err); reported {
+			span.End()
+			return
+		}
 		status, severity := "ok", log.SeverityInfo
 		attrs := []attribute.KeyValue{
 			attribute.String("event.name", resultEventName),

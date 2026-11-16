@@ -87,6 +87,7 @@ func configureTree(cmd *cobra.Command) {
 				cmdutil.RenderHelp(c.ErrOrStderr(), c)
 				return cmdutil.Exit(2)
 			}
+			markHelp(cmd)
 		}
 		// clap gave every command group a `help` subcommand. cobra only adds
 		// one to the root, and only once Execute runs, after Main has already
@@ -108,9 +109,8 @@ const helpAnnotation = "everr_help"
 
 func newHelpCommand(parent *cobra.Command) *cobra.Command {
 	help := &cobra.Command{
-		Use:         "help",
-		Short:       "Print this message or the help of the given subcommand(s)",
-		Annotations: map[string]string{helpAnnotation: "true"},
+		Use:   "help",
+		Short: "Print this message or the help of the given subcommand(s)",
 		RunE: func(c *cobra.Command, args []string) error {
 			target := parent
 			for _, name := range args {
@@ -125,11 +125,20 @@ func newHelpCommand(parent *cobra.Command) *cobra.Command {
 		},
 	}
 	cmdutil.Positionals(help, cmdutil.Arg{Name: "COMMAND", Help: "Print help for the subcommand(s)", Optional: true, Variadic: true})
+	markHelp(help)
 	return help
 }
 
-// isHelp reports whether cmd is a `help` subcommand. Like `--help`, it
-// records no command telemetry.
+func markHelp(cmd *cobra.Command) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations[helpAnnotation] = "true"
+}
+
+// isHelp reports whether cmd only prints help: a `help` subcommand or a
+// command group run without a subcommand. Like `--help`, it records no
+// command telemetry.
 func isHelp(cmd *cobra.Command) bool {
 	return cmd.Annotations[helpAnnotation] != ""
 }
