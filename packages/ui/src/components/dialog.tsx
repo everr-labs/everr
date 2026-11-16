@@ -49,7 +49,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "motion-dialog bg-popover shadow-(--shadow-elevated) grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-xs/relaxed sm:max-w-sm fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
+          "motion-dialog bg-popover shadow-(--shadow-dialog) grid max-w-[calc(100%-2rem)] gap-4 rounded-xl p-4 text-xs/relaxed sm:max-w-sm fixed top-1/2 left-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 outline-none",
           className,
         )}
         {...props}

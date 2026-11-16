@@ -188,6 +188,11 @@
   --shadow-elevated:
     inset 0 1px 0 0 oklch(1 0 0 / 5%), 0 0 0 1px oklch(1 0 0 / 8%),
     0 2px 4px -1px oklch(0 0 0 / 35%), 0 12px 32px -8px oklch(0 0 0 / 55%);
+  /* Dialogs: the floating shadow without the top highlight, which reads as a
+     second line under the hairline along a dialog's long top edge. */
+  --shadow-dialog:
+    0 0 0 1px oklch(1 0 0 / 8%), 0 2px 4px -1px oklch(0 0 0 / 35%),
+    0 12px 32px -8px oklch(0 0 0 / 55%);
   --shadow-surface: 0 0 0 1px oklch(1 0 0 / 5.5%);
 }
 
