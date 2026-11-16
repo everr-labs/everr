@@ -1,17 +1,23 @@
 import { EverrLogoMark } from "@everr/ui/components/everr-logo";
 import {
+  ArrowLeft,
+  Boxes,
   Bug,
   ChartLine,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Flame,
   Hash,
   House,
+  Layers,
   LayoutDashboard,
+  ListFilter,
   NotebookText,
   PanelLeft,
-  Route,
   ScrollText,
   Search,
+  Waypoints,
   BellOff,
   Activity,
   type LucideIcon,
@@ -57,7 +63,10 @@ const PATHS = [
   "runbooks/api/checkout-latency",
 ] as const;
 
-const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number }[] }[] = [
+const NAV: {
+  label: string;
+  items: { name: string; icon: LucideIcon; at?: number }[];
+}[] = [
   { label: "", items: [{ name: "Home", icon: House }] },
   {
     label: "Monitor",
@@ -79,14 +88,14 @@ const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number
     items: [
       { name: "Logs", icon: ScrollText },
       { name: "Errors", icon: Bug, at: 2 },
-      { name: "Traces", icon: Route, at: 0 },
+      { name: "Traces", icon: Waypoints, at: 0 },
     ],
   },
   {
     label: "CI/CD",
     items: [
       { name: "Runs", icon: Activity },
-      { name: "Cost Analysis", icon: ChartLine },
+      { name: "Cost analysis", icon: ChartLine },
     ],
   },
 ];
@@ -159,7 +168,7 @@ const TRACES = [
 ];
 
 const SPANS = [
-  { name: "GET /projects", ms: "2.1s", start: 0, width: 100, tag: "200", depth: 0 },
+  { verb: "GET", name: "/projects", ms: "2.1s", start: 0, width: 100, tag: "200", depth: 0 },
   { name: "authenticate", ms: "20ms", start: 0, width: 1.5, depth: 1 },
   { name: "SELECT projects", ms: "2.0s", start: 1, width: 97, depth: 1 },
   { name: "serialize response", ms: "40ms", start: 98, width: 2, depth: 1 },
@@ -169,8 +178,10 @@ const OK = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 4, 3, 3];
 const OK_SPIKE = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 6, 16, 22];
 const ERR = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 5];
 
-const CHART = { wide: { w: 270, h: 200 }, compact: { w: 272, h: 150 } };
-const RUNBOOK_CHART = { wide: { w: 440, h: 110 }, compact: { w: 310, h: 100 } };
+// Each chart is as wide as its card, so the plot runs to the card's edges as
+// in the app.
+const CHART = { wide: { w: 323, h: 200 }, compact: { w: 334, h: 150 } };
+const RUNBOOK_CHART = { wide: { w: 434, h: 110 }, compact: { w: 334, h: 100 } };
 
 export type Chapter = 0 | 1 | 2 | 3 | 4;
 
@@ -304,6 +315,9 @@ function makeScript(
 }
 
 const TITLES = ["Traces", "Dashboards", "Errors", "Triage", "Runbooks"] as const;
+// Each page's sidebar section and icon, which its breadcrumb repeats.
+const PAGE_SECTIONS = ["Explore", "Monitor", "Explore", "Alerts", "Monitor"] as const;
+const PAGE_ICONS = [Waypoints, LayoutDashboard, Bug, Flame, NotebookText] as const;
 
 export function MonitoringDemo({
   jump,
@@ -343,6 +357,7 @@ export function MonitoringDemo({
     >
       {(s, _rect, layout) => {
         const chart = CHART[layout === "compact" ? "compact" : "wide"];
+        const PageIcon = PAGE_ICONS[s.nav];
         return (
           <Window
             url={
@@ -362,7 +377,11 @@ export function MonitoringDemo({
                   </span>
                 </div>
                 {NAV.map((g) => (
-                  <div key={g.label || "home"} className="mo-group">
+                  <div
+                    key={g.label || "home"}
+                    className="mo-group"
+                    data-section={g.label || "Home"}
+                  >
                     {g.label && <span className="mo-glabel">{g.label}</span>}
                     {g.items.map(({ name, icon: Icon, at }) => (
                       <span
@@ -382,16 +401,19 @@ export function MonitoringDemo({
               <div className="mo-main">
                 <header className="mo-head">
                   <PanelLeft size={15} aria-hidden="true" />
-                  <span className="mo-crumb">
+                  <span className="mo-crumb" data-section={PAGE_SECTIONS[s.nav]}>
+                    <PageIcon size={14} aria-hidden="true" />
                     {s.nav === 1 ? (
                       <>
-                        <span className="mo-dim">Dashboards</span>{" "}
-                        <span className="mo-dim">&gt;</span> HTTP Endpoints
+                        <span className="mo-dim">Dashboards</span>
+                        <ChevronRight size={13} className="mo-dim" aria-hidden="true" />
+                        HTTP Endpoints
                       </>
                     ) : s.nav === 4 ? (
                       <>
-                        <span className="mo-dim">Runbooks</span>{" "}
-                        <span className="mo-dim">&gt;</span> Checkout latency
+                        <span className="mo-dim">Runbooks</span>
+                        <ChevronRight size={13} className="mo-dim" aria-hidden="true" />
+                        Checkout latency
                       </>
                     ) : s.nav === 0 && s.detail ? (
                       "Trace"
@@ -402,63 +424,119 @@ export function MonitoringDemo({
                   <span className="mo-spacer" />
                   <span className="mo-pill mo-pill--search">
                     <Search size={13} aria-hidden="true" /> Search...
+                    <kbd className="mo-kbd">⌘K</kbd>
                   </span>
-                  <span className="mo-pill">
-                    <Clock size={13} aria-hidden="true" />{" "}
-                    {s.nav === 1 ? "Last 6 hours" : s.nav >= 3 ? "Last 1 hour" : "Last 7 days"}
-                  </span>
+                  {/* A trace has its own time span, so its page has no picker */}
+                  {!(s.nav === 0 && s.detail) && (
+                    <span className="mo-pill">
+                      <Clock size={13} aria-hidden="true" />{" "}
+                      {s.nav === 1 ? "Last 6 hours" : s.nav >= 3 ? "Last 1 hour" : "Last 7 days"}
+                      <ChevronDown size={13} className="mo-dim" aria-hidden="true" />
+                    </span>
+                  )}
                 </header>
 
                 <div className="mo-views">
                   {/* Traces: list, then one trace */}
                   <section className="mo-view" data-on={s.nav === 0 || undefined}>
                     <div className="mo-list" data-off={s.detail || undefined}>
-                      <div className="mo-trow mo-trow--head">
-                        <span>Trace</span>
-                        <span className="mo-hide-c">Service</span>
-                        <span className="mo-right">Duration</span>
-                        <span className="mo-center">Status</span>
-                        <span className="mo-right mo-hide-c">Started</span>
-                      </div>
-                      {TRACES.map((t) => (
-                        <div key={t.id} className="mo-trow" data-target={t.target}>
-                          <span className="mo-tname">
-                            <b className="mo-verb" data-verb={t.verb}>
-                              {t.verb}
-                            </b>
-                            <strong>{t.route}</strong>
-                            <code className="mo-id">{t.id}</code>
-                          </span>
-                          <span className="mo-svc mo-hide-c">
-                            <i /> api
-                          </span>
-                          <span className="mo-dur">
-                            <em>{t.ms}</em>
-                            <span className="mo-bar">
-                              <span style={{ width: `${t.w}%` }} />
-                            </span>
-                          </span>
-                          <span className="mo-center">
-                            <b className="mo-code" data-bad={t.status === "500" || undefined}>
-                              {t.status}
-                            </b>
-                          </span>
-                          <span className="mo-right mo-dim mo-hide-c">{t.at}</span>
+                      <aside className="mo-filters mo-hide-c">
+                        <span className="mo-filters-title">
+                          <ListFilter size={13} aria-hidden="true" /> Filters
+                        </span>
+                        <span className="mo-flabel">Service</span>
+                        <span className="mo-field">
+                          <Boxes size={13} aria-hidden="true" /> All services
+                          <ChevronDown size={13} className="mo-field-end" aria-hidden="true" />
+                        </span>
+                        <span className="mo-flabel">Environment</span>
+                        <span className="mo-field">
+                          <Layers size={13} aria-hidden="true" /> All environments
+                          <ChevronDown size={13} className="mo-field-end" aria-hidden="true" />
+                        </span>
+                        <hr />
+                        <span className="mo-flabel">Search</span>
+                        <span className="mo-field mo-dim">
+                          <Search size={13} aria-hidden="true" /> Filter by span name
+                        </span>
+                        <span className="mo-flabel">Status</span>
+                        <span className="mo-seg">
+                          <b data-on>All</b>
+                          <b>OK</b>
+                          <b>Error</b>
+                        </span>
+                      </aside>
+                      <div className="mo-results">
+                        <div className="mo-trow mo-trow--head">
+                          <span>Trace</span>
+                          <span className="mo-hide-c">Service</span>
+                          <span className="mo-right">Duration</span>
+                          <span className="mo-right">Status</span>
                         </div>
-                      ))}
+                        {TRACES.map((t) => (
+                          <div key={t.id} className="mo-trow" data-target={t.target}>
+                            <span className="mo-tname">
+                              <b className="mo-verb" data-verb={t.verb}>
+                                {t.verb}
+                              </b>
+                              <strong>{t.route}</strong>
+                              <code className="mo-id">{t.id}</code>
+                            </span>
+                            <span className="mo-svc mo-hide-c">
+                              <i /> api
+                            </span>
+                            <span className="mo-dur">
+                              <em>{t.ms}</em>
+                              <span className="mo-bar">
+                                <span style={{ width: `${t.w}%` }} />
+                              </span>
+                            </span>
+                            <span className="mo-right">
+                              <b className="mo-code" data-bad={t.status === "500" || undefined}>
+                                {t.status}
+                              </b>
+                            </span>
+                          </div>
+                        ))}
+                        <div className="mo-tfoot">Showing all {TRACES.length} matching traces</div>
+                      </div>
                     </div>
 
                     <div className="mo-detail" data-on={s.detail || undefined}>
                       <div className="mo-dtitle">
-                        <strong>GET /projects</strong>
-                        <span>
-                          api &nbsp; 2.1s &nbsp; 4 spans &nbsp; 1 services &nbsp;{" "}
-                          <code>b7be600aefb38ec95de9b041bb4b114a</code>
+                        <ArrowLeft size={15} className="mo-dim" aria-hidden="true" />
+                        <div>
+                          <strong>
+                            <b className="mo-verb" data-verb="GET">
+                              GET
+                            </b>{" "}
+                            /projects
+                          </strong>
+                          <span className="mo-meta">
+                            <span>api</span>
+                            <code>2.1s</code>
+                            <span>4 spans</span>
+                            <span>1 services</span>
+                            <code className="mo-tid">b7be600aefb38ec95de9b041bb4b114a</code>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mo-dtools mo-hide-c">
+                        <span className="mo-field">
+                          <Search size={13} aria-hidden="true" /> Search spans, services or
+                          attributes
+                        </span>
+                        <span className="mo-seg">
+                          <b data-on>All</b>
+                          <b>HTTP</b>
+                          <b>Database</b>
+                          <b>Functions</b>
                         </span>
                       </div>
-                      <div className="mo-wf-head">
-                        <span>Waterfall</span>
+                      <div className="mo-fold mo-hide-c">
+                        <ChevronRight size={13} aria-hidden="true" /> Flamegraph
                       </div>
+                      <div className="mo-wf-head">Waterfall</div>
                       <div className="mo-wf-axis">
                         <span>Service / operation</span>
                         <div>
@@ -476,8 +554,20 @@ export function MonitoringDemo({
                           data-in={s.rows > i || undefined}
                           data-hot={(s.mark && i === 2) || undefined}
                         >
-                          <span className="mo-wf-name" style={{ paddingLeft: sp.depth * 12 }}>
-                            <i /> <small>api</small> <span>{sp.name}</span>
+                          <span className="mo-wf-name" style={{ paddingLeft: 6 + sp.depth * 12 }}>
+                            {sp.depth === 0 ? (
+                              <ChevronDown size={13} className="mo-caret" aria-hidden="true" />
+                            ) : (
+                              <span className="mo-caret" />
+                            )}
+                            <i />
+                            <small>api</small>
+                            {sp.verb && (
+                              <b className="mo-verb" data-verb={sp.verb}>
+                                {sp.verb}
+                              </b>
+                            )}
+                            <span>{sp.name}</span>
                             {sp.tag && <code>{sp.tag}</code>}
                           </span>
                           <div className="mo-wf-track">
@@ -495,6 +585,9 @@ export function MonitoringDemo({
                           </div>
                         </div>
                       ))}
+                      <div className="mo-dlegend">
+                        <i /> api
+                      </div>
                     </div>
                   </section>
 

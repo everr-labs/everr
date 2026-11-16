@@ -311,7 +311,8 @@ const STATS: [string, string, string][] = [
 ];
 const REQUESTS = [3, 2, 3, 4, 3, 3, 4, 3, 2, 3, 4, 3, 3, 4, 3, 3];
 const LATENCY = [9, 10, 9, 11, 10, 10, 9, 10, 11, 10, 9, 10, 11, 10, 10, 9];
-const DASH_CHART = { wide: { w: 400, h: 200 }, compact: { w: 300, h: 150 } };
+// As wide as its card, so the plot runs to the card's edges
+const DASH_CHART = { wide: { w: 441, h: 200 }, compact: { w: 330, h: 150 } };
 
 const REST = { wide: { x: 880, y: 250 }, compact: { x: 330, y: 250 } };
 
