@@ -144,6 +144,26 @@ func TestErrorsWithFilenameOnInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestYAMLAliasesExpandUpToTheRepetitionLimit(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "d.yaml", dash+"x: &x {a: 1}\ny: [*x, *x]\n")
+	if got := asJSON(t, load(t, dir)[0].Document); !strings.Contains(got, `"y":[{"a":1},{"a":1}]`) {
+		t.Errorf("aliases did not expand: %s", got)
+	}
+
+	level := func(name, anchor, item string) string {
+		return name + ": &" + anchor + " [" + strings.TrimSuffix(strings.Repeat(item+", ", 10), ", ") + "]\n"
+	}
+	bomb := dash + level("a", "a", "x") + level("b", "b", "*a") + level("c", "c", "*b") +
+		level("d", "d", "*c") + level("e", "e", "*d")
+	bombDir := t.TempDir()
+	write(t, bombDir, "bomb.yaml", bomb)
+	_, err := LoadResourceDocuments(bombDir)
+	if err == nil || !strings.Contains(err.Error(), "bomb.yaml") || !strings.Contains(err.Error(), "repetition limit exceeded") {
+		t.Errorf("err = %v", err)
+	}
+}
+
 func TestRejectsInvalidUTF8InJSONResources(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "d.json", "{\"kind\":\"Dashboard\",\"metadata\":{\"name\":\"Caf\xe9\"}}")
