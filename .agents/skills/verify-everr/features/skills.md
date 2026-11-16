@@ -30,6 +30,6 @@ Preconditions:
 
 ## Gotchas
 
-- The CLI embeds `skills/` at build time (`build.rs` reruns on `../../skills`). After editing a skill, rebuild before verifying, or you test the old copy.
+- The CLI embeds `skills/` at build time (the build copies it into `packages/cli/internal/assets/skills`). After editing a skill, rebuild before verifying, or you test the old copy.
 - Without `--project` or `--global` the CLI may prompt; always pass a scope in non-interactive runs.
 - `uninstall` prints `Uninstalled 4 skills: ...` with one `removed: <path>` line per skill; it leaves an empty `.agents/skills/` behind.

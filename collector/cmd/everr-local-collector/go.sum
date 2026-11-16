@@ -52,8 +52,6 @@ github.com/cenkalti/backoff/v7 v7.0.3 h1:oJlXCmDgfNcGYViwioz1cZ1kHebejP4OLfJ/gqM
 github.com/cenkalti/backoff/v7 v7.0.3/go.mod h1:qcKBGwsu4hpxHtQ8tWYsQ+ifzx2+sS+Xx/3jfe30lI8=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
-github.com/chdb-io/chdb-go v1.11.0 h1:G6+Oy1onzNL3bSxncGfIdiB6beTpxwKztjfai7qLckE=
-github.com/chdb-io/chdb-go v1.11.0/go.mod h1:RkT+xLXhdBKtUtJJPwhQQR4p6qiXHisJNS712QldDg8=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
 github.com/containerd/errdefs v1.0.0/go.mod h1:+YBYIdtsnF4Iw6nWZhJcqGSg/dwvV7tyJ/kCkyJ2k+M=
 github.com/containerd/errdefs/pkg v0.3.0 h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE=
@@ -282,6 +280,7 @@ github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQ
 go.mongodb.org/mongo-driver v1.11.4/go.mod h1:PTSz5yu21bkT/wXpkS7WR5f0ddqw5quethTUn9WM+2g=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
+go.opentelemetry.io/collector v0.160.0 h1:PnyWUf8vIViBWT8Klg50j0SbmUd5rkDjc2L/3jdRz3Y=
 go.opentelemetry.io/collector/client v1.71.0 h1:6Jt+Uyj044/62IN97/CtBTVSR37Bsc7WEPWLGiXJbUw=
 go.opentelemetry.io/collector/client v1.71.0/go.mod h1:maR9HE5eZOCdVSmDd3gwL4WMtn3ymwwFwCNbUolVLaQ=
 go.opentelemetry.io/collector/component v1.71.0 h1:d9FtlEdQlR6PBJqV2hggsSjANx+kjBetqK91Nsfiv3Q=

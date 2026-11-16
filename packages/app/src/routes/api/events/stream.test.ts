@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { NotifyPayload } from "#app/db/notify.ts";
 
 vi.mock("#app/db/hub.ts", () => ({
-  subscribe: vi.fn(() => vi.fn()),
   subscribeTenant: vi.fn(() => vi.fn()),
-  subscribeAuthor: vi.fn(() => vi.fn()),
+  subscribeTrace: vi.fn(() => vi.fn()),
 }));
 
 // @/lib/better-auth is mocked globally in test-setup.ts
@@ -26,12 +25,11 @@ vi.mock("#app/lib/sse.ts", () => ({
   })),
 }));
 
-import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
+import { subscribeTenant, subscribeTrace } from "#app/db/hub.ts";
 import { Route } from "./stream";
 
-const mockedSubscribe = vi.mocked(subscribe);
-const mockedSubscribeAuthor = vi.mocked(subscribeAuthor);
 const mockedSubscribeTenant = vi.mocked(subscribeTenant);
+const mockedSubscribeTrace = vi.mocked(subscribeTrace);
 
 const mockSession = {
   userId: "u1",
@@ -54,13 +52,12 @@ function getHandler(): GetHandler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockedSubscribe.mockReturnValue(vi.fn());
   mockedSubscribeTenant.mockReturnValue(vi.fn());
-  mockedSubscribeAuthor.mockReturnValue(vi.fn());
+  mockedSubscribeTrace.mockReturnValue(vi.fn());
 });
 
 describe("GET /api/events/stream", () => {
-  it.each(["scope=invalid", "scope=trace", "scope=commit", "scope=author"])(
+  it.each(["scope=invalid", "scope=trace", "scope=commit&key=abc"])(
     "returns 400 for %s (invalid scope or missing key)",
     async (query) => {
       const response = await getHandler()({
@@ -83,38 +80,19 @@ describe("GET /api/events/stream", () => {
     expect(mockedSubscribeTenant).toHaveBeenCalledWith("org1", expect.any(Function));
   });
 
-  it.each([
-    ["trace", "abc123"],
-    ["commit", "deadbeef"],
-  ])("subscribes to the %s topic", async (scope, key) => {
+  it("subscribes to trace topic for scope=trace", async () => {
     const response = await getHandler()({
-      request: new Request(`http://localhost/api/events/stream?scope=${scope}&key=${key}`),
+      request: new Request("http://localhost/api/events/stream?scope=trace&key=abc123"),
       context: { session: mockSession },
     });
 
     expect(response.status).toBe(200);
-    expect(mockedSubscribe).toHaveBeenCalledWith(scope, "org1", key, expect.any(Function));
-  });
-
-  it("subscribes to author topic for scope=author", async () => {
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/events/stream?scope=author&key=dev%40example.com"),
-      context: { session: mockSession },
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockedSubscribeAuthor).toHaveBeenCalledWith(
-      "org1",
-      "dev@example.com",
-      expect.any(Function),
-    );
+    expect(mockedSubscribeTrace).toHaveBeenCalledWith("org1", "abc123", expect.any(Function));
   });
 
   it.each([
     { query: "scope=tenant", subscribe: () => mockedSubscribeTenant },
-    { query: "scope=trace&key=t1", subscribe: () => mockedSubscribe },
-    { query: "scope=commit&key=abc", subscribe: () => mockedSubscribe },
-    { query: "scope=author&key=dev%40example.com", subscribe: () => mockedSubscribeAuthor },
+    { query: "scope=trace&key=t1", subscribe: () => mockedSubscribeTrace },
   ])("forwards each notification to the SSE stream for $query", async ({ query, subscribe }) => {
     const { createSSEStream } = await import("#app/lib/sse.ts");
     const mockSendEvent = vi.fn();

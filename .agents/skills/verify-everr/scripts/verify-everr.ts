@@ -45,7 +45,7 @@ import { WEB_COMMANDS, WEB_USAGE, timeWebCommand } from "./web.ts";
 const USAGE = `# verify-everr: launch, inspect, drive, and tear down an ISOLATED everr
 # local instance (collector + chDB + local UI) for verification runs.
 #
-#   verify-everr build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
+#   verify-everr build                  # pnpm dev:cli (local UI + chDB + debug CLI with the collector built in)
 #   verify-everr launch [RUN_ID]        # start an isolated detached instance, wait until queryable
 #   verify-everr doctor                 # read-only: is this run's instance worth driving?
 #   verify-everr env                    # print the export lines for the current run
@@ -99,8 +99,7 @@ function loadRun(): Run {
 const everr = (r: Run, args: string[]) => run(BIN, args, { env: envWith(r.vars) });
 
 function cmdBuild(): number {
-  if (!which("make")) die("make is missing (collector build-local needs it)");
-  if (!which("go")) die("go is missing (collector needs Go >= go.mod version)");
+  if (!which("go")) die("go is missing (the CLI needs Go >= packages/cli/go.mod version)");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor < 23) {
     die(`node ${process.version} is too old; repo pins ${(readText(path.join(REPO, ".nvmrc")) ?? "").trim()} (.nvmrc). Put Node 24 first on PATH`);
@@ -228,7 +227,7 @@ async function cmdDoctor(): Promise<number> {
   console.log(`run: ${r.id}`);
   console.log(`binary: ${version.status === 0 ? version.stdout.trim() : "missing"}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
-  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "collector/cmd"].map((d) => path.join(REPO, d)), binMtime, 3);
+  const stale = newerThan(["packages/cli/cmd", "packages/cli/internal", "packages/local-app/src", "collector/localcollector", "collector/internal/localgateway", "collector/exporter/chdbexporter"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
     console.log("WARN sources newer than binary (rebuild with 'verify-everr build'):");
     for (const f of stale) console.log(`       ${f}`);

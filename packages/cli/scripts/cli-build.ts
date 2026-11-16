@@ -4,12 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const cliDir = fileURLToPath(new URL("..", import.meta.url));
 const repoDir = path.resolve(cliDir, "../..");
-const assetsDir = path.join(repoDir, "target/cli-embedded-assets");
-
-export const embeddedAssets = {
-  collectorGz: path.join(assetsDir, "everr-local-collector.gz"),
-  chdbGz: path.join(assetsDir, "libchdb.so.gz"),
-};
+const goModule = "github.com/everr-labs/everr/packages/cli";
 
 export function resolveCliBuild(mode: string, env: NodeJS.ProcessEnv = process.env) {
   if (mode !== "debug" && mode !== "release") throw new Error(`Unsupported mode: ${mode}`);
@@ -20,38 +15,52 @@ export function resolveCliBuild(mode: string, env: NodeJS.ProcessEnv = process.e
   ) {
     throw new Error("Official CLI releases require EVERR_INTERNAL_TELEMETRY_INGEST_KEY");
   }
-  const builtBin = path.join(repoDir, "target", mode, "everr");
+  const builtBin = path.join(repoDir, "target", "go", mode, "everr");
   return {
-    buildArgs: [
-      ...(mode === "release" ? ["--release"] : []),
-      "--manifest-path",
-      path.join(cliDir, "Cargo.toml"),
-    ],
+    buildArgs: goBuildArgs(mode, env, builtBin),
     builtBin,
     outputBin: mode === "debug" ? `${builtBin}-dev` : builtBin,
   };
 }
 
-export function embeddedBuildEnv(assets = embeddedAssets): NodeJS.ProcessEnv {
-  // Build-script telemetry retains the generic key in the parent process;
-  // only the dedicated product key is passed to the Rust compiler.
-  const { EVERR_INGEST_KEY: _buildTelemetryKey, ...env } = process.env;
-  return {
-    ...env,
-    EVERR_INTERNAL_TELEMETRY_INGEST_KEY: process.env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY,
-    EVERR_EMBEDDED_COLLECTOR_GZ: assets.collectorGz,
-    EVERR_EMBEDDED_CHDB_GZ: assets.chdbGz,
-    EVERR_REQUIRE_EMBEDDED_COLLECTOR: "1",
-  };
+function goBuildArgs(mode: string, env: NodeJS.ProcessEnv, output: string) {
+  const ldflags: string[] = [];
+  // Debug builds never embed the product key; they export to the local collector.
+  const key = env.EVERR_INTERNAL_TELEMETRY_INGEST_KEY?.trim();
+  if (mode === "release") {
+    if (key) ldflags.push(`-X ${goModule}/internal/internaltelemetry.ingestKey=${key}`);
+    ldflags.push("-s", "-w");
+  }
+  return [
+    "build",
+    "-trimpath",
+    ...(mode === "release" ? ["-tags", "release"] : []),
+    "-ldflags",
+    ldflags.join(" "),
+    "-o",
+    output,
+    "./cmd/everr",
+  ];
+}
+
+export function goBuildEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  // Build-script telemetry keeps the generic key in the parent process, and
+  // the product key reaches the binary only through -ldflags.
+  const {
+    EVERR_INGEST_KEY: _buildTelemetryKey,
+    EVERR_INTERNAL_TELEMETRY_INGEST_KEY: _productKey,
+    ...rest
+  } = env;
+  // libchdb is loaded with purego, so the CLI needs no C toolchain.
+  return { ...rest, CGO_ENABLED: "0" };
 }
 
 export async function compileCli(
   mode: string,
-  assets: typeof embeddedAssets,
-  run: (command: string, args: string[], env: NodeJS.ProcessEnv) => Promise<unknown>,
+  run: (command: string, args: string[], env: NodeJS.ProcessEnv, cwd: string) => Promise<unknown>,
 ) {
   const { buildArgs, builtBin, outputBin } = resolveCliBuild(mode);
-  await run("cargo", ["build", ...buildArgs], embeddedBuildEnv(assets));
+  await run("go", buildArgs, goBuildEnv(), cliDir);
   if (outputBin !== builtBin) {
     const temporary = `${outputBin}.${process.pid}.tmp`;
     await copyFile(builtBin, temporary);

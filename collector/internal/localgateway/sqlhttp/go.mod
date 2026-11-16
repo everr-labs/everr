@@ -8,10 +8,8 @@ require (
 )
 
 require (
-	github.com/chdb-io/chdb-go v1.11.0 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.10.2 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
 )
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../chdb

@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-
-	chdbgo "github.com/chdb-io/chdb-go/chdb"
 )
 
 var (
@@ -28,14 +26,6 @@ type Session interface {
 	Query(query string, outputFormats ...string) (Result, error)
 	Close()
 	Path() string
-}
-
-type chdbSession struct {
-	*chdbgo.Session
-}
-
-func (s *chdbSession) Query(query string, outputFormats ...string) (Result, error) {
-	return s.Session.Query(query, outputFormats...)
 }
 
 type Metrics struct {
@@ -58,8 +48,9 @@ type request struct {
 type sessionFactory func(path string) (Session, error)
 
 type options struct {
-	queueSize  int
-	newSession sessionFactory
+	queueSize   int
+	libraryPath string
+	newSession  sessionFactory
 }
 
 type Option func(*options)
@@ -69,6 +60,13 @@ func WithQueueSize(size int) Option {
 		if size > 0 {
 			opts.queueSize = size
 		}
+	}
+}
+
+// WithLibraryPath loads libchdb from path instead of $CHDB_LIB_PATH.
+func WithLibraryPath(path string) Option {
+	return func(opts *options) {
+		opts.libraryPath = path
 	}
 }
 
@@ -111,16 +109,15 @@ func Open(path string, opts ...Option) (*Handle, error) {
 
 	options := options{
 		queueSize: defaultQueueSize,
-		newSession: func(path string) (Session, error) {
-			session, err := chdbgo.NewSession(path)
-			if err != nil {
-				return nil, err
-			}
-			return &chdbSession{Session: session}, nil
-		},
 	}
 	for _, opt := range opts {
 		opt(&options)
+	}
+	if options.newSession == nil {
+		libraryPath := options.libraryPath
+		options.newSession = func(path string) (Session, error) {
+			return newLibSession(libraryPath, path)
+		}
 	}
 
 	singleton.mu.Lock()

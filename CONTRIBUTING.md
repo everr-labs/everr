@@ -12,8 +12,8 @@ On first startup, packages without local dotenv configuration inherit their
 stay untouched. The private key is included in `GITHUB_APP_PRIVATE_KEY`.
 
 Use Node 24, pnpm, Go 1.26, Make, Docker with Compose, and Process Compose.
-For the CLI, install stable Rust and a C/C++ toolchain (Xcode command line tools
-on macOS, the chDB prerequisites on Linux).
+The CLI is built with the same Go toolchain. It loads chDB at runtime, so it
+needs no C compiler.
 
 ### Local email with Mailpit
 
@@ -65,7 +65,7 @@ npx skills add . --list
 ### Other development surfaces
 
 Use `pnpm dev:docs` for the docs site and `pnpm dev:storybook` for Storybook.
-`pnpm dev:local` starts the CLI browser UI, Rust backend, and local collector;
+`pnpm dev:local` starts the CLI browser UI, Go backend, and local collector;
 `pnpm dev:local:ui` starts only its Vite surface against a running development CLI.
 `pnpm dev:cli` rebuilds embedded assets and the debug CLI, and `pnpm build:cli`
 builds the release. The CLI version comes from `packages/cli/package.json`;

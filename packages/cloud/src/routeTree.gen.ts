@@ -34,7 +34,6 @@ import { Route as WelcomeInviteDotinvitationIdRouteImport } from './../../app/sr
 import { Route as ApiAuthSplatRouteImport } from './../../app/src/routes/api/auth/$'
 import { Route as ApiCliMeRouteImport } from './../../app/src/routes/api/cli/me'
 import { Route as ApiCliResourcesRouteImport } from './../../app/src/routes/api/cli/resources'
-import { Route as ApiCliRunsRouteImport } from './../../app/src/routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './../../app/src/routes/api/cli/sql'
 import { Route as ApiEventsStreamRouteImport } from './../../app/src/routes/api/events/stream'
 import { Route as ApiInternalVerifyKeyRouteImport } from './../../app/src/routes/api/internal/verify-key'
@@ -48,14 +47,11 @@ import { Route as WelcomeGuestAuthSignInRouteImport } from './../../app/src/rout
 import { Route as WelcomeGuestAuthSignUpRouteImport } from './../../app/src/routes/_welcome/_guest/auth/sign-up'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRouteImport } from './routes/_welcome/_signedIn/_organization/organization-pending'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRouteImport } from './routes/_welcome/_signedIn/_organization/organization-setup'
-import { Route as ApiCliRunsTraceIdRouteImport } from './../../app/src/routes/api/cli/runs/$traceId'
-import { Route as ApiCliRunsStatusRouteImport } from './../../app/src/routes/api/cli/runs/status'
 import { Route as ApiGithubInstallCallbackRouteImport } from './../../app/src/routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './../../app/src/routes/api/github/install/start'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
 import { Route as DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/_admin'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRouteImport } from './routes/_welcome/_signedIn/organizations.checkout.success'
-import { Route as ApiCliRunsTraceIdLogsRouteImport } from './../../app/src/routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
@@ -235,11 +231,6 @@ const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
   path: '/resources',
   getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
-  id: '/runs',
-  path: '/runs',
-  getParentRoute: () => ApiCliRoute,
-} as any)
 const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
   id: '/sql',
   path: '/sql',
@@ -319,16 +310,6 @@ const DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRout
         DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationRoute,
     } as any,
   )
-const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
-  id: '/$traceId',
-  path: '/$traceId',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
-const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
-  id: '/status',
-  path: '/status',
-  getParentRoute: () => ApiCliRunsRoute,
-} as any)
 const ApiGithubInstallCallbackRoute =
   ApiGithubInstallCallbackRouteImport.update({
     id: '/api/github/install/callback',
@@ -361,11 +342,6 @@ const DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsucces
       getParentRoute: () => routesWelcome_signedInRoute,
     } as any,
   )
-const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => ApiCliRunsTraceIdRoute,
-} as any)
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport.update(
     {
@@ -796,7 +772,6 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
-  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
@@ -808,12 +783,9 @@ export interface FileRoutesByFullPath {
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
-  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
   '/billing': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRoute
   '/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
@@ -875,7 +847,6 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
-  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
@@ -887,12 +858,9 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
-  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/billing': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRoute
   '/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
   '/checkout/success': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRoute
@@ -956,7 +924,6 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/cli/me': typeof ApiCliMeRoute
   '/api/cli/resources': typeof ApiCliResourcesRouteWithChildren
-  '/api/cli/runs': typeof ApiCliRunsRouteWithChildren
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
@@ -970,14 +937,11 @@ export interface FileRoutesById {
   '/_welcome/_guest/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/_welcome/_signedIn/_organization/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/_welcome/_signedIn/_organization/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
-  '/api/cli/runs/$traceId': typeof ApiCliRunsTraceIdRouteWithChildren
-  '/api/cli/runs/status': typeof ApiCliRunsStatusRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren
   '/_authenticated/_organization/_dashboard/_padded/_admin': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren
   '/_welcome/_signedIn/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren
@@ -1046,7 +1010,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/me'
     | '/api/cli/resources'
-    | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
@@ -1058,12 +1021,9 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/organization-pending'
     | '/organization-setup'
-    | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/organizations/checkout/success'
-    | '/api/cli/runs/$traceId/logs'
     | '/runs'
     | '/billing'
     | '/billing/suspended'
@@ -1125,7 +1085,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/me'
     | '/api/cli/resources'
-    | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
@@ -1137,12 +1096,9 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/organization-pending'
     | '/organization-setup'
-    | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/organizations/checkout/success'
-    | '/api/cli/runs/$traceId/logs'
     | '/billing'
     | '/billing/suspended'
     | '/checkout/success'
@@ -1205,7 +1161,6 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/cli/me'
     | '/api/cli/resources'
-    | '/api/cli/runs'
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
@@ -1219,14 +1174,11 @@ export interface FileRouteTypes {
     | '/_welcome/_guest/auth/sign-up'
     | '/_welcome/_signedIn/_organization/organization-pending'
     | '/_welcome/_signedIn/_organization/organization-setup'
-    | '/api/cli/runs/$traceId'
-    | '/api/cli/runs/status'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
     | '/_authenticated/_organization/_dashboard/_padded/_admin'
     | '/_welcome/_signedIn/organizations/checkout/success'
-    | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
@@ -1471,13 +1423,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliResourcesRouteImport
       parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/runs': {
-      id: '/api/cli/runs'
-      path: '/runs'
-      fullPath: '/api/cli/runs'
-      preLoaderRoute: typeof ApiCliRunsRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
     '/api/cli/sql': {
       id: '/api/cli/sql'
       path: '/sql'
@@ -1569,20 +1514,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRouteImport
       parentRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationRoute
     }
-    '/api/cli/runs/$traceId': {
-      id: '/api/cli/runs/$traceId'
-      path: '/$traceId'
-      fullPath: '/api/cli/runs/$traceId'
-      preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/runs/status': {
-      id: '/api/cli/runs/status'
-      path: '/status'
-      fullPath: '/api/cli/runs/status'
-      preLoaderRoute: typeof ApiCliRunsStatusRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
     '/api/github/install/callback': {
       id: '/api/github/install/callback'
       path: '/api/github/install/callback'
@@ -1617,13 +1548,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/organizations/checkout/success'
       preLoaderRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRouteImport
       parentRoute: typeof routesWelcome_signedInRoute
-    }
-    '/api/cli/runs/$traceId/logs': {
-      id: '/api/cli/runs/$traceId/logs'
-      path: '/logs'
-      fullPath: '/api/cli/runs/$traceId/logs'
-      preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
-      parentRoute: typeof ApiCliRunsTraceIdRoute
     }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
@@ -2491,42 +2415,15 @@ const ApiCliResourcesRouteWithChildren = ApiCliResourcesRoute._addFileChildren(
   ApiCliResourcesRouteChildren,
 )
 
-interface ApiCliRunsTraceIdRouteChildren {
-  ApiCliRunsTraceIdLogsRoute: typeof ApiCliRunsTraceIdLogsRoute
-}
-
-const ApiCliRunsTraceIdRouteChildren: ApiCliRunsTraceIdRouteChildren = {
-  ApiCliRunsTraceIdLogsRoute: ApiCliRunsTraceIdLogsRoute,
-}
-
-const ApiCliRunsTraceIdRouteWithChildren =
-  ApiCliRunsTraceIdRoute._addFileChildren(ApiCliRunsTraceIdRouteChildren)
-
-interface ApiCliRunsRouteChildren {
-  ApiCliRunsTraceIdRoute: typeof ApiCliRunsTraceIdRouteWithChildren
-  ApiCliRunsStatusRoute: typeof ApiCliRunsStatusRoute
-}
-
-const ApiCliRunsRouteChildren: ApiCliRunsRouteChildren = {
-  ApiCliRunsTraceIdRoute: ApiCliRunsTraceIdRouteWithChildren,
-  ApiCliRunsStatusRoute: ApiCliRunsStatusRoute,
-}
-
-const ApiCliRunsRouteWithChildren = ApiCliRunsRoute._addFileChildren(
-  ApiCliRunsRouteChildren,
-)
-
 interface ApiCliRouteChildren {
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
-  ApiCliRunsRoute: typeof ApiCliRunsRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
-  ApiCliRunsRoute: ApiCliRunsRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
 }
 

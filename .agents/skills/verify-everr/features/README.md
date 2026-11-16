@@ -72,7 +72,7 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/cli/**`, `collector/cmd/everr-local-collector/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
+| `packages/cli/**`, `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
 | `packages/local-app/**`, `packages/telemetry-explorer/**` | `local-ui-logs.md` (+ `local-query.md`) |
 | `packages/cli/skills/**`, skills commands | `skills.md` |
 | `packages/app/src/routes/auth/**`, `src/lib/auth*`, organization setup | `web-auth.md` |
