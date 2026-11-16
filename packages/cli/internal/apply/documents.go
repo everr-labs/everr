@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 
@@ -190,7 +191,7 @@ func LoadResourceDocuments(dir string) ([]ResourceDocument, error) {
 			return nil
 		}
 		relPath := filepath.ToSlash(rel)
-		contents, err := os.ReadFile(filepath.Join(dir, rel))
+		contents, err := readText(filepath.Join(dir, rel))
 		if err != nil {
 			return fmt.Errorf("%s: failed to read file: %w", relPath, err)
 		}
@@ -286,11 +287,24 @@ func readMarkdown(root, canonicalRoot, docDir, docPath, file string) (string, er
 	if canonical != canonicalRoot && !strings.HasPrefix(canonical, canonicalRoot+string(filepath.Separator)) {
 		return "", fmt.Errorf("%s: markdown file %s is outside the apply directory", docPath, file)
 	}
-	contents, err := os.ReadFile(canonical)
+	contents, err := readText(canonical)
 	if err != nil {
 		return "", fmt.Errorf("%s: failed to read markdown file %s: %w", docPath, file, err)
 	}
 	return string(contents), nil
+}
+
+// readText reads a file that must be UTF-8. encoding/json would otherwise
+// replace invalid bytes with U+FFFD and upload the altered text.
+func readText(path string) ([]byte, error) {
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if !utf8.Valid(contents) {
+		return nil, errors.New("stream did not contain valid UTF-8")
+	}
+	return contents, nil
 }
 
 func canonicalize(path string) (string, error) {
