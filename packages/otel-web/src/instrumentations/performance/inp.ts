@@ -1,9 +1,11 @@
 /* oxlint-disable typescript/consistent-type-assertions -- PerformanceObserver erases entry subtypes; each observer is registered for the matching event or long-animation-frame entry type. */
 import type {} from "../../dom.js";
-import type { Tracer } from "@opentelemetry/api";
-import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import type { AttrValue } from "../../pipeline/emitter.js";
+import { pageAttrs } from "../../pipeline/envelope.js";
+import type { PageContext } from "../../state/session.js";
 import { epoch } from "../../time.js";
 import { elementAttrs, guardOf } from "../element.js";
+import type { InstrumentationContext } from "../runtime.js";
 import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 
 // The measurement of the interaction latency. One Event Timing observer gives
@@ -63,6 +65,7 @@ const MAX_PENDING_FRAMES = 10;
 // observer can give them in different batches. Thus the code keeps the record
 // for a short time, and the entry with the maximum duration wins.
 const SETTLE_MS = 1_000;
+const MAX_PAGES = 10;
 
 /** The entries that the browser showed in the same animation frame, with their
  * times together. */
@@ -78,6 +81,7 @@ type Interaction = {
   latency: number;
   entry: PerformanceEventTiming;
   frame: Frame;
+  readonly page: PageContext;
   // The element data. The code captures it immediately from the first entry
   // that has a target. Frequently only the pointerdown entry has one. The
   // `entry.target` value is null after the browser removes the node from the
@@ -95,12 +99,17 @@ type Interaction = {
 // The `vital` flag and the `slow` flag control the two outputs separately, and
 // the two outputs use this one observer. A caller does not call startInp when
 // the two flags are false.
-export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boolean): () => void {
+export function startInp(
+  ctx: Pick<InstrumentationContext, "emit" | "tracer" | "page" | "onNavigation">,
+  vital: boolean,
+  slow: boolean,
+): () => void {
   if (!(globalThis.PerformanceEventTiming && "interactionId" in PerformanceEventTiming.prototype)) {
     return () => {};
   }
 
   let stopped = false;
+  const { emit, tracer } = ctx;
 
   // --- interactionCount. The browser can give this value. If not, the code
   // calculates it from the ids, because Chrome increases an interaction id by 7
@@ -133,6 +142,15 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
   };
   const pendingSlow = new Map<number, PendingSlow>();
   const sentSlow = new Set<number>();
+
+  // --- The page views and their start times. The browser can give an entry
+  // after the handler of its input navigated. Thus the code finds the page from
+  // the input time, and not from the time of the observer callback. ---
+  const pages: [start: number, page: PageContext][] = [[0, ctx.page()]];
+  const pageAt = (time: number) => {
+    for (let i = pages.length - 1; i > 0; i--) if (pages[i][0] <= time) return pages[i][1];
+    return pages[0][1];
+  };
 
   // --- The navigation period of the INP vital. The code starts a new period
   // when the browser gives the page from the bfcache. ---
@@ -215,7 +233,7 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
         interaction.frame = frame;
       }
     } else {
-      interaction = { id, latency: entry.duration, entry, frame };
+      interaction = { id, latency: entry.duration, entry, frame, page: pageAt(entry.startTime) };
     }
     if (!interaction.elementSeen && entry.target instanceof Element) {
       interaction.elementSeen = true;
@@ -278,7 +296,7 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
     clearTimeout(pending.timer);
     pendingSlow.delete(id);
     sentSlow.add(id);
-    const { entry, frame, latency, attrs } = pending.interaction;
+    const { entry, frame, latency, attrs, page } = pending.interaction;
     // The span goes from the input to the next paint. The startTime value gives
     // its position on the trace timeline, and the latency is its duration. Thus
     // the span needs no attribute for the duration.
@@ -287,6 +305,7 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
       .startSpan("slow_interaction", {
         startTime: start,
         attributes: {
+          ...pageAttrs(page),
           ...attrs,
           "everr.browser.interaction.id": id,
           "everr.browser.interaction.name": entry.name,
@@ -307,7 +326,7 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
       ];
     if (!inp) return;
     vitalReported = true;
-    const { entry, frame, latency, id, attrs } = inp;
+    const { entry, frame, latency, id, attrs, page } = inp;
     // The attribution uses the same names as the slow_interaction record,
     // including the element data. It does not use the key names from
     // web-vitals. Thus the vital and the slow record that it connects to give
@@ -318,6 +337,7 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
       latency,
       restored,
       {
+        ...pageAttrs(page),
         "everr.browser.interaction.id": id,
         "everr.browser.interaction.name": entry.name,
         ...attrs,
@@ -384,8 +404,14 @@ export function startInp(emit: Emit, tracer: Tracer, vital: boolean, slow: boole
   };
   addEventListener("pageshow", onPageShow, true);
 
+  const offNavigation = ctx.onNavigation(() => {
+    pages.push([performance.now(), ctx.page()]);
+    if (pages.length > MAX_PAGES) pages.shift();
+  });
+
   return () => {
     stopped = true;
+    offNavigation();
     po.disconnect();
     loafPo?.disconnect();
     removeEventListener("visibilitychange", onVisibilityChange, true);

@@ -50,7 +50,7 @@ Attribution for LCP, CLS, and TTFB rides under `everr.browser.web_vital.<metric>
 | `cls`  | `largest_shift_target` (element selector), `largest_shift_time`, `largest_shift_value`, `load_state` (`loading`, `dom-interactive`, `dom-content-loaded`, `complete`) |
 | `ttfb` | `waiting_duration`, `cache_duration`, `dns_duration`, `connection_duration`, `request_duration`                                                                       |
 
-The INP vital does not use that prefix. It carries the same attribution as the `slow_interaction` span, under the same names: `everr.browser.interaction.*` (`name`, `type`, phases, `total_*` breakdown, `script.*`) plus element attrs. `everr.browser.interaction.id` joins the vital to the `slow_interaction` span of the same interaction.
+The INP vital does not use that prefix. It carries the same attribution as the `slow_interaction` span, under the same names: `everr.browser.interaction.*` (`name`, `type`, phases, `total_*` breakdown, `script.*`) plus element attrs. `everr.browser.interaction.id` joins the vital to the `slow_interaction` span of the same interaction. INP stays document-wide between bfcache restores, and the vital and its `slow_interaction` span carry the page view where the input happened.
 
 ### Exceptions
 
