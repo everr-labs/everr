@@ -190,11 +190,10 @@ describe("ErrorDetail session recording", () => {
     });
 
     const player = await screen.findByRole("region", { name: "Session recording" });
-    expect(host.renderPlayer).toHaveBeenLastCalledWith({
-      kind: "log",
-      streamId: STREAM,
-      at: recorded.timestamp,
-    });
+    expect(host.renderPlayer).toHaveBeenLastCalledWith(
+      { kind: "log", streamId: STREAM, at: recorded.timestamp },
+      "inline",
+    );
     const stack = screen.getByText(/at renderRow/);
     expect(player.compareDocumentPosition(stack)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
@@ -204,7 +203,10 @@ describe("ErrorDetail session recording", () => {
     renderDetail(getErrorOccurrenceKey(older), { sessionRecordings: host });
 
     await screen.findByText("Occurrence 2 of 2");
-    expect(host.renderPlayer).toHaveBeenLastCalledWith({ kind: "trace", traceId: older.traceId });
+    expect(host.renderPlayer).toHaveBeenLastCalledWith(
+      { kind: "trace", traceId: older.traceId },
+      "inline",
+    );
   });
 
   it("draws no player for an occurrence with neither a stream nor a trace", async () => {

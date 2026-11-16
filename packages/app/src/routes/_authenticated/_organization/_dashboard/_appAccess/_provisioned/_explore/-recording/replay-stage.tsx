@@ -19,6 +19,7 @@ export function ReplayStage({
   initialTime,
   autoplay,
   handleRef,
+  onClick,
   onFinish,
 }: {
   events: RecordedEvent[];
@@ -27,6 +28,8 @@ export function ReplayStage({
   /** Read when the player is created. */
   autoplay: boolean;
   handleRef: Ref<ReplayHandle>;
+  /** A click on the picture, which plays or pauses like any video. */
+  onClick: () => void;
   onFinish: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -108,8 +111,13 @@ export function ReplayStage({
   }, [events]);
 
   return (
-    <div className="grid h-full w-full place-items-center overflow-hidden bg-muted">
-      <div ref={rootRef} />
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the Play button is the keyboard path; a click on the picture is the pointer shortcut every video player has
+    <div
+      className="grid h-full w-full cursor-pointer place-items-center overflow-hidden bg-muted"
+      onClick={onClick}
+    >
+      {/* A browser draws a page with no background of its own on white, so the replay does too. */}
+      <div ref={rootRef} className="overflow-hidden bg-white shadow-md ring-1 ring-black/10" />
     </div>
   );
 }

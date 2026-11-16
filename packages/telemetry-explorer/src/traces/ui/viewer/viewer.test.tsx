@@ -320,7 +320,7 @@ describe("shared trace explorer", () => {
 });
 
 describe("session recording slot", () => {
-  it("draws the host's player for this trace above the span views", async () => {
+  it("draws the host's player for this trace in a split above the span views", async () => {
     const renderPlayer = vi.fn(() => <section aria-label="Session recording" />);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -343,7 +343,7 @@ describe("session recording slot", () => {
     );
 
     const player = await screen.findByRole("region", { name: "Session recording" });
-    expect(renderPlayer).toHaveBeenLastCalledWith({ kind: "trace", traceId: "trace-1" });
+    expect(renderPlayer).toHaveBeenLastCalledWith({ kind: "trace", traceId: "trace-1" }, "split");
     const waterfallRow = screen.getByRole("button", { name: "Select root" });
     expect(player.compareDocumentPosition(waterfallRow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });

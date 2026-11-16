@@ -4,6 +4,7 @@ import type { RecordedEvent, RecordingGap } from "#app/data/replay/options.ts";
 /** Playback starts this far before the subject so the lead-up is on screen. */
 const LEAD_IN_MS = 10_000;
 const FULL_SNAPSHOT = 2;
+const CUSTOM = 5;
 /** An instant focus still needs a visible band. */
 const MIN_FOCUS_PCT = 0.5;
 
@@ -18,6 +19,20 @@ export function startOffsetMs(clip: ClipTimes, firstEventMs: number): number {
 /** rrweb draws nothing without a full snapshot: the Clip's first Segment was lost. */
 export function hasFullSnapshot(events: RecordedEvent[]): boolean {
   return events.some((event) => event.type === FULL_SNAPSHOT);
+}
+
+/**
+ * rrweb stops at the last event, but a Clip runs to its end even when nothing
+ * changed on the page. A custom event at the end, which rrweb only re-emits,
+ * keeps the player running over that quiet tail to the end of the seek bar.
+ */
+export function throughClipEnd(events: RecordedEvent[], endMs: number): RecordedEvent[] {
+  const last = events.at(-1);
+  if (!last || last.timestamp >= endMs) return events;
+  return [
+    ...events,
+    { type: CUSTOM, timestamp: endMs, data: { tag: "everr.clip.end", payload: {} } },
+  ];
 }
 
 /** Gaps carry no time, so they are counted rather than placed on the timeline. */
