@@ -144,6 +144,14 @@ func TestErrorsWithFilenameOnInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestRejectsInvalidUTF8InJSONResources(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "d.json", "{\"kind\":\"Dashboard\",\"metadata\":{\"name\":\"Caf\xe9\"}}")
+	if _, err := LoadResourceDocuments(dir); err == nil || !strings.Contains(err.Error(), "d.json") {
+		t.Errorf("err = %v", err)
+	}
+}
+
 func TestManifest(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -274,6 +282,15 @@ func TestRunbookMarkdownMissingFileNamesBothPaths(t *testing.T) {
 	_, err := LoadResourceDocuments(dir)
 	if err == nil || !strings.Contains(err.Error(), "rb.yaml") || !strings.Contains(err.Error(), "missing.md") ||
 		strings.Contains(err.Error(), "directory tree") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestRejectsInvalidUTF8InRunbookMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "rb.yaml", "kind: Notebook\nmetadata:\n  name: rb\nspec:\n  markdown:\n    file: ./index.md\n")
+	write(t, dir, "index.md", "# Caf\xe9\n")
+	if _, err := LoadResourceDocuments(dir); err == nil || !strings.Contains(err.Error(), "index.md") {
 		t.Errorf("err = %v", err)
 	}
 }
