@@ -139,7 +139,7 @@ export function ExploreFilterPill<TData>({
           <ChevronDownIcon className="text-muted-foreground size-3 shrink-0" />
         )}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-0">
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-48 p-0">
         <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
           <CommandInput
             wrapperClassName="p-0 border-b"
