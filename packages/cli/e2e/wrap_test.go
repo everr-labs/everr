@@ -168,6 +168,26 @@ func TestCLICommandTelemetryRecordsAFailedCommandAsError(t *testing.T) {
 	}
 }
 
+func TestCLICommandTelemetryRecordsAnUnreachableLocalStackAsError(t *testing.T) {
+	for name, args := range map[string][]string{
+		"local query": {"local", "query", "SELECT 1"},
+		"local ui":    {"local", "ui"},
+		"wrap":        {"wrap", "--", "true"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			collector := newOTLPServer(t, 0)
+			localEnv(t, stoppedOrigin(t), stoppedOrigin(t)).
+				Setenv("EVERR_INTERNAL_TELEMETRY_ENDPOINT", collector.URL).
+				Run(args...).Failure(t, 2)
+
+			bodies := collector.bodiesUntil(func(bodies []string) bool { return anyBody(bodies, "everr.cli.command.result") })
+			if !anyBody(bodies, "everr.cli.command.result", "everr.cli.status", "error") {
+				t.Fatal("a command that could not reach the local stack recorded no error result")
+			}
+		})
+	}
+}
+
 func TestCLICommandTelemetryDoesNotCountAWrappedFailureAsCLIError(t *testing.T) {
 	collector := newOTLPServer(t, 0)
 	collectorEnv(t, collector.URL).Run("wrap", "--", "sh", "-c", "exit 3").Failure(t, 3)
