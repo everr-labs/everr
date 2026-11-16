@@ -19,8 +19,9 @@ import {
   freePort,
   http,
   isAlive,
+  claimScratch,
   listDir,
-  lockLaunch,
+  lockLifecycle,
   parseRunId,
   portPids,
   printBrowserEnv,
@@ -139,7 +140,7 @@ async function cmdLaunch(args: string[]): Promise<number> {
   if (!existsSync(VP)) die(`${VP} missing; run 'pnpm install' at the repo root`);
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor < 23) die(`node ${process.version} is too old; the repo uses Node 24. Put Node 24 first on PATH`);
-  lockLaunch(CURRENT);
+  lockLifecycle(CURRENT);
   const live = readPointer(CURRENT);
   if (live && existsSync(path.join(runDir(live), "env"))) {
     die(`run ${live} is still live; run 'verify-docs cleanup' first (one server per checkout)`);
@@ -147,9 +148,7 @@ async function cmdLaunch(args: string[]): Promise<number> {
   const id = parseRunId(positional[0] || defaultRunId());
   const dir = runDir(id);
   const art = artDir(id);
-  // The scratch root is shared by every checkout on the machine.
-  if (existsSync(path.join(dir, "env"))) die(`${dir} already holds a run with id '${id}' (another checkout?); choose another RUN_ID`);
-  mkdirSync(dir, { recursive: true });
+  claimScratch(dir);
   mkdirSync(art, { recursive: true });
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
@@ -373,6 +372,7 @@ function cmdBrowserEnv(): number {
 }
 
 async function cmdCleanup(): Promise<number> {
+  lockLifecycle(CURRENT);
   const id = process.env.RUN_ID || readPointer(CURRENT);
   if (!id) {
     console.log("nothing to clean up");

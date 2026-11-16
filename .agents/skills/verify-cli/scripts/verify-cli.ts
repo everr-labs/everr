@@ -124,6 +124,8 @@ async function cmdLaunch(arg: string | undefined): Promise<number> {
     die(`run ${live} is still live; run 'verify-cli cleanup' first (one instance per checkout)`);
   }
   const id = parseRunId(arg || defaultRunId());
+  // CLI runs use the bare id as their scratch and evidence dir; the other skills prefix theirs.
+  if (/^(web|collector|docs)-/.test(id)) die(`run id '${id}' would share a directory with another verify skill's run; drop the prefix`);
   const dir = runDir(id);
   const art = artDir(id);
   for (const sub of ["home", "telemetry", "logs", "config", "data", "cache", "state"]) {
@@ -226,7 +228,7 @@ async function cmdDoctor(): Promise<number> {
   console.log(`run: ${r.id}`);
   console.log(`binary: ${version.status === 0 ? version.stdout.trim() : "missing"}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
-  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/cmd", "collector/exporter/chdbexporter", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
+  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/cmd", "collector/exporter/chdbexporter", "collector/go.mod", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
     console.log("WARN sources newer than binary (rebuild with 'verify-cli build'):");
     for (const f of stale) console.log(`       ${f}`);

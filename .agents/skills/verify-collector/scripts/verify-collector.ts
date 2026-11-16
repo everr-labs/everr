@@ -32,8 +32,9 @@ import {
   die,
   freePort,
   isAlive,
+  claimScratch,
   listDir,
-  lockLaunch,
+  lockLifecycle,
   parseRunId,
   portOf,
   portPids,
@@ -414,7 +415,7 @@ async function collectorReady(r: Run): Promise<boolean> {
 }
 
 async function cmdLaunch(args: string[]): Promise<number> {
-  lockLaunch(CURRENT);
+  lockLifecycle(CURRENT);
   const live = readPointer(CURRENT);
   if (live && existsSync(path.join(runDir(live), "run.json"))) die(`run ${live} is still live; run 'verify-collector cleanup' first`);
   const profileArg = flag(args, "--profile") ?? "cloud";
@@ -428,9 +429,8 @@ async function cmdLaunch(args: string[]): Promise<number> {
 
   const dir = runDir(id);
   const art = artDir(id);
-  // The scratch root is shared by every checkout on the machine.
-  if (existsSync(path.join(dir, "run.json"))) die(`${dir} already holds a run with id '${id}' (another checkout?); choose another RUN_ID`);
-  mkdirSync(path.join(dir, "queue"), { recursive: true });
+  claimScratch(dir);
+  mkdirSync(path.join(dir, "queue"));
   mkdirSync(art, { recursive: true });
   const port = async () => `http://127.0.0.1:${await freePort()}`;
   const r: Run = {
@@ -901,6 +901,7 @@ function cmdKeys(): number {
 }
 
 async function cmdCleanup(): Promise<number> {
+  lockLifecycle(CURRENT);
   const id = process.env.RUN_ID || readPointer(CURRENT);
   if (!id) {
     console.log("nothing to clean up");

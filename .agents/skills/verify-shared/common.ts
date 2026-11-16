@@ -78,16 +78,32 @@ export function readPointer(file: string): string {
   return (readText(file) ?? "").trim();
 }
 
-/** Hold `<pointer>.lock` until this process exits, so two overlapping launches cannot both pass the "no live run" check. */
-export function lockLaunch(pointer: string): void {
+/** Hold `<pointer>.lock` until this process exits. Launch and cleanup both take it, so two launches
+ * cannot both pass the "no live run" check and a cleanup cannot delete the state of a launch in progress. */
+export function lockLifecycle(pointer: string): void {
   const lock = `${pointer}.lock`;
   mkdirSync(path.dirname(lock), { recursive: true });
   try {
     mkdirSync(lock);
   } catch {
-    die(`another launch is running in this checkout (${lock}); if none is, remove that directory`);
+    die(`a launch or cleanup is running in this checkout (${lock}); if none is, remove that directory`);
   }
   process.on("exit", () => rmSync(lock, { recursive: true, force: true }));
+  // A signal ends the process without the 'exit' event, so turn it into an exit.
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]] as const) {
+    process.on(signal, () => process.exit(code));
+  }
+}
+
+/** Create a run's scratch dir, failing if it exists. The scratch root is shared by every checkout and
+ * skill on the machine, and an exclusive mkdir is the one step two launches cannot both win. */
+export function claimScratch(dir: string): void {
+  mkdirSync(path.dirname(dir), { recursive: true });
+  try {
+    mkdirSync(dir);
+  } catch {
+    die(`${dir} already exists: that run id is in use (another checkout or skill) or a failed launch was not cleaned up. Run cleanup for it, or choose another RUN_ID`);
+  }
 }
 
 export type Proc = { status: number; stdout: string; stderr: string };

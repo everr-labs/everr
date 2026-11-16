@@ -54,7 +54,7 @@ Preconditions:
   ```
 
   Every command exits `0`: `session-01-signed-out.url` ends `/auth/sign-in?redirect=%2F`; `session-02-guard-redirect.url` ends `/auth/sign-in?redirect=%2Fapi-keys`; `session-03-wrong-password.txt` contains `Invalid email or password`; `session-04-signed-in-back.url` ends `/api-keys` (`auth-log-out`, `auth-guard`, `auth-wrong-password`, `auth-sign-in`).
-- **Fresh sign-in only.** When a later recipe needs a session and this run's browser has none (it was closed): `agent-browser open "$WEB/auth/sign-in" && agent-browser wait --text "Sign in to Everr"`, fill `#email` and `#password`, `agent-browser press Enter`, then `agent-browser wait --text "Welcome to Everr"`.
+- **Fresh sign-in only.** When a later recipe needs a session and this run's browser has none (it was closed): `agent-browser open "$WEB/auth/sign-in" && agent-browser wait --text "Sign in to Everr"`, fill `#email` and `#password`, `agent-browser press Enter`, then `agent-browser wait --text "$VERIFY_NAME"` (the user menu shows it whether or not onboarding ran).
 - **Proof.** `web/sign-up-*`, `web/session-*`, `db/signup-rows/`.
 
 ## Gotchas

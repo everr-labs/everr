@@ -191,7 +191,7 @@ Proof standards:
 - Exercise the real user path: the UI routes, OTLP through the run's collector, `/api/apply`. Never call internal setters or test-only endpoints.
 - A screenshot alone is not proof. Pair the UI end state with a second view: a reload (new page load), a different route, or a `web-psql` row.
 - Never seed users or sessions with SQL or internal endpoints. Create them through the UI journey.
-- Telemetry goes in only through the run's collector with a UI-created key: `web-seed` (OTLP with a secret key) or the browser SDK on `web-sdk-page` (public key). Never insert into `otel.*`/`app.*` with `web-ch`: that skips the key check and tenant stamping the proof is about.
+- Telemetry goes in only through the run's collector with a UI-created key: `web-seed` (OTLP with a secret key) or the browser SDK on `web-sdk-page` (public key). `web-sdk-page --local` is the one exception: it sends to a verify-cli run's local collector without a key, so it proves nothing about key checks or tenant stamping. Never insert into `otel.*`/`app.*` with `web-ch`: that skips the key check and tenant stamping the proof is about.
 - Mocks only at the boundaries in the "Web app boundary" table. Everything else in the run is real and local.
 
 ## Cleanup
