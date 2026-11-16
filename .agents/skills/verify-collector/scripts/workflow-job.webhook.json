@@ -1,0 +1,32 @@
+{
+  "action": "completed",
+  "installation": { "id": 424242 },
+  "repository": {
+    "id": 1,
+    "name": "verify",
+    "full_name": "verify-org/verify",
+    "html_url": "https://github.com/verify-org/verify",
+    "owner": { "login": "verify-org" }
+  },
+  "workflow_job": {
+    "id": 9101,
+    "run_id": 9001,
+    "run_attempt": 1,
+    "workflow_name": "CI",
+    "head_branch": "main",
+    "head_sha": "0000000000000000000000000000000000000000",
+    "name": "verify-collector-job",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-10-20T12:00:00Z",
+    "started_at": "2026-10-20T12:00:05Z",
+    "completed_at": "2026-10-20T12:01:00Z",
+    "html_url": "https://github.com/verify-org/verify/actions/runs/9001/job/9101",
+    "runner_name": "verify-runner",
+    "labels": ["ubuntu-latest"],
+    "steps": [
+      { "name": "Set up job", "status": "completed", "conclusion": "success", "number": 1, "started_at": "2026-10-20T12:00:05Z", "completed_at": "2026-10-20T12:00:10Z" },
+      { "name": "Run tests", "status": "completed", "conclusion": "success", "number": 2, "started_at": "2026-10-20T12:00:10Z", "completed_at": "2026-10-20T12:00:58Z" }
+    ]
+  }
+}
