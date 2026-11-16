@@ -637,13 +637,16 @@ tr[data-row-phase="exit"] > td > .data-table-cell {
   }
 }
 
-/* Tactile press feedback for buttons and other click targets. */
+/* Tactile press feedback for buttons and other click targets. Except on a
+   trigger whose popup is already open: the popup is positioned against the
+   trigger, so it would follow the shrinking trigger and jump. That press
+   closes the popup, which is feedback enough. */
 @utility press {
   transition-property: scale, color, background-color, border-color, box-shadow, opacity;
   transition-duration: 160ms;
   transition-timing-function: var(--ease-out);
 
-  &:active:not(:disabled, [aria-disabled="true"], [data-disabled]) {
+  &:active:not(:disabled, [aria-disabled="true"], [data-disabled], [aria-expanded="true"]) {
     scale: 0.97;
   }
 
