@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   useActiveOrganization: vi.fn(),
   useSession: vi.fn(),
+  listMcpConnections: vi.fn(),
+  revokeMcpConnection: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => {
@@ -33,6 +35,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 vi.mock("#app/data/account-settings.ts", () => ({
   deleteCurrentUserAccount: mocks.deleteCurrentUserAccount,
+}));
+
+vi.mock("#app/data/mcp/connections.ts", () => ({
+  listMcpConnections: mocks.listMcpConnections,
+  revokeMcpConnection: mocks.revokeMcpConnection,
 }));
 
 vi.mock("#app/lib/auth-client.ts", () => ({
@@ -95,6 +102,8 @@ beforeEach(() => {
     error: null,
   });
   mocks.deleteCurrentUserAccount.mockResolvedValue(undefined);
+  mocks.listMcpConnections.mockResolvedValue([]);
+  mocks.revokeMcpConnection.mockResolvedValue(undefined);
   mocks.linkSocial.mockResolvedValue({ data: null, error: null });
   mocks.listAccounts.mockResolvedValue({
     data: [{ providerId: "credential" }],
@@ -287,5 +296,43 @@ describe("/account route", () => {
       });
     });
     expect(mocks.deleteCurrentUserAccount).toHaveBeenCalledTimes(2);
+  });
+
+  it("lists connected MCP clients and revokes one after confirmation", async () => {
+    const user = userEvent.setup();
+    const claude = {
+      consentId: "consent-1",
+      clientId: "client-1",
+      clientName: "Claude",
+      destination: { kind: "app", address: "claude.ai" },
+      organization: { id: "test_org", name: "Test Org" },
+      scopes: ["observability:read", "offline_access"],
+      connectedAt: new Date("2026-11-01T10:00:00Z"),
+    };
+    mocks.listMcpConnections.mockResolvedValue([claude]);
+    mocks.revokeMcpConnection.mockImplementation(async () => {
+      mocks.listMcpConnections.mockResolvedValue([]);
+    });
+    renderPage();
+
+    const row = (await screen.findByText("Claude")).closest("li")!;
+    expect(row).toHaveTextContent("claude.ai");
+    expect(row).toHaveTextContent("Test Org");
+    expect(row).toHaveTextContent("Read your telemetry, Stay connected");
+
+    await user.click(within(row).getByRole("button", { name: "Revoke" }));
+    expect(mocks.revokeMcpConnection).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Revoke Claude?");
+    await user.click(within(dialog).getByRole("button", { name: "Revoke" }));
+
+    expect(mocks.revokeMcpConnection).toHaveBeenCalledWith({ data: { consentId: "consent-1" } });
+    expect(
+      await screen.findByText("No MCP clients are connected.", { exact: false }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Connect an AI client" })).toHaveAttribute(
+      "href",
+      "https://everr.dev/docs/reference/mcp",
+    );
   });
 });

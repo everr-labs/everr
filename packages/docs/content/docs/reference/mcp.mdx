@@ -42,7 +42,7 @@ Clients find the authorization server from the OAuth protected resource metadata
 | `observability:read` | Running the tools, required                    |
 | `offline_access`     | A refresh token, so the client stays connected |
 
-You pick the organization on the consent screen, and the access token works for that organization only. Removing someone from the organization revokes their access on their next request.
+You pick the organization on the consent screen, and the access token works for that organization only. Removing someone from the organization revokes their access on their next request. To disconnect a client yourself, revoke it under Connected MCP clients in Account Settings. It loses access on its next request and can't refresh its token.
 
 ## Which clients can connect
 

@@ -7,6 +7,7 @@ vi.mock("@everr/app/data/product", () => ({ getActiveOrgPolicy: policy }));
 vi.mock("@everr/app/members", () => ({
   OrganizationMembersPage: () => <div>Member management</div>,
 }));
+vi.mock("@everr/app/account-settings", () => ({ AccountSettings: () => null }));
 vi.mock("../../components/members-unavailable", () => ({
   MembersUnavailable: () => <div>Upgrade plan</div>,
 }));

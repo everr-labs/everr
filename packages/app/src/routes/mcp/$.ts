@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { getMcpIdentity } from "#app/data/mcp/identity.ts";
-import { assertCurrentMember } from "#app/data/mcp/membership.ts";
+import { assertMcpGrant } from "#app/data/mcp/grant.ts";
 import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
 import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
 import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
@@ -116,16 +116,17 @@ async function verifyToken(_req: Request, bearerToken?: string) {
 
   const orgId = typeof payload.org_id === "string" ? payload.org_id : undefined;
   const userId = typeof payload.sub === "string" ? payload.sub : undefined;
-  if (!orgId || !userId) return undefined;
+  const clientId = typeof payload.azp === "string" ? payload.azp : undefined;
+  if (!orgId || !userId || !clientId) return undefined;
 
-  // Re-check membership at request time (revocation / removal after consent).
-  // A non-member throws McpMembershipError -> withMcpAuth answers 401.
-  const { metadata } = await assertCurrentMember(userId, orgId);
+  // Re-check at request time: removal from the org or a revoked connection
+  // throws McpGrantError -> withMcpAuth answers 401.
+  const { metadata } = await assertMcpGrant(userId, orgId, clientId);
   mergeTelemetryIdentity({ organizationId: orgId, userId });
 
   return {
     token: bearerToken,
-    clientId: typeof payload.azp === "string" ? payload.azp : "",
+    clientId,
     scopes: typeof payload.scope === "string" ? payload.scope.split(" ") : ["observability:read"],
     expiresAt: typeof payload.exp === "number" ? payload.exp : undefined,
     extra: { orgId, userId, metadata } satisfies McpContext,
