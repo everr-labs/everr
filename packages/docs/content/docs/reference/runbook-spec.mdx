@@ -139,7 +139,7 @@ height: 200
 ```
 ````
 
-A panel inside a runbook is a dashboard [Panel](/docs/reference/dashboard-spec), byte for byte: same plugins, same ClickHouse SQL, same `{from:String}`, `{to:String}`, and `{step:UInt32}` time parameters, and `$name` tokens from `spec.variables` (the dashboard [variable](/docs/reference/variables) schema, verbatim).
+A panel inside a runbook is a dashboard [Panel](/docs/reference/dashboard-spec), byte for byte: same plugins, same ClickHouse SQL, same `{from:String}`, `{to:String}`, `{step:UInt32}`, and `{buckets:UInt32}` query parameters, and `$name` tokens from `spec.variables` (the dashboard [variable](/docs/reference/variables) schema, verbatim).
 
 ## Manifest
 

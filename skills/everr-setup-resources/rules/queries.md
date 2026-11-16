@@ -58,6 +58,20 @@ ORDER BY ts
 
 `{step}` tracks the time picker automatically: ~10s buckets at 1h, ~30m at 7d, always ~500 points. Use the **same** `INTERVAL {step:UInt32} SECOND` on the metrics tables' `TimeUnix` column. Keep `toStartOfMinute`/`toStartOfHour` only for a chart pinned to a short, fixed range. (Tables and time-less Stat panels don't bucket, they aggregate; a Stat sparkline benefits, though.)
 
+`{step}` gives every panel the same ~500 points. A fourth parameter, **`{buckets:UInt32}`**, follows the panel instead: one bucket per pixel of the panel's width, rounded up to a multiple of 100, from 100 to 1000. It is bound for every query (500 where there is no panel, such as a variable options query). Derive the bucket width from it in any time-based visualization whose resolution should match its size:
+
+```sql
+WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width
+SELECT toStartOfInterval(Timestamp, toIntervalSecond(width)) AS ts,
+       count() AS spans
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ts
+ORDER BY ts
+```
+
+Divide it for wider marks: `intDiv({buckets:UInt32}, 10)` gives one bar or cell per 10 pixels.
+
 Data shape per visualization (the viz infers everything from your columns):
 
 | Viz               | Return                                                                                                                                                                                                                                               |
@@ -96,7 +110,7 @@ Each visualization has its own option set and behaviors. **Load the rule file fo
 
 ## Test every query before applying
 
-Run every panel query with `everr cloud query` before applying, substituting concrete values for `{from:String}`, `{to:String}`, and `{step:UInt32}`. Test each query over several time ranges, at least a short one (1h) and a long one (7d or 30d), because a query that behaves at 1h can explode at 7d.
+Run every panel query with `everr cloud query` before applying, substituting concrete values for `{from:String}`, `{to:String}`, `{step:UInt32}`, and `{buckets:UInt32}` (try 100 and 1000). Test each query over several time ranges, at least a short one (1h) and a long one (7d or 30d), because a query that behaves at 1h can explode at 7d.
 
 On every range, the result must stay **far below 1,000 rows**. If it gets anywhere close, the query is wrong for a panel: tighten the bucketing (use `{step:UInt32}`), aggregate harder, or add a `LIMIT`. High-cardinality pivots (a `GROUP BY ts, SomeLabel` with many label values) are the usual culprit.
 
@@ -121,6 +135,35 @@ everr cloud query "SHOW CREATE TABLE traces"
 `traces` and `logs` sort by `ServiceName, Timestamp`. The `metrics_*` tables sort by `ServiceName, MetricName, ..., TimeUnix`.
 
 Re-run `EXPLAIN` after each change and keep the version that reads fewer granules for the same result.
+
+### Downsample raw series with M4
+
+A line over raw samples (a gauge, one row per scrape) returns one row per sample. Over a long range that passes the 25,000-row result cap, and `avg()` per bucket flattens short spikes. M4 keeps four rows per series per bucket (first, last, lowest, highest), so the result is bounded and a spike keeps its true height:
+
+```sql
+WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width
+SELECT pt.1 AS ts, service, pt.2 AS cpu
+FROM (
+  SELECT ServiceName AS service,
+         arrayJoin(arrayDistinct([
+           argMin((TimeUnix, Value), TimeUnix), argMax((TimeUnix, Value), TimeUnix),
+           argMin((TimeUnix, Value), Value), argMax((TimeUnix, Value), Value)
+         ])) AS pt
+  FROM metrics_gauge
+  WHERE MetricName = 'process.cpu.utilization'
+    AND TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+  GROUP BY service, intDiv(toUnixTimestamp(TimeUnix), width)
+)
+ORDER BY ts, service
+```
+
+- Each `argMin`/`argMax` returns the whole `(time, value)` row at that extreme, and `arrayDistinct` drops a row picked twice.
+- Without a series column, remove `service` from the `SELECT` and the `GROUP BY`.
+- Use it on raw samples only. `count()`, `avg()` and `quantile()` already return one row per bucket: bucket those with `{step:UInt32}`.
+- The result has up to 4 × `{buckets}` rows per series, 4,000 on a wide panel. This is the one exception to the 1,000-row rule: filter to few enough series that series × 4,000 stays under the 25,000-row cap.
+- Leave `stacked` off: stacking sums series at shared timestamps, and M4 keeps different timestamps per series.
+- Keep the `width` expression as written. When the query uses `{buckets}`, `TimeSeriesChart` breaks a line only at a gap of at least that width, so the uneven spacing inside a bucket draws as one line.
+- Verify with `{buckets}` at 1000 over the long range: `max()` of the value column equals `max()` of the raw query.
 
 ## Variables
 
@@ -174,4 +217,5 @@ For `allowAllValue`, "All" expands to every loaded option as a quoted list; set 
 | `Duration` treated as ms/seconds                                                                                                       | It's **nanoseconds**, divide by `1e6` (ms) or `1e9` (s).                                                                                                         |
 | Applying without running the queries                                                                                                   | Test every query with `everr cloud query` over both a short and a long time range.                                                                               |
 | Result sets approaching 1,000 rows on any range                                                                                        | Bucket with `{step:UInt32}`, aggregate harder, or `LIMIT`, panels must stay far below 1k rows.                                                                   |
+| A line over raw samples fails with `Limit for result exceeded`, or `avg()` hides its spikes                                            | Downsample with M4 and `{buckets:UInt32}`, see "Downsample raw series with M4".                                                                                  |
 | Small result, but the query reads most of the table                                                                                    | Run `EXPLAIN indexes = 1` over the long range and filter on the sort-key columns (`ServiceName`, `MetricName`) until the `PrimaryKey` granules drop.             |

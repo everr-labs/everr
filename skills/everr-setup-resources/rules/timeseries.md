@@ -60,6 +60,7 @@ To break **multiple** metrics out per service, use **one query per metric** (eac
 ## Behaviors to know
 
 - **Multiple queries overlay** on one shared timeline; series colors continue across queries.
-- **Gaps:** a line breaks where two consecutive points are more than ~1.5× the series' median interval apart. `connectNulls: true` bridges them. Irregularly-sampled series look broken unless bucketed evenly.
+- **Gaps:** a line breaks where two consecutive points are more than ~1.5× the series' median interval apart. When the query uses `{buckets:UInt32}`, the gap must also span at least one bucket. `connectNulls: true` bridges them. Irregularly-sampled series look broken unless bucketed evenly or downsampled with M4.
+- **Raw samples:** downsample with M4 (`rules/queries.md`) instead of plotting every row or averaging the spikes away.
 - **Edge buckets are partial** (the picker rarely lands on a bucket boundary): the leading bucket is kept but clipped at the left edge, and the trailing bucket reads low. Don't mistake the trailing dip for a real regression.
 - **Drag across the plot to zoom** — a user action that rewrites the time range; nothing to configure.

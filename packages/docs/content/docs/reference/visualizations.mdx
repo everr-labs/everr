@@ -592,6 +592,45 @@ The width snaps to clock-aligned values so bucket boundaries land on clean axis 
   values as approximate, and don't mistake the trailing dip for a real drop.
 </Callout>
 
+### Panel-sized buckets
+
+`{buckets:UInt32}` is the number of time buckets that fits the panel: one per pixel of its width, rounded up to a multiple of 100, from 100 to 1000. A wider panel gets finer buckets, and a resize runs the query again.
+
+```sql
+WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width
+SELECT toStartOfInterval(Timestamp, toIntervalSecond(width)) AS ts,
+       count() AS spans
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY ts
+ORDER BY ts
+```
+
+Only a query that references the parameter depends on the panel width.
+
+### Keep spikes with M4
+
+A line over raw samples can return more rows than the 25,000-row result cap, and `avg()` per bucket flattens short spikes. M4 keeps the first, last, lowest and highest row of each series in each bucket. The result is bounded and a spike keeps its true height.
+
+```sql
+WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width
+SELECT pt.1 AS ts, service, pt.2 AS cpu
+FROM (
+  SELECT ServiceName AS service,
+         arrayJoin(arrayDistinct([
+           argMin((TimeUnix, Value), TimeUnix), argMax((TimeUnix, Value), TimeUnix),
+           argMin((TimeUnix, Value), Value), argMax((TimeUnix, Value), Value)
+         ])) AS pt
+  FROM metrics_gauge
+  WHERE MetricName = 'process.cpu.utilization'
+    AND TimeUnix >= {from:String} AND TimeUnix <= {to:String}
+  GROUP BY service, intDiv(toUnixTimestamp(TimeUnix), width)
+)
+ORDER BY ts, service
+```
+
+The result has up to four rows per bucket per series. When a query uses `{buckets}`, `TimeSeriesChart` breaks a line only at a gap of at least one bucket, so the uneven spacing inside a bucket draws as one line. Leave `stacked` off for an M4 query: series keep different timestamps.
+
 You can also reference dashboard [variables](/docs/reference/variables) with `$name` tokens, which Everr interpolates server-side before running the query.
 
 ## TestData query kind (development / test)
