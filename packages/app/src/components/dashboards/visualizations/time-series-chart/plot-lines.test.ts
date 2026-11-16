@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vite-plus/test";
 import { plotLines } from "./plot-lines";
-import { buildChartModel, type SeriesPoint } from "./time-series-data";
+import { buildChartModel, type ChartSeries } from "./time-series-data";
+
+type SeriesPoint = [time: number, value: number | null];
+
+/** Every point of a model line as `[time, value]`, null where there is no number. */
+function allPoints(series: ChartSeries | undefined): SeriesPoint[] {
+  return Array.from(series?.times ?? [], (time, i) => {
+    const value = series?.values[i] ?? Number.NaN;
+    return [time, Number.isNaN(value) ? null : value];
+  });
+}
 
 const FROM = Date.parse("2026-06-07T00:00:00Z");
 const SECOND = 1_000;
@@ -74,13 +84,13 @@ describe("plotLines", () => {
   it("hands back a line with few points per pixel as it is", () => {
     const model = buildChartModel([wanderingRows(300, 1)], [FROM, FROM + 300 * SECOND]);
     const [line] = plotLines(model, false).forPlot(100, 1);
-    expect(line?.points).toBe(model.series[0]?.data);
+    expect(line?.points).toEqual(allPoints(model.series[0]));
   });
 
   it("keeps where a dense line enters, leaves, bottoms and peaks in every pixel column", () => {
     const domain: [number, number] = [FROM, FROM + 20_000 * SECOND];
     const model = buildChartModel([wanderingRows(20_000, 2)], domain);
-    const full = model.series[0]?.data ?? [];
+    const full = allPoints(model.series[0]);
 
     const [line] = plotLines(model, false).forPlot(250, 1);
     const drawn = line?.points ?? [];
@@ -91,7 +101,9 @@ describe("plotLines", () => {
       expect(column.points).toBeLessThanOrEqual(4);
     }
     // The model's own points, in the model's order: none moved or made up.
-    const positions = drawn.map((point) => full.indexOf(point));
+    const positions = drawn.map(([time, value]) =>
+      full.findIndex((point) => point[0] === time && point[1] === value),
+    );
     expect(positions.every((position, i) => position > (positions[i - 1] ?? -1))).toBe(true);
   });
 
@@ -111,7 +123,7 @@ describe("plotLines", () => {
   it("thins to the canvas's own pixels, twice as fine on a screen twice as sharp", () => {
     const domain: [number, number] = [FROM, FROM + 20_000 * SECOND];
     const model = buildChartModel([wanderingRows(20_000, 11)], domain);
-    const full = model.series[0]?.data ?? [];
+    const full = allPoints(model.series[0]);
     const [line] = plotLines(model, false).forPlot(125, 2);
     expect(shapes(line?.points ?? [], domain, 250)).toEqual(shapes(full, domain, 250));
     expect(line?.points.length).toBeLessThanOrEqual(4 * 250);
@@ -132,7 +144,7 @@ describe("plotLines", () => {
     const rows = wanderingRows(10_000, 4).filter((_, i) => i < 3_000 || i >= 6_000);
     const domain: [number, number] = [FROM, FROM + 10_000 * SECOND];
     const model = buildChartModel([rows], domain);
-    const full = model.series[0]?.data ?? [];
+    const full = allPoints(model.series[0]);
     const gap = full.findIndex(([, value]) => value === null);
     expect(gap).toBeGreaterThan(0);
 
@@ -142,20 +154,20 @@ describe("plotLines", () => {
     const drawnGap = drawn.findIndex(([, value]) => value === null);
 
     expect(drawn.filter(([, value]) => value === null)).toHaveLength(1);
-    expect(drawn[drawnGap - 1]).toBe(full[gap - 1]);
-    expect(drawn[drawnGap]).toBe(full[gap]);
-    expect(drawn[drawnGap + 1]).toBe(full[gap + 1]);
+    expect(drawn[drawnGap - 1]).toEqual(full[gap - 1]);
+    expect(drawn[drawnGap]).toEqual(full[gap]);
+    expect(drawn[drawnGap + 1]).toEqual(full[gap + 1]);
   });
 
   it("keeps the bucket that starts left of the time range", () => {
     const domain: [number, number] = [FROM + 500, FROM + 5_000 * SECOND];
     const model = buildChartModel([wanderingRows(5_000, 5)], domain);
-    const full = model.series[0]?.data ?? [];
+    const full = allPoints(model.series[0]);
     expect(full[0]?.[0]).toBeLessThan(domain[0]);
 
     const [line] = plotLines(model, false).forPlot(50, 1);
     expect(line?.points.length).toBeLessThan(full.length);
-    expect(line?.points[0]).toBe(full[0]);
+    expect(line?.points[0]).toEqual(full[0]);
   });
 
   it.each([0, -10, Number.NaN, Number.POSITIVE_INFINITY])(
@@ -163,7 +175,7 @@ describe("plotLines", () => {
     (plotWidth) => {
       const model = buildChartModel([wanderingRows(5_000, 6)], [FROM, FROM + 5_000 * SECOND]);
       const [line] = plotLines(model, false).forPlot(plotWidth, 1);
-      expect(line?.points).toBe(model.series[0]?.data);
+      expect(line?.points).toEqual(allPoints(model.series[0]));
     },
   );
 
@@ -190,7 +202,11 @@ describe("plotLines", () => {
     const rows = wanderingRows(100, 8).map((row, i) => ({ ...row, other: i }));
     const model = buildChartModel([rows], [FROM, FROM + 100 * SECOND]);
     expect(plotLines(model, false).forPlot(800, 1)).toEqual(
-      model.series.map(({ id, color, data }) => ({ id, color, points: data })),
+      model.series.map((series) => ({
+        id: series.id,
+        color: series.color,
+        points: allPoints(series),
+      })),
     );
   });
 });

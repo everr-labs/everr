@@ -1,20 +1,19 @@
-import type { ChartModel, ChartSeries, SeriesPoint } from "./time-series-data";
-import { TS_KEY } from "./time-series-data";
+import type { ChartModel, ChartSeries } from "./time-series-data";
 
 /** M4 keeps at most this many points per pixel column: the first, the last,
  * the lowest and the highest. */
 const POINTS_PER_COLUMN = 4;
 
+/** One point as ECharts takes it; a null value breaks the line. */
+type DrawnPoint = [time: number, value: number | null];
+
 /** One series as ECharts draws it. */
 interface DrawnLine {
   id: ChartSeries["id"];
   color: ChartSeries["color"];
-  /**
-   * The series option's `data`, ascending in time. Every point is one of the
-   * model's own, never moved or made up, and a line with nothing to drop is
-   * the model's own array: do not mutate it.
-   */
-  points: SeriesPoint[];
+  /** The series option's `data`, ascending in time. Every point is one of the
+   * model's own, never moved or made up. */
+  points: DrawnPoint[];
 }
 
 /** What a time-series chart draws, decided before it knows its width. */
@@ -58,9 +57,9 @@ export function plotLines(model: ChartModel, stacked: boolean): PlotLines {
 function ownLines({ series, domain }: ChartModel): PlotLines {
   let low = Number.POSITIVE_INFINITY;
   let high = Number.NEGATIVE_INFINITY;
-  for (const { data } of series) {
-    for (const [, value] of data) {
-      if (value === null) continue;
+  for (const { values } of series) {
+    for (const value of values) {
+      // A NaN is below and above nothing.
       if (value < low) low = value;
       if (value > high) high = value;
     }
@@ -69,54 +68,56 @@ function ownLines({ series, domain }: ChartModel): PlotLines {
     extent: [low, high],
     forPlot: (width, pixelRatio) => {
       const columns = columnsAcross(width * pixelRatio, domain);
-      return series.map(({ id, color, data }) => ({
-        id,
-        color,
-        points: columns ? thinLine(data, columns) : data,
-      }));
+      return series.map(({ id, color, times, values }) => {
+        const keep = columns && tooManyFor(times, columns) ? new Uint8Array(times.length) : null;
+        if (keep && columns) markM4(times, values, columns, keep);
+        return { id, color, points: points(times, values, keep) };
+      });
     },
   };
 }
 
 /**
- * Every series on the merged timeline, as ECharts' stacking by index needs. A
- * missing or null sample adds nothing to its bucket, so it is 0: left
- * undefined it would corrupt the running offset of the series above it.
+ * Every series on the model's timeline, as ECharts' stacking by index needs. A
+ * missing or non-numeric sample adds nothing to its bucket, so it is 0: left
+ * out it would corrupt the running offset of the series above it.
  */
-function stackedLines({ chartData, series, domain }: ChartModel): PlotLines {
-  const times = Float64Array.from(chartData, (row) => row[TS_KEY]);
+function stackedLines({ times, series, domain }: ChartModel): PlotLines {
   // ECharts stacks from zero, so a stack's axis always shows it.
   let low = 0;
   let high = 0;
   const tops = new Float64Array(times.length);
-  const bands = series.map(({ id, color }) => {
-    const points = chartData.map((row): SeriesPoint => {
-      const value = row[id];
-      return [row[TS_KEY], typeof value === "number" ? value : 0];
-    });
+  const bands = series.map(({ id, color, times: own, values: ownValues }) => {
+    const values = new Float64Array(times.length);
     // Where this band's edge is drawn: the running sum in series order, signed
     // (`stackStrategy: "all"`).
-    const edge = Float64Array.from(points, ([, value], i) => {
-      const top = tops[i] + (value ?? 0);
+    const edge = new Float64Array(times.length);
+    let at = 0;
+    times.forEach((time, i) => {
+      while (at < own.length && own[at] < time) at++;
+      const value = own[at] === time ? ownValues[at] : Number.NaN;
+      values[i] = Number.isNaN(value) ? 0 : value;
+      const top = tops[i] + values[i];
       tops[i] = top;
+      edge[i] = top;
       if (top < low) low = top;
       if (top > high) high = top;
-      return top;
     });
-    return { id, color, points, edge };
+    return { id, color, values, edge };
   });
   return {
     extent: [low, high],
     forPlot: (width, pixelRatio) => {
       const columns = columnsAcross(width * pixelRatio, domain);
-      if (!columns || times.length <= POINTS_PER_COLUMN * columns.count) {
-        return bands.map(({ id, color, points }) => ({ id, color, points }));
-      }
       // One set of timestamps for every band: all that any edge needs. More
       // points than an edge's own leave it drawn the same.
-      const keep = new Uint8Array(times.length);
-      for (const { edge } of bands) markM4(times, edge, columns, keep);
-      return bands.map(({ id, color, points }) => ({ id, color, points: pick(points, keep) }));
+      const keep = columns && tooManyFor(times, columns) ? new Uint8Array(times.length) : null;
+      if (keep && columns) for (const { edge } of bands) markM4(times, edge, columns, keep);
+      return bands.map(({ id, color, values }) => ({
+        id,
+        color,
+        points: points(times, values, keep),
+      }));
     },
   };
 }
@@ -137,17 +138,8 @@ function columnsAcross(pixels: number, [from, to]: readonly [number, number]): C
   return { count, from, perMs: count / (to - from) };
 }
 
-function thinLine(points: SeriesPoint[], columns: Columns): SeriesPoint[] {
-  if (points.length <= POINTS_PER_COLUMN * columns.count) return points;
-  const times = new Float64Array(points.length);
-  const values = new Float64Array(points.length);
-  points.forEach(([time, value], i) => {
-    times[i] = time;
-    values[i] = value ?? Number.NaN;
-  });
-  const keep = new Uint8Array(points.length);
-  markM4(times, values, columns, keep);
-  return pick(points, keep);
+function tooManyFor(times: Float64Array, columns: Columns): boolean {
+  return times.length > POINTS_PER_COLUMN * columns.count;
 }
 
 /**
@@ -218,8 +210,13 @@ function markColumn(
   keep[highest] = 1;
 }
 
-/** The marked points, in order; `points` itself when all of them are. */
-function pick(points: SeriesPoint[], keep: Uint8Array): SeriesPoint[] {
-  const kept = points.filter((_, i) => keep[i] === 1);
-  return kept.length === points.length ? points : kept;
+/** The points ECharts takes: the marked ones, or all of them without marks. */
+function points(times: Float64Array, values: Float64Array, keep: Uint8Array | null): DrawnPoint[] {
+  const drawn: DrawnPoint[] = [];
+  for (let i = 0; i < times.length; i++) {
+    if (keep && keep[i] === 0) continue;
+    const value = values[i];
+    drawn.push([times[i], Number.isNaN(value) ? null : value]);
+  }
+  return drawn;
 }
