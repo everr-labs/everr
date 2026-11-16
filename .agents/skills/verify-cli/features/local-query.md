@@ -39,4 +39,4 @@ Preconditions:
 - Without `--format`, output depends on whether stdout is a TTY; the helper captures to files, so the default there is ndjson.
 - Include `LIMIT` yourself; the CLI does not add one.
 - JSON attribute columns use dot paths (`LogAttributes.everr.wrap.stream`), not map subscripts.
-- `recordings` is the local counterpart of the web app's `app.recordings` (verify-web-app `features/web-replay.md`); the web side routes segments with a `routing` connector in `collector/config.example.yml`.
+- `recordings` is the local counterpart of the web app's `app.recordings`; the web side routes segments with a `routing` connector in `collector/config.example.yml`.
