@@ -18,14 +18,22 @@ const shutdownBound = 5 * time.Second
 // holds the connection open.
 func (i *instance) stallOTLPRequest(t *testing.T) {
 	t.Helper()
-	conn, err := net.Dial("tcp", strings.TrimPrefix(i.otlp, "http://"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
+	i.stallOTLPRequests(t, 1)
+}
+
+// stallOTLPRequests opens n such requests, each in its own connection.
+func (i *instance) stallOTLPRequests(t *testing.T, n int) {
+	t.Helper()
 	request := "POST /v1/logs HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n" + `{"resourceLogs":`
-	if _, err := fmt.Fprint(conn, request); err != nil {
-		t.Fatal(err)
+	for range n {
+		conn, err := net.Dial("tcp", strings.TrimPrefix(i.otlp, "http://"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Close() })
+		if _, err := fmt.Fprint(conn, request); err != nil {
+			t.Fatal(err)
+		}
 	}
 	time.Sleep(300 * time.Millisecond)
 }
