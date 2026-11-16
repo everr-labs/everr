@@ -5,7 +5,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -263,6 +266,54 @@ func TestWrapRelaysInterruptSentToItAlone(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		_ = cmd.Process.Kill()
 		t.Fatal("the wrapped command never received the interrupt")
+	}
+}
+
+func TestWrapExitsOnSIGTERMWhileABackgroundProcessHoldsItsOutput(t *testing.T) {
+	collector := newOTLPServer(t, 0)
+	pidFile := filepath.Join(t.TempDir(), "sleep.pid")
+	cmd := collectorEnv(t, collector.URL).Command("wrap", "--", "sh", "-c",
+		"sleep 30 & echo $! > "+pidFile+"; echo $$")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	t.Cleanup(func() {
+		raw, err := os.ReadFile(pidFile)
+		if err != nil {
+			return
+		}
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+	})
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(stdout).ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(5 * time.Second); syscall.Kill(shell, 0) == nil; time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("wrap never reaped the wrapped shell")
+		}
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		_ = cmd.Process.Kill()
+		t.Fatal("wrap kept running after SIGTERM once its child had exited")
 	}
 }
 
