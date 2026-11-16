@@ -159,17 +159,23 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
-                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             series,
-                             avg(Value) AS value
-                      FROM points
-                      WHERE series IN (
-                        SELECT series FROM points WHERE 1
-                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width,
+                           points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
+                      SELECT pt.1 AS ts, series, pt.2 AS value
+                      FROM (
+                        SELECT series,
+                               arrayJoin(arrayDistinct([
+                                 argMin((TimeUnix, Value), TimeUnix), argMax((TimeUnix, Value), TimeUnix),
+                                 argMin((TimeUnix, Value), Value), argMax((TimeUnix, Value), Value)
+                               ])) AS pt
+                        FROM points
+                        WHERE series IN (
+                          SELECT series FROM points WHERE 1
+                          GROUP BY series ORDER BY count() DESC LIMIT 6
+                        )
+                        GROUP BY series, intDiv(toUnixTimestamp(TimeUnix), width)
                       )
-                      GROUP BY ts, series
-                      ORDER BY ts
+                      ORDER BY ts, series
       node-memory:
         kind: Panel
         spec:
@@ -189,17 +195,23 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set')
-                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             series,
-                             avg(Value) / 1073741824 AS value
-                      FROM points
-                      WHERE series IN (
-                        SELECT series FROM points WHERE 1
-                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      WITH greatest(1, intDiv(toDateTime({to:String}) - toDateTime({from:String}), {buckets:UInt32})) AS width,
+                           points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set')
+                      SELECT pt.1 AS ts, series, pt.2 / 1073741824 AS value
+                      FROM (
+                        SELECT series,
+                               arrayJoin(arrayDistinct([
+                                 argMin((TimeUnix, Value), TimeUnix), argMax((TimeUnix, Value), TimeUnix),
+                                 argMin((TimeUnix, Value), Value), argMax((TimeUnix, Value), Value)
+                               ])) AS pt
+                        FROM points
+                        WHERE series IN (
+                          SELECT series FROM points WHERE 1
+                          GROUP BY series ORDER BY count() DESC LIMIT 6
+                        )
+                        GROUP BY series, intDiv(toUnixTimestamp(TimeUnix), width)
                       )
-                      GROUP BY ts, series
-                      ORDER BY ts
+                      ORDER BY ts, series
       namespace-cpu:
         kind: Panel
         spec:
