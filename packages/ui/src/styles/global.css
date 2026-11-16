@@ -326,12 +326,6 @@
   }
 }
 
-@layer utilities {
-  .animate-fade-up {
-    animation: fade-up 0.6s var(--ease-out) both;
-  }
-}
-
 /* Popovers, menus, selects and tooltips. Transitions rather than keyframes,
    so a popup closed mid-entry reverses from where it is instead of jumping.
    Scale starts near 1 (never 0) and grows from the trigger via
@@ -417,253 +411,148 @@
   );
 }
 
-/* Button loading state (see Button's `loading` prop). The label's letters
-   lift out one after another, left to right, and drop back in the same order;
-   the spinner rises and draws itself in. Transitions, so a request finishing
-   mid-way reverses from wherever it got to. */
-.button-ripple-item {
-  display: inline-block;
-  transition-property: translate, opacity, filter;
-  transition-duration: 260ms;
-  transition-timing-function: var(--ease-out);
-  transition-delay: calc(var(--ripple-index, 0) * 14ms);
-}
+/* Component animations, used as animate-* classes. The states that play them
+   live on the components as variants (in-data-loading:, data-[status=error]:,
+   in-data-[row-phase=enter]:); Tailwind emits a keyframe only when its
+   animation is used.
+   - Button (its `loading` and `status` props): after a success the label stays
+     out while the ring closes and the check draws in, then ripples back; an
+     error shakes the button once.
+   - Spinner: the arc grows and shrinks while the whole turns.
+   - DataTable `animateRows`: a row cannot animate its height, so each cell's
+     content sits in a grid track that goes between 0fr and 1fr while the
+     cell's vertical padding follows. Exit is quicker than entry. */
+@theme {
+  --animate-button-label-return: button-label-return 1.25s var(--ease-out) backwards;
+  --animate-button-label-fade: fade-in-only 1.25s var(--ease-out) 900ms backwards;
+  --animate-button-success: button-success 1.1s var(--ease-out) backwards;
+  --animate-button-draw-ring: button-draw 360ms var(--ease-out) both;
+  --animate-button-draw-check: button-draw 260ms var(--ease-out) 220ms both;
+  --animate-button-shake: button-shake 360ms var(--ease-out);
+  --animate-spinner-turn: spinner-turn 0.9s linear infinite;
+  --animate-spinner-arc: spinner-arc 1.4s var(--ease-in-out) infinite;
+  --animate-row-enter: row-enter 280ms var(--ease-out) backwards;
+  --animate-row-exit: row-exit 220ms var(--ease-out) forwards;
+  --animate-cell-grow: cell-grow 280ms var(--ease-out) backwards;
+  --animate-cell-shrink: cell-shrink 220ms var(--ease-out) forwards;
+  --animate-fade-up: fade-up 0.6s var(--ease-out) both;
 
-/* Entry waits 150ms: most requests finish sooner, and then nothing shows.
-   A transition that has not started yet is simply cancelled. */
-[data-loading] .button-ripple-item {
-  translate: 0 -0.6em;
-  opacity: 0;
-  filter: blur(2px);
-  transition-delay: calc(150ms + var(--ripple-index, 0) * 14ms);
-}
-
-/* After a success the label stays out while the check plays, then ripples
-   back. An animation rather than a delay, so it also clears the label when
-   the request was too fast for the loading state to have shown. Fill is
-   `backwards` only: its last frame is the resting state anyway, and a fill
-   that outlives the animation stops the next run's delayed transition. */
-[data-status="success"] .button-ripple-item {
-  animation: button-label-return 1.25s var(--ease-out) backwards;
-  animation-delay: calc(var(--ripple-index, 0) * 14ms);
-}
-
-@keyframes button-label-return {
-  0%,
-  78% {
-    translate: 0 0.6em;
-    opacity: 0;
-    filter: blur(2px);
-  }
-  100% {
-    translate: 0 0;
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-.button-spinner {
-  opacity: 0;
-  scale: 0.6;
-  translate: 0 0.5em;
-  transition-property: opacity, scale, translate;
-  transition-duration: 280ms;
-  transition-timing-function: var(--ease-out);
-}
-
-[data-loading] .button-spinner {
-  opacity: 1;
-  scale: 1;
-  translate: 0 0;
-  transition-delay: 240ms;
-}
-
-/* Success: the ring closes, the check draws in, both hold, then fade as the
-   label ripples back. Keyframes, because it plays once and then is done. */
-.button-success {
-  opacity: 0;
-}
-
-[data-status="success"] .button-success {
-  animation: button-success 1.1s var(--ease-out) backwards;
-}
-
-.button-success-ring,
-.button-success-check {
-  stroke-dasharray: 0 100;
-}
-
-[data-status="success"] .button-success-ring {
-  animation: button-draw 360ms var(--ease-out) both;
-}
-
-[data-status="success"] .button-success-check {
-  animation: button-draw 260ms var(--ease-out) 220ms both;
-}
-
-[data-status="error"] {
-  animation: button-shake 360ms var(--ease-out);
-}
-
-@keyframes button-success {
-  0% {
-    opacity: 0;
-    scale: 0.8;
-  }
-  15%,
-  75% {
-    opacity: 1;
-    scale: 1;
-  }
-  100% {
-    opacity: 0;
-    scale: 0.9;
-  }
-}
-
-@keyframes button-draw {
-  from {
-    stroke-dasharray: 0 100;
-  }
-  to {
-    stroke-dasharray: 100 0;
-  }
-}
-
-@keyframes button-shake {
-  0%,
-  100% {
-    translate: 0;
-  }
-  20% {
-    translate: -4px;
-  }
-  40% {
-    translate: 3px;
-  }
-  60% {
-    translate: -2px;
-  }
-  80% {
-    translate: 1px;
-  }
-}
-
-/* The shared Spinner: the arc grows and shrinks while the whole turns. */
-.spinner {
-  animation: spinner-turn 0.9s linear infinite;
-}
-
-.spinner-arc {
-  animation: spinner-arc 1.4s var(--ease-in-out) infinite;
-}
-
-@keyframes spinner-turn {
-  to {
-    rotate: 360deg;
-  }
-}
-
-@keyframes spinner-arc {
-  0% {
-    stroke-dasharray: 1 150;
-    stroke-dashoffset: 0;
-  }
-  50% {
-    stroke-dasharray: 55 150;
-    stroke-dashoffset: -18;
-  }
-  100% {
-    stroke-dasharray: 55 150;
-    stroke-dashoffset: -99;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .button-ripple-item,
-  [data-loading] .button-ripple-item {
-    translate: none;
-    filter: none;
-    transition-delay: 0ms;
+  @keyframes button-label-return {
+    0%,
+    78% {
+      translate: 0 0.6em;
+      opacity: 0;
+      filter: blur(2px);
+    }
+    100% {
+      translate: 0 0;
+      opacity: 1;
+      filter: blur(0);
+    }
   }
 
-  .button-spinner,
-  [data-loading] .button-spinner {
-    scale: 1;
-    translate: none;
+  @keyframes button-success {
+    0% {
+      opacity: 0;
+      scale: 0.8;
+    }
+    15%,
+    75% {
+      opacity: 1;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      scale: 0.9;
+    }
   }
 
-  [data-status="error"] {
-    animation: none;
+  @keyframes button-draw {
+    from {
+      stroke-dasharray: 0 100;
+    }
+    to {
+      stroke-dasharray: 100 0;
+    }
   }
 
-  [data-status="success"] .button-ripple-item {
-    animation-name: fade-in-only;
-    animation-delay: 900ms;
+  @keyframes button-shake {
+    0%,
+    100% {
+      translate: 0;
+    }
+    20% {
+      translate: -4px;
+    }
+    40% {
+      translate: 3px;
+    }
+    60% {
+      translate: -2px;
+    }
+    80% {
+      translate: 1px;
+    }
   }
-}
 
-/* DataTable `animateRows`. A row cannot animate its height, so each cell's
-   content sits in a grid track that goes between 0fr and 1fr while the cell's
-   own vertical padding follows. Exit is quicker than entry. */
-.data-table-cell {
-  display: grid;
-  grid-template-rows: 1fr;
-}
-
-.data-table-cell > div {
-  min-height: 0;
-  overflow: hidden;
-}
-
-tr[data-row-phase="enter"] > td {
-  animation: data-table-row-enter 280ms var(--ease-out) backwards;
-}
-
-tr[data-row-phase="enter"] > td > .data-table-cell {
-  animation: data-table-cell-grow 280ms var(--ease-out) backwards;
-}
-
-tr[data-row-phase="exit"] > td {
-  animation: data-table-row-exit 220ms var(--ease-out) forwards;
-}
-
-tr[data-row-phase="exit"] > td > .data-table-cell {
-  animation: data-table-cell-shrink 220ms var(--ease-out) forwards;
-}
-
-@keyframes data-table-row-enter {
-  from {
-    padding-block: 0;
-    opacity: 0;
-    translate: 0 -4px;
+  @keyframes spinner-turn {
+    to {
+      rotate: 360deg;
+    }
   }
-}
 
-@keyframes data-table-cell-grow {
-  from {
-    grid-template-rows: 0fr;
+  @keyframes spinner-arc {
+    0% {
+      stroke-dasharray: 1 150;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 55 150;
+      stroke-dashoffset: -18;
+    }
+    100% {
+      stroke-dasharray: 55 150;
+      stroke-dashoffset: -99;
+    }
   }
-}
 
-@keyframes data-table-row-exit {
-  to {
-    padding-block: 0;
-    opacity: 0;
-    border-color: transparent;
+  @keyframes row-enter {
+    from {
+      padding-block: 0;
+      opacity: 0;
+      translate: 0 -4px;
+    }
   }
-}
 
-@keyframes data-table-cell-shrink {
-  to {
-    grid-template-rows: 0fr;
+  @keyframes row-exit {
+    to {
+      padding-block: 0;
+      opacity: 0;
+      border-color: transparent;
+    }
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  tr[data-row-phase] > td,
-  tr[data-row-phase] > td > .data-table-cell {
-    animation-duration: 1ms;
+  @keyframes cell-grow {
+    from {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  @keyframes cell-shrink {
+    to {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 
@@ -745,16 +634,5 @@ tr[data-row-phase="exit"] > td > .data-table-cell {
   }
   to {
     background-position: -50% 0;
-  }
-}
-
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

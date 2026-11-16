@@ -83,14 +83,14 @@ function Button({
       // oxlint-disable-next-line react/no-array-index-key -- a label's children never reorder; position is their identity.
       <span key={runIndex} aria-hidden className="inline-flex whitespace-pre">
         {graphemes(String(child)).map((char) => (
-          <span key={index} className="button-ripple-item" style={rippleIndex(index++)}>
+          <span key={index} className={rippleItem} style={rippleIndex(index++)}>
             {char}
           </span>
         ))}
       </span>
     ) : (
       // oxlint-disable-next-line react/no-array-index-key -- a label's children never reorder; position is their identity.
-      <span key={runIndex} className="button-ripple-item inline-flex" style={rippleIndex(index++)}>
+      <span key={runIndex} className={cn(rippleItem, "inline-flex")} style={rippleIndex(index++)}>
         {child}
       </span>
     ),
@@ -111,6 +111,7 @@ function Button({
       className={cn(
         buttonVariants({ variant, size, className }),
         "relative overflow-hidden data-loading:disabled:opacity-100",
+        "data-[status=error]:animate-button-shake motion-reduce:data-[status=error]:animate-none",
       )}
       {...props}
     >
@@ -120,13 +121,17 @@ function Button({
         aria-hidden
         className="pointer-events-none absolute inset-0 flex items-center justify-center"
       >
-        <Spinner className="button-spinner" />
+        <Spinner className={buttonSpinner} />
       </span>
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 flex items-center justify-center"
       >
-        <svg viewBox="0 0 24 24" fill="none" className="button-success size-4">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          className="size-4 opacity-0 in-data-[status=success]:animate-button-success"
+        >
           <circle
             cx="12"
             cy="12"
@@ -134,7 +139,7 @@ function Button({
             stroke="currentColor"
             strokeWidth="2.25"
             pathLength="100"
-            className="button-success-ring"
+            className="[stroke-dasharray:0_100] in-data-[status=success]:animate-button-draw-ring"
           />
           <path
             d="M8 12.5l2.75 2.75L16 10"
@@ -143,13 +148,43 @@ function Button({
             strokeLinecap="round"
             strokeLinejoin="round"
             pathLength="100"
-            className="button-success-check"
+            className="[stroke-dasharray:0_100] in-data-[status=success]:animate-button-draw-check"
           />
         </svg>
       </span>
     </ButtonPrimitive>
   );
 }
+
+/* The loading state: the label's letters lift out one after another, left to
+   right, and drop back in the same order; the spinner rises and draws itself
+   in. Transitions, so a request finishing mid-way reverses from wherever it
+   got to. Entry waits 150ms: most requests finish sooner, and then nothing
+   shows, since a transition that has not started is simply cancelled.
+
+   After a success the label stays out while the check plays, then ripples
+   back. An animation rather than a delay, so it also clears the label when the
+   request was too fast for the loading state to have shown. Its fill is
+   `backwards` only: the last frame is the resting state anyway, and a fill
+   that outlives the animation stops the next run's delayed transition. */
+const rippleItem = cn(
+  "inline-block transition-[translate,opacity,filter] duration-260 ease-out",
+  "[transition-delay:calc(var(--ripple-index,0)*14ms)]",
+  "in-data-loading:-translate-y-[0.6em] in-data-loading:opacity-0 in-data-loading:blur-[2px]",
+  "in-data-loading:[transition-delay:calc(150ms+var(--ripple-index,0)*14ms)]",
+  "in-data-[status=success]:animate-button-label-return",
+  "in-data-[status=success]:[animation-delay:calc(var(--ripple-index,0)*14ms)]",
+  "motion-reduce:translate-none motion-reduce:blur-none motion-reduce:[transition-delay:0ms]",
+  "motion-reduce:in-data-loading:translate-none motion-reduce:in-data-loading:blur-none",
+  "motion-reduce:in-data-loading:[transition-delay:0ms]",
+  "motion-reduce:in-data-[status=success]:animate-button-label-fade",
+);
+
+const buttonSpinner = cn(
+  "translate-y-[0.5em] scale-60 opacity-0 transition-[opacity,scale,translate] duration-280 ease-out",
+  "in-data-loading:translate-y-0 in-data-loading:scale-100 in-data-loading:opacity-100 in-data-loading:delay-240",
+  "motion-reduce:translate-none motion-reduce:scale-100",
+);
 
 function rippleIndex(i: number) {
   const style: React.CSSProperties & Record<"--ripple-index", number> = { "--ripple-index": i };

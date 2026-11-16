@@ -72,6 +72,21 @@ function reconcileRows<T>(
   return next;
 }
 
+/* `animateRows`: a row cannot animate its height, so each cell's content
+   sits in a grid track that goes between 0fr and 1fr while the cell's own
+   vertical padding follows. Exit is quicker than entry. With reduced motion
+   the animations still run, for 1ms, because an exiting row is removed when
+   its animation ends. */
+const rowCell = cn(
+  "in-data-[row-phase=enter]:animate-row-enter in-data-[row-phase=exit]:animate-row-exit",
+  "motion-reduce:[animation-duration:1ms]",
+);
+const rowCellTrack = cn(
+  "grid grid-rows-[1fr] *:min-h-0 *:overflow-hidden",
+  "in-data-[row-phase=enter]:animate-cell-grow in-data-[row-phase=exit]:animate-cell-shrink",
+  "motion-reduce:[animation-duration:1ms]",
+);
+
 export function DataTable<T>({
   data,
   columns,
@@ -155,6 +170,7 @@ export function DataTable<T>({
                 // oxlint-disable-next-line react/no-array-index-key -- Columns have a fixed order for this table; row identity is supplied separately by rowKey.
                 key={i}
                 className={cn(
+                  animateRows && rowCell,
                   col.align === "end" && "text-right",
                   col.cellClassName ??
                     (bordered
@@ -170,7 +186,7 @@ export function DataTable<T>({
                 {animateRows ? (
                   // Two wrappers so the cell can collapse to zero height:
                   // a grid track animates from 1fr to 0fr, a table row cannot.
-                  <div className="data-table-cell">
+                  <div className={rowCellTrack}>
                     <div>{col.cell(row)}</div>
                   </div>
                 ) : (
