@@ -47,6 +47,6 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/cli/**`, `collector/cmd/everr-local-collector/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
-| `packages/local-app/**`, `packages/telemetry-explorer/**` | `local-ui-logs.md` (+ `local-query.md`) |
-| `packages/cli/skills/**`, skills commands | `skills.md` |
+| `packages/cli/**`, `collector/cmd/everr-local-collector/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
+| `packages/local-app/**`, `packages/telemetry-explorer/**`, `packages/ui/**` | `local-ui-logs.md` (+ `local-query.md`) |
+| `skills/**`, skills commands | `skills.md` |

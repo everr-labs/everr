@@ -24,7 +24,7 @@ V=.agents/skills/verify-cli/scripts/verify-cli.ts
 
 There is no long-lived server to share: build the debug CLI once, then start one isolated local instance per run.
 
-1. Toolchain (once per machine). The build needs: Node >= 24 (repo pins `.nvmrc` = 24; Node 20 cannot run the `.ts` build scripts), pnpm via corepack (version pinned in `packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. The helper itself runs on that Node and needs `ss` (Linux) or `lsof` (macOS); some recipes also use `jq`. The browser is driven with the [`agent-browser`](https://www.npmjs.com/package/agent-browser) CLI (required for every UI step; `doctor` checks it): `npm install -g agent-browser && agent-browser install` (downloads its Chrome; on a bare Linux host add `--with-deps`). Tested with 0.39.1.
+1. Toolchain (once per machine). The build needs: Node >= 24 (repo pins `.node-version` = 24; Node 20 cannot run the `.ts` build scripts), pnpm via corepack (version pinned in `packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. The helper itself runs on that Node and needs `ss` (Linux) or `lsof` (macOS); some recipes also use `jq`. The browser is driven with the [`agent-browser`](https://www.npmjs.com/package/agent-browser) CLI (required for every UI step; `doctor` checks it): `npm install -g agent-browser && agent-browser install` (downloads its Chrome; on a bare Linux host add `--with-deps`). Tested with 0.39.1.
 2. Build (once per source change). This is the repo's own `pnpm dev:cli`: builds `packages/local-app` (Vite), `make -C collector build-local` (Go), downloads the pinned chDB release into `target/chdb/`, gzips both into `target/cli-embedded-assets/`, then `cargo build` of the debug CLI with them embedded.
 
    ```bash
@@ -58,7 +58,7 @@ Read-only. Run first, and whenever anything looks off:
 $V doctor
 ```
 
-Checks: debug build and git HEAD, warns if `packages/cli/src`, `packages/local-app/src` or `collector/cmd` changed after the binary was built (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
+Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/src`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/cmd`, `collector/exporter/chdbexporter`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
 
 ## Drive
 

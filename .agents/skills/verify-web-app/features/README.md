@@ -35,8 +35,10 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Web API keys](./web-api-keys.md): create, list and persist `ek_` keys on `/api-keys`, and public keys with allowed origins.
 - [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
 - [Web dashboards and runbooks](./web-dashboards.md): `/api/apply` with a Manage-as-code key, grid with a static-list variable, panel pages carrying variables, runbook embed, built-ins, 404s.
-- [Web browser SDK](./web-browser-sdk.md): `@everr/otel-web` on a test page with a public key: CORS preflight, errors, failed requests, recordings into `app.recordings`, and the local endpoint without a key.
+- [Web browser SDK](./web-browser-sdk.md): `@everr/otel-web` on a test page with a public key: CORS preflight, errors, failed requests, and the local endpoint without a key.
 - [Web GitHub connection and webhook ingress](./web-github.md): `/github`, install start, webhook signature checks, signed delivery, and the GitHub App boundary.
+
+No recipe yet. Report a change in these areas as not covered by this map: alerts (`/alerts`, `/alerts/silences`, `/alerts/notifications`), users management and invites (`/users-management`), cost analysis (`/cost-analysis`), repos (`/repos`), billing (`/billing`), account (`/account`), CLI device login (`/device`), MCP consent (`/mcp/consent`).
 
 ## Changed path -> features
 
@@ -44,10 +46,9 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/app/src/routes/auth/**`, `src/lib/auth*`, organization setup | `web-auth.md` |
+| `packages/app/src/routes/_welcome/_guest/auth/**`, `src/lib/auth*`, `packages/cloud/**` (organization setup) | `web-auth.md` |
 | `packages/app/src/**/api-keys*`, `verify-key`, apikey schema | `web-api-keys.md`, then `web-explore.md` Seed |
-| `packages/app/src/routes/**/logs*`, `traces*`, `errors*`, `src/data/**` (Explore queries) | `web-explore.md` (empty + seeded) |
-| `packages/app/src/**/replay*`, `src/data/replay/**` | `web-browser-sdk.md` |
+| `packages/telemetry-explorer/**`, `packages/app/src/routes/**/logs*`, `traces*`, `errors*`, `src/data/**` (Explore queries) | `web-explore.md` (empty + seeded) |
 | `packages/otel-web/**` | `web-browser-sdk.md` |
 | `scripts/dev/collector-*.yaml`, `collector/**` (public edge, processors, exporters) | Web Launch + Doctor (CORS and config checks), `web-explore.md` Seed, `web-browser-sdk.md` |
 | `packages/*/clickhouse/**` | Web Launch + Doctor (row policies), `web-explore.md` seeded |
@@ -55,3 +56,4 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `packages/app/src/**/github*`, `/webhook/github` | `web-github.md` |
 | `packages/app/src/**/dashboards/**`, `src/components/dashboards/**`, `**/runbooks/**`, `src/data/as-code/**`, `/api/apply` | `web-dashboards.md` (needs `web-api-keys.md` with `VERIFY_KEY_MANAGE=1`, `web-seed`) |
 | `packages/app/src/routes/**/runs*` | `web-explore.md` empty `/runs` (rest is behind the GitHub boundary) |
+| `packages/ui/**` | the recipe for each page that uses the changed component |

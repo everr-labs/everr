@@ -7,16 +7,16 @@ Signed-in users explore their organization's telemetry on `/logs`, `/traces` and
 - `explore-logs` `/logs` renders filters (Service, Environment, Search, Severity counts all 0, Trace, Attributes) and `Log volume`.
 - `explore-traces` `/traces` renders for a provisioned org.
 - `explore-errors` `/errors` renders for a provisioned org.
-- `explore-runs` `/runs` shows `No runs in this range` / `No workflow runs match the current filters.` and filters for repository, status, branch, workflow.
+- `explore-runs` `/runs` shows `No runs in this time range` and filters for repository, status, branch, workflow.
 - `explore-seeded-logs` after `web-seed`, `/logs` filtered to service `verify-seed-api` lists the 3 seeded bodies, `Showing all 3 matching events`, and Severity counts Error 1, Warning 1, Info 1.
-- `explore-seeded-traces` `/traces` filtered to `verify-seed-api` lists one `/checkout` trace with status `Error` (`Showing all 1 matching traces`).
+- `explore-seeded-traces` `/traces` filtered to `verify-seed-api` lists one `/checkout` trace with status `Error` (`Showing 1 matching trace`).
 - `explore-seeded-trace-detail` `/traces/<trace id>` shows `3 spans`: `POST /checkout`, `SELECT orders`, `charge card`.
-- `explore-seeded-errors` `/errors` filtered to `verify-seed-api` groups the exception log as `VerifySeedPaymentError` / `card declined by verify-seed provider`, with `1` in the Occurrences column (`Showing all 1 matching errors`).
+- `explore-seeded-errors` `/errors` filtered to `verify-seed-api` groups the exception log as `VerifySeedPaymentError` / `card declined by verify-seed provider`, with `1` in the Occurrences column (`Showing 1 matching error`).
 - `explore-ingest-tenant` ingest rejects an invalid key (`401`) and stores the rows under the key's organization, not the `everr.tenant.id` the client sent.
 
 ## How to get to it (user POV)
 
-- Sidebar `EXPLORE` group: `Logs`, `Errors`, `Traces`; `CI/CD` group: `Runs`, `Cost Analysis`.
+- Sidebar `EXPLORE` group: `Logs`, `Errors`, `Traces`; `CI/CD` group: `Runs`, `Cost analysis`.
 - Direct URLs; filters live in the query string (for example `/logs?levels=[]&attributes=[]&showVolume=true`).
 
 ## Driving it with verify-web-app
@@ -32,10 +32,10 @@ Preconditions:
   agent-browser open "$WEB/logs" && agent-browser wait --text "Log volume" && agent-browser wait --text "Severity" && ab_save explore-01-logs
   agent-browser open "$WEB/traces" && agent-browser wait --text "Traces" && ab_save explore-02-traces
   agent-browser open "$WEB/errors" && agent-browser wait --text "Errors" && ab_save explore-03-errors
-  agent-browser eval "location.assign('$WEB/runs')" && agent-browser wait --timeout 180000 --text "No workflow runs match the current filters." && ab_save explore-04-runs
+  agent-browser eval "location.assign('$WEB/runs')" && agent-browser wait --timeout 180000 --text "No runs in this time range" && ab_save explore-04-runs
   ```
 
-  Every command exits `0`: `explore-01-logs.txt` contains `Log volume` and `Severity` with every count `0`; `explore-02-traces.txt`, `explore-03-errors.txt` render their titles; `explore-04-runs.txt` contains `No workflow runs match the current filters.` (`explore-logs`, `explore-traces`, `explore-errors`, `explore-runs`).
+  Every command exits `0`: `explore-01-logs.txt` contains `Log volume` and `Severity` with every count `0`; `explore-02-traces.txt`, `explore-03-errors.txt` render their titles; `explore-04-runs.txt` contains `No runs in this time range` (`explore-logs`, `explore-traces`, `explore-errors`, `explore-runs`).
 - **Queries really ran.** Check the run's dev log has no ClickHouse errors: `grep -ciE 'clickhouse.*(error|exception)' /tmp/verify-everr/web-$WEB_RUN_ID/web.log` prints `0` (during the run; after cleanup use `.verify-everr/artifacts/web-<id>/web.log`).
 - **Seed telemetry.** Do this after the empty-state check above, in the same run, once the web-api-keys.md "Create, list, reload" recipe has run (it saves the key as `secret` in the scratch dir). Run `$V web-seed` (or `$V web-seed --key-name <name>` / `--key-file <file>`). Exit `0`; output (and `seed/seed.txt`) shows `-> 200` for `/v1/traces` and `/v1/logs`, `(invalid key) -> 401`, `rows after <n>s:` with `logs=3 (severity >= 17: 1)` and `traces=3 (status Error: 2)` (either order), `tenant_id <org> == key organization <org>`, and the `SEEDED ... logs=3 errors=1 spans=3 traces=1` line (`explore-ingest-tenant`).
 - **Seeded pages.** Run:
@@ -45,7 +45,7 @@ Preconditions:
   agent-browser open "$WEB/logs?$SVC" && agent-browser wait --text "verify-seed: charge failed" && ab_save explore-seeded-01-logs
   grep -q "Showing all 3 matching events" "$SHOTS/explore-seeded-01-logs.txt" && grep -q "verify-seed: checkout started" "$SHOTS/explore-seeded-01-logs.txt" && grep -q "verify-seed: payment provider slow" "$SHOTS/explore-seeded-01-logs.txt"
   agent-browser open "$WEB/traces?$SVC" && agent-browser wait --text "verify-seed-api" && ab_save explore-seeded-02-traces
-  grep -q "Showing all 1 matching traces" "$SHOTS/explore-seeded-02-traces.txt" && grep -q "/checkout" "$SHOTS/explore-seeded-02-traces.txt"
+  grep -q "Showing 1 matching trace" "$SHOTS/explore-seeded-02-traces.txt" && grep -q "/checkout" "$SHOTS/explore-seeded-02-traces.txt"
   agent-browser open "$WEB/traces/$TRACE" && agent-browser wait --text "charge card" && ab_save explore-seeded-03-trace
   grep -q "3 spans" "$SHOTS/explore-seeded-03-trace.txt" && grep -q "SELECT orders" "$SHOTS/explore-seeded-03-trace.txt"
   agent-browser open "$WEB/errors?$SVC" && agent-browser wait --text "VerifySeedPaymentError" && ab_save explore-seeded-04-errors
@@ -60,7 +60,7 @@ Preconditions:
 ## Gotchas
 
 - Empty is the expected state until `web-seed` runs: only this run's key can write into this run's ClickHouse. Data on the empty-state recipe means it ran after seeding, or the app points at another database (`$V web-env`).
-- `web-seed` refuses a second call in the same run: the count assertions (`3 matching events`, `1 matching traces`) assume exactly one seed. Relaunch for a clean count. The counts are filtered to service `verify-seed-api`, so other telemetry in the same run (the SDK page's `verify-sdk-web`, replay segments) does not change them; the `.url` evidence must still contain `service=%5B%22verify-seed-api%22%5D`.
+- `web-seed` refuses a second call in the same run: the count assertions (`3 matching events`, `1 matching trace`) assume exactly one seed. Relaunch for a clean count. The counts are filtered to service `verify-seed-api`, so other telemetry in the same run (the SDK page's `verify-sdk-web`) does not change them; the `.url` evidence must still contain `service=%5B%22verify-seed-api%22%5D`.
 - The first visit to `/runs` compiles a large route tree in the dev server and has taken 57s and more on a busy host, so the recipe waits up to 180s. `agent-browser open` has its own fixed navigation timeout that can expire before that wait starts, so the recipe navigates with `eval "location.assign(...)"` (returns at once) and lets `wait` do the waiting. A timeout there is a slow compile until `web.log` says otherwise.
 - Never seed with `web-ch` inserts. It skips the key check and tenant stamping, and `app_ro` reads go through row policies that a hand-written `tenant_id` can satisfy by accident.
 - The traces list renders the root span as a `POST` badge plus `/checkout`, so wait on `verify-seed-api`, not `POST /checkout`. The logs table does not show the service name; assert it on `/traces` and `/errors`.

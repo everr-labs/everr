@@ -48,7 +48,7 @@ Preconditions:
   ```bash
   agent-browser find role button click --name "New key" && agent-browser wait --text "Send telemetry"
   agent-browser fill "#api-key-name" "$VERIFY_KEY_NAME-nocap" && ab_save keys-capability-required
-  agent-browser eval '[...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Create key").disabled'
+  agent-browser eval '[...document.querySelectorAll("button")].find((b) => b.textContent.includes("Create key")).disabled'
   agent-browser press Escape
   ```
 

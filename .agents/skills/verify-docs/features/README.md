@@ -49,12 +49,13 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/docs/src/components/{hero,site-header,faq,final-cta,ask-ai-*,footer,language-switch}.tsx`, `src/routes/index.tsx` | `landing.md` |
-| `packages/docs/src/components/{demo-player,monitoring-*,agent-demo,alerts-demo,hero-watch}/**`, `monitoring-section.tsx`, `how-it-works.tsx` | `product-demos.md` (+ `landing.md`) |
+| `packages/docs/src/components/{hero,site-header,faq,final-cta,ask-ai-*,footer,language-switch,under-the-hood,capability-marquee,technology-backdrop,featured-testimonial,mascot,github-info}.tsx`, `src/routes/index.tsx`, `src/routes/__root.tsx` | `landing.md` |
+| `packages/docs/src/components/demo-player.tsx`, `src/components/{monitoring-*,agent-demo,alerts-demo,hero-watch}/**`, `monitoring-section.tsx`, `how-it-works.tsx` | `product-demos.md` (+ `landing.md`) |
 | `packages/docs/src/components/pricing-cards.tsx`, `self-hosted-banner.tsx`, `src/routes/pricing.tsx` | `pricing.md` (+ `machine-endpoints.md` for the Markdown twin) |
 | `packages/docs/content/docs/**`, `src/routes/docs/**`, `source.config.ts`, `src/lib/source.ts`, `src/lib/layout.shared.tsx` | `docs-pages.md` (+ `docs-search.md` when titles or headings change) |
 | `packages/docs/content/devlog/**`, `content/pages/**`, `src/routes/devlog/**`, `src/routes/$page.tsx` | `docs-pages.md` (+ `machine-endpoints.md`) |
-| `packages/docs/src/lib/{agent-response,negotiation,llms,markdown-pages,site-markdown,not-found-markdown,sitemap}.ts`, `server.ts`, `middleware/**`, `routes/**` (llms, sitemap), `vite.config.ts` | `machine-endpoints.md` in dev and with `launch --prod` |
+| `packages/docs/src/lib/{agent-response,negotiation,llms,markdown-pages,site-markdown,not-found-markdown,sitemap}.ts`, `server.ts`, `middleware/**`, `routes/**` (llms, sitemap), `vite.config.ts`, `src/routes/everr-app/**`, `src/lib/cli-release-redirect.ts` | `machine-endpoints.md` in dev and with `launch --prod` |
 | `packages/docs/src/routes/api/search.ts`, search components | `docs-search.md` |
 | `packages/docs/messages/**`, `project.inlang/**`, `src/lib/translated.ts` | `landing.md` (Italian), `pricing.md` (Italian), `machine-endpoints.md` |
 | `packages/docs/src/lib/{telemetry,posthog}.ts`, `src/env.ts`, `packages/otel-web/**` | `landing.md` (analytics audit) |
+| `packages/docs/src/components/not-found.tsx` | `docs-pages.md` (404) |

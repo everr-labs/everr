@@ -38,5 +38,4 @@ Preconditions:
 - Assert on the `.txt` (`get text body`). In the DOM the search highlight splits a matched marker from the rest of the text, so a `grep` of `agent-browser get html body` can miss a row that is on screen.
 - The search only matches log bodies containing the text; the exit record (`wrapped command exited with code 3`) is not in a `q=$M` result. Do not expect 3 rows.
 - The default time range is the last 7 days; rows with old timestamps fall outside it.
-- The UI's sign-in (`get_auth_status`, `start_sign_in`) talks to Everr Cloud; the logged-out state is expected here and is not a failure.
 - Interactive clicking (filters, time picker) has no recipe yet; drive it with `agent-browser snapshot -i` and `click @eN`, and add the recipe here.

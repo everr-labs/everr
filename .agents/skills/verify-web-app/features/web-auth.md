@@ -39,11 +39,11 @@ Preconditions:
 
   Every command exits `0`; `sign-up-02-organization-setup.url` is `/organization-setup?returnTo=%2F`; `sign-up-03-home.url` is the web origin `/` and `sign-up-03-home.txt` contains `Welcome to Everr`, `Step 1 of 4` and `$VERIFY_NAME` (`auth-sign-up`, `auth-org-setup`, `auth-home`).
 - **Finish onboarding (most later recipes).** Run `$V web-onboard`. Exit `0`, prints `ONBOARDED orgs_completed=1`; `web/onboard-05-done.png` shows Home's usage dashboard with no consent banner. It answers the banner with `Deny` and clicks `Continue`, `Check my telemetry`, `I can see my local telemetry`, `Finish onboarding` with focus + Enter (the banner covers `Continue` for a pointer click). Skip it only when the recipe is about onboarding itself (`auth-home` needs `Welcome to Everr`, so run it after the Sign up assertions).
-- **Check the stored user and org.** Run `$V web-psql signup-rows "select u.email, u.email_verified, o.name, o.metadata from \"user\" u join member m on m.user_id = u.id join organization o on o.id = m.organization_id where u.email = '$VERIFY_EMAIL'"`. One row, `email_verified` `f`, org name `Verify's projects`, metadata `{"clickhouseReady": true}`.
+- **Check the stored user and org.** Run `$V web-psql signup-rows "select u.email, u.email_verified, o.name, o.metadata from \"user\" u join member m on m.user_id = u.id join organization o on o.id = m.organization_id where u.email = '$VERIFY_EMAIL'"`. One row, `email_verified` `f`, org name `Verify's projects`, metadata has `"clickhouseReady": true`, plus `"onboardingCompleted": true` when `web-onboard` already ran.
 - **Log out, guard, wrong password, sign back in.** Run:
 
   ```bash
-  agent-browser open "$WEB/" && agent-browser wait --text "Welcome to Everr"
+  agent-browser open "$WEB/" && agent-browser wait --text "$VERIFY_NAME"
   agent-browser find role button click --name "$VERIFY_NAME" && agent-browser wait --text "Log out" && agent-browser find role menuitem click --name "Log out"
   agent-browser wait --fn "location.pathname === '/auth/sign-in'" && agent-browser wait --text "Sign in to Everr" && ab_save session-01-signed-out
   agent-browser open "$WEB/api-keys" && agent-browser wait --fn "location.pathname === '/auth/sign-in'" && agent-browser wait --text "Sign in to Everr" && ab_save session-02-guard-redirect

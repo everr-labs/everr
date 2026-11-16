@@ -101,7 +101,7 @@ function cmdBuild(): number {
   if (!which("go")) die("go is missing (collector needs Go >= go.mod version)");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor < 23) {
-    die(`node ${process.version} is too old; repo pins ${(readText(path.join(REPO, ".nvmrc")) ?? "").trim()} (.nvmrc). Put Node 24 first on PATH`);
+    die(`node ${process.version} is too old; repo pins ${(readText(path.join(REPO, ".node-version")) ?? "").trim()} (.node-version). Put Node 24 first on PATH`);
   }
   if (!existsSync(path.join(REPO, "node_modules"))) {
     const rc = runInherit("pnpm", ["install", "--frozen-lockfile"], { cwd: REPO });
@@ -226,7 +226,7 @@ async function cmdDoctor(): Promise<number> {
   console.log(`run: ${r.id}`);
   console.log(`binary: ${version.status === 0 ? version.stdout.trim() : "missing"}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
-  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "collector/cmd"].map((d) => path.join(REPO, d)), binMtime, 3);
+  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/cmd", "collector/exporter/chdbexporter", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
     console.log("WARN sources newer than binary (rebuild with 'verify-cli build'):");
     for (const f of stale) console.log(`       ${f}`);
