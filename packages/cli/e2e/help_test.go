@@ -58,8 +58,11 @@ func TestRemovedCommandsAreRejected(t *testing.T) {
 func TestHelpSubcommandWorksAtEveryLevel(t *testing.T) {
 	env := NewEnv(t)
 	assertContains(t, env.Run("help").Success(t).Stdout, "Usage: everr <COMMAND>")
+	want := env.Run("skills", "install", "--help").Success(t).Stdout
 	for _, args := range [][]string{{"help", "skills", "install"}, {"skills", "help", "install"}} {
-		assertContains(t, env.Run(args...).Success(t).Stdout, "Usage: everr skills install [OPTIONS]")
+		if got := env.Run(args...).Success(t).Stdout; got != want {
+			t.Errorf("everr %s printed\n%s\nwant the --help output\n%s", strings.Join(args, " "), got, want)
+		}
 	}
 	res := env.Run("skills", "help", "nope").Failure(t, 2)
 	assertContains(t, res.Stderr, "unrecognized subcommand 'nope'")
