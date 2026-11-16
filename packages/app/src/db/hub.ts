@@ -1,5 +1,5 @@
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
-import { NotificationHub, type Topic } from "./notification-hub";
+import { NotificationHub } from "./notification-hub";
 import type { NotifyPayload } from "./notify";
 
 const hub = new NotificationHub();
@@ -23,17 +23,7 @@ export function subscribeTenant(tenantId: string, callback: Callback): () => voi
   return hub.subscribe("tenant", tenantId, callback);
 }
 
-export function subscribe(
-  topic: Exclude<Topic, "tenant">,
-  tenantId: string,
-  id: string,
-  callback: Callback,
-): () => void {
+export function subscribeTrace(tenantId: string, traceId: string, callback: Callback): () => void {
   ensureStarted();
-  return hub.subscribe(topic, `${tenantId}:${id}`, callback);
-}
-
-export function subscribeAuthor(tenantId: string, email: string, callback: Callback): () => void {
-  ensureStarted();
-  return hub.subscribe("author", `${tenantId}:${email.toLowerCase()}`, callback);
+  return hub.subscribe("trace", `${tenantId}:${traceId}`, callback);
 }

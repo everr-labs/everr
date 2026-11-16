@@ -10,7 +10,6 @@ import {
 } from "@tanstack/react-router";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
-import { useRealtimeSubscription } from "#app/hooks/use-realtime-subscription.ts";
 
 const RouteSearchSchema = ErrorIssueSearchSchema.extend(ExploreSearchShape);
 const defaultSearch = RouteSearchSchema.parse({});
@@ -38,7 +37,6 @@ function ErrorsRoute() {
 }
 
 function ErrorsPage() {
-  useRealtimeSubscription({ scope: "tenant" });
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const { service = [], environment = [] } = useSearch({
