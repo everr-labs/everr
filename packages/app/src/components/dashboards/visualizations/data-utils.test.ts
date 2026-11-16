@@ -152,9 +152,32 @@ describe("nearestSampleIndex", () => {
   it.each([
     ["between samples", [0, 100, 200, 300], 140, 1],
     ["past the last one", [0, 100, 200, 300], 900, 3],
+    ["before the first one", [0, 100, 200, 300], -50, 0],
+    ["exactly on one", [0, 100, 200, 300], 200, 2],
+    ["earlier of two as near", [0, 100, 200, 300], 150, 1],
     ["when there is only one", [500], 0, 0],
   ])("finds the sample %s", (_, samples, target, expected) => {
     expect(nearestSampleIndex(samples, target)).toBe(expected);
+  });
+
+  it("finds none when there are no samples", () => {
+    expect(nearestSampleIndex([], 100)).toBeNull();
+  });
+
+  it("agrees with a walk over every sample", () => {
+    // Uneven steps, so a guess at the position from the spacing would miss.
+    let time = 0;
+    const samples = Array.from({ length: 2_000 }, (_, i) => {
+      time += 1 + (i % 5) * 3;
+      return time;
+    });
+    for (let target = -20; target < 14_100; target += 13) {
+      let nearest = 0;
+      samples.forEach((sample, index) => {
+        if (Math.abs(sample - target) < Math.abs((samples[nearest] ?? 0) - target)) nearest = index;
+      });
+      expect(nearestSampleIndex(samples, target)).toBe(nearest);
+    }
   });
 });
 
