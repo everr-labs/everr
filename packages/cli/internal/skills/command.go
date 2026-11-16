@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
 )
 
@@ -355,7 +356,7 @@ func resolveProviders(agents []string) []Provider {
 }
 
 func resolveHomeDir() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := build.HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve home directory: %w", err)
 	}

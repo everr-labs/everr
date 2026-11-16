@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -110,7 +111,7 @@ func PlatformDir(xdgEnv string, fallback ...string) (string, error) {
 			return dir, nil
 		}
 	}
-	home, err := os.UserHomeDir()
+	home, err := HomeDir()
 	if err != nil {
 		return "", err
 	}
@@ -118,4 +119,33 @@ func PlatformDir(xdgEnv string, fallback ...string) (string, error) {
 		return filepath.Join(home, "Library", "Application Support"), nil
 	}
 	return filepath.Join(append([]string{home}, fallback...)...), nil
+}
+
+// CacheDir is os.UserCacheDir with HomeDir's fallback.
+func CacheDir() (string, error) {
+	if runtime.GOOS != "darwin" {
+		if dir := os.Getenv("XDG_CACHE_HOME"); filepath.IsAbs(dir) {
+			return dir, nil
+		}
+	}
+	home, err := HomeDir()
+	if err != nil {
+		return "", err
+	}
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Caches"), nil
+	}
+	return filepath.Join(home, ".cache"), nil
+}
+
+// HomeDir is $HOME, else the user's passwd entry, as the Rust `dirs` crate
+// resolved it.
+func HomeDir() (string, error) {
+	if home := os.Getenv("HOME"); home != "" {
+		return home, nil
+	}
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+		return u.HomeDir, nil
+	}
+	return "", errors.New("$HOME is not defined")
 }

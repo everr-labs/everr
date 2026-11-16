@@ -25,7 +25,7 @@ func logPath() (string, error) {
 	if dir := os.Getenv("EVERR_LOCAL_LOG_DIR"); dir != "" {
 		return filepath.Join(dir, "local.log"), nil
 	}
-	home, err := os.UserHomeDir()
+	home, err := build.HomeDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory for local logs: %w", err)
 	}

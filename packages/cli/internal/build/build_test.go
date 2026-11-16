@@ -23,7 +23,11 @@ func TestDirsFallBackToThePasswdHomeWithoutHOME(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config dir: %v", err)
 	}
-	for _, dir := range []string{config} {
+	cache, err := CacheDir()
+	if err != nil {
+		t.Fatalf("cache dir: %v", err)
+	}
+	for _, dir := range []string{config, cache} {
 		if !strings.HasPrefix(dir, passwdHome+string(filepath.Separator)) {
 			t.Errorf("%s is not under the passwd home %s", dir, passwdHome)
 		}

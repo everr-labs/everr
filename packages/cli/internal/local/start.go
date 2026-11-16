@@ -301,7 +301,7 @@ func extractChDBLibrary() (string, error) {
 var libraryInUse *os.File
 
 func libraryCacheRoot() (string, error) {
-	cacheDir, err := os.UserCacheDir()
+	cacheDir, err := build.CacheDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve user cache directory: %w", err)
 	}
