@@ -101,8 +101,7 @@ export function RunsFilters({ repo, timeRange, value, onChange }: RunsFiltersPro
               aria-pressed={conclusions.includes(status)}
               className={cn(
                 "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-                conclusions.includes(status) &&
-                  "bg-background font-medium shadow-xs ring-1 ring-border",
+                conclusions.includes(status) && "bg-background font-medium ring-1 ring-border",
               )}
               onClick={() => toggleStatus(status)}
             >

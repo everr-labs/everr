@@ -56,7 +56,7 @@ export function ExploreFilterRail({
   const activeFilterCount = persistentFilterCount + pageFilterCount;
 
   return (
-    <div className="bg-muted/15 flex items-center border-b px-3 py-2">
+    <div className="bg-pane flex items-center border-b px-3 py-2">
       <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
         <ListFilter />
         Filters

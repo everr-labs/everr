@@ -39,7 +39,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "border-border bg-clip-padding data-placeholder:text-muted-foreground bg-white/[0.025] shadow-[inset_0_1px_0_0_oklch(1_0_0/4%)] hover:bg-white/[0.05] hover:border-white/[0.12] outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:border-ring focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-destructive/40 aria-invalid:ring-2 aria-invalid:border-destructive/50 gap-1.5 rounded-md border px-2 py-1.5 text-xs/relaxed transition-[outline,outline-offset,box-shadow,background-color,border-color] duration-150 ease-out data-[size=default]:h-8 data-[size=sm]:h-6 *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-3.5 flex w-fit items-center justify-between whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "border-border bg-clip-padding data-placeholder:text-muted-foreground bg-white/[0.035] hover:bg-white/[0.06] hover:border-white/[0.12] outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:border-ring focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-destructive/40 aria-invalid:ring-2 aria-invalid:border-destructive/50 gap-1.5 rounded-md border px-2 py-1.5 text-xs/relaxed transition-[outline,outline-offset,box-shadow,background-color,border-color] duration-150 ease-out data-[size=default]:h-8 data-[size=sm]:h-6 *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-3.5 flex w-fit items-center justify-between whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
       {...props}
@@ -80,7 +80,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "motion-popup bg-popover/95 supports-backdrop-filter:backdrop-blur-xl text-popover-foreground min-w-32 rounded-lg shadow-(--shadow-elevated) relative isolate z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-hidden data-[align-trigger=true]:transition-none",
+            "motion-popup bg-popover text-popover-foreground min-w-32 rounded-lg shadow-(--shadow-elevated) relative isolate z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-hidden data-[align-trigger=true]:transition-none",
             className,
           )}
           {...props}

@@ -52,7 +52,7 @@ function TabsList({
           "pointer-events-none absolute top-0 left-0 translate-x-(--active-tab-left) translate-y-(--active-tab-top) transition-[translate,width,height] duration-250 ease-(--ease-out) data-[activation-direction=none]:transition-none motion-reduce:transition-none",
           variant === "line"
             ? "group-data-[orientation=horizontal]/tabs:mt-[calc(var(--active-tab-height)+4px)] group-data-[orientation=horizontal]/tabs:h-0.5 group-data-[orientation=horizontal]/tabs:w-(--active-tab-width) group-data-[orientation=vertical]/tabs:ml-[calc(var(--active-tab-width)+3px)] group-data-[orientation=vertical]/tabs:h-(--active-tab-height) group-data-[orientation=vertical]/tabs:w-0.5 bg-foreground rounded-full"
-            : "h-(--active-tab-height) w-(--active-tab-width) rounded-md bg-white/[0.08] shadow-[inset_0_1px_0_0_oklch(1_0_0/6%),0_1px_2px_0_oklch(0_0_0/30%)]",
+            : "h-(--active-tab-height) w-(--active-tab-width) rounded-md bg-white/[0.08]",
         )}
       />
     </TabsPrimitive.List>

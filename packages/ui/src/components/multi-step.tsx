@@ -131,7 +131,7 @@ export function MultiStep<StepId extends string>({
                 hidden={!active}
                 role="region"
                 aria-labelledby={titleId}
-                className="min-w-0 gap-0 rounded-xl border py-0 shadow-sm ring-0"
+                className="min-w-0 gap-0 rounded-xl border py-0 ring-0"
               >
                 <CardHeader className="flex items-center justify-between gap-4 border-b px-5 py-5 sm:px-8 sm:py-6">
                   <div className="space-y-1.5">

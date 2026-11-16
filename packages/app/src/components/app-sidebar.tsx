@@ -46,7 +46,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <layouts.UserMenu />
       </SidebarFooter>
-      <SidebarRail />
+      {/* The page panel lights its left edge on rail hover (app.css). */}
+      <SidebarRail className="hover:after:bg-transparent" />
     </Sidebar>
   );
 }

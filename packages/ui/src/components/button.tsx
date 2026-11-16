@@ -11,17 +11,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground surface-primary disabled:not-data-loading:bg-none disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:shadow-none disabled:not-data-loading:opacity-100",
+          "bg-primary text-primary-foreground hover:bg-primary/90 disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:opacity-100",
         outline:
-          "border-border bg-white/[0.035] surface-raised hover:bg-white/[0.07] hover:border-white/[0.12] hover:text-foreground aria-expanded:bg-white/[0.07] aria-expanded:text-foreground",
+          "border-border bg-white/[0.035] hover:bg-white/[0.07] hover:border-white/[0.12] hover:text-foreground aria-expanded:bg-white/[0.07] aria-expanded:text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground surface-raised hover:bg-accent aria-expanded:bg-accent aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-white/[0.06] hover:text-foreground aria-expanded:bg-white/[0.07] aria-expanded:text-foreground",
         destructive:
           "bg-destructive/12 border-destructive/20 hover:bg-destructive/20 hover:border-destructive/30 focus-visible:ring-destructive/40 text-destructive focus-visible:border-destructive/40",
         link: "text-primary underline-offset-4 hover:underline active:scale-100",
-        cta: "bg-primary text-primary-foreground surface-primary disabled:not-data-loading:bg-none disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:shadow-none disabled:not-data-loading:opacity-100 font-heading uppercase tracking-widest font-bold",
+        cta: "bg-primary text-primary-foreground hover:bg-primary/90 disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:opacity-100 font-heading uppercase tracking-widest font-bold",
       },
       size: {
         default:

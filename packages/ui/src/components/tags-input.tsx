@@ -43,7 +43,7 @@ function TagsInput({
     <div
       data-slot="tags-input"
       className={cn(
-        "border-border bg-input/30 hover:bg-input/45 bg-clip-padding outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-within:border-ring focus-within:ring-primary focus-within:ring-2 focus-within:ring-offset-[3px] flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border px-2 py-1 transition-[outline,outline-offset,box-shadow,background-color,border-color] duration-200 ease-[cubic-bezier(0.19,1,0.22,1)]",
+        "border-border bg-white/[0.035] hover:bg-white/[0.06] hover:border-white/[0.12] bg-clip-padding outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-within:border-ring focus-within:ring-primary focus-within:ring-2 focus-within:ring-offset-[3px] flex min-h-8 w-full cursor-text flex-wrap items-center gap-1 rounded-md border px-2 py-1 transition-[outline,outline-offset,box-shadow,background-color,border-color] duration-200 ease-[cubic-bezier(0.19,1,0.22,1)]",
         disabled && "pointer-events-none opacity-50",
         className,
       )}

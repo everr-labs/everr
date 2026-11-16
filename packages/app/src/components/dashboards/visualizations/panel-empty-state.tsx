@@ -41,7 +41,7 @@ export function PanelEmptyState({
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[14px_14px] mask-[radial-gradient(ellipse_at_center,black_10%,transparent_70%)]"
       />
-      <EmptyMedia className="relative mb-0 flex size-10 items-center justify-center rounded-lg bg-card text-muted-foreground shadow-xs ring-1 ring-border [@container(max-height:9.5rem)]:hidden">
+      <EmptyMedia className="relative mb-0 flex size-10 items-center justify-center rounded-lg bg-card text-muted-foreground ring-1 ring-border [@container(max-height:9.5rem)]:hidden">
         <Icon className="size-5" strokeWidth={1.75} />
       </EmptyMedia>
       <EmptyHeader className="relative gap-1">

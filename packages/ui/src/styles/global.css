@@ -23,6 +23,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-pane: var(--pane);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
@@ -118,22 +119,25 @@
   --ctp-mantle: #181825;
   --ctp-crust: #11111b;
 
-  /* Near-black with a faint cool cast. Surfaces step up in small, even
-     increments so layers read as depth, not as patches of grey. */
-  --background: oklch(0.135 0.004 270);
-  --foreground: oklch(0.975 0.002 270);
-  --card: oklch(0.165 0.005 270);
-  --card-foreground: oklch(0.975 0.002 270);
-  --popover: oklch(0.185 0.006 270);
-  --popover-foreground: oklch(0.975 0.002 270);
+  /* Neutral black, no tint. Surfaces step up in small, even increments so
+     layers read as depth, not as patches of grey. */
+  --background: oklch(0.1 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.165 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  /* Side panes (filter rails, the dashboards and runbooks tree): a step
+     above the page, below the cards. */
+  --pane: oklch(0.14 0 0);
+  --popover: oklch(0.185 0 0);
+  --popover-foreground: oklch(0.97 0 0);
   --primary: oklch(0.937 0.264 119.7);
   --primary-foreground: oklch(0.1 0.031 120.757);
-  --secondary: oklch(0.225 0.007 270);
-  --secondary-foreground: oklch(0.975 0.002 270);
-  --muted: oklch(0.215 0.006 270);
-  --muted-foreground: oklch(0.69 0.012 270);
-  --accent: oklch(0.235 0.008 270);
-  --accent-foreground: oklch(0.985 0.002 270);
+  --secondary: oklch(0.21 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.2 0 0);
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.985 0 0);
   /* One red for every failure, error and destructive action, so "failed"
      never shows up in two hues on one screen. */
   --destructive: oklch(0.704 0.191 22.216);
@@ -160,7 +164,7 @@
   --trace-service-8: oklch(0.72 0.17 335);
   --border: oklch(1 0 0 / 7.5%);
   --input: oklch(1 0 0 / 11%);
-  --ring: oklch(0.6 0.012 270);
+  --ring: oklch(0.6 0 0);
   --scrollbar-thumb: oklch(1 0 0 / 14%);
   --scrollbar-thumb-hover: oklch(1 0 0 / 28%);
   --chart-1: oklch(0.905 0.182 98.111);
@@ -168,21 +172,23 @@
   --chart-3: oklch(0.681 0.162 75.834);
   --chart-4: oklch(0.554 0.135 66.442);
   --chart-5: oklch(0.476 0.114 61.907);
-  --sidebar: oklch(0.15 0.005 270);
-  --sidebar-foreground: oklch(0.975 0.002 270);
+  /* The shell (sidebar and topnav) is the darkest layer; pages sit on top of
+     it as lighter panels. */
+  --sidebar: oklch(0.06 0 0);
+  --sidebar-foreground: oklch(0.97 0 0);
   --sidebar-primary: oklch(0.937 0.264 119.7);
   --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
   --sidebar-accent: oklch(1 0 0 / 6%);
-  --sidebar-accent-foreground: oklch(0.985 0.002 270);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 7%);
-  --sidebar-ring: oklch(0.6 0.012 270);
+  --sidebar-ring: oklch(0.6 0 0);
 
   /* Floating surfaces: a hairline, a soft contact shadow and a wide ambient
      one, plus a faint top highlight that catches the light. */
   --shadow-elevated:
     inset 0 1px 0 0 oklch(1 0 0 / 5%), 0 0 0 1px oklch(1 0 0 / 8%),
     0 2px 4px -1px oklch(0 0 0 / 35%), 0 12px 32px -8px oklch(0 0 0 / 55%);
-  --shadow-surface: inset 0 1px 0 0 oklch(1 0 0 / 3.5%), 0 0 0 1px oklch(1 0 0 / 5.5%);
+  --shadow-surface: 0 0 0 1px oklch(1 0 0 / 5.5%);
 }
 
 @layer base {
@@ -369,31 +375,6 @@
   &[data-ending-style] {
     transition-duration: 140ms;
   }
-}
-
-/* Raised button surfaces. The lime is lit in its own hue: a pale-lime top
-   edge and a deep olive bottom edge instead of white and black, and a contact
-   shadow tinted green so it reads as the button's shadow, not a grey smudge. */
-@utility surface-primary {
-  background-image: linear-gradient(to bottom, oklch(0.95 0.235 119), oklch(0.89 0.25 122));
-  box-shadow:
-    inset 0 1px 0 0 oklch(0.99 0.13 112 / 90%),
-    inset 0 -1px 0 0 oklch(0.62 0.19 126 / 55%),
-    0 0 0 1px oklch(0.58 0.18 125 / 55%),
-    0 1px 2px 0 oklch(0.22 0.07 128 / 70%),
-    0 3px 8px -3px oklch(0.45 0.16 125 / 45%);
-
-  @media (hover: hover) {
-    &:hover {
-      background-image: linear-gradient(to bottom, oklch(0.97 0.225 118), oklch(0.91 0.245 121));
-    }
-  }
-}
-
-@utility surface-raised {
-  box-shadow:
-    inset 0 1px 0 0 oklch(1 0 0 / 8%),
-    0 1px 2px 0 oklch(0 0 0 / 40%);
 }
 
 /* Fades a Base UI scroll viewport's vertical edges while content is hidden
