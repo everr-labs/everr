@@ -63,8 +63,44 @@ describe("toTimestamp", () => {
     ["text that is no time", "not a date", null],
     ["null", null, null],
     ["NaN", Number.NaN, null],
+    ["a DateTime64 with milliseconds", "2026-06-07 00:00:00.250", utc + 250],
+    [
+      "a DateTime64 with nanoseconds, to the millisecond",
+      "2026-06-07 00:00:00.250999999",
+      utc + 250,
+    ],
+    ["a DateTime with one digit of fraction", "2026-06-07 00:00:00.5", utc + 500],
+    ["a DateTime with spaces around it", " 2026-06-07 00:00:00 ", utc],
+    ["a month the calendar does not have", "2026-13-07 00:00:00", null],
+    ["an hour the clock does not have", "2026-06-07 25:00:00", null],
+    ["a DateTime with letters for digits", "2026-06-07 0a:00:00", null],
+    ["a DateTime with a fraction that is no number", "2026-06-07 00:00:00.x", null],
   ])("reads %s", (_, value, expected) => {
     expect(toTimestamp(value)).toBe(expected);
+  });
+
+  it("reads every ClickHouse DateTime as the Date parser does", () => {
+    const pad = (value: number, length = 2) => String(value).padStart(length, "0");
+    // Across leap days, month ends and every length of fraction.
+    for (let i = 0; i < 4_000; i++) {
+      const day = new Date(Date.UTC(2023, 11, 25) + i * 37_000_123);
+      const date = `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
+      const time = `${pad(day.getUTCHours())}:${pad(day.getUTCMinutes())}:${pad(day.getUTCSeconds())}`;
+      const fraction =
+        i % 10 === 0 ? "" : `.${pad(day.getUTCMilliseconds(), 3)}456789`.slice(0, 1 + (i % 10));
+      const text = `${date} ${time}${fraction}`;
+      expect(toTimestamp(text), text).toBe(Date.parse(`${date}T${time}${fraction}Z`));
+    }
+  });
+
+  it.each([
+    "2026-02-30 00:00:00",
+    "2026-04-31 12:00:00",
+    "2026-02-29 00:00:00",
+    "2024-02-29 00:00:00",
+  ])("leaves %s, a day not in every month, to the Date parser", (text) => {
+    const parsed = Date.parse(`${text.replace(" ", "T")}Z`);
+    expect(toTimestamp(text)).toBe(Number.isNaN(parsed) ? null : parsed);
   });
 });
 

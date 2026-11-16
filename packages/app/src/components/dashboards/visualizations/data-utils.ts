@@ -318,6 +318,52 @@ function epochToMs(n: number): number | null {
   return n < 1e12 ? n * 1000 : n;
 }
 
+const DIGIT_0 = 48;
+
+/** The whole number written in the `length` digits of `text` from `start`;
+ * NaN when one of them is not a digit. */
+function digitsAt(text: string, start: number, length: number): number {
+  let number = 0;
+  for (let i = start; i < start + length; i++) {
+    const digit = text.charCodeAt(i) - DIGIT_0;
+    if (!(digit >= 0 && digit <= 9)) return Number.NaN;
+    number = number * 10 + digit;
+  }
+  return number;
+}
+
+/**
+ * A ClickHouse DateTime (`YYYY-MM-DD HH:MM:SS`, with or without a fraction of
+ * a second, UTC) read by position. A dense result has one on every row, and
+ * the general parser is several times slower. Null for any other text, and
+ * for a date the calendar does not have: those are left to the general parser.
+ */
+function dateTimeMs(text: string): number | null {
+  if (text.length < 19 || text.length > 29) return null;
+  const separator = text[10];
+  if (text[4] !== "-" || text[7] !== "-" || text[13] !== ":" || text[16] !== ":") return null;
+  if (separator !== " " && separator !== "T") return null;
+  const year = digitsAt(text, 0, 4);
+  const month = digitsAt(text, 5, 2);
+  const day = digitsAt(text, 8, 2);
+  const hour = digitsAt(text, 11, 2);
+  const minute = digitsAt(text, 14, 2);
+  const second = digitsAt(text, 17, 2);
+  // Comparisons with NaN are false, so a field that is not digits fails here.
+  // Days past the 28th are not in every month.
+  if (!(year >= 1000 && month >= 1 && month <= 12 && day >= 1 && day <= 28)) return null;
+  if (!(hour <= 23 && minute <= 59 && second <= 59)) return null;
+  let millisecond = 0;
+  if (text.length > 19) {
+    if (text[19] !== ".") return null;
+    // Only milliseconds count; finer digits must still be digits.
+    const fraction = text.length - 20;
+    if (fraction < 1 || Number.isNaN(digitsAt(text, 20, fraction))) return null;
+    millisecond = digitsAt(text.padEnd(23, "0"), 20, 3);
+  }
+  return Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+}
+
 /**
  * Milliseconds since epoch, or null when the value isn't a timestamp. Callers
  * must drop null rows — a sentinel like 0 would be a valid instant (1970) that
@@ -326,6 +372,8 @@ function epochToMs(n: number): number | null {
 export function toTimestamp(value: unknown): number | null {
   if (typeof value === "number") return epochToMs(value);
   if (typeof value === "string") {
+    const dateTime = dateTimeMs(value);
+    if (dateTime !== null) return dateTime;
     const trimmed = value.trim();
     // A bare epoch returned as a (quoted) string, e.g. toUnixTimestamp64Milli
     // (Int64 → quoted) or toUnixTimestamp wrapped in toString.
@@ -339,7 +387,7 @@ export function toTimestamp(value: unknown): number | null {
 
 /** The index of the sample nearest `target` in ascending `samples`, the
  * earlier one when two are as near; null only when there are none. */
-export function nearestSampleIndex(samples: readonly number[], target: number): number | null {
+export function nearestSampleIndex(samples: ArrayLike<number>, target: number): number | null {
   if (samples.length === 0 || Number.isNaN(target)) return null;
   // The first sample at or after the target: a pointer move over a dense
   // series must not walk every sample.
