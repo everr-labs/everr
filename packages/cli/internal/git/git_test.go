@@ -1,0 +1,38 @@
+package git
+
+import "testing"
+
+func TestRemoteSlugCollapsesEquivalentCloneURLs(t *testing.T) {
+	for _, remote := range []string{
+		"git@github.com:Everr-Labs/everr.git",
+		"https://github.com/everr-labs/everr.git",
+		"https://user:pass@github.com/everr-labs/everr",
+		"ssh://git@github.com:2222/everr-labs/everr.git/",
+		"git://github.com/everr-labs/everr",
+	} {
+		if got, ok := NormalizeRemoteSlug(remote); !ok || got != "github.com/everr-labs/everr" {
+			t.Errorf("NormalizeRemoteSlug(%q) = %q, %v", remote, got, ok)
+		}
+	}
+}
+
+func TestRemoteSlugKeepsNestedPathSegments(t *testing.T) {
+	got, _ := NormalizeRemoteSlug("https://gitlab.example.com/group/subgroup/repo.git")
+	if got != "gitlab.example.com/group/subgroup/repo" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestRemoteSlugRejectsHostlessRemotes(t *testing.T) {
+	for _, remote := range []string{
+		"/srv/git/repo.git",
+		"../sibling/repo",
+		"file:///srv/git/repo.git",
+		"https://github.com",
+		"",
+	} {
+		if got, ok := NormalizeRemoteSlug(remote); ok {
+			t.Errorf("NormalizeRemoteSlug(%q) = %q, want none", remote, got)
+		}
+	}
+}

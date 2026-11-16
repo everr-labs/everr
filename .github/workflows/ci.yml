@@ -106,8 +106,6 @@ jobs:
               - 'packages/otel-web/**'
               - 'packages/telemetry-explorer/**'
               - 'packages/ui/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
               - 'collector/**'
               - 'skills/**'
               - 'packages/docs/Dockerfile'

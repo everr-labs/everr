@@ -50,6 +50,6 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `scripts/dev/collector-app.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md`, `github-webhook.md` with `--profile app` |
 | `deploy/collector.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md` with `--profile deploy` |
 | `packages/app/clickhouse/**` | `otlp-ingest.md` with `--profile cloud` and `--profile deploy`, `usage-accounting.md`; reads through `app_ro` need [verify-web-app](../../verify-web-app/SKILL.md) |
-| `collector/cmd/everr-local-collector/**`, `collector/exporter/chdbexporter/**` | [verify-cli](../../verify-cli/SKILL.md), not this map |
+| `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | [verify-cli](../../verify-cli/SKILL.md), not this map |
 | `packages/app/src/routes/api/internal/verify-key.ts`, `packages/app/src/lib/public-ingest-keys.ts` | [verify-web-app](../../verify-web-app/SKILL.md): the stub stands in for these here |
 | `collector/config.example.yml`, `collector/Dockerfile` | not covered (see SKILL.md) |

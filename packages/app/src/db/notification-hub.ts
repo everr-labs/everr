@@ -3,7 +3,7 @@ import { dbEnv } from "#app/env/db.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
 import type { NotifyPayload } from "./notify";
 
-export type Topic = "tenant" | "trace" | "commit" | "author";
+type Topic = "tenant" | "trace";
 
 type Callback = (payload: NotifyPayload) => void;
 
@@ -26,8 +26,6 @@ export class NotificationHub {
   private readonly indexes: Record<Topic, Map<string, Set<Callback>>> = {
     tenant: new Map(),
     trace: new Map(),
-    commit: new Map(),
-    author: new Map(),
   };
 
   private client: Client | null = null;
@@ -62,14 +60,6 @@ export class NotificationHub {
   dispatch(payload: NotifyPayload): void {
     this.dispatchTopic("tenant", payload.tenantId, payload);
     this.dispatchTopic("trace", `${payload.tenantId}:${payload.traceId}`, payload);
-    this.dispatchTopic("commit", `${payload.tenantId}:${payload.sha}`, payload);
-    if (payload.authorEmail) {
-      this.dispatchTopic(
-        "author",
-        `${payload.tenantId}:${payload.authorEmail.toLowerCase()}`,
-        payload,
-      );
-    }
   }
 
   async start(): Promise<void> {

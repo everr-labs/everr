@@ -34,6 +34,9 @@ describe("startInstance", () => {
       defaultSsr: false,
       requestMiddleware: [
         expect.objectContaining({
+          options: expect.objectContaining({ type: "request", server: expect.any(Function) }),
+        }),
+        expect.objectContaining({
           options: expect.objectContaining({
             type: "request",
             server: expect.any(Function),

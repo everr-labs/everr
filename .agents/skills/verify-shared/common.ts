@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(SCRIPT_DIR, "../../..");
-export const BIN = path.join(REPO, "target/debug/everr");
+export const BIN = path.join(REPO, "target/go/debug/everr");
 export const STATE_DIR = path.join(REPO, ".verify-everr");
 export const SCRATCH_ROOT = process.env.EVERR_VERIFY_SCRATCH || "/tmp/verify-everr";
 

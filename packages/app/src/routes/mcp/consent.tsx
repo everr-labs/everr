@@ -2,30 +2,18 @@ import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Eye, type LucideIcon, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
+import { Check, Globe, Laptop, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { setActiveMcpOrganization, submitMcpConsent } from "#app/data/mcp/oauth.ts";
 import { authClient } from "#app/lib/auth-client.ts";
+import { describeRedirectUri, type RedirectDestination } from "#app/lib/mcp-redirect-uri.ts";
+import { MCP_SCOPE_LABELS } from "#app/lib/mcp-scopes.ts";
 import { OAuthShell } from "./-components/oauth-shell";
-
-// Human-readable rendering for the scopes an MCP client can request. Unknown
-// scopes fall back to the raw value so consent never hides what's granted.
-const SCOPE_LABELS: Record<string, { icon: LucideIcon; label: string; description: string }> = {
-  "observability:read": {
-    icon: Eye,
-    label: "Read your telemetry",
-    description: "Run read-only queries against your organization's traces, logs, and metrics.",
-  },
-  offline_access: {
-    icon: RefreshCw,
-    label: "Stay connected",
-    description: "Refresh access without you signing in again.",
-  },
-};
 
 type ConsentSearch = Record<string, unknown> & {
   client_id?: string;
   scope?: string;
+  redirect_uri?: string;
 };
 
 export const Route = createFileRoute("/mcp/consent")({
@@ -52,6 +40,8 @@ function Consent() {
   const clientId = search.client_id ?? "";
   const scope = search.scope ?? "";
   const scopes = scope.split(/\s+/).filter(Boolean);
+  const destination =
+    typeof search.redirect_uri === "string" ? describeRedirectUri(search.redirect_uri) : null;
 
   // The org bound at Approve is whatever is server-side active; switching is just
   // set-active beforehand, so we track the chosen id and mirror it for display.
@@ -120,9 +110,11 @@ function Consent() {
         </div>
       </div>
 
+      <Destination destination={destination} />
+
       <ul className="mt-4 flex flex-col gap-3.5">
         {(scopes.length > 0 ? scopes : ["observability:read"]).map((value) => {
-          const meta = SCOPE_LABELS[value];
+          const meta = MCP_SCOPE_LABELS[value];
           const Icon = meta?.icon ?? ShieldCheck;
           return (
             <li key={value} className="flex gap-3">
@@ -223,5 +215,31 @@ function Consent() {
         </Button>
       </div>
     </OAuthShell>
+  );
+}
+
+function Destination({ destination }: { destination: RedirectDestination | null }) {
+  const Icon = !destination ? TriangleAlert : destination.kind === "this-computer" ? Laptop : Globe;
+  return (
+    <div className="mt-3 flex gap-3 rounded-lg border border-border px-3 py-2.5">
+      <Icon
+        className={`mt-0.5 size-4 shrink-0 ${destination ? "text-primary" : "text-destructive"}`}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">Approving sends access to</p>
+        {!destination ? (
+          <p className="mt-0.5 text-sm font-medium text-destructive">An unknown destination</p>
+        ) : destination.kind === "this-computer" ? (
+          <p className="mt-0.5 text-sm font-medium text-foreground">
+            An app on this computer{" "}
+            <span className="font-mono text-muted-foreground">({destination.address})</span>
+          </p>
+        ) : (
+          <p className="mt-0.5 break-all font-mono text-base font-semibold text-foreground">
+            {destination.address}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

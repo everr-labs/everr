@@ -3,18 +3,8 @@ module github.com/everr-labs/everr/collector/cmd/everr-local-collector
 go 1.26.11
 
 require (
-	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000
-	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
-	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
-	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/collector/localcollector v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.12.1
-	go.opentelemetry.io/collector/component v1.71.0
-	go.opentelemetry.io/collector/confmap v1.71.0
-	go.opentelemetry.io/collector/exporter v1.71.0
-	go.opentelemetry.io/collector/otelcol v0.165.0
-	go.opentelemetry.io/collector/receiver v1.71.0
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.165.0
-	go.opentelemetry.io/collector/service v0.165.0
 	go.uber.org/zap v1.28.0
 )
 
@@ -43,9 +33,12 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cenkalti/backoff/v7 v7.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chdb-io/chdb-go v1.11.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.11.2 // indirect
+	github.com/everr-labs/everr/collector/exporter/chdbexporter v0.0.0-00010101000000-000000000000 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000 // indirect
+	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20260902202739-8c9c2d1005f4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
@@ -94,6 +87,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.71.0 // indirect
+	go.opentelemetry.io/collector/component v1.71.0 // indirect
 	go.opentelemetry.io/collector/component/componentstatus v0.165.0 // indirect
 	go.opentelemetry.io/collector/component/componenttest v0.165.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v1.71.0 // indirect
@@ -107,6 +101,7 @@ require (
 	go.opentelemetry.io/collector/config/configretry v1.71.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.165.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.71.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.71.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.165.0 // indirect
 	go.opentelemetry.io/collector/connector v0.165.0 // indirect
 	go.opentelemetry.io/collector/connector/connectortest v0.165.0 // indirect
@@ -116,6 +111,7 @@ require (
 	go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.165.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.165.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 // indirect
+	go.opentelemetry.io/collector/exporter v1.71.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/exporter/exportertest v0.165.0 // indirect
@@ -132,6 +128,7 @@ require (
 	go.opentelemetry.io/collector/internal/sharedcomponent v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/statusutil v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
+	go.opentelemetry.io/collector/otelcol v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.71.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.165.0 // indirect
@@ -141,10 +138,13 @@ require (
 	go.opentelemetry.io/collector/processor v1.71.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.165.0 // indirect
+	go.opentelemetry.io/collector/receiver v1.71.0 // indirect
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper/xreceiverhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.165.0 // indirect
+	go.opentelemetry.io/collector/service v0.165.0 // indirect
 	go.opentelemetry.io/collector/service/hostcapabilities v0.165.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.21.0 // indirect
 	go.opentelemetry.io/contrib/detectors/aws/ec2/v2 v2.6.0 // indirect
@@ -214,3 +214,5 @@ replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../.
 replace github.com/everr-labs/everr/collector/internal/localgateway/config => ../../internal/localgateway/config
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../../internal/localgateway/sqlhttp
+
+replace github.com/everr-labs/everr/collector/localcollector => ../../localcollector

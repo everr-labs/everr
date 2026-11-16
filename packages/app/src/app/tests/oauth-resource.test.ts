@@ -5,6 +5,10 @@ import { createInstallationIdentity } from "#app/app/identity.ts";
 import { createWorkspaceIdentityRequests } from "#app/app/request.ts";
 import type { Database } from "#app/db/database.ts";
 import { member, organization, session, user } from "#app/db/schema/index.ts";
+import {
+  DEFAULT_MCP_REDIRECT_ALLOWLIST,
+  parseRedirectAllowlist,
+} from "#app/identity/mcp-redirects.ts";
 import { createApplicationAuth } from "#app/identity/module.ts";
 import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import {
@@ -32,6 +36,7 @@ beforeAll(async () => {
     events: { async publish() {} },
     baseURL: "http://localhost:3000",
     secret: "oauth-resource-test-secret-long-enough",
+    mcpRedirectAllowlist: parseRedirectAllowlist(DEFAULT_MCP_REDIRECT_ALLOWLIST),
     email: {
       enabled: false,
       sendInvitation() {},
@@ -223,3 +228,65 @@ it("accepts only the configured resource in dynamic registration", async () => {
   expect(rejected.status).toBe(400);
   expect(await rejected.json()).toMatchObject({ error: "invalid_target" });
 });
+
+it("sends a client with an unlisted https callback to the blocked page without a code", async () => {
+  const attackerCallback = "https://attacker.example/cb";
+  const registered = await auth.handler(
+    new Request("http://localhost:3000/api/auth/oauth2/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        client_name: "Totally Claude",
+        redirect_uris: [attackerCallback],
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        token_endpoint_auth_method: "none",
+      }),
+    }),
+  );
+  expect(registered.status, await registered.clone().text()).toBe(201);
+  const { client_id: clientId } = (await registered.json()) as { client_id: string };
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: attackerCallback,
+    response_type: "code",
+    scope: "offline_access observability:read",
+    resource: "http://localhost:3000/mcp",
+    code_challenge: createHash("sha256").update("b".repeat(64)).digest("base64url"),
+    code_challenge_method: "S256",
+    state: "s",
+  });
+  const session = { authorization: "Bearer member-session-token" };
+
+  const viaLink = await auth.handler(
+    new Request(`http://localhost:3000/api/auth/oauth2/authorize?${params}`, {
+      headers: session,
+    }),
+  );
+  expect(viaLink.status).toBe(302);
+  const blocked = new URL(viaLink.headers.get("location")!, "http://localhost:3000");
+  expect(blocked.pathname).toBe("/mcp/blocked-client");
+  expect(blocked.searchParams.get("redirect_uri")).toBe(attackerCallback);
+
+  // A form POST carries the request in its body, past the query-reading
+  // redirect hook, so only validateRedirectUri stands in the way.
+  const viaForm = await auth.handler(
+    new Request("http://localhost:3000/api/auth/oauth2/authorize", {
+      method: "POST",
+      headers: { ...session, "content-type": "application/x-www-form-urlencoded" },
+      body: params,
+    }),
+  );
+  expect(viaForm.status).toBe(302);
+  const location = viaForm.headers.get("location")!;
+  expect(location.startsWith(attackerCallback)).toBe(false);
+  expect(new URL(location, "http://localhost:3000").searchParams.get("error")).toBe(
+    "invalid_redirect",
+  );
+
+  const consents = await fixture.client.query("SELECT id FROM oauth_consent WHERE client_id = $1", [
+    clientId,
+  ]);
+  expect(consents.rows).toHaveLength(0);
+}, 30_000);

@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { listMcpConnections } from "#app/data/mcp/connections.ts";
 import { authClient } from "#app/lib/auth-client.ts";
 
 export function linkedAccountsQueryOptions(userId: string) {
@@ -22,5 +23,12 @@ export function accountSessionsQueryOptions(userId: string) {
       if (result.error) throw new Error(result.error.message ?? "Could not load your sessions.");
       return result.data;
     },
+  });
+}
+
+export function mcpConnectionsQueryOptions(userId: string) {
+  return queryOptions({
+    queryKey: ["account-settings", userId, "mcp-connections"],
+    queryFn: () => listMcpConnections(),
   });
 }

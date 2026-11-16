@@ -44,7 +44,7 @@ import {
 const USAGE = `# verify-cli: launch, inspect, drive, and tear down an ISOLATED everr
 # local instance (collector + chDB + local UI) for verification runs.
 #
-#   verify-cli build                  # pnpm dev:cli (local UI + Go collector + chDB + debug CLI)
+#   verify-cli build                  # pnpm dev:cli (local UI + chDB + debug CLI with the collector built in)
 #   verify-cli launch [RUN_ID]        # start an isolated detached instance, wait until queryable
 #   verify-cli doctor                 # read-only: is this run's instance worth driving?
 #   verify-cli env                    # print the export lines for the current run
@@ -97,8 +97,7 @@ function loadRun(): Run {
 const everr = (r: Run, args: string[]) => run(BIN, args, { env: envWith(r.vars) });
 
 function cmdBuild(): number {
-  if (!which("make")) die("make is missing (collector build-local needs it)");
-  if (!which("go")) die("go is missing (collector needs Go >= go.mod version)");
+  if (!which("go")) die("go is missing (the CLI needs Go >= packages/cli/go.mod version)");
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   if (nodeMajor < 23) {
     die(`node ${process.version} is too old; repo pins ${(readText(path.join(REPO, ".node-version")) ?? "").trim()} (.node-version). Put Node 24 first on PATH`);
@@ -228,7 +227,7 @@ async function cmdDoctor(): Promise<number> {
   console.log(`run: ${r.id}`);
   console.log(`binary: ${version.status === 0 ? version.stdout.trim() : "missing"}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
-  const stale = newerThan(["packages/cli/src", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/cmd", "collector/exporter/chdbexporter", "collector/go.mod", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
+  const stale = newerThan(["packages/cli/cmd", "packages/cli/internal", "packages/cli/go.mod", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/localcollector", "collector/internal/localgateway", "collector/exporter/chdbexporter", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
     console.log("WARN sources newer than binary (rebuild with 'verify-cli build'):");
     for (const f of stale) console.log(`       ${f}`);

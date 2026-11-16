@@ -1,15 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
-import { subscribe, subscribeAuthor, subscribeTenant } from "#app/db/hub.ts";
+import { subscribeTenant, subscribeTrace } from "#app/db/hub.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { createSSEStream } from "#app/lib/sse.ts";
 
 const StreamQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("tenant") }),
   z.object({ scope: z.literal("trace"), key: z.string().min(1) }),
-  z.object({ scope: z.literal("commit"), key: z.string().min(1) }),
-  z.object({ scope: z.literal("author"), key: z.string().email() }),
 ]);
 
 const authMiddleware = createMiddleware({ type: "request" }).server(async ({ next, request }) => {
@@ -55,7 +53,7 @@ export const Route = createFileRoute("/api/events/stream")({
           return Response.json(
             {
               error:
-                "Invalid query parameters. Required: scope (tenant|trace|commit|author). For non-tenant scopes: key is also required.",
+                "Invalid query parameters. Required: scope (tenant|trace). For scope=trace, key is also required.",
             },
             { status: 400 },
           );
@@ -68,15 +66,7 @@ export const Route = createFileRoute("/api/events/stream")({
             case "tenant":
               return subscribeTenant(session.organizationId, (payload) => sse.sendEvent(payload));
             case "trace":
-              return subscribe("trace", session.organizationId, parsed.data.key, (payload) =>
-                sse.sendEvent(payload),
-              );
-            case "commit":
-              return subscribe("commit", session.organizationId, parsed.data.key, (payload) =>
-                sse.sendEvent(payload),
-              );
-            case "author":
-              return subscribeAuthor(session.organizationId, parsed.data.key, (payload) =>
+              return subscribeTrace(session.organizationId, parsed.data.key, (payload) =>
                 sse.sendEvent(payload),
               );
           }

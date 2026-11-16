@@ -58,9 +58,9 @@ LIMIT 10
 ```
 
 ```bash
-# Preview, then check the commit's pipeline.
+# Preview, then publish.
 everr apply ./everr --preview
-everr ci status --commit "$(git rev-parse HEAD)"
+everr apply ./everr
 ```
 
 ```yaml

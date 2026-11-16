@@ -84,6 +84,7 @@ beforeAll(async () => {
       events: { async publish() {} },
       baseURL: "http://localhost:3000",
       secret: "cloud-membership-test-secret-long-enough",
+      mcpRedirectAllowlist: [],
       email: {
         enabled: true,
         sendInvitation() {},

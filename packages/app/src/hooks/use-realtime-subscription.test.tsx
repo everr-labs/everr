@@ -75,7 +75,7 @@ describe("useRealtimeSubscription — tenant scope", () => {
     expect(MockEventSource.instances[0]?.close).toHaveBeenCalledOnce();
   });
 
-  it("invalidates runs and errors queries on tenant updates", () => {
+  it("invalidates runs queries on tenant updates", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
@@ -90,7 +90,6 @@ describe("useRealtimeSubscription — tenant scope", () => {
     });
 
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["runs"] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["errors"] });
   });
 });
 

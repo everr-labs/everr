@@ -6,6 +6,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({ confirm: vi.fn(), search: vi.fn() }));
 vi.mock("../data/billing", () => ({ confirmOrgCheckout: mocks.confirm }));
+vi.mock("@everr/app/identity/client", () => ({
+  authClient: { useActiveOrganization: () => ({ data: { name: "Lumen Labs" } }) },
+}));
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof ReactRouterTypes>()),
   Link: ({ children, to, ...props }: { children?: ReactNode; to: string }) => (
@@ -43,12 +46,13 @@ it("stops confirming and polling when a paid checkout belongs to a different cus
   await act(async () => {
     await vi.advanceTimersByTimeAsync(50);
   });
-  expect(screen.getByText("Billing association needs attention")).toBeVisible();
-  expect(screen.getByRole("alert")).toHaveTextContent("Do not repeat the purchase");
-  expect(screen.queryByText("Confirming payment")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Back to billing" })).toHaveAttribute(
+  expect(screen.getByText("Your payment needs attention")).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent("doesn't match this organization");
+  expect(screen.getByText("Don't repeat the purchase")).toBeVisible();
+  expect(screen.queryByText("Confirming your payment")).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Email support" })).toHaveAttribute(
     "href",
-    "/billing",
+    expect.stringContaining("d0dc6191-d1e3-4a1e-a8e7-6ba69a6112e7"),
   );
   await act(async () => {
     await vi.advanceTimersByTimeAsync(5_000);
@@ -73,11 +77,37 @@ it("refreshes Hobby organization eligibility after an upgrade completes", async 
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByText("Pro is active")).toBeVisible();
+  expect(await screen.findByText("Welcome to Pro")).toBeVisible();
+  expect(screen.getByRole("link", { name: /Invite your team/ })).not.toHaveAttribute(
+    "aria-disabled",
+  );
   await waitFor(() => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["organization-creation-options"],
     });
   });
+  client.clear();
+});
+
+it("keeps the Pro next steps locked while the payment is still confirming", async () => {
+  mocks.search.mockReturnValue({
+    checkout_id: "d0dc6191-d1e3-4a1e-a8e7-6ba69a6112e7",
+  });
+  mocks.confirm.mockResolvedValue({ status: "pending" });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  render(
+    <QueryClientProvider client={client}>
+      <Page />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("Confirming your payment")).toBeVisible();
+  expect(screen.getByRole("link", { name: /Invite your team/ })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   client.clear();
 });

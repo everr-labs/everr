@@ -9,47 +9,15 @@ import (
 )
 
 func TestParseEndpointRequiresLocalHTTPURL(t *testing.T) {
-	endpoint, err := ParseEndpoint("http://127.0.0.1:54318")
+	address, err := ParseEndpoint("http://127.0.0.1:54318")
 	require.NoError(t, err)
-	require.Equal(t, "127.0.0.1:54318", endpoint.ListenAddress)
+	require.Equal(t, "127.0.0.1:54318", address)
 
 	_, err = ParseEndpoint("https://127.0.0.1:54318")
 	require.ErrorContains(t, err, "must use http")
 
 	_, err = ParseEndpoint("http://example.com:54318")
 	require.ErrorContains(t, err, "must use localhost or loopback")
-}
-
-func TestBuildCollectorConfigUsesLocalDefaults(t *testing.T) {
-	cfg := CollectorConfig{
-		OTLPListenAddress: "127.0.0.1:54318",
-		TTL:               7 * 24 * time.Hour,
-	}
-
-	conf := BuildCollectorConfig(cfg)
-	raw := conf.ToStringMap()
-
-	require.NotContains(t, raw, "processors")
-
-	exporters := raw["exporters"].(map[string]any)
-	chdb := exporters["chdb"].(map[string]any)
-	batch := chdb["sending_queue"].(map[string]any)["batch"].(map[string]any)
-	require.Equal(t, "2s", batch["flush_timeout"])
-	require.Equal(t, 8192, batch["min_size"])
-	require.Equal(t, "168h0m0s", chdb["ttl"])
-	require.NotContains(t, chdb, "path")
-
-	// Local table names mirror the cloud query-facing tables so the shared
-	// explorer queries run unchanged.
-	require.Equal(t, "logs", chdb["logs_table_name"])
-	require.Equal(t, "traces", chdb["traces_table_name"])
-	require.Equal(t, true, chdb["json"], "the local store writes JSON attribute columns like the cloud")
-	metricsTables := chdb["metrics_tables"].(map[string]any)
-	require.Equal(t, map[string]any{"name": "metrics_gauge"}, metricsTables["gauge"])
-	require.Equal(t, map[string]any{"name": "metrics_sum"}, metricsTables["sum"])
-	require.Equal(t, map[string]any{"name": "metrics_histogram"}, metricsTables["histogram"])
-	require.Equal(t, map[string]any{"name": "metrics_exponential_histogram"}, metricsTables["exponential_histogram"])
-	require.Equal(t, map[string]any{"name": "metrics_summary"}, metricsTables["summary"])
 }
 
 func TestStaticProviderReturnsGeneratedConfig(t *testing.T) {

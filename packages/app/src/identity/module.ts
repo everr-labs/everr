@@ -47,6 +47,11 @@ import type { EventPublisher } from "#app/composition/events.ts";
 import type { IdentityEvent } from "./events";
 import { identityLifecycleAdapter } from "./identity-adapter";
 import { invitationVisibilityPlugin } from "./invitations";
+import {
+  isAllowedRedirectUri,
+  mcpBlockedClientPlugin,
+  type RedirectAllowlist,
+} from "./mcp-redirects";
 
 async function getMarkedDeviceOrganizationId(db: Database, session: { userId: string }) {
   // Captured by the /device/token before-hook (see cli-device-organization).
@@ -133,6 +138,7 @@ export interface IdentityDependencies {
   baseURL: string;
   secret: string;
   socialProviders?: BetterAuthOptions["socialProviders"];
+  mcpRedirectAllowlist: RedirectAllowlist;
   email: {
     enabled: boolean;
     sendInvitation: typeof sendInvitationEmail;
@@ -150,6 +156,7 @@ export function createApplicationAuth(
     baseURL,
     secret,
     socialProviders,
+    mcpRedirectAllowlist,
     email,
     canInviteMembers,
     events,
@@ -390,11 +397,16 @@ export function createApplicationAuth(
           createOrganization(input),
       ) ?? []),
       jwt({ disableSettingJwtHeader: true, disabledPaths: ["/token"] }),
+      mcpBlockedClientPlugin(mcpRedirectAllowlist),
       oauthProvider({
         loginPage: "/auth/sign-in",
         consentPage: "/mcp/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
+        // Anyone can register any callback, so only loopback and allowlisted
+        // callbacks may receive a code.
+        validateRedirectUri: (uri, _registered, defaultResult) =>
+          defaultResult && isAllowedRedirectUri(uri, mcpRedirectAllowlist),
         // MCP native clients omit application_type when registering loopback callbacks.
         clientRegistrationDefaultApplicationType: "infer",
         // The MCP resource is installation-wide, as it was with validAudiences.

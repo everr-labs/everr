@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
 import {
   access,
   chmod,
@@ -7,17 +6,15 @@ import {
   mkdir,
   readFile,
   readdir,
+  rename,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { createGzip } from "node:zlib";
+import { constants as zlib, zstdCompressSync } from "node:zlib";
 import { $ } from "zx";
-import { embeddedAssets } from "./cli-build.ts";
-import { type BuildPhases, noopBuildPhases } from "./build-telemetry.ts";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,16 +22,15 @@ const packageDir = path.resolve(scriptDir, "..");
 const repoDir = path.resolve(packageDir, "..", "..");
 const docsPublicDir = path.join(repoDir, "packages", "docs", "public");
 const envFile = path.join(packageDir, ".env");
-const cliEmbeddedAssetsDir = path.dirname(embeddedAssets.collectorGz);
-export const CHDB_RELEASE_VERSION = "v26.7.3";
+const CHDB_RELEASE_VERSION = "v26.7.3";
 
-export type ChdbAsset = { assetName: string; sha256: string };
+type ChdbAsset = { assetName: string; sha256: string };
 
 /**
  * Pinned chDB release assets keyed by `${process.platform}-${process.arch}`.
  * Each CLI target embeds the matching prebuilt `libchdb.so`.
  */
-export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
+const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   "darwin-arm64": {
     assetName: "macos-arm64-libchdb.tar.gz",
     sha256: "5640e50dccf711bf3dd5551333d08e43f433edf7bd94b2289f36c2539e627762",
@@ -49,7 +45,7 @@ export const CHDB_PLATFORM_ASSETS: Record<string, ChdbAsset> = {
   },
 };
 
-export function resolveChdbAsset(
+function resolveChdbAsset(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): ChdbAsset {
@@ -65,9 +61,6 @@ export function resolveChdbAsset(
 
   return asset;
 }
-
-const LOCAL_COLLECTOR_BIN_NAME = "everr-local-collector";
-const CHDB_LIB_FILE_NAME = "libchdb.so";
 
 let didLoadEnvFile = false;
 
@@ -91,7 +84,7 @@ function getEnv(name: string) {
   return value ? value : undefined;
 }
 
-export function chdbReleaseAssetUrl(
+function chdbReleaseAssetUrl(
   assetName = resolveChdbAsset().assetName,
   version = CHDB_RELEASE_VERSION,
 ) {
@@ -104,7 +97,7 @@ export async function sha256File(filePath: string) {
     .digest("hex");
 }
 
-async function pathExists(filePath: string) {
+export async function pathExists(filePath: string) {
   try {
     await access(filePath);
     return true;
@@ -145,9 +138,7 @@ async function downloadChdbArchive(archivePath: string, asset: ChdbAsset) {
       `Downloaded ${asset.assetName} has sha256 ${digest}; expected ${asset.sha256}.`,
     );
   }
-  await rm(archivePath, { force: true });
-  await copyFile(tmpPath, archivePath);
-  await rm(tmpPath, { force: true });
+  await rename(tmpPath, archivePath);
 }
 
 async function ensureChdbArchive(archivePath: string, asset: ChdbAsset) {
@@ -164,11 +155,13 @@ async function ensureChdbArchive(archivePath: string, asset: ChdbAsset) {
   await downloadChdbArchive(archivePath, asset);
 }
 
-async function prepareChdbLibAt(mode: string, destLib: string) {
-  if (mode !== "debug" && mode !== "release") {
-    throw new Error(`Unsupported mode: ${mode}`);
-  }
+/** The identity prepareChdbLibAt signs libchdb with, or "" when it does not sign. */
+export function chdbSigningIdentity(mode: string) {
+  if (mode !== "release" || process.platform !== "darwin") return "";
+  return getEnv("APPLE_SIGNING_IDENTITY") ?? "";
+}
 
+export async function prepareChdbLibAt(mode: string, destLib: string) {
   const asset = resolveChdbAsset();
 
   const chdbCacheDir = path.join(repoDir, "target", "chdb");
@@ -185,11 +178,6 @@ async function prepareChdbLibAt(mode: string, destLib: string) {
     throw new Error(`${asset.assetName} did not contain libchdb.so.`);
   }
 
-  const extractedStat = await stat(extractedLib);
-  if (!extractedStat.isFile()) {
-    throw new Error(`Extracted libchdb.so is not a file: ${extractedLib}`);
-  }
-
   await mkdir(path.dirname(destLib), { recursive: true });
   await copyFile(extractedLib, destLib);
   await chmod(destLib, 0o644);
@@ -202,52 +190,23 @@ async function prepareChdbLibAt(mode: string, destLib: string) {
   return destLib;
 }
 
-async function gzipFile(source: string, dest: string) {
+// zstd at level 19 makes libchdb about a third smaller than gzip -9 and
+// still unpacks in a fraction of a second.
+export async function zstdFile(source: string, dest: string) {
   await mkdir(path.dirname(dest), { recursive: true });
   const tmp = `${dest}.tmp`;
   await rm(tmp, { force: true });
-  await pipeline(createReadStream(source), createGzip({ level: 9 }), createWriteStream(tmp));
-  await rm(dest, { force: true });
-  await copyFile(tmp, dest);
-  await rm(tmp, { force: true });
-  console.log(`Compressed ${source} -> ${dest}`);
-}
-
-export type CliEmbeddedAssets = typeof embeddedAssets;
-
-export async function prepareCliEmbeddedAssets(
-  mode: string,
-  telemetry: BuildPhases = noopBuildPhases,
-): Promise<CliEmbeddedAssets> {
-  if (mode !== "debug" && mode !== "release") {
-    throw new Error(`Unsupported mode: ${mode}`);
-  }
-
-  await mkdir(cliEmbeddedAssetsDir, { recursive: true });
-
-  const collectorSource = path.join(repoDir, "collector", "build-local", LOCAL_COLLECTOR_BIN_NAME);
-  const collectorPrepared = path.join(cliEmbeddedAssetsDir, LOCAL_COLLECTOR_BIN_NAME);
-  const chdbPrepared = path.join(cliEmbeddedAssetsDir, CHDB_LIB_FILE_NAME);
-  const { collectorGz, chdbGz } = embeddedAssets;
-
-  console.log(`Building local OTel collector for CLI embedding (${mode})...`);
-  await telemetry.phase(
-    "build embedded collector",
-    () => $`make -C ${path.join(repoDir, "collector")} build-local`,
-  );
-
-  await copyFile(collectorSource, collectorPrepared);
-  await chmod(collectorPrepared, 0o755);
-  if (mode === "release") {
-    await signBinaryIfNeeded(collectorPrepared);
-  }
-
-  await telemetry.phase("prepare chdb library", () => prepareChdbLibAt(mode, chdbPrepared));
-  await telemetry.phase("compress embedded assets", async () => {
-    await Promise.all([gzipFile(collectorPrepared, collectorGz), gzipFile(chdbPrepared, chdbGz)]);
+  // The streaming compressor fails on Linux with multiple workers
+  // (ERR_STREAM_PUSH_AFTER_EOF), so compress the whole buffer at once.
+  const compressed = zstdCompressSync(await readFile(source), {
+    params: {
+      [zlib.ZSTD_c_compressionLevel]: 19,
+      [zlib.ZSTD_c_nbWorkers]: os.availableParallelism(),
+    },
   });
-
-  return { collectorGz, chdbGz };
+  await writeFile(tmp, compressed);
+  await rename(tmp, dest);
+  console.log(`Compressed ${source} -> ${dest}`);
 }
 
 async function signBinaryIfNeeded(binaryPath: string) {

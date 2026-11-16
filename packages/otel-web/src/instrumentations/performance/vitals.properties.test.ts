@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Emit } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
+import { createSessionContext } from "../../state/session.js";
 import { startInp } from "./inp.js";
 import { startWebVitals } from "./webvitals.js";
 
@@ -23,6 +24,9 @@ let spans: Array<{ attrs: Record<string, unknown> }>;
 const tracer = createTracer((_traceId, _spanId, _name, _start, _end, attrs) => {
   spans.push({ attrs });
 });
+
+const [, page] = createSessionContext(location.href, undefined);
+const ctx = { emit, tracer, page, onNavigation: () => () => {} };
 
 let observers: Map<string, (list: { getEntries: () => unknown[] }) => void>;
 
@@ -112,7 +116,7 @@ describe("INP", () => {
       fc.property(interactions, ([ids, durations]) => {
         emitted = [];
         setVisibility("visible");
-        const stop = startInp(emit, tracer, true, false);
+        const stop = startInp(ctx, true, false);
         fire(
           "event",
           ids.map((id, i) => ({
@@ -163,7 +167,7 @@ describe("INP", () => {
       fc.property(timing, (entry) => {
         spans = [];
         setVisibility("visible");
-        const stop = startInp(emit, tracer, false, true);
+        const stop = startInp(ctx, false, true);
         fire("event", [
           {
             entryType: "event",

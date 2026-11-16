@@ -110,6 +110,7 @@ it("preserves billing checks inside nested source transactions and holds request
       database,
       baseURL: "http://localhost:3000",
       secret: "nested-billing-identity-secret-long-enough",
+      mcpRedirectAllowlist: [],
       events: {
         publish: async (fact) => {
           expect(active).toBe(true);

@@ -27,7 +27,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 - UI proof: `ui/<label>.png` plus `ui/<label>.txt` containing the marker (`ab_save`).
 - Record the feature ID (sub-feature IDs below) with each artifact label.
 - Report an unreachable path with the attempted command and the unmet precondition. Do not report a skipped entry point as verified through a different path.
-- Cloud-backed CLI commands (`cloud`, `ci`, `apply`, `resources`) are out of scope for this map; report them as skipped with "needs Everr Cloud session".
+- Cloud-backed CLI commands (`cloud`, `apply`, `resources`) are out of scope for this map; report them as skipped with "needs Everr Cloud session".
 
 ## Feature entry contract
 
@@ -47,6 +47,6 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/cli/**`, `collector/cmd/everr-local-collector/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
+| `packages/cli/**`, `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
 | `packages/local-app/**`, `packages/telemetry-explorer/**`, `packages/ui/**` | `local-ui-logs.md` (+ `local-query.md`) |
 | `skills/**`, skills commands | `skills.md` |

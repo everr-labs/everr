@@ -1,6 +1,6 @@
 ---
 name: verify-cli
-description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, `collector/cmd/everr-local-collector`, `collector/exporter/chdbexporter`, `packages/local-app` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
+description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, the collector packages it builds in (`collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`), `packages/local-app` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
 user-invocable: true
 metadata:
   internal: true
@@ -8,11 +8,11 @@ metadata:
 
 # Verify the Everr CLI and its local stack
 
-The `everr` CLI, in particular the local telemetry loop: `everr local start` boots a supervisor that serves the local UI and runs the embedded Go collector with in-process chDB; `everr wrap` and any OTLP exporter write into it; `everr local query` and the local UI read from it. Everything here runs offline with no auth.
+The `everr` CLI, in particular the local telemetry loop: `everr local start` boots a supervisor that serves the local UI and runs the collector in-process with chDB; `everr wrap` and any OTLP exporter write into it; `everr local query` and the local UI read from it. Everything here runs offline with no auth.
 
 Other surfaces have their own skills: App and Cloud in [verify-web-app](../verify-web-app/SKILL.md), the collector distributions on their own in [verify-collector](../verify-collector/SKILL.md), the docs and landing site in [verify-docs](../verify-docs/SKILL.md). Runs of different skills can coexist.
 
-Not covered: Cloud-backed CLI commands (`cloud`, `ci`, `apply`, `resources`) need an authenticated session. To test them, launch a [verify-web-app](../verify-web-app/SKILL.md) run, isolate `EVERR_CONFIG_DIR` and point login at the selected app; use its backing loopback HTTP port if the CLI cannot trust the local Portless CA.
+Not covered: Cloud-backed CLI commands (`cloud`, `apply`, `resources`) need an authenticated session. To test them, launch a [verify-web-app](../verify-web-app/SKILL.md) run, isolate `EVERR_CONFIG_DIR` and point login at the selected app; use its backing loopback HTTP port if the CLI cannot trust the local Portless CA.
 
 Everything goes through one helper: `.agents/skills/verify-cli/scripts/verify-cli.ts` (below: `V`), TypeScript that Node >= 24 runs directly (no build step or separate dependency install). Run it from anywhere (`$V ...`, or `node $V ...`); it resolves the repo from its own path.
 
@@ -24,11 +24,11 @@ V="$(git rev-parse --show-toplevel)/.agents/skills/verify-cli/scripts/verify-cli
 
 There is no long-lived server to share: build the debug CLI once, then start one isolated local instance per run.
 
-1. Toolchain (once per machine). The build needs: Node >= 24 (repo pins `.node-version` = 24; Node 20 cannot run the `.ts` build scripts), pnpm via corepack (version pinned in `packageManager`), stable Rust (CI uses `dtolnay/rust-toolchain@stable`), Go >= the `collector/go.mod` version (1.26), `make`, a C toolchain, `curl`, `tar`. The helper itself runs on that Node and needs `ss` (Linux) or `lsof` (macOS); some recipes also use `jq`. The browser is driven with the [`agent-browser`](https://www.npmjs.com/package/agent-browser) CLI (required for every UI step; `doctor` checks it): `npm install -g agent-browser && agent-browser install` (downloads its Chrome; on a bare Linux host add `--with-deps`). Tested with 0.39.1.
-2. Build (once per source change). This is the repo's own `pnpm dev:cli`: builds `packages/local-app` (Vite), `make -C collector build-local` (Go), downloads the pinned chDB release into `target/chdb/`, gzips both into `target/cli-embedded-assets/`, then `cargo build` of the debug CLI with them embedded.
+1. Toolchain (once per machine). The build needs: Node >= 24 (repo pins `.node-version` = 24; Node 20 cannot run the `.ts` build scripts), pnpm via corepack (version pinned in `packageManager`), Go >= the `packages/cli/go.mod` version (1.26), `curl`, `tar`. The helper itself runs on that Node and needs `ss` (Linux) or `lsof` (macOS); some recipes also use `jq`. The browser is driven with the [`agent-browser`](https://www.npmjs.com/package/agent-browser) CLI (required for every UI step; `doctor` checks it): `npm install -g agent-browser && agent-browser install` (downloads its Chrome; on a bare Linux host add `--with-deps`). Tested with 0.39.1.
+2. Build (once per source change). This is the repo's own `pnpm dev:cli`: builds `packages/local-app` (Vite), downloads the pinned chDB release into `target/chdb/`, stages the UI, the skills, and the zstd-compressed chDB library into `packages/cli/internal/assets/`, then `go build`s the debug CLI, which runs the collector in-process.
 
    ```bash
-   $V build      # cold: ~2m40s on 8 cores (vite + go + chDB download + cargo); warm: much faster
+   $V build      # cold: dominated by the chDB download and compression; warm: much faster
    ```
 
    The build reports its own spans over OTLP (`packages/cli/scripts/build-telemetry.ts`), by default to `127.0.0.1:54318`, which may be your own collector. `$V build` sets `OTEL_EXPORTER_OTLP_ENDPOINT` to the dead port `http://127.0.0.1:9` (or `VERIFY_BUILD_OTLP_ENDPOINT` if set), so the line `Build telemetry export to http://127.0.0.1:9/v1/traces failed` is expected and harmless.
@@ -58,7 +58,7 @@ Read-only. Run first, and whenever anything looks off:
 $V doctor
 ```
 
-Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/src`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/cmd`, `collector/exporter/chdbexporter`, `collector/go.mod`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
+Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/cmd`, `packages/cli/internal`, `packages/cli/go.mod`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
 
 ## Drive
 
@@ -108,7 +108,7 @@ Run the `eval` in the shell you drive from (not inside `eval "$($V env)"`, whose
 - `agent-browser --json errors`: page errors with their text. The plain form prints bare `✗` lines in 0.39.1, and errors accumulate across navigations, so compare counts before and after an action instead of asserting emptiness.
 - Evidence: `ab_save <label> ["<caption>"]` (defined by the `eval`) saves `$SHOTS/<label>.png` (`agent-browser screenshot`), `.url` (`get url`), `.txt` (`get text body`) and, with a second argument, `.caption`. Labels are flat (`logs-01-marker`): `screenshot` does not create directories. Assert on the `.txt`, not on the screenshot.
 
-Stable handles: CLI subcommands and flags from `packages/cli/src/cli.rs`; `--format json|ndjson|table` on queries (ndjson is the default off a TTY); `everr wrap` names the service `everr-wrap-<program>` and sets log attributes `everr.wrap.stream` (`stdout`/`stderr`/`exit`), `everr.wrap.command`, `everr.wrap.executable`, `everr.wrap.exit_code`. Attributes are ClickHouse `JSON` columns: read them as `LogAttributes.everr.wrap.stream`, not `LogAttributes['...']` (that errors with `ILLEGAL_TYPE_OF_ARGUMENT`). UI routes: `/logs`, `/traces`, `/traces/<traceId>`, `/errors`, `/settings`, `/developer`; the Logs search box maps to the `q` search param.
+Stable handles: CLI subcommands and flags from `everr --help` (defined under `packages/cli/internal/`); `--format json|ndjson|table` on queries (ndjson is the default off a TTY); `everr wrap` names the service `everr-wrap-<program>` and sets log attributes `everr.wrap.stream` (`stdout`/`stderr`/`exit`), `everr.wrap.command`, `everr.wrap.executable`, `everr.wrap.exit_code`. Attributes are ClickHouse `JSON` columns: read them as `LogAttributes.everr.wrap.stream`, not `LogAttributes['...']` (that errors with `ILLEGAL_TYPE_OF_ARGUMENT`). UI routes: `/logs`, `/traces`, `/traces/<traceId>`, `/errors`, `/settings`, `/developer`; the Logs search box maps to the `q` search param.
 
 ## Evidence
 
@@ -136,7 +136,7 @@ Proof standards:
 $V cleanup
 ```
 
-`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr-local-collector`. It closes this run's `agent-browser` session (its Chrome), copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current` if it names this run, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
+`cleanup` runs `everr local stop` for this run (stops UI + collector via the supervisor), waits for the 3 run ports to close, and if any are still held, kills only the PIDs recorded at launch that still own those ports. Never kill by process name: other agents and the user may run their own `everr local`. It closes this run's `agent-browser` session (its Chrome), copies `local.log` into the evidence dir, deletes `/tmp/verify-everr/<RUN_ID>/` (data, throwaway HOME, extracted assets) and `.verify-everr/current` if it names this run, then lists the evidence that survived. Run it after every attempt, including failed ones. Also remove any scratch dirs a feature recipe created (they say so).
 
 ## Helpers
 
