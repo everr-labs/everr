@@ -9,9 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // request is what a cloudServer route saw.
@@ -362,4 +364,33 @@ func TestCloudCommandsUseTheSavedURLIncludingItsPathPrefix(t *testing.T) {
 	env.Run("cloud", "query", "SELECT 1").Success(t)
 	srv.expect(t, "GET /everr/api/cli/me", 1, "saved-token")
 	srv.expect(t, "POST /everr/api/cli/sql", 1, "saved-token")
+}
+
+func TestLoginOpensTheVerificationURLWithTheBROWSERCommand(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS opens URLs with `open`, which ignores $BROWSER")
+	}
+	env := NewEnv(t)
+	opened := filepath.Join(env.HomeDir, "opened")
+	opener := filepath.Join(env.HomeDir, "open-url")
+	if err := os.WriteFile(opener, []byte("#!/bin/sh\necho \"$@\" > "+opened+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env.Setenv("BROWSER", filepath.Join(env.HomeDir, "missing-browser")+":"+opener+" --new-tab")
+	srv := newLoginServer(t, `{"name":"Alice","email":"alice@example.test","organizationName":"Acme"}`, 200)
+
+	env.Run("cloud", "login", "--url", srv.URL).Success(t)
+
+	want := "--new-tab " + srv.URL + "/device\n"
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got, err := os.ReadFile(opened); err == nil && string(got) == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			got, _ := os.ReadFile(opened)
+			t.Fatalf("$BROWSER received %q, want %q", got, want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
