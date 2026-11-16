@@ -4,7 +4,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/everr-labs/everr/packages/cli/internal/api"
 	"github.com/everr-labs/everr/packages/cli/internal/build"
+	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 )
 
@@ -69,18 +69,6 @@ func loadSession() (*session.Store, *session.Session, error) {
 	return store, s, err
 }
 
-// RequireSession returns the saved session or tells the user to log in.
-func RequireSession() (session.Session, error) {
-	_, s, err := loadSession()
-	if err != nil {
-		return session.Session{}, err
-	}
-	if s == nil {
-		return session.Session{}, errors.New("No active session. Run `everr cloud login`.")
-	}
-	return *s, nil
-}
-
 // NewClient builds the API client for a command. With allowAPIKey (apply),
 // EVERR_API_KEY (or the deprecated EVERR_API_TOKEN) wins over the saved
 // session, targeting EVERR_API_URL or else the saved session's URL.
@@ -109,11 +97,14 @@ func NewClient(allowAPIKey bool) (*api.Client, error) {
 			return api.FromToken(normalized, token)
 		}
 	}
-	s, err := RequireSession()
+	_, s, err := loadSession()
 	if err != nil {
 		return nil, err
 	}
-	return api.FromSession(s)
+	if s == nil {
+		return nil, errors.New("No active session. Run `everr cloud login`.")
+	}
+	return api.FromSession(*s)
 }
 
 // LoginOptions are the `cloud login` flags.
@@ -219,10 +210,7 @@ func Status(ctx context.Context, out io.Writer, asJSON bool) error {
 			URL string `json:"url"`
 			*api.MeResponse
 		}{client.BaseURL(), me}
-		enc := json.NewEncoder(out)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		return enc.Encode(info)
+		return cmdutil.PrintJSON(out, info)
 	}
 	ingest := "not configured or unavailable on this server"
 	if me.IngestEndpoint != nil {

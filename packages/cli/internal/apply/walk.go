@@ -195,22 +195,15 @@ func gitCommonDir(dir string) string {
 	if info, err := os.Stat(gitDir); err != nil || info.IsDir() {
 		return gitDir
 	}
-	if target, ok := readGitPointer(filepath.Join(dir, ".git"), "gitdir:"); ok {
-		gitDir = resolveFrom(dir, target)
+	if data, err := os.ReadFile(gitDir); err == nil {
+		if target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), "gitdir:"); ok {
+			gitDir = resolveFrom(dir, strings.TrimSpace(target))
+		}
 	}
 	if common, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
 		return resolveFrom(gitDir, strings.TrimSpace(string(common)))
 	}
 	return gitDir
-}
-
-func readGitPointer(path, prefix string) (string, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", false
-	}
-	target, ok := strings.CutPrefix(strings.TrimSpace(string(data)), prefix)
-	return strings.TrimSpace(target), ok
 }
 
 func resolveFrom(base, path string) string {

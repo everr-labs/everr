@@ -31,7 +31,7 @@ const (
 
 type Server struct {
 	identity Identity
-	cfg      Config
+	endpoint string
 	handle   *chdb.Handle
 	logger   *zap.Logger
 
@@ -41,10 +41,10 @@ type Server struct {
 	status       atomic.Value
 }
 
-func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
+func NewServer(endpoint string, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
 	s := &Server{
 		identity: identity,
-		cfg:      cfg.Applied(),
+		endpoint: endpoint,
 		handle:   handle,
 		logger:   logger,
 	}
@@ -55,13 +55,13 @@ func NewServer(cfg Config, handle *chdb.Handle, logger *zap.Logger, identity Ide
 func (s *Server) Start() error {
 	handler := &handler{
 		handle:         s.handle,
-		queryTimeout:   s.cfg.QueryTimeout,
-		enqueueTimeout: s.cfg.EnqueueTimeout,
-		maxBytes:       s.cfg.MaxResultBytes,
+		queryTimeout:   DefaultQueryTimeout,
+		enqueueTimeout: DefaultEnqueueTimeout,
+		maxBytes:       DefaultMaxResultBytes,
 		logger:         s.logger,
 	}
 
-	ln, err := net.Listen("tcp", s.cfg.Endpoint)
+	ln, err := net.Listen("tcp", s.endpoint)
 	if err != nil {
 		return err
 	}

@@ -42,7 +42,7 @@ type Options struct {
 // OTLP pipeline runs separately so it can be restarted without reopening
 // chDB, which a process can only open once.
 type Gateway struct {
-	otlp   localconfig.Endpoint
+	otlp   string
 	ttl    time.Duration
 	handle *chdb.Handle
 	sql    *sqlhttp.Server
@@ -75,7 +75,7 @@ func Open(opts Options) (*Gateway, error) {
 		return nil, fmt.Errorf("open chdb: %w", err)
 	}
 	server := sqlhttp.NewServer(
-		sqlhttp.Config{Endpoint: sql.ListenAddress},
+		sql,
 		handle,
 		logger,
 		sqlhttp.Identity{Version: opts.Version, InstanceID: opts.InstanceID},
@@ -131,7 +131,7 @@ func (g *Gateway) Close(ctx context.Context) error {
 
 func (g *Gateway) collectorSettings() otelcol.CollectorSettings {
 	rawConfig := localconfig.BuildCollectorConfigMap(localconfig.CollectorConfig{
-		OTLPListenAddress: g.otlp.ListenAddress,
+		OTLPListenAddress: g.otlp,
 		TTL:               g.ttl,
 	})
 	return otelcol.CollectorSettings{

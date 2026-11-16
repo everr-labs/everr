@@ -24,6 +24,7 @@ import (
 
 	"github.com/everr-labs/everr/collector/localcollector"
 	"github.com/everr-labs/everr/packages/cli/internal/assets"
+	"github.com/everr-labs/everr/packages/cli/internal/atomicfile"
 	"github.com/everr-labs/everr/packages/cli/internal/banner"
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 )
@@ -354,7 +355,7 @@ func extractToCache(cacheRoot string, zst []byte, digest string) (library string
 		if err != nil {
 			return "", nil, err
 		}
-		if err := writeSynced(marker, fmt.Appendf(nil, "%s %d\n", digest, size)); err != nil {
+		if err := atomicfile.WriteFile(marker, fmt.Appendf(nil, "%s %d\n", digest, size), 0o644); err != nil {
 			return "", nil, err
 		}
 	}
@@ -431,7 +432,7 @@ func writeDecompressed(zst []byte, dest string) (int64, error) {
 	}
 	defer reader.Close()
 	var size int64
-	err = writeAtomically(dest, func(file *os.File) error {
+	err = atomicfile.Write(dest, 0o644, func(file *os.File) error {
 		size, err = io.Copy(file, reader)
 		return err
 	})
@@ -439,35 +440,4 @@ func writeDecompressed(zst []byte, dest string) (int64, error) {
 		return 0, fmt.Errorf("decompress %s: %w", dest, err)
 	}
 	return size, nil
-}
-
-func writeSynced(dest string, data []byte) error {
-	return writeAtomically(dest, func(file *os.File) error {
-		_, err := file.Write(data)
-		return err
-	})
-}
-
-// writeAtomically writes dest through a synced temp file, so a crash leaves
-// either the old file or the complete new one.
-func writeAtomically(dest string, write func(*os.File) error) error {
-	tmp := fmt.Sprintf("%s.%d.tmp", dest, os.Getpid())
-	file, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	err = write(file)
-	if err == nil {
-		err = file.Sync()
-	}
-	if closeErr := file.Close(); err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Rename(tmp, dest)
-	}
-	if err != nil {
-		_ = os.Remove(tmp)
-	}
-	return err
 }

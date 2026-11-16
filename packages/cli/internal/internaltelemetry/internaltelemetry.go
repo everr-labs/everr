@@ -14,13 +14,6 @@ import (
 
 const cloudEndpoint = "https://ingest.everr.dev"
 
-// Native callers deliberately use the product origin with an origin-bound
-// public ingest key. Never inherit the local browser's origin or a customer key.
-const (
-	CLIPublicOrigin = "https://cli.everr.local"
-	UIPublicOrigin  = "https://ui.everr.local"
-)
-
 // ExportTimeout bounds each export request so telemetry never holds up a
 // command.
 const ExportTimeout = 750 * time.Millisecond
@@ -37,11 +30,13 @@ const (
 	SourceUI
 )
 
+// origin is the product origin the public ingest key is bound to. Never
+// inherit the local browser's origin or a customer key.
 func (s Source) origin() string {
 	if s == SourceUI {
-		return UIPublicOrigin
+		return "https://ui.everr.local"
 	}
-	return CLIPublicOrigin
+	return "https://cli.everr.local"
 }
 
 // Config is where internal telemetry is exported. Headers holds the

@@ -71,6 +71,10 @@ func configureTree(cmd *cobra.Command) {
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
 	// clap listed flags in declaration order.
 	cmd.Flags().SortFlags = false
+	// cobra lets a leaf command take any arguments unless it declares them.
+	if !cmd.HasSubCommands() && cmd.Args == nil {
+		cmdutil.Positionals(cmd)
+	}
 	if cmd.HasSubCommands() {
 		if cmd.RunE == nil && cmd.Run == nil {
 			cmd.Args = func(c *cobra.Command, args []string) error {

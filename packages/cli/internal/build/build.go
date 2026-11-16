@@ -94,21 +94,28 @@ func TelemetryDir() (string, error) {
 // DataLocalDir mirrors the Rust `dirs::data_local_dir` locations the previous
 // CLI stored data in, so upgrades keep finding existing state.
 func DataLocalDir() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, "Library", "Application Support"), nil
-	default:
-		if dir := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(dir) {
+	dir, err := PlatformDir("XDG_DATA_HOME", ".local", "share")
+	if err != nil && runtime.GOOS != "darwin" {
+		return "", errors.New("failed to resolve user local data dir")
+	}
+	return dir, err
+}
+
+// PlatformDir follows the Rust `dirs` crate's data and config locations:
+// ~/Library/Application Support on macOS; elsewhere $xdgEnv when it is
+// absolute, else fallback under the home directory.
+func PlatformDir(xdgEnv string, fallback ...string) (string, error) {
+	if runtime.GOOS != "darwin" {
+		if dir := os.Getenv(xdgEnv); filepath.IsAbs(dir) {
 			return dir, nil
 		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", errors.New("failed to resolve user local data dir")
-		}
-		return filepath.Join(home, ".local", "share"), nil
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support"), nil
+	}
+	return filepath.Join(append([]string{home}, fallback...)...), nil
 }

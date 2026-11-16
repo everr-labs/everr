@@ -8,11 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/gofrs/flock"
 
+	"github.com/everr-labs/everr/packages/cli/internal/atomicfile"
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 )
 
@@ -97,24 +97,7 @@ func (s *Store) Save(session Session) error {
 	if err != nil {
 		return err
 	}
-	// CreateTemp makes the file 0600, which the token needs.
-	tmp, err := os.CreateTemp(s.dir, ".tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), s.Path())
+	return atomicfile.WriteFile(s.Path(), data, 0o600)
 }
 
 // Clear removes the saved session only if it is still expected, so a logout
@@ -169,31 +152,9 @@ func UserConfigDir() (string, error) {
 		}
 		return dir, nil
 	}
-	base, err := platformConfigDir()
+	base, err := build.PlatformDir("XDG_CONFIG_HOME", ".config")
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve user config dir: %w", err)
 	}
 	return filepath.Join(base, build.SessionNamespace), nil
-}
-
-// platformConfigDir follows the Rust `dirs::config_dir` rules so existing
-// sessions are found after upgrading.
-func platformConfigDir() (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, "Library", "Application Support"), nil
-	default:
-		if dir := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(dir) {
-			return dir, nil
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, ".config"), nil
-	}
 }

@@ -10,7 +10,6 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/everr-labs/everr/packages/cli/internal/assets"
@@ -139,7 +138,7 @@ func Bundled() ([]BundledSkill, error) {
 		}
 		skills = append(skills, skill)
 	}
-	sort.Slice(skills, func(i, j int) bool { return skills[i].Name < skills[j].Name })
+	slices.SortFunc(skills, func(a, b BundledSkill) int { return strings.Compare(a.Name, b.Name) })
 	return skills, nil
 }
 
@@ -288,9 +287,7 @@ func resolveSkillNames(options Options) ([]string, error) {
 	}
 	var names []string
 	if options.All {
-		for name := range available {
-			names = append(names, name)
-		}
+		names = slices.AppendSeq(names, maps.Keys(available))
 	}
 	for _, raw := range options.SkillNames {
 		name := strings.TrimSpace(raw)

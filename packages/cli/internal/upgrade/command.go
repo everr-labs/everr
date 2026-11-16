@@ -41,7 +41,6 @@ func NewCommand() *cobra.Command {
 			return run(cmd.Context(), cmd.OutOrStdout())
 		},
 	}
-	cmdutil.Positionals(cmd)
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
 	return cmd
 }

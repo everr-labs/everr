@@ -22,7 +22,6 @@ func NewCommand() *cobra.Command {
 			return run(c.OutOrStdout(), c.InOrStdin())
 		},
 	}
-	cmdutil.Positionals(cmd)
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
 	return cmd
 }

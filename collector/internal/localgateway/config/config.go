@@ -5,55 +5,38 @@ import (
 	"net"
 	"net/url"
 	"time"
-
-	"go.opentelemetry.io/collector/confmap"
 )
-
-type Endpoint struct {
-	Origin        string
-	ListenAddress string
-}
 
 type CollectorConfig struct {
 	OTLPListenAddress string
 	TTL               time.Duration
 }
 
-func ParseEndpoint(raw string) (Endpoint, error) {
+// ParseEndpoint validates a loopback HTTP origin and returns its host:port.
+func ParseEndpoint(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return Endpoint{}, fmt.Errorf("parse endpoint: %w", err)
+		return "", fmt.Errorf("parse endpoint: %w", err)
 	}
 	if u.Scheme != "http" {
-		return Endpoint{}, fmt.Errorf("endpoint %q must use http", raw)
+		return "", fmt.Errorf("endpoint %q must use http", raw)
 	}
 	host := u.Hostname()
 	ip := net.ParseIP(host)
 	switch {
 	case host == "localhost":
 	case ip == nil:
-		return Endpoint{}, fmt.Errorf("endpoint %q must use localhost or loopback", raw)
+		return "", fmt.Errorf("endpoint %q must use localhost or loopback", raw)
 	case !ip.IsLoopback():
-		return Endpoint{}, fmt.Errorf("endpoint %q must use localhost or loopback", raw)
+		return "", fmt.Errorf("endpoint %q must use localhost or loopback", raw)
 	}
 	if u.Port() == "" {
-		return Endpoint{}, fmt.Errorf("endpoint %q must include a port", raw)
+		return "", fmt.Errorf("endpoint %q must include a port", raw)
 	}
-	return Endpoint{
-		Origin:        fmt.Sprintf("http://%s", u.Host),
-		ListenAddress: u.Host,
-	}, nil
-}
-
-func BuildCollectorConfig(cfg CollectorConfig) *confmap.Conf {
-	return confmap.NewFromStringMap(BuildCollectorConfigMap(cfg))
+	return u.Host, nil
 }
 
 func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
-	if cfg.TTL == 0 {
-		cfg.TTL = 7 * 24 * time.Hour
-	}
-
 	return map[string]any{
 		"receivers": map[string]any{
 			"otlp": map[string]any{

@@ -56,7 +56,6 @@ func NewCommand(lifetime *Lifetime) *cobra.Command {
 	)
 	for _, sub := range cmd.Commands() {
 		if sub.Name() != "query" {
-			cmdutil.Positionals(sub)
 			cmdutil.SetHumanStdout(sub, cmdutil.HumanAlways)
 		}
 	}

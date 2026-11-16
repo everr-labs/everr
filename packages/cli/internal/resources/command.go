@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -72,7 +73,6 @@ func listCommand() *cobra.Command {
 	kind := cmdutil.Enum(cmd, "kind", "Only resources of this kind", kinds...)
 	cmd.Flags().Var(&repoid, "repoid", "Only resources owned by this Repoid (pass an empty string for UI-created)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output raw JSON instead of a table")
-	cmdutil.Positionals(cmd)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		client, err := newClient()
 		if err != nil {
@@ -97,7 +97,7 @@ func printList(w io.Writer, resources []api.ResourceSummary, asJSON bool) error 
 		if resources == nil {
 			resources = []api.ResourceSummary{}
 		}
-		return printJSON(w, resources)
+		return cmdutil.PrintJSON(w, resources)
 	}
 	if len(resources) == 0 {
 		fmt.Fprintln(w, "No resources.")
@@ -146,7 +146,7 @@ func showCommand() *cobra.Command {
 			return err
 		}
 		if asJSON {
-			return printJSON(cmd.OutOrStdout(), document)
+			return cmdutil.PrintJSON(cmd.OutOrStdout(), document)
 		}
 		return printYAML(cmd.OutOrStdout(), document)
 	}
@@ -236,13 +236,6 @@ func decodeJSON(raw []byte) (any, error) {
 	return value, nil
 }
 
-func printJSON(w io.Writer, value any) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(value)
-}
-
 func printYAML(w io.Writer, value any) error {
 	encoder := yaml.NewEncoder(w)
 	encoder.SetIndent(2)
@@ -282,12 +275,7 @@ func jsonToYAML(value any) *yaml.Node {
 		return node
 	case map[string]any:
 		node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		keys := make([]string, 0, len(v))
-		for key := range v {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
+		for _, key := range slices.Sorted(maps.Keys(v)) {
 			node.Content = append(node.Content, jsonToYAML(key), jsonToYAML(v[key]))
 		}
 		if len(v) == 0 {

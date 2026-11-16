@@ -363,7 +363,7 @@ func ResolveRepoid(dir, remote string) (repoid string, fromManifest bool, err er
 	if err != nil || repoid != "" {
 		return repoid, err == nil, err
 	}
-	if slug, ok := git.NormalizeRemoteSlug(remote); ok && remote != "" {
+	if slug, ok := git.NormalizeRemoteSlug(remote); ok {
 		return slug, false, nil
 	}
 	return "", false, fmt.Errorf("cannot determine the repository identity of %s: no `origin` git remote to infer it from and no everr.yaml manifest.\n"+

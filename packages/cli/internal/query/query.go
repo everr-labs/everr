@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -116,11 +117,7 @@ func renderTable(w io.Writer, rows Rows) {
 		fmt.Fprintln(w, "(rows are not objects)")
 		return
 	}
-	cols := make([]string, 0, len(first))
-	for key := range first {
-		cols = append(cols, key)
-	}
-	slices.Sort(cols)
+	cols := slices.Sorted(maps.Keys(first))
 	fmt.Fprintln(w, strings.Join(cols, " | "))
 	for _, row := range rows {
 		object, _ := row.(map[string]any)

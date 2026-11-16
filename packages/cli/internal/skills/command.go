@@ -61,14 +61,12 @@ func addAgentFlag(cmd *cobra.Command, usage string) func() []Provider {
 }
 
 func leaf(cmd *cobra.Command) *cobra.Command {
-	cmd.Flags().SortFlags = false
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
 	return cmd
 }
 
 func newListCommand() *cobra.Command {
 	cmd := leaf(&cobra.Command{Use: "list", Short: "List bundled Everr skills"})
-	cmdutil.Positionals(cmd)
 	scope := addScopeFlags(cmd)
 	providers := addAgentFlag(cmd, "Agent to inspect")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -82,7 +80,6 @@ func newListCommand() *cobra.Command {
 
 func newInstallCommand() *cobra.Command {
 	cmd := leaf(&cobra.Command{Use: "install", Short: "Install bundled Everr skills"})
-	cmdutil.Positionals(cmd)
 	all := cmd.Flags().Bool("all", false, "Install all bundled skills")
 	scope := addScopeFlags(cmd)
 	providers := addAgentFlag(cmd, "Agent to install for")

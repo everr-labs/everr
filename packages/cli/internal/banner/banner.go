@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	"golang.org/x/term"
 )
 
 // Braille rendition of packages/ui/src/assets/favicon.svg.
@@ -35,10 +33,8 @@ const logoColumnWidth = 16
 
 var ansiEscape = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
+// Only called once stdout is known to be a terminal.
 func shouldUseColor() bool {
-	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return false
-	}
 	if _, ok := os.LookupEnv("NO_COLOR"); ok {
 		return false
 	}

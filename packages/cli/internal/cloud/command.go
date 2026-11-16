@@ -31,7 +31,6 @@ func loginCommand() *cobra.Command {
 			return auth.Login(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
-	cmdutil.Positionals(cmd)
 	cmd.Flags().StringVar(&url, "url", "", "Installation URL (defaults to the saved session or build default)")
 	cmd.Flags().BoolVar(&opts.NoOpen, "no-open", false, "Print the authorization URL without opening a browser")
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
@@ -46,7 +45,6 @@ func logoutCommand() *cobra.Command {
 			return auth.Logout(cmd.Context(), cmd.OutOrStdout())
 		},
 	}
-	cmdutil.Positionals(cmd)
 	cmdutil.SetHumanStdout(cmd, cmdutil.HumanAlways)
 	return cmd
 }
@@ -60,7 +58,6 @@ func statusCommand() *cobra.Command {
 			return auth.Status(cmd.Context(), cmd.OutOrStdout(), asJSON)
 		},
 	}
-	cmdutil.Positionals(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Print connection details, including the ingestion endpoint, as JSON")
 	cmdutil.SetHumanStdout(cmd, func(bool) bool { return !asJSON })
 	return cmd
