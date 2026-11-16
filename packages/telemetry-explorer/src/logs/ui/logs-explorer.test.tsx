@@ -220,9 +220,21 @@ describe("Logs page inspector", () => {
     body: "failed to reconcile inventory",
   };
 
-  function renderWithLog() {
+  function renderWithLog(logAttributes: Record<string, string> = {}) {
     const repo = makeRepo();
     vi.mocked(repo.explorer).mockResolvedValue({ logs: [log] } as never);
+    vi.mocked(repo.detail).mockResolvedValue({
+      timestamp: log.timestamp,
+      level: "error",
+      severityText: "ERROR",
+      severityNumber: 17,
+      serviceName: log.identity.serviceName,
+      traceId: "",
+      spanId: "",
+      resourceAttributes: {},
+      logAttributes,
+      scopeAttributes: {},
+    } as never);
     render(
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -232,6 +244,7 @@ describe("Logs page inspector", () => {
           timeRange={{ from: "now-1h", to: "now" }}
           search={emptySearch}
           onSearchChange={() => {}}
+          renderErrorLink={({ fingerprint }) => <a href={`/errors/${fingerprint}`}>Open Error</a>}
         />
       </QueryClientProvider>,
     );
@@ -265,5 +278,27 @@ describe("Logs page inspector", () => {
 
     expect(await screen.findByRole("button", { name: "Expand log details" })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Log event" })).not.toBeInTheDocument();
+  });
+
+  it("links a log that belongs to an Error to that Error", async () => {
+    const user = userEvent.setup();
+    renderWithLog({ "everr.error.fingerprint": "7384709629825244683" });
+
+    await user.click(await screen.findByRole("button", { name: /failed to reconcile inventory/ }));
+
+    expect(await screen.findByRole("link", { name: "Open Error" })).toHaveAttribute(
+      "href",
+      "/errors/7384709629825244683",
+    );
+  });
+
+  it("shows no Error link for a log outside any Error", async () => {
+    const user = userEvent.setup();
+    renderWithLog();
+
+    await user.click(await screen.findByRole("button", { name: /failed to reconcile inventory/ }));
+
+    expect(await screen.findByText("Span ID")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Error" })).not.toBeInTheDocument();
   });
 });

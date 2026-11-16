@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type React from "react";
+import { ERROR_FINGERPRINT_ATTRIBUTE } from "../../errors/sql/fingerprint";
 import { logDetailOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
@@ -38,6 +39,7 @@ export interface LogInspectorProps {
   detail: LogDetail;
   renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => React.ReactNode;
   resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
+  renderErrorLink?: (ctx: { fingerprint: string }) => React.ReactNode;
 }
 
 export interface LogInspectorPanelProps {
@@ -47,6 +49,7 @@ export interface LogInspectorPanelProps {
   onExpand?: () => void;
   renderRunLink?: LogInspectorProps["renderRunLink"];
   resolveJobId?: LogInspectorProps["resolveJobId"];
+  renderErrorLink?: LogInspectorProps["renderErrorLink"];
 }
 
 function levelBadgeClassName(level: LogExplorerRow["level"]) {
@@ -94,8 +97,15 @@ function LogInspectorSkeleton() {
   );
 }
 
-function LogInspectorDetails({ detail, renderRunLink, resolveJobId }: LogInspectorProps) {
+function LogInspectorDetails({
+  detail,
+  renderRunLink,
+  resolveJobId,
+  renderErrorLink,
+}: LogInspectorProps) {
   const ciFields = extractCiContext(detail);
+  // Present on exception logs that the collector grouped into an Error.
+  const errorFingerprint = detail.logAttributes[ERROR_FINGERPRINT_ATTRIBUTE] ?? "";
   const resolvedJobId =
     ciFields.jobId ||
     (detail.traceId && ciFields.jobName
@@ -115,6 +125,12 @@ function LogInspectorDetails({ detail, renderRunLink, resolveJobId }: LogInspect
       <DetailSection title="Correlation">
         <DetailItem icon={<Fingerprint />} label="Trace ID" value={detail.traceId} mono />
         <DetailItem label="Span ID" value={detail.spanId} mono />
+        {errorFingerprint ? (
+          <>
+            <DetailItem label="Error fingerprint" value={errorFingerprint} mono />
+            {renderErrorLink?.({ fingerprint: errorFingerprint })}
+          </>
+        ) : null}
       </DetailSection>
 
       {ciFields.hasAny ? (
@@ -153,6 +169,7 @@ export function LogInspectorPanel({
   onExpand,
   renderRunLink,
   resolveJobId,
+  renderErrorLink,
 }: LogInspectorPanelProps) {
   const {
     data: detail,
@@ -218,6 +235,7 @@ export function LogInspectorPanel({
               detail={detail}
               renderRunLink={renderRunLink}
               resolveJobId={resolveJobId}
+              renderErrorLink={renderErrorLink}
             />
           </div>
         ) : isPending ? (

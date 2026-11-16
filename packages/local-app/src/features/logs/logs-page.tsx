@@ -5,7 +5,9 @@ import {
   type LogsSearch,
 } from "@everr/telemetry-explorer/logs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Button } from "@everr/ui/components/button";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Bug } from "lucide-react";
 import { useMemo } from "react";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
@@ -71,6 +73,30 @@ export function LogsPage() {
               replace: true,
             })
           }
+          renderErrorLink={({ fingerprint }) => (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 w-fit"
+              nativeButton={false}
+              render={
+                <Link
+                  to="/errors/$fingerprint"
+                  params={{ fingerprint }}
+                  search={{
+                    from: search.from,
+                    to: search.to,
+                    q: "",
+                    fingerprint: "",
+                    occurrence: "",
+                  }}
+                />
+              }
+            >
+              <Bug data-icon="inline-start" />
+              Open Error
+            </Button>
+          )}
         />
       </LocalTelemetryGate>
     </ExploreShell>
