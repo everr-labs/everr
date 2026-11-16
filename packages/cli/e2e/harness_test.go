@@ -113,6 +113,37 @@ func (e *Env) Run(args ...string) Result {
 // RunCmd runs a prepared command and waits up to 30s.
 func RunCmd(t *testing.T, cmd *exec.Cmd) Result {
 	t.Helper()
+	res, err := runCmd(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+// StartCmd runs a prepared command in the background. t.Fatal must not run
+// off the test goroutine, so the returned wait reports a failed start or a
+// timeout.
+func StartCmd(t *testing.T, cmd *exec.Cmd) (wait func() Result) {
+	type outcome struct {
+		res Result
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		res, err := runCmd(cmd)
+		done <- outcome{res, err}
+	}()
+	return func() Result {
+		t.Helper()
+		o := <-done
+		if o.err != nil {
+			t.Fatal(o.err)
+		}
+		return o.res
+	}
+}
+
+func runCmd(cmd *exec.Cmd) (Result, error) {
 	var stdout, stderr bytes.Buffer
 	if cmd.Stdout == nil {
 		cmd.Stdout = &stdout
@@ -121,7 +152,7 @@ func RunCmd(t *testing.T, cmd *exec.Cmd) Result {
 		cmd.Stderr = &stderr
 	}
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start everr: %v", err)
+		return Result{}, fmt.Errorf("start everr: %w", err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -130,9 +161,9 @@ func RunCmd(t *testing.T, cmd *exec.Cmd) Result {
 	case <-time.After(30 * time.Second):
 		_ = cmd.Process.Kill()
 		<-done
-		t.Fatalf("everr %v timed out\nstdout:\n%s\nstderr:\n%s", cmd.Args[1:], stdout.String(), stderr.String())
+		return Result{}, fmt.Errorf("everr %v timed out\nstdout:\n%s\nstderr:\n%s", cmd.Args[1:], stdout.String(), stderr.String())
 	}
-	return Result{Stdout: stdout.String(), Stderr: stderr.String(), Code: cmd.ProcessState.ExitCode()}
+	return Result{Stdout: stdout.String(), Stderr: stderr.String(), Code: cmd.ProcessState.ExitCode()}, nil
 }
 
 // Success fails the test unless the command exited 0.
