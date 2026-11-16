@@ -49,7 +49,7 @@ local telemetry without remote account or sign-in controls.
 
 ## Development
 
-`pnpm --filter @everr/cli build:debug` builds the local UI, prepares the collector and chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
+`pnpm --filter @everr/cli build:debug` builds the local UI, stages it with the bundled skills and the zstd-compressed chDB library, and embeds them in the CLI. `build:release` produces the release binary and checksum. The CLI version comes from this package's `package.json`.
 
 `everr local start` serves the bundled UI and starts the collector until interrupted. Successful startup prints the Everr banner in a terminal and the OTLP, SQL, and UI addresses; detached startup also prints the log path. Redirected output omits the banner. `--no-open` suppresses browser launch; `--quiet` suppresses startup output and browser launch. If the collector and UI are already ready and share an instance ID, another `local start` prints the endpoints and exits successfully. Partial instances or occupied ports cause an error; startup never stops existing listeners.
 
