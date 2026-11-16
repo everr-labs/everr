@@ -57,7 +57,10 @@ const PATHS = [
   "runbooks/api/checkout-latency",
 ] as const;
 
-const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number }[] }[] = [
+const NAV: {
+  label: string;
+  items: { name: string; icon: LucideIcon; at?: number }[];
+}[] = [
   { label: "", items: [{ name: "Home", icon: House }] },
   {
     label: "Monitor",
@@ -86,7 +89,7 @@ const NAV: { label: string; items: { name: string; icon: LucideIcon; at?: number
     label: "CI/CD",
     items: [
       { name: "Runs", icon: Activity },
-      { name: "Cost Analysis", icon: ChartLine },
+      { name: "Cost analysis", icon: ChartLine },
     ],
   },
 ];
@@ -362,7 +365,11 @@ export function MonitoringDemo({
                   </span>
                 </div>
                 {NAV.map((g) => (
-                  <div key={g.label || "home"} className="mo-group">
+                  <div
+                    key={g.label || "home"}
+                    className="mo-group"
+                    data-section={g.label || "Home"}
+                  >
                     {g.label && <span className="mo-glabel">{g.label}</span>}
                     {g.items.map(({ name, icon: Icon, at }) => (
                       <span

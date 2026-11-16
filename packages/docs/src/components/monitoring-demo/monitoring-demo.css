@@ -1,11 +1,16 @@
-/* Everr's own tokens (packages/ui): neutral dark, lime primary */
+/* Everr's own tokens (packages/ui): neutral black, lime primary */
 .mo {
-  --bg: oklch(0.145 0 0);
-  --card: oklch(0.205 0 0);
-  --muted: oklch(0.269 0 0);
-  --fg: oklch(0.985 0 0);
-  --mfg: oklch(0.708 0 0);
-  --line: oklch(1 0 0 / 10%);
+  --shell: oklch(0.06 0 0);
+  --bg: oklch(0.1 0 0);
+  --pane: oklch(0.14 0 0);
+  --card: oklch(0.165 0 0);
+  --popover: oklch(0.185 0 0);
+  --muted: oklch(0.2 0 0);
+  --fg: oklch(0.97 0 0);
+  --mfg: oklch(0.66 0 0);
+  --line: oklch(1 0 0 / 7.5%);
+  --field: oklch(1 0 0 / 3.5%);
+  --surface-ring: 0 0 0 1px oklch(1 0 0 / 5.5%);
   --lime: oklch(0.937 0.264 119.7);
   --on-lime: oklch(0.1 0.031 120.757);
   --red: oklch(0.704 0.191 22.216);
@@ -34,7 +39,7 @@
   display: flex;
   height: 100%;
   min-height: 520px;
-  background: var(--bg);
+  background: var(--shell);
   color: var(--fg);
   font-size: 12.5px;
   text-align: left;
@@ -57,8 +62,6 @@
   flex: none;
   width: 190px;
   padding: 10px 8px;
-  background: var(--card);
-  border-right: 1px solid var(--line);
 }
 .mo-logo {
   display: flex;
@@ -108,15 +111,33 @@
   color: var(--fg);
   transition: background-color 0.25s ease;
 }
+/* Each section's icons wear its colour, as in the app's sidebar
+   (packages/app/src/lib/navigation.ts) */
+.mo-group {
+  --nav-accent: #b4befe;
+}
+.mo-group[data-section="Monitor"] {
+  --nav-accent: #89b4fa;
+}
+.mo-group[data-section="Alerts"] {
+  --nav-accent: #fab387;
+}
+.mo-group[data-section="Explore"] {
+  --nav-accent: #cba6f7;
+}
+.mo-group[data-section="CI/CD"] {
+  --nav-accent: #94e2d5;
+}
 .mo-item svg {
-  color: var(--mfg);
+  color: color-mix(in oklch, var(--nav-accent) 75%, transparent);
   transition: color 0.25s ease;
 }
 .mo-item[data-on] {
-  background: var(--muted);
+  background: color-mix(in oklch, var(--nav-accent) 12%, transparent);
+  color: #fff;
 }
 .mo-item[data-on] svg {
-  color: var(--lime);
+  color: var(--nav-accent);
 }
 
 /* Main */
@@ -133,7 +154,6 @@
   gap: 12px;
   height: 40px;
   padding: 0 14px;
-  border-bottom: 1px solid var(--line);
   color: var(--mfg);
 }
 .mo-crumb {
@@ -151,7 +171,7 @@
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--card);
+  background: var(--field);
   color: var(--fg);
   font-weight: 500;
   white-space: nowrap;
@@ -161,10 +181,20 @@
   color: var(--mfg);
   font-weight: 400;
 }
+/* The page panel, inset from the shell like the app's */
 .mo-views {
   position: relative;
   flex: 1;
   overflow: hidden;
+  margin: 0 8px 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.mo .ss-stage[data-layout="compact"] .mo-views {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
 }
 .mo-view {
   position: absolute;
@@ -436,9 +466,9 @@
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--card);
+  box-shadow: var(--surface-ring);
 }
 .mo-card > b {
   font-size: 12.5px;
@@ -543,10 +573,12 @@
   inset: 8px;
   display: grid;
   grid-template-rows: auto 1fr;
-  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--bg);
-  box-shadow: 0 0 0 100vmax oklch(0 0 0 / 55%);
+  background: var(--popover);
+  box-shadow:
+    0 0 0 1px oklch(1 0 0 / 8%),
+    0 12px 32px -8px oklch(0 0 0 / 55%),
+    0 0 0 100vmax oklch(0 0 0 / 60%);
   opacity: 0;
   transform: scale(0.97);
   pointer-events: none;

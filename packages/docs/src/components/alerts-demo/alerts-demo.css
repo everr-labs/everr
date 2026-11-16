@@ -427,6 +427,7 @@
   width: 190px;
   padding: 10px;
   border-right: 1px solid var(--line);
+  background: var(--pane);
 }
 .rb-search {
   display: flex;
@@ -437,6 +438,7 @@
   padding: 0 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
+  background: var(--field);
   color: var(--mfg);
   font-size: 11.5px;
 }
@@ -494,9 +496,9 @@
   display: grid;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--card);
+  box-shadow: var(--surface-ring);
 }
 .rb-panel > b {
   font-size: 12px;
