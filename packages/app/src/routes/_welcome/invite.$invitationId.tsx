@@ -2,7 +2,6 @@
 import { Button } from "@everr/ui/components/button";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import {
   type InviteLoaderResult,
@@ -295,30 +294,18 @@ function AcceptReadyContent({
             className="flex-1"
             onClick={() => void handleAccept()}
             disabled={pending !== null}
+            loading={pending === "accept"}
           >
-            {pending === "accept" ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Accepting...
-              </>
-            ) : (
-              "Accept"
-            )}
+            Accept
           </Button>
           <Button
             variant="outline"
             className="flex-1"
             onClick={() => void handleDecline()}
             disabled={pending !== null}
+            loading={pending === "decline"}
           >
-            {pending === "decline" ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Declining...
-              </>
-            ) : (
-              "Decline"
-            )}
+            Decline
           </Button>
         </div>
       </div>
@@ -364,15 +351,13 @@ function WrongRecipientContent({
           </>
         }
       />
-      <Button className="w-full" onClick={() => void handleSwitchAccount()} disabled={isSigningOut}>
-        {isSigningOut ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
-            Signing out...
-          </>
-        ) : (
-          "Sign in as another account"
-        )}
+      <Button
+        className="w-full"
+        onClick={() => void handleSwitchAccount()}
+        disabled={isSigningOut}
+        loading={isSigningOut}
+      >
+        Sign in as another account
       </Button>
     </>
   );

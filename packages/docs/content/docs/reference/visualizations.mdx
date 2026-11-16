@@ -144,10 +144,10 @@ plugin:
     thresholds:
       mode: percent
       max: 500
-      defaultColor: "#22c55e"
+      defaultColor: "#05df72"
       steps:
-        - { value: 40, color: "#f59e0b" }
-        - { value: 80, color: "#ef4444" }
+        - { value: 40, color: "#f0b100" }
+        - { value: 80, color: "#ff6467" }
     valueFormat:
       unit: ms
       decimals: 1
@@ -182,10 +182,10 @@ plugin:
     min: 0
     max: 100
     thresholds:
-      defaultColor: "#22c55e"
+      defaultColor: "#05df72"
       steps:
-        - { value: 70, color: "#f59e0b" }
-        - { value: 90, color: "#ef4444" }
+        - { value: 70, color: "#f0b100" }
+        - { value: 90, color: "#ff6467" }
     valueFormat:
       unit: "%"
 ```
@@ -284,8 +284,8 @@ plugin:
     showValues: true
     showLegend: true
     colors:
-      ok: "#22c55e"
-      error: "#ef4444"
+      ok: "#05df72"
+      error: "#ff6467"
 ```
 
 | Option             | Type    | Default                | Notes                                                                                                                                                                                          |
@@ -295,7 +295,7 @@ plugin:
 | `mergeConsecutive` | boolean | `true`                 | Merge consecutive samples with the same state into one segment. `false` renders one box per sample, though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
 | `showValues`       | boolean | `true`                 | Render the state text inside segments wide enough to fit it.                                                                                                                                   |
 | `showLegend`       | boolean | `true`                 | State color legend below the timeline.                                                                                                                                                         |
-| `colors`           | object  | `{}`                   | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette.                                                                                          |
+| `colors`           | object  | `{}`                   | Fixed state → CSS color mapping (e.g. `{ ok: "#05df72" }`); unmapped states cycle the shared palette.                                                                                          |
 | `rowHeight`        | number  | `0.9`                  | Segment thickness as a fraction of the lane height (0.2 to 1).                                                                                                                                 |
 
 ## StatusHistory
@@ -313,8 +313,8 @@ plugin:
     showValues: false
     showLegend: true
     colors:
-      pass: "#22c55e"
-      fail: "#ef4444"
+      pass: "#05df72"
+      fail: "#ff6467"
 ```
 
 | Option         | Type    | Default                | Notes                                                                                                                        |
@@ -323,7 +323,7 @@ plugin:
 | `stateColumn`  | string  | first remaining column | Status column for long-format input. Ignored without `seriesColumn`.                                                         |
 | `showValues`   | boolean | `false`                | Render the status text inside cells wide enough to fit it.                                                                   |
 | `showLegend`   | boolean | `true`                 | Status color legend below the lanes.                                                                                         |
-| `colors`       | object  | `{}`                   | Fixed status → CSS color mapping (e.g. `{ pass: "#22c55e" }`); unmapped statuses cycle the shared palette.                   |
+| `colors`       | object  | `{}`                   | Fixed status → CSS color mapping (e.g. `{ pass: "#05df72" }`); unmapped statuses cycle the shared palette.                   |
 | `rowHeight`    | number  | `0.9`                  | Cell height as a fraction of the lane height (0.2 to 1).                                                                     |
 | `colWidth`     | number  | `0.9`                  | Cell width as a fraction of the sampling-interval slot (0.2 to 1); lower values add horizontal breathing room between cells. |
 

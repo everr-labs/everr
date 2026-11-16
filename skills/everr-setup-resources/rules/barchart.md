@@ -21,7 +21,7 @@ plugin:
     stacking: stacked
     orientation: vertical
     showValues: false
-    colors: { good: "#0cce6b", poor: "#ff4e42" } # optional
+    colors: { good: "#05df72", poor: "#ff6467" } # optional
     valueFormat:
       unit: "{request}"
 ```

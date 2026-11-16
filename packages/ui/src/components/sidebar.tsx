@@ -1,9 +1,11 @@
+import { kickerClass } from "@everr/ui/lib/typography";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Separator } from "@everr/ui/components/separator";
+import { TOOLTIP_DELAY_MS } from "@everr/ui/components/tooltip";
 import {
   Sheet,
   SheetContent,
@@ -197,7 +199,6 @@ function SidebarProvider({
   );
 }
 
-const RAIL_TOOLTIP_OPEN_DELAY_MS = 300;
 const RAIL_TOOLTIP_CLOSE_GRACE_MS = 100;
 const RAIL_TOOLTIP_WARM_MS = 400;
 const RAIL_TOOLTIP_OFFSET_PX = 6;
@@ -253,7 +254,7 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
       }
       openTimer.current = window.setTimeout(() => {
         apply(next);
-      }, RAIL_TOOLTIP_OPEN_DELAY_MS);
+      }, TOOLTIP_DELAY_MS);
     },
     [apply],
   );
@@ -287,7 +288,7 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
             role="tooltip"
             data-slot="sidebar-rail-tooltip"
             className={cn(
-              "bg-sidebar text-sidebar-foreground border-sidebar-border pointer-events-none fixed z-50 -translate-y-1/2 rounded-md border px-3 text-xs whitespace-nowrap shadow-md duration-150 ease-out",
+              "bg-popover text-popover-foreground shadow-(--shadow-elevated) pointer-events-none fixed z-50 -translate-y-1/2 rounded-md px-3 text-xs whitespace-nowrap duration-150 ease-out",
               // Two stacked lines need the room a single label does not.
               tip.section ? "py-2" : "py-1.5",
               tip.slide ? "transition-[top,opacity]" : "transition-opacity",
@@ -299,9 +300,7 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
               // Set in the same voice as `SidebarGroupLabel`, so the collapsed
               // rail restores the heading it hid rather than inventing a
               // second way of naming a section.
-              <span className="text-sidebar-foreground/50 mb-0.5 block text-[10px] font-medium uppercase leading-none tracking-[0.12em]">
-                {tip.section}
-              </span>
+              <span className={cn(kickerClass, "mb-0.5 block leading-none")}>{tip.section}</span>
             )}
             {tip.label}
           </div>,
@@ -482,7 +481,7 @@ function SidebarInput({ className, ...props }: React.ComponentProps<typeof Input
     <Input
       data-slot="sidebar-input"
       data-sidebar="input"
-      className={cn("bg-muted/30 border-input h-8 w-full", className)}
+      className={cn("bg-white/[0.03] border-input h-8 w-full", className)}
       {...props}
     />
   );
@@ -528,6 +527,7 @@ function SidebarContent({ className, children, ...props }: React.ComponentProps<
       data-sidebar="content"
       className={cn("min-h-0 flex-1 group-data-[collapsible=icon]:overflow-hidden", className)}
       viewportClassName="flex flex-col gap-0"
+      fadeEdges
       {...props}
     >
       {children}
@@ -628,13 +628,13 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "ring-primary ring-offset-background hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground gap-2 rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs transition-[width,height,padding,outline,outline-offset,box-shadow] duration-200 ease-sidebar motion-reduce:transition-none group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-[3px] data-active:font-medium peer/menu-button flex w-full items-center overflow-hidden group/menu-button disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:overflow-hidden [&>span:last-child]:whitespace-nowrap [&>span:last-child]:transition-opacity [&>span:last-child]:duration-200 [&>span:last-child]:ease-sidebar motion-reduce:[&>span:last-child]:transition-none group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&_svg]:size-4 [&_svg]:shrink-0",
+  "ring-primary ring-offset-background text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:text-sidebar-accent-foreground data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground gap-2 rounded-[calc(var(--radius-sm)+2px)] p-2 text-left text-xs transition-[width,height,padding,outline,outline-offset,box-shadow,background-color,color] duration-200 ease-sidebar motion-reduce:transition-none group-has-data-[sidebar=menu-action]/menu-item:pr-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-[3px] peer/menu-button flex w-full items-center overflow-hidden group/menu-button disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:overflow-hidden [&>span:last-child]:whitespace-nowrap [&>span:last-child]:transition-opacity [&>span:last-child]:duration-200 [&>span:last-child]:ease-sidebar motion-reduce:[&>span:last-child]:transition-none group-data-[collapsible=icon]:[&>span:last-child]:opacity-0 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        default: "hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
         outline:
-          "bg-background hover:bg-sidebar-accent hover:text-sidebar-accent-foreground shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+          "bg-background hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
         default: "h-8 text-xs",
@@ -813,7 +813,7 @@ function SidebarMenuSubButton({
     props: mergeProps<"a">(
       {
         className: cn(
-          "text-sidebar-foreground ring-primary ring-offset-background hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>svg]:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground h-7 gap-2 rounded-md px-2 outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-[3px] transition-[outline,outline-offset,box-shadow] duration-200 ease-sidebar data-[size=md]:text-xs data-[size=sm]:text-xs [&>svg]:size-4 flex min-w-0 -translate-x-px items-center overflow-hidden group-data-[collapsible=icon]:hidden disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:shrink-0",
+          "text-sidebar-foreground ring-primary ring-offset-background hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground [&>svg]:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:hover:bg-sidebar-accent data-active:text-sidebar-accent-foreground h-7 gap-2 rounded-md px-2 outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:ring-2 focus-visible:ring-offset-[3px] transition-[outline,outline-offset,box-shadow] duration-200 ease-sidebar data-[size=md]:text-xs data-[size=sm]:text-xs [&>svg]:size-4 flex min-w-0 -translate-x-px items-center overflow-hidden group-data-[collapsible=icon]:hidden disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:shrink-0",
           className,
         ),
       },

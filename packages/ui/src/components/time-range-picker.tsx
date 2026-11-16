@@ -1,12 +1,23 @@
-import { isValid, resolve } from "@everr/datemath";
+import { isValid, parse, resolve } from "@everr/datemath";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { ChevronDownIcon, Clock, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckIcon, ChevronDownIcon, Clock, XIcon } from "lucide-react";
+import { type KeyboardEvent, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useIsMobile } from "../hooks/use-mobile";
 import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
-import { Input } from "./input";
+import { Calendar } from "./calendar";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "./command";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "./input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "./sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
@@ -56,9 +67,103 @@ export const QUICK_RANGE_GROUPS: QuickRangeGroup[] = [
 
 export const QUICK_RANGES: QuickRange[] = QUICK_RANGE_GROUPS.flatMap((g) => g.ranges);
 
+const DURATION_UNITS: { unit: string; singular: string; pattern: RegExp }[] = [
+  { unit: "s", singular: "second", pattern: /^(s|secs?|seconds?)$/ },
+  { unit: "m", singular: "minute", pattern: /^(m|mins?|minutes?)$/ },
+  { unit: "h", singular: "hour", pattern: /^(h|hrs?|hours?)$/ },
+  { unit: "d", singular: "day", pattern: /^(d|days?)$/ },
+  { unit: "w", singular: "week", pattern: /^(w|wks?|weeks?)$/ },
+  { unit: "M", singular: "month", pattern: /^(mo|mos|months?)$/ },
+  { unit: "y", singular: "year", pattern: /^(y|yrs?|years?)$/ },
+];
+
+/**
+ * Reads what people type into the range search as a relative range: "3h",
+ * "90 min", "last 2 weeks", "now-45m". Months need "mo" or "month", since a
+ * bare "m" is minutes. Null when the text is not a duration.
+ */
+export function parseRelativeRange(text: string): QuickRange | null {
+  const match = /^(?:last\s+|now\s*-\s*)?(\d+)\s*([a-z]+)$/i.exec(text.trim());
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const word = match[2] ?? "";
+  // "M" is the one case-sensitive unit: datemath's month.
+  const unit =
+    word === "M"
+      ? DURATION_UNITS[5]
+      : DURATION_UNITS.find((u) => u.pattern.test(word.toLowerCase()));
+  if (!unit || amount <= 0) return null;
+  const from = `now-${amount}${unit.unit}`;
+  return {
+    label: `Last ${amount} ${unit.singular}${amount === 1 ? "" : "s"}`,
+    from,
+    to: "now",
+  };
+}
+
+/** The fields take a date the way people write one ("2026-11-09 14:00",
+ *  "2026-11-09"); Date.parse only reads local time reliably as
+ *  "2026-11-09T14:00", and reads a bare date as UTC midnight. */
+function normalize(expr: string): string {
+  const text = expr.trim();
+  const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{1,2}):(\d{2})(:\d{2})?)?$/.exec(text);
+  if (!match) return text;
+  const [, day, hours = "0", minutes = "00", seconds = ""] = match;
+  return `${day}T${hours.padStart(2, "0")}:${minutes}${seconds}`;
+}
+
+/** A plain date (a typed one, or the ISO timestamp a zoom stores), not
+ *  "now"-relative math. */
+function isAbsolute(expr: string): boolean {
+  try {
+    const parsed = parse(normalize(expr));
+    return parsed.anchor !== "now" && parsed.ops.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** Local wall-clock time as the fields show it. Seconds only when set. */
+function toLocalInput(date: Date): string {
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${day} ${time}${date.getSeconds() ? `:${pad(date.getSeconds())}` : ""}`;
+}
+
+/** What a field shows for a stored expression: a stored UTC timestamp reads
+ *  as local time; relative math stays as typed. */
+function toEditable(expr: string): string {
+  return isAbsolute(expr) ? toLocalInput(new Date(Date.parse(normalize(expr)))) : expr;
+}
+
+/** What the URL keeps: a typed local date becomes a UTC timestamp, so a
+ *  shared link means the same moment in every time zone. */
+function toStored(expr: string): string {
+  return isAbsolute(expr) ? new Date(Date.parse(normalize(expr))).toISOString() : expr.trim();
+}
+
+function formatAbsolute(date: Date): string {
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatTimeRangeDisplay(range: TimeRange): string {
   const preset = QUICK_RANGES.find((q) => q.from === range.from && q.to === range.to);
   if (preset) return preset.label;
+  // A relative range typed by hand reads as one: "now-3h" to "now" is "Last 3 hours".
+  const relative = range.to === "now" ? parseRelativeRange(range.from) : null;
+  if (relative) return relative.label;
+  // Two plain dates (a picked or zoomed range) read as local times.
+  if (isAbsolute(range.from) && isAbsolute(range.to)) {
+    return `${formatAbsolute(new Date(Date.parse(range.from)))} – ${formatAbsolute(new Date(Date.parse(range.to)))}`;
+  }
   return `${range.from} to ${range.to}`;
 }
 
@@ -66,17 +171,8 @@ export { isValid as isValidDatemath };
 
 function resolvePreview(expr: string, roundUp: boolean): { date: Date; label: string } | null {
   try {
-    const date = resolve(expr, { roundUp });
-    return {
-      date,
-      label: date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
+    const date = resolve(normalize(expr), { roundUp });
+    return { date, label: formatAbsolute(date) };
   } catch {
     return null;
   }
@@ -94,19 +190,26 @@ export function TimeRangePicker({
   // is what renders before hydration; the trigger looks the same either way.
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [customFrom, setCustomFrom] = useState(value.from);
-  const [customTo, setCustomTo] = useState(value.to);
+  const [customFrom, setCustomFrom] = useState(() => toEditable(value.from));
+  const [customTo, setCustomTo] = useState(() => toEditable(value.to));
+  // The calendar: the month on show, and the first day of a range being
+  // picked (null when no pick is in progress).
+  const [month, setMonth] = useState(() => new Date());
+  const [pickStart, setPickStart] = useState<Date | null>(null);
+  // The day under the pointer while a pick is in progress: the range a second
+  // click would make, shown before the click.
+  const [hoverDay, setHoverDay] = useState<Date | null>(null);
+  // Set once a field is typed in: from then on, picking days keeps the times
+  // typed. Before that the times are the stored range's (a zoom's 14:23, say),
+  // which a new day pick shouldn't carry over.
+  const [keepTimes, setKeepTimes] = useState(false);
   const [search, setSearch] = useState("");
+  // The highlighted row, by its key. Opening starts it on the current range,
+  // like a select; a new search moves it to the first result, so Enter picks
+  // the top match.
+  const [highlight, setHighlight] = useState("");
 
-  const filteredGroups = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return QUICK_RANGE_GROUPS;
-    return QUICK_RANGE_GROUPS.map((group) => ({
-      ...group,
-      ranges: group.ranges.filter((r) => r.label.toLowerCase().includes(q)),
-    })).filter((group) => group.ranges.length > 0);
-  }, [search]);
-
+  const filteredGroups = useMemo(() => filterQuickRanges(search), [search]);
   const customRangeState = useMemo(() => {
     const from = resolvePreview(customFrom, false);
     const to = resolvePreview(customTo, true);
@@ -114,9 +217,11 @@ export function TimeRangePicker({
 
     return {
       canApply: from !== null && to !== null && !rangeInverted,
-      fromPreview: from?.label ?? null,
+      fromDate: from?.date ?? null,
+      toDate: to?.date ?? null,
+      fromInvalid: from === null && customFrom.trim() !== "",
+      toInvalid: to === null && customTo.trim() !== "",
       rangeInverted,
-      toPreview: to?.label ?? null,
     };
   }, [customFrom, customTo]);
 
@@ -129,23 +234,45 @@ export function TimeRangePicker({
 
   const handlePresetClick = (from: string, to: string) => {
     onChange({ from, to });
-    setCustomFrom(from);
-    setCustomTo(to);
+    setCustomFrom(toEditable(from));
+    setCustomTo(toEditable(to));
     setOpen(false);
   };
 
   const handleApply = () => {
     if (customRangeState.canApply) {
-      onChange({ from: customFrom, to: customTo });
+      onChange({ from: toStored(customFrom), to: toStored(customTo) });
       setOpen(false);
     }
   };
 
+  // One click picks that whole day, ready to apply; a second click makes it
+  // the other end of the range, whichever way round the two were clicked.
+  const handleDayPick = (day: Date) => {
+    const start = pickStart ?? day;
+    const [first, last] = start <= day ? [start, day] : [day, start];
+    const typedFrom = keepTimes ? customRangeState.fromDate : null;
+    const typedTo = keepTimes ? customRangeState.toDate : null;
+    const from = new Date(first);
+    from.setHours(typedFrom?.getHours() ?? 0, typedFrom?.getMinutes() ?? 0, 0, 0);
+    const to = new Date(last);
+    if (typedTo) to.setHours(typedTo.getHours(), typedTo.getMinutes(), typedTo.getSeconds(), 0);
+    else to.setHours(23, 59, 59, 0);
+    setCustomFrom(toLocalInput(from));
+    setCustomTo(toLocalInput(to));
+    setPickStart(pickStart ? null : day);
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      setCustomFrom(value.from);
-      setCustomTo(value.to);
+      setCustomFrom(toEditable(value.from));
+      setCustomTo(toEditable(value.to));
+      setPickStart(null);
+      setHoverDay(null);
+      setKeepTimes(false);
+      setMonth(resolvePreview(value.to, true)?.date ?? new Date());
       setSearch("");
+      setHighlight(rangeKey(value));
     }
     setOpen(nextOpen);
   };
@@ -160,30 +287,116 @@ export function TimeRangePicker({
     </>
   );
 
-  const searchInput = (
-    <Input
-      type="search"
-      placeholder="Search relative range..."
-      aria-label="search"
-      value={search}
-      onChange={(e) => setSearch(e.target.value)}
-      className="rounded-none bg-transparent border-none h-10 px-3 focus:ring-0 focus-visible:ring-0"
-    />
-  );
+  // The same search-and-pick list as the other dropdowns (Command): arrow
+  // keys, Enter, the highlight, the check on the current range and the
+  // listbox semantics all come from there. Filtering stays ours, so a typed
+  // duration ("3h") can add a range the presets don't have.
   const quickRanges = (
-    <QuickRangeList
-      groups={filteredGroups}
-      value={value}
-      touch={isMobile}
-      onPick={handlePresetClick}
+    <Command
+      // cmdk names its input and list from this label (aria-labelledby wins
+      // over an aria-label on the input).
+      label="Search relative range"
+      shouldFilter={false}
+      value={highlight}
+      onValueChange={setHighlight}
+      className="h-auto rounded-none bg-transparent p-0"
+    >
+      <CommandInput
+        // Flush with a divider, as in the filter dropdowns (FilterCombobox,
+        // the Explore filters).
+        wrapperClassName="p-0 border-b"
+        inputGroupClassName="border-none rounded-none bg-transparent h-9"
+        // The placeholder teaches what the search takes besides preset names.
+        placeholder="Search or type 3h, 2w…"
+        value={search}
+        onValueChange={(next) => {
+          setSearch(next);
+          const first = filterQuickRanges(next).flatMap((g) => g.ranges)[0];
+          setHighlight(first ? rangeKey(first) : "");
+        }}
+      />
+      <CommandList className="max-h-none min-h-0 flex-1">
+        <CommandEmpty className="text-muted-foreground px-2.5 py-1.5 text-left break-all">
+          No range matches “{search.trim()}”
+        </CommandEmpty>
+        {filteredGroups.map((group, groupIndex) => (
+          <div key={group.label}>
+            {groupIndex > 0 && <CommandSeparator className="bg-border/50 mx-0" />}
+            {/* Headings stay pinned while their group scrolls under them, so
+                the list never opens on half a heading. The group's own
+                overflow clip would turn sticky off. */}
+            <CommandGroup
+              heading={group.label}
+              className="overflow-visible **:[[cmdk-group-heading]]:bg-popover **:[[cmdk-group-heading]]:sticky **:[[cmdk-group-heading]]:top-0 **:[[cmdk-group-heading]]:z-10 **:[[cmdk-group-heading]]:-mx-1 **:[[cmdk-group-heading]]:px-3.5"
+            >
+              {group.ranges.map((range) => (
+                <CommandItem
+                  key={rangeKey(range)}
+                  value={rangeKey(range)}
+                  data-checked={(range.from === value.from && range.to === value.to) || undefined}
+                  onSelect={() => handlePresetClick(range.from, range.to)}
+                >
+                  {range.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </div>
+        ))}
+      </CommandList>
+    </Command>
+  );
+  // The phone sheet has no search box (the keyboard would cover the list), so
+  // it keeps plain finger-sized rows.
+  const touchRanges = <TouchRangeList value={value} onPick={handlePresetClick} />;
+  // Desktop only: the phone sheet has the room for the fields alone.
+  const preview =
+    pickStart && hoverDay
+      ? pickStart <= hoverDay
+        ? { from: pickStart, to: hoverDay }
+        : { from: hoverDay, to: pickStart }
+      : undefined;
+  const calendar = (
+    <Calendar
+      mode="range"
+      selected={
+        customRangeState.fromDate && customRangeState.toDate
+          ? {
+              from: customRangeState.fromDate,
+              // A range that ends at midnight ends on the day before.
+              to: new Date(customRangeState.toDate.getTime() - 1),
+            }
+          : undefined
+      }
+      onSelect={(_range, day) => handleDayPick(day)}
+      month={month}
+      onMonthChange={setMonth}
+      // Six rows in every month, so paging months never resizes the popover.
+      fixedWeeks
+      // Nothing to see in the future: telemetry stops at now.
+      disabled={{ after: new Date() }}
+      endMonth={new Date()}
+      onDayMouseEnter={(day) => setHoverDay(day)}
+      modifiers={{
+        preview,
+        preview_start: preview?.from ?? false,
+        preview_end: preview?.to ?? false,
+      }}
     />
   );
   const customRange = (
     <CustomRangeForm
       from={customFrom}
       to={customTo}
-      onFromChange={setCustomFrom}
-      onToChange={setCustomTo}
+      onFromChange={(next) => {
+        setCustomFrom(next);
+        setPickStart(null);
+        setKeepTimes(true);
+      }}
+      onToChange={(next) => {
+        setCustomTo(next);
+        setPickStart(null);
+        setKeepTimes(true);
+      }}
       state={customRangeState}
       onApply={handleApply}
       touch={isMobile}
@@ -210,7 +423,7 @@ export function TimeRangePicker({
           {/* No search box or resolved-range line here: the whole list fits a
               scroll, and the keyboard a search box raises would cover it. */}
           <ScrollArea className="min-h-0 flex-1" viewportClassName="p-2">
-            {quickRanges}
+            {touchRanges}
           </ScrollArea>
           <div className="shrink-0 border-t p-4">{customRange}</div>
         </SheetContent>
@@ -222,7 +435,6 @@ export function TimeRangePicker({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger
-          delay={0}
           render={<PopoverTrigger render={<Button variant="outline" className="gap-1.5" />} />}
         >
           {triggerContent}
@@ -233,59 +445,72 @@ export function TimeRangePicker({
           </TooltipContent>
         )}
       </Tooltip>
-      <PopoverContent align="end" className="w-[520px] p-0 gap-0 overflow-hidden">
+      <PopoverContent align="end" className="w-auto p-0 gap-0 overflow-hidden">
         <div className="flex divide-x divide-border">
-          {/* Left panel: quick ranges */}
-          <div className="flex w-[200px] flex-col">
-            <div className="border-b">{searchInput}</div>
-            <ScrollArea className="max-h-[320px]" viewportClassName="p-1">
-              {quickRanges}
-            </ScrollArea>
+          {/* The list takes the calendar's height and scrolls inside it, so
+              the two columns end on one line. */}
+          <div className="relative w-[200px]">
+            <div className="absolute inset-0 flex flex-col">{quickRanges}</div>
           </div>
-
-          {/* Right panel: custom range */}
-          <div className="flex-1 p-3">{customRange}</div>
+          {/* The hover preview clears when the pointer leaves the calendar,
+              not each day: between two days it would flash off for a frame. */}
+          <div className="p-3" onMouseLeave={() => setHoverDay(null)}>
+            {calendar}
+          </div>
         </div>
+        {/* The fields span both columns: the calendar fills them, and so can
+            typing (a time, or relative math like now-7d/d). */}
+        <div className="border-t p-3">{customRange}</div>
       </PopoverContent>
     </Popover>
   );
 }
 
-function QuickRangeList({
-  groups,
+function rangeKey(range: { from: string; to: string }) {
+  return `${range.from} ${range.to}`;
+}
+
+/** The quick ranges whose name matches the search, plus the range a typed
+ *  duration ("3h") stands for, listed first. If the duration is a preset
+ *  ("1h"), the preset is listed instead, so it shows as the current range. */
+function filterQuickRanges(search: string): QuickRangeGroup[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return QUICK_RANGE_GROUPS;
+  const groups = QUICK_RANGE_GROUPS.map((group) => ({
+    ...group,
+    ranges: group.ranges.filter((r) => r.label.toLowerCase().includes(q)),
+  })).filter((group) => group.ranges.length > 0);
+  const typed = parseRelativeRange(search);
+  if (!typed) return groups;
+  const listed = groups.some((g) => g.ranges.some((r) => rangeKey(r) === rangeKey(typed)));
+  if (listed) return groups;
+  const preset = QUICK_RANGES.find((r) => rangeKey(r) === rangeKey(typed));
+  return [{ label: "Relative", ranges: [preset ?? typed] }, ...groups];
+}
+
+function TouchRangeList({
   value,
-  touch,
   onPick,
 }: {
-  groups: QuickRangeGroup[];
   value: TimeRange;
-  /** The phone sheet: finger-sized rows. */
-  touch: boolean;
   onPick: (from: string, to: string) => void;
 }) {
-  if (groups.length === 0) {
-    return <div className="px-2 py-3 text-xs text-muted-foreground text-center">No matches</div>;
-  }
-  return groups.map((group, groupIndex) => (
+  return QUICK_RANGE_GROUPS.map((group, groupIndex) => (
     <div key={group.label}>
       {groupIndex > 0 && <div className="bg-border/50 -mx-1 my-1 h-px" />}
-      <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">{group.label}</div>
+      <div className="text-muted-foreground px-2.5 py-1.5 text-xs font-medium">{group.label}</div>
       {group.ranges.map((range) => {
-        const isActive = range.from === value.from && range.to === value.to;
+        const isActive = rangeKey(range) === rangeKey(value);
         return (
           <button
-            key={`${range.from}-${range.to}`}
+            key={rangeKey(range)}
             type="button"
-            className={cn(
-              "w-full text-left rounded-md px-2 transition-colors",
-              touch ? "min-h-11 py-2 text-sm" : "min-h-7 py-1 text-xs/relaxed",
-              isActive
-                ? "bg-primary/10 text-primary font-medium"
-                : "text-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
+            aria-pressed={isActive}
+            className="text-foreground active:bg-white/[0.07] flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm"
             onClick={() => onPick(range.from, range.to)}
           >
             {range.label}
+            {isActive && <CheckIcon aria-hidden className="ml-auto size-3.5 shrink-0" />}
           </button>
         );
       })}
@@ -308,47 +533,72 @@ function CustomRangeForm({
   onToChange: (value: string) => void;
   state: {
     canApply: boolean;
-    fromPreview: string | null;
-    toPreview: string | null;
+    fromInvalid: boolean;
+    toInvalid: boolean;
     rangeInverted: boolean;
+    fromDate: Date | null;
+    toDate: Date | null;
   };
   onApply: () => void;
-  /** The phone sheet's bottom bar: From and To side by side, a taller button. */
+  /** The phone sheet: stacked fields and a taller button. */
   touch: boolean;
 }) {
+  // Enter in either field applies, as in any form.
+  const applyOnEnter = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && state.canApply) {
+      e.preventDefault();
+      onApply();
+    }
+  };
+  const error =
+    state.fromInvalid || state.toInvalid
+      ? "Not a date or expression"
+      : state.rangeInverted
+        ? "From must be before To"
+        : null;
   return (
-    <div className="space-y-3">
-      <div className="text-xs font-medium text-muted-foreground">Custom time range</div>
-      <div className={cn(touch ? "flex gap-3" : "space-y-3")}>
+    <div className="flex flex-col gap-2.5">
+      <div className={cn("flex gap-2", touch && "flex-col")}>
         <RangeField
           id="time-range-from"
           label="From"
           value={from}
           onChange={onFromChange}
+          onKeyDown={applyOnEnter}
           placeholder="now-7d"
-          preview={state.fromPreview}
+          invalid={state.fromInvalid || state.rangeInverted}
         />
         <RangeField
           id="time-range-to"
           label="To"
           value={to}
           onChange={onToChange}
+          onKeyDown={applyOnEnter}
           placeholder="now"
-          preview={state.toPreview}
+          invalid={state.toInvalid}
         />
       </div>
-      {state.rangeInverted && (
-        <p className="text-destructive text-[11px]">
-          &quot;From&quot; must be before &quot;To&quot;
+      <div className={cn("flex items-center gap-3", touch && "flex-col items-stretch")}>
+        {/* One line under the fields: the time zone they are read in, or
+            what's wrong with them. Always there, so the button never moves. */}
+        <p
+          aria-live="polite"
+          className={cn(
+            "min-w-0 flex-1 truncate text-[11px]",
+            error ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {error ?? localTimeLabel(state.fromDate, state.toDate)}
         </p>
-      )}
-      <Button
-        className={cn("w-full mt-1", touch && "h-10")}
-        disabled={!state.canApply}
-        onClick={onApply}
-      >
-        Apply time range
-      </Button>
+        <Button
+          size={touch ? "default" : "sm"}
+          className={cn(touch && "h-10 w-full")}
+          disabled={!state.canApply}
+          onClick={onApply}
+        >
+          Apply time range
+        </Button>
+      </div>
     </div>
   );
 }
@@ -358,34 +608,122 @@ function RangeField({
   label,
   value,
   onChange,
+  onKeyDown,
   placeholder,
-  preview,
+  invalid,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onKeyDown: (e: KeyboardEvent) => void;
   placeholder: string;
-  preview: string | null;
+  invalid: boolean;
 }) {
   return (
-    <div className="min-w-0 flex-1 space-y-1.5 flex flex-col">
-      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
-        {label}
-      </label>
-      <Input
+    // The label is an addon at the field's start, behind a divider, so it
+    // reads as the field's name and not as part of its value. It hugs its
+    // text: the fields sit side by side, so their values never need to line up.
+    <InputGroup className="min-w-0 flex-1">
+      <InputGroupAddon className="border-border/60 h-full border-r px-2.5 py-0">
+        <label htmlFor={id}>{label}</label>
+      </InputGroupAddon>
+      <InputGroupInput
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+            const input = e.currentTarget;
+            const step = stepAtCaret(
+              value,
+              input.selectionStart ?? value.length,
+              e.key === "ArrowUp" ? 1 : -1,
+              e.shiftKey,
+            );
+            if (step) {
+              e.preventDefault();
+              // Rendered now, so the selection lands on the new text.
+              flushSync(() => onChange(step.value));
+              input.setSelectionRange(step.select[0], step.select[1]);
+              return;
+            }
+          }
+          onKeyDown(e);
+        }}
         placeholder={placeholder}
+        aria-invalid={invalid || undefined}
+        spellCheck={false}
+        autoComplete="off"
+        className="pl-2.5! tabular-nums"
       />
-      <div className="text-[11px] h-3.5 truncate">
-        {preview ? (
-          <span className="text-muted-foreground">→ {preview}</span>
-        ) : value ? (
-          <span className="text-destructive">Invalid expression</span>
-        ) : null}
-      </div>
-    </div>
+    </InputGroup>
   );
+}
+
+// The parts of "2026-11-10 09:30:00", by position, and how far Shift steps
+// each one: a quarter hour, a quarter day, a week.
+const DATE_PARTS = [
+  { start: 0, end: 4, big: 1, add: (d: Date, n: number) => d.setFullYear(d.getFullYear() + n) },
+  { start: 5, end: 7, big: 3, add: (d: Date, n: number) => d.setMonth(d.getMonth() + n) },
+  { start: 8, end: 10, big: 7, add: (d: Date, n: number) => d.setDate(d.getDate() + n) },
+  { start: 11, end: 13, big: 6, add: (d: Date, n: number) => d.setHours(d.getHours() + n) },
+  { start: 14, end: 16, big: 15, add: (d: Date, n: number) => d.setMinutes(d.getMinutes() + n) },
+  { start: 17, end: 19, big: 10, add: (d: Date, n: number) => d.setSeconds(d.getSeconds() + n) },
+];
+
+/**
+ * Up and Down on a field, as in a native date input: the part under the
+ * caret steps by one (Shift: a bigger step), and stays selected. A date steps
+ * the way a clock does (23:00 plus an hour is the next day); relative math
+ * steps its one number wherever the caret is ("now-7d" to "now-8d"). Null when there is nothing to step.
+ */
+function stepAtCaret(
+  value: string,
+  caret: number,
+  direction: 1 | -1,
+  big: boolean,
+): { value: string; select: [number, number] } | null {
+  const date = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (date) {
+    const [y, mo, d, h, mi, sec] = date.slice(1).map((n) => Number(n ?? 0));
+    const part = DATE_PARTS.find(
+      (p) => caret >= p.start && caret <= p.end && p.end <= value.length,
+    );
+    if (!part) return null;
+    const next = new Date(y ?? 0, (mo ?? 1) - 1, d, h, mi, sec);
+    part.add(next, direction * (big ? part.big : 1));
+    const day = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+    const time = `${pad(next.getHours())}:${pad(next.getMinutes())}`;
+    // Seconds stay shown if they were, so every part keeps its position.
+    const seconds = date[6] === undefined ? "" : `:${pad(next.getSeconds())}`;
+    return { value: `${day} ${time}${seconds}`, select: [part.start, part.end] };
+  }
+  const relative = /^(now\s*[-+]\s*)(\d+)([smhdwMy].*)$/.exec(value);
+  if (relative) {
+    const [, head = "", amount = "", tail = ""] = relative;
+    const n = Math.max(1, Number(amount) + direction * (big ? 10 : 1));
+    return {
+      value: `${head}${n}${tail}`,
+      select: [head.length, head.length + String(n).length],
+    };
+  }
+  return null;
+}
+
+function utcOffset(date: Date): string {
+  const minutes = -date.getTimezoneOffset();
+  const abs = Math.abs(minutes);
+  const sign = minutes < 0 ? "-" : "+";
+  return `UTC${sign}${Math.floor(abs / 60)}${abs % 60 ? `:${pad(abs % 60)}` : ""}`;
+}
+
+/** "Europe/Lisbon, UTC+1": the zone the fields are read in, with the offset
+ *  at the range's own dates (a July range in Lisbon is UTC+1, even in
+ *  winter). Both offsets when the range crosses a daylight-saving change. */
+function localTimeLabel(from: Date | null, to: Date | null): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const start = utcOffset(from ?? new Date());
+  const end = utcOffset(to ?? from ?? new Date());
+  return `${zone}, ${start === end ? start : `${start} → ${end}`}`;
 }

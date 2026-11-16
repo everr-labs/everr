@@ -36,7 +36,7 @@ export function FrameToggle({ listLabel = "dashboard list" }: { listLabel?: stri
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label={hidden ? `Show the ${listLabel}` : `Hide the ${listLabel}`}
         className="text-muted-foreground max-md:size-9"
         onClick={toggle}

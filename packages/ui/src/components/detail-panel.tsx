@@ -1,5 +1,5 @@
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { cn } from "@everr/ui/lib/utils";
-import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
 export function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -64,7 +64,7 @@ export function CopyValueButton({ value, className }: { value: string; className
         className,
       )}
     >
-      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+      <CopyStateIcon copied={copied} iconClassName="size-3" />
     </button>
   );
 }

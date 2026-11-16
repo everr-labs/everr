@@ -228,7 +228,22 @@ describe("formatTimeRangeDisplay", () => {
     expect(formatTimeRangeDisplay({ from: "now/M", to: "now" })).toBe("This month so far");
   });
 
-  it("returns raw expression for custom ranges", () => {
-    expect(formatTimeRangeDisplay({ from: "now-3h", to: "now" })).toBe("now-3h to now");
+  it("names a relative range that is not a preset", () => {
+    expect(formatTimeRangeDisplay({ from: "now-3h", to: "now" })).toBe("Last 3 hours");
+    expect(formatTimeRangeDisplay({ from: "now-1M", to: "now" })).toBe("Last 1 month");
+  });
+
+  it("reads two absolute dates as local times, not ISO text", () => {
+    const label = formatTimeRangeDisplay({
+      from: new Date(2020, 10, 9, 14, 0).toISOString(),
+      to: new Date(2020, 10, 10, 18, 30).toISOString(),
+    });
+    expect(label).toMatch(/Nov 9, 2020.* – Nov 10, 2020/);
+    expect(label).not.toMatch(/\dT\d/);
+  });
+
+  it("returns the raw expressions for any other range", () => {
+    expect(formatTimeRangeDisplay({ from: "now-3h/h", to: "now" })).toBe("now-3h/h to now");
+    expect(formatTimeRangeDisplay({ from: "now-3h", to: "now-1h" })).toBe("now-3h to now-1h");
   });
 });

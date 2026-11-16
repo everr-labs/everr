@@ -1,10 +1,5 @@
-import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { Spinner } from "@everr/ui/components/spinner";
+import { CircleCheckIcon, InfoIcon, OctagonXIcon, TriangleAlertIcon } from "lucide-react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -23,12 +18,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <InfoIcon className="size-4" />,
         warning: <TriangleAlertIcon className="size-4" />,
         error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        loading: <Spinner />,
       }}
       style={style}
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast shadow-(--shadow-elevated)! border-transparent!",
         },
       }}
       {...props}

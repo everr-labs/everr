@@ -1,3 +1,5 @@
+import { cn } from "@everr/ui/lib/utils";
+import { kickerClass } from "@everr/ui/lib/typography";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { ListFilter } from "lucide-react";
 import type { ReactNode } from "react";
@@ -32,10 +34,10 @@ export function FilterSidebar({
   return (
     <ScrollArea
       render={<aside aria-label={label} />}
-      className="bg-muted/15 h-full min-h-0 border-b lg:border-r lg:border-b-0"
+      className="bg-pane h-full min-h-0 border-b lg:border-r lg:border-b-0"
       viewportClassName="flex flex-col gap-3 p-3"
     >
-      <div className="text-muted-foreground flex items-center gap-2 text-[0.6875rem] font-medium tracking-wider uppercase">
+      <div className={cn(kickerClass, "flex items-center gap-2")}>
         <ListFilter className="size-3.5" />
         Filters
       </div>

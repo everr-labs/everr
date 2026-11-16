@@ -97,10 +97,10 @@ spec:
             calculation: last
             thresholds:
               mode: absolute
-              defaultColor: "#22c55e"
+              defaultColor: "#05df72"
               steps:
-                - { value: 1, color: "#f59e0b" }
-                - { value: 5, color: "#ef4444" }
+                - { value: 1, color: "#f0b100" }
+                - { value: 5, color: "#ff6467" }
             valueFormat:
               unit: "%"
         queries:

@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { Copy, Focus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SpanName } from "../span-name";
 import type { TraceNode } from "./model";
 
 export function SpanDetails({
@@ -27,7 +28,9 @@ export function SpanDetails({
       <div className="flex shrink-0 items-start gap-2 border-b p-3">
         <div className="min-w-0 flex-1">
           <div className="text-muted-foreground truncate text-xs">{span.serviceName}</div>
-          <h2 className="mt-1 break-words text-sm font-medium">{span.spanName}</h2>
+          <h2 className="mt-1 break-words text-sm font-medium">
+            <SpanName name={span.spanName} />
+          </h2>
           <div className="mt-1 font-mono text-xs">
             {formatDuration(Number(span.duration), "ns")}{" "}
             <span className="text-muted-foreground">

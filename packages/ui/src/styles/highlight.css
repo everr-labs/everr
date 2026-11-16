@@ -24,31 +24,31 @@
 .hljs .hljs-literal,
 .hljs .hljs-type,
 .hljs .hljs-meta {
-  color: oklch(0.74 0.14 300);
+  color: var(--ctp-mauve);
 }
 
 .hljs .hljs-string,
 .hljs .hljs-regexp,
 .hljs .hljs-symbol {
-  color: oklch(0.8 0.13 150);
+  color: var(--ctp-green);
 }
 
 .hljs .hljs-number {
-  color: oklch(0.82 0.13 75);
+  color: var(--ctp-peach);
 }
 
 .hljs .hljs-title,
 .hljs .hljs-function,
 .hljs .hljs-variable,
 .hljs .hljs-template-variable {
-  color: oklch(0.78 0.11 240);
+  color: var(--ctp-blue);
 }
 
 .hljs .hljs-attr,
 .hljs .hljs-attribute,
 .hljs .hljs-property,
 .hljs .hljs-params {
-  color: oklch(0.8 0.09 200);
+  color: var(--ctp-teal);
 }
 
 .hljs .hljs-comment,

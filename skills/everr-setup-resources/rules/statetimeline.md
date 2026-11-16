@@ -23,9 +23,9 @@ plugin:
     seriesColumn: service
     stateColumn: status
     colors:
-      ok: "#22c55e" # map semantically — green for healthy,
-      warn: "#f59e0b" # amber for degraded,
-      error: "#ef4444" # red for failing
+      ok: "#05df72" # map semantically — green for healthy,
+      warn: "#f0b100" # amber for degraded,
+      error: "#ff6467" # red for failing
 ```
 
 There is **no** `calculation`, `unit`, `thresholds`, or value mapping. States are categorical: numbers and booleans are stringified into discrete states (`0`, `1`, `true`), never plotted on an axis.

@@ -23,7 +23,7 @@ export interface PanelShellProps extends PanelChromeProps {
 
 function PanelTitle({ title, description }: { title?: string; description?: string }) {
   return (
-    <CardTitle className="flex items-center gap-1.5">
+    <CardTitle className="flex items-center gap-1.5 text-current/70">
       {title && <span>{title}</span>}
       {description && (
         <Toggletip>
@@ -98,7 +98,7 @@ export function PanelShell({
           {status === "pending" ? (
             <Skeleton className="h-9 w-24" />
           ) : (
-            <CardTitle className="text-3xl tabular-nums">
+            <CardTitle className="animate-reveal text-3xl tabular-nums">
               {status === "error" ? "--" : children}
             </CardTitle>
           )}
@@ -117,7 +117,12 @@ export function PanelShell({
           {action && <CardAction>{action}</CardAction>}
         </CardHeader>
       )}
-      <CardContent className="min-h-0 flex-1">
+      {/* Keyed on readiness so the content remounts, and reveals, exactly once
+          when it replaces the skeleton. */}
+      <CardContent
+        key={status === "pending" ? "pending" : "ready"}
+        className={cn("min-h-0 flex-1", status !== "pending" && "animate-reveal")}
+      >
         {status === "pending" ? (
           (skeleton ?? <Skeleton className="h-[300px] w-full" />)
         ) : status === "error" ? (

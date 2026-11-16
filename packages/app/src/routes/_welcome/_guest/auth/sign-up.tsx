@@ -3,7 +3,6 @@ import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { returnToSchema } from "#app/common/return-to.ts";
@@ -163,15 +162,8 @@ function SignUp() {
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              Creating account...
-            </>
-          ) : (
-            "Sign up"
-          )}
+        <Button type="submit" className="w-full" disabled={isSubmitting} loading={isSubmitting}>
+          Sign up
         </Button>
       </form>
 

@@ -34,10 +34,10 @@ plugin:
     min: 0
     max: 100
     thresholds:
-      defaultColor: "#22c55e" # green below the first step
+      defaultColor: "#05df72" # green below the first step
       steps:
-        - { value: 70, color: "#f59e0b" } # amber once value ≥ 70
-        - { value: 90, color: "#ef4444" } # red once value ≥ 90
+        - { value: 70, color: "#f0b100" } # amber once value ≥ 70
+        - { value: 90, color: "#ff6467" } # red once value ≥ 90
     valueFormat:
       unit: "%"
       decimals: 1

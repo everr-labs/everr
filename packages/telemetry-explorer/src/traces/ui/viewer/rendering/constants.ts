@@ -17,6 +17,10 @@ export const MIN_EVENT_DOT_SIZE = 4;
 export const MAX_EVENT_DOT_SIZE = EVENT_DOT_SIZE;
 
 export const LABEL_FONT = "500 11px Inter, sans-serif";
+// Tailwind's `font-mono` stack at the size and weight of the trace list's method.
+export const METHOD_FONT =
+  "500 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+export const METHOD_GAP = 5;
 export const LABEL_PADDING_X = 8;
 export const MIN_WIDTH_FOR_NAME = 30;
 export const MIN_WIDTH_FOR_NAME_AND_DURATION = 80;

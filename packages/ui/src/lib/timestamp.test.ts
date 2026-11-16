@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { formatRelativeTime, formatTimestampTimeOfDay, parseTimestampAsUTC } from "./timestamp";
+import {
+  formatRelativeTime,
+  formatTimestampTimeOfDay,
+  parseTimestampAsUTC,
+  formatRowTimestamp,
+} from "./timestamp";
+import { rangeSpansDays } from "./time-range";
 
 describe("parseTimestampAsUTC", () => {
   it.each([
@@ -61,5 +67,33 @@ describe("formatRelativeTime", () => {
     vi.setSystemTime(new Date(now));
     expect(formatRelativeTime("2026-03-07T13:32:00Z")).toBe(expected);
     vi.useRealTimers();
+  });
+});
+
+describe("formatRowTimestamp", () => {
+  const at = new Date(2026, 10, 10, 14, 54, 11);
+
+  it("gives the time alone, or the day too when asked", () => {
+    expect(formatRowTimestamp(at.toISOString(), false)).toBe(at.toLocaleTimeString());
+    const withDay = formatRowTimestamp(at.toISOString(), true);
+    expect(withDay).toContain(at.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+    expect(withDay).toMatch(/54:11/);
+  });
+});
+
+describe("rangeSpansDays", () => {
+  const now = new Date(2026, 10, 16, 15, 0);
+
+  it("is false within one day, true across days", () => {
+    expect(rangeSpansDays({ from: "now-1h", to: "now" }, now)).toBe(false);
+    expect(rangeSpansDays({ from: "now/d", to: "now/d" }, now)).toBe(false);
+    expect(rangeSpansDays({ from: "now-24h", to: "now" }, now)).toBe(true);
+    expect(rangeSpansDays({ from: "now-7d", to: "now" }, now)).toBe(true);
+  });
+
+  it("ends a range that stops at midnight on the day before", () => {
+    const from = new Date(2026, 10, 10).toISOString();
+    const to = new Date(2026, 10, 11).toISOString();
+    expect(rangeSpansDays({ from, to }, now)).toBe(false);
   });
 });

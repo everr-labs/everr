@@ -78,7 +78,7 @@ function list(props: ListProps = {}) {
       isLoadingMore={false}
       renderTraceLink={renderTraceLink}
       onLoadMore={() => {}}
-      onClearFilters={() => {}}
+      empty={<p>Nothing here</p>}
       {...props}
     />
   );
@@ -117,10 +117,10 @@ describe("TraceResultsList", () => {
     expect(links[2]?.querySelector("[data-slot=badge]")).toBeNull();
   });
 
-  it("shows the HTTP status code, coloured from whether any span errored", () => {
+  it("shows the HTTP status code, marked as failed only when a span errored", () => {
     // A 404 that the service handles is not a failure. The trace has no span
-    // with an error, so the badge stays green although the code is 4xx. The
-    // column then agrees with the Status filter, which also reads the spans.
+    // with an error, so the code stays plain although it is 4xx. The column
+    // then agrees with the Status filter, which also reads the spans.
     renderList({
       rows: [
         row({ traceId: "handled", rootStatusCode: "404", errorCount: 0 }),
@@ -129,8 +129,8 @@ describe("TraceResultsList", () => {
       ],
     });
 
-    expect(screen.getByText("404").className).toContain("emerald");
-    expect(screen.getByText("200").className).toContain("red");
+    expect(screen.getByText("404").className).not.toContain("text-destructive");
+    expect(screen.getByText("200").className).toContain("text-destructive");
     // Colour is not the only signal for that state.
     expect(screen.getByLabelText("404, No errors")).toBeInTheDocument();
     expect(screen.getByLabelText("200, 2 errors")).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("TraceResultsList", () => {
     expect(name.className).toContain("truncate");
     expect(name).toHaveAttribute("title", longService);
 
-    const bars = container.querySelectorAll(".bg-primary");
+    const bars = container.querySelectorAll(".bg-ctp-lavender");
     expect(bars).toHaveLength(2);
     expect((bars[0] as HTMLElement).style.width).toBe("50%");
     expect((bars[1] as HTMLElement).style.width).toBe("100%");
@@ -166,12 +166,9 @@ describe("TraceResultsList", () => {
     }
   });
 
-  it("shows the empty state with a clear filters action", async () => {
-    const user = userEvent.setup();
-    const onClearFilters = vi.fn();
-    renderList({ onClearFilters });
-    await user.click(screen.getByRole("button", { name: /clear filters/i }));
-    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  it("shows the empty state it is given when no trace matches", () => {
+    renderList();
+    expect(screen.getByText("Nothing here")).toBeInTheDocument();
   });
 
   it("fetches the next page at the end of the list only when one exists and none is loading", async () => {
@@ -186,7 +183,7 @@ describe("TraceResultsList", () => {
     expect(onLoadMore).not.toHaveBeenCalled();
 
     rerender(list({ rows, onLoadMore }));
-    expect(screen.getByText(/showing all 1 matching traces/i)).toBeInTheDocument();
+    expect(screen.getByText("Showing 1 matching trace")).toBeInTheDocument();
     await user.click(screen.getByTestId("virtuoso-end-reached"));
     expect(onLoadMore).not.toHaveBeenCalled();
 

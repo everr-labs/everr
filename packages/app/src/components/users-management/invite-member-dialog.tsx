@@ -20,12 +20,12 @@ import {
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
 import { useRouteContext } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { invitationUrl } from "#app/common/invitation.ts";
 import { InvitationLink } from "./invitation-link";
 import { type OrgRole, useInviteMember } from "./queries";
+import { mutationErrorStatus } from "#app/lib/mutation-status.ts";
 
 export function InviteMemberDialog() {
   const { emailEnabled } = useRouteContext({ from: "__root__" });
@@ -143,8 +143,12 @@ export function InviteMemberDialog() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={invite.isPending}>
-                {invite.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
+              <Button
+                type="submit"
+                disabled={invite.isPending}
+                loading={invite.isPending}
+                status={mutationErrorStatus(invite)}
+              >
                 Create invitation
               </Button>
             </DialogFooter>

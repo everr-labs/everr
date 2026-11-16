@@ -21,12 +21,12 @@ interface WorkflowJobTimelineProps {
 }
 
 const BAR_BG: Record<string, string> = {
-  success: "bg-green-600",
-  failure: "bg-red-600",
-  in_progress: "bg-yellow-500",
-  queued: "bg-blue-500",
-  waiting: "bg-blue-500",
-  requested: "bg-blue-500",
+  success: "bg-success",
+  failure: "bg-destructive",
+  in_progress: "bg-warning",
+  queued: "bg-info",
+  waiting: "bg-info",
+  requested: "bg-info",
 };
 
 export function WorkflowJobTimeline({ workflowName, repo }: WorkflowJobTimelineProps) {

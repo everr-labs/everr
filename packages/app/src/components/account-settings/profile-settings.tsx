@@ -12,6 +12,7 @@ import { Label } from "@everr/ui/components/label";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
+import { mutationStatus } from "#app/lib/mutation-status.ts";
 
 export function ProfileSettings({ user }: { user: { name: string; email: string } }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function ProfileSettings({ user }: { user: { name: string; email: string 
       </CardHeader>
       <CardContent>
         <form
-          className="space-y-4"
+          className="max-w-md space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (canSave) save.mutate();
@@ -73,8 +74,13 @@ export function ProfileSettings({ user }: { user: { name: string; email: string 
               Profile saved.
             </p>
           )}
-          <Button type="submit" disabled={!canSave}>
-            {save.isPending ? "Saving..." : "Save profile"}
+          <Button
+            type="submit"
+            disabled={!canSave}
+            loading={save.isPending}
+            status={mutationStatus(save)}
+          >
+            Save profile
           </Button>
         </form>
       </CardContent>

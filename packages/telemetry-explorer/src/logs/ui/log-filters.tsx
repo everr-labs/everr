@@ -39,6 +39,21 @@ function levelDotClassName(level: LogLevel) {
   return LOG_LEVEL_META[level].dotClassName;
 }
 
+/** The page filters set (Service and Environment are counted apart). */
+export function countLogPageFilters(value: {
+  q?: string;
+  levels: readonly unknown[];
+  traceId?: string;
+  attributes: readonly unknown[];
+}): number {
+  return (
+    ((value.q ?? "").length > 0 ? 1 : 0) +
+    (value.levels.length > 0 ? 1 : 0) +
+    (value.traceId !== undefined ? 1 : 0) +
+    value.attributes.length
+  );
+}
+
 export function LogFiltersBar({
   repo,
   timeRange,
@@ -63,11 +78,7 @@ export function LogFiltersBar({
   // Each control counts one time, whatever number of values it holds. The
   // "Filters" badge then has the same meaning on every Explore page. Attribute
   // filters are different: each one is a separate control, so each one counts.
-  const pageFilterCount =
-    (q.length > 0 ? 1 : 0) +
-    (levels.length > 0 ? 1 : 0) +
-    (traceId !== undefined ? 1 : 0) +
-    attributes.length;
+  const pageFilterCount = countLogPageFilters({ q, levels, traceId, attributes });
 
   return (
     <ExploreFilterRail
@@ -101,7 +112,7 @@ export function LogFiltersBar({
               type="button"
               className={cn(
                 "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-                levels.includes(level) && "bg-background font-medium shadow-xs ring-1 ring-border",
+                levels.includes(level) && "bg-background font-medium ring-1 ring-border",
               )}
               onClick={() => toggleLevel(level)}
             >

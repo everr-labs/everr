@@ -101,3 +101,20 @@ export function timeRangeFromDuration(
   const range = { from: `now-${duration}`, to: "now" };
   return isValidTimeRange(range, now) ? range : undefined;
 }
+
+/** Whether the range covers more than one local calendar day, so a time of
+ *  day alone does not say when something happened. A range that ends at
+ *  midnight ends on the day before. */
+export function rangeSpansDays(range: TimeRange, now = new Date()): boolean {
+  try {
+    const { fromDate, toDate } = resolveTimeRange(range, now);
+    const last = new Date(toDate.getTime() - 1);
+    return (
+      fromDate.getFullYear() !== last.getFullYear() ||
+      fromDate.getMonth() !== last.getMonth() ||
+      fromDate.getDate() !== last.getDate()
+    );
+  } catch {
+    return true;
+  }
+}

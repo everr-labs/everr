@@ -1,6 +1,4 @@
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -8,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
   formatRelativeTime,
-  formatTimestampTimeOfDay,
+  formatRowTimestamp,
   parseTimestampAsUTC,
 } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
@@ -16,12 +14,11 @@ import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
+import { showingAll } from "../../filters/ui/no-results";
 import { DurationBar } from "./duration-bar";
-import { isSafeMethod, splitSpanName } from "./http-method";
 import { serviceColor } from "./shared/service-color";
+import { SpanName } from "./span-name";
 
-const SKELETON_DELAY_MS = 1000;
 const VIRTUOSO_OVERSCAN = 600;
 
 type Props = {
@@ -34,7 +31,10 @@ type Props = {
   isLoadingMore: boolean;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
   onLoadMore: () => void;
-  onClearFilters: () => void;
+  /** What shows when nothing matches. */
+  empty: ReactNode;
+  /** Show the day with the start time: the list covers more than one day. */
+  withDay?: boolean;
 };
 
 export type TraceLinkRenderProps = {
@@ -53,7 +53,8 @@ export function TraceResultsList({
   isLoadingMore,
   renderTraceLink,
   onLoadMore,
-  onClearFilters,
+  empty,
+  withDay = false,
 }: Props) {
   const maxDuration = useMemo(() => {
     let max = 0n;
@@ -70,9 +71,14 @@ export function TraceResultsList({
 
   const itemContent = useCallback(
     (_index: number, row: TraceSummary) => (
-      <TraceRow row={row} maxDuration={maxDuration} renderTraceLink={renderTraceLink} />
+      <TraceRow
+        row={row}
+        maxDuration={maxDuration}
+        renderTraceLink={renderTraceLink}
+        withDay={withDay}
+      />
     ),
-    [maxDuration, renderTraceLink],
+    [maxDuration, renderTraceLink, withDay],
   );
 
   const components = useMemo(
@@ -86,8 +92,7 @@ export function TraceResultsList({
     [rows.length, hasMore, isLoadingMore],
   );
 
-  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
-  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isPending) return <ResultsSkeleton />;
   if (isError) {
     return (
       <RetryError
@@ -98,12 +103,12 @@ export function TraceResultsList({
     );
   }
   if (rows.length === 0) {
-    return <EmptyState onClearFilters={onClearFilters} />;
+    return empty;
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ResultsHeader />
+      <ResultsHeader withDay={withDay} />
       <Virtuoso
         className="min-h-0 flex-1"
         data={rows}
@@ -117,14 +122,14 @@ export function TraceResultsList({
   );
 }
 
-function ResultsHeader() {
+function ResultsHeader({ withDay }: { withDay: boolean }) {
   return (
     <div className="text-muted-foreground bg-background flex items-center gap-2 border-b px-3 py-1.5 text-xs font-medium">
       <span className="min-w-0 flex-1">Trace</span>
       <span className="hidden w-28 shrink-0 md:inline">Service</span>
       <span className="w-24 text-right">Duration</span>
       <span className="hidden w-16 text-right md:inline">Status</span>
-      <span className="hidden w-20 text-right lg:inline">Started</span>
+      <span className={cn("hidden text-right lg:inline", withDay ? "w-36" : "w-20")}>Started</span>
     </div>
   );
 }
@@ -133,13 +138,14 @@ function TraceRow({
   row,
   maxDuration,
   renderTraceLink,
+  withDay,
 }: {
   row: TraceSummary;
   maxDuration: bigint;
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
+  withDay: boolean;
 }) {
   const started = parseTimestampAsUTC(row.startTs);
-  const name = splitSpanName(row.rootName);
   // The link wraps only the name but its `after` pseudo-element stretches over
   // the whole row, so the entire row navigates while the copy control and
   // tooltips stay as siblings (lifted above the overlay with z-10) instead of
@@ -152,15 +158,11 @@ function TraceRow({
           className:
             "flex min-w-0 items-center gap-1.5 font-medium after:absolute after:inset-0 after:content-['']",
           children: (
-            <>
-              {name.method && <HttpMethodBadge method={name.method} />}
-              {/* A space character, and not only the flex gap. Without it the
-                    accessible name becomes "POST/api/users". A run of space
-                    characters is not a flex item, so the layout does not
-                    change. */}
-              {name.method && name.label ? " " : null}
-              {name.label && <span className="truncate">{name.label}</span>}
-            </>
+            <SpanName
+              name={row.rootName}
+              methodClassName="w-11 shrink-0"
+              labelClassName="truncate"
+            />
           ),
         })}
         <TraceIdBadge traceId={row.traceId} />
@@ -192,10 +194,15 @@ function TraceRow({
       <Tooltip>
         <TooltipTrigger
           render={
-            <span className="text-muted-foreground relative z-10 hidden w-20 text-right text-xs tabular-nums lg:inline" />
+            <span
+              className={cn(
+                "text-muted-foreground relative z-10 hidden text-right text-xs tabular-nums lg:inline",
+                withDay ? "w-36" : "w-20",
+              )}
+            />
           }
         >
-          {formatTimestampTimeOfDay(row.startTs)}
+          {formatRowTimestamp(row.startTs, withDay)}
         </TooltipTrigger>
         <TooltipContent side="left">
           {started ? (
@@ -209,27 +216,6 @@ function TraceRow({
         </TooltipContent>
       </Tooltip>
     </div>
-  );
-}
-
-// Two tones for nine methods. The methods that read share one tone, and the
-// methods that change state share the other. The badge always shows the method
-// as text, so colour is never the only signal. The tints use the same 400-shade
-// text on a light fill as the status tones in the Badge component, which are
-// set for the dark surfaces of the app.
-function HttpMethodBadge({ method }: { method: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "shrink-0 rounded px-1 font-mono tracking-wide",
-        isSafeMethod(method)
-          ? "border-sky-500/40 bg-sky-500/10 text-sky-400"
-          : "border-amber-500/40 bg-amber-500/10 text-amber-400",
-      )}
-    >
-      {method}
-    </Badge>
   );
 }
 
@@ -252,11 +238,13 @@ function TraceStatusBadge({ errorCount, statusCode }: { errorCount: number; stat
       // The code alone does not show whether the trace failed. The label gives
       // that state as text for a user who cannot see the colour.
       aria-label={statusCode ? `${statusCode}, ${errorLabel}` : errorLabel}
+      // Only a failure gets a chip. A healthy trace is the norm, so its code
+      // stays plain text and the failures stand out in the column.
       className={cn(
         "rounded px-1.5 font-mono",
         failed
-          ? "border-red-500/40 bg-red-500/10 text-red-400"
-          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
+          : "border-transparent bg-transparent text-muted-foreground",
       )}
     >
       {statusCode || (failed ? "Error" : "OK")}
@@ -322,7 +310,7 @@ function ResultsFooter({
       ) : hasMore ? (
         <span>Showing {count.toLocaleString()} traces</span>
       ) : (
-        <span>Showing all {count.toLocaleString()} matching traces</span>
+        <span>{showingAll(count, "trace")}</span>
       )}
     </div>
   );
@@ -341,19 +329,5 @@ function ResultsSkeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>No traces</EmptyTitle>
-        <EmptyDescription>No traces match the current filters.</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onClearFilters}>
-        Clear filters
-      </Button>
-    </Empty>
   );
 }

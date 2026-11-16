@@ -41,7 +41,7 @@ function ConsentBanner({
       data-slot="consent-banner"
       aria-label={title}
       className={cn(
-        "bg-card text-card-foreground ring-foreground/10 animate-in slide-in-from-bottom-4 fade-in fixed inset-x-0 bottom-0 z-50 flex flex-col items-start gap-3 rounded-t-lg p-4 text-xs/relaxed shadow-lg ring-1 duration-200 sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm sm:rounded-lg",
+        "bg-card text-card-foreground shadow-(--shadow-elevated) animate-in slide-in-from-bottom-4 fade-in ease-out motion-reduce:slide-in-from-bottom-0 fixed inset-x-0 bottom-0 z-50 flex flex-col items-start gap-3 rounded-t-lg p-4 text-xs/relaxed duration-300 sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm sm:rounded-lg",
         className,
       )}
       {...props}

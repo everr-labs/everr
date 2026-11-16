@@ -12,13 +12,15 @@ import {
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { type CSSProperties, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { serviceColor } from "../shared/service-color";
+import { SpanName } from "../span-name";
 import { TimeRuler, type ViewRange } from "./flamegraph";
 import type { TraceNode } from "./model";
 import { spanColorGroup } from "./rendering/types";
+import { spanTextColor } from "./theme-colors";
 
 export function TraceWaterfall({
   rows,
@@ -27,6 +29,7 @@ export function TraceWaterfall({
   matchingIds,
   filterActive,
   colorBy,
+  colors,
   previewField,
   range,
   onToggle,
@@ -39,6 +42,7 @@ export function TraceWaterfall({
   matchingIds: ReadonlySet<string>;
   filterActive: boolean;
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
   previewField: string;
   range: ViewRange;
   onToggle: (id: string) => void;
@@ -87,7 +91,8 @@ export function TraceWaterfall({
         itemContent={(_, node) => {
           const selected = selectedSpanId === node.spanId;
           const dimmed = filterActive && !matchingIds.has(node.spanId) && !selected;
-          const color = serviceColor(spanColorGroup(node, colorBy));
+          const group = spanColorGroup(node, colorBy);
+          const color = colors.get(group) ?? serviceColor(group);
           const fullWidth = range.end - range.start;
           const left = ((node.timestamp - range.start) / fullWidth) * 100;
           const right =
@@ -117,7 +122,12 @@ export function TraceWaterfall({
                     aria-label={`${openNodes.has(node.spanId) ? "Collapse" : "Expand"} ${node.name}`}
                     onClick={() => onToggle(node.spanId)}
                   >
-                    {openNodes.has(node.spanId) ? <ChevronDown /> : <ChevronRight />}
+                    <ChevronRight
+                      className={cn(
+                        "transition-transform duration-200 ease-out",
+                        openNodes.has(node.spanId) && "rotate-90",
+                      )}
+                    />
                   </Button>
                 ) : (
                   <span className="w-5 shrink-0" />
@@ -132,7 +142,7 @@ export function TraceWaterfall({
                   title={`${node.source.serviceName}: ${node.name}`}
                 >
                   <span className="text-muted-foreground mr-2">{node.source.serviceName}</span>
-                  {node.name}
+                  <SpanName name={node.name} />
                 </button>
                 {status && (
                   <span
@@ -163,7 +173,7 @@ export function TraceWaterfall({
                 {right >= 0 && left <= 100 && (
                   <span
                     className={cn(
-                      "absolute top-2 flex h-5 min-w-px items-center gap-2 overflow-hidden rounded-sm px-1.5 text-[10px] text-white",
+                      "absolute top-2 flex h-5 min-w-px items-center gap-2 overflow-hidden rounded-sm px-1.5 text-[10px]",
                       selected && "outline-2 outline-offset-1 outline-ring",
                       node.hasError && "ring-1 ring-destructive",
                     )}
@@ -171,6 +181,7 @@ export function TraceWaterfall({
                       left: `${Math.max(0, left)}%`,
                       width: `${Math.min(100, right) - Math.max(0, left)}%`,
                       backgroundColor: color,
+                      color: spanTextColor(color, node.hasError),
                     }}
                   >
                     {node.hasError && <span className="absolute inset-0 bg-destructive/30" />}

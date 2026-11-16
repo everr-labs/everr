@@ -113,7 +113,7 @@ function Component() {
   if (router.isShell()) return <Outlet />;
 
   return (
-    <TooltipProvider delay={200}>
+    <TooltipProvider>
       <QueryClientProvider client={queryClient}>
         <ConsentGate initialConsent={consent}>
           <Outlet />

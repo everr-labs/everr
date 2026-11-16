@@ -54,11 +54,11 @@ const CARD_FILL = "color-mix(in oklab, var(--foreground) 5%, var(--card))";
 const CARD_STROKE = "color-mix(in oklab, var(--foreground) 14%, var(--card))";
 /** The hover highlight: the chart accent, which no health state uses. */
 const HIGHLIGHT_COLOR = SERIES_COLORS[0];
-/** The same green, amber and red the stat thresholds use in the demo dashboards. */
+/** The app's status colours, so a node's health matches every other badge. */
 const HEALTH_COLOR = {
-  ok: "#22c55e",
-  warning: "#f59e0b",
-  critical: "#ef4444",
+  ok: "var(--success)",
+  warning: "var(--warning)",
+  critical: "var(--destructive)",
 };
 
 /** Value → [min, max] with area (not width) tracking the value. */

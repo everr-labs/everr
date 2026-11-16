@@ -15,9 +15,15 @@
   --radius-4xl: calc(var(--radius) + 16px);
   --animate-highlight-fade: highlight-fade 1.5s ease-out forwards;
   --ease-sidebar: cubic-bezier(0.19, 1, 0.22, 1);
+  /* Strong ease-out for anything entering or reacting to input; the built-in
+     curves are too weak to feel responsive. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-pane: var(--pane);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
@@ -30,6 +36,11 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-level-debug: var(--level-debug);
+  --color-level-trace: var(--level-trace);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -47,43 +58,142 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-ctp-rosewater: var(--ctp-rosewater);
+  --color-ctp-flamingo: var(--ctp-flamingo);
+  --color-ctp-pink: var(--ctp-pink);
+  --color-ctp-mauve: var(--ctp-mauve);
+  --color-ctp-red: var(--ctp-red);
+  --color-ctp-maroon: var(--ctp-maroon);
+  --color-ctp-peach: var(--ctp-peach);
+  --color-ctp-yellow: var(--ctp-yellow);
+  --color-ctp-green: var(--ctp-green);
+  --color-ctp-teal: var(--ctp-teal);
+  --color-ctp-sky: var(--ctp-sky);
+  --color-ctp-sapphire: var(--ctp-sapphire);
+  --color-ctp-blue: var(--ctp-blue);
+  --color-ctp-lavender: var(--ctp-lavender);
+  --color-ctp-text: var(--ctp-text);
+  --color-ctp-subtext1: var(--ctp-subtext1);
+  --color-ctp-subtext0: var(--ctp-subtext0);
+  --color-ctp-overlay2: var(--ctp-overlay2);
+  --color-ctp-overlay1: var(--ctp-overlay1);
+  --color-ctp-overlay0: var(--ctp-overlay0);
+  --color-ctp-surface2: var(--ctp-surface2);
+  --color-ctp-surface1: var(--ctp-surface1);
+  --color-ctp-surface0: var(--ctp-surface0);
+  --color-ctp-base: var(--ctp-base);
+  --color-ctp-mantle: var(--ctp-mantle);
+  --color-ctp-crust: var(--ctp-crust);
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+
+  /* The full Catppuccin Mocha palette. The accents colour the navigation
+     sections and syntax highlighting. Statuses, charts and logs use
+     saturated colours instead. */
+  --ctp-rosewater: #f5e0dc;
+  --ctp-flamingo: #f2cdcd;
+  --ctp-pink: #f5c2e7;
+  --ctp-mauve: #cba6f7;
+  --ctp-red: #f38ba8;
+  --ctp-maroon: #eba0ac;
+  --ctp-peach: #fab387;
+  --ctp-yellow: #f9e2af;
+  --ctp-green: #a6e3a1;
+  --ctp-teal: #94e2d5;
+  --ctp-sky: #89dceb;
+  --ctp-sapphire: #74c7ec;
+  --ctp-blue: #89b4fa;
+  --ctp-lavender: #b4befe;
+  --ctp-text: #cdd6f4;
+  --ctp-subtext1: #bac2de;
+  --ctp-subtext0: #a6adc8;
+  --ctp-overlay2: #9399b2;
+  --ctp-overlay1: #7f849c;
+  --ctp-overlay0: #6c7086;
+  --ctp-surface2: #585b70;
+  --ctp-surface1: #45475a;
+  --ctp-surface0: #313244;
+  --ctp-base: #1e1e2e;
+  --ctp-mantle: #181825;
+  --ctp-crust: #11111b;
+
+  /* Neutral black, no tint. Surfaces step up in small, even increments so
+     layers read as depth, not as patches of grey. */
+  --background: oklch(0.1 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.165 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  /* Side panes (filter rails, the dashboards and runbooks tree): a step
+     above the page, below the cards. */
+  --pane: oklch(0.14 0 0);
+  --popover: oklch(0.185 0 0);
+  --popover-foreground: oklch(0.97 0 0);
   --primary: oklch(0.937 0.264 119.7);
   --primary-foreground: oklch(0.1 0.031 120.757);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --secondary: oklch(0.21 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.2 0 0);
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.22 0 0);
   --accent-foreground: oklch(0.985 0 0);
+  /* One red for every failure, error and destructive action, so "failed"
+     never shows up in two hues on one screen. */
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --scrollbar-thumb: oklch(1 0 0 / 18%);
-  --scrollbar-thumb-hover: oklch(1 0 0 / 32%);
+  /* Status by meaning, not by hue. Components ask for success or warning and
+     the palette decides what that looks like. Saturated rather than pastel,
+     because statuses are data: a badge, a chart's health colour and a log
+     level all have to read as the same state at a glance. */
+  --success: oklch(0.792 0.209 151.711);
+  --warning: oklch(0.795 0.184 86.047);
+  --info: oklch(0.746 0.16 232.661);
+  /* Log levels below info. Error, warning and info use the status colours
+     above. */
+  --level-debug: oklch(0.702 0.183 293.541);
+  --level-trace: oklch(0.696 0.17 162.48);
+  /* Trace services: eight hues spaced around the wheel at the same lightness
+     and chroma as the statuses, so no service outshouts an error. */
+  --trace-service-1: oklch(0.72 0.16 25);
+  --trace-service-2: oklch(0.72 0.16 70);
+  --trace-service-3: oklch(0.78 0.16 115);
+  --trace-service-4: oklch(0.74 0.16 155);
+  --trace-service-5: oklch(0.74 0.13 200);
+  --trace-service-6: oklch(0.7 0.14 245);
+  --trace-service-7: oklch(0.7 0.16 290);
+  --trace-service-8: oklch(0.72 0.17 335);
+  --border: oklch(1 0 0 / 7.5%);
+  --input: oklch(1 0 0 / 11%);
+  --ring: oklch(0.6 0 0);
+  --scrollbar-thumb: oklch(1 0 0 / 14%);
+  --scrollbar-thumb-hover: oklch(1 0 0 / 28%);
   --chart-1: oklch(0.905 0.182 98.111);
   --chart-2: oklch(0.795 0.184 86.047);
   --chart-3: oklch(0.681 0.162 75.834);
   --chart-4: oklch(0.554 0.135 66.442);
   --chart-5: oklch(0.476 0.114 61.907);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
+  /* The shell (sidebar and topnav) is the darkest layer; pages sit on top of
+     it as lighter panels. */
+  --sidebar: oklch(0.06 0 0);
+  --sidebar-foreground: oklch(0.97 0 0);
   --sidebar-primary: oklch(0.937 0.264 119.7);
   --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(1 0 0 / 6%);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.6 0 0);
+
+  /* Floating surfaces: a hairline, a soft contact shadow and a wide ambient
+     one, plus a faint top highlight that catches the light. */
+  --shadow-elevated:
+    inset 0 1px 0 0 oklch(1 0 0 / 5%), 0 0 0 1px oklch(1 0 0 / 8%),
+    0 2px 4px -1px oklch(0 0 0 / 35%), 0 12px 32px -8px oklch(0 0 0 / 55%);
+  /* Dialogs: the floating shadow without the top highlight, which reads as a
+     second line under the hairline along a dialog's long top edge. */
+  --shadow-dialog:
+    0 0 0 1px oklch(1 0 0 / 8%), 0 2px 4px -1px oklch(0 0 0 / 35%),
+    0 12px 32px -8px oklch(0 0 0 / 55%);
+  --shadow-surface: 0 0 0 1px oklch(1 0 0 / 5.5%);
 }
 
 @layer base {
@@ -91,6 +201,30 @@
     @apply border-border outline-ring/50;
 
     scrollbar-width: thin;
+  }
+
+  /* The browser's clear button on search fields, redrawn as the app's own X
+     (Lucide's) in the muted text colour. Restyled rather than hidden, so
+     every search field keeps one-click clearing without a button of its own.
+     Firefox draws none, so there is nothing to match there. */
+  input[type="search"]::-webkit-search-decoration {
+    appearance: none;
+  }
+
+  input[type="search"]::-webkit-search-cancel-button {
+    appearance: none;
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-inline-start: 0.375rem;
+    background-color: var(--muted-foreground);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18'/%3E%3Cpath d='m6 6 12 12'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    cursor: pointer;
+    transition: background-color 150ms var(--ease-out);
+  }
+
+  input[type="search"]::-webkit-search-cancel-button:hover {
+    background-color: var(--foreground);
   }
 
   /* scrollbar-color inherits, so the root is the only element that needs it. */
@@ -117,7 +251,68 @@
     background-color: var(--scrollbar-thumb-hover);
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Tailwind 4's reset leaves buttons on the arrow cursor. Everything that
+     acts on a click shows the pointer instead; disabled controls keep the
+     arrow, and a cursor class (cursor-text, a resize handle) still wins. */
+  :is(
+    button,
+    summary,
+    select,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]:not([data-disabled="false"])) {
+    cursor: pointer;
+  }
+
+  /* The same selection as the docs site: solid primary, dark text. */
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  /* A trigger's down chevron flips while its menu, popover or panel is open.
+     Keyed on aria-expanded, which every such trigger sets. Not on
+     data-popup-open: a tooltip on the same trigger sets that one too. */
+  svg.lucide-chevron-down {
+    transition: rotate 200ms var(--ease-out);
+  }
+
+  :is(button, [role="combobox"], [role="button"])[aria-expanded="true"] svg.lucide-chevron-down {
+    rotate: 180deg;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    svg.lucide-chevron-down {
+      transition: none;
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
   body {
+    /* Equal-width digits, so values that refresh in place do not jitter. */
+    font-variant-numeric: tabular-nums;
     /* iOS Safari positions the drawer overlay absolutely, so the body has to
        cover the viewport even after the page scrolls. */
     position: relative;
@@ -131,27 +326,313 @@
   }
 }
 
-@layer utilities {
-  .animate-fade-up {
-    animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+/* Popovers, menus, selects and tooltips. Transitions rather than keyframes,
+   so a popup closed mid-entry reverses from where it is instead of jumping.
+   Scale starts near 1 (never 0) and grows from the trigger via
+   --transform-origin. Exit is quicker than entry: the user already decided. */
+@utility motion-popup {
+  transition-property: opacity, scale;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 110ms;
+  }
+
+  /* Tooltips after the first one in a group show instantly. */
+  &[data-instant] {
+    transition-duration: 0ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-starting-style],
+    &[data-ending-style] {
+      scale: 1;
+    }
   }
 }
 
-@keyframes fade-up {
+/* Centered dialogs grow from the middle of the screen. */
+@utility motion-dialog {
+  transition-property: opacity, scale;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    scale: 0.96;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 140ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-starting-style],
+    &[data-ending-style] {
+      scale: 1;
+    }
+  }
+}
+
+@utility motion-backdrop {
+  transition-property: opacity;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease-out);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+
+  &[data-ending-style] {
+    transition-duration: 140ms;
+  }
+}
+
+/* Fades a Base UI scroll viewport's vertical edges while content is hidden
+   past them. The fade grows with the hidden distance (up to 24px), so it is
+   absent at the very top and bottom. Opt-in: a mask would also fade sticky
+   headers. */
+@utility scroll-fade-y {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black min(24px, var(--scroll-area-overflow-y-start, 0px)),
+    black calc(100% - min(24px, var(--scroll-area-overflow-y-end, 0px))),
+    transparent 100%
+  );
+}
+
+/* Component animations, used as animate-* classes. The states that play them
+   live on the components as variants (in-data-loading:, data-[status=error]:,
+   in-data-[row-phase=enter]:); Tailwind emits a keyframe only when its
+   animation is used.
+   - Button (its `loading` and `status` props): after a success the label stays
+     out while the ring closes and the check draws in, then ripples back; an
+     error shakes the button once.
+   - Spinner: the arc grows and shrinks while the whole turns.
+   - DataTable `animateRows`: a row cannot animate its height, so each cell's
+     content sits in a grid track that goes between 0fr and 1fr while the
+     cell's vertical padding follows. Exit is quicker than entry. */
+@theme {
+  --animate-button-label-return: button-label-return 1.25s var(--ease-out) backwards;
+  --animate-button-label-fade: fade-in-only 1.25s var(--ease-out) 900ms backwards;
+  --animate-button-success: button-success 1.1s var(--ease-out) backwards;
+  --animate-button-draw-ring: button-draw 360ms var(--ease-out) both;
+  --animate-button-draw-check: button-draw 260ms var(--ease-out) 220ms both;
+  --animate-button-shake: button-shake 360ms var(--ease-out);
+  --animate-spinner-turn: spinner-turn 0.9s linear infinite;
+  --animate-spinner-arc: spinner-arc 1.4s var(--ease-in-out) infinite;
+  --animate-row-enter: row-enter 280ms var(--ease-out) backwards;
+  --animate-row-exit: row-exit 220ms var(--ease-out) forwards;
+  --animate-cell-grow: cell-grow 280ms var(--ease-out) backwards;
+  --animate-cell-shrink: cell-shrink 220ms var(--ease-out) forwards;
+  --animate-fade-up: fade-up 0.6s var(--ease-out) both;
+
+  @keyframes button-label-return {
+    0%,
+    78% {
+      translate: 0 0.6em;
+      opacity: 0;
+      filter: blur(2px);
+    }
+    100% {
+      translate: 0 0;
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+
+  @keyframes button-success {
+    0% {
+      opacity: 0;
+      scale: 0.8;
+    }
+    15%,
+    75% {
+      opacity: 1;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      scale: 0.9;
+    }
+  }
+
+  @keyframes button-draw {
+    from {
+      stroke-dasharray: 0 100;
+    }
+    to {
+      stroke-dasharray: 100 0;
+    }
+  }
+
+  @keyframes button-shake {
+    0%,
+    100% {
+      translate: 0;
+    }
+    20% {
+      translate: -4px;
+    }
+    40% {
+      translate: 3px;
+    }
+    60% {
+      translate: -2px;
+    }
+    80% {
+      translate: 1px;
+    }
+  }
+
+  @keyframes spinner-turn {
+    to {
+      rotate: 360deg;
+    }
+  }
+
+  @keyframes spinner-arc {
+    0% {
+      stroke-dasharray: 1 150;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 55 150;
+      stroke-dashoffset: -18;
+    }
+    100% {
+      stroke-dasharray: 55 150;
+      stroke-dashoffset: -99;
+    }
+  }
+
+  @keyframes row-enter {
+    from {
+      padding-block: 0;
+      opacity: 0;
+      translate: 0 -4px;
+    }
+  }
+
+  @keyframes row-exit {
+    to {
+      padding-block: 0;
+      opacity: 0;
+      border-color: transparent;
+    }
+  }
+
+  @keyframes cell-grow {
+    from {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  @keyframes cell-shrink {
+    to {
+      grid-template-rows: 0fr;
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Tactile press feedback for buttons and other click targets. Except on a
+   trigger whose popup is already open: the popup is positioned against the
+   trigger, so it would follow the shrinking trigger and jump. That press
+   closes the popup, which is feedback enough. */
+@utility press {
+  transition-property: scale, color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+
+  &:active:not(:disabled, [aria-disabled="true"], [data-disabled], [aria-expanded="true"]) {
+    scale: 0.97;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &:active {
+      scale: 1 !important;
+    }
+  }
+}
+
+/* Content replacing a loading state. Runs once on mount, so data that
+   refreshes in place never re-animates. */
+@utility animate-reveal {
+  animation: reveal 280ms var(--ease-out) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in-only;
+  }
+}
+
+@keyframes reveal {
   from {
     opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+    filter: blur(4px);
   }
 }
 
-::view-transition-old(command-bar),
-::view-transition-new(command-bar) {
-  animation-duration: 200ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: clip;
-  object-fit: none;
+@keyframes fade-in-only {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Loading placeholder.
+   - It appears only after 300ms. Most loads finish sooner, and a placeholder
+     that flashes for a moment reads as a glitch.
+   - The sheen is fixed to the viewport, so one sweep crosses every
+     placeholder on screen together instead of each one sweeping its own width
+     at its own speed.
+   - Constant motion, so linear: easing would make the sweep surge and stall. */
+@utility skeleton {
+  background-color: oklch(1 0 0 / 4%);
+  background-image: linear-gradient(90deg, transparent 40%, oklch(1 0 0 / 5%) 50%, transparent 60%);
+  background-size: 200vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation:
+    skeleton-in 200ms var(--ease-out) 300ms both,
+    shimmer 1.6s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    background-image: none;
+    animation: skeleton-in 200ms var(--ease-out) 300ms both;
+  }
+}
+
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
 }

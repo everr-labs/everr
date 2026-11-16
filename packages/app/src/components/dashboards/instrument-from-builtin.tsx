@@ -1,11 +1,6 @@
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
-import { Button } from "@everr/ui/components/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
-import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
-import { cn } from "@everr/ui/lib/utils";
-import { Check, ClipboardList, Copy } from "lucide-react";
-import { useRef } from "react";
+import { ClipboardList } from "lucide-react";
 import { instrumentMissingPrompt } from "#app/data/dashboards/built-in/prompt.ts";
+import { PromptHandoff } from "./prompt-handoff";
 
 /**
  * Appears on a built-in dashboard whose telemetry requirements are unmet.
@@ -14,52 +9,19 @@ import { instrumentMissingPrompt } from "#app/data/dashboards/built-in/prompt.ts
  * instrumentation.
  */
 export function InstrumentFromBuiltin({ name, missing }: { name: string; missing: string[] }) {
-  const prompt = instrumentMissingPrompt({ name, missing });
-  const promptRef = useRef<HTMLElement>(null);
-  const { state: copyState, copy } = useCopyToClipboard(prompt, {
-    selectOnFailure: promptRef,
-  });
-
   return (
-    <Popover>
-      <PopoverTrigger render={<Button size="sm" />}>
-        <ClipboardList className="size-3.5" />
-        Set up instrumentation
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-96">
-        <p className="text-muted-foreground text-xs/relaxed">
-          Paste this into your coding assistant. It checks what instrumentation is needed and sets
-          it up so this dashboard can render.
-        </p>
-        <div className="mt-3 flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
-          <code
-            ref={promptRef}
-            className="min-w-0 flex-1 whitespace-pre-wrap break-words font-mono text-[0.6875rem]/relaxed text-foreground/90"
-          >
-            {prompt}
-          </code>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          className="mt-3 w-full"
-          onClick={copy}
-          aria-label="Copy assistant prompt"
-        >
-          {copyState === "copied" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-          {copyState === "copied" ? "Copied" : "Copy prompt"}
-        </Button>
-        {/* One status line serves sighted and screen-reader users alike:
-            visible on failure, announced-only for the transient "copied". */}
-        <p
-          role="status"
-          className={cn("mt-2 text-amber-400 text-xs", copyState !== "failed" && "sr-only")}
-        >
-          {copyState === "copied" && "Prompt copied to clipboard."}
-          {copyState === "failed" &&
-            "Couldn't access the clipboard. The prompt is selected, copy it manually."}
-        </p>
-      </PopoverContent>
-    </Popover>
+    <PromptHandoff
+      // Primary: with no data, setting it up is the only thing to do here.
+      triggerVariant="default"
+      trigger={
+        <>
+          <ClipboardList className="size-3.5" />
+          Set up instrumentation
+        </>
+      }
+      title="Send the missing telemetry"
+      description="Paste this into your coding assistant. It checks which instrumentation this dashboard needs and sets it up."
+      prompt={instrumentMissingPrompt({ name, missing })}
+    />
   );
 }

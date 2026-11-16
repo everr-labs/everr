@@ -181,7 +181,7 @@ export function AttributeFilterPill({
   const summary = opTakesValues(filter.op) ? valueSummary(filter.values) : null;
 
   return (
-    <div className="bg-background ring-offset-background focus-within:border-ring focus-within:ring-primary flex w-full items-stretch overflow-hidden rounded-md border text-xs shadow-xs focus-within:ring-2 focus-within:ring-offset-[3px]">
+    <div className="bg-background ring-offset-background focus-within:border-ring focus-within:ring-primary flex w-full items-stretch overflow-hidden rounded-md border text-xs focus-within:ring-2 focus-within:ring-offset-[3px]">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={

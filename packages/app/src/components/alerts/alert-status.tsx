@@ -60,11 +60,11 @@ export const STATUS_META: Record<RuleInventoryState, StatusMeta> = {
   pending: {
     icon: Clock,
     label: "Pending",
-    text: "text-chart-2",
+    text: "text-warning",
     tone: "warning",
-    fill: "bg-chart-2",
-    chartText: "text-chart-2",
-    stroke: "var(--chart-2)",
+    fill: "bg-warning",
+    chartText: "text-warning",
+    stroke: "var(--warning)",
   },
   silenced: {
     icon: BellOff,
@@ -133,7 +133,7 @@ export function StatusChip({
 
 const SEVERITY_TEXT: Record<AlertingSeverity, string> = {
   critical: "text-destructive",
-  warning: "text-chart-2",
+  warning: "text-warning",
   info: "text-muted-foreground",
 };
 
@@ -141,7 +141,7 @@ const SEVERITY_TEXT: Record<AlertingSeverity, string> = {
  *  for the lists that name a severity as a heading rather than a tag. */
 export const SEVERITY_DOT: Record<AlertingSeverity, string> = {
   critical: "bg-destructive",
-  warning: "bg-chart-2",
+  warning: "bg-warning",
   info: "bg-muted-foreground",
 };
 

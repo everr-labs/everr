@@ -88,12 +88,12 @@ document:
               calculation: last
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 steps:
                   - value: 75
-                    color: "#f59e0b"
+                    color: "#f0b100"
                   - value: 90
-                    color: "#ef4444"
+                    color: "#ff6467"
               valueFormat:
                 unit: "%"
                 decimals: 1
@@ -120,12 +120,12 @@ document:
               calculation: last
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 steps:
                   - value: 75
-                    color: "#f59e0b"
+                    color: "#f0b100"
                   - value: 90
-                    color: "#ef4444"
+                    color: "#ff6467"
               valueFormat:
                 unit: "%"
                 decimals: 1

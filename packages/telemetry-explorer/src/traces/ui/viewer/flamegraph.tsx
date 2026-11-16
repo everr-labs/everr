@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { SpanName } from "../span-name";
 import type { TraceModel } from "./model";
 import type { VisualLayout } from "./rendering/compute-visual-layout";
 import type { EventRect, SpanRect } from "./rendering/types";
@@ -44,6 +45,7 @@ export function TraceFlamegraph({
   matchingIds,
   filterActive,
   colorBy,
+  colors,
   range,
   onRangeChange,
   onSelect,
@@ -55,6 +57,7 @@ export function TraceFlamegraph({
   matchingIds: ReadonlySet<string>;
   filterActive: boolean;
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
   range: ViewRange;
   onRangeChange: (range: ViewRange) => void;
   onSelect: (id: string) => void;
@@ -92,6 +95,7 @@ export function TraceFlamegraph({
     eventRectsRef,
     matchingSpanIds: filterActive ? matchingIds : null,
     colorBy,
+    colors,
   });
 
   // URL selection controls the external scroll surface, not local selection state.
@@ -306,7 +310,7 @@ export function TraceFlamegraph({
           }}
         >
           <div className="truncate font-medium">
-            {hover.event?.event.name ?? hover.span.span.name}
+            {hover.event ? hover.event.event.name : <SpanName name={hover.span.span.name} />}
           </div>
           <div className="text-muted-foreground mt-1 truncate">
             {hover.span.span.resource["service.name"]}

@@ -1,3 +1,4 @@
+import { kickerClass } from "@everr/ui/lib/typography";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
@@ -116,7 +117,7 @@ export function RailFrame({
           inert={full && !isMobile}
           aria-label={label}
           className={cn(
-            "min-h-0 min-w-0 overflow-hidden border-b bg-muted/15 md:border-r md:border-b-0",
+            "min-h-0 min-w-0 overflow-hidden border-b bg-pane md:border-r md:border-b-0",
             // Stacked (no toggle to bring it back) it stays expanded below
             // `md`: just under half the viewport leaves what is open the
             // larger share; the rows scroll.
@@ -152,11 +153,9 @@ export function RailFrame({
               ref={sheetNavRef}
               tabIndex={-1}
               aria-label={label}
-              className="outline-none flex h-full min-h-0 flex-col gap-3 bg-muted/15 p-3"
+              className="outline-none flex h-full min-h-0 flex-col gap-3 bg-pane p-3"
             >
-              <SheetTitle className="text-muted-foreground text-[0.6875rem] font-medium tracking-wider uppercase">
-                {label}
-              </SheetTitle>
+              <SheetTitle className={kickerClass}>{label}</SheetTitle>
               {rail}
             </nav>
           </SheetContent>

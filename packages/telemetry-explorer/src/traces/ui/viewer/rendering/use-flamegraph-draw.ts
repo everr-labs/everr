@@ -15,6 +15,7 @@ import { type EventRect, type FlamegraphSpan, type SpanRect, spanColorGroup } fr
 
 interface UseFlamegraphDrawArgs {
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   containerRef: RefObject<HTMLDivElement | null>;
   spans: FlamegraphSpan[][];
@@ -42,6 +43,7 @@ interface DrawLevelArgs {
   selectedSpanId: string | undefined;
   hoveredSpanId: string;
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
   spanRectsArray: SpanRect[];
   eventRectsArray: EventRect[];
   metrics: FlamegraphRowMetrics;
@@ -60,6 +62,7 @@ function drawLevel(args: DrawLevelArgs): void {
     selectedSpanId,
     hoveredSpanId,
     colorBy,
+    colors,
     spanRectsArray,
     eventRectsArray,
     metrics,
@@ -99,7 +102,7 @@ function drawLevel(args: DrawLevelArgs): void {
     // Minimum 1px width so tiny spans remain visible
     width = clamp(width, 1, Infinity);
 
-    const color = canvasServiceColor(spanColorGroup(span, colorBy));
+    const color = canvasServiceColor(spanColorGroup(span, colorBy), colors);
     const isDimmedByFilter = matchingSpanIds !== null && !matchingSpanIds.has(span.spanId);
 
     drawSpanBar({
@@ -134,6 +137,7 @@ interface DrawConnectorLinesArgs {
   viewportHeight: number;
   metrics: FlamegraphRowMetrics;
   colorBy: string;
+  colors: ReadonlyMap<string, string>;
 }
 
 export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
@@ -147,6 +151,7 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
     viewportHeight,
     metrics,
     colorBy,
+    colors,
     focusedSpanIds,
   } = args;
 
@@ -179,7 +184,10 @@ export function drawConnectorLines(args: DrawConnectorLinesArgs): void {
       continue;
     }
 
-    ctx.strokeStyle = canvasServiceColor(spanColorGroup({ resource: conn.resource }, colorBy));
+    ctx.strokeStyle = canvasServiceColor(
+      spanColorGroup({ resource: conn.resource }, colorBy),
+      colors,
+    );
 
     const x = clamp(xFrac * cssWidth, 0, cssWidth);
     ctx.beginPath();
@@ -196,6 +204,7 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     canvasRef,
     containerRef,
     colorBy,
+    colors,
     spans,
     connectors,
     viewStartTs,
@@ -256,6 +265,7 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
       viewportHeight,
       metrics,
       colorBy,
+      colors,
     });
 
     const spanRectsArray: SpanRect[] = [];
@@ -279,6 +289,7 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
         selectedSpanId,
         hoveredSpanId,
         colorBy,
+        colors,
         spanRectsArray,
         eventRectsArray,
         metrics,
@@ -301,6 +312,7 @@ export function useFlamegraphDraw(args: UseFlamegraphDrawArgs): () => void {
     selectedSpanId,
     hoveredSpanId,
     colorBy,
+    colors,
     matchingSpanIds,
   ]);
 

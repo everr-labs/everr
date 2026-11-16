@@ -12,10 +12,11 @@ function checkSharedNavigationTypes() {
   const unknownPath: ApplicationPath = "/this-route-does-not-exist";
 
   const validNavigation: NavGroup[] = [
-    { items: [{ title: "Runs", url: "/runs", icon: Activity }] },
+    { accent: "", items: [{ title: "Runs", url: "/runs", icon: Activity }] },
   ];
   const invalidNavigation: NavGroup[] = [
     {
+      accent: "",
       items: [
         {
           title: "Unknown",

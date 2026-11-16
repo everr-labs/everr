@@ -8,7 +8,6 @@
     "./logs": "./src/logs/index.ts",
     "./runs": "./src/runs/index.ts",
     "./sql": "./src/sql/index.ts",
-    "./styles.css": "./src/styles.css",
     "./traces": "./src/traces/index.ts",
     "./traces/service-color": "./src/traces/ui/shared/service-color.ts"
   },

@@ -1,6 +1,4 @@
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -8,13 +6,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import type { RunListItem } from "../schemas";
+import { showingAll } from "../../filters/ui/no-results";
 import { ConclusionIcon } from "./conclusion-icon";
 import { SenderCell } from "./sender-cell";
 
 const VIRTUOSO_OVERSCAN = 600;
-const SKELETON_DELAY_MS = 600;
 
 // Runs are timed to the second (and the live timer ticks every second), so
 // render whole seconds — `Xs` under a minute, `Ym Zs` above — rather than the
@@ -47,7 +44,8 @@ interface RunsResultsListProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
-  onClearFilters: () => void;
+  /** What shows when nothing matches. */
+  empty: ReactNode;
   renderRunLink: RenderRunLink;
   renderRowActions?: RenderRunRowActions;
 }
@@ -62,7 +60,7 @@ export function RunsResultsList({
   hasMore,
   isLoadingMore,
   onLoadMore,
-  onClearFilters,
+  empty,
   renderRunLink,
   renderRowActions,
 }: RunsResultsListProps) {
@@ -93,8 +91,7 @@ export function RunsResultsList({
     [runs.length, totalCount, hasMore, isLoadingMore],
   );
 
-  const showSkeleton = useDelayedFlag(isPending, SKELETON_DELAY_MS);
-  if (isPending) return showSkeleton ? <ResultsSkeleton /> : null;
+  if (isPending) return <ResultsSkeleton />;
   // Only blank the view when there's nothing to show. A failed `fetchNextPage`
   // flips `isError` while keeping the already-loaded pages, so we keep the list
   // mounted and let the user retry by scrolling rather than wiping it.
@@ -108,7 +105,7 @@ export function RunsResultsList({
     );
   }
   if (runs.length === 0) {
-    return <EmptyState onClearFilters={onClearFilters} />;
+    return empty;
   }
 
   return (
@@ -259,7 +256,7 @@ function ResultsFooter({
           {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} runs
         </span>
       ) : (
-        <span>Showing all {count.toLocaleString()} matching runs</span>
+        <span>{showingAll(count, "run")}</span>
       )}
     </div>
   );
@@ -281,19 +278,5 @@ function ResultsSkeleton() {
         </div>
       ))}
     </div>
-  );
-}
-
-function EmptyState({ onClearFilters }: { onClearFilters: () => void }) {
-  return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>No runs</EmptyTitle>
-        <EmptyDescription>No workflow runs match the current filters.</EmptyDescription>
-      </EmptyHeader>
-      <Button variant="outline" size="sm" onClick={onClearFilters}>
-        Clear filters
-      </Button>
-    </Empty>
   );
 }

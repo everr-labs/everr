@@ -1,23 +1,27 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { Spinner } from "@everr/ui/components/spinner";
 import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Children } from "react";
+import type * as React from "react";
 
 const buttonVariants = cva(
-  "focus-visible:border-ring focus-visible:ring-primary aria-invalid:ring-destructive/40 aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-2 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 group/button select-none",
+  "focus-visible:border-ring focus-visible:ring-primary aria-invalid:ring-destructive/40 aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-2 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap press disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 group/button select-none",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        default:
+          "bg-primary text-primary-foreground hover:bg-primary/90 disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:opacity-100",
         outline:
-          "border-border bg-input/30 hover:bg-input/60 active:bg-input/90 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
+          "border-border bg-white/[0.035] hover:bg-white/[0.07] hover:border-white/[0.12] hover:text-foreground aria-expanded:bg-white/[0.07] aria-expanded:text-foreground",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground hover:bg-accent aria-expanded:bg-accent aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted/50 hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
+          "hover:bg-white/[0.06] hover:text-foreground aria-expanded:bg-white/[0.07] aria-expanded:text-foreground",
         destructive:
-          "bg-destructive/20 hover:bg-destructive/30 focus-visible:ring-destructive/40 text-destructive focus-visible:border-destructive/40",
-        link: "text-primary underline-offset-4 hover:underline",
-        cta: "bg-primary text-primary-foreground [a]:hover:bg-primary/80 font-heading uppercase tracking-widest font-bold",
+          "bg-destructive/12 border-destructive/20 hover:bg-destructive/20 hover:border-destructive/30 focus-visible:ring-destructive/40 text-destructive focus-visible:border-destructive/40",
+        link: "text-primary underline-offset-4 hover:underline active:scale-100",
+        cta: "bg-primary text-primary-foreground hover:bg-primary/90 disabled:not-data-loading:bg-white/[0.06] disabled:not-data-loading:text-muted-foreground disabled:not-data-loading:opacity-100 font-heading uppercase tracking-widest font-bold",
       },
       size: {
         default:
@@ -43,15 +47,155 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  loading,
+  status,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    /** Busy state. The label stays in the layout but fades out while a spinner
+     *  fades in over it, so the button keeps its width and nothing around it
+     *  moves. Pass it (true or false) only on buttons that can be busy. */
+    loading?: boolean;
+    /** How the last run ended. When loading stops with `success`, the spinner
+     *  closes into a check before the label returns; with `error`, the button
+     *  shakes once. Only read on buttons that pass `loading`. */
+    status?: "success" | "error";
+  }) {
+  if (loading === undefined) {
+    return (
+      <ButtonPrimitive
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </ButtonPrimitive>
+    );
+  }
+  // Letters (and any icon) become separately animated items, so the label can
+  // ripple out left to right. Screen readers get the label once, whole.
+  let index = 0;
+  const items = Children.toArray(children).map((child, runIndex) =>
+    typeof child === "string" || typeof child === "number" ? (
+      // One run per text child, so the button's gap separates an icon from
+      // the text but never one letter from the next.
+      // oxlint-disable-next-line react/no-array-index-key -- a label's children never reorder; position is their identity.
+      <span key={runIndex} aria-hidden className="inline-flex whitespace-pre">
+        {graphemes(String(child)).map((char) => (
+          <span key={index} className={rippleItem} style={rippleIndex(index++)}>
+            {char}
+          </span>
+        ))}
+      </span>
+    ) : (
+      // oxlint-disable-next-line react/no-array-index-key -- a label's children never reorder; position is their identity.
+      <span key={runIndex} className={cn(rippleItem, "inline-flex")} style={rippleIndex(index++)}>
+        {child}
+      </span>
+    ),
+  );
+  const text = Children.toArray(children)
+    .filter((child) => typeof child === "string" || typeof child === "number")
+    .join("");
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-loading={loading || undefined}
+      // Set only once loading has stopped: its arrival is what plays the
+      // success or error animation, once per run.
+      data-status={loading ? undefined : status}
+      aria-busy={loading || undefined}
+      // A busy button is usually also disabled; it should read as working, not unavailable.
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        "relative overflow-hidden data-loading:disabled:opacity-100",
+        "data-[status=error]:animate-button-shake motion-reduce:data-[status=error]:animate-none",
+      )}
       {...props}
-    />
+    >
+      {text && <span className="sr-only">{text}</span>}
+      <span className="inline-flex items-center justify-center gap-[inherit]">{items}</span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      >
+        <Spinner className={buttonSpinner} />
+      </span>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          className="size-4 opacity-0 in-data-[status=success]:animate-button-success"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            pathLength="100"
+            className="[stroke-dasharray:0_100] in-data-[status=success]:animate-button-draw-ring"
+          />
+          <path
+            d="M8 12.5l2.75 2.75L16 10"
+            stroke="currentColor"
+            strokeWidth="2.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            pathLength="100"
+            className="[stroke-dasharray:0_100] in-data-[status=success]:animate-button-draw-check"
+          />
+        </svg>
+      </span>
+    </ButtonPrimitive>
   );
+}
+
+/* The loading state: the label's letters lift out one after another, left to
+   right, and drop back in the same order; the spinner rises and draws itself
+   in. Transitions, so a request finishing mid-way reverses from wherever it
+   got to. Entry waits 150ms: most requests finish sooner, and then nothing
+   shows, since a transition that has not started is simply cancelled.
+
+   After a success the label stays out while the check plays, then ripples
+   back. An animation rather than a delay, so it also clears the label when the
+   request was too fast for the loading state to have shown. Its fill is
+   `backwards` only: the last frame is the resting state anyway, and a fill
+   that outlives the animation stops the next run's delayed transition. */
+const rippleItem = cn(
+  "inline-block transition-[translate,opacity,filter] duration-260 ease-out",
+  "[transition-delay:calc(var(--ripple-index,0)*14ms)]",
+  "in-data-loading:-translate-y-[0.6em] in-data-loading:opacity-0 in-data-loading:blur-[2px]",
+  "in-data-loading:[transition-delay:calc(150ms+var(--ripple-index,0)*14ms)]",
+  "in-data-[status=success]:animate-button-label-return",
+  "in-data-[status=success]:[animation-delay:calc(var(--ripple-index,0)*14ms)]",
+  "motion-reduce:translate-none motion-reduce:blur-none motion-reduce:[transition-delay:0ms]",
+  "motion-reduce:in-data-loading:translate-none motion-reduce:in-data-loading:blur-none",
+  "motion-reduce:in-data-loading:[transition-delay:0ms]",
+  "motion-reduce:in-data-[status=success]:animate-button-label-fade",
+);
+
+const buttonSpinner = cn(
+  "translate-y-[0.5em] scale-60 opacity-0 transition-[opacity,scale,translate] duration-280 ease-out",
+  "in-data-loading:translate-y-0 in-data-loading:scale-100 in-data-loading:opacity-100 in-data-loading:delay-240",
+  "motion-reduce:translate-none motion-reduce:scale-100",
+);
+
+function rippleIndex(i: number) {
+  const style: React.CSSProperties & Record<"--ripple-index", number> = { "--ripple-index": i };
+  return style;
+}
+
+const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** Split by user-perceived character, so emoji and accents stay whole. */
+function graphemes(text: string) {
+  return Array.from(segmenter.segment(text), (part) => part.segment);
 }
 
 export { Button, buttonVariants };

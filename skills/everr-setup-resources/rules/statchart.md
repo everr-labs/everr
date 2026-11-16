@@ -33,10 +33,10 @@ plugin:
     colors: { p50: "#a78bfa", p95: "#fde047" }
     thresholds:
       mode: absolute
-      defaultColor: "#22c55e" # green below the first step
+      defaultColor: "#05df72" # green below the first step
       steps:
-        - { value: 1, color: "#f59e0b" } # amber once value ≥ 1
-        - { value: 5, color: "#ef4444" } # red once value ≥ 5
+        - { value: 1, color: "#f0b100" } # amber once value ≥ 1
+        - { value: 5, color: "#ff6467" } # red once value ≥ 5
     valueFormat:
       unit: "%"
       decimals: 1

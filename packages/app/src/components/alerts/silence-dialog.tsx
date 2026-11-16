@@ -249,6 +249,7 @@ function SilenceForm({
           Cancel
         </Button>
         <Button
+          loading={pending}
           disabled={pending || rulePath === null}
           aria-describedby={choosing && rulePath === null ? "silence-confirm-help" : undefined}
           onClick={() => {
@@ -261,7 +262,7 @@ function SilenceForm({
               });
           }}
         >
-          {pending ? "Silencing…" : `Silence for ${duration.label}`}
+          {`Silence for ${duration.label}`}
         </Button>
       </DialogFooter>
     </DialogContent>

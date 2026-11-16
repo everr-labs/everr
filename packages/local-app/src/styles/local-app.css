@@ -1,5 +1,4 @@
 @import "@everr/ui/src/styles/global.css";
-@import "@everr/telemetry-explorer/styles.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 @source "../../../telemetry-explorer/src/**/*.{ts,tsx}";

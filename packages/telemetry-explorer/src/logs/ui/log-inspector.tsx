@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-react";
 import type React from "react";
-import { useDelayedFlag } from "../../hooks/use-delayed-flag";
 import { logDetailOptions } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { LogDetail, LogExplorerRow } from "../schemas";
@@ -164,7 +163,6 @@ export function LogInspectorPanel({
     ...logDetailOptions(repo, log.identity),
     placeholderData: keepPreviousData,
   });
-  const showSkeleton = useDelayedFlag(isPending, 250);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -222,7 +220,7 @@ export function LogInspectorPanel({
               resolveJobId={resolveJobId}
             />
           </div>
-        ) : showSkeleton ? (
+        ) : isPending ? (
           <LogInspectorSkeleton />
         ) : null}
       </ScrollArea>

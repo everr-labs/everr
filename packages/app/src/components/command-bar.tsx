@@ -12,12 +12,10 @@ import {
 } from "@everr/ui/components/command";
 import { Kbd } from "@everr/ui/components/kbd";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
-import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { flushSync } from "react-dom";
 import { BUILTIN_MANIFEST } from "#app/data/dashboards/built-in/manifest.ts";
 import { dashboardListOptions } from "#app/data/dashboards/options.ts";
 import { searchRunsOptions } from "#app/data/runs-list/options.ts";
@@ -30,6 +28,9 @@ export function CommandBar() {
     from: "/_authenticated/_organization/_dashboard",
   });
   const [open, setOpen] = useState(false);
+  // Keyboard opens and closes (⌘K, Escape) skip the animation: a shortcut used
+  // dozens of times a day should act at once. Clicks animate.
+  const [instant, setInstant] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
 
@@ -40,29 +41,19 @@ export function CommandBar() {
 
   const { data: dashboardList } = useQuery(dashboardListOptions(preview));
 
-  const toggleCommandBar = useCallback((open: boolean) => {
-    if (document.startViewTransition) {
-      document.startViewTransition(() => {
-        flushSync(() => {
-          if (open) {
-            setSearch("");
-          }
-          setOpen(open);
-        });
-      });
-    } else {
-      if (open) {
-        setSearch("");
-      }
-      setOpen(open);
+  const toggleCommandBar = useCallback((open: boolean, animate = true) => {
+    if (open) {
+      setSearch("");
     }
+    setInstant(!animate);
+    setOpen(open);
   }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        toggleCommandBar(!open);
+        toggleCommandBar(!open, false);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
@@ -77,17 +68,19 @@ export function CommandBar() {
         type="button"
         variant="outline"
         onClick={() => toggleCommandBar(true)}
-        className={cn(
-          // Pointless without a keyboard and eats the narrow header on phones.
-          "hidden w-52 cursor-text md:inline-flex",
-          open ? "opacity-0" : "opacity-100",
-        )}
+        // Pointless without a keyboard and eats the narrow header on phones.
+        className="hidden w-52 cursor-text md:inline-flex"
       >
         <SearchIcon className="size-3.5 shrink-0" />
         <span className="flex-1 text-left text-muted-foreground">Search...</span>
         <Kbd>⌘+K</Kbd>
       </Button>
-      <CommandDialog open={open} onOpenChange={toggleCommandBar} className="transition-none">
+      <CommandDialog
+        open={open}
+        onOpenChange={(next, details) => toggleCommandBar(next, details.reason !== "escape-key")}
+        className={instant ? "transition-none" : undefined}
+        overlayClassName={instant ? "transition-none" : undefined}
+      >
         <Command className="p-0">
           <CommandInput
             placeholder="Search..."
@@ -162,10 +155,15 @@ export function CommandBar() {
               ))}
             </CommandGroup>
             {navGroups.map((group) => (
-              <CommandGroup key={group.label ?? "pinned"} heading={group.label ?? "Navigation"}>
+              <CommandGroup
+                key={group.label ?? "pinned"}
+                heading={group.label ?? "Navigation"}
+                className={group.accent}
+              >
                 {group.items.map((item) => (
                   <CommandItem
                     key={item.url}
+                    className="*:[svg]:text-(--nav-accent)/75 data-[selected=true]:*:[svg]:text-(--nav-accent)"
                     onSelect={() => {
                       toggleCommandBar(false);
                       void navigate({ to: item.url });

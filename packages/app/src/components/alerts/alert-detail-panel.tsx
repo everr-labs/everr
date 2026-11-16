@@ -46,7 +46,7 @@ function ThresholdLabel({ condition }: { condition: string }) {
             y1="3"
             x2="14"
             y2="3"
-            stroke="var(--chart-2)"
+            stroke="var(--warning)"
             strokeWidth="1.5"
             strokeDasharray="3 3"
           />
@@ -106,6 +106,7 @@ export function AlertDetailPanel({
   silencePending,
   onTogglePaused,
   pausePending,
+  requestedPause,
 }: {
   /** Known before the detail loads, and the only identity the header can show
    *  while the query is in flight. */
@@ -130,10 +131,13 @@ export function AlertDetailPanel({
    *  of it, so they belong where the rule is on screen in full. */
   onTogglePaused: (paused: boolean) => void;
   pausePending: boolean;
+  /** A pause or resume in flight. The banner and the button follow it at once;
+   *  the state line keeps the server's word until the refetch lands. */
+  requestedPause?: boolean;
 }) {
   // Off, not muted: `status` already says so, and everything below the header
   // is frozen at the moment evaluation stopped.
-  const paused = detail?.status === "paused";
+  const paused = requestedPause ?? detail?.status === "paused";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/10">
@@ -182,7 +186,7 @@ export function AlertDetailPanel({
         {/* The warning belongs beside the state line: everything below the
             header is the frozen data it warns about. */}
         {paused && (
-          <p className="rounded-md border border-chart-2/40 bg-chart-2/8 px-3 py-2 text-xs text-chart-2">
+          <p className="rounded-md border border-warning/40 bg-warning/8 px-3 py-2 text-xs text-warning">
             Instances and state below are frozen at the moment this rule stopped evaluating.
           </p>
         )}

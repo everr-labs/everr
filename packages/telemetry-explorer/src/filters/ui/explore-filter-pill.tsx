@@ -8,7 +8,6 @@ import {
   CommandList,
 } from "@everr/ui/components/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
@@ -22,7 +21,7 @@ interface FilterQueryOptions<TData> {
 }
 
 export interface ExploreFilterPillProps<TData> {
-  /** Human label for the filter, e.g. "Service". Drives a11y + tooltip copy. */
+  /** Human label for the filter, e.g. "Service". Drives the clear control's name. */
   label: string;
   /** Leading glyph. Establishes the filter's identity in place of a text label. */
   icon: ComponentType<{ className?: string }>;
@@ -36,14 +35,15 @@ export interface ExploreFilterPillProps<TData> {
   countNoun?: string;
   /** Classes for the trigger. The Explore rail sends `w-full max-w-none`. */
   className?: string;
+  /** Id of the visible label above the control. The trigger is then named
+   *  by that label and its current value, e.g. "Service All services". */
+  labelId?: string;
 }
 
 /**
- * Compact, icon-led multi-select pill for the Explore topbar's global Service /
- * Environment filters. Speaks the same visual language as the time-range pill
- * (outline button · leading icon · value · chevron · tooltip) so the toolbar
- * reads as one coherent row. Intentionally separate from the shared
- * `FilterCombobox` (used across many other surfaces) so this restyle stays local.
+ * Compact, icon-led multi-select for the Explore rail's global Service /
+ * Environment filters. Intentionally separate from the shared `FilterCombobox`
+ * (used across many other surfaces) so this styling stays local.
  */
 export function ExploreFilterPill<TData>({
   label,
@@ -55,6 +55,7 @@ export function ExploreFilterPill<TData>({
   searchPlaceholder,
   countNoun,
   className,
+  labelId,
 }: ExploreFilterPillProps<TData>) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -85,67 +86,60 @@ export function ExploreFilterPill<TData>({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <Tooltip>
-        <TooltipTrigger
-          delay={0}
-          render={
-            <PopoverTrigger
-              render={
-                <Button
-                  id={id}
-                  variant="outline"
-                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger and nested clear-control DOM semantics. PopoverTrigger supplies the popup relationship; preserve the existing trigger markup.
-                  role="combobox"
-                  aria-expanded={open}
-                  className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
-                />
-              }
-            />
-          }
-        >
-          <Icon
-            data-icon="inline-start"
-            className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
-            aria-hidden="true"
+      <PopoverTrigger
+        render={
+          <Button
+            id={id}
+            variant="outline"
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger and nested clear-control DOM semantics. PopoverTrigger supplies the popup relationship; preserve the existing trigger markup.
+            role="combobox"
+            aria-expanded={open}
+            aria-labelledby={labelId ? `${labelId} ${id}-value` : undefined}
+            className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
           />
-          {/* flex-1 puts the chevron and the clear control at the right edge
+        }
+      >
+        <Icon
+          data-icon="inline-start"
+          className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
+          aria-hidden="true"
+        />
+        {/* flex-1 puts the chevron and the clear control at the right edge
               when the trigger fills its column, as it does in the Explore rail.
               At the width of the top bar there is no free space, so nothing
               moves. */}
-          <span className={cn("flex-1 truncate text-left", !isActive && "text-muted-foreground")}>
-            {display}
+        <span
+          id={`${id}-value`}
+          className={cn("flex-1 truncate text-left", !isActive && "text-muted-foreground")}
+        >
+          {display}
+        </span>
+        {isActive ? (
+          // A native <button> would nest inside the trigger <button> (invalid
+          // HTML), so this clear affordance is a span with button semantics.
+          // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
+          <span
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing composite trigger and nested clear-control DOM semantics.
+            role="button"
+            tabIndex={0}
+            aria-label={`Clear ${label} filter`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={clear}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                clear(e);
+              }
+            }}
+            className="text-muted-foreground hover:text-foreground -mr-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors"
+          >
+            <XIcon className="size-3" />
           </span>
-          {isActive ? (
-            // A native <button> would nest inside the trigger <button> (invalid
-            // HTML), so this clear affordance is a span with button semantics.
-            // biome-ignore lint/a11y/useSemanticElements: nested-button constraint
-            <span
-              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Preserve the existing composite trigger and nested clear-control DOM semantics.
-              role="button"
-              tabIndex={0}
-              aria-label={`Clear ${label} filter`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={clear}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  clear(e);
-                }
-              }}
-              className="text-muted-foreground hover:text-foreground -mr-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm transition-colors"
-            >
-              <XIcon className="size-3" />
-            </span>
-          ) : (
-            <ChevronDownIcon className="text-muted-foreground size-3 shrink-0" />
-          )}
-        </TooltipTrigger>
-        {/* Open downward to keep tooltips within the topbar's viewport. */}
-        <TooltipContent side="bottom">
-          {isActive ? `${label}: ${values.join(", ")}` : `Filter by ${label.toLowerCase()}`}
-        </TooltipContent>
-      </Tooltip>
-      <PopoverContent align="start" className="w-64 p-0">
+        ) : (
+          <ChevronDownIcon className="text-muted-foreground size-3 shrink-0" />
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-48 p-0">
         <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
           <CommandInput
             wrapperClassName="p-0 border-b"

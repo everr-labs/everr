@@ -5,7 +5,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer"
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useIsMobile, useIsNarrow } from "@everr/ui/hooks/use-mobile";
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -20,7 +20,8 @@ import {
 } from "../data/options";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogExplorerRow, LogLevel } from "../schemas";
-import { LogFiltersBar } from "./log-filters";
+import { NoResults, showingAll } from "../../filters/ui/no-results";
+import { countLogPageFilters, LogFiltersBar } from "./log-filters";
 import { LogHistogram } from "./log-histogram";
 import { LogInspectorPanel } from "./log-inspector";
 import { DEFAULT_HISTOGRAM_BUCKETS, PAGE_SIZE } from "./log-level-meta";
@@ -66,6 +67,7 @@ function LogStream({
   isFetchingNextPage,
   onLoadMore,
   onSelect,
+  withDay,
 }: {
   logs: LogExplorerRow[];
   selectedLogKey?: string;
@@ -74,6 +76,7 @@ function LogStream({
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
   onSelect: (log: LogExplorerRow, key: string) => void;
+  withDay: boolean;
 }) {
   const [isSelecting, setIsSelecting] = useState(false);
 
@@ -99,10 +102,11 @@ function LogStream({
           rowKey={rowKey}
           isSelected={selectedLogKey === rowKey}
           onSelect={onSelect}
+          withDay={withDay}
         />
       );
     },
-    [selectedLogKey, onSelect],
+    [selectedLogKey, onSelect, withDay],
   );
 
   const components = useMemo(
@@ -122,7 +126,7 @@ function LogStream({
               {totalCount !== undefined ? ` of ${totalCount.toLocaleString()}` : ""} events
             </span>
           ) : (
-            <span>Showing all {logs.length.toLocaleString()} matching events</span>
+            <span>{showingAll(logs.length, "event")}</span>
           )}
         </div>
       ),
@@ -354,6 +358,7 @@ export function LogsExplorer({
                   />
                 ) : logs.length ? (
                   <LogStream
+                    withDay={rangeSpansDays(timeRange)}
                     logs={logs}
                     selectedLogKey={selectedLogState?.key}
                     totalCount={totalCount}
@@ -363,9 +368,28 @@ export function LogsExplorer({
                     onSelect={handleSelectLog}
                   />
                 ) : (
-                  <div className="text-muted-foreground flex h-full min-h-80 items-center justify-center text-sm">
-                    No logs found
-                  </div>
+                  <NoResults
+                    // Its box is not a flex column, unlike the other
+                    // explorers', so the state fills it to stay centred.
+                    className="h-full"
+                    noun="logs"
+                    timeRange={timeRange}
+                    filterCount={
+                      countPersistentFilters(filters.services, environment) +
+                      countLogPageFilters(filters)
+                    }
+                    onClearFilters={
+                      countLogPageFilters(filters) > 0
+                        ? () =>
+                            applyFilters({
+                              q: undefined,
+                              levels: [],
+                              attributes: [],
+                              traceId: undefined,
+                            })
+                        : undefined
+                    }
+                  />
                 )}
               </div>
             </div>

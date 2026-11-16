@@ -6,7 +6,6 @@ import { useMatchRoute } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
-  ChevronDown,
   ChevronRight,
   CirclePlus,
   Cpu,
@@ -73,6 +72,17 @@ const CATEGORY_ICON: Record<BuiltinCategory, React.ComponentType<{ className?: s
   Browser: Globe,
 };
 
+/** Each category's icon wears its own Catppuccin accent, so the list reads
+ *  by kind at a glance. Whole classes, so Tailwind finds them here. */
+const CATEGORY_ACCENT: Record<BuiltinCategory, string> = {
+  Application: "[--row-accent:var(--ctp-blue)]",
+  Runtime: "[--row-accent:var(--ctp-peach)]",
+  Databases: "[--row-accent:var(--ctp-yellow)]",
+  Infrastructure: "[--row-accent:var(--ctp-sky)]",
+  Everr: "[--row-accent:var(--ctp-green)]",
+  Browser: "[--row-accent:var(--ctp-mauve)]",
+};
+
 export function DashboardsList({ preview }: { preview?: string }) {
   const [search, setSearch] = useState("");
   // "auto" defers to autoOpenNeedsData below; a click makes it user-owned.
@@ -128,7 +138,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
           <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
         )}
         {listQuery.isError && (
-          <p className="px-1 py-1 text-amber-400 text-xs">Couldn&apos;t load your dashboards</p>
+          <p className="px-1 py-1 text-warning text-xs">Couldn&apos;t load your dashboards</p>
         )}
         {!listQuery.isLoading && !listQuery.isError && dashboards.length === 0 && (
           <RailRow
@@ -157,7 +167,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
           <>
             {capabilitiesQuery.isError && (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
-                <span className="inline-flex items-center gap-1.5 text-amber-400">
+                <span className="inline-flex items-center gap-1.5 text-warning">
                   <TriangleAlert className="size-3.5" />
                   Couldn&apos;t check what you send
                 </span>
@@ -192,11 +202,12 @@ export function DashboardsList({ preview }: { preview?: string }) {
                   title="Nothing sent in the last 7 days"
                   className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left max-md:py-2 font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
                 >
-                  {showNeedsData ? (
-                    <ChevronDown className="size-3 shrink-0" />
-                  ) : (
-                    <ChevronRight className="size-3 shrink-0" />
-                  )}
+                  <ChevronRight
+                    className={cn(
+                      "size-3 shrink-0 transition-transform duration-200 ease-out",
+                      showNeedsData && "rotate-90",
+                    )}
+                  />
                   Needs data
                   <span className="ml-1 tabular-nums opacity-80">{needsData.length}</span>
                 </button>
@@ -234,11 +245,12 @@ function GroupLabel({
             "flex w-full items-center gap-1 rounded-md px-1 text-left hover:text-foreground max-md:py-2",
           )}
         >
-          {open ? (
-            <ChevronDown className="size-3 shrink-0" />
-          ) : (
-            <ChevronRight className="size-3 shrink-0" />
-          )}
+          <ChevronRight
+            className={cn(
+              "size-3 shrink-0 transition-transform duration-200 ease-out",
+              open && "rotate-90",
+            )}
+          />
           {label}
         </button>
       ) : (
@@ -253,6 +265,10 @@ function BuiltinRow({ builtin }: { builtin: BuiltinDashboard }) {
     <RailRow
       label={builtin.name}
       icon={CATEGORY_ICON[builtin.category]}
+      className={cn(
+        CATEGORY_ACCENT[builtin.category],
+        "[&>svg]:text-(--row-accent)/80 hover:[&>svg]:text-(--row-accent) data-[status=active]:[&>svg]:text-(--row-accent)",
+      )}
       to="/dashboards/built-in/$slug"
       params={{ slug: builtin.id }}
     />

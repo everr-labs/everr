@@ -54,7 +54,7 @@ function TriageRow({
             name: these identifiers are long, and squeezing them onto the name
             line truncates the one word the reader is scanning for. */}
         {alert.error && (
-          <span className="w-fit max-w-full truncate rounded border border-chart-5/45 px-1.5 py-px font-mono text-xs text-chart-2">
+          <span className="w-fit max-w-full truncate rounded border border-warning/45 px-1.5 py-px font-mono text-xs text-warning">
             {alert.error}
           </span>
         )}
@@ -93,7 +93,7 @@ function TriageRow({
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">{SINCE_LABEL[alert.status]}</span>
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-1.5 whitespace-nowrap">
           <span className="font-mono text-sm tabular-nums">{alert.since}</span>
           {alert.pending && (
             <span className="font-mono text-xs text-muted-foreground tabular-nums">

@@ -35,8 +35,8 @@ plugin:
     seriesColumn: check
     stateColumn: result
     colors:
-      pass: "#22c55e"
-      fail: "#ef4444"
+      pass: "#05df72"
+      fail: "#ff6467"
 ```
 
 There is **no** `mergeConsecutive` (merging is the StateTimeline behavior), `calculation`, `unit`, or thresholds. Statuses are categorical: numbers and booleans are stringified into discrete statuses (`0`, `1`, `true`), never plotted on an axis.

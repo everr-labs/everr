@@ -1,7 +1,7 @@
 /**
- * The small mono uppercase label that heads a group of rows or a column of
- * them. One token, so a list's bands and its column strip read as one frame
- * rather than two sizes of the same idea.
+ * The small uppercase label that names a section: sidebar groups, rail
+ * groups, filter panels, list bands and column strips. One token everywhere,
+ * so every page labels its sections in the same voice.
  */
 export const kickerClass =
-  "font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase";
+  "text-[0.6875rem] font-medium tracking-[0.08em] text-muted-foreground uppercase";

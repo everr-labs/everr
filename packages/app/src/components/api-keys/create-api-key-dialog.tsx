@@ -1,4 +1,5 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -21,13 +22,14 @@ import {
 import { Switch } from "@everr/ui/components/switch";
 import { Textarea } from "@everr/ui/components/textarea";
 import { cn } from "@everr/ui/lib/utils";
-import { Check, Copy, Globe, KeyRound, Loader2, Plus } from "lucide-react";
+import { Globe, KeyRound, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "#app/components/api-keys/queries.ts";
 import { SCOPE_ICONS } from "#app/components/api-keys/scope-meta.tsx";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { PUBLIC_KEY_SCOPE, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
+import { mutationErrorStatus } from "#app/lib/mutation-status.ts";
 
 const EXPIRY_OPTIONS = [
   { value: "never", label: "Never" },
@@ -147,10 +149,7 @@ export function CreateApiKeyDialog({
       },
       {
         // The server fn guarantees a string `key` or throws, so no null guard.
-        onSuccess: (data) => {
-          setIssuedKey(data.key);
-          toast.success("API key created");
-        },
+        onSuccess: (data) => setIssuedKey(data.key),
         onError: (err) => toast.error(err.message),
       },
     );
@@ -197,7 +196,7 @@ export function CreateApiKeyDialog({
                 Done
               </Button>
               <Button onClick={() => void copyKey()}>
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                <CopyStateIcon copied={copied} iconClassName="size-4" />
                 {copied ? "Copied" : "Copy key"}
               </Button>
             </DialogFooter>
@@ -328,8 +327,12 @@ export function CreateApiKeyDialog({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={create.isPending || noScopePicked}>
-                {create.isPending && <Loader2 className="size-4 animate-spin" />}
+              <Button
+                type="submit"
+                disabled={create.isPending || noScopePicked}
+                loading={create.isPending}
+                status={mutationErrorStatus(create)}
+              >
                 {isPublic ? "Create public key" : "Create key"}
               </Button>
             </DialogFooter>

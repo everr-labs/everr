@@ -1,3 +1,5 @@
+import { cn } from "@everr/ui/lib/utils";
+import { kickerClass } from "@everr/ui/lib/typography";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -18,9 +20,11 @@ export function NavMain({ groups }: { groups: NavGroup[] }) {
         // nearer the icon under it than the one over it.
         <Fragment key={group.label ?? "pinned"}>
           {groupIndex > 0 && <CollapsedGroupDivider />}
-          <SidebarGroup>
+          <SidebarGroup className={group.accent}>
             {group.label && (
-              <SidebarGroupLabel className="text-sidebar-foreground/50 text-[10px] font-medium uppercase tracking-[0.12em] group-data-[collapsible=icon]:pointer-events-none">
+              <SidebarGroupLabel
+                className={cn(kickerClass, "group-data-[collapsible=icon]:pointer-events-none")}
+              >
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -30,7 +34,7 @@ export function NavMain({ groups }: { groups: NavGroup[] }) {
                   <SidebarMenuButton
                     tooltip={item.title}
                     tooltipSection={group.label}
-                    className="[&>svg]:text-sidebar-foreground/60 hover:[&>svg]:text-sidebar-accent-foreground data-active:[&>svg]:text-primary"
+                    className="[&>svg]:text-(--nav-accent)/75 [&>svg]:transition-colors [&>svg]:duration-200 [&>svg]:ease-sidebar motion-reduce:[&>svg]:transition-none hover:[&>svg]:text-(--nav-accent) data-active:bg-(--nav-accent)/12 data-active:text-white data-active:hover:bg-(--nav-accent)/16 data-active:[&>svg]:text-(--nav-accent)"
                     render={
                       <Link
                         to={item.url}

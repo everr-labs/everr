@@ -4,7 +4,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 
 const badgeVariants = cva(
-  "rounded-full border border-transparent px-2 py-0.5 font-medium transition-all duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 inline-flex items-center justify-center w-fit whitespace-nowrap shrink-0 [&>svg]:pointer-events-none outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:border-ring focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-destructive/40 aria-invalid:border-destructive overflow-hidden group/badge",
+  "rounded-full border border-transparent px-2 py-0.5 font-medium transition-[color,background-color,border-color,box-shadow] duration-150 ease-out has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 inline-flex items-center justify-center w-fit whitespace-nowrap shrink-0 [&>svg]:pointer-events-none outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:border-ring focus-visible:ring-primary focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-destructive/40 aria-invalid:border-destructive overflow-hidden group/badge",
   {
     variants: {
       size: {
@@ -25,10 +25,10 @@ const badgeVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Diff/status tones (e.g. the preview overlay). 400-shade text on a
         // faint tinted fill reads legibly on the app's near-black surfaces.
-        added: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-        changed: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-        conflict: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-400",
-        removed: "border-red-500/40 bg-red-500/10 text-red-400",
+        added: "border-success/40 bg-success/10 text-success",
+        changed: "border-warning/40 bg-warning/10 text-warning",
+        conflict: "border-ctp-pink/40 bg-ctp-pink/10 text-ctp-pink",
+        removed: "border-destructive/40 bg-destructive/10 text-destructive",
       },
     },
     defaultVariants: {

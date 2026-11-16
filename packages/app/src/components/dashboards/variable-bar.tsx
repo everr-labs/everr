@@ -1,19 +1,21 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@everr/ui/components/dropdown-menu";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@everr/ui/components/command";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
-import { useCallback, useId } from "react";
+import { AlertCircle, ChevronDown } from "lucide-react";
+import { useCallback, useId, useState } from "react";
 import { ALL_VALUE } from "#app/data/dashboards/interpolate.ts";
 import type { ListVariable, TextVariable, Variable } from "#app/data/dashboards/schema.ts";
 import { useDashboardVariables, type VariableOptionsState } from "./use-dashboard-variables";
@@ -122,8 +124,10 @@ export function VariableBar({ layout = "stacked" }: { layout?: VariableBarLayout
 
   if (layout !== "inline") return fields;
   // Inline mode is self-contained: the clip that makes the per-field
-  // hairlines work lives here, not in whichever parent seats the bar.
-  return <div className="overflow-hidden">{fields}</div>;
+  // hairlines work lives here, not in whichever parent seats the bar. Only
+  // the left edge, where the hairlines sit, is clipped: the other sides grow
+  // past the box so a control's focus ring is not cut.
+  return <div className="[clip-path:inset(-8px_-8px_-8px_0)]">{fields}</div>;
 }
 
 function TextVariableField({
@@ -202,6 +206,20 @@ function ListVariableField({
           ? selected[0]
           : `${selected[0]} +${selected.length - 1}`;
 
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSearch("");
+  };
+
+  // A single value closes the list on a pick; a multi-value list stays open
+  // while options are toggled, like the explore filters.
+  const pick = (next: string) => {
+    onChange(next);
+    handleOpenChange(false);
+  };
+
   // Toggling an individual option clears All; selecting All clears individuals.
   const handleToggle = (option: string, checked: boolean) => {
     const base = isAll ? [] : selected;
@@ -213,13 +231,16 @@ function ListVariableField({
       <Label htmlFor={id} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
-      <DropdownMenu>
-        <DropdownMenuTrigger
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger
           render={
             <Button
               id={id}
               variant="outline"
               size="sm"
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Rich combobox trigger; PopoverTrigger supplies the popup association.
+              role="combobox"
+              aria-expanded={open}
               title={error ?? (selected.length > 0 ? selected.join(", ") : undefined)}
               className={cn(
                 "h-8 max-w-56 justify-between font-normal",
@@ -230,61 +251,65 @@ function ListVariableField({
         >
           <span className="truncate">{triggerLabel}</span>
           {isPending ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            <Spinner className="size-3.5 text-muted-foreground" />
           ) : error ? (
             <AlertCircle className="size-3.5" />
           ) : (
             <ChevronDown className="size-3.5 text-muted-foreground" />
           )}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="w-auto min-w-(--anchor-width) max-w-80"
-          listClassName="max-h-80"
-        >
-          {allowAll && (
-            <>
-              {multi ? (
-                <DropdownMenuCheckboxItem
-                  checked={isAll}
-                  onCheckedChange={(checked) => onChange(checked ? ALL_VALUE : [])}
-                >
-                  All
-                </DropdownMenuCheckboxItem>
-              ) : (
-                <DropdownMenuItem onClick={() => onChange(ALL_VALUE)}>All</DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {(options ?? []).map((option) =>
-            multi ? (
-              <DropdownMenuCheckboxItem
-                key={option}
-                checked={!isAll && selected.includes(option)}
-                closeOnClick={false}
-                onCheckedChange={(checked) => handleToggle(option, checked)}
-              >
-                <span className="truncate" title={option}>
-                  {option}
-                </span>
-              </DropdownMenuCheckboxItem>
-            ) : (
-              <DropdownMenuItem key={option} onClick={() => onChange(option)}>
-                <span className="truncate" title={option}>
-                  {option}
-                </span>
-              </DropdownMenuItem>
-            ),
-          )}
-          {isPending && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">Loading options…</div>
-          )}
-          {truncated && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">First 1000 shown</div>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto min-w-(--anchor-width) max-w-80 p-0">
+          <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
+            <CommandInput
+              wrapperClassName="p-0 border-b"
+              inputGroupClassName="border-none rounded-none bg-transparent h-8"
+              placeholder="Search..."
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList className="max-h-80">
+              <CommandEmpty>{isPending ? "Loading options…" : "No results."}</CommandEmpty>
+              <CommandGroup>
+                {allowAll && (
+                  <CommandItem
+                    value={ALL_VALUE}
+                    keywords={["All"]}
+                    data-checked={isAll || undefined}
+                    onSelect={() => (multi ? onChange(isAll ? [] : ALL_VALUE) : pick(ALL_VALUE))}
+                  >
+                    All
+                  </CommandItem>
+                )}
+                {(options ?? []).map((option) => {
+                  const checked = !isAll && selected.includes(option);
+                  return (
+                    <CommandItem
+                      key={option}
+                      value={option}
+                      data-checked={checked || undefined}
+                      onSelect={() => (multi ? handleToggle(option, !checked) : pick(option))}
+                    >
+                      <span className="truncate" title={option}>
+                        {option}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+            {isPending && (options?.length ?? 0) > 0 && (
+              <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+                Loading options…
+              </div>
+            )}
+            {truncated && (
+              <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+                First 1000 shown
+              </div>
+            )}
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

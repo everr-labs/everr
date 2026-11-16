@@ -22,7 +22,7 @@ import {
 } from "@everr/ui/components/empty";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
-import { toast } from "sonner";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
 import { formatDate } from "#app/components/users-management/format-date.ts";
 import {
@@ -234,10 +234,7 @@ function RevokeAction({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => onRevoke(row.id, row.name)}
-            className="bg-destructive hover:bg-destructive/90 text-white"
-          >
+          <AlertDialogAction variant="destructive" onClick={() => onRevoke(row.id, row.name)}>
             Revoke key
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -317,9 +314,10 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
   const revoke = useRevokeApiKey();
 
   const handleRevoke: RevokeFn = (id, name) => {
+    const progress = progressToast(`Revoking API key ${name ?? id}…`);
     revoke.mutate(id, {
-      onSuccess: () => toast.success(`API key ${name ?? id} revoked. Effective within 30s.`),
-      onError: (err) => toast.error(err.message),
+      onSuccess: () => progress.success(`API key ${name ?? id} revoked. Effective within 30s.`),
+      onError: (err) => progress.error(err.message),
     });
   };
 
@@ -335,6 +333,7 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
               data={secretKeys}
               columns={secretColumns(handleRevoke)}
               rowKey={(row) => row.id}
+              animateRows
             />
           ) : (
             <SectionEmpty icon={KeyRound} title="No organization keys yet">
@@ -373,6 +372,7 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
                 data={publicKeys}
                 columns={publicColumns(handleRevoke)}
                 rowKey={(row) => row.id}
+                animateRows
               />
             ) : (
               <SectionEmpty icon={Globe} title="No public keys yet">

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { progressToast } from "#app/lib/progress-toast.ts";
 import { toast } from "sonner";
 import type { ChannelDraft, ChannelTarget } from "#app/components/alerts/channel-dialog.tsx";
 import { invalidateAlertNotifications } from "#app/data/alerting/delivery/options.ts";
@@ -50,12 +51,14 @@ export function useNotificationControls() {
 
   const deleteChannel = useMutation({
     mutationFn: (name: string) => deleteAlertingChannel({ data: { name } }),
-    onSuccess: async (_result, name) => {
+    onMutate: (name) => progressToast(`Deleting ${name}…`),
+    onSuccess: async (_result, name, progress) => {
       await refresh();
       setChannelTarget(null);
-      toast.success(`Deleted ${name}`);
+      progress.success(`Deleted ${name}`);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _name, progress) =>
+      progress ? progress.error(error.message) : toast.error(error.message),
   });
 
   const saveDestination = useMutation({

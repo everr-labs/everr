@@ -31,7 +31,7 @@ export function JobTreeNav({ jobs, stepsByJobId, traceId, selectedJobId }: JobTr
         return (
           <Collapsible key={job.jobId} defaultOpen={selectedJobId === job.jobId}>
             <CollapsibleTrigger className="group flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-muted">
-              <ChevronRight className="size-3.5 shrink-0 opacity-60 transition-transform group-data-[panel-open]:rotate-90" />
+              <ChevronRight className="size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-out group-data-[panel-open]:rotate-90" />
               <ConclusionIcon conclusion={job.conclusion} className="size-3.5 shrink-0" />
               <span className="truncate">{job.name}</span>
               {isInProgressConclusion(job.conclusion) ? null : (

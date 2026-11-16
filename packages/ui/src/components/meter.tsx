@@ -6,7 +6,7 @@ const meterTrack = cva("relative block w-full overflow-hidden rounded-full", {
   variants: {
     tone: {
       neutral: "bg-muted",
-      warning: "bg-amber-500/15",
+      warning: "bg-warning/15",
       danger: "bg-destructive/25",
     },
     size: { sm: "h-1", md: "h-1.5" },
@@ -19,8 +19,8 @@ const meterFill = cva(
   {
     variants: {
       tone: {
-        healthy: "bg-emerald-500",
-        warning: "bg-amber-500",
+        healthy: "bg-success",
+        warning: "bg-warning",
         danger: "bg-destructive",
         /** A trailing/other value behind the headline one. */
         ghost: "bg-muted-foreground/30",

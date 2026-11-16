@@ -67,6 +67,7 @@ it.each([undefined, "selected"])(
           matchingIds={new Set()}
           filterActive={false}
           colorBy="service.name"
+          colors={new Map()}
           range={{ start: 0, end: 1 }}
           onRangeChange={vi.fn()}
           onSelect={vi.fn()}

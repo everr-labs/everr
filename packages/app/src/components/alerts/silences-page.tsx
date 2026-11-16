@@ -134,7 +134,7 @@ function Row({
         // it was being asked to do while the open rows had no heading. `pl`
         // gives back what the border took, so the open rows keep the same left
         // text edge as the closed ones.
-        open && "border-l-2 border-l-chart-2 pl-[0.625rem]",
+        open && "border-l-2 border-l-warning pl-[0.625rem]",
       )}
     >
       {/* The rule leads, by the name the rest of the product calls it. A

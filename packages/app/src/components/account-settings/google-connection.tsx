@@ -8,9 +8,9 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
 import { siGoogle } from "simple-icons";
 import { authClient } from "#app/lib/auth-client.ts";
+import { mutationStatus } from "#app/lib/mutation-status.ts";
 
 export function GoogleConnection({ linked }: { linked: boolean }) {
   const link = useMutation({
@@ -22,7 +22,7 @@ export function GoogleConnection({ linked }: { linked: boolean }) {
       if (result.error) throw new Error(result.error.message ?? "Google linking failed.");
     },
   });
-  const googleButtonLabel = link.isPending ? "Connecting..." : linked ? "Linked" : "Connect Google";
+  const googleButtonLabel = linked ? "Linked" : "Connect Google";
   return (
     <Card>
       <CardHeader>
@@ -51,13 +51,11 @@ export function GoogleConnection({ linked }: { linked: boolean }) {
               size="sm"
               variant="outline"
               disabled={link.isPending || linked}
+              loading={link.isPending}
+              status={mutationStatus(link)}
               onClick={() => link.mutate()}
             >
-              {link.isPending ? (
-                <Loader2 data-icon="inline-start" className="animate-spin" />
-              ) : (
-                <GoogleIcon />
-              )}
+              <GoogleIcon />
               {googleButtonLabel}
             </Button>
           </div>

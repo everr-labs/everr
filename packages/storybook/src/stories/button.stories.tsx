@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { ArrowRightIcon, PlusIcon, TrashIcon } from "lucide-react";
 
 const meta = {
@@ -138,4 +139,69 @@ export const AsLink: Story = {
     children: "Open the docs",
     render: <a href="https://example.com">Open the docs</a>,
   },
+};
+
+function LoadingDemo() {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<"success" | "error">();
+  const run = (outcome: "success" | "error", ms: number) => {
+    setStatus(undefined);
+    setLoading(true);
+    setTimeout(() => {
+      setStatus(outcome);
+      setLoading(false);
+    }, ms);
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          loading={loading}
+          status={status}
+          disabled={loading}
+          onClick={() => run("success", 1600)}
+        >
+          Save changes
+        </Button>
+        <Button
+          variant="outline"
+          loading={loading}
+          status={status}
+          disabled={loading}
+          onClick={() => run("success", 1600)}
+        >
+          <PlusIcon data-icon="inline-start" />
+          Create key
+        </Button>
+        <Button
+          variant="destructive"
+          loading={loading}
+          status={status}
+          disabled={loading}
+          onClick={() => run("error", 1200)}
+        >
+          <TrashIcon data-icon="inline-start" />
+          Revoke (fails)
+        </Button>
+        <Button
+          variant="secondary"
+          loading={loading}
+          status={status}
+          disabled={loading}
+          onClick={() => run("success", 90)}
+        >
+          Fast (90ms)
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Save and Create succeed after 1.6s, Revoke fails after 1.2s, Fast finishes before the
+        loading state would show.
+      </p>
+    </div>
+  );
+}
+
+/** Click a button: all enter their loading state, then show the outcome. */
+export const Loading: Story = {
+  render: () => <LoadingDemo />,
 };

@@ -8,7 +8,8 @@ import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import { PAGE_SIZE } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
-import { ErrorFilters } from "./error-filters";
+import { NoResults } from "../../filters/ui/no-results";
+import { countErrorPageFilters, ErrorFilters } from "./error-filters";
 import { ErrorIssueList } from "./error-issue-list";
 import type { RenderErrorIssueLink } from "./error-issue-row";
 
@@ -87,13 +88,22 @@ export function ErrorIssues({
               isFetchingNextPage={issuesQuery.isFetchingNextPage}
               // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               onLoadMore={() => issuesQuery.fetchNextPage()}
-              // The same effect as "Clear page filters" in the rail. The sort
-              // order, Service and Environment keep their values, so with no
-              // page filter set the button would change nothing.
-              onClearFilters={
-                search.q || search.attributes.length > 0
-                  ? () => onSearchChange({ q: "", attributes: [] })
-                  : undefined
+              empty={
+                <NoResults
+                  noun="errors"
+                  timeRange={timeRange}
+                  filterCount={
+                    countPersistentFilters(search.service, environment) +
+                    countErrorPageFilters(search)
+                  }
+                  // The same effect as "Clear page filters" in the rail. The
+                  // sort order, Service and Environment keep their values.
+                  onClearFilters={
+                    countErrorPageFilters(search) > 0
+                      ? () => onSearchChange({ q: "", attributes: [] })
+                      : undefined
+                  }
+                />
               }
               renderIssueLink={renderIssueLink}
             />

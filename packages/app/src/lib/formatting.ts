@@ -8,9 +8,9 @@ export function getSuccessRateVariant(
 }
 
 export function getFailureRateColor(rate: number): string {
-  if (rate >= 50) return "text-red-600";
-  if (rate >= 20) return "text-orange-500";
-  return "text-yellow-600";
+  if (rate >= 50) return "text-destructive";
+  if (rate >= 20) return "text-orange-400";
+  return "text-warning";
 }
 
 export function parseDuration(input: string): number | null {

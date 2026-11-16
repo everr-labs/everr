@@ -54,18 +54,18 @@ export function DashboardLayout() {
     // cover next to their own toolbars (DuckDuckGo on iOS leaves the page
     // scrollable past its end), while a fixed box always matches the area the
     // browser actually shows. Every pane scrolls on its own; the document never does.
-    <SidebarProvider className="fixed inset-0 min-h-0">
-      <AppSidebar />
-      <SidebarInset className="min-h-0 min-w-0 pt-12">
+    <SidebarProvider className="bg-sidebar fixed inset-0 min-h-0">
+      {/* The sidebar and the topnav are one frame in the shell colour; the page
+          sits inside it as a lighter panel, so the content reads as the top
+          layer. */}
+      <AppSidebar className="group-data-[side=left]:border-r-0" />
+      <SidebarInset className="bg-sidebar min-h-0 min-w-0 pt-12">
         {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
             content but leaves fixed elements pinned, so the topnav stays put.
             SidebarInset compensates with pt-12. */}
         <header
           data-app-header
-          className={cn(
-            "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
-            SIDEBAR_TRACKED_LEFT,
-          )}
+          className={cn("fixed top-0 right-0 z-50 flex h-12 bg-sidebar px-3", SIDEBAR_TRACKED_LEFT)}
         >
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
             {/* The breadcrumb gives way first on a narrow screen: it truncates
@@ -88,15 +88,18 @@ export function DashboardLayout() {
             </div>
           </div>
         </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div
+          data-page-panel
+          className="bg-background flex min-h-0 flex-1 flex-col overflow-hidden md:mr-2 md:mb-2 md:rounded-xl md:border"
+        >
           {search.github_install === "linked" && (
-            <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <div className="mx-3 mt-3 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
               GitHub installation linked successfully.
             </div>
           )}
 
           {search.github_install === "error" && (
-            <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <div className="mx-3 mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Failed to link GitHub installation
               {search.reason ? ` (${search.reason})` : ""}.
             </div>

@@ -5,7 +5,8 @@ import { Button } from "./button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 
@@ -74,18 +75,14 @@ export function RefreshPicker({
           <ChevronDownIcon className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {REFRESH_INTERVALS.map((interval) => {
-            const isActive = interval.value === value;
-            return (
-              <DropdownMenuItem
-                key={interval.value}
-                className={cn(isActive && "font-medium text-primary")}
-                onClick={() => onChange(interval.value)}
-              >
+          {/* The active interval carries the same check as every other picker. */}
+          <DropdownMenuRadioGroup value={value} onValueChange={(next: string) => onChange(next)}>
+            {REFRESH_INTERVALS.map((interval) => (
+              <DropdownMenuRadioItem key={interval.value} value={interval.value} closeOnClick>
                 {interval.label}
-              </DropdownMenuItem>
-            );
-          })}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

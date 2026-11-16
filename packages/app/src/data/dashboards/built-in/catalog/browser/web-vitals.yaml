@@ -74,14 +74,14 @@ document:
               max: 5300
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 defaultName: Good
                 steps:
                   - value: 2500
-                    color: "#f59e0b"
+                    color: "#f0b100"
                     name: Needs improvement
                   - value: 4000
-                    color: "#ef4444"
+                    color: "#ff6467"
                     name: Poor
               variant: horizontal
               showAxis: false
@@ -112,14 +112,14 @@ document:
               max: 700
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 defaultName: Good
                 steps:
                   - value: 200
-                    color: "#f59e0b"
+                    color: "#f0b100"
                     name: Needs improvement
                   - value: 500
-                    color: "#ef4444"
+                    color: "#ff6467"
                     name: Poor
               variant: horizontal
               showAxis: false
@@ -150,14 +150,14 @@ document:
               max: 0.35
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 defaultName: Good
                 steps:
                   - value: 0.1
-                    color: "#f59e0b"
+                    color: "#f0b100"
                     name: Needs improvement
                   - value: 0.25
-                    color: "#ef4444"
+                    color: "#ff6467"
                     name: Poor
               variant: horizontal
               showAxis: false
@@ -187,14 +187,14 @@ document:
               max: 2400
               thresholds:
                 mode: absolute
-                defaultColor: "#22c55e"
+                defaultColor: "#05df72"
                 defaultName: Good
                 steps:
                   - value: 800
-                    color: "#f59e0b"
+                    color: "#f0b100"
                     name: Needs improvement
                   - value: 1800
-                    color: "#ef4444"
+                    color: "#ff6467"
                     name: Poor
               variant: horizontal
               showAxis: false
@@ -224,9 +224,9 @@ document:
               showLegend: true
               stacking: percent
               colors: &a1
-                good: "#0cce6b"
-                needs-improvement: "#ffa400"
-                poor: "#ff4e42"
+                good: "#05df72"
+                needs-improvement: "#f0b100"
+                poor: "#ff6467"
           queries:
             - kind: ClickHouseSQL
               spec:

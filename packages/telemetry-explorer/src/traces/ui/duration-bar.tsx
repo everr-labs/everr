@@ -10,7 +10,9 @@ export function DurationBar({ durationNs, maxDurationNs }: DurationBarProps) {
     // makes the bar wider than a narrower column, and the bar then covers part
     // of the next column.
     <div className="bg-muted h-1.5 w-full overflow-hidden rounded">
-      <div className="bg-primary h-full" style={{ width: `${Math.max(2, ratio * 100)}%` }} />
+      {/* Lavender, not the lime primary: lime marks what is picked or the
+          one action to take, and a duration is neither. */}
+      <div className="bg-ctp-lavender h-full" style={{ width: `${Math.max(2, ratio * 100)}%` }} />
     </div>
   );
 }

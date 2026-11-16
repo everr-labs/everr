@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 
 const TONE = {
   neutral: { wash: "bg-muted/20", icon: "text-muted-foreground" },
-  warning: { wash: "bg-chart-2/8", icon: "text-chart-2" },
-  danger: { wash: "bg-destructive/8", icon: "text-destructive" },
+  warning: { wash: "bg-warning/5", icon: "text-warning" },
+  danger: { wash: "bg-destructive/6", icon: "text-destructive" },
 } as const;
 
 export type GroupBandTone = keyof typeof TONE;

@@ -1,3 +1,4 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -10,11 +11,12 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, GitBranch, Loader2 } from "lucide-react";
+import { Check, GitBranch } from "lucide-react";
 import { useCallback, useState } from "react";
 import { GithubInstall } from "#app/components/github-install.tsx";
 import { PageHeader } from "#app/components/page-header.tsx";
 import { getGithubAppInstallStatus, getInstallationRepos, importRepos } from "#app/data/github.ts";
+import { mutationStatus } from "#app/lib/mutation-status.ts";
 
 export const githubInstallStatusOptions = queryOptions({
   queryKey: ["github", "install-status"],
@@ -122,7 +124,7 @@ function RepositoryImport() {
       <CardContent className="space-y-5">
         {reposQuery.isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <Spinner className="size-5 text-muted-foreground" />
           </div>
         ) : null}
 
@@ -183,7 +185,7 @@ function RepositoryImport() {
 
         {importMutation.isPending ? (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="size-4 animate-spin" />
+            <Spinner />
             Importing
             {importingRepo ? ` ${importingRepo}` : " repositories"}
             {runsProcessed > 0 ? `, ${runsProcessed} runs processed` : ""}
@@ -192,7 +194,7 @@ function RepositoryImport() {
         ) : null}
 
         {importMutation.isSuccess ? (
-          <div className="border border-emerald-500/30 bg-emerald-500/5 p-3 text-emerald-600 text-sm">
+          <div className="border border-success/30 bg-success/5 p-3 text-success text-sm">
             Import complete. Workflow data will appear gradually.{" "}
             <Link to="/runs" className="font-medium underline">
               View runs
@@ -210,9 +212,10 @@ function RepositoryImport() {
           <Button
             type="button"
             disabled={selectedRepos.size === 0 || importMutation.isPending}
+            loading={importMutation.isPending}
+            status={mutationStatus(importMutation)}
             onClick={() => importMutation.mutate()}
           >
-            {importMutation.isPending ? <Loader2 className="animate-spin" /> : null}
             Import selected
           </Button>
         </div>
