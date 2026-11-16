@@ -23,7 +23,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   useOnNavigate(() => setOpenMobile(false));
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      {/* On a phone the drawer's close button sits at the header's right edge. */}
+      <SidebarHeader className="in-data-side-drawer:pr-12">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>

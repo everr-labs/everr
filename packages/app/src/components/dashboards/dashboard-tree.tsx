@@ -129,7 +129,7 @@ function FolderRows({
   return (
     <>
       <div
-        className="flex items-center gap-1 rounded-md py-1 pr-1 text-foreground/75 transition-[background-color,color] duration-200 ease-sidebar hover:bg-accent/50 hover:text-foreground active:bg-accent active:text-foreground motion-reduce:transition-none"
+        className="flex items-center gap-1 rounded-md py-1 in-data-side-drawer:py-2.5 pr-1 text-foreground/75 transition-[background-color,color] duration-200 ease-sidebar hover:bg-accent/50 hover:text-foreground active:bg-accent active:text-foreground motion-reduce:transition-none"
         style={{ paddingLeft: `${rowIndent(depth, "folder")}px` }}
       >
         <button

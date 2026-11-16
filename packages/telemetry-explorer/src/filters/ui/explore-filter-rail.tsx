@@ -1,6 +1,6 @@
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
-import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
+import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import { ListFilter } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -11,12 +11,12 @@ import { FilterSidebar } from "./filter-sidebar";
  *
  * In a wide window the rail is the first column of the grid. In a narrow window
  * the column becomes a "Filters" button, and the button opens the same rail in
- * a sheet. The component builds the rail one time in both cases. There is no
+ * a side drawer. The component builds the rail one time in both cases. There is no
  * second copy that CSS hides, so each section keeps one set of inputs and one
  * query state.
  *
  * The caller supplies the two counts, and this component derives the flags.
- * The count on the button includes both zones, because the sheet also hides
+ * The count on the button includes both zones, because the drawer also hides
  * Service and Environment. A count without them reports less than the number of
  * filters that narrow the results. "Clear page filters" changes the page zone
  * only, so the page count alone controls it.
@@ -62,12 +62,22 @@ export function ExploreFilterRail({
         Filters
         {activeFilterCount > 0 && <Badge variant="secondary">{activeFilterCount}</Badge>}
       </Button>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="w-[300px] p-0 sm:max-w-[300px]">
-          <SheetTitle className="sr-only">{label}</SheetTitle>
-          {rail}
-        </SheetContent>
-      </Sheet>
+      <SideDrawer
+        open={open}
+        onOpenChange={setOpen}
+        // The drawer's header replaces the rail's own "Filters" heading.
+        title={
+          <>
+            <ListFilter className="size-3.5" />
+            Filters
+          </>
+        }
+        description={label}
+        closeLabel="Close filters"
+        className="[--side-drawer-bg:var(--color-pane)]"
+      >
+        {rail}
+      </SideDrawer>
     </div>
   );
 }

@@ -1,6 +1,5 @@
-import { kickerClass } from "@everr/ui/lib/typography";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
+import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
 import { useMatches } from "@tanstack/react-router";
@@ -138,28 +137,27 @@ export function RailFrame({
         </ScrollArea>
       </div>
       {collapsible && (
-        <Sheet open={sheetOpen && isMobile} onOpenChange={setSheetOpen}>
-          {/* Styled like the Explore filter rail's sheet: the rail at its
-              own width over the dimmed page, under the same small heading.
-              Focus lands on the list itself, never the search box, which
-              would raise the phone's keyboard over it. The toggle opens the
-              sheet from code, so Base UI can't tell a tap from a click. */}
-          <SheetContent
-            side="left"
-            className="w-[300px] p-0 sm:max-w-[300px]"
-            initialFocus={sheetNavRef}
+        // The same drawer as the app sidebar and the Explore filter rail.
+        // Focus lands on the list itself, never the search box, which would
+        // raise the phone's keyboard over it. The toggle opens the drawer
+        // from code, so Base UI can't tell a tap from a click.
+        <SideDrawer
+          open={sheetOpen && isMobile}
+          onOpenChange={setSheetOpen}
+          title={label}
+          closeLabel={`Close the ${label.toLowerCase()} list`}
+          className="[--side-drawer-bg:var(--color-pane)]"
+          initialFocus={sheetNavRef}
+        >
+          <nav
+            ref={sheetNavRef}
+            tabIndex={-1}
+            aria-label={label}
+            className="outline-none flex h-full min-h-0 flex-col gap-3 px-3 pb-3"
           >
-            <nav
-              ref={sheetNavRef}
-              tabIndex={-1}
-              aria-label={label}
-              className="outline-none flex h-full min-h-0 flex-col gap-3 bg-pane p-3"
-            >
-              <SheetTitle className={kickerClass}>{label}</SheetTitle>
-              {rail}
-            </nav>
-          </SheetContent>
-        </Sheet>
+            {rail}
+          </nav>
+        </SideDrawer>
       )}
     </RailFrameContext.Provider>
   );

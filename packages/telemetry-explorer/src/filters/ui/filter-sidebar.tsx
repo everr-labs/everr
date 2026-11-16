@@ -34,10 +34,11 @@ export function FilterSidebar({
   return (
     <ScrollArea
       render={<aside aria-label={label} />}
-      className="bg-pane h-full min-h-0 border-b lg:border-r lg:border-b-0"
+      className="bg-pane h-full min-h-0 border-b lg:border-r lg:border-b-0 in-data-side-drawer:border-0"
       viewportClassName="flex flex-col gap-3 p-3"
     >
-      <div className={cn(kickerClass, "flex items-center gap-2")}>
+      {/* In the narrow layout's drawer, the drawer's header says this. */}
+      <div className={cn(kickerClass, "flex items-center gap-2 in-data-side-drawer:hidden")}>
         <ListFilter className="size-3.5" />
         Filters
       </div>
