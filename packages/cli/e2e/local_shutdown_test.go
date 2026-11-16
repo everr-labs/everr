@@ -1,8 +1,11 @@
 package e2e
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -27,6 +30,15 @@ func (i *instance) stallOTLPRequest(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 }
 
+// assertPipelineDrained fails when shutdown gave up waiting for the
+// collector pipeline, which exits without closing chDB.
+func assertPipelineDrained(t *testing.T, output string) {
+	t.Helper()
+	if strings.Contains(output, "did not stop in time") {
+		t.Fatalf("shutdown abandoned the collector pipeline:\n%s", output)
+	}
+}
+
 func TestStopFinishesWhileAnOTLPClientIsStalled(t *testing.T) {
 	i := newInstance(t)
 	i.Run("local", "start", "-d", "--no-open").Success(t)
@@ -39,11 +51,18 @@ func TestStopFinishesWhileAnOTLPClientIsStalled(t *testing.T) {
 		t.Fatalf("stop took %s, want under %s", took, shutdownBound)
 	}
 	i.assertStopped(t)
+	log, err := os.ReadFile(filepath.Join(i.data, "logs", "local.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertPipelineDrained(t, string(log))
 }
 
 func TestSIGTERMStopsTheSupervisorWhileAnOTLPClientIsStalled(t *testing.T) {
 	i := newInstance(t)
 	foreground := i.Command("local", "start", "--no-open")
+	var stderr bytes.Buffer
+	foreground.Stderr = &stderr
 	if err := foreground.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -62,4 +81,5 @@ func TestSIGTERMStopsTheSupervisorWhileAnOTLPClientIsStalled(t *testing.T) {
 		t.Fatalf("supervisor still running %s after SIGTERM", shutdownBound)
 	}
 	i.assertStopped(t)
+	assertPipelineDrained(t, stderr.String())
 }
