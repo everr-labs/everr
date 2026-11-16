@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type { Emit } from "../../pipeline/emitter.js";
+import { WebSDK } from "../../client.js";
+import type { Emit, SendEvent } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
+import { pageviews } from "../pageviews/index.js";
+import { performance as performanceInstrumentation } from "./index.js";
 import { startInp } from "./inp.js";
 
 // The jsdom environment has no Event Timing and no PerformanceObserver
@@ -685,5 +688,117 @@ describe("frame merge boundary", () => {
 
   it("keeps frames separate at 9ms apart", () => {
     expect(processingOf(1299)).toBe(80); // renderTime 1309: own frame
+  });
+});
+
+describe("page attribution", () => {
+  async function onStart(
+    scenario: () => void,
+  ): Promise<{ vital: SendEvent; span: SendEvent; view: SendEvent }> {
+    stop();
+    stop = () => {};
+    history.replaceState(null, "", "/start");
+    const records: SendEvent[] = [];
+    const sdk = new WebSDK({
+      serviceName: "inp-page-test",
+      persistence: "memory",
+      send: () => {},
+      beforeSend: (record) => {
+        records.push(record);
+        return record;
+      },
+      instrumentations: [pageviews(), performanceInstrumentation({ webVitals: ["inp"] })],
+    });
+    try {
+      scenario();
+      const find = (match: (r: SendEvent) => boolean) => {
+        const found = records.find(match);
+        expect(found).toBeDefined();
+        return found as SendEvent;
+      };
+      return {
+        vital: find(
+          (r) =>
+            r.kind === "log" &&
+            r.eventName === "browser.web_vital" &&
+            r.attributes["browser.web_vital.name"] === "inp",
+        ),
+        span: find((r) => r.kind === "span" && r.name === "slow_interaction"),
+        view: find(
+          (r) =>
+            r.kind === "log" &&
+            r.eventName === "everr.browser.page_view" &&
+            r.attributes["url.path"] === "/start",
+        ),
+      };
+    } finally {
+      await sdk.shutdown();
+      history.replaceState(null, "", "/");
+    }
+  }
+
+  const pageOf = (record: SendEvent) =>
+    Object.fromEntries(
+      ["url.path", "url.full", "everr.page_view.id"].map((key) => [key, record.attributes[key]]),
+    );
+
+  function expectPageOf(view: SendEvent, vital: SendEvent, span: SendEvent) {
+    expect(view.attributes["url.path"]).toBe("/start");
+    expect({ vital: pageOf(vital), span: pageOf(span) }).toEqual({
+      vital: pageOf(view),
+      span: pageOf(view),
+    });
+  }
+
+  it("keeps the page of the input when the span settles after two navigations", async () => {
+    const { vital, span, view } = await onStart(() => {
+      vi.advanceTimersByTime(5_000);
+      feed([{ duration: 400, startTime: performance.now() }]);
+      history.pushState(null, "", "/next");
+      vi.advanceTimersByTime(100);
+      history.pushState(null, "", "/done");
+      settle();
+      hide();
+    });
+    expect(vital.attributes["browser.web_vital.value"]).toBe(400);
+    expectPageOf(view, vital, span);
+  });
+
+  it("keeps the page of the input when the span settles between two navigations, and a later entry of the interaction arrives after a navigation", async () => {
+    const { vital, span, view } = await onStart(() => {
+      vi.advanceTimersByTime(5_000);
+      const start = performance.now();
+      feed([{ name: "pointerdown", duration: 300, startTime: start }]);
+      vi.advanceTimersByTime(100);
+      history.pushState(null, "", "/next");
+      vi.advanceTimersByTime(100);
+      feed([{ name: "click", duration: 450, startTime: performance.now() }]);
+      settle();
+      vi.advanceTimersByTime(100);
+      history.pushState(null, "", "/done");
+      hide();
+    });
+    expect(vital.attributes["browser.web_vital.value"]).toBe(450);
+    expectPageOf(view, vital, span);
+  });
+
+  it("keeps the page of the input when the handler navigates before the browser reports the entries", async () => {
+    const { vital, span, view } = await onStart(() => {
+      vi.advanceTimersByTime(5_000);
+      const start = performance.now();
+      // The browser reports the entries after the handler navigated, with the
+      // start time of the input.
+      vi.advanceTimersByTime(300);
+      history.pushState(null, "", "/after-handler-nav");
+      fire("event", [
+        entry({ name: "pointerdown", duration: 350, startTime: start }),
+        entry({ name: "click", duration: 400, startTime: start + 10 }),
+      ]);
+      vi.advanceTimersByTime(0);
+      settle();
+      hide();
+    });
+    expect(vital.attributes["browser.web_vital.value"]).toBe(400);
+    expectPageOf(view, vital, span);
   });
 });
