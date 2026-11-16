@@ -57,6 +57,11 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				},
 			},
 		},
+		// Errors group by the fingerprint the processor stamps, the same as
+		// in the cloud.
+		"processors": map[string]any{
+			"everr_fingerprint": map[string]any{},
+		},
 		"exporters": map[string]any{
 			"chdb": map[string]any{
 				// Every insert creates a part that background merges rewrite,
@@ -91,8 +96,9 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 					"exporters": []any{"chdb"},
 				},
 				"logs": map[string]any{
-					"receivers": []any{"otlp"},
-					"exporters": []any{"chdb"},
+					"receivers":  []any{"otlp"},
+					"processors": []any{"everr_fingerprint"},
+					"exporters":  []any{"chdb"},
 				},
 				"metrics": map[string]any{
 					"receivers": []any{"otlp"},

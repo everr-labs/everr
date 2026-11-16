@@ -44,6 +44,36 @@ func sendLog(t *testing.T, otlp, body string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+func sendExceptionLog(t *testing.T, otlp string) {
+	t.Helper()
+	payload := fmt.Sprintf(`{"resourceLogs":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"localcollector-test"}}]},"scopeLogs":[{"logRecords":[{"timeUnixNano":"%d","severityNumber":17,"body":{"stringValue":"exception"},"attributes":[{"key":"exception.type","value":{"stringValue":"TypeError"}},{"key":"exception.message","value":{"stringValue":"order 1234567 failed"}}]}]}]}]}`, time.Now().UnixNano())
+	resp, err := http.Post(otlp+"/v1/logs", "application/json", strings.NewReader(payload))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+// stampedFingerprint returns the fingerprint the pipeline stored on the
+// exception log and the one the errorFingerprint UDF computes for it.
+func stampedFingerprint(t *testing.T, sql string) (stamped, udf string) {
+	t.Helper()
+	resp := postSQL(t, sql, "SELECT toString(LogAttributes.`everr.error.fingerprint`) AS stamped, "+
+		"errorFingerprint(ServiceName, '', toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) AS udf "+
+		"FROM logs WHERE Body = 'exception'")
+	defer resp.Body.Close()
+	out, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	if resp.StatusCode != http.StatusOK || len(bytes.TrimSpace(out)) == 0 {
+		return "", ""
+	}
+	var row struct {
+		Stamped string `json:"stamped"`
+		UDF     string `json:"udf"`
+	}
+	require.NoError(t, json.Unmarshal(out, &row), string(out))
+	return row.Stamped, row.UDF
+}
+
 func postSQL(t *testing.T, sql, query string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, sql+"/sql", bytes.NewBufferString(query))
@@ -139,4 +169,13 @@ func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	sendLog(t, otlp, "second")
 	require.Eventually(t, func() bool { return countLogs(t, sql, "second") == 1 }, 10*time.Second, 100*time.Millisecond)
 	require.Equal(t, 1, countLogs(t, sql, "first"))
+
+	// Exception logs are stamped with the same fingerprint the UDF computes.
+	sendExceptionLog(t, otlp)
+	var stamped, udf string
+	require.Eventually(t, func() bool {
+		stamped, udf = stampedFingerprint(t, sql)
+		return udf != ""
+	}, 10*time.Second, 100*time.Millisecond)
+	require.Equal(t, udf, stamped)
 }

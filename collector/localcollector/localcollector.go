@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 	otelconftelemetry "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
@@ -21,6 +22,7 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 	localconfig "github.com/everr-labs/everr/collector/internal/localgateway/config"
 	"github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp"
+	"github.com/everr-labs/everr/collector/processor/everrfingerprintprocessor"
 )
 
 type Options struct {
@@ -175,6 +177,13 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 
 		factories.Receivers, err = otelcol.MakeFactoryMap[receiver.Factory](
 			otlpreceiver.NewFactory(),
+		)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
+			everrfingerprintprocessor.NewFactory(),
 		)
 		if err != nil {
 			return otelcol.Factories{}, err

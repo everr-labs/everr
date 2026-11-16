@@ -32,6 +32,8 @@ func TestAdmissionTopology(t *testing.T) {
 		{"fanout", func(c, p, q, r map[string]any) { p["exporters"] = []any{"storage", "debug"} }},
 		{"missing_exporter", func(c, p, q, r map[string]any) { p["exporters"] = []any{"connector"} }},
 		{"batch_after", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, "batch"} }},
+		{"batch_after_enricher", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, "everr_fingerprint", "batch"} }},
+		{"enricher_only", func(c, p, q, r map[string]any) { p["processors"] = []any{"resource", "everr_fingerprint"} }},
 		{"double_meter", func(c, p, q, r map[string]any) { p["processors"] = []any{Type, Type + "/second"} }},
 		{"disabled_queue", func(c, p, q, r map[string]any) { q["enabled"] = false }},
 		{"missing_queue", func(c, p, q, r map[string]any) {
@@ -55,6 +57,15 @@ func TestAdmissionTopology(t *testing.T) {
 			require.Error(t, validateTopology(confmap.NewFromStringMap(c)))
 		})
 	}
+}
+
+// Everr's own enrichment runs after the meter, so customers are not billed
+// for it.
+func TestUnmeteredEnricherAfterUsage(t *testing.T) {
+	c := admissionConfig()
+	p := c["service"].(map[string]any)["pipelines"].(map[string]any)["logs"].(map[string]any)
+	p["processors"] = []any{"resource", Type, "everr_fingerprint"}
+	require.NoError(t, validateTopology(confmap.NewFromStringMap(c)))
 }
 
 func TestComposition(t *testing.T) {

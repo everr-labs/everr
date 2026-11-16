@@ -37,6 +37,9 @@ receivers:
           authenticator: everr_apikey
 
 processors:
+  # Stamps everr.error.fingerprint on exception logs so Errors group
+  # without hashing at query time.
+  everr_fingerprint: {}
   # Reserve the everr.* metric namespace on every incoming metrics pipeline.
   # Reserve the namespace so clients cannot forge internal Everr metrics.
   filter/reserved_everr:
@@ -131,5 +134,10 @@ service:
     logs/public:
       receivers: [otlp/public]
       processors:
-        [attributes/strip_user_tenant, resource/strip_user_tenant, resource/public_retention_logs]
+        [
+          attributes/strip_user_tenant,
+          resource/strip_user_tenant,
+          resource/public_retention_logs,
+          everr_fingerprint,
+        ]
       exporters: [clickhouse]
