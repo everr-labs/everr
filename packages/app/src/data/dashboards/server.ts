@@ -19,6 +19,7 @@ import {
   type CapabilityRow,
   decodeCapabilityRows,
 } from "./built-in/capabilities";
+import { MAX_PANEL_BUCKETS, MIN_PANEL_BUCKETS } from "./buckets";
 import { interpolateVariables } from "./interpolate";
 import { dashboardFromResource } from "./normalize";
 import type { DashboardResource } from "./schema";
@@ -26,17 +27,21 @@ import { dashboardSpecSchema } from "./schema";
 import { generateTestData } from "./testdata/generate";
 import { testDataSpec } from "./testdata/spec";
 
-/** A time-series panel targets ~this many points; `step` is sized to hit it. */
+/**
+ * `step` is sized to ~this many points, and it is the `{buckets}` a query gets
+ * when the browser sent none (variable options, panels that never use it).
+ */
 const PANEL_TARGET_POINTS = 500;
 
 /**
- * Shared panel and variable parameters, including the adaptive `{step}`.
+ * Shared panel and variable parameters, including the adaptive `{step}` and
+ * `{buckets}`, the browser's panel-width count or the panel point target.
  * Resolve a (possibly relative) range once, at query time. Bounds are rounded
  * outward to whole seconds because DateTime columns refuse fractional literals.
  * `window` is the exact range the query covers, returned to the client so the
  * panel axis renders over it.
  */
-function resolveDashboardQuery(range: { from?: string; to?: string }) {
+function resolveDashboardQuery(range: { from?: string; to?: string }, buckets?: number) {
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(range));
   const from = new Date(Math.floor(fromDate.getTime() / 1000) * 1000);
   const to = new Date(Math.ceil(toDate.getTime() / 1000) * 1000);
@@ -45,6 +50,7 @@ function resolveDashboardQuery(range: { from?: string; to?: string }) {
       from: toClickHouseDateTimeSeconds(from, "floor"),
       to: toClickHouseDateTimeSeconds(to, "ceil"),
       step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
+      buckets: buckets ?? PANEL_TARGET_POINTS,
     },
     window: { from: from.toISOString(), to: to.toISOString() },
   };
@@ -224,6 +230,8 @@ export const runPanelQuery = createAuthenticatedServerFn({
   .validator(
     z.object({
       source: querySource,
+      // The browser sizes the bucket count to the panel width; the bounds are enforced here.
+      buckets: z.number().int().min(MIN_PANEL_BUCKETS).max(MAX_PANEL_BUCKETS).optional(),
       from: z.string().optional(),
       to: z.string().optional(),
       variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
@@ -238,8 +246,8 @@ export const runPanelQuery = createAuthenticatedServerFn({
         .optional(),
     }),
   )
-  .handler(async ({ data: { source, from, to, variables, variableMeta }, context }) => {
-    const { params, window } = resolveDashboardQuery({ from, to });
+  .handler(async ({ data: { source, buckets, from, to, variables, variableMeta }, context }) => {
+    const { params, window } = resolveDashboardQuery({ from, to }, buckets);
     // Synthetic data for the gallery / dev dashboards: deterministic, no
     // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
     if (source.kind === "TestData") {

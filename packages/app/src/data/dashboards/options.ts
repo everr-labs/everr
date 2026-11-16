@@ -57,9 +57,19 @@ export const panelQueryOptions = (
   to?: string,
   variables?: VariableValues,
   variableMeta?: VariableMeta,
+  /** Bound as `{buckets}`, sized to the panel width. Omit for the server default. */
+  buckets?: number,
 ) =>
   queryOptions({
-    queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
+    queryKey: [
+      "panel-query",
+      source,
+      from,
+      to,
+      variables ?? null,
+      variableMeta ?? null,
+      buckets ?? null,
+    ],
     queryFn: async ({
       signal,
     }): Promise<{ rows: QueryResultRow[]; timeRange?: ResolvedTimeRange }> => {
@@ -69,7 +79,7 @@ export const panelQueryOptions = (
       // cache entry. The server resolves it when the query runs and returns
       // the exact window it queried, which the panel's axis renders.
       const { rows, timeRange } = await panelLimiter(signal, () =>
-        runPanelQuery({ data: { source, from, to, variables, variableMeta } }),
+        runPanelQuery({ data: { source, from, to, variables, variableMeta, buckets } }),
       );
       return { rows, timeRange: { from: new Date(timeRange.from), to: new Date(timeRange.to) } };
     },

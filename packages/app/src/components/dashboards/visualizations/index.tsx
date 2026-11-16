@@ -42,6 +42,11 @@ export interface VisualizationProps<TSpec = unknown> {
   data?: QueryResultRow[][];
   timeRange: ResolvedTimeRange;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
+  /**
+   * Width of one `{buckets}` bucket when a query of the panel uses the
+   * parameter. A line chart uses it as the smallest gap it draws.
+   */
+  bucketSeconds?: number;
 }
 
 interface VisualizationEntry {
@@ -135,6 +140,12 @@ export interface PanelVisualizationProps {
   data?: QueryResultRow[][];
   timeRange: ResolvedTimeRange;
   onTimeRangeChange: (range: ResolvedTimeRange) => void;
+  /**
+   * Required so a caller cannot drop it: the width of one `{buckets}` bucket
+   * when a query of the panel uses the parameter, which a line chart uses as
+   * the smallest gap it draws.
+   */
+  bucketSeconds: number | undefined;
 }
 
 export function PanelVisualization({
@@ -142,6 +153,7 @@ export function PanelVisualization({
   data,
   timeRange,
   onTimeRangeChange,
+  bucketSeconds,
 }: PanelVisualizationProps) {
   const entry = registry[plugin.kind];
 
@@ -174,6 +186,7 @@ export function PanelVisualization({
         data={data}
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
+        bucketSeconds={bucketSeconds}
       />
     </Suspense>
   );

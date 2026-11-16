@@ -2,6 +2,7 @@
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { bucketWidthSeconds, usesBucketsParam } from "#app/data/dashboards/buckets.ts";
 import {
   extractVariableTokens,
   type VariableMeta,
@@ -22,6 +23,8 @@ export interface PanelQueryRequest {
   variableMeta?: VariableMeta;
   missingName?: string;
   waitingForOptions: boolean;
+  /** The SQL references `{buckets}`, so the result depends on the panel width. */
+  usesBuckets: boolean;
   /** A used All-variable whose options failed to load or were truncated. */
   optionsError?: string;
 }
@@ -53,7 +56,7 @@ function buildPanelQueryRequest(
   // Only ClickHouse SQL carries `$variable` tokens; other sources skip the
   // whole variable-resolution path (no missing/waiting/options states).
   if (source.kind !== "ClickHouseSQL") {
-    return { source, waitingForOptions: false };
+    return { source, waitingForOptions: false, usesBuckets: false };
   }
   const missingName = usedNames.find((n) => ctx.values[n] === undefined);
   const waitingForOptions = usedNames.some((n) => ctx.pendingAllNames.includes(n));
@@ -64,6 +67,7 @@ function buildPanelQueryRequest(
     variableMeta: usedNames.length > 0 ? pickByNames(ctx.meta, usedNames) : undefined,
     missingName,
     waitingForOptions,
+    usesBuckets: usesBucketsParam(source.sql),
     optionsError,
   };
 }
@@ -150,6 +154,8 @@ export interface DashboardPanelData extends CombinedPanelResult {
    * the exact window the shown data was queried for.
    */
   timeRange: ResolvedTimeRange;
+  /** Width of one `{buckets}` bucket, when a query of the panel uses the parameter. */
+  bucketSeconds?: number;
 }
 
 /**
@@ -162,7 +168,11 @@ export interface DashboardPanelData extends CombinedPanelResult {
  */
 export function useDashboardPanelData(
   panel: Panel,
-  options?: { enabled?: boolean },
+  options?: {
+    enabled?: boolean;
+    /** Bucket count sized to the panel's measured width (`usePanelBuckets`). */
+    buckets?: number;
+  },
 ): DashboardPanelData {
   const active = options?.enabled ?? true;
   // Effective range: explicit URL params, else the dashboard's route defaults,
@@ -173,6 +183,7 @@ export function useDashboardPanelData(
   const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
   const definedNames = useMemo(() => new Set(variables.map((v) => v.spec.name)), [variables]);
   const sources = useMemo(() => getPanelQuerySources(panel), [panel]);
+  const buckets = options?.buckets;
   const requests = useMemo(
     () =>
       buildPanelQueryRequests(sources, {
@@ -187,14 +198,22 @@ export function useDashboardPanelData(
 
   const results = useQueries({
     queries: requests.map((r) => ({
-      ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
+      ...panelQueryOptions(
+        r.source,
+        timeRange.from,
+        timeRange.to,
+        r.variables,
+        r.variableMeta,
+        r.usesBuckets ? buckets : undefined,
+      ),
       placeholderData: keepPreviousData,
       enabled:
         active &&
         sourceIsActive(r.source) &&
         r.missingName === undefined &&
         r.optionsError === undefined &&
-        !r.waitingForOptions,
+        !r.waitingForOptions &&
+        (!r.usesBuckets || buckets !== undefined),
     })),
   });
 
@@ -223,10 +242,15 @@ export function useDashboardPanelData(
     const { fromDate, toDate } = resolveTimeRange({ from, to });
     return { from: fromDate, to: toDate };
   }, [from, to]);
+  const queriedRange = latestQueriedRange(results) ?? fallback;
   // Keep the last complete batch and its axis range together while replacement
   // queries finish. A panel can have several queries that resolve separately.
   return useRetainedPanelData(panel, {
     ...combined,
-    timeRange: latestQueriedRange(results) ?? fallback,
+    timeRange: queriedRange,
+    bucketSeconds:
+      buckets !== undefined && requests.some((r) => r.usesBuckets)
+        ? bucketWidthSeconds(queriedRange.from, queriedRange.to, buckets)
+        : undefined,
   });
 }

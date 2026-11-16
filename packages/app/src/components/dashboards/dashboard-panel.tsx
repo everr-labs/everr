@@ -9,6 +9,7 @@ import { PanelShell } from "../panel-shell";
 import { TOUCH_TARGET } from "../touch-target";
 import { useDashboardPanelData } from "./use-dashboard-panel-data";
 import { useInView } from "./use-in-view";
+import { usePanelBuckets } from "./use-panel-buckets";
 import {
   getVisualizationInset,
   getVisualizationSpecWarnings,
@@ -68,9 +69,11 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inView = useInView(containerRef);
+  const buckets = usePanelBuckets(containerRef);
 
-  const { data, status, errorMessage, timeRange } = useDashboardPanelData(panel, {
+  const { data, status, errorMessage, timeRange, bucketSeconds } = useDashboardPanelData(panel, {
     enabled: inView,
+    buckets,
   });
 
   const specWarnings = useMemo(() => getVisualizationSpecWarnings(plugin), [plugin]);
@@ -143,6 +146,7 @@ export function DashboardPanel({ panel, panelKey, action, moving }: DashboardPan
           data={data}
           timeRange={timeRange}
           onTimeRangeChange={handleTimeRangeChange}
+          bucketSeconds={bucketSeconds}
         />
       </PanelShell>
     </div>

@@ -199,6 +199,46 @@ describe("runPanelQuery – variable interpolation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// runPanelQuery – {buckets} parameter
+// ---------------------------------------------------------------------------
+
+describe("runPanelQuery – buckets", () => {
+  const source = { kind: "ClickHouseSQL" as const, sql: "SELECT intDiv(1, {buckets:UInt32})" };
+  const boundParams = () => mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
+
+  it("binds 500 when the browser sent no count", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({ data: { source } });
+
+    expect(boundParams().buckets).toBe(500);
+  });
+
+  it("binds the count the browser sent", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await runPanelQuery({ data: { source, buckets: 700 } });
+
+    expect(boundParams().buckets).toBe(700);
+  });
+
+  it.each([0, 99, 1001, 300.5])("rejects %s without calling ClickHouse", async (buckets) => {
+    await expect(runPanelQuery({ data: { source, buckets } })).rejects.toThrow();
+    expect(mockedClickhouse).not.toHaveBeenCalled();
+  });
+
+  it("runs the author SQL verbatim in one call", async () => {
+    mockedClickhouse.mockResolvedValue([{ ts: "x" }]);
+
+    const result = await runPanelQuery({ data: { source, buckets: 400 } });
+
+    expect(mockedClickhouse).toHaveBeenCalledTimes(1);
+    expect(mockedClickhouse.mock.calls[0]![0]).toBe(source.sql);
+    expect(result.rows).toEqual([{ ts: "x" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // runVariableOptionsQuery
 // ---------------------------------------------------------------------------
 
@@ -231,6 +271,7 @@ describe("runVariableOptionsQuery", () => {
     expect(typeof params.from).toBe("string");
     expect(typeof params.to).toBe("string");
     expect(params.step).toBe(1800); // default now-7d..now → 30m
+    expect(params.buckets).toBe(500);
   });
 
   it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {

@@ -81,6 +81,20 @@ describe("buildPanelQueryRequests", () => {
   });
 });
 
+describe("buildPanelQueryRequests usesBuckets", () => {
+  it("marks only the queries whose SQL references {buckets}", () => {
+    const requests = buildPanelQueryRequests(
+      [
+        ch("select intDiv(1, {buckets:UInt32})"),
+        ch("select {step:UInt32}"),
+        { kind: "TestData", spec: {} },
+      ],
+      ctx,
+    );
+    expect(requests.map((r) => r.usesBuckets)).toEqual([true, false, false]);
+  });
+});
+
 describe("combineQueryStates", () => {
   it("is success with one result set per active query, in order", () => {
     const result = combineQueryStates([state({ rows: [{ x: 1 }] }), state({ rows: [{ x: 2 }] })]);
