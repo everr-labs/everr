@@ -76,14 +76,18 @@ func containsAll(s string, wants ...string) bool {
 
 func hasCLICommandBody(bodies []string) bool { return anyBody(bodies, "everr.cli.command") }
 
-func cliCommandBody(t *testing.T, bodies []string) string {
+// The span and the result log also carry everr.cli.command and can arrive
+// first. Only the invocation log lists the option names.
+func hasCLIInvocationBody(bodies []string) bool { return anyBody(bodies, "everr.cli.options") }
+
+func cliInvocationBody(t *testing.T, bodies []string) string {
 	t.Helper()
 	for _, body := range bodies {
-		if strings.Contains(body, "everr.cli.command") {
+		if strings.Contains(body, "everr.cli.options") {
 			return body
 		}
 	}
-	t.Fatalf("expected CLI command telemetry payload, got: %q", bodies)
+	t.Fatalf("expected the CLI command invocation log, got: %q", bodies)
 	return ""
 }
 
@@ -134,10 +138,12 @@ func TestCLICommandTelemetryRecordsCommandShapeWithoutOptionValues(t *testing.T)
 	collector := newOTLPServer(t, 0)
 	collectorEnv(t, collector.URL).Run("skills", "list", "--global", "--agent", "codex").Success(t)
 
-	body := cliCommandBody(t, collector.bodiesUntil(hasCLICommandBody))
-	assertContains(t, body, "everr-cli", "service.version", "everr.cli.command", "skills",
+	bodies := collector.bodiesUntil(hasCLIInvocationBody)
+	assertContains(t, cliInvocationBody(t, bodies), "everr-cli", "service.version", "everr.cli.command", "skills",
 		"everr.cli.subcommand", "list", "everr.cli.options", "agent", "global", "os.type", runtime.GOOS)
-	assertNotContains(t, body, "codex")
+	for _, body := range bodies {
+		assertNotContains(t, body, "codex")
+	}
 }
 
 func TestCLICommandTelemetryDoesNotRecordWrappedCommand(t *testing.T) {
@@ -147,7 +153,7 @@ func TestCLICommandTelemetryDoesNotRecordWrappedCommand(t *testing.T) {
 		t.Fatalf("stdout = %q", res.Stdout)
 	}
 
-	body := cliCommandBody(t, collector.bodiesUntil(hasCLICommandBody))
+	body := cliInvocationBody(t, collector.bodiesUntil(hasCLIInvocationBody))
 	assertContains(t, body, "everr.cli.command", "wrap")
 	assertNotContains(t, body, "sh", "printf", "secret")
 }
@@ -166,8 +172,8 @@ func TestCLICommandTelemetryDoesNotCountAWrappedFailureAsCLIError(t *testing.T) 
 	collector := newOTLPServer(t, 0)
 	collectorEnv(t, collector.URL).Run("wrap", "--", "sh", "-c", "exit 3").Failure(t, 3)
 
-	bodies := collector.bodiesUntil(hasCLICommandBody)
-	cliCommandBody(t, bodies)
+	bodies := collector.bodiesUntil(hasCLIInvocationBody)
+	cliInvocationBody(t, bodies)
 	if anyBody(bodies, "everr.cli.command.result") {
 		t.Fatal("the wrapped command's exit code was recorded as a CLI command result")
 	}
