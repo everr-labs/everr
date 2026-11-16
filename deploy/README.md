@@ -104,6 +104,11 @@ an existing ClickHouse volume. GitHub webhook ingestion is not configured by thi
 Compose bundle. Retention defaults to 30 days;
 set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
+MCP clients that sign in through a hosted callback must be on an allowlist.
+Clients on your computer always work. To allow another client, add its callback
+URI to `MCP_OAUTH_ALLOWED_REDIRECT_URIS` in `.env` and restart the app. See
+[MCP Server](https://everr.dev/docs/reference/mcp#which-clients-can-connect).
+
 ## Operations
 
 ### Connect the CLI

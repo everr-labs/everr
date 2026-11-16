@@ -457,6 +457,7 @@ it("preserves atomic provisioning and cleanup under the shared post-commit ident
       },
       baseURL: "http://localhost:3000",
       secret: "combined-organization-lifecycle-secret-long-enough",
+      mcpRedirectAllowlist: [],
       email: { enabled: false, sendInvitation() {}, sendPasswordReset() {}, sendVerification() {} },
       canInviteMembers: async () => true,
     },

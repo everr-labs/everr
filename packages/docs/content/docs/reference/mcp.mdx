@@ -44,6 +44,21 @@ Clients find the authorization server from the OAuth protected resource metadata
 
 You pick the organization on the consent screen, and the access token works for that organization only. Removing someone from the organization revokes their access on their next request.
 
+## Which clients can connect
+
+Everr sends a sign-in only to a callback it trusts:
+
+- Apps on your computer, which receive the sign-in at `http://localhost`, `http://127.0.0.1` or `http://[::1]`. Claude Code, Codex CLI, OpenCode, Zed, Gemini CLI, Goose and the MCP Inspector work this way.
+- Hosted clients on the Everr Cloud list: Claude, ChatGPT, VS Code and Cursor.
+
+Any other client gets a page that names the callback it asked for, with links to report it. Connect from an app on your computer in the meantime.
+
+On a self-hosted installation, set `MCP_OAUTH_ALLOWED_REDIRECT_URIS` to a comma-separated list of callback URIs. End an entry with `/*` to allow every callback under that path. Leave it unset to use the Everr Cloud list, or set it to an empty value to allow only apps on your computer.
+
+```shell
+MCP_OAUTH_ALLOWED_REDIRECT_URIS="https://claude.ai/api/mcp/auth_callback,https://chatgpt.com/connector/oauth/*"
+```
+
 ## Connecting a client
 
 **Claude Code**

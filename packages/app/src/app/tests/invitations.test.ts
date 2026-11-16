@@ -34,6 +34,7 @@ function createAuth(emailEnabled = false) {
     events: { async publish() {} },
     baseURL: "http://localhost:3000",
     secret: "invitation-integration-test-secret-long-enough",
+    mcpRedirectAllowlist: [],
     email: {
       enabled: emailEnabled,
       sendInvitation() {},
