@@ -257,9 +257,10 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* The same selection as the docs site: solid primary, dark text. */
   ::selection {
-    background-color: color-mix(in oklab, var(--primary) 28%, transparent);
-    color: var(--foreground);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
   }
 
   /* A trigger's down chevron flips while its menu, popover or panel is open.
