@@ -43,6 +43,11 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				"protocols": map[string]any{
 					"http": map[string]any{
 						"endpoint": cfg.OTLPListenAddress,
+						// A stalled client would otherwise hold shutdown, which
+						// waits for in-flight requests. Loopback exports finish
+						// in milliseconds, so these never cut off a real one.
+						"read_header_timeout": "5s",
+						"read_timeout":        "10s",
 						"cors": map[string]any{
 							"allowed_origins": []any{"*"},
 						},

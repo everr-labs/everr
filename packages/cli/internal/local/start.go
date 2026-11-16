@@ -32,7 +32,13 @@ import (
 const (
 	localTTL       = 7 * 24 * time.Hour
 	collectorReady = 10 * time.Second
+	// The Rust CLI sent its collector SIGTERM and SIGKILL after 3s. A
+	// pipeline that misses this is abandoned and the process exits.
+	pipelineStopTimeout = 3 * time.Second
+	gatewayCloseTimeout = 2 * time.Second
 )
+
+var errPipelineStuck = errors.New("collector pipeline did not stop in time")
 
 type startArgs struct {
 	detach bool
@@ -106,16 +112,21 @@ func runStart(ctx context.Context, args startArgs, lifetime *Lifetime) error {
 	if err != nil {
 		return err
 	}
+	// chDB must not close under a pipeline that is still running.
+	abandoned := false
 	defer func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if abandoned {
+			return
+		}
+		closeCtx, cancel := context.WithTimeout(context.Background(), gatewayCloseTimeout)
 		defer cancel()
 		_ = gateway.Close(closeCtx)
 	}()
 	collector, err := startPipeline(ctx, gateway, instanceID)
 	if err != nil {
+		abandoned = errors.Is(err, errPipelineStuck)
 		return err
 	}
-	defer func() { collector.stop() }()
 
 	ui.ready.Store(true)
 	if !args.quiet {
@@ -138,10 +149,19 @@ loop:
 				stopReply = req.reply
 				break loop
 			}
-			collector.stop()
+			if err := collector.stop(); err != nil {
+				req.reply <- err
+				continue
+			}
 			collector, err = startPipeline(ctx, gateway, instanceID)
 			if err != nil {
 				collector = &pipeline{}
+				if errors.Is(err, errPipelineStuck) {
+					abandoned = true
+					req.reply <- err
+					result = err
+					break loop
+				}
 			}
 			req.reply <- err
 		case <-signals.Done():
@@ -151,8 +171,14 @@ loop:
 			fmt.Fprintf(os.Stderr, "Collector stopped: %v. Restart it from the local UI.\n", err)
 		}
 	}
+	// A second signal must terminate the process rather than be swallowed
+	// while shutdown waits.
+	stopSignals()
 	close(ui.stopped)
-	collector.stop()
+	if err := collector.stop(); err != nil {
+		abandoned = true
+		fmt.Fprintf(os.Stderr, "%v; exiting without it\n", err)
+	}
 	if stopReply != nil {
 		stopReply <- nil
 	}
@@ -203,14 +229,23 @@ func (p *pipeline) exited() <-chan error {
 	return p.done
 }
 
-func (p *pipeline) stop() {
+// stop cancels the pipeline and waits for it up to pipelineStopTimeout. On a
+// timeout the pipeline stays as it was, so a later stop can try again.
+func (p *pipeline) stop() error {
 	if p.cancel == nil {
-		return
+		return nil
 	}
 	p.cancel()
-	<-p.done
+	timer := time.NewTimer(pipelineStopTimeout)
+	defer timer.Stop()
+	select {
+	case <-p.done:
+	case <-timer.C:
+		return errPipelineStuck
+	}
 	p.cancel = nil
 	p.done = nil
+	return nil
 }
 
 func startPipeline(ctx context.Context, gateway *localcollector.Gateway, instanceID string) (*pipeline, error) {
@@ -233,7 +268,9 @@ func startPipeline(ctx context.Context, gateway *localcollector.Gateway, instanc
 		if ok {
 			return p, nil
 		}
-		p.stop()
+		if err := p.stop(); err != nil {
+			return nil, err
+		}
 		return nil, fmt.Errorf("collector healthcheck did not become ready; collector URL: %s", build.OTLPHTTPOrigin())
 	}
 }

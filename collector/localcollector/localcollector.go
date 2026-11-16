@@ -123,10 +123,18 @@ func (g *Gateway) Run(ctx context.Context) error {
 }
 
 // Close stops the SQL endpoint and closes chDB. Callers must let Run return
-// first.
+// first. chDB cannot cancel a running query, so Close gives up waiting for the
+// handle when ctx ends and leaves it to the process exit.
 func (g *Gateway) Close(ctx context.Context) error {
 	err := g.sql.Shutdown(ctx)
-	return errors.Join(err, g.handle.Close())
+	closed := make(chan error, 1)
+	go func() { closed <- g.handle.Close() }()
+	select {
+	case closeErr := <-closed:
+		return errors.Join(err, closeErr)
+	case <-ctx.Done():
+		return errors.Join(err, ctx.Err())
+	}
 }
 
 func (g *Gateway) collectorSettings() otelcol.CollectorSettings {
