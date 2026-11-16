@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -190,6 +191,62 @@ func TestAPIKeyWithoutAnyTargetURLExplainsHowToSetOne(t *testing.T) {
 	t.Setenv("EVERR_API_KEY", "api-key")
 	_, err := NewClient(true)
 	if err == nil || err.Error() != "EVERR_API_KEY is set but no target URL is configured; set EVERR_API_URL or run `everr cloud login`." {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// deviceServer answers the device code request, then each token poll with
+// answer(poll number from 1).
+func deviceServer(t *testing.T, expiresIn, interval int, answer func(poll int) string) *httptest.Server {
+	t.Helper()
+	polls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/auth/device/code":
+			json.NewEncoder(w).Encode(map[string]any{
+				"device_code": "code", "user_code": "USER-CODE",
+				"verification_uri": "http://example.test/verify", "expires_in": expiresIn, "interval": interval,
+			})
+		case "/api/auth/device/token":
+			polls++
+			body := answer(polls)
+			if body != `{"access_token":"test-token"}` {
+				w.WriteHeader(400)
+			}
+			io.WriteString(w, body)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestDeviceLoginWaitsLongerAfterSlowDown(t *testing.T) {
+	defer func(step time.Duration) { slowDownStep = step }(slowDownStep)
+	slowDownStep = 300 * time.Millisecond
+	var polledAt []time.Time
+	srv := deviceServer(t, 60, 0, func(poll int) string {
+		polledAt = append(polledAt, time.Now())
+		if poll == 1 {
+			return `{"error":"slow_down"}`
+		}
+		return `{"access_token":"test-token"}`
+	})
+
+	if _, err := AuthorizeWithPrompt(t.Context(), srv.URL, func(*url.URL, string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if gap := polledAt[1].Sub(polledAt[0]); gap < slowDownStep {
+		t.Errorf("polled again after %s, want at least %s", gap, slowDownStep)
+	}
+}
+
+func TestDeviceLoginGivesUpWhenTheCodeExpires(t *testing.T) {
+	srv := deviceServer(t, 1, 1, func(int) string { return `{"error":"authorization_pending"}` })
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	_, err := AuthorizeWithPrompt(ctx, srv.URL, func(*url.URL, string) {})
+	if err == nil || err.Error() != "device authentication expired before completion" {
 		t.Fatalf("err = %v", err)
 	}
 }
