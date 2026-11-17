@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { type DbExecutor, db, runInTransaction } from "#app/db/client.ts";
 import {
   alertChannels,
@@ -17,7 +17,6 @@ import {
   workflowJobs,
   workflowRuns,
 } from "#app/db/schema/index.ts";
-import { API_KEY_CONFIG_IDS } from "#app/lib/public-ingest-keys.ts";
 
 export async function deletePostgresOrganizationData(
   organizationId: string,
@@ -53,13 +52,8 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(githubInstallationOrganizations)
       .where(eq(githubInstallationOrganizations.organizationId, organizationId));
-    await tx
-      .delete(apikey)
-      .where(
-        and(
-          inArray(apikey.configId, [...API_KEY_CONFIG_IDS]),
-          eq(apikey.referenceId, organizationId),
-        ),
-      );
+    // Every key config belongs to an organization, so match on the
+    // organization alone: that also covers configs added in a later release.
+    await tx.delete(apikey).where(eq(apikey.referenceId, organizationId));
   });
 }

@@ -1,7 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import { storage } from "@composition/storage";
 import { createFileRoute } from "@tanstack/react-router";
+import { and, eq } from "drizzle-orm";
 import type { TenantRetention } from "#app/composition/retention.ts";
+import { db } from "#app/db/client.ts";
+import { apikey } from "#app/db/schema/index.ts";
 import { env } from "#app/env/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
@@ -36,14 +39,20 @@ function secretMatches(provided: string | null): boolean {
 }
 
 // Both configs share the `ek_` prefix, so the key alone doesn't say which one
-// holds it. Each lookup is pinned to its configId: a stored hash sent as a
-// plaintext key can't match a hashed-config row through the public config.
+// holds it. Public keys are stored as-is, so an exact match on the stored key
+// finds one; anything else goes to the hashed config. Picking one config up
+// front avoids a failed verify, which better-auth logs as an error. Each
+// verify stays pinned to its configId, so a stored hash sent as a key can't
+// match a hashed-config row through the public config.
 async function verifyIngestKey(key: string) {
-  for (const configId of [HASHED_KEY_CONFIG_ID, PUBLIC_KEY_CONFIG_ID]) {
-    const result = await auth.api.verifyApiKey({ body: { key, configId } });
-    if (result.valid) return result;
-  }
-  return null;
+  const [stored] = await db
+    .select({ id: apikey.id })
+    .from(apikey)
+    .where(and(eq(apikey.key, key), eq(apikey.configId, PUBLIC_KEY_CONFIG_ID)))
+    .limit(1);
+  const configId = stored ? PUBLIC_KEY_CONFIG_ID : HASHED_KEY_CONFIG_ID;
+  const result = await auth.api.verifyApiKey({ body: { key, configId } });
+  return result.valid ? result : null;
 }
 
 export const Route = createFileRoute("/api/internal/verify-key")({

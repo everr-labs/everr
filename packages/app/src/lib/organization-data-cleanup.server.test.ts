@@ -1,24 +1,16 @@
 import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { mockAnd, mockDelete, mockEq, mockInArray, mockTransaction, whereCalls } = vi.hoisted(
-  () => ({
-    mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
-    mockDelete: vi.fn(),
-    mockEq: vi.fn((column: unknown, value: unknown) => ({
-      type: "eq",
-      column,
-      value,
-    })),
-    mockInArray: vi.fn((column: unknown, values: unknown) => ({
-      type: "inArray",
-      column,
-      values,
-    })),
-    mockTransaction: vi.fn(),
-    whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
-  }),
-);
+const { mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
+  mockDelete: vi.fn(),
+  mockEq: vi.fn((column: unknown, value: unknown) => ({
+    type: "eq",
+    column,
+    value,
+  })),
+  mockTransaction: vi.fn(),
+  whereCalls: [] as Array<{ table: unknown; condition: unknown }>,
+}));
 
 vi.mock("#app/db/client.ts", () => ({
   runInTransaction: (executor: { transaction: typeof mockTransaction }, run: unknown) =>
@@ -32,9 +24,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   const actual = await importOriginal<typeof DrizzleOrm>();
   return {
     ...actual,
-    and: mockAnd,
     eq: mockEq,
-    inArray: mockInArray,
   };
 });
 
@@ -111,10 +101,10 @@ describe("deletePostgresOrganizationData", () => {
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(githubInstallationOrganizations.organizationId, ORG);
-    // Both key configs: hashed keys and unhashed public keys.
-    expect(mockAnd).toHaveBeenCalledWith(
-      { type: "inArray", column: apikey.configId, values: ["ingest", "public"] },
-      { type: "eq", column: apikey.referenceId, value: ORG },
-    );
+    // Every key config, not just the hashed one: public keys too.
+    expect(whereCalls).toContainEqual({
+      table: apikey,
+      condition: { type: "eq", column: apikey.referenceId, value: ORG },
+    });
   });
 });

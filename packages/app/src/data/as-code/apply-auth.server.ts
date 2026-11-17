@@ -86,7 +86,8 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
 
   if (credential.startsWith("ek_")) {
     const result = await auth.api.verifyApiKey({
-      // Public keys can never carry the apply scope, so only hashed keys apply.
+      // New public keys live in the unhashed config. Older public keys are
+      // hashed too; the apply scope check below keeps them out.
       body: { key: credential, configId: HASHED_KEY_CONFIG_ID },
     });
     if (!result.valid || !result.key?.referenceId) {

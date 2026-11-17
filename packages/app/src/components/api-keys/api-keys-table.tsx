@@ -329,13 +329,11 @@ const WIDTH = {
   actions: "pb-2 pr-3 xl:w-40",
 } as const;
 
-function sharedColumns(): Column<ApiKey>[] {
-  return [
-    { header: "Last used", cell: (row) => <LastUsed row={row} />, className: WIDTH.lastUsed },
-    { header: "Expires", cell: (row) => <Expiry row={row} />, className: WIDTH.expires },
-    { header: "Created", cell: (row) => <Created row={row} />, className: WIDTH.created },
-  ];
-}
+const SHARED_COLUMNS: Column<ApiKey>[] = [
+  { header: "Last used", cell: (row) => <LastUsed row={row} />, className: WIDTH.lastUsed },
+  { header: "Expires", cell: (row) => <Expiry row={row} />, className: WIDTH.expires },
+  { header: "Created", cell: (row) => <Created row={row} />, className: WIDTH.created },
+];
 
 function actionsColumn(cell: Column<ApiKey>["cell"]): Column<ApiKey> {
   return {
@@ -352,7 +350,7 @@ function secretColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
   return [
     { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
     { header: "Capabilities", cell: (row) => <ScopeBadges row={row} /> },
-    ...sharedColumns(),
+    ...SHARED_COLUMNS,
     actionsColumn((row) => <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />),
   ];
 }
@@ -361,7 +359,7 @@ function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
   return [
     { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
     { header: "Allowed origins", cell: (row) => <AllowedOrigins row={row} /> },
-    ...sharedColumns(),
+    ...SHARED_COLUMNS,
     actionsColumn((row) => (
       <>
         <CopyPublicKey row={row} />
@@ -416,8 +414,9 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
     });
   };
 
-  const publicKeys = keys.filter((k) => publicKeyMetadataOf(k.metadata));
-  const secretKeys = keys.filter((k) => !publicKeyMetadataOf(k.metadata));
+  const publicKeys: ApiKey[] = [];
+  const secretKeys: ApiKey[] = [];
+  for (const k of keys) (publicKeyMetadataOf(k.metadata) ? publicKeys : secretKeys).push(k);
 
   return (
     <div className="space-y-10">

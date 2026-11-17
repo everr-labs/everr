@@ -1,5 +1,5 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#app/db/client.ts";
 import { apikey } from "#app/db/schema/index.ts";
@@ -128,18 +128,10 @@ export const listApiKeys = createOrganizationAdminServerFn({
   // better-auth never returns the stored key, so read it for unhashed public
   // keys. Hashed keys (every secret key, and public keys created before the
   // public config existed) can't be shown again.
-  const publicIds = keys.filter((k) => k.configId === PUBLIC_KEY_CONFIG_ID).map((k) => k.id);
-  if (publicIds.length === 0) return keys;
   const stored = await db
     .select({ id: apikey.id, key: apikey.key })
     .from(apikey)
-    .where(
-      and(
-        eq(apikey.configId, PUBLIC_KEY_CONFIG_ID),
-        eq(apikey.referenceId, organizationId),
-        inArray(apikey.id, publicIds),
-      ),
-    );
+    .where(and(eq(apikey.configId, PUBLIC_KEY_CONFIG_ID), eq(apikey.referenceId, organizationId)));
   const fullKeys = new Map(stored.map((row) => [row.id, row.key]));
   return keys.map((k) => {
     const fullKey = fullKeys.get(k.id);
