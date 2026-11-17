@@ -6,7 +6,7 @@ import { useRailFrame } from "./rail-frame";
 /**
  * The full-screen toggle for a rail frame, seated at the left of the toolbar
  * so it costs no vertical space of its own. One control, both directions: hide
- * the rail, or bring it back. On a phone the rail is a sheet, and this opens
+ * the rail, or bring it back. On a phone the rail is a drawer, and this opens
  * it. `listLabel` names what the rail lists, so the runbooks frame reuses the
  * control without borrowing the dashboards wording.
  *
@@ -21,7 +21,7 @@ export function FrameToggle({ listLabel = "dashboard list" }: { listLabel?: stri
   const frame = useRailFrame();
   const navigate = useNavigate();
   const toggle = () => {
-    if (frame?.sheet) return frame.openSheet();
+    if (frame?.drawer) return frame.openDrawer();
     // `to: "."` keeps the open dashboard; `replace` because toggling the
     // frame is a view change, not a place the back button should revisit.
     void navigate({
@@ -30,7 +30,7 @@ export function FrameToggle({ listLabel = "dashboard list" }: { listLabel?: stri
       replace: true,
     });
   };
-  const hidden = full || frame?.sheet;
+  const hidden = full || frame?.drawer;
   return (
     <div className="flex h-8 shrink-0 items-center">
       <Button

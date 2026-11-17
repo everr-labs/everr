@@ -129,12 +129,12 @@ function FolderRows({
   return (
     <>
       <div
-        className="flex items-center gap-1 rounded-md py-1 pr-1 text-foreground/75 transition-[background-color,color] duration-200 ease-sidebar hover:bg-accent/50 hover:text-foreground active:bg-accent active:text-foreground motion-reduce:transition-none"
+        className="flex items-center gap-1 rounded-md py-1 in-data-side-drawer:min-h-10 pr-1 text-foreground/75 transition-[background-color,color] duration-200 ease-sidebar hover:bg-accent/50 hover:text-foreground active:bg-accent active:text-foreground motion-reduce:transition-none"
         style={{ paddingLeft: `${rowIndent(depth, "folder")}px` }}
       >
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 self-stretch py-0.5 text-left"
           aria-label={`${isExpanded ? "Collapse" : "Expand"} folder ${node.name}`}
           aria-expanded={isExpanded}
           onClick={() => onToggle(node.path)}

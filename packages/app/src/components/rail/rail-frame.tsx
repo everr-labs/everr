@@ -1,6 +1,5 @@
-import { kickerClass } from "@everr/ui/lib/typography";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
+import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
 import { useMatches } from "@tanstack/react-router";
@@ -17,12 +16,12 @@ import * as z from "zod";
 import { useOnNavigate } from "#app/hooks/use-on-navigate.ts";
 
 /**
- * What the pane's `FrameToggle` does: on a phone, where the rail is a sheet,
- * `sheet` is set and the toggle opens it; otherwise it flips `full`.
+ * What the pane's `FrameToggle` does: on a phone, where the rail is a drawer,
+ * `drawer` is set and the toggle opens it; otherwise it flips `full`.
  */
 interface RailFrameState {
-  sheet: boolean;
-  openSheet: () => void;
+  drawer: boolean;
+  openDrawer: () => void;
 }
 
 const RailFrameContext = createContext<RailFrameState | null>(null);
@@ -79,21 +78,21 @@ export function RailFrame({
   children: ReactNode;
 }) {
   // Below `md` the rail of a page that shows a `FrameToggle` (`railToggle` in
-  // its route's static data) leaves the layout and opens as a sheet from the
+  // its route's static data) leaves the layout and opens as a drawer from the
   // toggle. Elsewhere it stacks above the pane, the only way back to it.
   const collapsible = useMatches({
     select: (matches) =>
       matches.some((match) => match.staticData.railToggle && match.status === "success"),
   });
-  // Only decides whether the sheet may show: the layout hides the rail with
+  // Only decides whether the drawer may show: the layout hides the rail with
   // CSS, so the server markup is already right on a phone.
   const isMobile = useIsMobile();
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const sheetNavRef = useRef<HTMLElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerNavRef = useRef<HTMLElement>(null);
   // Picking a row is done with the list, and so is any other navigation.
-  useOnNavigate(() => setSheetOpen(false));
-  const sheet = collapsible && isMobile;
-  const frame = useMemo(() => ({ sheet, openSheet: () => setSheetOpen(true) }), [sheet]);
+  useOnNavigate(() => setDrawerOpen(false));
+  const drawer = collapsible && isMobile;
+  const frame = useMemo(() => ({ drawer, openDrawer: () => setDrawerOpen(true) }), [drawer]);
   return (
     <RailFrameContext.Provider value={frame}>
       <div
@@ -113,7 +112,7 @@ export function RailFrame({
         <aside
           // `inert` follows the wide layout, the one that animates the rail
           // away. On a phone `full` doesn't hide it: a stacked rail stays
-          // usable, and a sheet rail is `display: none` anyway.
+          // usable, and a drawer rail is `display: none` anyway.
           inert={full && !isMobile}
           aria-label={label}
           className={cn(
@@ -138,28 +137,27 @@ export function RailFrame({
         </ScrollArea>
       </div>
       {collapsible && (
-        <Sheet open={sheetOpen && isMobile} onOpenChange={setSheetOpen}>
-          {/* Styled like the Explore filter rail's sheet: the rail at its
-              own width over the dimmed page, under the same small heading.
-              Focus lands on the list itself, never the search box, which
-              would raise the phone's keyboard over it. The toggle opens the
-              sheet from code, so Base UI can't tell a tap from a click. */}
-          <SheetContent
-            side="left"
-            className="w-[300px] p-0 sm:max-w-[300px]"
-            initialFocus={sheetNavRef}
+        // The same drawer as the app sidebar and the Explore filter rail.
+        // Focus lands on the list itself, never the search box, which would
+        // raise the phone's keyboard over it. The toggle opens the drawer
+        // from code, so Base UI can't tell a tap from a click.
+        <SideDrawer
+          open={drawerOpen && isMobile}
+          onOpenChange={setDrawerOpen}
+          title={label}
+          closeLabel={`Close the ${label.toLowerCase()} list`}
+          className="[--drawer-bleed-background:var(--color-pane)]"
+          initialFocus={drawerNavRef}
+        >
+          <nav
+            ref={drawerNavRef}
+            tabIndex={-1}
+            aria-label={label}
+            className="outline-none flex h-full min-h-0 flex-col gap-3 px-3 pb-3"
           >
-            <nav
-              ref={sheetNavRef}
-              tabIndex={-1}
-              aria-label={label}
-              className="outline-none flex h-full min-h-0 flex-col gap-3 bg-pane p-3"
-            >
-              <SheetTitle className={kickerClass}>{label}</SheetTitle>
-              {rail}
-            </nav>
-          </SheetContent>
-        </Sheet>
+            {rail}
+          </nav>
+        </SideDrawer>
       )}
     </RailFrameContext.Provider>
   );

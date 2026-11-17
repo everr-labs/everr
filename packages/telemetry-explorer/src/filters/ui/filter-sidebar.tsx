@@ -4,6 +4,17 @@ import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { ListFilter } from "lucide-react";
 import type { ReactNode } from "react";
 
+/** The rail's heading: in the rail itself, or in the narrow layout's drawer
+ *  header, which takes its place. */
+export function FiltersLabel() {
+  return (
+    <>
+      <ListFilter className="size-3.5" />
+      Filters
+    </>
+  );
+}
+
 /**
  * The Explore filter rail.
  *
@@ -34,12 +45,12 @@ export function FilterSidebar({
   return (
     <ScrollArea
       render={<aside aria-label={label} />}
-      className="bg-pane h-full min-h-0 border-b lg:border-r lg:border-b-0"
+      className="bg-pane h-full min-h-0 border-b lg:border-r lg:border-b-0 in-data-side-drawer:border-0"
       viewportClassName="flex flex-col gap-3 p-3"
     >
-      <div className={cn(kickerClass, "flex items-center gap-2")}>
-        <ListFilter className="size-3.5" />
-        Filters
+      {/* In the narrow layout's drawer, the drawer's header says this. */}
+      <div className={cn(kickerClass, "flex items-center gap-2 in-data-side-drawer:hidden")}>
+        <FiltersLabel />
       </div>
 
       {persistentFilters ? (

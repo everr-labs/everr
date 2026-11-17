@@ -6,13 +6,7 @@ import { Input } from "@everr/ui/components/input";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Separator } from "@everr/ui/components/separator";
 import { TOOLTIP_DELAY_MS } from "@everr/ui/components/tooltip";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@everr/ui/components/sheet";
+import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
@@ -31,7 +25,6 @@ import {
 import { createPortal } from "react-dom";
 
 const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
@@ -343,28 +336,29 @@ function Sidebar({
   }
 
   if (isMobile) {
-    const mobileStyle: React.CSSProperties & Record<`--${string}`, string> = {
-      "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-    };
     return (
-      // TODO: can we replace with the drawer?
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          dir={dir}
+      <SideDrawer
+        open={openMobile}
+        onOpenChange={setOpenMobile}
+        side={side}
+        dir={dir}
+        title="Navigation"
+        description="Pages and account menu."
+        // The sidebar's own header (the logo) heads the drawer.
+        showTitle={false}
+        closeLabel="Close navigation"
+        className="text-sidebar-foreground [--drawer-bleed-background:var(--color-sidebar)]"
+      >
+        <div
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={mobileStyle}
-          side={side}
+          // The drawer's close button floats over the header's right edge.
+          className="flex h-full w-full flex-col [&_[data-sidebar=header]]:pr-12"
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{content}</div>
-        </SheetContent>
-      </Sheet>
+          {content}
+        </div>
+      </SideDrawer>
     );
   }
 
@@ -637,7 +631,9 @@ const sidebarMenuButtonVariants = cva(
           "bg-background hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
       },
       size: {
-        default: "h-8 text-xs",
+        // A finger needs more than a pointer: on a phone the rows grow to a
+        // comfortable touch target and the labels to a readable size.
+        default: "h-8 text-xs in-data-side-drawer:h-10 in-data-side-drawer:text-sm",
         sm: "h-7 text-xs",
         lg: "h-12 text-xs group-data-[collapsible=icon]:p-0!",
       },

@@ -88,7 +88,7 @@ export function UserMenu({ organizationSwitcher, organizationItems }: UserMenuPr
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-(--anchor-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? "top" : "right"}
             align="end"
             sideOffset={4}
           >
