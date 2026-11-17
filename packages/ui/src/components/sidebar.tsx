@@ -25,7 +25,6 @@ import {
 import { createPortal } from "react-dom";
 
 const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
@@ -337,10 +336,6 @@ function Sidebar({
   }
 
   if (isMobile) {
-    const mobileStyle: React.CSSProperties & Record<`--${string}`, string> = {
-      "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-      "--side-drawer-width": SIDEBAR_WIDTH_MOBILE,
-    };
     return (
       <SideDrawer
         open={openMobile}
@@ -352,14 +347,14 @@ function Sidebar({
         // The sidebar's own header (the logo) heads the drawer.
         showTitle={false}
         closeLabel="Close navigation"
-        className="text-sidebar-foreground [--side-drawer-bg:var(--color-sidebar)]"
-        style={mobileStyle}
+        className="text-sidebar-foreground [--drawer-bleed-background:var(--color-sidebar)]"
       >
         <div
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="flex h-full w-full flex-col"
+          // The drawer's close button floats over the header's right edge.
+          className="flex h-full w-full flex-col [&_[data-sidebar=header]]:pr-12"
         >
           {content}
         </div>

@@ -4,7 +4,7 @@ import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import { ListFilter } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { FilterSidebar } from "./filter-sidebar";
+import { FilterSidebar, FiltersLabel } from "./filter-sidebar";
 
 /**
  * Puts the Explore filter rail in position.
@@ -66,15 +66,10 @@ export function ExploreFilterRail({
         open={open}
         onOpenChange={setOpen}
         // The drawer's header replaces the rail's own "Filters" heading.
-        title={
-          <>
-            <ListFilter className="size-3.5" />
-            Filters
-          </>
-        }
+        title={<FiltersLabel />}
         description={label}
         closeLabel="Close filters"
-        className="[--side-drawer-bg:var(--color-pane)]"
+        className="[--drawer-bleed-background:var(--color-pane)]"
       >
         {rail}
       </SideDrawer>

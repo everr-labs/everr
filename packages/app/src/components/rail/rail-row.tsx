@@ -9,8 +9,9 @@ import type { ComponentPropsWithRef, ReactElement } from "react";
  *  selected state. The selected look keys on the `data-status` a router link
  *  sets, which outranks the hover and rest classes whatever their order. */
 export const railRowClass = cn(
-  // In a phone's side drawer the row grows to a 40px touch target.
-  "rounded-md py-1.5 in-data-side-drawer:py-2.5 text-foreground/75 [&>svg]:text-foreground/60 transition-[background-color,color] duration-200 ease-sidebar motion-reduce:transition-none",
+  // In a phone's side drawer the row grows to a 40px touch target, the same
+  // height as the sidebar's rows there.
+  "rounded-md py-1.5 in-data-side-drawer:min-h-10 text-foreground/75 [&>svg]:text-foreground/60 transition-[background-color,color] duration-200 ease-sidebar motion-reduce:transition-none",
   "hover:bg-muted/50 hover:text-foreground hover:[&>svg]:text-foreground active:bg-muted active:text-foreground",
   "data-[status=active]:bg-muted data-[status=active]:text-foreground data-[status=active]:[&>svg]:text-primary",
 );

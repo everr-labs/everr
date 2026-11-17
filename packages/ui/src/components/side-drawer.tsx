@@ -24,8 +24,8 @@ import type { ReactNode } from "react";
  * for touch with `in-data-side-drawer:` (rows grow to a 40px target) without
  * changing the wide layout.
  *
- * `--side-drawer-bg` sets the surface, which the drawer also paints past its
- * edge while a swipe overshoots.
+ * `--drawer-bleed-background` sets the surface, which the drawer also paints
+ * past its edge while a swipe overshoots.
  */
 export function SideDrawer({
   open,
@@ -37,7 +37,6 @@ export function SideDrawer({
   closeLabel = "Close",
   initialFocus,
   className,
-  style,
   dir,
   children,
 }: {
@@ -46,7 +45,7 @@ export function SideDrawer({
   side?: "left" | "right";
   /** Names the panel. Shown as the header unless `showTitle` is false. */
   title: ReactNode;
-  description?: string;
+  description?: ReactNode;
   /** False when the content brings its own header, e.g. the sidebar's logo:
    *  the title is then only announced, and the close button floats over the
    *  content's top-right corner. */
@@ -54,7 +53,6 @@ export function SideDrawer({
   closeLabel?: string;
   initialFocus?: React.ComponentProps<typeof DrawerContent>["initialFocus"];
   className?: string;
-  style?: React.CSSProperties;
   dir?: string;
   children: ReactNode;
 }) {
@@ -77,22 +75,17 @@ export function SideDrawer({
   );
 
   return (
-    <Drawer
-      open={open}
-      onOpenChange={onOpenChange}
-      swipeDirection={side === "left" ? "left" : "right"}
-    >
+    <Drawer open={open} onOpenChange={onOpenChange} swipeDirection={side}>
       <DrawerContent
         dir={dir}
         data-side-drawer=""
         initialFocus={initialFocus}
         className={cn(
-          "[--side-drawer-bg:var(--color-background)] bg-(--side-drawer-bg) [--drawer-bleed-background:var(--side-drawer-bg)]",
+          "bg-(--drawer-bleed-background)",
           "[--drawer-content-width:min(var(--side-drawer-width,18rem),calc(100%-3.5rem))]!",
           "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
           className,
         )}
-        style={style}
       >
         {showTitle ? (
           <div className="flex h-12 shrink-0 items-center justify-between gap-2 pr-1 pl-3">
