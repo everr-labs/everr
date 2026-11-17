@@ -263,6 +263,82 @@ func (c *Client) PostSQL(ctx context.Context, sql string) (_ string, err error) 
 	return string(data), nil
 }
 
+// maxRecordingBytes is the most a segments response may hold, decompressed.
+// The server refuses a read over 32 MiB of Segment bodies; their JSON escaping
+// can grow them.
+const maxRecordingBytes = 256 << 20
+
+// RecordingSegments returns the body of GET /api/cli/recordings/segments: the
+// Segments of the page of a recorded visit just after `at` (see
+// internal/recording). The transport asks for gzip and undoes it; the body is
+// capped at maxRecordingBytes.
+func (c *Client) RecordingSegments(ctx context.Context, stream, at string) ([]byte, error) {
+	query := url.Values{"stream": {stream}, "at": {at}}
+	req, err := c.newRequest(ctx, http.MethodGet, c.baseEndpoint+"/recordings/segments", query, nil, "application/json")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("CLI recording request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if !success(resp.StatusCode) {
+		text, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return nil, recordingStatusError(resp.StatusCode, string(text))
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRecordingBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CLI recording response: %w", err)
+	}
+	if len(data) > maxRecordingBytes {
+		return nil, fmt.Errorf("The page needs over %d MiB of Segments to read. Continue with the timeline.", maxRecordingBytes>>20)
+	}
+	return data, nil
+}
+
+// recordingStatusError: a 401 asks to log in again, like every command. A
+// JSON body with a `message` shows that message and nothing else: it is the
+// server's own words and already names the next flag to try. Any other body
+// (an HTML 500, a proxy error, an older server without the route) is shown as
+// one bounded line, and a 404 of that kind adds an upgrade hint.
+func recordingStatusError(status int, body string) error {
+	if status == http.StatusUnauthorized {
+		return httpStatusError(status, body, "CLI recording request")
+	}
+	var answer struct {
+		Message *string `json:"message"`
+	}
+	if json.Unmarshal([]byte(body), &answer) == nil && answer.Message != nil {
+		return errors.New(*answer.Message)
+	}
+	err := httpStatusError(status, boundedErrorBody(body), "CLI recording request")
+	switch {
+	case status == http.StatusNotFound:
+		return fmt.Errorf("%w\nThis installation may predate `%s cloud recording`: upgrade it, then retry.", err, build.CommandName())
+	case status >= 500:
+		// The CLI middleware answers a bad or expired token with a 500 today.
+		return fmt.Errorf("%w\nIf the session expired, run `%s cloud login`, then retry.", err, build.CommandName())
+	}
+	return err
+}
+
+// boundedErrorBody gives a non-JSON error body as at most one short line: an
+// HTML error page can be tens of KB, and the reader is often an agent paying
+// for every byte.
+func boundedErrorBody(body string) string {
+	const maxChars = 300
+	body = strings.TrimSpace(body)
+	if strings.HasPrefix(body, "<") {
+		return fmt.Sprintf("an HTML error page (%d bytes, not shown)", len(body))
+	}
+	line := strings.Join(strings.Fields(body), " ")
+	if runes := []rune(line); len(runes) > maxChars {
+		return string(runes[:maxChars]) + "..."
+	}
+	return line
+}
+
 // ListResources lists live resources, filtered by kind when it is not empty
 // and by repoid when it is not nil; an empty repoid selects resources created
 // in the UI.
