@@ -168,9 +168,3 @@ EVERR_VERSION=0.11.0
 - The new app applies the database migrations when it starts.
 - Never pin a version older than the one the installation already ran. The app does not roll back ClickHouse migrations.
 - Stable releases are also tagged by minor version (`0.11`) and as `latest`.
-
-An installation that started before the ClickHouse write user was renamed to `app_admin` gets `app_admin` on its first start, with the same password. The app no longer uses the old `web_app_admin` user. To drop it:
-
-```sh
-docker compose exec clickhouse sh -c 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "DROP USER IF EXISTS web_app_admin"'
-```
