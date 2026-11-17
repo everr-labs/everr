@@ -1,17 +1,18 @@
 # Web session recordings
 
-In Cloud, when a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, a resizable panel between the toolbar and the flamegraph) and the error detail (first, above the stack trace) show a `Session recording` section: a `Play` button, the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), `TRUNCATED` when the buffer did not reach back to the requested start, gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record. The page looks up the covering Clips with the `getCoveringClips` server function; the Clip's events load through `getClipEvents` only when `Play` is pressed, and playback starts 10 s before the trace or the error and runs to the Clip's end. A click on the picture plays or pauses. In the trace view the closed player is one row; `Play` opens it to 40% of the space below the toolbar, the `Resize session recording and trace` handle sets its height, and `Hide` or a drag past its minimum closes it back to the row. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording. The self-hosted App shows neither the switch nor the section.
+In Cloud, when a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, a resizable panel between the toolbar and the flamegraph) and the error detail (below the stack trace) show a `Session recording` section: a header with the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record, then the picture and a control bar with `Play`/`Pause`, the playback clock and the seek track. The page looks up the covering Clips with the `getCoveringClips` server function and loads a Clip's events through `getClipEvents`. Playback starts 10 s before the trace or the error and runs to the Clip's end. A click on the picture plays or pauses. In the trace view the closed player is one row that opens and closes like the `Flamegraph` row: the whole row is a toggle button (`aria-expanded`, a chevron). Opening it loads the events and opens it, paused, to 40% of the space below the toolbar; the `Resize session recording and trace` handle sets its height, and the row or a drag past its minimum closes it back to the row. The error detail opens with the player open and paused at its start, so its events load with the page; `Hide` and `Show` close and reopen it. Opening and closing ease the player, and the `Flamegraph` row eases the same way. While the player moves, the picture keeps its size and the panel edge uncovers or covers it. With reduced motion the size changes at once and the picture fades. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording. The self-hosted App shows neither the switch nor the section.
 
 ## Sub-features
 
 - `replay-filter-traces` on `/traces`, the `With session recording` switch adds `withRecording=true` and lists `GET /verify-api/checkout`; rows without a recording (the seeded `POST /checkout`) leave the list.
 - `replay-filter-errors` on `/errors`, the same switch lists `VerifySdkError: checkout exploded` and drops `VerifySeedPaymentError`.
 - `replay-invariant` every row of a filtered list opens a detail that shows the `Session recording` section.
-- `replay-lazy` opening a detail calls `getCoveringClips` and never `getClipEvents` before `Play`.
-- `replay-play` `Play` loads the events once, the player runs, the button turns into `Pause`, and the clock advances.
-- `replay-split` in the trace view the closed player is 32px tall, `Play` opens it, the handle resizes it, and `Hide` returns it to 32px; the next `Play` reopens it at the height it had.
+- `replay-lazy` opening a trace view calls `getCoveringClips` and never `getClipEvents` before the recording row is opened or hovered.
+- `replay-error-detail` the error detail draws the section below the stack trace, open and paused, and loads the Clip's events with the page.
+- `replay-play` `Play` in the control bar runs the player, the button turns into `Pause`, and the clock advances.
+- `replay-split` in the trace view the closed player is 32px tall with `aria-expanded=false`, the row opens it with an animation that keeps the picture at its open size, the handle resizes it, and the row returns it to 32px; opening it again restores the height it had.
 - `replay-masking` text in the replay iframe is masked (asterisks), and the iframe's `sandbox` is `allow-same-origin` only (no scripts).
-- `replay-gaps` the trigger, `TRUNCATED` and gap badges match the stored `recording` span and Segment indexes.
+- `replay-gaps` the trigger and gap badges match the stored `recording` span and Segment indexes.
 - `replay-no-loop` with the default range (`Last 7 days`), an open detail settles: at most 10 server function calls in 10 s.
 - `replay-hidden-self-hosted` the App draws no switch and no section, even with `withRecording=true` in the URL.
 
@@ -63,16 +64,29 @@ Preconditions:
   ```
 
   The `test` exits `0`, and `replay-05-invariant.txt` lists at least one row per list and no `MISSING` line (`replay-invariant`).
-- **Lazy lookup.** Open the error from the filtered list without hovering `Play`, then measure a reload:
+- **Lazy lookup.** Open the checkout trace from the filtered list without hovering the recording row, then measure a reload:
 
   ```bash
-  agent-browser open "$WEB/errors?withRecording=true" && agent-browser find text "VerifySdkError: checkout exploded" click
-  agent-browser wait 'section[aria-label="Session recording"] button[aria-label="Play"]' && agent-browser wait --text "TRIGGER" && ab_save replay-06-error-detail "Error detail: Session recording section with a trigger badge and Play"
+  agent-browser open "$WEB/traces?withRecording=true" && agent-browser wait --text "/verify-api/checkout"
+  agent-browser find text "/verify-api/checkout" click && agent-browser wait --fn "location.pathname.startsWith('/traces/')"
+  agent-browser wait 'section[aria-label="Session recording"] button[aria-expanded="false"]' && agent-browser wait --text "TRIGGER"
   $V web-net replay-lazy 8 --reload
   grep -q getCoveringClips "$SHOTS/../net/replay-lazy.serverfn.txt" && ! grep -q getClipEvents "$SHOTS/../net/replay-lazy.serverfn.txt"
   ```
 
   Exit `0` (`replay-lazy`).
+- **Error detail.** Run:
+
+  ```bash
+  S='section[aria-label="Session recording"]'
+  agent-browser open "$WEB/errors?withRecording=true" && agent-browser find text "VerifySdkError: checkout exploded" click
+  agent-browser wait "$S iframe" && agent-browser wait "$S button[aria-label=\"Play\"]" && ab_save replay-06-error-detail "Error detail: Session recording below the stack trace, open and paused"
+  agent-browser eval "[...document.querySelectorAll('h2')].find((h) => h.textContent === 'Stack trace').compareDocumentPosition(document.querySelector('$S')) === Node.DOCUMENT_POSITION_FOLLOWING"
+  $V web-net replay-error-open 8 --reload
+  grep -q getClipEvents "$SHOTS/../net/replay-error-open.serverfn.txt"
+  ```
+
+  Every command exits `0`; the `eval` prints `true`, and the section shows `Play`, not `Pause` (`replay-error-detail`).
 - **Play.** Run:
 
   ```bash
@@ -89,18 +103,18 @@ Preconditions:
 - **Badges against the data.** Run:
 
   ```bash
-  $V web-ch replay-clips "SELECT toString(SpanAttributes.everr.recording.clip.id) AS clip, toString(SpanAttributes.everr.recording.trigger) AS trigger, toString(SpanAttributes.everr.recording.clip.truncated) AS truncated FROM app.traces WHERE ServiceName = 'verify-sdk-web' AND SpanName = 'recording'"
+  $V web-ch replay-clips "SELECT toString(SpanAttributes.everr.recording.clip.id) AS clip, toString(SpanAttributes.everr.recording.trigger) AS trigger FROM app.traces WHERE ServiceName = 'verify-sdk-web' AND SpanName = 'recording'"
   $V web-ch replay-segments "SELECT stream_id, arraySort(groupUniqArray(segment_index)) AS indexes FROM app.recordings WHERE ServiceName = 'verify-sdk-web' GROUP BY stream_id"
   agent-browser get text 'section[aria-label="Session recording"]'
   ```
 
-  The section shows `<trigger> TRIGGER` for the Clip's trigger, `TRUNCATED` only when `truncated` is `true`, and `<n> missing segment` only when `indexes` skips `n` numbers (`replay-gaps`).
+  The section shows `<trigger> TRIGGER` for the Clip's trigger and `<n> missing segment` only when `indexes` skips `n` numbers (`replay-gaps`).
 - **No refetch loop.** With the error detail open on the default range, run `$V web-net replay-no-loop 10`. The `NET` line has `serverfn=` at most `10` (`replay-no-loop`). A count in the hundreds is a refetch loop: a query key changes every render. Report it as a failure with the count.
 - **Trace view.** Run:
 
   ```bash
   agent-browser open "$WEB/traces?withRecording=true" && agent-browser find text "/verify-api/checkout" click && agent-browser wait --fn "location.pathname.startsWith('/traces/')"
-  agent-browser wait 'section[aria-label="Session recording"] button[aria-label="Play"]' && agent-browser wait --text "TRIGGER" && ab_save replay-08-trace "Trace view: Session recording section above the flamegraph"
+  agent-browser wait 'section[aria-label="Session recording"] button[aria-expanded="false"]' && agent-browser wait --text "TRIGGER" && ab_save replay-08-trace "Trace view: the closed Session recording row above the flamegraph"
   ```
 
   Exit `0`; `replay-08-trace.txt` has `GET /verify-api/checkout` and a `TRIGGER` badge.
@@ -110,11 +124,12 @@ Preconditions:
   S='section[aria-label="Session recording"]'
   H="Math.round(document.querySelector('$S').closest('[data-panel]').getBoundingClientRect().height)"
   agent-browser eval "$H"
-  agent-browser click "$S button[aria-label=\"Play\"]" && agent-browser wait "$S iframe" && agent-browser eval "$H"
-  agent-browser find role button click --name "Hide" && agent-browser eval "$H"
+  agent-browser eval "new Promise((done) => { const s = document.querySelector('$S'); const p = s.closest('[data-panel]'); s.querySelector('button[aria-expanded]').click(); requestAnimationFrame(() => done([p.getAnimations().length, Math.round(p.getBoundingClientRect().height), Math.round(p.firstElementChild.getBoundingClientRect().height)].join(' '))); })"
+  agent-browser wait "$S iframe" && agent-browser eval "$H"
+  agent-browser wait "$S button[aria-label=\"Play\"]" && agent-browser click "$S button[aria-expanded=\"true\"]" && sleep 0.5 && agent-browser eval "$H"
   ```
 
-  The heights are `32`, then about 40% of the space below the toolbar, then `32` again (`replay-split`).
+  The heights are `32`, then about 40% of the space below the toolbar, then `32` again (`replay-split`). The line after the click reads `<animations> <panel> <content>`: at least `1` animation, and a content height above the panel height, because the player is laid out at its open height while the panel grows around it.
 - **Hidden on self-hosted.** With the App session, run:
 
   ```bash
@@ -123,11 +138,11 @@ Preconditions:
   ```
 
   Every command exits `0`. If the App has traces, open one: it has no `section[aria-label="Session recording"]` (`replay-hidden-self-hosted`).
-- **Proof.** `web/replay-*`, `net/replay-lazy.*`, `net/replay-no-loop.*`, `db/replay-clips/`, `db/replay-segments/`, `db/sdk-recordings/`.
+- **Proof.** `web/replay-*`, `net/replay-lazy.*`, `net/replay-error-open.*`, `net/replay-no-loop.*`, `db/replay-clips/`, `db/replay-segments/`, `db/sdk-recordings/`.
 
 ## Gotchas
 
-- `agent-browser click` moves the pointer over `Play` first, and hovering `Play` prefetches the events. Measure `replay-lazy` before any click or hover on `Play`.
+- `agent-browser click` moves the pointer over its target first, and hovering the trace view's recording row prefetches the events. Measure `replay-lazy` before any click or hover on that row.
 - A Clip lands about 10 s after the error that triggered it (60 s for a manual Clip). The lookup is cached for the browser session: a detail opened before the Clip landed shows no section until a full reload.
 - The lists filter within the selected time range: a trace whose recorded span starts outside the range is not listed, though its detail still plays.
 - The `recording` trace is listed under the filter and plays its own Clip; that is expected.
