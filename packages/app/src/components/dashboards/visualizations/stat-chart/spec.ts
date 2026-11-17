@@ -1,20 +1,15 @@
 import * as z from "zod";
+import { hexColorSpec } from "../hex-color-spec";
 import { valueFormatSpec } from "../value-format-spec";
-
-// Opaque hex only: foreground contrast for filled tiles cannot be computed
-// for named colors or colors with alpha.
-const thresholdColor = z
-  .string()
-  .regex(/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i, "must be an opaque hex color like #22c55e");
 
 const thresholdStep = z.looseObject({
   value: z.number(),
-  color: thresholdColor.optional(),
+  color: hexColorSpec.optional(),
 });
 
 export const thresholdsSpec = z.looseObject({
   mode: z.enum(["absolute", "percent"]).default("absolute"),
-  defaultColor: thresholdColor.optional(),
+  defaultColor: hexColorSpec.optional(),
   steps: z.array(thresholdStep).optional(),
   /**
    * Reference value for `percent` mode: steps compare against value/max*100.

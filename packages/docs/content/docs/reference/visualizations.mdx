@@ -111,6 +111,7 @@ plugin:
 | `stacking`    | enum    | `none`     | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% (the value axis becomes percentages, tooltips keep raw values). |
 | `orientation` | enum    | `vertical` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis (best for categorical data with long labels).                                                    |
 | `showValues`  | boolean | `false`    | Draw the value on each bar (on top/right of grouped bars, centered inside stacked segments).                                                                                                          |
+| `colors`      | map     | `{}`       | Pin series to fixed colors by series name (e.g. `{ good: "#05df72" }`). Opaque hex only. Unmapped series cycle the shared palette.                                                                    |
 
 ## Table
 
@@ -295,7 +296,7 @@ plugin:
 | `mergeConsecutive` | boolean | `true`                 | Merge consecutive samples with the same state into one segment. `false` renders one box per sample, though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
 | `showValues`       | boolean | `true`                 | Render the state text inside segments wide enough to fit it.                                                                                                                                   |
 | `showLegend`       | boolean | `true`                 | State color legend below the timeline.                                                                                                                                                         |
-| `colors`           | object  | `{}`                   | Fixed state → CSS color mapping (e.g. `{ ok: "#05df72" }`); unmapped states cycle the shared palette.                                                                                          |
+| `colors`           | object  | `{}`                   | Fixed state → opaque hex color mapping (e.g. `{ ok: "#05df72" }`); unmapped states cycle the shared palette.                                                                                   |
 | `rowHeight`        | number  | `0.9`                  | Segment thickness as a fraction of the lane height (0.2 to 1).                                                                                                                                 |
 
 ## StatusHistory
@@ -323,7 +324,7 @@ plugin:
 | `stateColumn`  | string  | first remaining column | Status column for long-format input. Ignored without `seriesColumn`.                                                         |
 | `showValues`   | boolean | `false`                | Render the status text inside cells wide enough to fit it.                                                                   |
 | `showLegend`   | boolean | `true`                 | Status color legend below the lanes.                                                                                         |
-| `colors`       | object  | `{}`                   | Fixed status → CSS color mapping (e.g. `{ pass: "#05df72" }`); unmapped statuses cycle the shared palette.                   |
+| `colors`       | object  | `{}`                   | Fixed status → opaque hex color mapping (e.g. `{ pass: "#05df72" }`); unmapped statuses cycle the shared palette.            |
 | `rowHeight`    | number  | `0.9`                  | Cell height as a fraction of the lane height (0.2 to 1).                                                                     |
 | `colWidth`     | number  | `0.9`                  | Cell width as a fraction of the sampling-interval slot (0.2 to 1); lower values add horizontal breathing room between cells. |
 

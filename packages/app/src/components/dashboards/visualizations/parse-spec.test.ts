@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { panelPluginSpecs } from "#app/data/dashboards/plugin-specs.ts";
+import { barChartSpec } from "./bar-chart/spec";
 import { parseSpecLenient } from "./parse-spec";
 import { statChartSpec } from "./stat-chart/spec";
 import { timeSeriesChartSpec } from "./time-series-chart/spec";
@@ -140,6 +141,25 @@ describe("panel plugin spec contracts", () => {
     });
     expect(spec.thresholds).toBeUndefined();
     expect(warnings).toEqual(["thresholds.defaultColor: must be an opaque hex color like #22c55e"]);
+  });
+
+  it.each(["BarChart", "StateTimeline", "StatusHistory"])(
+    "%s accepts only opaque hex colors",
+    (kind) => {
+      const schema = panelPluginSpecs[kind];
+      expect(schema?.safeParse({ colors: { ok: "#fff", error: "#FF6467" } }).success).toBe(true);
+      for (const color of ["#22c55e80", "green", "hsl(0, 90%, 65%)", "var(--chart-1)"]) {
+        expect(schema?.safeParse({ colors: { ok: color } }).success).toBe(false);
+      }
+    },
+  );
+
+  it("drops a colors map with a non-hex color at render and warns", () => {
+    const { spec, warnings } = parseSpecLenient(barChartSpec, {
+      colors: { good: "#05df72", poor: "red" },
+    });
+    expect(spec.colors).toEqual({});
+    expect(warnings).toEqual(["colors.poor: must be an opaque hex color like #22c55e"]);
   });
 
   it("every registered spec schema parses {} (lenient fallback never throws)", () => {

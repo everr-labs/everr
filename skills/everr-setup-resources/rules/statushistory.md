@@ -24,7 +24,7 @@ Rule of thumb: if your query emits a row **because something changed**, use `Sta
 | `stateColumn`  | string  | first remaining column | column name                 | Where the status is read from in long format. Ignored without `seriesColumn`.                                      |
 | `showValues`   | boolean | `false`                | `true`                      | Render the status text inside cells wide enough to fit it (cells are often too narrow — off by default).           |
 | `showLegend`   | boolean | `true`                 | `false`                     | Status color legend below the lanes.                                                                               |
-| `colors`       | object  | `{}`                   | `{ <status>: <CSS color> }` | Fixed status → color mapping. Unmapped statuses cycle the shared palette in first-seen order.                      |
+| `colors`       | object  | `{}`                   | `{ <status>: <hex color> }` | Fixed status → color mapping. Unmapped statuses cycle the shared palette in first-seen order.                      |
 | `rowHeight`    | number  | `0.9`                  | `0.2`–`1`                   | Cell height as a fraction of the lane height.                                                                      |
 | `colWidth`     | number  | `0.9`                  | `0.2`–`1`                   | Cell width as a fraction of the sampling-interval slot — lower it for horizontal breathing room.                   |
 

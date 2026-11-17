@@ -13,7 +13,7 @@ A sample here is a **state transition**, not an observation: durations stretch t
 | `mergeConsecutive` | boolean | `true`                 | `false`                    | `true` collapses consecutive samples with the same state into one segment; `false` renders one box per sample — though if that's the goal, `StatusHistory` is usually the better fit. |
 | `showValues`       | boolean | `true`                 | `false`                    | Render the state text inside segments wide enough to fit it.                                                                                                                          |
 | `showLegend`       | boolean | `true`                 | `false`                    | State color legend below the timeline.                                                                                                                                                |
-| `colors`           | object  | `{}`                   | `{ <state>: <CSS color> }` | Fixed state → color mapping. Unmapped states cycle the shared palette in first-seen order.                                                                                            |
+| `colors`           | object  | `{}`                   | `{ <state>: <hex color> }` | Fixed state → color mapping. Unmapped states cycle the shared palette in first-seen order.                                                                                            |
 | `rowHeight`        | number  | `0.9`                  | `0.2`–`1`                  | Segment thickness as a fraction of the lane height.                                                                                                                                   |
 
 ```yaml

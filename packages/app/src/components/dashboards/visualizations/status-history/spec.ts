@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { hexColorSpec } from "../hex-color-spec";
 
 /**
  * StatusHistory plugin options. Loose so unknown keys flow through verbatim
@@ -21,8 +22,8 @@ export const statusHistorySpec = z.looseObject({
   showValues: z.boolean().default(false),
   /** Status color legend. */
   showLegend: z.boolean().default(true),
-  /** Fixed status → CSS color mapping; unmapped statuses cycle the shared palette. */
-  colors: z.record(z.string(), z.string()).default({}),
+  /** Fixed status → hex color mapping; unmapped statuses cycle the shared palette. */
+  colors: z.record(z.string(), hexColorSpec).default({}),
   /** Cell height as a fraction of the lane height. */
   rowHeight: z.number().min(0.2).max(1).default(0.9),
   /** Cell width as a fraction of the sampling-interval slot. */
