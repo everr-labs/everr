@@ -12,7 +12,7 @@ cd everr/deploy
 docker compose up -d --wait
 ```
 
-You need Docker with Compose and OpenSSL. The `everr-app` and `everr-collector` images come from `ghcr.io/everr-labs` for amd64 and arm64. The bundle does not ingest GitHub CI runs.
+You need Docker with Compose. `configure.sh` also needs OpenSSL to generate the secrets in `.env`. The `everr-app` and `everr-collector` images come from `ghcr.io/everr-labs` for amd64 and arm64. The bundle does not ingest GitHub CI runs.
 
 ## Get the files
 
