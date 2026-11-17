@@ -31,7 +31,7 @@ import { createValueFormatter } from "../value-format";
 import { linearTimeScale, TOUCH_SCRUB, TimeTrackOverlay, useTimeTrack } from "../time-track";
 import type { TimeSeriesChartSpec } from "./spec";
 import { plotLines } from "./plot-lines";
-import { buildChartModel, TS_KEY } from "./time-series-data";
+import { buildChartModel, samplesAt } from "./time-series-data";
 import { PanelEmptyState } from "../panel-empty-state";
 
 const PLAIN_MARKER_RADIUS = 4;
@@ -77,7 +77,7 @@ export function TimeSeriesChartVisualization({
 
   // Full resolution: hover, the tooltip and the legend read this.
   const model = useMemo(() => buildChartModel(data ?? [], domain), [data, domain]);
-  const { chartData, series: modelSeries } = model;
+  const { times, series: modelSeries } = model;
   const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
     modelSeries,
     showLegend,
@@ -93,7 +93,7 @@ export function TimeSeriesChartVisualization({
       }),
     [formatter, lines, yAxisSpec],
   );
-  const hasChart = !!data && chartData.length > 0 && modelSeries.length > 0;
+  const hasChart = !!data && times.length > 0 && modelSeries.length > 0;
 
   const mounted = useEChart(chartElementRef, hasChart);
   const chart = mounted?.chart ?? null;
@@ -167,7 +167,6 @@ export function TimeSeriesChartVisualization({
     yAxis,
   ]);
 
-  const sampleTimes = useMemo(() => chartData.map((row) => row[TS_KEY]), [chartData]);
   // Hover snaps to the nearest sample, and so does the dashboard's cursor.
   const scale = useMemo(() => linearTimeScale(domain), [domain]);
   const track = useTimeTrack({
@@ -178,11 +177,11 @@ export function TimeSeriesChartVisualization({
     onTimeRangeChange,
     ignore: isOnLegend,
     itemAt: (at) => {
-      const index = nearestSampleIndex(sampleTimes, at.time);
+      const index = nearestSampleIndex(times, at.time);
       if (index === null) return null;
       return {
         index,
-        timestamp: sampleTimes[index] ?? at.time,
+        timestamp: times[index] ?? at.time,
         /** The pointer's height as a value on the y axis; null if unmeasurable. */
         cursorValue: valueAtCursorY(at.clientY, at.plot, yAxis.domain),
         /** How near `cursorValue` a series counts as pointed at, in value units. */
@@ -201,9 +200,9 @@ export function TimeSeriesChartVisualization({
     [toggleSeries, clearHover],
   );
 
-  // No series means rows came back but none had a numeric column
-  // to plot — buildChartModel still emits timestamp-only entries, so guard on it
-  // explicitly instead of letting an axis-only, line-less chart render.
+  // No series means rows came back but none had a numeric column to plot:
+  // guard on it explicitly instead of letting an axis-only, line-less chart
+  // render.
   if (!hasChart) {
     return (
       <PanelEmptyState
@@ -214,9 +213,12 @@ export function TimeSeriesChartVisualization({
     );
   }
 
-  const hoveredRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipRow = hoveredRow?.[TS_KEY] === tooltipState?.timestamp ? hoveredRow : undefined;
-  const tooltipTs = tooltipRow?.[TS_KEY];
+  // The hovered sample, unless the rows changed under the pointer.
+  const tooltipTs =
+    tooltipState && times[tooltipState.index] === tooltipState.timestamp
+      ? tooltipState.timestamp
+      : undefined;
+  const tooltipRow = tooltipTs === undefined ? undefined : samplesAt(modelSeries, tooltipTs);
 
   // Where each series is drawn at the hovered instant. Stacked series sit at
   // their cumulative top (the running sum in render order), which is where the
