@@ -12,6 +12,8 @@
     "setup-new-repo",
     "debug-ci",
     "resource-monitoring",
-    "cost-analysis"
+    "cost-analysis",
+    "---Self-hosting---",
+    "self-hosting"
   ]
 }

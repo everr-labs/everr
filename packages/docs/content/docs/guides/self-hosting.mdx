@@ -1,0 +1,246 @@
+---
+title: Self-hosting
+description: Run the Everr app, collector, PostgreSQL, and ClickHouse on your own machine with Docker Compose.
+---
+
+Run Everr on one machine with Docker Compose, then send it telemetry and connect the CLI.
+
+```sh
+git clone --depth 1 https://github.com/everr-labs/everr.git
+cd everr/deploy
+./configure.sh
+docker compose up -d --wait
+```
+
+You need Docker with Compose and OpenSSL. The `everr-app` and `everr-collector` images come from `ghcr.io/everr-labs` for amd64 and arm64. The bundle does not ingest GitHub CI runs.
+
+## Get the files
+
+```sh
+git clone --depth 1 https://github.com/everr-labs/everr.git
+cd everr/deploy
+```
+
+Run every command on this page from the `deploy` directory.
+
+## Configure
+
+```sh
+./configure.sh
+```
+
+The script creates `.env` with a random value for each secret. It refuses to overwrite an existing `.env`. Edit `.env` to change the configuration below, for example to send email.
+
+## Start
+
+```sh
+docker compose up -d --wait
+```
+
+The app applies its PostgreSQL and ClickHouse migrations when it starts. The collector starts after the app is healthy.
+
+## Create the workspace
+
+Open [http://localhost:3000](http://localhost:3000) and create the workspace. The first person to finish setup becomes the owner. Setup closes once the workspace exists.
+
+## Send telemetry
+
+In Everr, open the user menu, click **API keys**, then **New key**, and turn on **Send telemetry**. Configure your application's OpenTelemetry exporter with the key:
+
+```sh
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_INGEST_KEY"
+OTEL_SERVICE_NAME=my-app
+```
+
+- For an application on another machine, use the collector URL it can reach (`EVERR_PUBLIC_INGEST_URL`).
+- Browser applications need a public key with their origin allowed. See [Browser telemetry](/docs/guides/browser-telemetry).
+- The collector rejects requests without a valid key. The key sets the workspace and the retention.
+
+## Connect the CLI
+
+```sh
+everr cloud login --url http://localhost:3000
+everr cloud status
+```
+
+Approve the login in your browser. `everr cloud status` prints the ingestion endpoint, which is `EVERR_PUBLIC_INGEST_URL`. See [Connect to an installation](/docs/learn/install#connect-to-an-installation).
+
+## Configuration
+
+Set these in `.env`, then run `docker compose up -d` to apply them.
+
+| Variable                          | Default                         | Meaning                                                                                                                                             |
+| --------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EVERR_VERSION`                   | The release `compose.yaml` pins | Version of both the app and collector images. See Upgrade below.                                                                                    |
+| `BETTER_AUTH_URL`                 | `http://localhost:3000`         | Public app URL, used in sign-in, invitation, and password reset links.                                                                              |
+| `EVERR_PUBLIC_INGEST_URL`         | `http://localhost:4318`         | Public collector URL, shown in telemetry onboarding and by `everr cloud status`.                                                                    |
+| `BIND_ADDRESS`                    | `127.0.0.1`                     | Host address the app and collector ports bind to.                                                                                                   |
+| `APP_PORT`                        | `3000`                          | Host port for the app.                                                                                                                              |
+| `OTLP_HTTP_PORT`                  | `4318`                          | Host port for OTLP/HTTP.                                                                                                                            |
+| `OTLP_GRPC_PORT`                  | `4317`                          | Host port for OTLP/gRPC.                                                                                                                            |
+| `TRUST_PROXY`                     | `false`                         | Which peers the app trusts for `X-Forwarded-*` headers. See Remote access below.                                                                    |
+| `EMAIL_DSN`                       | Empty                           | SMTP server as an `smtp://` or `smtps://` URL. URL-encode special characters in the credentials.                                                    |
+| `EMAIL_FROM`                      | Empty                           | Sender address, as `you@example.com` or `Everr <you@example.com>`. Required when `EMAIL_DSN` is set.                                                |
+| `EMAIL_REPLY_TO`                  | Empty                           | Reply-to address.                                                                                                                                   |
+| `MCP_OAUTH_ALLOWED_REDIRECT_URIS` | Unset: the Everr Cloud list     | Callback URIs hosted MCP clients may use. Empty allows only apps on your computer. See [MCP Server](/docs/reference/mcp#which-clients-can-connect). |
+| `EVERR_RETENTION_DAYS`            | `30`                            | Telemetry retention: `1`, `7`, `14`, `30`, `90`, `180`, or `365` days.                                                                              |
+| `CLICKHOUSE_SQL_API_USERNAME`     | `sql_api`                       | ClickHouse user for the SQL API. Keep it unchanged when you reuse an existing ClickHouse volume.                                                    |
+
+- `configure.sh` also writes the database passwords, `BETTER_AUTH_SECRET`, `INGEST_VERIFY_SHARED_SECRET`, and `CLICKHOUSE_SQL_API_PASSWORD`. A changed database password in `.env` does not change the password in an initialized database.
+- Single-quote values that contain `$`.
+- Changing a port does not change `BETTER_AUTH_URL` or `EVERR_PUBLIC_INGEST_URL`. Update them too.
+- PostgreSQL and ClickHouse have no published ports.
+
+## Email
+
+Set `EMAIL_DSN` and `EMAIL_FROM` to send email.
+
+|                       | With SMTP                                                                                             | Without SMTP                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Invitations           | Sent by email.                                                                                        | Share the invitation link yourself.                                              |
+| Accepting invitations | The recipient verifies the email first and can request a verification email from the invitation page. | No verification step. Accepting does not mark the email as verified.             |
+| Password recovery     | Users reset their password by email.                                                                  | Users are told to contact their administrator. Use the account recovery command. |
+
+The app shows an invitation link once, after you create the invitation. Copy it before you close the dialog. Inviting the same email again creates a new link and cancels the previous invitation.
+
+## Remote access
+
+The app and collector ports bind to `127.0.0.1`. To reach them from other machines, put a TLS reverse proxy on the host in front of the app (port 3000) and OTLP/HTTP (port 4318). With [Caddy](https://caddyserver.com):
+
+```text title="Caddyfile"
+everr.example.com {
+	reverse_proxy 127.0.0.1:3000
+}
+
+ingest.example.com {
+	reverse_proxy 127.0.0.1:4318
+}
+```
+
+Leave `BIND_ADDRESS` at `127.0.0.1` and set:
+
+```sh title=".env"
+BETTER_AUTH_URL=https://everr.example.com
+EVERR_PUBLIC_INGEST_URL=https://ingest.example.com
+TRUST_PROXY=true
+```
+
+```sh
+docker compose up -d
+```
+
+- The proxy must keep the `/v1/traces`, `/v1/logs`, and `/v1/metrics` paths and forward the `Authorization` and `Origin` headers.
+- OTLP/gRPC uses port 4317 and needs a gRPC-capable proxy.
+- A proxy in a container must join the Compose network or reach the host ports.
+
+`TRUST_PROXY` lets the app read the original scheme, host, and client address from `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-For`. Any client can send those headers, so trust only your proxy:
+
+| Value                         | Trusts                    | Safe when                                                                                                                                                                                      |
+| ----------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false` (default)             | No peer                   | Nothing sits in front of the app.                                                                                                                                                              |
+| `true`                        | Every peer                | The proxy is the only way to reach port 3000 and overwrites the headers. The default `BIND_ADDRESS` keeps other machines out.                                                                  |
+| IP list, such as `172.18.0.1` | Only the listed addresses | You know the proxy's address as the app sees it. A proxy on the host usually connects from the Docker bridge gateway. A proxy in a container connects from its address on the Compose network. |
+| `loopback`                    | Loopback addresses        | The proxy connects from a loopback address inside the app container's network namespace.                                                                                                       |
+
+Any other value stops the app at startup.
+
+## Operations
+
+### Manage the stack
+
+```sh
+docker compose ps
+docker compose logs --tail=100 app collector
+docker compose down
+```
+
+`docker compose down` keeps your data. `docker compose down --volumes` deletes it.
+
+### Back up
+
+Copy the PostgreSQL and ClickHouse volumes and `.env` out of the clone:
+
+```sh
+mkdir -p ~/everr-backup
+docker compose stop
+docker run --rm -v everr_postgres-data:/data -v ~/everr-backup:/backup alpine tar czf /backup/postgres-data.tgz -C /data .
+docker run --rm -v everr_clickhouse-data:/data -v ~/everr-backup:/backup alpine tar czf /backup/clickhouse-data.tgz -C /data .
+cp .env ~/everr-backup/.env
+docker compose up -d --wait
+```
+
+`.env` holds the database passwords and the authentication secret. A restore does not work without it.
+
+### Restore
+
+On a new machine, or after `docker compose down --volumes`:
+
+```sh
+cp ~/everr-backup/.env .env
+docker compose create
+docker run --rm -v everr_postgres-data:/data -v ~/everr-backup:/backup alpine tar xzf /backup/postgres-data.tgz -C /data
+docker run --rm -v everr_clickhouse-data:/data -v ~/everr-backup:/backup alpine tar xzf /backup/clickhouse-data.tgz -C /data
+docker compose up -d --wait
+```
+
+Accounts, sessions, API keys, and telemetry come back as they were at the backup.
+
+### Upgrade
+
+Back up first, then update the clone and the images:
+
+```sh
+git pull
+docker compose pull
+docker compose up -d --wait
+```
+
+`compose.yaml` pins the release, so `git pull` moves the installation to the latest one. It does not touch `.env`. To stay on a release, set `EVERR_VERSION` in `.env` instead:
+
+```sh title=".env"
+EVERR_VERSION=0.11.0
+```
+
+- `EVERR_VERSION` sets both the app and collector images, so they stay on the same version. It matches the `everr` CLI version.
+- The new app applies the database migrations when it starts.
+- Never pin a version older than the one the installation already ran. The app does not roll back ClickHouse migrations.
+- Stable releases are also tagged by minor version (`0.11`) and as `latest`.
+
+An installation that started before the ClickHouse write user was renamed to `app_admin` gets `app_admin` on its first start, with the same password. The app no longer uses the old `web_app_admin` user. To drop it:
+
+```sh
+docker compose exec clickhouse sh -c 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "DROP USER IF EXISTS web_app_admin"'
+```
+
+### Build from source
+
+```sh
+docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait
+```
+
+This builds the app and collector images from your clone instead of pulling them. The app build needs about 2.5 GB of free memory in Docker. With less, it fails with `cannot allocate memory`.
+
+## Account recovery
+
+```sh
+docker compose up -d postgres
+docker compose run --rm --no-deps app .output/server/recovery.mjs --email admin@example.com
+```
+
+The command prints a one-time password reset link.
+
+- The link expires after 15 minutes. Share it privately with the account holder.
+- The app must be running when they open the link, and `BETTER_AUTH_URL` must be its reachable URL.
+- The command signs the account out of every session and cancels earlier reset links. Workspace membership, role, and email verification stay the same.
+- Completing the reset also ends sessions created since the link was issued.
+- It works only for existing accounts with a local password. Recover an account that signs in only through an external identity provider through that provider.
+- It needs neither SMTP nor ClickHouse.
+
+## Troubleshooting
+
+| Symptom                                                                              | Fix                                                                                                                                                                            |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The collector restarts with `read /etc/everr-collector/config.yaml: is a directory`. | Docker cannot see the clone, so it mounts an empty directory in place of `collector.yaml`. Clone into a directory Docker shares, such as your home directory, and start again. |
+| Telemetry gets `401` with `missing authorization header`.                            | Set `OTEL_EXPORTER_OTLP_HEADERS` to `Authorization=Bearer YOUR_INGEST_KEY`. A proxy in front of the collector must forward the `Authorization` header.                         |
