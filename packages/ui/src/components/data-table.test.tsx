@@ -5,8 +5,10 @@ import { DataTable } from "./data-table";
 type Row = { id: string };
 const columns = [{ header: "Id", cell: (row: Row) => row.id }];
 
-function table(data: Row[]) {
-  return <DataTable data={data} columns={columns} rowKey={(row) => row.id} animateRows />;
+function table(data: Row[], animateRows = true) {
+  return (
+    <DataTable data={data} columns={columns} rowKey={(row) => row.id} animateRows={animateRows} />
+  );
 }
 
 // jsdom has no AnimationEvent, so fireEvent would drop `animationName`, and
@@ -33,4 +35,13 @@ it("removes a deleted row once its exit animation ends", () => {
   // The cells' fade-out, the `row-exit` keyframe in global.css.
   animationEnd(leaving, "row-exit");
   expect(screen.queryByText("b")).toBeNull();
+});
+
+it("doesn't bring back rows removed while animations were off", () => {
+  const { rerender } = render(table([{ id: "a" }]));
+  rerender(table([{ id: "b" }], false));
+  rerender(table([{ id: "b" }]));
+
+  expect(screen.queryByText("a")).toBeNull();
+  expect(screen.getByText("b").closest("tr")).not.toHaveAttribute("data-row-phase");
 });

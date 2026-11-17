@@ -49,9 +49,11 @@ export function useRowPresence<T>(
 ) {
   const [seenData, setSeenData] = useState(data);
   const [entries, setEntries] = useState(() => idleRows(data, rowKey));
-  if (enabled && data !== seenData) {
+  // Track the data while disabled too, so turning animations back on doesn't
+  // replay rows that changed in the meantime.
+  if (data !== seenData) {
     setSeenData(data);
-    setEntries(reconcileRows(data, entries, rowKey));
+    setEntries(enabled ? reconcileRows(data, entries, rowKey) : idleRows(data, rowKey));
   }
   const rows = enabled ? entries : idleRows(data, rowKey);
 
