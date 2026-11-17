@@ -1,5 +1,11 @@
 # @everr/tanstack-start-otel
 
+## 0.11.0
+
+### Patch Changes
+
+- @everr/otel-errors@0.11.0
+
 ## 0.1.1
 
 ### Patch Changes
