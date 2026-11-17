@@ -73,9 +73,15 @@ signing settings can be supplied in `packages/cli/.env`.
 
 ### Verify a change
 
-The [verification skill](.agents/skills/verify-everr/SKILL.md) launches an isolated
-`pnpm dev` graph with its own state, database project, Portless service names, and
-Mailpit. It uses the same startup and collector configuration as development.
+Each product surface has a verification skill that launches an isolated instance,
+drives it the way a user does, and keeps the evidence under `.verify-everr/artifacts/`:
+
+- [verify-cli](.agents/skills/verify-cli/SKILL.md): the `everr` CLI and its local stack.
+- [verify-collector](.agents/skills/verify-collector/SKILL.md): the collector distributions against a throwaway ClickHouse, with no application.
+- [verify-web-app](.agents/skills/verify-web-app/SKILL.md): App and Cloud. It launches an isolated
+  `pnpm dev` graph with its own state, database project, Portless service names, and
+  Mailpit, and uses the same startup and collector configuration as development.
+- [verify-docs](.agents/skills/verify-docs/SKILL.md): the docs and landing site.
 
 ### GitHub installation ownership model
 
