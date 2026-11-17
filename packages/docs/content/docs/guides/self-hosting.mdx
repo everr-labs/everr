@@ -97,11 +97,11 @@ Set these in `.env`, then run `docker compose up -d` to apply them.
 
 Set `EMAIL_DSN` and `EMAIL_FROM` to send email.
 
-|                       | With SMTP                                                                                             | Without SMTP                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Invitations           | Sent by email.                                                                                        | Share the invitation link yourself.                                              |
-| Accepting invitations | The recipient verifies the email first and can request a verification email from the invitation page. | No verification step. Accepting does not mark the email as verified.             |
-| Password recovery     | Users reset their password by email.                                                                  | Users are told to contact their administrator. Use the account recovery command. |
+|                       | With SMTP                                                                                             | Without SMTP                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Invitations           | Sent by email.                                                                                        | Share the invitation link yourself.                                  |
+| Accepting invitations | The recipient verifies the email first and can request a verification email from the invitation page. | No verification step. Accepting does not mark the email as verified. |
+| Password recovery     | Users reset their password by email.                                                                  | Users are told to contact their administrator.                       |
 
 The app shows an invitation link once, after you create the invitation. Copy it before you close the dialog. Inviting the same email again creates a new link and cancels the previous invitation.
 
@@ -213,30 +213,6 @@ An installation that started before the ClickHouse write user was renamed to `ap
 ```sh
 docker compose exec clickhouse sh -c 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "DROP USER IF EXISTS web_app_admin"'
 ```
-
-### Build from source
-
-```sh
-docker compose -f compose.yaml -f compose.build.yaml up -d --build --wait
-```
-
-This builds the app and collector images from your clone instead of pulling them. The app build needs about 2.5 GB of free memory in Docker. With less, it fails with `cannot allocate memory`.
-
-## Account recovery
-
-```sh
-docker compose up -d postgres
-docker compose run --rm --no-deps app .output/server/recovery.mjs --email admin@example.com
-```
-
-The command prints a one-time password reset link.
-
-- The link expires after 15 minutes. Share it privately with the account holder.
-- The app must be running when they open the link, and `BETTER_AUTH_URL` must be its reachable URL.
-- The command signs the account out of every session and cancels earlier reset links. Workspace membership, role, and email verification stay the same.
-- Completing the reset also ends sessions created since the link was issued.
-- It works only for existing accounts with a local password. Recover an account that signs in only through an external identity provider through that provider.
-- It needs neither SMTP nor ClickHouse.
 
 ## Troubleshooting
 
