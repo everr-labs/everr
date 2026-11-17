@@ -1,7 +1,7 @@
 # Run Everr with Docker Compose
 
 The [self-hosting guide](https://everr.dev/docs/guides/self-hosting) covers the same
-steps, plus backup, restore, and a reverse proxy example.
+steps, plus a reverse proxy example.
 
 This stack runs the Everr app, collector, PostgreSQL, and ClickHouse on one
 machine. It pulls the `everr-app` and `everr-collector` images from
