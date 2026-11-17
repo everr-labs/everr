@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Opt-in usage integration test against local ClickHouse and the built collector.
 
-Requires Docker Compose's initialized ClickHouse and `make build` in collector.
+Requires `make build` in collector and an initialized Cloud ClickHouse: by default
+the one in this checkout's running `pnpm dev`, or pass --container and --clickhouse.
 Creates uniquely named synthetic tenants and leaves their test telemetry in the
 local database. Uses a temporary queue directory and never stops the database.
 Optionally replays the stored usage rows into local Everr to exercise the exact
@@ -11,6 +12,7 @@ same customer-visible query there. No production credentials are needed.
 import argparse
 import copy
 from datetime import datetime, timezone
+import hashlib
 import http.server
 import json
 import os
@@ -36,6 +38,20 @@ def post(url, body, headers=None):
     with urllib.request.urlopen(request, timeout=20) as response:
         return response.status
 
+
+
+def dev_clickhouse():
+    """Container and HTTP URL of the Cloud ClickHouse in this checkout's `pnpm dev`."""
+    repo = ROOT.parent
+    # scripts/dev/start.sh names the Compose project the same way.
+    project = os.environ.get('COMPOSE_PROJECT_NAME') or 'dev-' + hashlib.sha256(str(repo).encode()).hexdigest()[:12]
+    compose = ['docker', 'compose', '-p', project, '-f', str(repo / 'scripts/dev/compose.yaml')]
+    env = {**os.environ, 'DEV_ROOT': str(repo)}
+    container = subprocess.check_output(compose + ['ps', '-q', 'clickhouse-cloud'], text=True, env=env).strip()
+    if not container:
+        raise SystemExit(f'No running clickhouse-cloud in Compose project {project}. Start `pnpm dev`, or pass --container and --clickhouse.')
+    address = subprocess.check_output(compose + ['port', 'clickhouse-cloud', '8123'], text=True, env=env).strip()
+    return container, 'http://' + address
 
 
 def verify_month_query(db):
@@ -108,7 +124,7 @@ def verify_clock_queries(db):
 
     # Execute literal SQL blocks from the dashboard itself, not a rewritten
     # approximation. The fourth panel aliases the first query's YAML anchor.
-    dashboard = (ROOT.parent / 'packages/app/src/data/dashboards/built-in/catalog/everr/telemetry-usage.yaml').read_text()
+    dashboard = (ROOT.parent / 'packages/cloud/src/data/dashboards/telemetry-usage.yaml').read_text()
     queries = [textwrap.dedent(m.group(2)).strip() for m in re.finditer(
         r'(?m)^( +)query:.*\|-\n((?:(?:\1  ).*\n)+)', dashboard)]
     assert len(queries) == 3, 'expected three executable dashboard query shapes'
@@ -132,11 +148,16 @@ def verify_clock_queries(db):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--container', default='ttl-improvements-clickhouse-1')
-    parser.add_argument('--clickhouse', default='http://127.0.0.1:8123')
+    parser.add_argument('--container', help='ClickHouse container (default: this checkout\'s pnpm dev)')
+    parser.add_argument('--clickhouse', help='ClickHouse HTTP URL (default: this checkout\'s pnpm dev)')
     parser.add_argument('--everr-cli', help='Also verify stored rows using local Everr, e.g. everr-dev')
     parser.add_argument('--queries-only', action='store_true', help='Run read-only query fixtures, using --everr-cli when supplied')
     args = parser.parse_args()
+    reads_through_everr = args.queries_only and args.everr_cli
+    if not reads_through_everr and not (args.container and args.clickhouse):
+        container, clickhouse = dev_clickhouse()
+        args.container = args.container or container
+        args.clickhouse = args.clickhouse or clickhouse
     month = datetime.now(timezone.utc).strftime('%Y-%m')
     run = 'usage-smoke-' + uuid.uuid4().hex
     tenants = {key: run + '-' + key for key in ['a', 'b', 'c']}
@@ -211,7 +232,7 @@ def main():
         return result
 
     def db(sql):
-        if args.queries_only and args.everr_cli:
+        if reads_through_everr:
             output = subprocess.check_output([args.everr_cli, 'local', 'query', '--', sql], text=True)
             return [json.loads(line) for line in output.splitlines()]
         output = subprocess.check_output(['docker', 'exec', args.container, 'clickhouse-client',
@@ -255,7 +276,7 @@ def main():
             'exporters': {'clickhouse': {
                 'endpoint': f'http://127.0.0.1:{proxy.server_port}',
                 'username': os.environ.get('CLICKHOUSE_USERNAME', 'collector_rw'),
-                'password': os.environ.get('CLICKHOUSE_PASSWORD', 'collector-dev'),
+                'password': os.environ.get('CLICKHOUSE_PASSWORD', 'dev'),
                 'database': 'otel', 'create_schema': False, 'json': True,
                 # Disable server deduplication so the test proves the query handles actual duplicate rows.
                 'connection_params': {'wait_for_async_insert': '1', 'materialized_views_ignore_errors': '0', 'insert_deduplicate': '0'},
