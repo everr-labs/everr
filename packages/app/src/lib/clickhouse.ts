@@ -47,6 +47,43 @@ export async function query<T>(
   return result.json<T>();
 }
 
+/**
+ * An App query's rows as JSON lines, unparsed, for a caller that passes them
+ * on. Resolves once ClickHouse answers, so a failing query rejects before the
+ * caller starts a response. Stopping early cancels the query.
+ */
+export async function queryLines(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+  clickhouse_settings?: AppQuerySettings,
+): Promise<AsyncIterable<string>> {
+  if (typeof organizationId !== "string" || !organizationId) {
+    throw new Error("Missing workspace context");
+  }
+
+  const abort = new AbortController();
+  const result = await instrumentClickhouseOperation({ client: "app", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format: "JSONEachRow",
+      clickhouse_settings: appQuerySettings(organizationId, clickhouse_settings),
+      abort_signal: abort.signal,
+    }),
+  );
+
+  return (async function* () {
+    try {
+      for await (const rows of result.stream()) {
+        for (const row of rows) yield row.text;
+      }
+    } finally {
+      abort.abort();
+    }
+  })();
+}
+
 export function runSqlApiQuery<Format extends DataFormat>(
   query: string,
   organizationId: string,

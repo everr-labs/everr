@@ -48,12 +48,12 @@ import { Route as WelcomeGuestAuthSignInRouteImport } from './../../app/src/rout
 import { Route as WelcomeGuestAuthSignUpRouteImport } from './../../app/src/routes/_welcome/_guest/auth/sign-up'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRouteImport } from './routes/_welcome/_signedIn/_organization/organization-pending'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRouteImport } from './routes/_welcome/_signedIn/_organization/organization-setup'
+import { Route as ApiCliRecordingsSegmentsRouteImport } from './../../app/src/routes/api/cli/recordings/segments'
 import { Route as ApiGithubInstallCallbackRouteImport } from './../../app/src/routes/api/github/install/callback'
 import { Route as ApiGithubInstallStartRouteImport } from './../../app/src/routes/api/github/install/start'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
 import { Route as DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/_admin'
 import { Route as DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRouteImport } from './routes/_welcome/_signedIn/organizations.checkout.success'
-import { Route as ApiCliRecordingsSessionsSessionIdRouteImport } from './../../app/src/routes/api/cli/recordings/sessions/$sessionId'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
@@ -61,7 +61,6 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRout
 import { Route as DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/_admin/billing'
 import { Route as DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/billing_.suspended'
 import { Route as DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRouteImport } from './routes/_authenticated/_organization/_dashboard/_padded/checkout.success'
-import { Route as ApiCliRecordingsSessionsSessionIdPageRouteImport } from './../../app/src/routes/api/cli/recordings/sessions/$sessionId/page'
 import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './../../app/src/routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs'
@@ -318,6 +317,12 @@ const DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRout
         DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationRoute,
     } as any,
   )
+const ApiCliRecordingsSegmentsRoute =
+  ApiCliRecordingsSegmentsRouteImport.update({
+    id: '/recordings/segments',
+    path: '/recordings/segments',
+    getParentRoute: () => ApiCliRoute,
+  } as any)
 const ApiGithubInstallCallbackRoute =
   ApiGithubInstallCallbackRouteImport.update({
     id: '/api/github/install/callback',
@@ -350,12 +355,6 @@ const DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsucces
       getParentRoute: () => routesWelcome_signedInRoute,
     } as any,
   )
-const ApiCliRecordingsSessionsSessionIdRoute =
-  ApiCliRecordingsSessionsSessionIdRouteImport.update({
-    id: '/recordings/sessions/$sessionId',
-    path: '/recordings/sessions/$sessionId',
-    getParentRoute: () => ApiCliRoute,
-  } as any)
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute =
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteImport.update(
     {
@@ -414,12 +413,6 @@ const DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckout
         DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedRoute,
     } as any,
   )
-const ApiCliRecordingsSessionsSessionIdPageRoute =
-  ApiCliRecordingsSessionsSessionIdPageRouteImport.update({
-    id: '/page',
-    path: '/page',
-    getParentRoute: () => ApiCliRecordingsSessionsSessionIdRoute,
-  } as any)
 const ApiCliResourcesKindProjectSlugRoute =
   ApiCliResourcesKindProjectSlugRouteImport.update({
     id: '/$kind/$project/$slug',
@@ -804,15 +797,14 @@ export interface FileRoutesByFullPath {
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
+  '/api/cli/recordings/segments': typeof ApiCliRecordingsSegmentsRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsRouteWithChildren
   '/billing': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRoute
   '/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
   '/checkout/success': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
@@ -882,14 +874,13 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
+  '/api/cli/recordings/segments': typeof ApiCliRecordingsSegmentsRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/billing': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRoute
   '/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
   '/checkout/success': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
@@ -964,12 +955,12 @@ export interface FileRoutesById {
   '/_welcome/_guest/auth/sign-up': typeof WelcomeGuestAuthSignUpRoute
   '/_welcome/_signedIn/_organization/organization-pending': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationPendingRoute
   '/_welcome/_signedIn/_organization/organization-setup': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRoute
+  '/api/cli/recordings/segments': typeof ApiCliRecordingsSegmentsRoute
   '/api/github/install/callback': typeof ApiGithubInstallCallbackRoute
   '/api/github/install/start': typeof ApiGithubInstallStartRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRouteWithChildren
   '/_authenticated/_organization/_dashboard/_padded/_admin': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminRouteWithChildren
   '/_welcome/_signedIn/organizations/checkout/success': typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId': typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRouteWithChildren
@@ -977,7 +968,6 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_padded/_admin/billing': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedAdminBillingRoute
   '/_authenticated/_organization/_dashboard/_padded/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
   '/_authenticated/_organization/_dashboard/_padded/checkout/success': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRoute
-  '/api/cli/recordings/sessions/$sessionId/page': typeof ApiCliRecordingsSessionsSessionIdPageRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
@@ -1051,15 +1041,14 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/organization-pending'
     | '/organization-setup'
+    | '/api/cli/recordings/segments'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/organizations/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId'
     | '/runs'
     | '/billing'
     | '/billing/suspended'
     | '/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/dashboards'
     | '/runbooks'
@@ -1129,14 +1118,13 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/organization-pending'
     | '/organization-setup'
+    | '/api/cli/recordings/segments'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/organizations/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId'
     | '/billing'
     | '/billing/suspended'
     | '/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/errors'
     | '/logs'
@@ -1210,12 +1198,12 @@ export interface FileRouteTypes {
     | '/_welcome/_guest/auth/sign-up'
     | '/_welcome/_signedIn/_organization/organization-pending'
     | '/_welcome/_signedIn/_organization/organization-setup'
+    | '/api/cli/recordings/segments'
     | '/api/github/install/callback'
     | '/api/github/install/start'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned'
     | '/_authenticated/_organization/_dashboard/_padded/_admin'
     | '/_welcome/_signedIn/organizations/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable'
@@ -1223,7 +1211,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_organization/_dashboard/_padded/_admin/billing'
     | '/_authenticated/_organization/_dashboard/_padded/billing/suspended'
     | '/_authenticated/_organization/_dashboard/_padded/checkout/success'
-    | '/api/cli/recordings/sessions/$sessionId/page'
     | '/api/cli/resources/$kind/$project/$slug'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks'
@@ -1560,6 +1547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationOrganizationSetupRouteImport
       parentRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationRoute
     }
+    '/api/cli/recordings/segments': {
+      id: '/api/cli/recordings/segments'
+      path: '/recordings/segments'
+      fullPath: '/api/cli/recordings/segments'
+      preLoaderRoute: typeof ApiCliRecordingsSegmentsRouteImport
+      parentRoute: typeof ApiCliRoute
+    }
     '/api/github/install/callback': {
       id: '/api/github/install/callback'
       path: '/api/github/install/callback'
@@ -1594,13 +1588,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/organizations/checkout/success'
       preLoaderRoute: typeof DotDotDotDotCloudSrcRoutesWelcomeSignedInOrganizationsDotcheckoutDotsuccessRouteImport
       parentRoute: typeof routesWelcome_signedInRoute
-    }
-    '/api/cli/recordings/sessions/$sessionId': {
-      id: '/api/cli/recordings/sessions/$sessionId'
-      path: '/recordings/sessions/$sessionId'
-      fullPath: '/api/cli/recordings/sessions/$sessionId'
-      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdRouteImport
-      parentRoute: typeof ApiCliRoute
     }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore'
@@ -1650,13 +1637,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/checkout/success'
       preLoaderRoute: typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRouteImport
       parentRoute: typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedRoute
-    }
-    '/api/cli/recordings/sessions/$sessionId/page': {
-      id: '/api/cli/recordings/sessions/$sessionId/page'
-      path: '/page'
-      fullPath: '/api/cli/recordings/sessions/$sessionId/page'
-      preLoaderRoute: typeof ApiCliRecordingsSessionsSessionIdPageRouteImport
-      parentRoute: typeof ApiCliRecordingsSessionsSessionIdRoute
     }
     '/api/cli/resources/$kind/$project/$slug': {
       id: '/api/cli/resources/$kind/$project/$slug'
@@ -2475,34 +2455,18 @@ const ApiCliResourcesRouteWithChildren = ApiCliResourcesRoute._addFileChildren(
   ApiCliResourcesRouteChildren,
 )
 
-interface ApiCliRecordingsSessionsSessionIdRouteChildren {
-  ApiCliRecordingsSessionsSessionIdPageRoute: typeof ApiCliRecordingsSessionsSessionIdPageRoute
-}
-
-const ApiCliRecordingsSessionsSessionIdRouteChildren: ApiCliRecordingsSessionsSessionIdRouteChildren =
-  {
-    ApiCliRecordingsSessionsSessionIdPageRoute:
-      ApiCliRecordingsSessionsSessionIdPageRoute,
-  }
-
-const ApiCliRecordingsSessionsSessionIdRouteWithChildren =
-  ApiCliRecordingsSessionsSessionIdRoute._addFileChildren(
-    ApiCliRecordingsSessionsSessionIdRouteChildren,
-  )
-
 interface ApiCliRouteChildren {
   ApiCliMeRoute: typeof ApiCliMeRoute
   ApiCliResourcesRoute: typeof ApiCliResourcesRouteWithChildren
   ApiCliSqlRoute: typeof ApiCliSqlRoute
-  ApiCliRecordingsSessionsSessionIdRoute: typeof ApiCliRecordingsSessionsSessionIdRouteWithChildren
+  ApiCliRecordingsSegmentsRoute: typeof ApiCliRecordingsSegmentsRoute
 }
 
 const ApiCliRouteChildren: ApiCliRouteChildren = {
   ApiCliMeRoute: ApiCliMeRoute,
   ApiCliResourcesRoute: ApiCliResourcesRouteWithChildren,
   ApiCliSqlRoute: ApiCliSqlRoute,
-  ApiCliRecordingsSessionsSessionIdRoute:
-    ApiCliRecordingsSessionsSessionIdRouteWithChildren,
+  ApiCliRecordingsSegmentsRoute: ApiCliRecordingsSegmentsRoute,
 }
 
 const ApiCliRouteWithChildren =
