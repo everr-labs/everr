@@ -9,7 +9,6 @@
       "@everr/otel-web",
       "@everr/tanstack-start-otel",
       "@everr/action",
-      "@everr/local-app",
       "@everr/app",
       "@everr/app-cloud"
     ]
@@ -18,7 +17,7 @@
   "access": "restricted",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@everr/docs"],
+  "ignore": ["@everr/docs", "@everr/local-app"],
   "privatePackages": {
     "version": true,
     "tag": true
