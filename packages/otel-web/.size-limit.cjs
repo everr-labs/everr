@@ -77,7 +77,8 @@ module.exports = [
     import: "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "10 KB",
+    // Raised for the recorder seams in the pipeline and the input page on INP.
+    limit: "10.5 KB",
   },
   {
     // The stub only. The main entry and the recorder chunk load on their own.
