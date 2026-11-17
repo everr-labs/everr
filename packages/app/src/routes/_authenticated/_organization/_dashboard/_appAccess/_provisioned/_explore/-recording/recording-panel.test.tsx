@@ -85,7 +85,8 @@ function eventsResponse(events: unknown[], status = 200): Response {
   });
 }
 
-function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "inline") {
+/** A trace's player sits in the trace view's split; an error's sits inline in its column. */
+function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "split") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = sessionRecordingsHost;
   if (!host) throw new Error("the Cloud product stores recordings");
@@ -108,6 +109,13 @@ function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "inline
 }
 
 const section = () => screen.findByRole("region", { name: "Session recording" });
+/** The trace view's recording row, which opens and closes like the Flamegraph row. */
+const toggle = async (expanded: boolean) =>
+  fireEvent.click(await screen.findByRole("button", { name: /Session recording/, expanded }));
+const openedPlayer = async () => {
+  await waitFor(() => expect(replayers.created).toHaveLength(1));
+  return replayers.created[0];
+};
 
 beforeEach(() => {
   vi.mocked(getCoveringClips).mockReset();
@@ -124,32 +132,64 @@ describe("session recording panel", () => {
     expect(screen.queryByRole("region", { name: "Session recording" })).not.toBeInTheDocument();
   });
 
-  it("shows the Clip without loading its events until Play", async () => {
+  it("shows the Clip in the split as a closed row without loading its events", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip({ truncated: true })]);
-    renderPlayer({ kind: "log", streamId: "stream-1", at: "2023-11-14 22:13:45.000000000" });
+    renderPlayer({ kind: "trace", traceId: "t1" });
 
     const panel = await section();
-    expect(getCoveringClips).toHaveBeenCalledWith({
-      data: { kind: "log", streamId: "stream-1", at: "2023-11-14 22:13:45.000000000" },
-    });
+    expect(getCoveringClips).toHaveBeenCalledWith({ data: { kind: "trace", traceId: "t1" } });
+    expect(screen.getByRole("button", { name: /Session recording/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
     expect(panel).toHaveTextContent("error trigger");
-    expect(panel).toHaveTextContent("truncated");
+    expect(panel).not.toHaveTextContent("truncated");
     expect(panel).toHaveTextContent("1:00");
+    expect(screen.queryByRole("button", { name: "Play" })).not.toBeInTheDocument();
     expect(getClipEvents).not.toHaveBeenCalled();
   });
 
-  it("loads the events once and plays from ten seconds before the subject", async () => {
+  it("starts open inline, held at the lead-in, and closes and opens with Hide and Show", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    renderPlayer(
+      { kind: "log", streamId: "stream-1", at: "2023-11-14 22:13:45.000000000" },
+      "inline",
+    );
+
+    const player = await openedPlayer();
+    expect(getCoveringClips).toHaveBeenCalledWith({
+      data: { kind: "log", streamId: "stream-1", at: "2023-11-14 22:13:45.000000000" },
+    });
+    expect(getClipEvents).toHaveBeenCalledTimes(1);
+    expect(player?.calls).toEqual(["pause 15000"]);
+    expect(screen.getByRole("slider", { name: "Seek" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+    expect(await screen.findByRole("slider", { name: "Seek" })).toBeInTheDocument();
+    await waitFor(() => expect(replayers.created).toHaveLength(2));
+    expect(replayers.created[1]?.calls).toEqual(["pause 15000"]);
+    expect(getClipEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens paused at ten seconds before the subject, and plays from the control bar", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
     renderPlayer({ kind: "trace", traceId: "t1" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
-
-    await waitFor(() => expect(replayers.created).toHaveLength(1));
-    const player = replayers.created[0];
+    await toggle(false);
+    const player = await openedPlayer();
     expect(getClipEvents).toHaveBeenCalledWith({ data: { clipId: "clip-1", startMs: T } });
-    expect(player?.calls).toEqual(["play 15000"]);
+    expect(player?.calls).toEqual(["pause 15000"]);
     expect(player?.config).not.toHaveProperty("UNSAFE_replayCanvas");
+
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    expect(player?.calls.at(-1)).toBe("play 15000");
 
     if (player) player.time = 17_000;
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
@@ -199,7 +239,7 @@ describe("session recording panel", () => {
     );
     renderPlayer({ kind: "trace", traceId: "t1" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
+    await toggle(false);
 
     expect(
       await screen.findByText("The start of this clip was not received, so it cannot play."),
@@ -213,29 +253,29 @@ describe("session recording panel", () => {
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse([], 413));
     renderPlayer({ kind: "trace", traceId: "t1" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
+    await toggle(false);
 
     expect(await screen.findByText("This clip is too large to play here.")).toBeInTheDocument();
     expect(getClipEvents).toHaveBeenCalledTimes(1);
   });
-  it("plays to the Clip's end, past the last event, and a click on the picture pauses it", async () => {
+
+  it("plays to the Clip's end, past the last event, and a click on the picture plays and pauses", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
     renderPlayer({ kind: "trace", traceId: "t1" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
-    await waitFor(() => expect(replayers.created).toHaveLength(1));
-    const player = replayers.created[0];
+    await toggle(false);
+    const player = await openedPlayer();
     expect(player?.events.at(-1)).toMatchObject({ type: 5, timestamp: T + 60_000 });
 
-    if (player) player.time = 20_000;
     const root = player?.config.root;
     if (!(root instanceof HTMLElement)) throw new Error("the player is mounted in the stage");
     fireEvent.click(root);
+    expect(player?.calls.at(-1)).toBe("play 15000");
+    if (player) player.time = 20_000;
+    fireEvent.click(root);
     expect(player?.calls.at(-1)).toBe("pause 20000");
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
-    fireEvent.click(root);
-    expect(player?.calls.at(-1)).toBe("play 20000");
   });
 
   it("restarts from the lead-in once the Clip has finished", async () => {
@@ -243,9 +283,9 @@ describe("session recording panel", () => {
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
     renderPlayer({ kind: "trace", traceId: "t1" });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play" }));
-    await waitFor(() => expect(replayers.created).toHaveLength(1));
-    const player = replayers.created[0];
+    await toggle(false);
+    const player = await openedPlayer();
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
     act(() => player?.emit("finish"));
 
     expect(screen.getByRole("slider", { name: "Seek" })).toHaveValue("60000");
@@ -253,10 +293,10 @@ describe("session recording panel", () => {
     expect(player?.calls.at(-1)).toBe("play 15000");
   });
 
-  it("opens in the split with Play and closes back to its row with Hide", async () => {
+  it("opens and closes in the split from its row, like the Flamegraph row", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" }, "split");
+    renderPlayer({ kind: "trace", traceId: "t1" });
 
     const panel = await section();
     expect(
@@ -264,10 +304,10 @@ describe("session recording panel", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    await toggle(false);
     expect(await screen.findByRole("slider", { name: "Seek" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await toggle(true);
     await waitFor(() =>
       expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument(),
     );
