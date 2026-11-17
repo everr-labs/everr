@@ -4,9 +4,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 // The public npm packages of this monorepo, in the sequence of the
-// dependencies. The @everr/otel-web package uses @everr/otel-errors/core. Thus
-// the errors package must go to the registry first.
-const PACKAGE_DIRS = ["packages/otel-errors", "packages/otel-web"];
+// dependencies. The @everr/otel-web and @everr/tanstack-start-otel packages
+// use @everr/otel-errors. Thus the errors package must go to the registry first.
+const PACKAGE_DIRS = ["packages/otel-errors", "packages/otel-web", "packages/tanstack-start-otel"];
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const dryRun = process.argv.includes("--dry-run");
