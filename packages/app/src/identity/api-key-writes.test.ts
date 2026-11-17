@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";
 import { describe, expect, it } from "vite-plus/test";
+import { API_KEY_CONFIGS } from "./api-key-configs";
 import { apiKeyServerOnlyWritesPlugin } from "./api-key-writes";
 
 const BASE = "http://localhost:3000";
@@ -18,25 +19,12 @@ async function setup() {
     invitation: [],
     apikey: [] as { id: string; key: string; configId: string }[],
   };
-  const keyConfig = {
-    references: "organization" as const,
-    defaultPrefix: "ek_",
-    enableMetadata: true,
-    rateLimit: { enabled: false },
-  };
   const auth = betterAuth({
     baseURL: BASE,
     secret: "api-key-writes-test-secret-with-32-chars",
     database: memoryAdapter(tables),
     emailAndPassword: { enabled: true },
-    plugins: [
-      organization(),
-      apiKey([
-        { configId: "ingest", ...keyConfig },
-        { configId: "public", ...keyConfig, disableKeyHashing: true },
-      ]),
-      apiKeyServerOnlyWritesPlugin(),
-    ],
+    plugins: [organization(), apiKey(API_KEY_CONFIGS), apiKeyServerOnlyWritesPlugin()],
   });
   const signedIn = await auth.api.signUpEmail({
     body: { name: "Owner", email: "owner@example.test", password: "writes-test-password" },
@@ -85,7 +73,7 @@ describe("apiKeyServerOnlyWritesPlugin", () => {
   });
 });
 
-describe("unhashed public key config", () => {
+describe("API key configs", () => {
   it("stores public keys in plaintext and never matches a hashed key's stored value", async () => {
     const { auth, tables, createOnServer } = await setup();
     const publicKey = await createOnServer("public");

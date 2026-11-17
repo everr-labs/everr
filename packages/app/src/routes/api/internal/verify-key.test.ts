@@ -160,12 +160,13 @@ describe("/api/internal/verify-key", () => {
       });
       expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
-      // The configId pin is the sole guarantee that a CLI/user-scoped key
-      // can't be used for ingest — assert we still pass it.
+      // A key that isn't a stored public key is verified against the hashed
+      // config only. The configId pin is the sole guarantee that a key from
+      // another config can't be used for ingest.
       const { auth } = await import("#app/identity/server.ts");
-      expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-        body: { key: "the-key", configId: "ingest" },
-      });
+      expect(vi.mocked(auth.api.verifyApiKey).mock.calls).toEqual([
+        [{ body: { key: "the-key", configId: "ingest" } }],
+      ]);
     },
   );
 

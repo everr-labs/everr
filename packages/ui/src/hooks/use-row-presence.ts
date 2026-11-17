@@ -35,7 +35,7 @@ function reconcileRows<T>(
 /**
  * Rows for a list whose items animate in and out. Rows added after the first
  * render are marked "enter"; rows that left stay, marked "exit", until the
- * `row-exit` animation on them ends. Derived during render, not in an effect.
+ * `row-exit` animation on their cells ends. Derived during render, not in an effect.
  * Disabled, every row is "idle" and leaves at once.
  */
 export function useRowPresence<T>(
@@ -55,8 +55,8 @@ export function useRowPresence<T>(
     ? entries
     : data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" }));
 
-  // Other animations on the row's descendants bubble here too; only the
-  // row's own exit removes it.
+  // `row-exit` runs on the row's cells and bubbles here, as do the cells'
+  // other animations; only `row-exit` removes the row.
   const onExitEnd = (key: string) => (event: AnimationEvent) => {
     if (event.animationName !== "row-exit") return;
     setEntries((current) => current.filter((e) => !(e.key === key && e.phase === "exit")));

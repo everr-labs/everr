@@ -10,11 +10,14 @@ function table(data: Row[]) {
 }
 
 // jsdom has no AnimationEvent, so fireEvent would drop `animationName`, and
-// React there listens for the prefixed `webkitAnimationEnd`.
+// React there listens for the prefixed `webkitAnimationEnd`. Send both names
+// so the test keeps working if jsdom gains AnimationEvent.
 function animationEnd(target: Element, animationName: string) {
-  const event = new Event("webkitAnimationEnd", { bubbles: true });
-  Object.defineProperty(event, "animationName", { value: animationName });
-  fireEvent(target, event);
+  for (const type of ["animationend", "webkitAnimationEnd"]) {
+    const event = new Event(type, { bubbles: true });
+    Object.defineProperty(event, "animationName", { value: animationName });
+    fireEvent(target, event);
+  }
 }
 
 it("removes a deleted row once its exit animation ends", () => {
@@ -23,11 +26,11 @@ it("removes a deleted row once its exit animation ends", () => {
 
   const leaving = screen.getByText("b").closest("tr");
   if (!leaving) throw new Error("row b is not rendered");
-  // The cells' own collapse ends too and bubbles up; the row stays for it.
+  // The cells' height collapse ends too and bubbles up; the row stays for it.
   animationEnd(leaving, "cell-shrink");
   expect(screen.getByText("b")).toBeInTheDocument();
 
-  // The name of the `row-exit` keyframe in global.css.
+  // The cells' fade-out, the `row-exit` keyframe in global.css.
   animationEnd(leaving, "row-exit");
   expect(screen.queryByText("b")).toBeNull();
 });
