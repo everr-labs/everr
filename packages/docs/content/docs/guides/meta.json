@@ -8,12 +8,11 @@
     "writing-good-alerts",
     "link-alerts-to-runbooks",
     "set-up-notifications",
+    "self-hosting",
     "---CI---",
     "setup-new-repo",
     "debug-ci",
     "resource-monitoring",
-    "cost-analysis",
-    "---Self-hosting---",
-    "self-hosting"
+    "cost-analysis"
   ]
 }
