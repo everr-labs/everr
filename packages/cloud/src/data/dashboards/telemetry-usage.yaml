@@ -37,9 +37,9 @@ document:
               valueFormat: { unit: By, scale: binary }
               sparkline: true
               colors:
-                Logs: "hsl(263, 90%, 65%)"
-                Traces: "hsl(56, 90%, 65%)"
-                Metrics: "hsl(195, 90%, 65%)"
+                Logs: "#9355f6"
+                Traces: "#f6eb55"
+                Metrics: "#55cef6"
           queries:
             - kind: ClickHouseSQL
               spec:

@@ -154,20 +154,20 @@ plugin:
       decimals: 1
 ```
 
-| Option                    | Type               | Default    | Notes                                                                                                                  |
-| ------------------------- | ------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `calculation`             | enum               | `last`     | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                                         |
-| `valueFormat`             | object             | none       | Shared [value formatting](#value-formatting).                                                                          |
-| `sparkline`               | boolean            | `false`    | Draw a sparkline (in time order, or row order without a time column).                                                  |
-| `colors`                  | map                | `{}`       | Pin sparkline colors by series label. Unmapped series keep the default accent color. Threshold colors take precedence. |
-| `colorMode`               | enum               | `value`    | `value` tints the number; `background` fills the whole tile with the threshold color.                                  |
-| `showLabel`               | boolean            | `false`    | Show the series label on a single-tile panel too.                                                                      |
-| `noValue`                 | string             | en dash    | Text shown for a query that produced no value.                                                                         |
-| `thresholds`              | object             | none       | Color the value (and sparkline) by thresholds.                                                                         |
-| `thresholds.mode`         | enum               | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                                        |
-| `thresholds.max`          | number             | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window.      |
-| `thresholds.defaultColor` | string             | none       | Color when no step is crossed. Opaque hex only (`#fff` or `#22c55e`).                                                  |
-| `thresholds.steps[]`      | `{ value, color }` | none       | Ascending thresholds; the highest crossed step's color wins. `color` is an opaque hex, like `defaultColor`.            |
+| Option                    | Type               | Default    | Notes                                                                                                                   |
+| ------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `calculation`             | enum               | `last`     | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                                          |
+| `valueFormat`             | object             | none       | Shared [value formatting](#value-formatting).                                                                           |
+| `sparkline`               | boolean            | `false`    | Draw a sparkline (in time order, or row order without a time column).                                                   |
+| `colors`                  | map                | `{}`       | Pin sparkline colors by series label (opaque hex). Unmapped series keep the default accent color. Threshold colors win. |
+| `colorMode`               | enum               | `value`    | `value` tints the number; `background` fills the whole tile with the threshold color.                                   |
+| `showLabel`               | boolean            | `false`    | Show the series label on a single-tile panel too.                                                                       |
+| `noValue`                 | string             | en dash    | Text shown for a query that produced no value.                                                                          |
+| `thresholds`              | object             | none       | Color the value (and sparkline) by thresholds.                                                                          |
+| `thresholds.mode`         | enum               | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                                         |
+| `thresholds.max`          | number             | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window.       |
+| `thresholds.defaultColor` | string             | none       | Color when no step is crossed. Opaque hex only (`#fff` or `#22c55e`).                                                   |
+| `thresholds.steps[]`      | `{ value, color }` | none       | Ascending thresholds; the highest crossed step's color wins. `color` is an opaque hex, like `defaultColor`.             |
 
 ## GaugeChart
 

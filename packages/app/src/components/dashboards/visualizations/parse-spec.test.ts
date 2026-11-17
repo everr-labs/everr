@@ -143,7 +143,7 @@ describe("panel plugin spec contracts", () => {
     expect(warnings).toEqual(["thresholds.defaultColor: must be an opaque hex color like #22c55e"]);
   });
 
-  it.each(["BarChart", "StateTimeline", "StatusHistory"])(
+  it.each(["StatChart", "BarChart", "StateTimeline", "StatusHistory"])(
     "%s accepts only opaque hex colors",
     (kind) => {
       const schema = panelPluginSpecs[kind];

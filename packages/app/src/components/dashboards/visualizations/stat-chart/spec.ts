@@ -41,9 +41,9 @@ export const statChartSpec = z.looseObject({
   valueFormat: valueFormatSpec.optional(),
   calculation: calculationSpec.default("last"),
   sparkline: z.boolean().default(false),
-  /** Fixed series label to CSS color mapping for sparklines. Unmapped series
+  /** Fixed series label to hex color mapping for sparklines. Unmapped series
    * keep the existing shared accent color. */
-  colors: z.record(z.string(), z.string()).default({}),
+  colors: z.record(z.string(), hexColorSpec).default({}),
   thresholds: thresholdsSpec.optional(),
   /** "background" fills the tile with the threshold color instead of tinting the value text. */
   colorMode: z.enum(["value", "background"]).default("value"),
