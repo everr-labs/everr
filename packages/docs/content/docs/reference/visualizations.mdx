@@ -165,8 +165,8 @@ plugin:
 | `thresholds`              | object             | none       | Color the value (and sparkline) by thresholds.                                                                         |
 | `thresholds.mode`         | enum               | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                                        |
 | `thresholds.max`          | number             | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window.      |
-| `thresholds.defaultColor` | string             | none       | Color when no step is crossed.                                                                                         |
-| `thresholds.steps[]`      | `{ value, color }` | none       | Ascending thresholds; the highest crossed step's color wins.                                                           |
+| `thresholds.defaultColor` | string             | none       | Color when no step is crossed. Opaque hex only (`#fff` or `#22c55e`).                                                  |
+| `thresholds.steps[]`      | `{ value, color }` | none       | Ascending thresholds; the highest crossed step's color wins. `color` is an opaque hex, like `defaultColor`.            |
 
 ## GaugeChart
 
@@ -190,19 +190,19 @@ plugin:
       unit: "%"
 ```
 
-| Option                    | Type               | Default     | Notes                                                                                                  |
-| ------------------------- | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `calculation`             | enum               | `last`      | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                         |
-| `valueFormat`             | object             | none        | Shared [value formatting](#value-formatting).                                                          |
-| `min`                     | number             | `0`         | Gauge axis lower bound.                                                                                |
-| `max`                     | number             | `100`       | Gauge axis upper bound. Set it to the metric's real ceiling: the arc reads as value ÷ range.           |
-| `showLabel`               | boolean            | `false`     | Show the series label on a single-gauge panel too.                                                     |
-| `noValue`                 | string             | en dash     | Text shown for a query that produced no value.                                                         |
-| `thresholds`              | object             | none        | Color the arc and mark step positions on the gauge.                                                    |
-| `thresholds.mode`         | enum               | `absolute`  | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                        |
-| `thresholds.max`          | number             | gauge `max` | Reference for `percent` mode.                                                                          |
-| `thresholds.defaultColor` | string             | none        | Arc color when no step is crossed.                                                                     |
-| `thresholds.steps[]`      | `{ value, color }` | none        | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
+| Option                    | Type               | Default     | Notes                                                                                                                            |
+| ------------------------- | ------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `calculation`             | enum               | `last`      | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`.                                                   |
+| `valueFormat`             | object             | none        | Shared [value formatting](#value-formatting).                                                                                    |
+| `min`                     | number             | `0`         | Gauge axis lower bound.                                                                                                          |
+| `max`                     | number             | `100`       | Gauge axis upper bound. Set it to the metric's real ceiling: the arc reads as value ÷ range.                                     |
+| `showLabel`               | boolean            | `false`     | Show the series label on a single-gauge panel too.                                                                               |
+| `noValue`                 | string             | en dash     | Text shown for a query that produced no value.                                                                                   |
+| `thresholds`              | object             | none        | Color the arc and mark step positions on the gauge.                                                                              |
+| `thresholds.mode`         | enum               | `absolute`  | `absolute` compares the raw value; `percent` compares against `thresholds.max`.                                                  |
+| `thresholds.max`          | number             | gauge `max` | Reference for `percent` mode.                                                                                                    |
+| `thresholds.defaultColor` | string             | none        | Arc color when no step is crossed. Opaque hex only (`#fff` or `#22c55e`).                                                        |
+| `thresholds.steps[]`      | `{ value, color }` | none        | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. `color` is an opaque hex. |
 
 ## GeoMap
 

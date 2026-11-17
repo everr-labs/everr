@@ -31,8 +31,8 @@ describe("StatChartVisualization", () => {
         spec={statChartSpec.parse({
           valueFormat: { unit: "1", display: "percent" },
           thresholds: {
-            defaultColor: "green",
-            steps: [{ value: 0.8, color: "red" }],
+            defaultColor: "#008000",
+            steps: [{ value: 0.8, color: "#ff0000" }],
           },
         })}
         data={[[{ utilization: 0.75 }]]}
@@ -49,8 +49,8 @@ describe("StatChartVisualization", () => {
         spec={statChartSpec.parse({
           valueFormat: { unit: "s", scale: "duration" },
           thresholds: {
-            defaultColor: "green",
-            steps: [{ value: 1, color: "red" }],
+            defaultColor: "#008000",
+            steps: [{ value: 1, color: "#ff0000" }],
           },
         })}
         data={[[{ latency: 0.025 }]]}

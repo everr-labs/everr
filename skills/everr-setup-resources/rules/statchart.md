@@ -17,12 +17,12 @@ One or more big single-value tiles, each optionally with a sparkline and thresho
 
 ### `thresholds`
 
-| Field          | Type   | Default           | Values                              | Effect                                                                                                                                                      |
-| -------------- | ------ | ----------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`         | string | `absolute`        | `absolute`, `percent`               | `absolute` compares the raw value; `percent` compares `value / max × 100`.                                                                                  |
-| `max`          | number | tile's series max | any number                          | Reference for `percent` mode. Set it (e.g. an SLA ceiling) so percentages don't shift with the time window. Non-positive → no step is crossed.              |
-| `defaultColor` | string | none              | CSS color                           | Color before any step is crossed. Optional.                                                                                                                 |
-| `steps`        | array  | `[]`              | `{ value: number, color?: string }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins**. A step with no `color` is crossed but leaves the color unchanged. |
+| Field          | Type   | Default           | Values                           | Effect                                                                                                                                                      |
+| -------------- | ------ | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode`         | string | `absolute`        | `absolute`, `percent`            | `absolute` compares the raw value; `percent` compares `value / max × 100`.                                                                                  |
+| `max`          | number | tile's series max | any number                       | Reference for `percent` mode. Set it (e.g. an SLA ceiling) so percentages don't shift with the time window. Non-positive → no step is crossed.              |
+| `defaultColor` | string | none              | opaque hex (`#22c55e`)           | Color before any step is crossed. Optional.                                                                                                                 |
+| `steps`        | array  | `[]`              | `{ value: number, color?: hex }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins**. A step with no `color` is crossed but leaves the color unchanged. |
 
 ```yaml
 plugin:

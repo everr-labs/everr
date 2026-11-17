@@ -118,6 +118,30 @@ describe("panel plugin spec contracts", () => {
       valueFormat: { unit: "", scale: "none" },
     });
   });
+  it.each(["StatChart", "GaugeChart"])("%s accepts only opaque hex threshold colors", (kind) => {
+    const schema = panelPluginSpecs[kind];
+    for (const color of ["#fff", "#22C55E"]) {
+      expect(schema?.safeParse({ thresholds: { defaultColor: color } }).success).toBe(true);
+      expect(schema?.safeParse({ thresholds: { steps: [{ value: 1, color }] } }).success).toBe(
+        true,
+      );
+    }
+    for (const color of ["#ffff", "#22c55e80", "green", "rgb(0, 0, 0)", "transparent"]) {
+      expect(schema?.safeParse({ thresholds: { defaultColor: color } }).success).toBe(false);
+      expect(schema?.safeParse({ thresholds: { steps: [{ value: 1, color }] } }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it("drops thresholds with a non-hex color at render and warns", () => {
+    const { spec, warnings } = parseSpecLenient(statChartSpec, {
+      thresholds: { defaultColor: "green", steps: [{ value: 1, color: "#ff0000" }] },
+    });
+    expect(spec.thresholds).toBeUndefined();
+    expect(warnings).toEqual(["thresholds.defaultColor: must be an opaque hex color like #22c55e"]);
+  });
+
   it("every registered spec schema parses {} (lenient fallback never throws)", () => {
     for (const [kind, schema] of Object.entries(panelPluginSpecs)) {
       expect(schema.safeParse({}).success, `${kind} must parse {}`).toBe(true);
