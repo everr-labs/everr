@@ -1,6 +1,6 @@
 ---
 name: everr-use-telemetry
-description: Use when investigating production or local behavior with logs, traces, metrics, errors, crashes, slow requests, flaky tests, regressions, missing behavior, stale telemetry, user reports, incidents, or questions that real runtime data can answer.
+description: Use when investigating production or local behavior with logs, traces, metrics, errors, crashes, slow requests, flaky tests, regressions, missing behavior, stale telemetry, user reports, incidents, what a user did or saw (session recordings, UX problems), or questions that real runtime data can answer.
 ---
 
 ## Startup Access
@@ -11,9 +11,11 @@ Use the CLI's saved login session. Run commands with the access already availabl
 
 Use Everr telemetry before guessing when real traces, logs, metrics, or captured command output can explain behavior. Always check whether telemetry can help before continuing with code-only debugging.
 
-## Critical: Only Raw SQL
+## Critical: Raw SQL, And Recording Commands For Recordings
 
 Use `everr cloud query "<SQL>"` for the selected installation or `everr local query "<SQL>"` for the local collector. `--format` accepts `table`, `json`, or `ndjson`. Remote queries use the saved login session.
+
+The page a user saw at a moment comes from `everr cloud recording show`, on Cloud only. Everything else a browser sent is in `logs` and `traces`. Read `rules/recordings.md` first.
 
 ## Saved connection
 
@@ -23,14 +25,14 @@ Use `everr cloud status --json` when diagnosing a connection or resolving the re
 
 ## Choose The Source
 
-| Question                                                                     | Use                                                                                     |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Production, deployed services, customer reports, CI runs and their history   | `everr cloud query "<SQL>"`                                                             |
-| Local app, dev server, local tests, wrapped command output                   | `everr local query "<SQL>"`                                                             |
-| What alerts fired, why, and whether the notification went out                | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"`                         |
-| Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
-| Session recording journey or page HTML at a time (Cloud)                     | `/api/cli/recordings/sessions/...`. Do not `SELECT Body` of recording segments.         |
-| Missing or stale local telemetry                                             | Use the `everr-setup-telemetry` skill                                                   |
+| Question                                                                     | Use                                                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Production, deployed services, customer reports, CI runs and their history   | `everr cloud query "<SQL>"`                                                                      |
+| Local app, dev server, local tests, wrapped command output                   | `everr local query "<SQL>"`                                                                      |
+| What alerts fired, why, and whether the notification went out                | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"`                                  |
+| Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual          |
+| What a user saw around an error, a slow request, or a UX question            | Read `rules/recordings.md`: the timeline in SQL, then the page with `everr cloud recording show` |
+| Missing or stale local telemetry                                             | Use the `everr-setup-telemetry` skill                                                            |
 
 If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally**: if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
 
@@ -66,15 +68,16 @@ When a local query fails, always run `everr local status` to diagnose the collec
 
 ## Common Mistakes
 
-| Mistake                                                                 | Fix                                                                                                            |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with `--format`. Express query filters in SQL. |
-| Selecting `Body` of `everr.browser.recording.segment`                   | Use the `/api/cli/recordings/sessions/...` routes. Segment bodies are not on the SQL API.                      |
-| Writing queries without a time window                                   | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`.                                                 |
-| Writing remote queries without LIMIT                                    | Remote queries fail past their result cap (see Schema And Queries). Always include `LIMIT`.                    |
-| Assuming attribute names without discovering them                       | List the keys first (see `rules/schema.md`). Conventions vary.                                                 |
-| Getting "collector isn't running" but not running `everr local start`   | Follow the error message literally.                                                                            |
-| Diagnosing without checking freshness                                   | Query `max(Timestamp)` first. If data is hours old, it's stale.                                                |
+| Mistake                                                                 | Fix                                                                                                                                                      |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inventing subcommands or flags (`query traces`, `--filter`, `--window`) | Only `everr cloud query "<SQL>"` or `everr local query "<SQL>"` with `--format`. Express query filters in SQL. Recordings: `everr cloud recording show`. |
+| Selecting `Body` of `everr.browser.recording.segment`                   | Use `everr cloud recording show`. Segment bodies are not on the SQL API, and are about 950 KB each locally.                                              |
+| Passing a query `Timestamp` to `--at`                                   | Select `toUnixTimestamp64Milli(Timestamp) AS at_ms` and pass that. A time with no zone is refused.                                                       |
+| Writing queries without a time window                                   | Always add `WHERE Timestamp > now() - INTERVAL N HOUR/MINUTE`.                                                                                           |
+| Writing remote queries without LIMIT                                    | Remote queries fail past their result cap (see Schema And Queries). Always include `LIMIT`.                                                              |
+| Assuming attribute names without discovering them                       | List the keys first (see `rules/schema.md`). Conventions vary.                                                                                           |
+| Getting "collector isn't running" but not running `everr local start`   | Follow the error message literally.                                                                                                                      |
+| Diagnosing without checking freshness                                   | Query `max(Timestamp)` first. If data is hours old, it's stale.                                                                                          |
 
 ## Integrated Examples
 
