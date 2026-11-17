@@ -6,6 +6,8 @@ NEVER use a useEffect to react to props change to update an internal state. That
 
 Never use em dashes (—) or en dashes (–) in the docs. Use commas, colons, parentheses, or separate sentences instead. CLI flags and operators such as `--yes` stay as written.
 
+Every PR that changes user-facing behavior of a released package (CLI, SDKs, GitHub Action, app) must include a changeset in `.changeset/`. Write it for users: what changed and how it affects them, not how it was implemented. Skip it for internal-only changes such as refactors, tests, CI, tooling, and docs.
+
 When working with Telemetry, always check that ingestion works as expected using Everr.
 
 MUST follow the oTel semconv when available.
