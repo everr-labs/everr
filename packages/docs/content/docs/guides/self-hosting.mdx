@@ -213,10 +213,3 @@ An installation that started before the ClickHouse write user was renamed to `ap
 ```sh
 docker compose exec clickhouse sh -c 'clickhouse-client --password "$CLICKHOUSE_PASSWORD" --query "DROP USER IF EXISTS web_app_admin"'
 ```
-
-## Troubleshooting
-
-| Symptom                                                                              | Fix                                                                                                                                                                            |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The collector restarts with `read /etc/everr-collector/config.yaml: is a directory`. | Docker cannot see the clone, so it mounts an empty directory in place of `collector.yaml`. Clone into a directory Docker shares, such as your home directory, and start again. |
-| Telemetry gets `401` with `missing authorization header`.                            | Set `OTEL_EXPORTER_OTLP_HEADERS` to `Authorization=Bearer YOUR_INGEST_KEY`. A proxy in front of the collector must forward the `Authorization` header.                         |
