@@ -1,8 +1,7 @@
 import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { mockAnd, mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
-  mockAnd: vi.fn((...conditions: unknown[]) => ({ type: "and", conditions })),
+const { mockDelete, mockEq, mockTransaction, whereCalls } = vi.hoisted(() => ({
   mockDelete: vi.fn(),
   mockEq: vi.fn((column: unknown, value: unknown) => ({
     type: "eq",
@@ -25,7 +24,6 @@ vi.mock("drizzle-orm", async (importOriginal) => {
   const actual = await importOriginal<typeof DrizzleOrm>();
   return {
     ...actual,
-    and: mockAnd,
     eq: mockEq,
   };
 });
@@ -103,11 +101,10 @@ describe("deletePostgresOrganizationData", () => {
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(githubInstallationOrganizations.organizationId, ORG);
-    expect(mockEq).toHaveBeenCalledWith(apikey.configId, "ingest");
-    expect(mockEq).toHaveBeenCalledWith(apikey.referenceId, ORG);
-    expect(mockAnd).toHaveBeenCalledWith(
-      { type: "eq", column: apikey.configId, value: "ingest" },
-      { type: "eq", column: apikey.referenceId, value: ORG },
-    );
+    // Every key config, not just the hashed one: public keys too.
+    expect(whereCalls).toContainEqual({
+      table: apikey,
+      condition: { type: "eq", column: apikey.referenceId, value: ORG },
+    });
   });
 });

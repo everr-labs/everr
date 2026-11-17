@@ -8,6 +8,7 @@ import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { createOrganizationSql, type OrganizationSql } from "#app/lib/organization-sql.ts";
+import { HASHED_KEY_CONFIG_ID } from "#app/lib/public-ingest-keys.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
@@ -85,7 +86,9 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
 
   if (credential.startsWith("ek_")) {
     const result = await auth.api.verifyApiKey({
-      body: { key: credential, configId: "ingest" },
+      // New public keys live in the unhashed config. Old public keys are in
+      // this hashed config; the apply scope check below rejects them.
+      body: { key: credential, configId: HASHED_KEY_CONFIG_ID },
     });
     if (!result.valid || !result.key?.referenceId) {
       throw new Error("Invalid API key");

@@ -43,6 +43,8 @@ import type {
 import { createIdentityAuthHooks, type ResolvedSession } from "#app/telemetry/auth-identity.ts";
 import { exceptionAttributes, serverLogger } from "#app/telemetry/logger.ts";
 import { createAccountLifecycle } from "./account";
+import { API_KEY_CONFIGS } from "./api-key-configs";
+import { apiKeyServerOnlyWritesPlugin } from "./api-key-writes";
 import type { EventPublisher } from "#app/composition/events.ts";
 import type { IdentityEvent } from "./events";
 import { identityLifecycleAdapter } from "./identity-adapter";
@@ -361,30 +363,8 @@ export function createApplicationAuth(
         },
       }),
       deviceAuthorization(),
-      apiKey([
-        {
-          configId: "ingest",
-          references: "organization",
-          defaultPrefix: "ek_",
-          requireName: true,
-          // The collector hits the verify endpoint on every cache miss; better-
-          // auth's default rate limit (10 / 24h) would quickly disable real
-          // keys. Rate limiting against abuse lives in the collector cache and
-          // the shared-secret-guarded verify endpoint, not here.
-          rateLimit: { enabled: false },
-          // Public browser keys store `{ public: true, allowedOrigins }` in
-          // the metadata JSON column; the plugin rejects metadata on create
-          // unless this is on.
-          enableMetadata: true,
-          // No default permissions on purpose: capability choice is explicit.
-          // A key created without a `permissions` map grants nothing — the
-          // collector verify and apply endpoints check the scope and reject a
-          // key with no capabilities. The API keys UI always sends an explicit,
-          // least-privilege scope set (at least one capability). Keys minted
-          // before scopes existed are backfilled with the full set by
-          // the API-key capabilities backfill migration.
-        },
-      ]),
+      apiKey(API_KEY_CONFIGS),
+      apiKeyServerOnlyWritesPlugin(),
       bearer(),
       membershipMutationPlugin(
         policy,

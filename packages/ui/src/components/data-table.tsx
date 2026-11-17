@@ -1,6 +1,7 @@
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
-import { type AnimationEvent, type MouseEvent, type ReactNode, useState } from "react";
+import { useRowPresence } from "@everr/ui/hooks/use-row-presence";
+import type { MouseEvent, ReactNode } from "react";
 
 export interface Column<T> {
   header: ReactNode;
@@ -40,38 +41,6 @@ interface DataTableProps<T> {
   animateRows?: boolean;
 }
 
-type RowPhase = "idle" | "enter" | "exit";
-interface RowEntry<T> {
-  key: string;
-  row: T;
-  phase: RowPhase;
-}
-
-/**
- * The rows to render: the current data, plus rows that just left and are
- * still animating out, kept at the position they left from.
- */
-function reconcileRows<T>(
-  data: T[],
-  previous: RowEntry<T>[],
-  rowKey: (row: T, index: number) => string,
-): RowEntry<T>[] {
-  const before = new Map(previous.map((entry) => [entry.key, entry]));
-  const next: RowEntry<T>[] = data.map((row, index) => {
-    const key = rowKey(row, index);
-    const old = before.get(key);
-    const phase: RowPhase = old && old.phase !== "exit" ? old.phase : "enter";
-    return { key, row, phase };
-  });
-  const present = new Set(next.map((entry) => entry.key));
-  previous.forEach((entry, index) => {
-    if (!present.has(entry.key)) {
-      next.splice(Math.min(index, next.length), 0, { ...entry, phase: "exit" });
-    }
-  });
-  return next;
-}
-
 /* `animateRows`: a row cannot animate its height, so each cell's content
    sits in a grid track that goes between 0fr and 1fr while the cell's own
    vertical padding follows. Exit is quicker than entry. With reduced motion
@@ -100,24 +69,7 @@ export function DataTable<T>({
   onRowClick,
   animateRows = false,
 }: DataTableProps<T>) {
-  // Derived during render, not in an effect: when `data` changes, the rows
-  // that left are kept (marked "exit") until their animation ends.
-  const [seenData, setSeenData] = useState(data);
-  const [entries, setEntries] = useState<RowEntry<T>[]>(() =>
-    data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" })),
-  );
-  if (animateRows && data !== seenData) {
-    setSeenData(data);
-    setEntries(reconcileRows(data, entries, rowKey));
-  }
-  const rows: RowEntry<T>[] = animateRows
-    ? entries
-    : data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" }));
-
-  const handleRowAnimationEnd = (key: string) => (event: AnimationEvent) => {
-    if (event.animationName !== "data-table-row-exit") return;
-    setEntries((current) => current.filter((e) => !(e.key === key && e.phase === "exit")));
-  };
+  const { rows, onExitEnd } = useRowPresence(data, rowKey, animateRows);
 
   if (rows.length === 0 && emptyState) {
     // oxlint-disable-next-line react/jsx-no-useless-fragment -- Preserve the existing fragment boundary for the caller-provided empty state.
@@ -155,7 +107,7 @@ export function DataTable<T>({
             key={key}
             data-row-phase={phase === "idle" ? undefined : phase}
             aria-hidden={phase === "exit" || undefined}
-            onAnimationEnd={phase === "exit" ? handleRowAnimationEnd(key) : undefined}
+            onAnimationEnd={phase === "exit" ? onExitEnd(key) : undefined}
             onClick={onRowClick && phase !== "exit" ? (event) => onRowClick(row, event) : undefined}
             className={cn(
               "hover:bg-muted/50",

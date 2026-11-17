@@ -1,8 +1,16 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { db } from "#app/db/client.ts";
+import { apikey } from "#app/db/schema/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
-import { buildPublicKeyMetadata, publicKeyInputError } from "#app/lib/public-ingest-keys.ts";
+import {
+  buildPublicKeyMetadata,
+  HASHED_KEY_CONFIG_ID,
+  PUBLIC_KEY_CONFIG_ID,
+  publicKeyInputError,
+} from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
 
 import type { ApiKey } from "./api-key-schemas";
@@ -33,10 +41,6 @@ const CreateApiKeyInput = z
       });
     }
   });
-
-// The single better-auth config shared by every `ek_` key, whatever its
-// capabilities. The value stays "ingest" for backward compatibility.
-const API_KEY_CONFIG_ID = "ingest";
 
 /**
  * Resolve the user's chosen scopes into the better-auth `permissions` map.
@@ -72,7 +76,7 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
     // organizationId against the DB, no session needed.
     const result = await auth.api.createApiKey({
       body: {
-        configId: API_KEY_CONFIG_ID,
+        configId: data.public ? PUBLIC_KEY_CONFIG_ID : HASHED_KEY_CONFIG_ID,
         name: data.name,
         organizationId: session.session.activeOrganizationId,
         userId: session.user.id,
@@ -106,20 +110,35 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
 export const listApiKeys = createOrganizationAdminServerFn({
   method: "GET",
 }).handler(async ({ context: { session } }): Promise<ApiKey[]> => {
+  const organizationId = session.session.activeOrganizationId;
   // The org comes from the authenticated server-fn context — no extra
   // client round-trip to fetch the session. better-auth's list endpoint
-  // reads the session from the request, so forward the headers.
-  const result = await auth.api.listApiKeys({
-    query: {
-      configId: API_KEY_CONFIG_ID,
-      organizationId: session.session.activeOrganizationId,
-    },
-    headers: getRequestHeaders(),
-  });
+  // reads the session from the request, so forward the headers. Without a
+  // configId it lists the org's keys across every config.
+  //
+  // better-auth never returns the stored key, so read it for unhashed public
+  // keys. Hashed keys (every secret key, and public keys created before the
+  // public config existed) can't be shown again.
+  const [result, stored] = await Promise.all([
+    auth.api.listApiKeys({ query: { organizationId }, headers: getRequestHeaders() }),
+    db
+      .select({ id: apikey.id, key: apikey.key })
+      .from(apikey)
+      .where(
+        and(eq(apikey.configId, PUBLIC_KEY_CONFIG_ID), eq(apikey.referenceId, organizationId)),
+      ),
+  ]);
+  const fullKeys = new Map(stored.map((row) => [row.id, row.key]));
   // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider rows and metadata verbatim rather than projecting or validating them.
   const keys = (result?.apiKeys ?? []) as ApiKey[];
-  // Defense-in-depth: the query already scopes to our configId, but pin it.
-  return keys.filter((k) => k.configId === API_KEY_CONFIG_ID);
+  // Defense-in-depth: only our own key configs, and rows without a full key
+  // pass through untouched.
+  return keys
+    .filter((k) => k.configId === HASHED_KEY_CONFIG_ID || k.configId === PUBLIC_KEY_CONFIG_ID)
+    .map((k) => {
+      const fullKey = fullKeys.get(k.id);
+      return fullKey === undefined ? k : { ...k, fullKey };
+    });
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

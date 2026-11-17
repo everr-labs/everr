@@ -23,6 +23,14 @@ vi.mock("#app/identity/server.ts", () => ({
   },
 }));
 
+// Rows the public-config lookup finds for the key: none unless a test says so.
+const storedPublic = vi.hoisted(() => ({ rows: [] as { id: string }[] }));
+vi.mock("#app/db/client.ts", () => ({
+  db: {
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => storedPublic.rows }) }) }),
+  },
+}));
+
 vi.mock("#app/lib/retention.server.ts", () => ({
   retentionForOrg: vi.fn(),
 }));
@@ -55,8 +63,13 @@ async function mockVerify(result: unknown) {
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
+const NOT_FOUND = { valid: false, key: null, error: { code: "INVALID_API_KEY" } };
+
 beforeEach(async () => {
   vi.clearAllMocks();
+  storedPublic.rows = [];
+  const { auth } = await import("#app/identity/server.ts");
+  vi.mocked(auth.api.verifyApiKey).mockResolvedValue(NOT_FOUND as never);
   const { retentionForOrg } = await import("#app/lib/retention.server.ts");
   vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
@@ -75,14 +88,32 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 401 when verifyApiKey rejects", async () => {
-    await mockVerify({
-      valid: false,
-      key: null,
-      error: { code: "INVALID_API_KEY" },
-    });
+  it("returns 401 when neither key config knows the key", async () => {
     const res = await getHandler()({ request: makeRequest({ key: "bad" }) });
     expect(res.status).toBe(401);
+  });
+
+  it("verifies a stored public key against the public config only", async () => {
+    storedPublic.rows = [{ id: "ak_public" }];
+    const { auth } = await import("#app/identity/server.ts");
+    vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce({
+      valid: true,
+      error: null,
+      key: {
+        id: "ak_public",
+        configId: "public",
+        referenceId: "org_42",
+        permissions: { ingest: ["write"] },
+        metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+      },
+    } as never);
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key", origin: "https://app.example.com" }),
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(auth.api.verifyApiKey).mock.calls).toEqual([
+      [{ body: { key: "the-key", configId: "public" } }],
+    ]);
   });
 
   it("returns 401 when verified key has no referenceId", async () => {
@@ -129,12 +160,13 @@ describe("/api/internal/verify-key", () => {
       });
       expect(retentionForOrg).toHaveBeenCalledWith("org_42");
 
-      // The configId pin is the sole guarantee that a CLI/user-scoped key
-      // can't be used for ingest — assert we still pass it.
+      // A key that isn't a stored public key is verified against the hashed
+      // config only. The configId pin is the sole guarantee that a key from
+      // another config can't be used for ingest.
       const { auth } = await import("#app/identity/server.ts");
-      expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-        body: { key: "the-key", configId: "ingest" },
-      });
+      expect(vi.mocked(auth.api.verifyApiKey).mock.calls).toEqual([
+        [{ body: { key: "the-key", configId: "ingest" } }],
+      ]);
     },
   );
 
@@ -225,6 +257,12 @@ describe("/api/internal/verify-key browser origin policy", () => {
       name: "secret key + origin present (browser replay of a server key)",
       key: secretKey,
       origin: "https://app.example.com",
+      status: 403,
+    },
+    {
+      name: "public-config key without public metadata",
+      key: { ...secretKey, configId: "public" },
+      origin: undefined,
       status: 403,
     },
     { name: "secret key + no origin", key: secretKey, origin: undefined, status: 200 },

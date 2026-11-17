@@ -87,31 +87,40 @@ describe("originPolicyAllows (the policy matrix)", () => {
   };
 
   it("secret key without origin: allowed (server-to-server)", () => {
-    expect(originPolicyAllows(null, null)).toBe(true);
+    expect(originPolicyAllows({ metadata: null }, null)).toBe(true);
   });
 
   it("public key without origin: rejected (browser-only)", () => {
-    expect(originPolicyAllows(publicMeta, null)).toBe(false);
+    expect(originPolicyAllows({ metadata: publicMeta }, null)).toBe(false);
   });
 
   it("secret key with origin: rejected (never from browsers)", () => {
-    expect(originPolicyAllows(null, "https://app.example.com")).toBe(false);
+    expect(originPolicyAllows({ metadata: null }, "https://app.example.com")).toBe(false);
   });
 
   it("public key with matching origin: allowed", () => {
-    expect(originPolicyAllows(publicMeta, "https://app.example.com")).toBe(true);
+    expect(originPolicyAllows({ metadata: publicMeta }, "https://app.example.com")).toBe(true);
   });
 
   it("public key with mismatched origin: rejected", () => {
-    expect(originPolicyAllows(publicMeta, "https://evil.example")).toBe(false);
+    expect(originPolicyAllows({ metadata: publicMeta }, "https://evil.example")).toBe(false);
   });
 
   it("normalizes the incoming origin before matching", () => {
-    expect(originPolicyAllows(publicMeta, "HTTPS://APP.EXAMPLE.COM:443")).toBe(true);
+    expect(originPolicyAllows({ metadata: publicMeta }, "HTTPS://APP.EXAMPLE.COM:443")).toBe(true);
   });
 
   it('the literal "null" origin never matches', () => {
-    expect(originPolicyAllows(publicMeta, "null")).toBe(false);
+    expect(originPolicyAllows({ metadata: publicMeta }, "null")).toBe(false);
+  });
+
+  it("an unhashed public-config key never works without public metadata", () => {
+    for (const origin of [null, "https://app.example.com"]) {
+      expect(originPolicyAllows({ configId: "public", metadata: null }, origin)).toBe(false);
+    }
+    expect(
+      originPolicyAllows({ configId: "public", metadata: publicMeta }, "https://app.example.com"),
+    ).toBe(true);
   });
 });
 

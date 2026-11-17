@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { type DbExecutor, db, runInTransaction } from "#app/db/client.ts";
 import {
   alertChannels,
@@ -52,8 +52,8 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(githubInstallationOrganizations)
       .where(eq(githubInstallationOrganizations.organizationId, organizationId));
-    await tx
-      .delete(apikey)
-      .where(and(eq(apikey.configId, "ingest"), eq(apikey.referenceId, organizationId)));
+    // Every key config belongs to an organization, so match on the
+    // organization alone: that also covers configs added in a later release.
+    await tx.delete(apikey).where(eq(apikey.referenceId, organizationId));
   });
 }
