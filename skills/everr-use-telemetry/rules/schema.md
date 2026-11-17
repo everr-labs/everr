@@ -14,7 +14,7 @@ The sort key of `traces` and `logs` is `ServiceName, Timestamp`. Filter on both 
 - `alert_events`: alert history on server installations (not the local CLI store). One row per evaluation, state transition, withheld notification, or delivery attempt, told apart by `event_type`. Run `DESCRIBE TABLE alert_events` before you query it, bound `event_time`, and filter `is_live` (preview alerts write to the same table).
 - `recordings`: browser session recording Segments on server installations, one row per Segment. Every column but `Body` (raw rrweb) is readable: the log columns of `logs` (`Timestamp`, `ServiceName`, `LogAttributes`, `ResourceAttributes`, ...) plus `tenant_id`, `retention_days`, `session_id`, `stream_id`, `segment_index`, `segment_end`, `clip_start`, `clip_id`, `trigger`, `truncated`. `SELECT *` and `DESCRIBE TABLE recordings` are refused: name the columns, or use `SELECT * EXCEPT (Body)`. `length(Body)` works, nothing else of `Body` does. A Clip is the Segments of one `stream_id` with the same `clip_start`, from `clip_start` to the last `segment_end`. The Segment that opens a Clip has a non-empty `clip_id`, `trigger` (`error`, `network`, `manual`), and `truncated`. On every other Segment `clip_id` and `trigger` are empty and `truncated` is false. Bound `Timestamp` in a query, since the table is sorted by the hour of `Timestamp`.
 
-Segment bodies for `everr.browser.recording.segment` are not stored in `logs`. Do not read `Body` to rebuild a recording; use the `/api/cli/recordings/...` routes.
+On Cloud, Segment bodies for `everr.browser.recording.segment` live in `app.recordings`, which SQL cannot read. Locally they are ordinary `logs` rows of about 950 KB each: select `length(Body)` of a Segment, never its `Body`.
 
 ## Units And Values
 
