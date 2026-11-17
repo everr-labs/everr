@@ -337,18 +337,25 @@ export function toTimestamp(value: unknown): number | null {
   return null;
 }
 
-/** The index of the sample nearest `target` in ascending `samples`; null
- * only when there are none. */
+/** The index of the sample nearest `target` in ascending `samples`, the
+ * earlier one when two are as near; null only when there are none. */
 export function nearestSampleIndex(samples: readonly number[], target: number): number | null {
-  let nearest: number | null = null;
-  let distance = Number.POSITIVE_INFINITY;
-  samples.forEach((sample, index) => {
-    if (Math.abs(sample - target) < distance) {
-      distance = Math.abs(sample - target);
-      nearest = index;
-    }
-  });
-  return nearest;
+  if (samples.length === 0 || Number.isNaN(target)) return null;
+  // The first sample at or after the target: a pointer move over a dense
+  // series must not walk every sample.
+  let after = 0;
+  let end = samples.length;
+  while (after < end) {
+    const middle = (after + end) >>> 1;
+    if ((samples[middle] ?? target) < target) after = middle + 1;
+    else end = middle;
+  }
+  if (after === 0) return 0;
+  if (after === samples.length) return samples.length - 1;
+  const before = after - 1;
+  return target - (samples[before] ?? target) <= (samples[after] ?? target) - target
+    ? before
+    : after;
 }
 
 /**

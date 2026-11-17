@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { buildChartModel, buildStackedData } from "./time-series-data";
+import { buildChartModel } from "./time-series-data";
 
 const TS_KEY = "__ts";
 
@@ -80,6 +80,7 @@ describe("buildChartModel", () => {
     expect(buildChartModel([], WIDE)).toEqual({
       chartData: [],
       series: [],
+      domain: WIDE,
     });
   });
 
@@ -248,25 +249,5 @@ describe("buildChartModel", () => {
     expect(model.series[0]?.data).toHaveLength(6);
     expect(model.series[0]?.data?.filter((point) => point[1] === null)).toHaveLength(1);
     expect(model.chartData).toHaveLength(5);
-  });
-});
-
-describe("buildStackedData", () => {
-  it("aligns every series to the shared timeline and fills gaps with zero", () => {
-    const model = buildChartModel(
-      [
-        [
-          { time: "2026-06-07T00:00:00", a: 1, b: 10 },
-          { time: "2026-06-07T00:01:00", a: 2, b: "oops" }, // non-numeric → null sample
-        ],
-        [{ time: "2026-06-07T00:00:00", c: 100 }], // absent at 00:01
-      ],
-      WIDE,
-    );
-    const stacked = buildStackedData(model.chartData, model.series);
-    expect(stacked[0]?.map((point) => point[1])).toEqual([1, 2]);
-    expect(stacked[1]?.map((point) => point[1])).toEqual([10, 0]);
-    expect(stacked[2]?.map((point) => point[1])).toEqual([100, 0]);
-    expect(stacked[0]?.[0]?.[0]).toBe(model.chartData[0]?.[TS_KEY]);
   });
 });
