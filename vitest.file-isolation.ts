@@ -1,7 +1,9 @@
-import { afterAll, vi } from "vite-plus/test";
+import { vi } from "vite-plus/test";
 
-// The test files share a worker (isolate: false), so each file undoes what it
-// changed in the worker before the next file runs.
+// The test files share a worker (isolate: false), so each file starts by undoing
+// what the previous file changed in the worker. This runs at the top of the setup
+// file rather than in an afterAll hook, because Vitest skips the hooks of a file
+// whose tests are all skipped, and that file's modules would leak into the next.
 
 type DocumentBaseline = {
   documentKeys: Set<string>;
@@ -32,7 +34,7 @@ if (typeof document !== "undefined") {
   };
 }
 
-afterAll(() => {
+{
   const baseline = globalThis.__everrTestDocumentBaseline;
   if (typeof document !== "undefined" && baseline) {
     document.body.innerHTML = "";
@@ -55,7 +57,7 @@ afterAll(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-  // The next file imports fresh copies of the source modules, so its vi.mock
+  // This file imports fresh copies of the source modules, so its vi.mock
   // calls apply and no module state carries over.
   vi.resetModules();
-});
+}
