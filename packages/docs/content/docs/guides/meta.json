@@ -2,6 +2,7 @@
   "title": "Guides",
   "defaultOpen": true,
   "pages": [
+    "self-hosting",
     "production-telemetry",
     "browser-telemetry",
     "publishing-resources",
