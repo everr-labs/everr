@@ -148,45 +148,6 @@ Any other value stops the app at startup.
 
 ## Operations
 
-### Manage the stack
-
-```sh
-docker compose ps
-docker compose logs --tail=100 app collector
-docker compose down
-```
-
-`docker compose down` keeps your data. `docker compose down --volumes` deletes it.
-
-### Back up
-
-Copy the PostgreSQL and ClickHouse volumes and `.env` out of the clone:
-
-```sh
-mkdir -p ~/everr-backup
-docker compose stop
-docker run --rm -v everr_postgres-data:/data -v ~/everr-backup:/backup alpine tar czf /backup/postgres-data.tgz -C /data .
-docker run --rm -v everr_clickhouse-data:/data -v ~/everr-backup:/backup alpine tar czf /backup/clickhouse-data.tgz -C /data .
-cp .env ~/everr-backup/.env
-docker compose up -d --wait
-```
-
-`.env` holds the database passwords and the authentication secret. A restore does not work without it.
-
-### Restore
-
-On a new machine, or after `docker compose down --volumes`:
-
-```sh
-cp ~/everr-backup/.env .env
-docker compose create
-docker run --rm -v everr_postgres-data:/data -v ~/everr-backup:/backup alpine tar xzf /backup/postgres-data.tgz -C /data
-docker run --rm -v everr_clickhouse-data:/data -v ~/everr-backup:/backup alpine tar xzf /backup/clickhouse-data.tgz -C /data
-docker compose up -d --wait
-```
-
-Accounts, sessions, API keys, and telemetry come back as they were at the backup.
-
 ### Upgrade
 
 Back up first, then update the clone and the images:
