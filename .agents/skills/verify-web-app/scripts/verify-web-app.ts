@@ -854,6 +854,8 @@ async function cmdWebSdkPage(args: string[]): Promise<number> {
   const local = args.includes("--local");
   const src = path.join(REPO, "packages/otel-web/src");
   if (!existsSync(path.join(src, "index.ts"))) die(`no ${src}/index.ts in this checkout`);
+  const recordingSrc = path.join(src, "recording.ts");
+  const recordingOn = existsSync(recordingSrc);
   const pageOrigin = w.vars.SDK_PAGE_ORIGIN || die(`${w.dir}/run.env has no SDK_PAGE_ORIGIN (relaunch)`);
   let otlp = w.otlp;
   let key = "";
@@ -868,7 +870,14 @@ async function cmdWebSdkPage(args: string[]): Promise<number> {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const template = readFileSync(path.join(SCRIPT_DIR, "sdk-page/entry.template.ts"), "utf8");
-  const entry = template.replace("__OTEL_WEB_INDEX__", path.join(src, "index.ts"));
+  const entry = template
+    .replace("__OTEL_WEB_INDEX__", path.join(src, "index.ts"))
+    .replace(
+      "__RECORDING_IMPORT__",
+      recordingOn
+        ? `import { recording, recorder } from ${JSON.stringify(recordingSrc)};`
+        : "const recording: any = undefined;\nconst recorder: any = undefined;",
+    );
   writeFileSync(path.join(dir, "entry.ts"), entry);
   copyFileSync(path.join(SCRIPT_DIR, "sdk-page/index.html"), path.join(dir, "index.html"));
   const out = freshDir(path.join(w.art, "sdk-page"));
@@ -899,8 +908,8 @@ async function cmdWebSdkPage(args: string[]): Promise<number> {
   const query = new URLSearchParams({ otlp, ...(key ? { key } : {}) });
   writeFileSync(path.join(w.dir, "sdk-page.url"), `${pageOrigin}/index.html?${query}\n`);
   const chunks = readdirSync(dir).filter((f) => f.endsWith(".js"));
-  writeFileSync(path.join(out, "page.txt"), `origin: ${pageOrigin}\notlp: ${otlp}\nkey: ${key ? `${key.slice(0, 7)}... (public)` : "none (local collector)"}\nchunks: ${chunks.join(" ")}\n`);
-  console.log(`SDK PAGE READY origin=${pageOrigin} otlp=${otlp} key=${key ? "public" : "none"} chunks=${chunks.length}`);
+  writeFileSync(path.join(out, "page.txt"), `origin: ${pageOrigin}\notlp: ${otlp}\nkey: ${key ? `${key.slice(0, 7)}... (public)` : "none (local collector)"}\nrecording: ${recordingOn ? "on" : "absent in this checkout"}\nchunks: ${chunks.join(" ")}\n`);
+  console.log(`SDK PAGE READY origin=${pageOrigin} otlp=${otlp} key=${key ? "public" : "none"} recording=${recordingOn ? "on" : "absent"} chunks=${chunks.length}`);
   console.log("re-run: eval \"$($V web-browser-env)\" to get SDK_URL");
   return 0;
 }
