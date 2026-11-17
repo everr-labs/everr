@@ -36,8 +36,10 @@ class TestXHR extends EventTarget {
     this.headers.append(name, value);
   }
 
-  getResponseHeader(name: string) {
-    return this.responseHeaders.get(name);
+  // Like a browser: names are lowercase and lines end with CRLF. There is no
+  // getResponseHeader, so a call to it (which logs for unexposed headers) fails.
+  getAllResponseHeaders() {
+    return [...this.responseHeaders].map(([name, value]) => `${name}: ${value}\r\n`).join("");
   }
 
   send(body?: unknown) {
@@ -186,7 +188,9 @@ describe("XHR network instrumentation", () => {
     const first = request("/api/123");
     first.complete();
     const second = request("/api/456");
+    second.responseHeaders.set("content-type", "text/plain");
     second.responseHeaders.set("x-everr-route", "/api/$id");
+    second.responseHeaders.set("x-other", "x-everr-route: /wrong");
     second.complete();
     expect(spans().map((s) => [s.name, s.attrs["url.template"]])).toEqual([
       ["GET /api/{id}", "/api/{id}"],

@@ -85,7 +85,11 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
         request.end(
           cancelled ? undefined : this.status || undefined,
           errorType,
-          cancelled ? undefined : this.getResponseHeader("x-everr-route"),
+          // getResponseHeader logs "Refused to get unsafe header" when a
+          // cross-origin response doesn't expose the header. The full list
+          // leaves it out silently. Browsers lowercase names and end lines with
+          // CRLF, and `.` stops before the CR.
+          cancelled ? undefined : /^x-everr-route: (.*)/m.exec(this.getAllResponseHeaders())?.[1],
         );
       }
     };
