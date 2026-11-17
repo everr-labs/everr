@@ -128,12 +128,12 @@ export function ErrorDetail({
             bound belongs to a child: on the viewport it would narrow the
             scrolling box itself and pull the scrollbar in with it. */}
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
-          {recordingSubject && sessionRecordings?.renderPlayer(recordingSubject, "inline")}
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}
             message={selected.exceptionMessage}
             emptyText="This occurrence has no stack trace."
           />
+          {recordingSubject && sessionRecordings?.renderPlayer(recordingSubject, "inline")}
           <ErrorStacktrace title="Component stack" stacktrace={componentStack} />
           {renderTracePanel?.({ occurrence: selected })}
           <ErrorAttributes occurrence={selected} />

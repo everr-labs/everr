@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { formatDuration } from "@everr/ui/lib/formatting";
+import { easeAway, easeSplit } from "@everr/ui/lib/unfold";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -185,6 +186,13 @@ function TraceViewer({
     [model, collapsedNodes],
   );
   const [flamegraphOpen, setFlamegraphOpen] = useState(false);
+  // The flamegraph stays while its panel closes, then goes.
+  const [flamegraphClosing, setFlamegraphClosing] = useState(false);
+  const flamegraphShown = flamegraphOpen || flamegraphClosing;
+  const flamegraphPanel = useRef<HTMLDivElement>(null);
+  const waterfallPanel = useRef<HTMLDivElement>(null);
+  // Each close is numbered, so the end of one that a reopening replaced keeps the flamegraph.
+  const flamegraphCloses = useRef(0);
   const [zoomRange, setZoomRange] = useState<ViewRange | null>(null);
   const range = zoomRange ?? { start: 0, end: model.durationMs };
   const flamegraphRef = useRef<FlamegraphHandle>(null);
@@ -215,6 +223,25 @@ function TraceViewer({
     [model, colorBy],
   );
   const colors = useMemo(() => serviceColors(colorGroups), [colorGroups]);
+
+  // It opens and closes on the same motion as the session recording row above it.
+  const toggleFlamegraph = () => {
+    if (!flamegraphOpen) {
+      void easeSplit(waterfallPanel.current, () => {
+        setFlamegraphOpen(true);
+        setFlamegraphClosing(false);
+      });
+      return;
+    }
+    setFlamegraphOpen(false);
+    const close = ++flamegraphCloses.current;
+    const motion = easeAway(flamegraphPanel.current);
+    if (!motion) return;
+    setFlamegraphClosing(true);
+    void motion.then(() => {
+      if (flamegraphCloses.current === close) setFlamegraphClosing(false);
+    });
+  };
 
   const selectSpan = useCallback(
     (id: string, source: "flamegraph" | "waterfall" | "search" = "search") => {
@@ -421,7 +448,7 @@ function TraceViewer({
                   type="button"
                   className="flex h-8 shrink-0 items-center gap-2 border-b px-4 text-xs font-medium hover:bg-muted/40"
                   aria-expanded={flamegraphOpen}
-                  onClick={() => setFlamegraphOpen((prev) => !prev)}
+                  onClick={toggleFlamegraph}
                 >
                   {/* A right chevron turning down, as the waterfall rows do. A down
                       chevron would be flipped by the global aria-expanded rule. */}
@@ -437,9 +464,9 @@ function TraceViewer({
                   </span>
                 </button>
                 <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-                  {flamegraphOpen && (
+                  {flamegraphShown && (
                     <>
-                      <ResizablePanel defaultSize="35%" minSize="15%">
+                      <ResizablePanel elementRef={flamegraphPanel} defaultSize="35%" minSize="15%">
                         <PreparedFlamegraph
                           queryKey={layoutKey}
                           ref={flamegraphRef}
@@ -457,7 +484,7 @@ function TraceViewer({
                       <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
                     </>
                   )}
-                  <ResizablePanel minSize="20%">
+                  <ResizablePanel elementRef={waterfallPanel} minSize="20%">
                     <div className="flex h-full min-h-0 flex-col">
                       <div className="h-8 shrink-0 border-b px-4 pt-2 text-xs font-medium">
                         Waterfall

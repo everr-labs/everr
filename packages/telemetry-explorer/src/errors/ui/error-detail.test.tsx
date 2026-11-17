@@ -182,7 +182,7 @@ describe("ErrorDetail session recording", () => {
     )),
   });
 
-  it("draws the player for a browser occurrence first, keyed to its stream and instant", async () => {
+  it("draws the player for a browser occurrence below its stack trace, keyed to its stream and instant", async () => {
     const host = withPlayer();
     renderDetail("", {
       sessionRecordings: host,
@@ -195,7 +195,7 @@ describe("ErrorDetail session recording", () => {
       "inline",
     );
     const stack = screen.getByText(/at renderRow/);
-    expect(player.compareDocumentPosition(stack)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(player.compareDocumentPosition(stack)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
   });
 
   it("reaches the recording through the trace of an occurrence without a stream", async () => {

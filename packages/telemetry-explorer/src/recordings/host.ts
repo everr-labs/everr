@@ -3,9 +3,10 @@ import type { ClipSubject } from "./data/schemas";
 
 /**
  * Where the player is drawn.
- * - `inline`: one block in a scrolling column.
+ * - `inline`: one block in a scrolling column, open from the start.
  * - `split`: panels at the top of a vertical `ResizablePanelGroup`, above the
- *   caller's own panel, so the reader can drag the space between them.
+ *   caller's own panel, so the reader can drag the space between them. It
+ *   starts as one row and opens from that row.
  */
 export type PlayerPlacement = "inline" | "split";
 
