@@ -277,8 +277,7 @@ export function LogsExplorer({
   const levelCounts = totals?.levelCounts;
 
   const handleLoadMore = useCallback(() => {
-    // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.
-    fetchNextPage();
+    void fetchNextPage();
   }, [fetchNextPage]);
 
   const handleSelectLog = useCallback(

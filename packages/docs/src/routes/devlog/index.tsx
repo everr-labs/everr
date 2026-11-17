@@ -19,8 +19,7 @@ export const Route = createFileRoute("/devlog/")({
 });
 
 const loadDevlogPosts = createServerFn({ method: "GET" }).handler(async () => {
-  // oxlint-disable-next-line typescript/await-thenable -- Preserve the existing async handler's settlement timing.
-  return await devlogposts
+  return devlogposts
     .getPages()
     .filter((post) => !post.data.draft)
     .map((post) => ({

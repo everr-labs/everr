@@ -1,6 +1,6 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { runsExplorerInfiniteOptions, runsHistogramOptions } from "../data/options";
 import type { RunsRepositoryLike } from "../data/repository";
 import {
@@ -69,6 +69,10 @@ export function RunsExplorer({
     }),
     placeholderData: keepPreviousData,
   });
+  // Stable like the query functions they wrap, so the results list keeps its
+  // end-reached callback between renders.
+  const retry = useCallback(() => void refetch(), [refetch]);
+  const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage]);
 
   const { data: histogram = [], isPending: isHistogramPending } = useQuery({
     ...runsHistogramOptions(repo, {
@@ -133,12 +137,10 @@ export function RunsExplorer({
                   isPending={isPending}
                   isError={isError}
                   error={error}
-                  // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-                  refetch={refetch}
+                  refetch={retry}
                   hasMore={hasNextPage}
                   isLoadingMore={isFetchingNextPage}
-                  // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-                  onLoadMore={fetchNextPage}
+                  onLoadMore={loadMore}
                   empty={
                     <NoResults
                       noun="runs"
