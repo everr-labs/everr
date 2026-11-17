@@ -19,12 +19,12 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 
 ### `thresholds`
 
-| Field          | Type   | Default           | Values                              | Effect                                                                                                                                                                                     |
-| -------------- | ------ | ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mode`         | string | `absolute`        | `absolute`, `percent`               | `absolute` compares the raw value; `percent` compares `value / max × 100`.                                                                                                                 |
-| `max`          | number | the gauge's `max` | any number                          | Reference for `percent` mode.                                                                                                                                                              |
-| `defaultColor` | string | none              | CSS color                           | Arc color before any step is crossed. Optional.                                                                                                                                            |
-| `steps`        | array  | `[]`              | `{ value: number, color?: string }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins** and colors the filled arc. Each colored step also draws a tick mark at its position on the gauge. |
+| Field          | Type   | Default           | Values                           | Effect                                                                                                                                                                                     |
+| -------------- | ------ | ----------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`         | string | `absolute`        | `absolute`, `percent`            | `absolute` compares the raw value; `percent` compares `value / max × 100`.                                                                                                                 |
+| `max`          | number | the gauge's `max` | any number                       | Reference for `percent` mode.                                                                                                                                                              |
+| `defaultColor` | string | none              | opaque hex (`#22c55e`)           | Arc color before any step is crossed. Optional.                                                                                                                                            |
+| `steps`        | array  | `[]`              | `{ value: number, color?: hex }` | Sorted ascending internally; the **highest step whose `value` ≤ the compare value wins** and colors the filled arc. Each colored step also draws a tick mark at its position on the gauge. |
 
 ```yaml
 plugin:

@@ -11,7 +11,7 @@ A bar chart over time **or** over categories. It infers its structure from the c
 | `stacking`    | string  | `none`     | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
 | `orientation` | string  | `vertical` | `vertical`, `horizontal`     | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels.                                                    |
 | `showValues`  | boolean | `false`    | `true`                       | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments.                                                                                    |
-| `colors`      | map     | `{}`       | series name to CSS color     | Pin a series to a fixed color. Use it when the series name carries a meaning a rotating palette would lose (`good` / `poor`, `pass` / `fail`). Unlisted series keep their palette color.                   |
+| `colors`      | map     | `{}`       | series name to opaque hex    | Pin a series to a fixed color. Use it when the series name carries a meaning a rotating palette would lose (`good` / `poor`, `pass` / `fail`). Unlisted series keep their palette color.                   |
 
 ```yaml
 plugin:

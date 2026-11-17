@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { hexColorSpec } from "../hex-color-spec";
 import { valueFormatSpec } from "../value-format-spec";
 
 /**
@@ -15,10 +16,10 @@ export const barChartSpec = z.looseObject({
   /** `horizontal` draws bars left-to-right with categories on the y-axis. */
   orientation: z.enum(["vertical", "horizontal"]).default("vertical"),
   showValues: z.boolean().default(false),
-  /** Fixed series name → CSS color mapping; unmapped series cycle the shared
+  /** Fixed series name → hex color mapping; unmapped series cycle the shared
    * palette. Use it when the series names carry a meaning of their own (a
    * good/poor rating, a pass/fail outcome) that a rotating palette would lose. */
-  colors: z.record(z.string(), z.string()).default({}),
+  colors: z.record(z.string(), hexColorSpec).default({}),
 });
 
 export type BarChartSpec = z.infer<typeof barChartSpec>;

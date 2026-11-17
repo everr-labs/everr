@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { hexColorSpec } from "../hex-color-spec";
 
 /**
  * StateTimeline plugin options. Loose so unknown keys flow through verbatim
@@ -23,8 +24,8 @@ export const stateTimelineSpec = z.looseObject({
   showValues: z.boolean().default(true),
   /** State color legend. */
   showLegend: z.boolean().default(true),
-  /** Fixed state → CSS color mapping; unmapped states cycle the shared palette. */
-  colors: z.record(z.string(), z.string()).default({}),
+  /** Fixed state → hex color mapping; unmapped states cycle the shared palette. */
+  colors: z.record(z.string(), hexColorSpec).default({}),
   /** Segment thickness as a fraction of the lane height. */
   rowHeight: z.number().min(0.2).max(1).default(0.9),
 });

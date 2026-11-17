@@ -81,7 +81,6 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
           label,
           colors,
           color,
-          background,
           appearance?.foreground,
         );
         return (
@@ -94,7 +93,7 @@ export function StatChartVisualization({ spec, data }: VisualizationProps<StatCh
             )}
             style={{
               width: `${100 / columns}%`,
-              ...(background && appearance
+              ...(appearance
                 ? {
                     color: appearance.foreground,
                     ...(multi
