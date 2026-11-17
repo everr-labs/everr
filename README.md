@@ -61,7 +61,7 @@ Most observability tools are built for teams that can afford dedicated telemetry
    everr local start
    ```
 
-4. Connect to [Everr Cloud](https://app.everr.dev/) with `everr cloud login`, or run your own installation with the [Docker Compose guide](deploy/README.md).
+4. Connect to [Everr Cloud](https://app.everr.dev/) with `everr cloud login`, or run your own installation with the [self-hosting guide](https://everr.dev/docs/guides/self-hosting).
 
 From there, follow the [docs](https://everr.dev/docs) to instrument your app, then build your first dashboard and alert.
 
