@@ -6,7 +6,6 @@ import { apikey } from "#app/db/schema/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import {
-  API_KEY_CONFIG_IDS,
   buildPublicKeyMetadata,
   HASHED_KEY_CONFIG_ID,
   PUBLIC_KEY_CONFIG_ID,
@@ -116,27 +115,30 @@ export const listApiKeys = createOrganizationAdminServerFn({
   // client round-trip to fetch the session. better-auth's list endpoint
   // reads the session from the request, so forward the headers. Without a
   // configId it lists the org's keys across every config.
-  const result = await auth.api.listApiKeys({
-    query: { organizationId },
-    headers: getRequestHeaders(),
-  });
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider rows and metadata verbatim rather than projecting or validating them.
-  const keys = ((result?.apiKeys ?? []) as ApiKey[]).filter((k) =>
-    API_KEY_CONFIG_IDS.includes(k.configId),
-  );
-
+  //
   // better-auth never returns the stored key, so read it for unhashed public
   // keys. Hashed keys (every secret key, and public keys created before the
   // public config existed) can't be shown again.
-  const stored = await db
-    .select({ id: apikey.id, key: apikey.key })
-    .from(apikey)
-    .where(and(eq(apikey.configId, PUBLIC_KEY_CONFIG_ID), eq(apikey.referenceId, organizationId)));
+  const [result, stored] = await Promise.all([
+    auth.api.listApiKeys({ query: { organizationId }, headers: getRequestHeaders() }),
+    db
+      .select({ id: apikey.id, key: apikey.key })
+      .from(apikey)
+      .where(
+        and(eq(apikey.configId, PUBLIC_KEY_CONFIG_ID), eq(apikey.referenceId, organizationId)),
+      ),
+  ]);
   const fullKeys = new Map(stored.map((row) => [row.id, row.key]));
-  return keys.map((k) => {
-    const fullKey = fullKeys.get(k.id);
-    return fullKey === undefined ? k : { ...k, fullKey };
-  });
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- Preserve provider rows and metadata verbatim rather than projecting or validating them.
+  const keys = (result?.apiKeys ?? []) as ApiKey[];
+  // Defense-in-depth: only our own key configs, and rows without a full key
+  // pass through untouched.
+  return keys
+    .filter((k) => k.configId === HASHED_KEY_CONFIG_ID || k.configId === PUBLIC_KEY_CONFIG_ID)
+    .map((k) => {
+      const fullKey = fullKeys.get(k.id);
+      return fullKey === undefined ? k : { ...k, fullKey };
+    });
 });
 
 export const ApiKeyCreateInputSchema = CreateApiKeyInput;

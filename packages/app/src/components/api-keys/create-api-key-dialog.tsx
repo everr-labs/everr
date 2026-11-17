@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import { CopyStateIcon } from "@everr/ui/components/copy-state-icon";
+import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {
   Dialog,
@@ -21,9 +21,10 @@ import {
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
 import { Textarea } from "@everr/ui/components/textarea";
+import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Globe, KeyRound, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreateApiKey } from "#app/components/api-keys/queries.ts";
 import { SCOPE_ICONS } from "#app/components/api-keys/scope-meta.tsx";
@@ -72,23 +73,18 @@ export function CreateApiKeyDialog({
     scopeSelection(defaultScopes),
   );
   const [issuedKey, setIssuedKey] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   // The key kind is fixed by which entry point opened the dialog ("New key"
   // vs "New public key"), so it's a prop, not toggleable state.
   const isPublic = defaultPublic;
   const [originsText, setOriginsText] = useState("");
-  const copyResetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const create = useCreateApiKey();
-
-  // Clear the "Copied" reset timer if the dialog unmounts mid-countdown.
-  useEffect(() => () => clearTimeout(copyResetTimer.current), []);
+  const issuedKeyRef = useRef<HTMLDivElement>(null);
 
   const reset = () => {
     setName("");
     setExpiry("never");
     setScopes(scopeSelection(defaultScopes));
     setIssuedKey(null);
-    setCopied(false);
     setOriginsText("");
   };
 
@@ -155,18 +151,6 @@ export function CreateApiKeyDialog({
     );
   };
 
-  const copyKey = async () => {
-    if (!issuedKey) return;
-    try {
-      await navigator.clipboard.writeText(issuedKey);
-      setCopied(true);
-      clearTimeout(copyResetTimer.current);
-      copyResetTimer.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error("Could not copy to clipboard");
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button size="sm" variant={triggerVariant} />}>
@@ -197,17 +181,17 @@ export function CreateApiKeyDialog({
                 )}
               </DialogDescription>
             </DialogHeader>
-            <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
+            <div
+              ref={issuedKeyRef}
+              className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all"
+            >
               {issuedKey}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Done
               </Button>
-              <Button onClick={() => void copyKey()}>
-                <CopyStateIcon copied={copied} iconClassName="size-4" />
-                {copied ? "Copied" : "Copy key"}
-              </Button>
+              <CopyIssuedKeyButton issuedKey={issuedKey} selectOnFailure={issuedKeyRef} />
             </DialogFooter>
           </div>
         ) : (
@@ -349,5 +333,25 @@ export function CreateApiKeyDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Mounted with each issued key, so a copy state never carries over to the
+// next one. A refused clipboard selects the key instead, ready to copy by hand.
+function CopyIssuedKeyButton({
+  issuedKey,
+  selectOnFailure,
+}: {
+  issuedKey: string;
+  selectOnFailure: React.RefObject<HTMLElement | null>;
+}) {
+  const { state, copy } = useCopyToClipboard(issuedKey, { selectOnFailure });
+  return (
+    <Button onClick={copy}>
+      <CopyStateContent
+        copied={state === "copied"}
+        label={state === "failed" ? "Copy failed" : "Copy key"}
+      />
+    </Button>
   );
 }

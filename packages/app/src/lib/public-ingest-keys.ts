@@ -36,8 +36,6 @@ export const HASHED_KEY_CONFIG_ID = "ingest";
  */
 export const PUBLIC_KEY_CONFIG_ID = "public";
 
-export const API_KEY_CONFIG_IDS: readonly string[] = [HASHED_KEY_CONFIG_ID, PUBLIC_KEY_CONFIG_ID];
-
 /**
  * Parse `raw` as a web origin (`scheme://host[:port]`, http/https only) and
  * return its canonical form, or null when it isn't one. `URL#origin`

@@ -60,5 +60,6 @@ it("lists every allowed origin from the +N", async () => {
 it("offers no reveal or copy for a public key created before keys could be shown", () => {
   renderSections([{ ...publicKey, configId: "ingest", fullKey: undefined }]);
   expect(screen.queryByRole("button", { name: /Show the full key/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Copy key" })).toBeNull();
   expect(screen.getByText("Not copyable")).toBeInTheDocument();
 });

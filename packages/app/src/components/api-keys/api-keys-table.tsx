@@ -22,9 +22,9 @@ import {
 } from "@everr/ui/components/empty";
 import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
+import { Toggletip, ToggletipContent, ToggletipTrigger } from "@everr/ui/components/toggletip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
-import { cn } from "@everr/ui/lib/utils";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
@@ -87,7 +87,7 @@ function KeyIdentity({ row }: { row: ApiKey }) {
       {row.fullKey === undefined ? (
         <code className="text-muted-foreground text-[0.7rem]">{maskedKey(row)}</code>
       ) : (
-        <RevealKey row={row} fullKey={row.fullKey} />
+        <RevealKey name={row.name} masked={maskedKey(row)} fullKey={row.fullKey} />
       )}
     </div>
   );
@@ -97,14 +97,22 @@ const maskedKey = (row: ApiKey) => `${row.start ?? row.prefix ?? "ek_"}…`;
 
 // A public key ships in page source, so its masked prefix opens the whole
 // key, ready to select or copy.
-function RevealKey({ row, fullKey }: { row: ApiKey; fullKey: string }) {
+function RevealKey({
+  name,
+  masked,
+  fullKey,
+}: {
+  name: ApiKey["name"];
+  masked: string;
+  fullKey: string;
+}) {
   return (
     <Popover>
       <PopoverTrigger
-        aria-label={`Show the full key for ${row.name ?? "this key"}`}
+        aria-label={`Show the full key for ${name ?? "this key"}`}
         className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-left font-mono text-[0.7rem] underline decoration-dotted underline-offset-2 transition-colors"
       >
-        {maskedKey(row)}
+        {masked}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[26rem] gap-2.5 p-3">
         <code className="bg-muted/40 rounded-md border px-2.5 py-2 font-mono text-xs/relaxed break-all select-all">
@@ -233,15 +241,15 @@ function Created({ row }: { row: ApiKey }) {
 function CopyPublicKey({ row }: { row: ApiKey }) {
   if (row.fullKey === undefined) {
     return (
-      <Tooltip>
-        <TooltipTrigger render={<span className="text-muted-foreground cursor-default text-xs" />}>
+      <Toggletip>
+        <ToggletipTrigger className="text-muted-foreground cursor-help text-xs">
           Not copyable
-        </TooltipTrigger>
-        <TooltipContent className="max-w-64">
+        </ToggletipTrigger>
+        <ToggletipContent className="max-w-64">
           This key was created before public keys could be shown again. Create a new public key to
           get one you can see and copy at any time.
-        </TooltipContent>
-      </Tooltip>
+        </ToggletipContent>
+      </Toggletip>
     );
   }
   // Icon only below xl, where the public table runs out of width.
@@ -320,53 +328,49 @@ function RevokeAction({
 // from one section to the next; the second column takes the rest. Narrower
 // than xl there isn't room to spare, so the tables size to their content.
 // A header class replaces DataTable's default padding, so it is restated.
-const HEADER = "pb-2 pr-4";
 const WIDTH = {
-  key: cn(HEADER, "pl-3 xl:w-40"),
-  lastUsed: cn(HEADER, "xl:w-28"),
-  expires: cn(HEADER, "xl:w-24"),
-  created: cn(HEADER, "xl:w-28"),
+  key: "pb-2 pr-4 pl-3 xl:w-40",
+  lastUsed: "pb-2 pr-4 xl:w-36",
+  expires: "pb-2 pr-4 xl:w-24",
+  created: "pb-2 pr-4 xl:w-28",
   actions: "pb-2 pr-3 xl:w-40",
 } as const;
 
-const SHARED_COLUMNS: Column<ApiKey>[] = [
-  { header: "Last used", cell: (row) => <LastUsed row={row} />, className: WIDTH.lastUsed },
-  { header: "Expires", cell: (row) => <Expiry row={row} />, className: WIDTH.expires },
-  { header: "Created", cell: (row) => <Created row={row} />, className: WIDTH.created },
-];
-
-function actionsColumn(cell: Column<ApiKey>["cell"]): Column<ApiKey> {
-  return {
-    header: <span className="sr-only">Actions</span>,
-    cell: (row) => (
-      <div className="flex items-center justify-end gap-1 whitespace-nowrap">{cell(row)}</div>
-    ),
-    cellClassName: "py-2 pr-3 text-right",
-    className: WIDTH.actions,
-  };
-}
-
-function secretColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
+// Both tables: Key, one column that differs, the shared dates, then actions.
+function keyColumns(middle: Column<ApiKey>, actions: Column<ApiKey>["cell"]): Column<ApiKey>[] {
   return [
     { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
-    { header: "Capabilities", cell: (row) => <ScopeBadges row={row} /> },
-    ...SHARED_COLUMNS,
-    actionsColumn((row) => <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />),
+    middle,
+    { header: "Last used", cell: (row) => <LastUsed row={row} />, className: WIDTH.lastUsed },
+    { header: "Expires", cell: (row) => <Expiry row={row} />, className: WIDTH.expires },
+    { header: "Created", cell: (row) => <Created row={row} />, className: WIDTH.created },
+    {
+      header: <span className="sr-only">Actions</span>,
+      cell: (row) => (
+        <div className="flex items-center justify-end gap-1 whitespace-nowrap">{actions(row)}</div>
+      ),
+      cellClassName: "py-2 pr-3 text-right",
+      className: WIDTH.actions,
+    },
   ];
 }
 
+function secretColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
+  return keyColumns({ header: "Capabilities", cell: (row) => <ScopeBadges row={row} /> }, (row) => (
+    <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />
+  ));
+}
+
 function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
-  return [
-    { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
+  return keyColumns(
     { header: "Allowed origins", cell: (row) => <AllowedOrigins row={row} /> },
-    ...SHARED_COLUMNS,
-    actionsColumn((row) => (
+    (row) => (
       <>
         <CopyPublicKey row={row} />
         <RevokeAction row={row} kind="public" onRevoke={onRevoke} />
       </>
-    )),
-  ];
+    ),
+  );
 }
 
 // A section with no keys still has to say what belongs there and why. The
@@ -414,9 +418,8 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
     });
   };
 
-  const publicKeys: ApiKey[] = [];
-  const secretKeys: ApiKey[] = [];
-  for (const k of keys) (publicKeyMetadataOf(k.metadata) ? publicKeys : secretKeys).push(k);
+  const publicKeys = keys.filter((k) => publicKeyMetadataOf(k.metadata));
+  const secretKeys = keys.filter((k) => !publicKeyMetadataOf(k.metadata));
 
   return (
     <div className="space-y-10">

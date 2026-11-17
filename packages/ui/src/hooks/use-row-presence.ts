@@ -1,7 +1,7 @@
 import { type AnimationEvent, useState } from "react";
 
-export type RowPhase = "idle" | "enter" | "exit";
-export interface RowEntry<T> {
+type RowPhase = "idle" | "enter" | "exit";
+interface RowEntry<T> {
   key: string;
   row: T;
   phase: RowPhase;
@@ -32,6 +32,10 @@ function reconcileRows<T>(
   return next;
 }
 
+function idleRows<T>(data: T[], rowKey: (row: T, index: number) => string): RowEntry<T>[] {
+  return data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" }));
+}
+
 /**
  * Rows for a list whose items animate in and out. Rows added after the first
  * render are marked "enter"; rows that left stay, marked "exit", until the
@@ -44,16 +48,12 @@ export function useRowPresence<T>(
   enabled = true,
 ) {
   const [seenData, setSeenData] = useState(data);
-  const [entries, setEntries] = useState<RowEntry<T>[]>(() =>
-    data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" })),
-  );
+  const [entries, setEntries] = useState(() => idleRows(data, rowKey));
   if (enabled && data !== seenData) {
     setSeenData(data);
     setEntries(reconcileRows(data, entries, rowKey));
   }
-  const rows: RowEntry<T>[] = enabled
-    ? entries
-    : data.map((row, index) => ({ key: rowKey(row, index), row, phase: "idle" }));
+  const rows = enabled ? entries : idleRows(data, rowKey);
 
   // `row-exit` runs on the row's cells and bubbles here, as do the cells'
   // other animations; only `row-exit` removes the row.
