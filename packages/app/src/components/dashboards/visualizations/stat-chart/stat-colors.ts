@@ -4,7 +4,6 @@ import { resolveThresholdColor } from "./stat-calculations";
 import type { ThresholdsSpec } from "./spec";
 import type { StatTile } from "./stat-series";
 
-const FILLED_TILE_SPARKLINE_COLOR = "rgba(255, 255, 255, 0.9)";
 const STAT_BACKGROUND_GRADIENT =
   "radial-gradient(ellipse at 50% 25%, rgba(255, 255, 255, 0.10), rgba(0, 0, 0, 0.08))";
 const STAT_BACKGROUND_TINTS = [
@@ -17,14 +16,14 @@ export function resolveStatBackgroundAppearance(background: string): {
   gradient: string | undefined;
 } {
   const result = readableForeground(background, STAT_BACKGROUND_TINTS);
-  if (!result) return { foreground: "#fff", gradient: STAT_BACKGROUND_GRADIENT };
   // color2k rounds mixed channels, so leave a small margin above 4.5:1.
-  if (result.contrast >= 4.55) {
+  if (result && result.contrast >= 4.55) {
     return { foreground: result.color, gradient: STAT_BACKGROUND_GRADIENT };
   }
   // If the gradient crosses the light/dark cutoff, a solid background keeps
-  // one foreground readable across the whole tile.
-  return { foreground: readableForeground(background)?.color ?? result.color, gradient: undefined };
+  // one foreground readable across the whole tile. Threshold colors are
+  // validated as opaque hex, so the fallback is only a type guard.
+  return { foreground: readableForeground(background)?.color ?? "#fff", gradient: undefined };
 }
 
 export function resolveStatTileColor(tile: StatTile, thresholds: ThresholdsSpec | undefined) {
@@ -37,9 +36,7 @@ export function resolveStatSparklineColor(
   label: string,
   colors: Record<string, string>,
   thresholdColor: string | undefined,
-  background: boolean,
-  foreground?: string,
+  filledForeground?: string,
 ): string {
-  if (background) return foreground ?? FILLED_TILE_SPARKLINE_COLOR;
-  return thresholdColor ?? colors[label] ?? SERIES_COLORS[0] ?? "currentColor";
+  return filledForeground ?? thresholdColor ?? colors[label] ?? SERIES_COLORS[0] ?? "currentColor";
 }
