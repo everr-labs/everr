@@ -5,11 +5,13 @@ import type { TenantRetention } from "#app/composition/retention.ts";
 import { env } from "#app/env/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
-import { originPolicyAllows } from "#app/lib/public-ingest-keys.ts";
+import {
+  HASHED_KEY_CONFIG_ID,
+  originPolicyAllows,
+  PUBLIC_KEY_CONFIG_ID,
+} from "#app/lib/public-ingest-keys.ts";
 import { retentionForOrg } from "#app/lib/retention.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
-
-const INGEST_CONFIG_ID = "ingest";
 
 // The retention days come straight from TenantRetention. The collector stamps
 // them on every resource it ingests with this key and the views write them
@@ -33,6 +35,17 @@ function secretMatches(provided: string | null): boolean {
   return timingSafeEqual(a, b);
 }
 
+// Both configs share the `ek_` prefix, so the key alone doesn't say which one
+// holds it. Each lookup is pinned to its configId: a stored hash sent as a
+// plaintext key can't match a hashed-config row through the public config.
+async function verifyIngestKey(key: string) {
+  for (const configId of [HASHED_KEY_CONFIG_ID, PUBLIC_KEY_CONFIG_ID]) {
+    const result = await auth.api.verifyApiKey({ body: { key, configId } });
+    if (result.valid) return result;
+  }
+  return null;
+}
+
 export const Route = createFileRoute("/api/internal/verify-key")({
   server: {
     handlers: {
@@ -54,10 +67,8 @@ export const Route = createFileRoute("/api/internal/verify-key")({
         // omits the field for server-to-server (headerless) traffic.
         const origin = body && typeof body.origin === "string" ? body.origin : null;
 
-        const result = await auth.api.verifyApiKey({
-          body: { key, configId: INGEST_CONFIG_ID },
-        });
-        if (!result.valid || !result.key?.referenceId) {
+        const result = await verifyIngestKey(key);
+        if (!result?.key?.referenceId) {
           return new Response(null, { status: 401 });
         }
 
@@ -70,7 +81,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
 
         // Browser policy: public keys only work from an allowed Origin;
         // secret keys never work from a browser (Origin-bearing request).
-        if (!originPolicyAllows(result.key.metadata, origin)) {
+        if (!originPolicyAllows(result.key, origin)) {
           return new Response(null, { status: 403 });
         }
 

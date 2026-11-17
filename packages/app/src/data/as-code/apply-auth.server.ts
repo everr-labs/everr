@@ -10,6 +10,7 @@ import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { createOrganizationSql, type OrganizationSql } from "#app/lib/organization-sql.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
+import { HASHED_KEY_CONFIG_ID } from "#app/lib/public-ingest-keys.ts";
 
 export interface ApplyAuth {
   organizationId: string;
@@ -85,7 +86,8 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
 
   if (credential.startsWith("ek_")) {
     const result = await auth.api.verifyApiKey({
-      body: { key: credential, configId: "ingest" },
+      // Public keys can never carry the apply scope, so only hashed keys apply.
+      body: { key: credential, configId: HASHED_KEY_CONFIG_ID },
     });
     if (!result.valid || !result.key?.referenceId) {
       throw new Error("Invalid API key");

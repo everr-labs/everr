@@ -20,7 +20,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
+import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
+import { cn } from "@everr/ui/lib/utils";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
@@ -34,7 +38,7 @@ import { publicKeyMetadataOf } from "#app/lib/public-ingest-keys.ts";
 import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 
-type RevokeFn = (id: string, name: string | null | undefined) => void;
+type RevokeFn = (row: ApiKey) => void;
 
 const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
@@ -72,26 +76,45 @@ function permissionsOf(row: ApiKey): ApiKeyPermissions {
 
 // ---- Shared cells --------------------------------------------------------
 
-// The key's name plus its masked prefix. Public (browser) keys also carry a
-// globe marker so a row reads as a browser key on its own, not only via the
-// section it sits in.
-function KeyIdentity({ row, browser }: { row: ApiKey; browser?: boolean }) {
+// The key's name plus its masked prefix. The section a row sits in already
+// says whether it's a public key, so the row doesn't repeat it.
+function KeyIdentity({ row }: { row: ApiKey }) {
   return (
-    <div className="flex items-center gap-2.5">
-      {browser && (
-        <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md border">
-          <Globe className="size-3.5" />
-        </span>
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="truncate font-medium">
+        {row.name ?? <span className="text-muted-foreground">Unnamed</span>}
+      </span>
+      {row.fullKey === undefined ? (
+        <code className="text-muted-foreground text-[0.7rem]">{maskedKey(row)}</code>
+      ) : (
+        <RevealKey row={row} fullKey={row.fullKey} />
       )}
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-medium">
-          {row.name ?? <span className="text-muted-foreground">Unnamed</span>}
-        </span>
-        <code className="text-muted-foreground text-[0.7rem]">
-          {row.start ?? row.prefix ?? "ek_"}…
-        </code>
-      </div>
     </div>
+  );
+}
+
+const maskedKey = (row: ApiKey) => `${row.start ?? row.prefix ?? "ek_"}…`;
+
+// A public key ships in page source, so its masked prefix opens the whole
+// key, ready to select or copy.
+function RevealKey({ row, fullKey }: { row: ApiKey; fullKey: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        aria-label={`Show the full key for ${row.name ?? "this key"}`}
+        className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-left font-mono text-[0.7rem] underline decoration-dotted underline-offset-2 transition-colors"
+      >
+        {maskedKey(row)}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[26rem] gap-2.5 p-3">
+        <code className="bg-muted/40 rounded-md border px-2.5 py-2 font-mono text-xs/relaxed break-all select-all">
+          {fullKey}
+        </code>
+        <div className="flex justify-end">
+          <CopyKeyButton fullKey={fullKey} variant="outline" />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -120,40 +143,45 @@ function ScopeBadges({ row }: { row: ApiKey }) {
   );
 }
 
-// Allowed origins for a public key: the first two inline, the rest folded
-// into a "+N" tooltip so a key with many origins doesn't blow out the column.
+// Allowed origins for a public key: the first two inline, and a "+N" that
+// opens the full list. A long origin is cut short in the row, so each chip
+// also carries its full text.
 function AllowedOrigins({ row }: { row: ApiKey }) {
   const origins = publicKeyMetadataOf(row.metadata)?.allowedOrigins ?? [];
   if (origins.length === 0) {
     return <span className="text-muted-foreground">None</span>;
   }
-  const shown = origins.slice(0, 2);
-  const rest = origins.slice(2);
+  const rest = origins.length - 2;
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {shown.map((origin) => (
+      {origins.slice(0, 2).map((origin) => (
         <code
           key={origin}
-          className="bg-muted/40 text-muted-foreground max-w-[13rem] truncate rounded border px-1.5 py-0.5 font-mono text-[0.7rem]"
+          title={origin}
+          className="bg-muted/40 text-muted-foreground max-w-[9rem] truncate rounded border px-1.5 py-0.5 font-mono text-[0.7rem] xl:max-w-[13rem]"
         >
           {origin}
         </code>
       ))}
-      {rest.length > 0 && (
-        <Tooltip>
-          <TooltipTrigger
-            render={<span className="text-muted-foreground cursor-default text-xs" />}
+      {rest > 0 && (
+        <Popover>
+          <PopoverTrigger
+            aria-label={`Show all ${origins.length} allowed origins`}
+            className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer rounded px-1 text-xs transition-colors"
           >
-            +{rest.length}
-          </TooltipTrigger>
-          <TooltipContent>
-            <ul className="font-mono text-xs">
-              {rest.map((origin) => (
-                <li key={origin}>{origin}</li>
+            +{rest}
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto max-w-sm gap-2 p-3">
+            <p className="text-muted-foreground font-medium">Allowed origins ({origins.length})</p>
+            <ul className="space-y-1 font-mono text-xs/relaxed">
+              {origins.map((origin) => (
+                <li key={origin} className="break-all select-all">
+                  {origin}
+                </li>
               ))}
             </ul>
-          </TooltipContent>
-        </Tooltip>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
@@ -163,11 +191,13 @@ function LastUsed({ row }: { row: ApiKey }) {
   const value = row.lastRequest;
   const relative = relativeFromNow(value);
   if (!relative || !value) {
-    return <span className="text-muted-foreground">Never used</span>;
+    return <span className="text-muted-foreground whitespace-nowrap">Never used</span>;
   }
   return (
     <Tooltip>
-      <TooltipTrigger render={<span className="cursor-default" />}>{relative}</TooltipTrigger>
+      <TooltipTrigger render={<span className="cursor-default whitespace-nowrap" />}>
+        {relative}
+      </TooltipTrigger>
       <TooltipContent>{exactDate(value)}</TooltipContent>
     </Tooltip>
   );
@@ -187,14 +217,55 @@ function Expiry({ row }: { row: ApiKey }) {
       </Tooltip>
     );
   }
-  return <span>{formatDate(value)}</span>;
+  return <span className="whitespace-nowrap">{formatDate(value)}</span>;
 }
 
 function Created({ row }: { row: ApiKey }) {
   return (
-    <span className="text-muted-foreground">
+    <span className="text-muted-foreground whitespace-nowrap">
       {row.createdAt ? formatDate(row.createdAt) : "Unknown"}
     </span>
+  );
+}
+
+// Public keys created before keys were stored unhashed can't be shown again,
+// so their row says why instead of offering a copy that can't work.
+function CopyPublicKey({ row }: { row: ApiKey }) {
+  if (row.fullKey === undefined) {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<span className="text-muted-foreground cursor-default text-xs" />}>
+          Not copyable
+        </TooltipTrigger>
+        <TooltipContent className="max-w-64">
+          This key was created before public keys could be shown again. Create a new public key to
+          get one you can see and copy at any time.
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  // Icon only below xl, where the public table runs out of width.
+  return <CopyKeyButton fullKey={row.fullKey} labelClassName="sr-only xl:not-sr-only" />;
+}
+
+function CopyKeyButton({
+  fullKey,
+  variant = "ghost",
+  labelClassName,
+}: {
+  fullKey: string;
+  variant?: "ghost" | "outline";
+  labelClassName?: string;
+}) {
+  const { state, copy } = useCopyToClipboard(fullKey);
+  return (
+    <Button variant={variant} size="sm" onClick={copy}>
+      <CopyStateContent
+        copied={state === "copied"}
+        label={state === "failed" ? "Copy failed" : "Copy key"}
+        labelClassName={labelClassName}
+      />
+    </Button>
   );
 }
 
@@ -234,7 +305,7 @@ function RevokeAction({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={() => onRevoke(row.id, row.name)}>
+          <AlertDialogAction variant="destructive" onClick={() => onRevoke(row)}>
             Revoke key
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -245,35 +316,58 @@ function RevokeAction({
 
 // ---- Tables --------------------------------------------------------------
 
+// Both tables share these widths so Last used, Expires and Created line up
+// from one section to the next; the second column takes the rest. Narrower
+// than xl there isn't room to spare, so the tables size to their content.
+// A header class replaces DataTable's default padding, so it is restated.
+const HEADER = "pb-2 pr-4";
+const WIDTH = {
+  key: cn(HEADER, "pl-3 xl:w-40"),
+  lastUsed: cn(HEADER, "xl:w-28"),
+  expires: cn(HEADER, "xl:w-24"),
+  created: cn(HEADER, "xl:w-28"),
+  actions: "pb-2 pr-3 xl:w-40",
+} as const;
+
+function sharedColumns(): Column<ApiKey>[] {
+  return [
+    { header: "Last used", cell: (row) => <LastUsed row={row} />, className: WIDTH.lastUsed },
+    { header: "Expires", cell: (row) => <Expiry row={row} />, className: WIDTH.expires },
+    { header: "Created", cell: (row) => <Created row={row} />, className: WIDTH.created },
+  ];
+}
+
+function actionsColumn(cell: Column<ApiKey>["cell"]): Column<ApiKey> {
+  return {
+    header: <span className="sr-only">Actions</span>,
+    cell: (row) => (
+      <div className="flex items-center justify-end gap-1 whitespace-nowrap">{cell(row)}</div>
+    ),
+    cellClassName: "py-2 pr-3 text-right",
+    className: WIDTH.actions,
+  };
+}
+
 function secretColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
   return [
-    { header: "Key", cell: (row) => <KeyIdentity row={row} /> },
+    { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
     { header: "Capabilities", cell: (row) => <ScopeBadges row={row} /> },
-    { header: "Last used", cell: (row) => <LastUsed row={row} /> },
-    { header: "Expires", cell: (row) => <Expiry row={row} /> },
-    { header: "Created", cell: (row) => <Created row={row} /> },
-    {
-      header: <span className="sr-only">Actions</span>,
-      cell: (row) => <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />,
-      cellClassName: "py-2 pr-3 text-right",
-      className: "pb-2 pr-3",
-    },
+    ...sharedColumns(),
+    actionsColumn((row) => <RevokeAction row={row} kind="secret" onRevoke={onRevoke} />),
   ];
 }
 
 function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
   return [
-    { header: "Key", cell: (row) => <KeyIdentity row={row} browser /> },
+    { header: "Key", cell: (row) => <KeyIdentity row={row} />, className: WIDTH.key },
     { header: "Allowed origins", cell: (row) => <AllowedOrigins row={row} /> },
-    { header: "Last used", cell: (row) => <LastUsed row={row} /> },
-    { header: "Expires", cell: (row) => <Expiry row={row} /> },
-    { header: "Created", cell: (row) => <Created row={row} /> },
-    {
-      header: <span className="sr-only">Actions</span>,
-      cell: (row) => <RevokeAction row={row} kind="public" onRevoke={onRevoke} />,
-      cellClassName: "py-2 pr-3 text-right",
-      className: "pb-2 pr-3",
-    },
+    ...sharedColumns(),
+    actionsColumn((row) => (
+      <>
+        <CopyPublicKey row={row} />
+        <RevokeAction row={row} kind="public" onRevoke={onRevoke} />
+      </>
+    )),
   ];
 }
 
@@ -313,10 +407,11 @@ interface ApiKeysSectionsProps {
 export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
   const revoke = useRevokeApiKey();
 
-  const handleRevoke: RevokeFn = (id, name) => {
-    const progress = progressToast(`Revoking API key ${name ?? id}…`);
-    revoke.mutate(id, {
-      onSuccess: () => progress.success(`API key ${name ?? id} revoked. Effective within 30s.`),
+  const handleRevoke: RevokeFn = (row) => {
+    const label = row.name ?? row.id;
+    const progress = progressToast(`Revoking API key ${label}…`);
+    revoke.mutate(row, {
+      onSuccess: () => progress.success(`API key ${label} revoked. Effective within 30s.`),
       onError: (err) => progress.error(err.message),
     });
   };

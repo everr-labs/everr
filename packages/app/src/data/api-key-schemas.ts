@@ -13,4 +13,8 @@ export type ApiKey = Pick<
   | "expiresAt"
   | "lastRequest"
   | "permissions"
-> & { metadata: z.core.util.JSONType };
+> & {
+  metadata: z.core.util.JSONType;
+  /** The full key, only for public keys stored unhashed. */
+  fullKey?: string;
+};

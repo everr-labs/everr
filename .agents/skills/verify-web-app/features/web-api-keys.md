@@ -7,10 +7,10 @@ An organization admin creates organization-scoped `ek_` keys on `/api-keys`, cho
 - `keys-empty` a new organization shows `No organization keys yet` and `No public keys yet`.
 - `keys-capability-required` `Create key` stays disabled until at least one capability switch is on.
 - `keys-create` creating a key shows `Copy your key now` with the full `ek_...` value exactly once.
-- `keys-list` after `Done` the table lists the key name with a truncated `ek_...` prefix.
+- `keys-list` after `Done` the list shows the key name with a truncated `ek_...` prefix.
 - `keys-persist` the key is still listed after a reload, and Postgres `apikey` has the row with the chosen permissions.
 - `keys-manage-as-code` with `Manage as code` also on, the stored permissions are `{"ingest":["write"],"apply":["read","write","delete"]}` and the key works for `/api/apply` (`web-dashboards.md`).
-- `keys-public` `New public key` with a name and allowed origins shows `Copy your key now`; the list shows the key with its origin, and Postgres stores `metadata` `{"public":true,"allowedOrigins":[...]}` with `ingest` write only.
+- `keys-public` `New public key` with a name and allowed origins shows `Your public key`; the list shows the key with its origin and a Copy key button, and Postgres stores `metadata` `{"public":true,"allowedOrigins":[...]}` with `ingest` write only.
 
 ## How to get to it (user POV)
 
@@ -59,7 +59,7 @@ Preconditions:
   agent-browser open "$WEB/api-keys" && agent-browser wait --text "New public key"
   agent-browser eval '[...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "New public key").focus()' && agent-browser press Enter && agent-browser wait --text "Allowed origins"
   agent-browser find label "Name" fill "$VERIFY_KEY_NAME-public" && agent-browser find label "Allowed origins" fill "$SDK_PAGE_ORIGIN" && ab_save api-keys-06-public-form
-  agent-browser find role button click --name "Create public key" && agent-browser wait --text "Copy your key now" && ab_save api-keys-07-public-issued
+  agent-browser find role button click --name "Create public key" && agent-browser wait --text "Your public key" && ab_save api-keys-07-public-issued
   agent-browser get text body | $V web-key-save public
   agent-browser find role button click --name "Done" && agent-browser wait --text "$VERIFY_KEY_NAME-public" && agent-browser wait --text "${SDK_PAGE_ORIGIN#http://}" && ab_save api-keys-08-public-listed
   $V web-psql public-key-row "select k.name, k.prefix, k.enabled, k.permissions, k.metadata from apikey k where k.name = '$VERIFY_KEY_NAME-public'"

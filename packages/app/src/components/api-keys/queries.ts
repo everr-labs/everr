@@ -5,10 +5,6 @@ import { authClient } from "#app/lib/auth-client.ts";
 
 export type { ApiKey } from "#app/data/api-keys.ts";
 
-// better-auth groups keys by `configId`. The value stays "ingest" so keys
-// minted before the rename keep resolving; only the UI vocabulary changed.
-const API_KEY_CONFIG_ID = "ingest";
-
 const apiKeysQueryKey = ["api-keys"] as const;
 
 export function apiKeysQueryOptions() {
@@ -50,10 +46,11 @@ export function useCreateApiKey() {
 export function useRevokeApiKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (keyId: string) => {
+    // better-auth only finds a key under its own config.
+    mutationFn: async (key: { id: string; configId: string }) => {
       const res = await authClient.apiKey.delete({
-        keyId,
-        configId: API_KEY_CONFIG_ID,
+        keyId: key.id,
+        configId: key.configId,
       });
       if (res.error) throw new Error(res.error.message ?? "Failed to revoke API key");
       return res.data;

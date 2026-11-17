@@ -21,12 +21,21 @@ vi.mock("#app/identity/server.ts", () => ({
   auth: { api: { createApiKey: vi.fn(), listApiKeys: vi.fn() } },
 }));
 
+// Stored public keys, as the `apikey` table returns them.
+const storedKeys = vi.hoisted(() => ({ rows: [] as { id: string; key: string }[] }));
+vi.mock("#app/db/client.ts", () => ({
+  db: {
+    select: () => ({ from: () => ({ where: async () => storedKeys.rows }) }),
+  },
+}));
+
 const createApiKeyMock = auth.api.createApiKey as unknown as Mock;
 const listApiKeysMock = vi.mocked(auth.api.listApiKeys);
 
 beforeEach(() => {
   vi.clearAllMocks();
   request.headers = {};
+  storedKeys.rows = [];
 });
 
 describe("permissionsForScopes", () => {
@@ -150,6 +159,23 @@ describe("createApiKey (server fn)", () => {
     });
   });
 
+  it("creates public keys in the unhashed public config", async () => {
+    createApiKeyMock.mockResolvedValueOnce({ key: "ek_public", id: "ak_1" });
+    await createApiKey({
+      data: {
+        name: "web",
+        scopes: ["ingest"],
+        public: true,
+        allowedOrigins: ["https://app.example.com"],
+      },
+    });
+    const call = createApiKeyMock.mock.calls[0]?.[0] as { body: Record<string, unknown> };
+    expect(call.body).toMatchObject({
+      configId: "public",
+      metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+    });
+  });
+
   it("forwards expiresInDays as seconds when provided", async () => {
     createApiKeyMock.mockResolvedValueOnce({
       key: "ek_test_value",
@@ -231,9 +257,17 @@ describe("listApiKeys provider passthrough", () => {
     expect(listed).toEqual([providerRow]);
     expect(listed[0]).toBe(providerRow);
     expect(listApiKeysMock).toHaveBeenCalledWith({
-      query: { configId: "ingest", organizationId: "test_org" },
+      query: { organizationId: "test_org" },
       headers: {},
     });
+  });
+
+  it("adds the full key to unhashed public keys only", async () => {
+    const publicKey = { ...key, id: "ak_public", configId: "public" };
+    storedKeys.rows = [{ id: "ak_public", key: "ek_full_public_key" }];
+    listApiKeysMock.mockResolvedValueOnce({ apiKeys: [key, publicKey] } as never);
+    const listed = await listApiKeys();
+    expect(listed).toEqual([key, { ...publicKey, fullKey: "ek_full_public_key" }]);
   });
 
   it("keeps every metadata shape the provider returns without breaking the key list", async () => {

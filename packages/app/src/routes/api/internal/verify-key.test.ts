@@ -55,8 +55,12 @@ async function mockVerify(result: unknown) {
   vi.mocked(auth.api.verifyApiKey).mockResolvedValueOnce(result as never);
 }
 
+const NOT_FOUND = { valid: false, key: null, error: { code: "INVALID_API_KEY" } };
+
 beforeEach(async () => {
   vi.clearAllMocks();
+  const { auth } = await import("#app/identity/server.ts");
+  vi.mocked(auth.api.verifyApiKey).mockResolvedValue(NOT_FOUND as never);
   const { retentionForOrg } = await import("#app/lib/retention.server.ts");
   vi.mocked(retentionForOrg).mockResolvedValue(retentionForDays(365, 30));
 });
@@ -75,14 +79,34 @@ describe("/api/internal/verify-key", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 401 when verifyApiKey rejects", async () => {
-    await mockVerify({
-      valid: false,
-      key: null,
-      error: { code: "INVALID_API_KEY" },
-    });
+  it("returns 401 when neither key config knows the key", async () => {
     const res = await getHandler()({ request: makeRequest({ key: "bad" }) });
     expect(res.status).toBe(401);
+  });
+
+  it("finds a public key in the unhashed config, pinned to each configId", async () => {
+    const { auth } = await import("#app/identity/server.ts");
+    vi.mocked(auth.api.verifyApiKey)
+      .mockResolvedValueOnce(NOT_FOUND as never)
+      .mockResolvedValueOnce({
+        valid: true,
+        error: null,
+        key: {
+          id: "ak_public",
+          configId: "public",
+          referenceId: "org_42",
+          permissions: { ingest: ["write"] },
+          metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+        },
+      } as never);
+    const res = await getHandler()({
+      request: makeRequest({ key: "the-key", origin: "https://app.example.com" }),
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(auth.api.verifyApiKey).mock.calls).toEqual([
+      [{ body: { key: "the-key", configId: "ingest" } }],
+      [{ body: { key: "the-key", configId: "public" } }],
+    ]);
   });
 
   it("returns 401 when verified key has no referenceId", async () => {
@@ -225,6 +249,12 @@ describe("/api/internal/verify-key browser origin policy", () => {
       name: "secret key + origin present (browser replay of a server key)",
       key: secretKey,
       origin: "https://app.example.com",
+      status: 403,
+    },
+    {
+      name: "public-config key without public metadata",
+      key: { ...secretKey, configId: "public" },
+      origin: undefined,
       status: 403,
     },
     { name: "secret key + no origin", key: secretKey, origin: undefined, status: 200 },

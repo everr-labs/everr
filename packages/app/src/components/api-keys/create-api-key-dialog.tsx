@@ -181,11 +181,20 @@ export function CreateApiKeyDialog({
                 <span className="bg-primary/10 text-primary flex size-7 items-center justify-center rounded-md">
                   <KeyRound className="size-4" />
                 </span>
-                Copy your key now
+                {isPublic ? "Your public key" : "Copy your key now"}
               </DialogTitle>
               <DialogDescription>
-                This is the only time the full key is shown. Store it in your secret manager. You
-                won&apos;t be able to retrieve it later.
+                {isPublic ? (
+                  <>
+                    Put it in your web app&apos;s telemetry setup. You can copy it again later from
+                    the public keys list.
+                  </>
+                ) : (
+                  <>
+                    This is the only time the full key is shown. Store it in your secret manager.
+                    You won&apos;t be able to retrieve it later.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
             <div className="bg-muted/40 rounded-md border p-3 font-mono text-xs break-all">
@@ -235,7 +244,7 @@ export function CreateApiKeyDialog({
                   name="api-key-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="prod-api"
+                  placeholder={isPublic ? "marketing-site" : "prod-api"}
                   required
                   // oxlint-disable-next-line jsx-a11y/no-autofocus -- intended focus on the primary field when this modal dialog opens
                   autoFocus

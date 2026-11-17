@@ -23,6 +23,22 @@ export type PublicKeyMetadata = {
 export const PUBLIC_KEY_SCOPE: ApiKeyScope = "ingest";
 
 /**
+ * better-auth config for hashed `ek_` keys: every secret key, plus public keys
+ * created before public keys got their own config. The value stays "ingest"
+ * for keys minted before the rename.
+ */
+export const HASHED_KEY_CONFIG_ID = "ingest";
+
+/**
+ * better-auth config for public keys. Stored unhashed so admins can copy a
+ * public key again after creation; it ships in page source anyway. A key in
+ * this config is always browser-only, whatever its metadata says.
+ */
+export const PUBLIC_KEY_CONFIG_ID = "public";
+
+export const API_KEY_CONFIG_IDS: readonly string[] = [HASHED_KEY_CONFIG_ID, PUBLIC_KEY_CONFIG_ID];
+
+/**
  * Parse `raw` as a web origin (`scheme://host[:port]`, http/https only) and
  * return its canonical form, or null when it isn't one. `URL#origin`
  * lowercases the host and drops default ports, which is exactly what
@@ -93,9 +109,16 @@ export function buildPublicKeyMetadata(origins: readonly string[]): PublicKeyMet
  * - public key, no origin: deny (public keys are browser-only)
  * - secret key, origin:    deny (secret keys never work from browsers)
  * - public key, origin:    allow iff the normalized origin is allowlisted
+ *
+ * A key in the unhashed public config without public metadata is denied
+ * outright: its plaintext is readable, so it must never act as a secret key.
  */
-export function originPolicyAllows(metadata: unknown, origin: string | null): boolean {
-  const publicMeta = publicKeyMetadataOf(metadata);
+export function originPolicyAllows(
+  key: { configId?: string | null; metadata: unknown },
+  origin: string | null,
+): boolean {
+  const publicMeta = publicKeyMetadataOf(key.metadata);
+  if (key.configId === PUBLIC_KEY_CONFIG_ID && !publicMeta) return false;
   if (origin === null) return publicMeta === null;
   if (!publicMeta) return false;
   const normalized = normalizeOrigin(origin);
