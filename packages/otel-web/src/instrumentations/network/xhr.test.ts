@@ -36,10 +36,22 @@ class TestXHR extends EventTarget {
     this.headers.append(name, value);
   }
 
-  // Like a browser: names are lowercase and lines end with CRLF. There is no
-  // getResponseHeader, so a call to it (which logs for unexposed headers) fails.
+  // Headers a cross-origin response doesn't expose to the page.
+  unexposed = new Set<string>();
+  readHeaders: string[] = [];
+
+  // Like a browser: lowercase names, CRLF line ends, unexposed headers left out.
   getAllResponseHeaders() {
-    return [...this.responseHeaders].map(([name, value]) => `${name}: ${value}\r\n`).join("");
+    return [...this.responseHeaders]
+      .filter(([name]) => !this.unexposed.has(name))
+      .map(([name, value]) => `${name}: ${value}\r\n`)
+      .join("");
+  }
+
+  // A browser logs "Refused to get unsafe header" for an unexposed header.
+  getResponseHeader(name: string) {
+    this.readHeaders.push(name);
+    return this.unexposed.has(name) ? null : this.responseHeaders.get(name);
   }
 
   send(body?: unknown) {
@@ -188,14 +200,27 @@ describe("XHR network instrumentation", () => {
     const first = request("/api/123");
     first.complete();
     const second = request("/api/456");
-    second.responseHeaders.set("content-type", "text/plain");
     second.responseHeaders.set("x-everr-route", "/api/$id");
-    second.responseHeaders.set("x-other", "x-everr-route: /wrong");
     second.complete();
     expect(spans().map((s) => [s.name, s.attrs["url.template"]])).toEqual([
       ["GET /api/{id}", "/api/{id}"],
       ["GET /api/$id", "/api/$id"],
     ]);
+    expect(first.readHeaders).toEqual([]);
+  });
+
+  it("reads the route echo only when the response exposes it", () => {
+    start();
+    const hidden = request("https://third-party.example/api");
+    hidden.responseHeaders.set("x-everr-route", "/hidden");
+    hidden.unexposed.add("x-everr-route");
+    hidden.complete();
+    const exposed = request("https://backend.example/api");
+    exposed.responseHeaders.set("x-everr-route", "/api/$id");
+    exposed.complete();
+    expect(hidden.readHeaders).toEqual([]);
+    expect(exposed.readHeaders).toEqual(["x-everr-route"]);
+    expect(spans().map((s) => s.name)).toEqual(["GET /api", "GET /api/$id"]);
   });
 
   it.each([399, 400, 404, 503])("records HTTP status %i", (status) => {
