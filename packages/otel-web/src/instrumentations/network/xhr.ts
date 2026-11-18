@@ -85,7 +85,14 @@ export function startXHR(tracer: Tracer, targets?: PropagationTarget[]) {
         request.end(
           cancelled ? undefined : this.status || undefined,
           errorType,
-          cancelled ? undefined : this.getResponseHeader("x-everr-route"),
+          // getResponseHeader logs "Refused to get unsafe header" when a
+          // cross-origin response doesn't expose the header, so it is read only
+          // when the list of readable headers has it.
+          cancelled
+            ? undefined
+            : this.getAllResponseHeaders().includes("x-everr-route:")
+              ? this.getResponseHeader("x-everr-route")
+              : undefined,
         );
       }
     };

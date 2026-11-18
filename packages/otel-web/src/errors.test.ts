@@ -177,10 +177,12 @@ describe("error capture through the SDK", () => {
     expect(a["exception.message"]).toBe('{"code":42}');
   });
 
-  it("stays silent after shutdown instead of warning", () => {
-    // The module data here is the data after a shutdown, because the earlier
-    // tests constructed the SDK. A shutdown is an intentional operation. Thus
-    // the functions do nothing and give no warning about the configuration.
+  it("stays silent after shutdown instead of warning", async () => {
+    // A shutdown is an intentional operation. Thus the functions do nothing and
+    // give no warning about the configuration. The test starts and stops its own
+    // SDK, because the run order is shuffled.
+    start();
+    await client?.shutdown();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect(() => captureError(new Error("late"))).not.toThrow();
