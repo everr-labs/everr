@@ -69,8 +69,13 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 	recordingsExporter := maps.Clone(chdbExporter)
 	recordingsExporter["logs_table_name"] = "recordings"
 	recordingsExporter["logs_layout"] = "recordings"
-	// The batch of the cloud's recordings exporter: about 15 MB of Segments.
+	// One request is one Segment of about 1 MB, held in memory, so the queue
+	// counts requests and stays small: the default of 1000 could hold 1 GB and
+	// outlast the CLI's 3s pipelineStopTimeout. A full queue refuses the
+	// Segment and the browser sends it again. The batch is the cloud's.
 	recordingsExporter["sending_queue"] = map[string]any{
+		"sizer":      "requests",
+		"queue_size": 32,
 		"batch": map[string]any{
 			"sizer":         "items",
 			"flush_timeout": "1s",
