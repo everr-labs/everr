@@ -6,6 +6,7 @@
 
 import type { Instrumentation } from "@everr/otel-web";
 import type { Stream } from "./recording/recorder.js";
+import { onClearIdentity } from "./state/session.js";
 
 export type RecordingOptions = {
   maskAllText?: boolean;
@@ -90,14 +91,25 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
     if (page) return;
     const state: { stream?: Stream } = {};
     page = state;
-    // One Stream per page, for the Session at setup.
-    const id = ctx.ids().sessionId;
+    // The Stream of the page load is for the Session at setup. A Stream that
+    // starts after clearIdentity() reads the Session at its first Clip: a read
+    // at the call writes new ids to the store that the user refused.
+    let session: string | undefined = ctx.ids().sessionId;
+    let start = () => {};
     import("./recording/recorder.js")
       .then(({ startStream }) => {
-        if (page === state) state.stream = startStream(ctx, id, options, paused);
+        start = () => {
+          state.stream = startStream(ctx, session, options, paused);
+        };
+        if (page === state) start();
       })
       // A failed chunk load or start only means no recording. It is never an app error.
       .catch(() => {});
+    onClearIdentity(() => {
+      state.stream?.end(true);
+      session = undefined;
+      start();
+    });
     const stopRecord = ctx.onRecord((item) => state.stream?.observe(item));
     // A hidden tab can come back: its open Clips send what they have and go
     // on. An unload ends them; a request started then may not finish.
@@ -105,6 +117,7 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
       unload ? state.stream?.hide() : state.stream?.flush(),
     );
     return () => {
+      onClearIdentity(undefined);
       stopHide();
       stopRecord();
       state.stream?.end();

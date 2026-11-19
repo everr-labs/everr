@@ -67,8 +67,12 @@ export type Stream = {
   flush(): void;
   /** Closes the open Clips at the unload time, and sends nothing more for them. */
   hide(): void;
-  /** Sends what the open Clips still need, ends them, and drops the buffer. */
-  end(): void;
+  /**
+   * Sends what the open Clips still need, ends them, and drops the buffer.
+   * With `drop`, for clearIdentity(), nothing more goes out under the ids of
+   * the Stream: no Segment, also one on its way, and no Span of an open Clip.
+   */
+  end(drop?: boolean): void;
 };
 
 // The automatic Clips of this document. The chunk loads once per document, and
@@ -86,6 +90,11 @@ const compress = (text: string) =>
     new Response(text).body!.pipeThrough(new CompressionStream("gzip")),
   ).arrayBuffer();
 
+// The count of the Streams that clearIdentity() ended on this page. A Segment
+// request made before the last one carries the old ids. It does not go out
+// after its compression, and it is not tried again.
+let drops = 0;
+
 // Sends one Segment request. A network error, a 5xx, or a 429 is tried again
 // twice, 2 and 4 seconds later. A server error keeps the gzipped copy; a
 // network error tries plain. A lost Segment leaves a hole in each Clip that
@@ -95,8 +104,9 @@ const deliver = (
   retries = 2,
   // null sends plain.
   zipped = gzip && request[2] ? compress(request[0]) : null,
+  made = drops,
 ): Promise<void> =>
-  (zipped ? zipped.then(request[1]) : request[1]())
+  (zipped ? zipped.then((body) => (made === drops ? request[1](body) : undefined)) : request[1]())
     .then((response) => {
       if (response instanceof Response && (response.status >= 500 || response.status === 429))
         throw response;
@@ -105,7 +115,9 @@ const deliver = (
     .catch((error: unknown) =>
       retries
         ? new Promise((resolve) => setTimeout(resolve, RETRY_MS * (3 - retries))).then(() =>
-            deliver(request, retries - 1, error instanceof Response ? zipped : null),
+            made === drops
+              ? deliver(request, retries - 1, error instanceof Response ? zipped : null, made)
+              : undefined,
           )
         : undefined,
     );
@@ -168,7 +180,8 @@ const failure = (item: SendEvent): Trigger | undefined => {
 
 export function startStream(
   ctx: InstrumentationContext,
-  sessionId: string,
+  // Absent for a Stream that starts after clearIdentity().
+  sessionId: string | undefined,
   options: RecordingOptions,
   paused: boolean,
 ): Stream {
@@ -183,7 +196,7 @@ export function startStream(
   let index = 0;
   const buckets = new Map<number, [tokens: number, time: number]>();
   // Each open Clip needs the events of its first generation and after.
-  const clips = new Set<{ from: number; close(hide: boolean): void }>();
+  const clips = new Set<{ from: number; close(hide: boolean, drop?: boolean): void }>();
   let flush: ReturnType<typeof setInterval> | undefined;
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
@@ -352,6 +365,9 @@ export function startStream(
     const start = fromBuffer ? time(first) : now;
 
     const id = randomHex(16);
+    // A Stream without a Session takes the one of its first Clip. A Segment
+    // goes only for a Clip, so it finds the Session set.
+    sessionId ??= ctx.ids().sessionId;
     const span = ctx.tracer.startSpan("recording", {
       root: true,
       startTime: start,
@@ -367,14 +383,14 @@ export function startStream(
     let live = true;
     const state = {
       from: fromBuffer ? generations[first].n : generationCount,
-      close(hide: boolean) {
+      close(hide: boolean, drop?: boolean) {
         if (!live) return;
         live = false;
         clearTimeout(cap);
         if (!hide) sendLive();
         clips.delete(state);
         if (!clips.size) clearInterval(flush);
-        span.end();
+        if (!drop) span.end();
       },
     };
     if (!clips.size) flush = setInterval(sendLive, FLUSH_MS);
@@ -422,9 +438,10 @@ export function startStream(
     hide() {
       for (const open of clips) open.close(true);
     },
-    end() {
+    end(drop = false) {
       if (ended) return;
-      for (const open of clips) open.close(false);
+      if (drop) drops++;
+      for (const open of clips) open.close(drop, drop);
       halt();
       ended = true;
       generations.length = 0;

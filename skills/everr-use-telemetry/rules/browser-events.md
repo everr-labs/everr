@@ -58,13 +58,13 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 ### Recording Segments
 
-Only with `recording()` from `@everr/otel-web/recording`. A page's buffer (the Stream) is sent as `everr.browser.recording.segment` logs, each event at most once, while a Clip needs it. The `Body` is a JSON array of rrweb events that is already masked. A Segment holds about 950 KB and never spans two full snapshots, and its `Timestamp` is that of its first event. A Clip is a time range of the Stream, given by its `recording` span: its Segments are those with the span's `everr.recording.stream.id` and a `Timestamp` from the span's start to its end, and the first of them starts with a Meta event and a full snapshot. Two Clips can share Segments. Order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit.
+Only with `recording()` from `@everr/otel-web/recording`. A page's buffer (the Stream) is sent as `everr.browser.recording.segment` logs, each event at most once, while a Clip needs it. The `Body` is a JSON array of rrweb events that is already masked. A Segment holds about 950 KB and never spans two full snapshots, and its `Timestamp` is that of its first event. A Clip is a time range of the Stream, given by its `recording` span: its Segments are those with the span's `everr.recording.stream.id` and a `Timestamp` from the span's start to its end, and the first of them starts with a Meta event and a full snapshot. Two Clips can share Segments. Order them by `everr.recording.segment.index`. A gap in the index is a request that was lost or dropped at page exit. `clearIdentity()` ends the Stream and starts a new one: a new `everr.recording.stream.id`, index 0, a full snapshot, and the Session of its first Clip. A Clip that was open at the call gets no `recording` span.
 
 | Attribute                       | Meaning                                                                   |
 | ------------------------------- | ------------------------------------------------------------------------- |
-| `everr.recording.stream.id`     | Random id per page's buffer; on every record of the page while it buffers |
+| `everr.recording.stream.id`     | Random id per Stream; on every record of the page while it buffers        |
 | `everr.recording.segment.index` | Int from 0 per Stream                                                     |
-| `session.id`                    | The Session the Stream started in, not a fresh read                       |
+| `session.id`                    | The Session at page load, or of the Stream's first Clip, not a fresh read |
 
 An event larger than one Segment, in practice a full snapshot with big text or inline images, goes in pieces: consecutive Segments whose `Body` is a slice of that one event's JSON text, not an array. Each piece is cut between characters and holds at most 950 KB of UTF-8, and it carries three more attributes:
 
