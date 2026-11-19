@@ -7,5 +7,4 @@ export const productClient: ProductClient = {
   missingWorkspaceRoute: "/access-required",
   entryRoutes: ["/access-required"],
   getEntryRedirect,
-  sessionRecordings: false,
 };

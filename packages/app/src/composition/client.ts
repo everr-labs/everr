@@ -22,9 +22,4 @@ export interface ProductClient<Additional extends readonly BuiltinManifestEntry[
    */
   getEntryRedirect?(state: EntryState, pathname: string): EntryRedirect | undefined;
   telemetryEndpoint?: string;
-  /**
-   * The deployment stores browser session recordings, so the trace view and
-   * the error detail play them and both lists can filter by them.
-   */
-  sessionRecordings: boolean;
 }
