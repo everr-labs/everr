@@ -58,6 +58,7 @@ func TestLoadConfig(t *testing.T) {
 				Password:          "bar",
 				TTL:               72 * time.Hour,
 				LogsTableName:     "otel_logs",
+				LogsLayout:        LogsLayoutLogs,
 				TracesTableName:   "otel_traces",
 				ProfilesTableName: "otel_profiles",
 				CreateSchema:      true,
@@ -110,6 +111,21 @@ func TestLoadConfig(t *testing.T) {
 		expected: jsonCfg,
 	})
 
+	recordingsCfg := withDefaultConfig(func(cfg *Config) {
+		cfg.Endpoint = defaultEndpoint
+		cfg.JSON = true
+		cfg.LogsTableName = "recordings"
+		cfg.LogsLayout = LogsLayoutRecordings
+	})
+
+	tests = append(tests, struct {
+		id       component.ID
+		expected component.Config
+	}{
+		id:       component.NewIDWithName(metadata.Type, "recordings"),
+		expected: recordingsCfg,
+	})
+
 	batchCfg := withDefaultConfig(func(cfg *Config) {
 		cfg.Endpoint = defaultEndpoint
 		cfg.QueueSettings = configoptional.Some(func() exporterhelper.QueueBatchConfig {
@@ -152,6 +168,35 @@ func withDefaultConfig(fns ...func(*Config)) *Config {
 		fn(cfg)
 	}
 	return cfg
+}
+
+func TestLogsLayoutValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		layout  LogsLayout
+		json    bool
+		wantErr string
+	}{
+		{name: "logs layout without json", layout: LogsLayoutLogs},
+		{name: "logs layout with json", layout: LogsLayoutLogs, json: true},
+		{name: "recordings layout with json", layout: LogsLayoutRecordings, json: true},
+		{name: "recordings layout without json", layout: LogsLayoutRecordings, wantErr: "requires json: true"},
+		{name: "unknown layout", layout: "segments", json: true, wantErr: `logs_layout "segments" must be one of [logs recordings]`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := withDefaultConfig(func(cfg *Config) {
+				cfg.LogsLayout = tt.layout
+				cfg.JSON = tt.json
+			})
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
 }
 
 func TestBuildMetricMetricTableNames(t *testing.T) {

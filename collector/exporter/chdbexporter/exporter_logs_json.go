@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -284,7 +285,20 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 	return nil
 }
 
+// logsLayoutTemplates is the closed set of shapes the JSON logs table can
+// take, each with the statement that creates it. The insert path is the same
+// for all of them: the columns a layout adds are MATERIALIZED, so they are
+// never inserted.
+var logsLayoutTemplates = map[LogsLayout]*template.Template{
+	LogsLayoutLogs:       sqltemplates.LogsJSONCreateTableTmpl,
+	LogsLayoutRecordings: sqltemplates.RecordingsCreateTableTmpl,
+}
+
 func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
+	tmpl, ok := logsLayoutTemplates[cfg.LogsLayout]
+	if !ok {
+		return "", fmt.Errorf("unknown logs layout %q", cfg.LogsLayout)
+	}
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
 		Database:      cfg.database(),
@@ -295,7 +309,7 @@ func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
 	}
 
 	var buf bytes.Buffer
-	if err := sqltemplates.LogsJSONCreateTableTmpl.Execute(&buf, data); err != nil {
+	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("execute logs json create table template: %w", err)
 	}
 

@@ -371,6 +371,7 @@ The underlying `clickhouse-go` module offers additional configuration. These can
 ClickHouse tables:
 
 - `logs_table_name` (default = otel_logs): The table name for logs.
+- `logs_layout` (default = logs): The shape of the logs table, `logs` or `recordings`. `recordings` is the table of browser recording Segments: the log columns plus `session_id`, `stream_id` and `segment_index`, ordered by `(stream_id, Timestamp, segment_index)`. It requires `json: true`. Use it for the logs pipeline a routing connector sends Segments to. This option only exists in this fork.
 - `traces_table_name` (default = otel_traces): The table name for traces.
 - `profiles_table_name` (default = otel_profiles): The table name for profiles.
 - `metrics_tables`

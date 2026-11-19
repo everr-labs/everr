@@ -189,3 +189,28 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   `testdata/config.yaml`.
 - `example/docker-compose.yml` keeps its ClickHouse image pin.
 - `localSchemaVersion` stays 2: the table DDL is unchanged.
+
+## Recordings layout
+
+- `logs_layout` (`logs` by default, or `recordings`) picks the shape of the
+  JSON logs table from a closed set (`logsLayoutTemplates`). The cloud routes
+  browser recording Segments to their own `recordings` table, and the local
+  collector does the same, so a Segment is not stored as one huge row of the
+  ordinary `logs` table. `recordings` needs `json: true`; `Validate` rejects
+  any other combination and any name outside the set.
+- `internal/sqltemplates/recordings_table.sql` is the cloud's `app.recordings`
+  (`packages/app/clickhouse/0013-cloud-create-recordings.sql`) minus
+  `tenant_id` and `retention_days`, which the local store does not have. The
+  `session_id`, `stream_id` and `segment_index` columns are MATERIALIZED with
+  the cloud's expressions, which never throw on a missing or malformed
+  attribute. The key is `(stream_id, Timestamp, segment_index)` and the
+  granularity is 32, because a row is close to 1 MB. The TTL is the exporter's
+  `ttl`, like the other local tables. Keep the column list, the expressions and
+  the key in step with the cloud DDL, because the cloud reader's queries must
+  run against the local table unchanged.
+- The insert path is shared with `logs`: MATERIALIZED columns are not inserted.
+- `localSchemaVersion` stays 2. The new table is created by
+  `CREATE TABLE IF NOT EXISTS` in a store that lacks it and no existing table
+  changes shape. The recordings template joins `shapedTemplatesDigest`, so a
+  later edit to it has to bump the version. A store that already holds
+  Segments in `logs` keeps them there until `ttl` removes them.

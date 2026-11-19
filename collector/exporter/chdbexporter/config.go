@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,6 +50,9 @@ type Config struct {
 	ConnectionParams map[string]string `mapstructure:"connection_params"`
 	// LogsTableName is the table name for logs. default is `otel_logs`.
 	LogsTableName string `mapstructure:"logs_table_name"`
+	// LogsLayout is the shape of the logs table: `logs` (default) or `recordings`, the table of browser
+	// recording Segments. `recordings` requires `json: true`.
+	LogsLayout LogsLayout `mapstructure:"logs_layout"`
 	// TracesTableName is the table name for traces. default is `otel_traces`.
 	TracesTableName string `mapstructure:"traces_table_name"`
 	// ProfilesTableName is the table name for profiles. default is `otel_profiles`.
@@ -94,6 +99,17 @@ type MetricTablesConfig struct {
 	ExponentialHistogram metrics.MetricTypeConfig `mapstructure:"exponential_histogram"`
 }
 
+// LogsLayout names one of the shapes the logs table can take.
+type LogsLayout string
+
+const (
+	// LogsLayoutLogs is the table of ordinary logs.
+	LogsLayoutLogs LogsLayout = "logs"
+	// LogsLayoutRecordings is the table of browser recording Segments, shaped
+	// like the cloud's recordings table.
+	LogsLayoutRecordings LogsLayout = "recordings"
+)
+
 // DatabaseEngine defines the ENGINE string value when creating the database.
 type DatabaseEngine struct {
 	Name   string `mapstructure:"name"`
@@ -132,6 +148,7 @@ func createDefaultConfig() component.Config {
 		ConnectionParams:  map[string]string{},
 		Database:          defaultDatabase,
 		LogsTableName:     "otel_logs",
+		LogsLayout:        LogsLayoutLogs,
 		TracesTableName:   "otel_traces",
 		ProfilesTableName: "otel_profiles",
 		TTL:               7 * 24 * time.Hour,
@@ -150,6 +167,13 @@ func createDefaultConfig() component.Config {
 // Validate the ClickHouse server configuration.
 func (cfg *Config) Validate() (err error) {
 	cfg.buildMetricTableNames()
+
+	if _, ok := logsLayoutTemplates[cfg.LogsLayout]; !ok {
+		err = errors.Join(err, fmt.Errorf("logs_layout %q must be one of %v", cfg.LogsLayout, slices.Sorted(maps.Keys(logsLayoutTemplates))))
+	}
+	if cfg.LogsLayout != LogsLayoutLogs && !cfg.JSON {
+		err = errors.Join(err, fmt.Errorf("logs_layout %q requires json: true", cfg.LogsLayout))
+	}
 
 	if cfg.Endpoint != "" {
 		dsn, e := cfg.buildDSN()

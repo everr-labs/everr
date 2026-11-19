@@ -31,13 +31,14 @@ import (
 // shapedTemplatesDigest pins the DDL that decides the shape of the local
 // store. localSchemaVersion has to change with it, because a store built by an
 // older binary is only dropped and rebuilt when the version differs.
-const shapedTemplatesDigest = "2414fb829f1db0f493f12bbc6ca8ead5d7606da2c51eaf5e2172813f589f2acf"
+const shapedTemplatesDigest = "f8041fddc527789fa6d63d9669141cd56a5e7b6c79838799b3ab0de35f13917e"
 
 func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	digest := sha256.New()
 	for _, template := range []string{
 		sqltemplates.LogsCreateTable,
 		sqltemplates.LogsJSONCreateTable,
+		sqltemplates.RecordingsCreateTable,
 		sqltemplates.TracesCreateTable,
 		sqltemplates.TracesJSONCreateTable,
 		sqltemplates.TracesCreateTsTable,
@@ -161,7 +162,7 @@ func TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst(t *testing.T)
 
 			// A store from an older binary: both components' tables exist
 			// with a shape that has none of today's columns.
-			tables := map[string]string{"first": "logs_a", "second": "logs_b"}
+			tables := map[string]string{"first": "logs", "second": "recordings"}
 			for _, table := range tables {
 				require.NoError(t, conn.Exec(t.Context(),
 					`CREATE TABLE "default"."`+table+`" (old UInt8) ENGINE = MergeTree ORDER BY old`))
@@ -180,6 +181,9 @@ func TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst(t *testing.T)
 				cfg := withDefaultConfig(func(cfg *Config) {
 					cfg.JSON = true
 					cfg.LogsTableName = table
+					if table == "recordings" {
+						cfg.LogsLayout = LogsLayoutRecordings
+					}
 					cfg.QueueSettings = configoptional.None[exporterhelper.QueueBatchConfig]()
 				})
 				exp, createErr := factory.CreateLogs(t.Context(), exportertest.NewNopSettings(metadata.Type), cfg)
@@ -216,6 +220,9 @@ func TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst(t *testing.T)
 				}
 				require.Contains(t, names, "Timestamp", "%s kept the shape of the older version", table)
 				require.NotContains(t, names, "old", "%s kept the shape of the older version", table)
+				if table == "recordings" {
+					require.Contains(t, names, "stream_id", "%s was not rebuilt as the recordings layout", table)
+				}
 			}
 			version, err := readSchemaVersion(t.Context(), conn, "default")
 			require.NoError(t, err)

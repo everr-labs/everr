@@ -45,12 +45,20 @@ var LogsJSONCreateTable string
 //go:embed logs_json_insert.sql
 var LogsJSONInsert string
 
+// RecordingsCreateTable is the logs table of browser recording Segments. Its
+// columns match the cloud's app.recordings, without the tenant and retention
+// columns the local store does not have.
+//
+//go:embed recordings_table.sql
+var RecordingsCreateTable string
+
 // Parsed templates for logs (text/template).
 var (
-	LogsCreateTableTmpl     = newTemplate("logs_table", LogsCreateTable)
-	LogsInsertTmpl          = newTemplate("logs_insert", LogsInsert)
-	LogsJSONCreateTableTmpl = newTemplate("logs_json_table", LogsJSONCreateTable)
-	LogsJSONInsertTmpl      = newTemplate("logs_json_insert", LogsJSONInsert)
+	LogsCreateTableTmpl       = newTemplate("logs_table", LogsCreateTable)
+	LogsInsertTmpl            = newTemplate("logs_insert", LogsInsert)
+	LogsJSONCreateTableTmpl   = newTemplate("logs_json_table", LogsJSONCreateTable)
+	LogsJSONInsertTmpl        = newTemplate("logs_json_insert", LogsJSONInsert)
+	RecordingsCreateTableTmpl = newTemplate("recordings_table", RecordingsCreateTable)
 )
 
 // CreateTableData contains the template parameters for creating a logs table.

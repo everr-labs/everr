@@ -7,6 +7,9 @@ $defs:
         type: string
       params:
         type: string
+  logs_layout:
+    description: LogsLayout names one of the shapes the logs table can take.
+    type: string
   metric_tables_config:
     type: object
     properties:
@@ -65,6 +68,9 @@ properties:
   json:
     description: JSON enables the JSON column type for attributes in logs and traces tables. When false (default), Map columns are used. When true, JSON columns are used. ClickHouse v25+ is recommended for reliable JSON support. You may also need to add `enable_json_type=1` to your endpoint or connection_params.
     type: boolean
+  logs_layout:
+    description: "LogsLayout is the shape of the logs table: `logs` (default) or `recordings`, the table of browser recording Segments. `recordings` requires `json: true`."
+    $ref: logs_layout
   logs_table_name:
     description: LogsTableName is the table name for logs. default is `otel_logs`.
     type: string

@@ -41,6 +41,11 @@ chdb/batch:
 chdb/json:
   endpoint: clickhouse://127.0.0.1:9000
   json: true
+chdb/recordings:
+  endpoint: clickhouse://127.0.0.1:9000
+  json: true
+  logs_table_name: recordings
+  logs_layout: recordings
 chdb/invalid-endpoint:
   endpoint: 127.0.0.1:9000
 
