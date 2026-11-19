@@ -112,6 +112,18 @@ describe("queryLines", () => {
     await iterator.return?.();
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it("releases the connection when the reader stops while it waits for a row", async () => {
+    const stalled = new Readable({ objectMode: true, read() {} });
+    const close = vi.fn(() => stalled.destroy(new Error("ResultSet has been closed")));
+    mockQuery.mockResolvedValue({ stream: () => stalled, close });
+    const iterator = (await queryLines("SELECT n", ORG))[Symbol.asyncIterator]();
+    const waiting = iterator.next();
+    const stopped = iterator.return?.();
+    expect(close).toHaveBeenCalledOnce();
+    await expect(waiting).resolves.toEqual({ done: true, value: undefined });
+    await stopped;
+  });
 });
 
 describe("querySqlApi", () => {
