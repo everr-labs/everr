@@ -15,7 +15,7 @@ Use Everr telemetry before guessing when real traces, logs, metrics, or captured
 
 Use `everr cloud query "<SQL>"` for the selected installation or `everr local query "<SQL>"` for the local collector. `--format` accepts `table`, `json`, or `ndjson`. Remote queries use the saved login session.
 
-The page a user saw at a moment comes from `everr cloud recording show`, on Cloud only. Everything else a browser sent is in `logs` and `traces`. Read `rules/recordings.md` first.
+The page a user saw at a moment comes from `everr cloud recording show`. Everything else a browser sent is in `logs` and `traces`. Read `rules/recordings.md` first.
 
 ## Saved connection
 

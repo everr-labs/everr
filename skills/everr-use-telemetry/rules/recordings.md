@@ -191,9 +191,8 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 
 Every other message names its own next move.
 
-| Message says                           | Next move                                                                                          |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `MiB of Segments`                      | The page is too large to read. Say so, and continue with the timeline.                             |
-| `Session recordings are not available` | This installation does not store Recordings. Say so, and continue with the timeline.               |
-| `This installation may predate`        | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`. |
-| `cut short`, or `read took over`       | Retry once. If it fails again, report the error.                                                   |
+| Message says                     | Next move                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `MiB of Segments`                | The page is too large to read. Say so, and continue with the timeline.                             |
+| `This installation may predate`  | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`. |
+| `cut short`, or `read took over` | Retry once. If it fails again, report the error.                                                   |
