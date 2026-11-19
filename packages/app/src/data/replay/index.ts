@@ -87,7 +87,7 @@ export async function readSegments(
 ): Promise<SegmentRead> {
   const atMs = request.at.getTime();
   const window = windowAround(atMs);
-  const clips = await loadClips(organizationId, request.stream, window);
+  const clips = await loadClips(organizationId, request.stream, window, atMs);
   const clip = select(clips, request.stream, atMs, window);
   const readAt = new Date(Math.min(atMs + SETTLE_MS, clip.end.getTime()));
   return { readAt, lines: await segmentLines(organizationId, clip, readAt) };
