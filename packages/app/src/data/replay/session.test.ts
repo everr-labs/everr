@@ -55,7 +55,7 @@ beforeEach(() => {
 describe("loadClips", () => {
   it("reads the Clips of the Stream overlapping 5 minutes either side of --at, starts 24 hours back", async () => {
     expect(WINDOW).toEqual({ from: new Date(T0 - 5 * 60_000), to: new Date(T0 + 5 * 60_000) });
-    await loadClips(ORG, STREAM, WINDOW);
+    await loadClips(ORG, STREAM, WINDOW, T0);
     const [call] = calls(isClipQuery);
     expect(call?.sql).toContain(
       "toString(SpanAttributes.`everr.recording.stream.id`) = {stream:String}",
@@ -75,7 +75,7 @@ describe("loadClips", () => {
 
   it("finds a Clip that started at an old Generation and still covers the window", async () => {
     plan({ clips: [spanRow({ startMs: T0 - 3 * HOUR, endMs: T0 + 1_000 })] });
-    const clips = await loadClips(ORG, STREAM, WINDOW);
+    const clips = await loadClips(ORG, STREAM, WINDOW, T0);
     expect(clips.map((c) => c.start.getTime())).toEqual([T0 - 3 * HOUR]);
   });
 
@@ -88,7 +88,7 @@ describe("loadClips", () => {
         spanRow({ startMs: T0 }),
       ],
     });
-    expect(await loadClips(ORG, STREAM, WINDOW)).toEqual([
+    expect(await loadClips(ORG, STREAM, WINDOW, T0)).toEqual([
       clip({ start: new Date(T0), end: new Date(T0 + 5_000) }),
     ]);
   });
@@ -99,7 +99,7 @@ describe("loadClips", () => {
         spanRow({ startMs: T0, clipId: i.toString(16).padStart(32, "0") }),
       ),
     });
-    expect(await loadClips(ORG, STREAM, WINDOW)).toHaveLength(20);
+    expect(await loadClips(ORG, STREAM, WINDOW, T0)).toHaveLength(20);
   });
 });
 
