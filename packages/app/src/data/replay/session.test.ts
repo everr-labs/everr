@@ -504,23 +504,25 @@ describe("sessionJourney", () => {
   });
 });
 
+/** One Clip with one Segment that holds `events`. */
+function planSegment(events: Array<Record<string, unknown>>, traces = [spanRow()]): void {
+  plan({ traces, recordings: [segRow(eventBody(events))] });
+}
+
+/** The events of a page: its Meta, a snapshot of the form, and what happens later. */
+function formPage(...later: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return [metaEvent(T0 + 10), snapshotEvent(T0 + 20, formSnapshot() as never), ...later];
+}
+
+/** The page of the Clip `ms` after its first Segment event. */
+function pageAfter(ms: number, options?: { compact?: boolean }) {
+  return pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + ms).toISOString() }, options);
+}
+
 describe("pageAt", () => {
   it("builds the page from deduplicated at-least-once clip rows", async () => {
-    plan({
-      traces: [spanRow(), spanRow()],
-      recordings: [
-        segRow(
-          eventBody([
-            metaEvent(T0 + 10),
-            { type: 2, timestamp: T0 + 200, data: { node: pageSnapshot() } },
-          ]),
-        ),
-      ],
-    });
-    const page = await pageAt(ORG, {
-      clipId: CLIP_ID,
-      at: new Date(T0 + 1_000).toISOString(),
-    });
+    planSegment([metaEvent(T0 + 10), snapshotEvent(T0 + 200)], [spanRow(), spanRow()]);
+    const page = await pageAfter(1_000);
 
     expect(page).toMatchObject({ clipId: CLIP_ID, sessionId: SESSION, coverage: "complete" });
     expect(page.html).toContain("verify sdk item 1");
@@ -537,57 +539,37 @@ describe("pageAt", () => {
   });
 
   it("keeps <style> text raw while markup text stays escaped", async () => {
-    plan({
-      traces: [spanRow()],
-      recordings: [
-        segRow(
-          eventBody([
-            metaEvent(T0 + 10),
-            { type: 2, timestamp: T0 + 200, data: { node: pageSnapshot() } },
-          ]),
-        ),
-      ],
-    });
-    const page = await pageAt(ORG, {
-      clipId: CLIP_ID,
-      at: new Date(T0 + 1_000).toISOString(),
-    });
+    planSegment([metaEvent(T0 + 10), snapshotEvent(T0 + 200)]);
+    const page = await pageAfter(1_000);
 
     expect(page.html).toContain("a > b { color: red }");
     expect(page.html).not.toContain("a &gt; b");
   });
 
   it("applies the changes after the snapshot up to at, and only those", async () => {
-    plan({
-      traces: [spanRow()],
-      recordings: [
-        segRow(
-          eventBody([
-            metaEvent(T0 + 10),
-            snapshotEvent(T0 + 20, formSnapshot() as never),
-            mutationEvent(T0 + 100, {
-              texts: [{ id: 12, value: "Order placed" }],
-              attributes: [{ id: 14, attributes: { disabled: "", id: null } }],
-              removes: [{ parentId: 10, id: 13 }],
-              adds: [
-                {
-                  parentId: 10,
-                  nextId: 14,
-                  node: { type: 2, tagName: "p", attributes: { class: "notice" }, id: 20 },
-                },
-                { parentId: 20, nextId: null, node: { type: 3, textContent: "Paid", id: 21 } },
-              ],
-            }),
-            mutationEvent(T0 + 3_000, { texts: [{ id: 12, value: "Later" }] }),
-          ]),
-        ),
-      ],
-    });
-    const before = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 50).toISOString() });
+    planSegment(
+      formPage(
+        mutationEvent(T0 + 100, {
+          texts: [{ id: 12, value: "Order placed" }],
+          attributes: [{ id: 14, attributes: { disabled: "", id: null } }],
+          removes: [{ parentId: 10, id: 13 }],
+          adds: [
+            {
+              parentId: 10,
+              nextId: 14,
+              node: { type: 2, tagName: "p", attributes: { class: "notice" }, id: 20 },
+            },
+            { parentId: 20, nextId: null, node: { type: 3, textContent: "Paid", id: 21 } },
+          ],
+        }),
+        mutationEvent(T0 + 3_000, { texts: [{ id: 12, value: "Later" }] }),
+      ),
+    );
+    const before = await pageAfter(50);
     expect(before.html).toContain("Checkout");
     expect(before.html).toContain('name="email"');
 
-    const after = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    const after = await pageAfter(1_000);
     expect(after.coverage).toBe("complete");
     expect(after.html).toContain("<h1");
     expect(after.html).toContain("Order placed");
@@ -597,53 +579,25 @@ describe("pageAt", () => {
   });
 
   it("sets the value of an input from its input events", async () => {
-    plan({
-      traces: [spanRow()],
-      recordings: [
-        segRow(
-          eventBody([
-            metaEvent(T0 + 10),
-            snapshotEvent(T0 + 20, formSnapshot() as never),
-            inputEvent(T0 + 100, 13, "***@***"),
-          ]),
-        ),
-      ],
-    });
-    const page = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    planSegment(formPage(inputEvent(T0 + 100, 13, "***@***")));
+    const page = await pageAfter(1_000);
     expect(page.html).toContain('value="***@***"');
   });
 
   it("marks the page incomplete when a change names a node it does not have", async () => {
-    plan({
-      traces: [spanRow()],
-      recordings: [
-        segRow(
-          eventBody([
-            metaEvent(T0 + 10),
-            snapshotEvent(T0 + 20, formSnapshot() as never),
-            mutationEvent(T0 + 100, { texts: [{ id: 999, value: "lost" }] }),
-          ]),
-        ),
-      ],
-    });
-    const page = await pageAt(ORG, { clipId: CLIP_ID, at: new Date(T0 + 1_000).toISOString() });
+    planSegment(formPage(mutationEvent(T0 + 100, { texts: [{ id: 999, value: "lost" }] })));
+    const page = await pageAfter(1_000);
     expect(page.coverage).toBe("incomplete");
   });
 
   it("gives the body only in the compact form, without scripts, styles, or replay attributes", async () => {
-    plan({
-      traces: [spanRow()],
-      recordings: [
-        segRow(eventBody([metaEvent(T0 + 10), snapshotEvent(T0 + 20, formSnapshot() as never)])),
-      ],
-    });
-    const at = new Date(T0 + 1_000).toISOString();
-    const full = await pageAt(ORG, { clipId: CLIP_ID, at });
+    planSegment(formPage());
+    const full = await pageAfter(1_000);
     expect(full.html).toContain("<head>");
     expect(full.html).not.toContain("_cssText");
     expect(full.html).not.toContain("rr_width");
 
-    const compact = await pageAt(ORG, { clipId: CLIP_ID, at }, { compact: true });
+    const compact = await pageAfter(1_000, { compact: true });
     expect(compact.html).toBe(
       '<body><h1>Checkout</h1><input name="email" type="email"><button id="pay">Pay now</button></body>',
     );
