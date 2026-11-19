@@ -1,6 +1,9 @@
 package recording
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestReassemblePutsASplitEventBackTogether(t *testing.T) {
 	rows := pieceRows(1, "7", toJSON(t, obj{"type": 4, "timestamp": 5, "data": obj{"href": "x"}}), 3)
@@ -10,6 +13,28 @@ func TestReassemblePutsASplitEventBackTogether(t *testing.T) {
 	}
 	if href, _ := events[0].data.get("href").str(); events[0].timestamp != 5 || href != "x" {
 		t.Fatalf("event = %+v", events[0])
+	}
+}
+
+func TestReassembleOrdersEventsByTimeAndKeepsSegmentOrderForEqualTimes(t *testing.T) {
+	at := func(timestamp int64, tag string) obj {
+		return obj{"type": 5, "timestamp": timestamp, "data": obj{"tag": tag}}
+	}
+	events, gap := reassemble([]row{
+		segRow(0, body(t, at(30, "late"), at(40, "last"))),
+		segRow(1, body(t, at(10, "early"), at(20, "tie-first"))),
+		segRow(2, body(t, at(20, "tie-second"))),
+	})
+	if gap {
+		t.Fatal("gap")
+	}
+	var got []string
+	for _, e := range events {
+		tag, _ := e.data.get("tag").str()
+		got = append(got, tag)
+	}
+	if want := "early tie-first tie-second late last"; strings.Join(got, " ") != want {
+		t.Fatalf("got %q, want %q", strings.Join(got, " "), want)
 	}
 }
 

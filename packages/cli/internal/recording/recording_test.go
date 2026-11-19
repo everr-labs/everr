@@ -117,3 +117,22 @@ func TestMarksThePageIncompleteWhenTheReadHasAGap(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestReadsGenerationsInTimeOrderWhenTheyWereSentOutOfOrder(t *testing.T) {
+	generation := func(at int64, heading string) string {
+		page := obj{"type": 0, "id": at, "childNodes": []any{elID("html", obj{}, []any{
+			elID("body", obj{}, []any{
+				elID("h1", obj{}, []any{textID(heading, at+3)}, at+2),
+			}, at+1),
+		}, at+4)}}
+		return body(t, meta(at, "https://x/p"), snapshot(at+1, page))
+	}
+	got := show(t, wireOf(t, 5_500,
+		segRow(10, generation(5_000, "Five")),
+		segRow(11, generation(3_000, "Three")),
+		segRow(12, generation(4_000, "Four")),
+	), "1970-01-01T00:00:04.750Z", Outline)
+	if !strings.Contains(got, `"Five"`) || strings.Contains(got, "coverage incomplete") {
+		t.Fatalf("got:\n%s", got)
+	}
+}
