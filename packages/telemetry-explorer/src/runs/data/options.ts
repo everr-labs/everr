@@ -1,3 +1,5 @@
+import { utcOffsetMinutesAt } from "@everr/ui/lib/bucket";
+import { toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
@@ -14,6 +16,7 @@ export function runsExplorerInfiniteOptions(
     queryFn: ({ pageParam }: { pageParam: number }) =>
       repo.explorer({
         ...input,
+        timeRange: toAbsoluteTimeRange(input.timeRange),
         offset: pageParam,
         includeTotalCount: pageParam === 0,
       }),
@@ -28,7 +31,14 @@ export function runsExplorerInfiniteOptions(
 export function runsHistogramOptions(repo: RunsRepositoryLike, input: RunsHistogramInput) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
-    queryFn: () => repo.histogram(input),
+    queryFn: () => {
+      const timeRange = toAbsoluteTimeRange(input.timeRange);
+      return repo.histogram({
+        ...input,
+        timeRange,
+        utcOffsetMinutes: utcOffsetMinutesAt(new Date(timeRange.to)),
+      });
+    },
   });
 }
 
@@ -37,6 +47,6 @@ export function runsHistogramOptions(repo: RunsRepositoryLike, input: RunsHistog
 export function runsFilterOptions(repo: RunsRepositoryLike, input: Pick<RunsFilter, "timeRange">) {
   return {
     queryKey: ["runs", "filterOptions", input] as const,
-    queryFn: () => repo.filterOptions(input),
+    queryFn: () => repo.filterOptions({ timeRange: toAbsoluteTimeRange(input.timeRange) }),
   };
 }

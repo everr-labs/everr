@@ -30,6 +30,7 @@ export const runsRepository: RunsRepositoryLike = {
         workflowNames: input.workflowNames,
         runId: input.runId,
         histogramBuckets: input.histogramBuckets,
+        utcOffsetMinutes: input.utcOffsetMinutes,
       },
     }),
   filterOptions: (input) => getRunFilterOptions({ data: { timeRange: input.timeRange } }),

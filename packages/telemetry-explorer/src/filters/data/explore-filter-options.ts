@@ -1,4 +1,9 @@
-import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
+import {
+  resolveTimeRange,
+  type TimeRange,
+  toAbsoluteTimeRange,
+  toClickHouseDateTime,
+} from "@everr/ui/lib/time-range";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { ENVIRONMENT_ATTRIBUTE } from "../ui/dedicated-attributes";
@@ -24,9 +29,10 @@ export function unionServiceOptions(
   return {
     queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: async () => {
-      const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+      const timeRange = toAbsoluteTimeRange(input.timeRange);
+      const { fromDate, toDate } = resolveTimeRange(timeRange);
       const [logOptions, traceIdentities] = await Promise.all([
-        logsRepo.filterOptions({ timeRange: input.timeRange }),
+        logsRepo.filterOptions({ timeRange }),
         tracesRepo.listServiceIdentities({
           fromTs: toClickHouseDateTime(fromDate),
           toTs: toClickHouseDateTime(toDate),
@@ -48,15 +54,14 @@ export function unionEnvironmentOptions(
   tracesRepo: TracesRepositoryLike,
   input: { timeRange: TimeRange; selected: string[] },
 ) {
-  const attributeInput = {
-    timeRange: input.timeRange,
-    source: ENVIRONMENT_ATTRIBUTE.source,
-    key: ENVIRONMENT_ATTRIBUTE.key,
-  };
-  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: async () => {
+      const attributeInput = {
+        timeRange: toAbsoluteTimeRange(input.timeRange),
+        source: ENVIRONMENT_ATTRIBUTE.source,
+        key: ENVIRONMENT_ATTRIBUTE.key,
+      };
       const [logEnvironments, traceEnvironments] = await Promise.all([
         logsRepo.attributeValues(attributeInput),
         tracesRepo.attributeValues(attributeInput),

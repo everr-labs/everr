@@ -1,4 +1,4 @@
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { type TimeRange, toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
 import type { AttributeRepositoryLike } from "./repository";
 import type { AttributeSource } from "./schemas";
 
@@ -7,10 +7,9 @@ export function attributeKeysOptions(
   input: { timeRange: TimeRange },
   opts: { domain: string },
 ) {
-  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: [opts.domain, "attributeKeys", input.timeRange] as const,
-    queryFn: () => repo.attributeKeys(input),
+    queryFn: () => repo.attributeKeys({ timeRange: toAbsoluteTimeRange(input.timeRange) }),
   };
 }
 
@@ -34,6 +33,7 @@ export function attributeValuesOptions(
       input.key,
       input.search ?? "",
     ] as const,
-    queryFn: () => repo.attributeValues(input),
+    queryFn: () =>
+      repo.attributeValues({ ...input, timeRange: toAbsoluteTimeRange(input.timeRange) }),
   };
 }

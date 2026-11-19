@@ -1,4 +1,4 @@
-import { bucketSeconds } from "@everr/ui/lib/bucket";
+import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
 import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import { pool } from "#app/db/client.ts";
@@ -154,12 +154,19 @@ export const getRunsHistogram = createAuthenticatedServerFn({
     const intervalSeconds = bucketSeconds(fromDate, toDate, data.histogramBuckets);
     // Reuse one positional param for the interval in both the bucket floor and
     // the multiply-back; ::float8 keeps the division from truncating to int.
+    // Shifting by the viewer's offset puts bucket edges on the viewer's clock,
+    // matching bucketStartMs.
     const intervalParam = `$${params.length + 1}`;
+    const offsetParam = `$${params.length + 2}`;
 
     const result = await pool.query<RunHistogramRowRaw>(
       `
         SELECT
-          (floor(extract(epoch FROM last_event_at) / ${intervalParam}::float8) * ${intervalParam}::float8)::bigint AS "bucketEpoch",
+          (
+            floor((extract(epoch FROM last_event_at) + ${offsetParam}::float8) / ${intervalParam}::float8)
+              * ${intervalParam}::float8
+              - ${offsetParam}::float8
+          )::bigint AS "bucketEpoch",
           count(*) AS total,
           count(*) FILTER (WHERE status = 'completed' AND conclusion = 'success') AS success,
           count(*) FILTER (WHERE status = 'completed' AND conclusion = 'failure') AS failure,
@@ -172,10 +179,16 @@ export const getRunsHistogram = createAuthenticatedServerFn({
         GROUP BY "bucketEpoch"
         ORDER BY "bucketEpoch" ASC
       `,
-      [...params, intervalSeconds],
+      [...params, intervalSeconds, data.utcOffsetMinutes * 60],
     );
 
-    return fillRunHistogramBuckets(result.rows, fromDate, toDate, intervalSeconds);
+    return fillRunHistogramBuckets(
+      result.rows,
+      fromDate,
+      toDate,
+      intervalSeconds,
+      data.utcOffsetMinutes,
+    );
   });
 
 function makeRunHistogramBucket(
@@ -205,10 +218,11 @@ function fillRunHistogramBuckets(
   fromDate: Date,
   toDate: Date,
   intervalSeconds: number,
+  utcOffsetMinutes: number,
 ): RunHistogramBucket[] {
   const intervalMs = intervalSeconds * 1000;
-  const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
-  const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
+  const startMs = bucketStartMs(fromDate.getTime(), intervalSeconds, utcOffsetMinutes);
+  const endMs = bucketStartMs(toDate.getTime(), intervalSeconds, utcOffsetMinutes);
   const rowsByBucket = new Map(rows.map((row) => [Number(row.bucketEpoch) * 1000, row]));
   const buckets: RunHistogramBucket[] = [];
   for (let bucketMs = startMs; bucketMs <= endMs; bucketMs += intervalMs) {

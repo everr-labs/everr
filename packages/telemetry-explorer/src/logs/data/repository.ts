@@ -68,7 +68,13 @@ export class LogsRepository {
   async histogram(input: LogHistogramInput): Promise<LogHistogramBucket[]> {
     const built = buildHistogramQuery(input, { tableName: this.tableName });
     const rows = await this.client.execute<HistogramRowRaw>(built.sql, built.params);
-    return fillHistogramBuckets(rows, built.fromDate, built.toDate, built.intervalSeconds);
+    return fillHistogramBuckets(
+      rows,
+      built.fromDate,
+      built.toDate,
+      built.intervalSeconds,
+      built.utcOffsetMinutes,
+    );
   }
 
   async detail(identity: LogIdentity): Promise<LogDetail> {

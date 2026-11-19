@@ -84,6 +84,19 @@ export function resolveTimeRange(range: TimeRange, now = new Date()) {
   };
 }
 
+/**
+ * Resolve a range to the exact instants it covers, in this process's time
+ * zone. In the browser that is the viewer's zone, so "Today" means the
+ * viewer's day. The result is ISO timestamps, which any server resolves to the
+ * same instants whatever its own zone. Call it when the query runs, not when
+ * the key is built, so a relative range keeps one cache key and gets a fresh
+ * `now` on every refetch.
+ */
+export function toAbsoluteTimeRange(range: TimeRange, now = new Date()): TimeRange {
+  const { fromDate, toDate } = resolveTimeRange(range, now);
+  return { from: fromDate.toISOString(), to: toDate.toISOString() };
+}
+
 export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {
   try {
     const { fromDate, toDate } = resolveTimeRange(range, now);
