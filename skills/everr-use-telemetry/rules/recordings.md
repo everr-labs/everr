@@ -195,5 +195,5 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 | `--at "...": no time zone`                                | Add `Z`, or pass epoch milliseconds from `toUnixTimestamp64Milli(Timestamp)`.                         |
 | `This installation may predate`                           | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`.    |
 | `Recording format`                                        | The CLI is older than the server. Run `everr upgrade`, then retry.                                    |
-| `cut short`                                               | Retry once. If it fails again, report the error.                                                      |
+| `cut short`, or `read took over`                          | Retry once. If it fails again, report the error.                                                      |
 | `Session expired`, or `failed with 500` with a login hint | Run `everr cloud login`, then retry once. If it fails again, report the error.                        |
