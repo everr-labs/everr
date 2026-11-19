@@ -10,12 +10,15 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/receiver"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 	otelconftelemetry "go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/zap"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
 
 	chdbexporter "github.com/everr-labs/everr/collector/exporter/chdbexporter"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
@@ -182,6 +185,13 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 
 		factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 			chdbexporter.NewFactoryWithHandle(handle),
+		)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		factories.Connectors, err = otelcol.MakeFactoryMap[connector.Factory](
+			routingconnector.NewFactory(),
 		)
 		if err != nil {
 			return otelcol.Factories{}, err
