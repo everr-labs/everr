@@ -103,19 +103,23 @@ func quote(text string) string {
 }
 
 // pathOf is the path of a page URL, quoted: no origin, query (reset tokens,
-// ids), or fragment.
+// ids), or fragment. A URL that does not parse prints as empty, because its
+// text can hold the host and credentials.
 func pathOf(raw string) string {
-	// Not an absolute URL: keep what it had before the query.
-	path := raw
 	if cut := strings.IndexAny(raw, "?#"); cut >= 0 {
-		path = raw[:cut]
+		raw = raw[:cut]
 	}
-	if parsed, err := url.Parse(raw); err == nil && parsed.Scheme != "" {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return q("", urlCap)
+	}
+	path := raw
+	switch {
+	case parsed.Opaque != "":
+		path = parsed.Opaque
+	case parsed.Scheme != "" || parsed.Host != "":
 		path = parsed.EscapedPath()
-		switch {
-		case parsed.Opaque != "":
-			path = parsed.Opaque
-		case path == "" && (parsed.Scheme == "http" || parsed.Scheme == "https"):
+		if path == "" {
 			path = "/"
 		}
 	}
