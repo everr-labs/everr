@@ -225,7 +225,7 @@ func TestRecordingShowRequiresAStreamAndAMoment(t *testing.T) {
 func TestRecordingHelp(t *testing.T) {
 	env := NewEnv(t)
 	assertContains(t, env.Run("cloud", "--help").Success(t).Stdout, "recording", "Read recordings of browser pages")
-	assertContains(t, env.Run("cloud", "recording", "--help").Success(t).Stdout, "Cloud only", "show")
+	assertContains(t, env.Run("cloud", "recording", "--help").Success(t).Stdout, "remote installation", "show")
 	out := env.Run("cloud", "recording", "show", "--help").Success(t).Stdout
 	assertContains(t, out, "--stream <STREAM>", "--at <AT>", "--html", "everr cloud query")
 	assertNotContains(t, out, "--clip", "--limit")
