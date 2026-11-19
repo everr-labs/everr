@@ -54,10 +54,13 @@ func TestQCapsByCodePointsAndMarksTheCut(t *testing.T) {
 func TestPathOfDropsTheOriginQueryAndFragment(t *testing.T) {
 	for raw, want := range map[string]string{
 		"https://shop.example/reset?token=secret#frag": `"/reset"`,
-		"/checkout?step=2":               `"/checkout"`,
-		"https://shop.example":           `"/"`,
-		"https://shop.example/caf%C3%A9": `"/caf%C3%A9"`,
-		"":                               `""`,
+		"/checkout?step=2":                `"/checkout"`,
+		"https://shop.example":            `"/"`,
+		"https://shop.example/caf%C3%A9":  `"/caf%C3%A9"`,
+		"":                                `""`,
+		"//shop.example/checkout?token=1": `"/checkout"`,
+		"https://user:secret@shop.example/pay#%zz":    `"/pay"`,
+		"https://user:secret@shop.example/%zz?step=2": `""`,
 	} {
 		if got := pathOf(raw); got != want {
 			t.Errorf("pathOf(%q) = %s, want %s", raw, got, want)
