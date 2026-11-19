@@ -273,6 +273,27 @@ describe("session recording panel", () => {
     expect(getClipEvents).toHaveBeenCalledTimes(1);
   });
 
+  it("refits the picture when the recorded viewport resizes", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    await toggle(false);
+    const player = await openedPlayer();
+    const stage = player?.config.root;
+    if (!player || !(stage instanceof HTMLElement) || !stage.parentElement) {
+      throw new Error("the player is mounted in the stage");
+    }
+    Object.defineProperty(stage.parentElement, "clientWidth", { value: 500 });
+    Object.defineProperty(stage.parentElement, "clientHeight", { value: 500 });
+    Object.defineProperty(player.iframe, "offsetWidth", { value: 1000 });
+    Object.defineProperty(player.iframe, "offsetHeight", { value: 500 });
+
+    act(() => player.emit("resize"));
+
+    expect(player.wrapper.style.transform).toBe("scale(0.5)");
+  });
+
   it("explains a Clip too large to play", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse([], 413));
