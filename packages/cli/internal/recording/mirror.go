@@ -69,7 +69,7 @@ const (
 	// The views do not go below this depth: no budget prints a page that deep.
 	maxViewDepth = 512
 	// An add waits for its parent and next sibling, retried pass after pass as
-	// rrweb does. This bounds the retries of one mutation.
+	// rrweb does. This bounds the attempts of a whole read, not of one mutation.
 	maxAddAttempts = 20_000_000
 )
 
@@ -122,6 +122,8 @@ type mirror struct {
 	root  int
 	// lost is true once an event referred to a node the mirror did not have.
 	lost bool
+	// addAttempts counts every try to place an add, over snapshots too.
+	addAttempts int
 }
 
 func newMirror() *mirror {
@@ -167,7 +169,9 @@ func (m *mirror) apply(e event) {
 	data := e.data
 	if e.kind == eventFullSnapshot {
 		if snapshot, ok := data.take("node"); ok && isSnapNode(snapshot) {
+			attempts := m.addAttempts
 			*m = *newMirror()
+			m.addAttempts = attempts
 			m.root = m.build(snapshot)
 			if m.root != none {
 				m.index(m.root)
@@ -347,12 +351,11 @@ func (m *mirror) mutate(data Json) {
 		for i := range adds.items {
 			pending[i] = adds.items[i].value
 		}
-		attempts := 0
 		for len(pending) > 0 {
 			var left []Json
 			for i := range pending {
 				add := &pending[i]
-				attempts++
+				m.addAttempts++
 				parent, parentOK := m.nodeOf(add, "parentId")
 				next, nextOK := none, false
 				if nextID := add.get("nextId"); nextID != nil {
@@ -386,7 +389,7 @@ func (m *mirror) mutate(data Json) {
 			if len(left) == 0 {
 				break
 			}
-			if len(left) == len(pending) || attempts > maxAddAttempts {
+			if len(left) == len(pending) || m.addAttempts > maxAddAttempts {
 				m.lost = true
 				break
 			}

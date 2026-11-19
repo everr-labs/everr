@@ -136,3 +136,28 @@ func TestReadsGenerationsInTimeOrderWhenTheyWereSentOutOfOrder(t *testing.T) {
 		t.Fatalf("got:\n%s", got)
 	}
 }
+
+func TestMarksThePageIncompleteWhenAddsWaitForTheirParentsBeyondTheWorkOfARead(t *testing.T) {
+	// Each add names the one after it as its parent, so one pass of retries
+	// places a single node: about 20 million attempts per event of this size.
+	const adds = 6300
+	reversed := func(first int64) obj {
+		list := make([]any, adds)
+		for i := range list {
+			parent := first + int64(i) + 1
+			if i == adds-1 {
+				parent = 4
+			}
+			list[i] = obj{"parentId": parent, "nextId": nil, "node": obj{"type": 2, "tagName": "b", "id": first + int64(i), "attributes": obj{}, "childNodes": []any{}}}
+		}
+		return obj{"adds": list}
+	}
+	events := []any{meta(1_000, "https://x/p"), snapshot(1_001, doc())}
+	for i := range 2 {
+		events = append(events, mutation(1_002+int64(i), reversed(100_000*int64(i+1))))
+	}
+	got := show(t, wireOf(t, 2_000, segRow(0, body(t, events...))), "1970-01-01T00:00:02Z", Outline)
+	if header, _, _ := strings.Cut(got, "\n"); !strings.HasSuffix(header, " coverage incomplete") {
+		t.Fatalf("header %q", header)
+	}
+}
