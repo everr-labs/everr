@@ -142,9 +142,9 @@ func jsNumber(n float64) string {
 
 // parseJSON reads one JSON value, or reports false when the text is not JSON,
 // nests deeper than maxDepth, or holds more values than are left in budget.
-// Each value read takes one from budget, so one budget spans a whole read. Strings come out as JavaScript would show
-// them: a lone surrogate escape and each invalid UTF-8 byte become U+FFFD.
-// They never share memory with data.
+// Each value read takes one from budget, so one budget spans a whole read.
+// Strings come out as JavaScript would show them: a lone surrogate escape and
+// each invalid UTF-8 byte become U+FFFD. They never share memory with data.
 func parseJSON(data string, budget *int) (Json, bool) {
 	p := parser{data: data, budget: budget, shared: map[string]string{}}
 	p.space()

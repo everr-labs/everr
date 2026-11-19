@@ -43,9 +43,11 @@ func toEvent(value Json) (event, bool) {
 
 // reassemble gives the events of the rows in time order, and whether the read
 // has a gap. The Bodies may hold at most budget values between them; one past
-// that is a Body that is not JSON. The SDK numbers Segments as it sends them, and a Clip can send an
-// older Generation after a newer one, so the Segment index orders the pieces of
-// an event and finds gaps, not the page's history. Events of equal time stay in
+// that is a Body that is not JSON.
+//
+// The SDK numbers Segments as it sends them, and a Clip can send an older
+// Generation after a newer one, so the Segment index orders the pieces of an
+// event and finds gaps, not the page's history. Events of equal time stay in
 // Segment order.
 func reassemble(rows []row, budget int) ([]event, bool) {
 	gap := false
