@@ -78,7 +78,7 @@ Preconditions:
 
   ```bash
   S='section[aria-label="Session recording"]'
-  agent-browser open "$WEB/errors?withRecording=true" && agent-browser find text "VerifySdkError: checkout exploded" click
+  agent-browser open "$WEB/errors?withRecording=true" && agent-browser wait --text "VerifySdkError: checkout exploded" && agent-browser find text "VerifySdkError: checkout exploded" click
   agent-browser wait "$S iframe" && agent-browser wait "$S button[aria-label=\"Play\"]" && ab_save replay-06-error-detail "Error detail: Session recording below the stack trace, open and paused"
   agent-browser eval "[...document.querySelectorAll('h2')].find((h) => h.textContent === 'Stack trace').compareDocumentPosition(document.querySelector('$S')) === Node.DOCUMENT_POSITION_FOLLOWING"
   $V web-net replay-error-open 8 --reload

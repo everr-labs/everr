@@ -20,7 +20,7 @@ An integrator adds `@everr/otel-web` to their page with a public `ek_` key that 
 Preconditions:
 
 - `WEB DOCTOR OK` including the `CORS preflight` line `ok` (if it says the example sets no CORS, browser ingest is not expected to work: report that).
-- `eval "$($V web-browser-env)"`, this run's browser signed in (`web-auth.md` Sign up), and `web-api-keys.md` "Public key" ran (saved as `public`, origin `$SDK_PAGE_ORIGIN`).
+- `eval "$($V web-browser-env)"`, this run's browser signed in (`web-auth.md` Sign up, or `web-installation.md` for `--app app`), and `web-api-keys.md` "Public key" ran (saved as `public`, origin `$SDK_PAGE_ORIGIN`).
 
 - **Build and serve the page.** Run `$V web-sdk-page`, then `eval "$($V web-browser-env)"` again. Exit `0`; `SDK PAGE READY ... key=public recording=on|absent`; `$SDK_URL` is set.
 - **Errors, network, recording.** Run:
