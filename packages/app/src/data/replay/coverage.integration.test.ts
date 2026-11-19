@@ -56,6 +56,7 @@ const STREAM = "a".repeat(16);
 const OTHER_STREAM = "b".repeat(16);
 const IDLE_STREAM = "c".repeat(16);
 const ODD_STREAM = "d".repeat(16);
+const PAGED_STREAM = "e".repeat(16);
 const FROM_TS = "2026-11-15 06:00:00";
 const TO_TS = "2026-11-15 12:00:00";
 const ms = (civil: string) => Date.parse(`${civil.replace(" ", "T")}Z`);
@@ -245,6 +246,31 @@ beforeAll(() => {
     SpanAttributes: { "everr.recording.stream.id": ODD_STREAM },
   });
 
+  // Trace "paged" starts before the Clip's root Span, and its recorded Span starts after it.
+  clip({
+    traceId: "rec-paged",
+    clipId: "clip-paged",
+    stream: PAGED_STREAM,
+    start: "2026-11-15 10:10:03",
+    seconds: 70,
+    trigger: "error",
+  });
+  span({
+    TraceId: "paged",
+    SpanId: "paged-load",
+    SpanName: "documentLoad",
+    Timestamp: "2026-11-15 10:10:00",
+    SpanAttributes: {},
+  });
+  span({
+    TraceId: "paged",
+    SpanId: "paged-fetch",
+    ParentSpanId: "paged-load",
+    SpanName: "GET /paged",
+    Timestamp: "2026-11-15 10:10:04",
+    SpanAttributes: { "everr.recording.stream.id": PAGED_STREAM },
+  });
+
   exceptionLog({ type: "BrowserInside", at: "2026-11-15 10:00:50.123456789", stream: STREAM });
   exceptionLog({ type: "BrowserAfter", at: "2026-11-15 10:09:00", stream: STREAM });
   exceptionLog({
@@ -289,6 +315,28 @@ async function listedTraceIds(): Promise<string[]> {
     limit: 500,
   });
   return rows.map((row) => row.traceId).sort();
+}
+
+async function pagedTraceIds(limit: number): Promise<string[]> {
+  const ids: string[] = [];
+  let cursor: { cursorStartTs: string; cursorTraceId: string } | undefined;
+  for (;;) {
+    const rows = await traces.search({
+      ...window,
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      attributes: [],
+      withRecording: true,
+      limit,
+      ...cursor,
+    });
+    const last = rows.at(-1);
+    if (!last) return ids.sort();
+    ids.push(...rows.map((row) => row.traceId));
+    cursor = { cursorStartTs: last.startTs, cursorTraceId: last.traceId };
+  }
 }
 
 async function searchIssues(withRecording: boolean) {
@@ -343,7 +391,18 @@ describe("session recording coverage against ClickHouse", () => {
     for (const row of byTrace) {
       expect(row.listed, row.traceId).toBe(row.playable);
     }
-    expect([...listed].sort()).toEqual(["rec-error", "rec-idle", "t-in", "t-overlap"]);
+    expect([...listed].sort()).toEqual([
+      "paged",
+      "rec-error",
+      "rec-idle",
+      "rec-paged",
+      "t-in",
+      "t-overlap",
+    ]);
+  });
+
+  it("pages the recorded traces to the same list as one unpaged search", async () => {
+    expect(await pagedTraceIds(1)).toEqual(await listedTraceIds());
   });
 
   it("lists an exception log with the switch on exactly when its detail finds a Clip", async () => {
