@@ -100,6 +100,7 @@ export function ReplayStage({
           }
         };
         created.on("fullsnapshot-rebuilded", fit);
+        created.on("resize", fit);
         requestAnimationFrame(fit);
         const host = rootRef.current.parentElement;
         if (host && typeof ResizeObserver !== "undefined") {
