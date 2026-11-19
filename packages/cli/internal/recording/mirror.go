@@ -176,6 +176,9 @@ func (m *mirror) apply(e event) {
 			if m.root != none {
 				m.index(m.root)
 			}
+		} else {
+			// The page it replaced stays, and no longer covers the moment.
+			m.lost = true
 		}
 		return
 	}
