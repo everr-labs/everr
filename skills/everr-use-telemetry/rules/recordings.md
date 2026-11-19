@@ -191,6 +191,7 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 | `No Clip covers`                                          | It names the nearest Clips. Pass an `--at` inside one, or report that no Recording covers the moment. |
 | `No Clip of stream`                                       | No Clip within 5 minutes of `--at`. Run Find Clips around the moment.                                 |
 | `MiB of Segments`                                         | The page is too large to read. Say so, and continue with the timeline.                                |
+| `Session recordings are not available`                    | This installation does not store Recordings. Say so, and continue with the timeline.                  |
 | `--at "...": no time zone`                                | Add `Z`, or pass epoch milliseconds from `toUnixTimestamp64Milli(Timestamp)`.                         |
 | `This installation may predate`                           | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`.    |
 | `Recording format`                                        | The CLI is older than the server. Run `everr upgrade`, then retry.                                    |
