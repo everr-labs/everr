@@ -124,10 +124,12 @@ export function recordedLogPredicateSql(
   const streamlessTraces = `
     SELECT TraceId FROM ${tables.logs}
     WHERE ${inWindow} AND ${stream} = '' AND TraceId != ''`;
-  // A trace's spans can start up to REACH around its exception log.
+  // The detail reads the whole trace, so the spans scanned run from the
+  // start of these traces to the end of them, from the TraceId-sorted lookup.
+  const lookup = `${tables.traces}_trace_id_ts`;
   const traceBounds = {
-    from: `(${bounds.from}) - ${REACH}`,
-    to: `(${bounds.to}) + ${REACH}`,
+    from: `(SELECT toDateTime64(min(Start), 9) FROM ${lookup} WHERE TraceId IN (${streamlessTraces}))`,
+    to: `(SELECT toDateTime64(max(End), 9) + INTERVAL 1 SECOND FROM ${lookup} WHERE TraceId IN (${streamlessTraces}))`,
   };
   return `(
     (${stream} != '' AND (${stream}, Timestamp) IN (
