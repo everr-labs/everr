@@ -7,7 +7,7 @@ import (
 
 func TestReassemblePutsASplitEventBackTogether(t *testing.T) {
 	rows := pieceRows(1, "7", toJSON(t, obj{"type": 4, "timestamp": 5, "data": obj{"href": "x"}}), 3)
-	events, gap := reassemble(rows)
+	events, gap := reassemble(rows, maxValues)
 	if gap || len(events) != 1 {
 		t.Fatalf("gap %v, %d events", gap, len(events))
 	}
@@ -24,7 +24,7 @@ func TestReassembleOrdersEventsByTimeAndKeepsSegmentOrderForEqualTimes(t *testin
 		segRow(0, body(t, at(30, "late"), at(40, "last"))),
 		segRow(1, body(t, at(10, "early"), at(20, "tie-first"))),
 		segRow(2, body(t, at(20, "tie-second"))),
-	})
+	}, maxValues)
 	if gap {
 		t.Fatal("gap")
 	}
@@ -41,7 +41,7 @@ func TestReassembleOrdersEventsByTimeAndKeepsSegmentOrderForEqualTimes(t *testin
 func TestReassembleSkipsItemsThatAreNotEvents(t *testing.T) {
 	events, gap := reassemble([]row{segRow(0, body(t,
 		1, obj{"type": 2}, obj{"type": 4, "timestamp": 1, "data": nil}, obj{"type": 4, "timestamp": 1, "data": obj{}},
-	))})
+	))}, maxValues)
 	if gap || len(events) != 1 {
 		t.Fatalf("gap %v, %d events", gap, len(events))
 	}
@@ -55,12 +55,20 @@ func TestReassembleFindsEveryKindOfGap(t *testing.T) {
 		"a Segment stored twice, different": {segRow(0, ok), segRow(0, "[]")},
 		"a missing piece":                   pieceRows(0, "3", ok, 3)[:2],
 	} {
-		if _, gap := reassemble(rows); !gap {
+		if _, gap := reassemble(rows, maxValues); !gap {
 			t.Errorf("%s: no gap", name)
 		}
 	}
-	if _, gap := reassemble([]row{segRow(0, ok), segRow(0, ok), segRow(1, ok)}); gap {
+	if _, gap := reassemble([]row{segRow(0, ok), segRow(0, ok), segRow(1, ok)}, maxValues); gap {
 		t.Error("a Segment stored twice, the same: gap")
+	}
+}
+
+func TestReassembleRefusesBodiesPastTheValueBudgetAsGaps(t *testing.T) {
+	event := body(t, obj{"type": 4, "timestamp": 1, "data": obj{"href": "x"}})
+	events, gap := reassemble([]row{segRow(0, event), segRow(1, event), segRow(2, event)}, 12)
+	if !gap || len(events) != 2 {
+		t.Fatalf("gap %v, %d events", gap, len(events))
 	}
 }
 

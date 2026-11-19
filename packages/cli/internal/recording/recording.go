@@ -6,8 +6,8 @@
 // package puts the rrweb events back together (events.go), replays them into
 // a page (mirror.go), and prints it (render.go). Browsers write Recordings, so
 // a large or hostile one costs this process alone, and every step is bounded:
-// JSON nests at most maxDepth, the page is walked in loops, and the views stop
-// at maxViewDepth.
+// JSON nests at most maxDepth, a read parses at most maxValues values, the page
+// is walked in loops, and the views stop at maxViewDepth.
 package recording
 
 // PageText is the `show` text for the body of a segments response: the page
@@ -18,7 +18,7 @@ func PageText(body []byte, atMs int64, form Form) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	events, gap := reassemble(w.rows)
+	events, gap := reassemble(w.rows, maxValues)
 	m := newMirror()
 	pageURL := ""
 	for _, e := range events {

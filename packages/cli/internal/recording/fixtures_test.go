@@ -142,7 +142,7 @@ func ms(t testing.TB, iso string) int64 {
 
 func parsed(t testing.TB, value any) Json {
 	t.Helper()
-	out, ok := parseJSON(toJSON(t, value))
+	out, ok := parseJSON(toJSON(t, value), unlimited())
 	if !ok {
 		t.Fatalf("not JSON: %v", value)
 	}
