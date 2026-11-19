@@ -20,20 +20,20 @@ export interface VolumeStack<K extends string> {
   color: string;
 }
 
-const HISTOGRAM_AXES = {
-  left: { format: (value: number) => value.toLocaleString(), hidden: true },
-};
+function formatCount(value: number) {
+  return value.toLocaleString();
+}
 
-function time(date: Date) {
+export function bucketTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 // Tooltip heading: date + local time range, computed from the bucket's
 // timestamps so it always reflects the viewer's timezone.
-function bucketTitle(bucket: HistogramBucket) {
+export function bucketTitle(bucket: HistogramBucket) {
   const start = new Date(bucket.timestamp);
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;
+  return `${day} · ${bucketTime(start)} – ${bucketTime(new Date(bucket.endTimestamp))}`;
 }
 
 // Tick spacings, in minutes: the first that puts at most MAX_TICKS on the
@@ -68,7 +68,7 @@ export function axisLabels(buckets: readonly HistogramBucket[]): string[] {
     const at = new Date(start - (minutes - period * step) * 60_000);
     return at.getHours() === 0 && at.getMinutes() === 0
       ? at.toLocaleDateString([], { month: "short", day: "numeric" })
-      : time(at);
+      : bucketTime(at);
   });
 }
 
@@ -85,6 +85,8 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   showVolume,
   onRangeSelect,
   onShowVolumeChange,
+  formatValue = formatCount,
+  highlight,
 }: {
   title: string;
   buckets: B[];
@@ -94,7 +96,12 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   showVolume: boolean;
   onRangeSelect: (from: Date, to: Date) => void;
   onShowVolumeChange: (show: boolean) => void;
+  formatValue?: (value: number) => string;
+  /** Bucket indexes to shade, inclusive. */
+  highlight?: { from: number; to: number } | null;
 }) {
+  // Stable unless the formatter changes, so the chart does not rebuild per render.
+  const axes = useMemo(() => ({ left: { format: formatValue, hidden: true } }), [formatValue]);
   const chart = useMemo(
     () => ({
       labels: axisLabels(buckets),
@@ -137,9 +144,10 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
           ) : hasData ? (
             <SeriesChart
               {...chart}
-              axes={HISTOGRAM_AXES}
+              axes={axes}
               compact
               sparseLabels
+              highlight={highlight}
               className="h-[104px] w-full"
               onSelect={(from, to) =>
                 onRangeSelect(new Date(buckets[from].timestamp), new Date(buckets[to].endTimestamp))

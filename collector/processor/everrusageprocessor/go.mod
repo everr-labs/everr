@@ -30,7 +30,6 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.165.0 // indirect
-	go.opentelemetry.io/collector/processor/xprocessor v0.165.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 )
 
@@ -55,16 +54,16 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.71.0 // indirect
 	go.opentelemetry.io/collector/component/componenttest v0.165.0 // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 // indirect
+	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0
 	go.opentelemetry.io/collector/exporter v1.71.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.165.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.165.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.71.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.165.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.165.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.165.0
 	go.opentelemetry.io/collector/pdata/xpdata v0.165.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.71.0
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0 // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0
 	go.opentelemetry.io/collector/receiver/receivertest v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.165.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
@@ -84,6 +83,7 @@ require (
 	github.com/everr-labs/everr/collector/extension/everrusageextension v0.165.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.165.1
 	go.opentelemetry.io/collector/processor/processortest v0.165.0
+	go.opentelemetry.io/collector/processor/xprocessor v0.165.0
 )
 
 replace github.com/everr-labs/everr/collector/extension/everrusageextension => ../../extension/everrusageextension

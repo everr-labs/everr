@@ -8,10 +8,13 @@ import { PageTitleBar } from "../app-shell/title-bar";
 const exploreQueries = {
   type: "active",
   predicate: ({ queryKey }) =>
-    queryKey[0] === "logs" || queryKey[0] === "errors" || queryKey[0] === "traces",
+    queryKey[0] === "logs" ||
+    queryKey[0] === "errors" ||
+    queryKey[0] === "traces" ||
+    queryKey[0] === "profiles",
 } satisfies QueryFilters;
 
-// The shared header for the Explore pages: Logs, Errors and Traces. It holds the
+// The shared header for the Explore pages: Logs, Errors, Traces and Profiles. It holds the
 // page title, the time range control and the refresh control.
 export function ExploreShell({
   title,

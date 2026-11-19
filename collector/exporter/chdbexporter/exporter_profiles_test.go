@@ -184,10 +184,10 @@ func TestRenderProfilesSQL(t *testing.T) {
 	createSQL := renderCreateProfilesTableSQL(cfg)
 	assert.Contains(t, createSQL, `"default"."otel_profiles"`)
 	assert.Contains(t, createSQL, "ENGINE = MergeTree()")
-	assert.Contains(t, createSQL, "ORDER BY (ServiceName, SampleType, toDateTime(Timestamp))")
+	assert.Contains(t, createSQL, "ORDER BY (ServiceName, SampleType, Timestamp)")
 
 	assert.Contains(t, createSQL, "FunctionNames Array(LowCardinality(String))")
-	assert.Contains(t, createSQL, "INDEX idx_function_names FunctionNames TYPE text(tokenizer = 'splitByNonAlpha')")
+	assert.Contains(t, createSQL, "INDEX idx_function_names FunctionNames TYPE bloom_filter(0.01) GRANULARITY 1")
 
 	assert.Contains(t, createSQL, "`__otel_materialized_k8s.pod.name`")
 }

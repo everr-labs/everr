@@ -7,12 +7,12 @@ import { readOrgEntitlement } from "./billing-data.server";
 
 describe("cloud retention", () => {
   it.each([
-    ["hobby", "hobby", 14, 14],
-    ["pro", "pro", 365, 30],
-    ["pro", "suspended", 365, 30],
+    ["hobby", "hobby", 14, 14, 14],
+    ["pro", "pro", 365, 30, 30],
+    ["pro", "suspended", 365, 30, 30],
   ] as const)(
     "preserves %s retention with %s access",
-    async (plan, appState, telemetryDays, evaluationDays) => {
+    async (plan, appState, telemetryDays, evaluationDays, profilesDays) => {
       vi.mocked(readOrgEntitlement).mockResolvedValueOnce({
         plan,
         appState,
@@ -24,6 +24,7 @@ describe("cloud retention", () => {
         tracesDays: telemetryDays,
         logsDays: telemetryDays,
         metricsDays: telemetryDays,
+        profilesDays,
         alertEvaluationDays: evaluationDays,
         alertLifecycleDays: telemetryDays,
       });

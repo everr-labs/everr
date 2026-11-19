@@ -3,6 +3,7 @@ import {
   BellOff,
   Bug,
   ChartLine,
+  Cpu,
   Flame,
   Hash,
   House,
@@ -63,6 +64,7 @@ export const navGroups: NavGroup[] = [
       { title: "Logs", url: "/logs", icon: ScrollText },
       { title: "Errors", url: "/errors", icon: Bug },
       { title: "Traces", url: "/traces", icon: Waypoints },
+      { title: "Profiles", url: "/profiles", icon: Cpu },
     ],
   },
   {

@@ -11,7 +11,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pipeline/xpipeline"
 )
 
 func tenant(res pcommon.Resource) (string, error) {
@@ -150,4 +152,44 @@ func points(m pmetric.Metric) int {
 	default:
 		return 0
 	}
+}
+
+// Every resource of a profiles payload indexes one shared dictionary, so each
+// tenant's group carries a full copy of it. One request carries one tenant's
+// key, so in practice the dictionary is attributed once, to its sender.
+func (p *metering) ConsumeProfiles(ctx context.Context, pd pprofile.Profiles) error {
+	groups := map[string]pprofile.Profiles{}
+	for _, rp := range pd.ResourceProfiles().All() {
+		n := 0
+		for _, sp := range rp.ScopeProfiles().All() {
+			n += sp.Profiles().Len()
+		}
+		if n == 0 {
+			continue
+		}
+		id, err := tenant(rp.Resource())
+		if err != nil {
+			return err
+		}
+		grouped, ok := groups[id]
+		if !ok {
+			grouped = pprofile.NewProfiles()
+			pd.Dictionary().CopyTo(grouped.Dictionary())
+			groups[id] = grouped
+		}
+		copy := grouped.ResourceProfiles().AppendEmpty()
+		rp.CopyTo(copy)
+		stripRouting(copy.Resource())
+		copy.ScopeProfiles().RemoveIf(func(sp pprofile.ScopeProfiles) bool { return sp.Profiles().Len() == 0 })
+	}
+	sizes := map[string]int64{}
+	marshaler := pprofile.ProtoMarshaler{}
+	for id, data := range groups {
+		sizes[id] = int64(marshaler.ProfilesSize(data))
+	}
+	if err := p.profiles.ConsumeProfiles(ctx, pd); err != nil {
+		return err
+	}
+	p.meter.Record(xpipeline.SignalProfiles, sizes)
+	return nil
 }

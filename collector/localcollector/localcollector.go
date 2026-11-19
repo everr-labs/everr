@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/receiver"
 	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -94,6 +95,12 @@ func Open(opts Options) (*Gateway, error) {
 func (g *Gateway) Run(ctx context.Context) error {
 	g.sql.SetStatus(sqlhttp.StatusStarting)
 	defer g.sql.SetStatus(sqlhttp.StatusStopped)
+
+	// Profiles are an alpha OTLP signal; the service refuses a profiles
+	// pipeline unless this gate is on.
+	if err := featuregate.GlobalRegistry().Set("service.profilesSupport", true); err != nil {
+		return fmt.Errorf("enable profiles support: %w", err)
+	}
 
 	collector, err := otelcol.NewCollector(g.collectorSettings())
 	if err != nil {

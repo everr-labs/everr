@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "lucide-react": "catalog:",
