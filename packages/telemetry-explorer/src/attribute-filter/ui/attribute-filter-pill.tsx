@@ -6,30 +6,21 @@ import {
   CommandItem,
   CommandList,
 } from "@everr/ui/components/command";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@everr/ui/components/dropdown-menu";
 import { Input } from "@everr/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, X } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
+import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { attributeValuesOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
-import { type AttributeFilter, type AttributeOp, AttributeOpSchema } from "../schemas";
+import type { AttributeFilter, AttributeOp } from "../schemas";
 import {
   ATTRIBUTE_OP_CONNECTORS,
-  ATTRIBUTE_OP_GROUPS,
   ATTRIBUTE_OP_LABELS,
+  ATTRIBUTE_OP_ROWS,
+  ATTRIBUTE_OP_SHORT_LABELS,
   attributeLabel,
   opIsNumeric,
   opTakesOneValue,
@@ -42,43 +33,45 @@ function valueSummary(values: string[]): string | null {
   return extra > 0 ? `${values[0]} +${extra}` : values[0];
 }
 
-function OperatorMenu({ op, onChange }: { op: AttributeOp; onChange: (op: AttributeOp) => void }) {
+// The operators as segmented rows, like the Status filter, so picking one
+// is a single click. The rows share one selection.
+function OperatorPicker({
+  op,
+  onChange,
+}: {
+  op: AttributeOp;
+  onChange: (op: AttributeOp) => void;
+}) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Operator"
-        className={cn(
-          "flex h-7 w-full items-center justify-between gap-1 rounded border px-2 text-[11px] font-medium",
-          "hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        )}
-      >
-        {ATTRIBUTE_OP_LABELS[op]}
-        <ChevronDown className="text-muted-foreground size-3.5" aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-44">
-        <DropdownMenuRadioGroup
-          value={op}
-          onValueChange={(next: unknown) => {
-            const parsed = AttributeOpSchema.safeParse(next);
-            if (parsed.success) onChange(parsed.data);
+    <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-2">
+      <legend className="sr-only">Operator</legend>
+      {ATTRIBUTE_OP_ROWS.map((row) => (
+        <ToggleGroup
+          key={row[0]}
+          value={row.includes(op) ? [op] : []}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          className="w-full"
+          onValueChange={(next) => {
+            const picked = row.find((candidate) => candidate === next[0]);
+            if (picked) onChange(picked);
           }}
         >
-          {ATTRIBUTE_OP_GROUPS.map((group, index) => (
-            <Fragment key={group.label}>
-              {index > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                {group.ops.map((candidate) => (
-                  <DropdownMenuRadioItem key={candidate} value={candidate} closeOnClick>
-                    {ATTRIBUTE_OP_LABELS[candidate]}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuGroup>
-            </Fragment>
+          {row.map((candidate) => (
+            <ToggleGroupItem
+              key={candidate}
+              value={candidate}
+              aria-label={ATTRIBUTE_OP_LABELS[candidate]}
+              title={ATTRIBUTE_OP_LABELS[candidate]}
+              className="flex-1 px-1 text-xs text-muted-foreground data-pressed:bg-white/[0.12] data-pressed:text-foreground"
+            >
+              {ATTRIBUTE_OP_SHORT_LABELS[candidate]}
+            </ToggleGroupItem>
           ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </ToggleGroup>
+      ))}
+    </fieldset>
   );
 }
 
@@ -185,19 +178,17 @@ function PillEditor({
         ) : null}
       </div>
 
-      <div className="p-1.5">
-        <OperatorMenu
-          op={filter.op}
-          // A single-value operator keeps the first value; a list keeps them all.
-          onChange={(op) =>
-            onChange({
-              ...filter,
-              op,
-              values: opTakesOneValue(op) ? filter.values.slice(0, 1) : filter.values,
-            })
-          }
-        />
-      </div>
+      <OperatorPicker
+        op={filter.op}
+        // A single-value operator keeps the first value; a list keeps them all.
+        onChange={(op) =>
+          onChange({
+            ...filter,
+            op,
+            values: opTakesOneValue(op) ? filter.values.slice(0, 1) : filter.values,
+          })
+        }
+      />
 
       {showOneValue ? (
         <OneValueInput

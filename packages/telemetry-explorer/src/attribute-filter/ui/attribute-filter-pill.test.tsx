@@ -58,13 +58,12 @@ describe("AttributeFilterPill", () => {
     expect(screen.getByText("custom.unknown.thing")).toBeInTheDocument();
   });
 
-  it("opens the editor with readable op labels and changes the op", async () => {
+  it("opens the editor with readable op labels and changes the op", () => {
     const { onChange } = renderPill(baseFilter);
     fireEvent.click(screen.getByText("Environment"));
-    fireEvent.click(screen.getByRole("button", { name: "Operator" }));
-    expect(await screen.findByRole("menuitemradio", { name: "Exists" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemradio", { name: "Greater than" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Is not" }));
+    expect(screen.getByRole("button", { name: "Exists" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Greater than" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Is not" }));
     expect(onChange).toHaveBeenCalledWith({ ...baseFilter, op: "not_in" });
   });
 
