@@ -333,8 +333,8 @@ afterAll(() => {
 
 const window = { fromTs: FROM_TS, toTs: TO_TS };
 
-async function listedTraceIds(): Promise<string[]> {
-  const rows = await traces.search({
+const searchTraces = (page: { limit: number; cursorStartTs?: string; cursorTraceId?: string }) =>
+  traces.search({
     ...window,
     namespace: [],
     service: [],
@@ -342,8 +342,11 @@ async function listedTraceIds(): Promise<string[]> {
     status: "all",
     attributes: [],
     withRecording: true,
-    limit: 500,
+    ...page,
   });
+
+async function listedTraceIds(): Promise<string[]> {
+  const rows = await searchTraces({ limit: 500 });
   return rows.map((row) => row.traceId).sort();
 }
 
@@ -351,17 +354,7 @@ async function pagedTraceIds(limit: number): Promise<string[]> {
   const ids: string[] = [];
   let cursor: { cursorStartTs: string; cursorTraceId: string } | undefined;
   for (;;) {
-    const rows = await traces.search({
-      ...window,
-      namespace: [],
-      service: [],
-      name: "",
-      status: "all",
-      attributes: [],
-      withRecording: true,
-      limit,
-      ...cursor,
-    });
+    const rows = await searchTraces({ limit, ...cursor });
     const last = rows.at(-1);
     if (!last) return ids.sort();
     ids.push(...rows.map((row) => row.traceId));
@@ -369,9 +362,12 @@ async function pagedTraceIds(limit: number): Promise<string[]> {
   }
 }
 
-async function searchIssues(withRecording: boolean) {
+async function searchIssues(
+  withRecording: boolean,
+  range: { fromTs: string; toTs: string } = window,
+) {
   const { issues } = await errors.searchIssues({
-    ...window,
+    ...range,
     q: "",
     service: [],
     fingerprint: "",
@@ -472,17 +468,9 @@ describe("session recording coverage against ClickHouse", () => {
   });
 
   it("lists a streamless error when its trace was recorded long before the searched window", async () => {
-    const { issues } = await errors.searchIssues({
+    const issues = await searchIssues(true, {
       fromTs: "2026-11-15 09:29:00",
       toTs: "2026-11-15 09:31:00",
-      q: "",
-      service: [],
-      fingerprint: "",
-      sort: "lastSeen",
-      limit: 50,
-      offset: 0,
-      attributes: [],
-      withRecording: true,
     });
     expect(issues.map((issue) => issue.exceptionType)).toEqual(["LateBackend"]);
     expect(await covered({ kind: "trace", traceId: "long" })).toBe(true);

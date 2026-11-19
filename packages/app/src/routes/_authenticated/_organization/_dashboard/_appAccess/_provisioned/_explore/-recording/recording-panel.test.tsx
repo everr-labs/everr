@@ -113,6 +113,13 @@ function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "split"
   };
 }
 
+/** One Clip covers the trace, and its events are `events`. */
+function renderClip(events: unknown[] = playableEvents) {
+  vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+  vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(events));
+  renderPlayer({ kind: "trace", traceId: "t1" });
+}
+
 const section = () => screen.findByRole("region", { name: "Session recording" });
 /** The trace view's recording row, which opens and closes like the Flamegraph row. */
 const toggle = async (expanded: boolean) =>
@@ -184,9 +191,7 @@ describe("session recording panel", () => {
   });
 
   it("opens paused at ten seconds before the subject, and plays from the control bar", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     await toggle(false);
     const player = await openedPlayer();
@@ -239,11 +244,7 @@ describe("session recording panel", () => {
   });
 
   it("explains a Clip that cannot play", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(
-      eventsResponse(playableEvents.filter((event) => event.type !== 2)),
-    );
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip(playableEvents.filter((event) => event.type !== 2));
 
     await toggle(false);
 
@@ -255,10 +256,8 @@ describe("session recording panel", () => {
   });
 
   it("says when the player cannot start, and starts it again on Retry", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
     replayers.state.failures = 1;
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     await toggle(false);
 
@@ -274,9 +273,7 @@ describe("session recording panel", () => {
   });
 
   it("refits the picture when the recorded viewport resizes", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     await toggle(false);
     const player = await openedPlayer();
@@ -368,9 +365,7 @@ describe("session recording panel", () => {
   });
 
   it("plays to the Clip's end, past the last event, and a click on the picture plays and pauses", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     await toggle(false);
     const player = await openedPlayer();
@@ -387,9 +382,7 @@ describe("session recording panel", () => {
   });
 
   it("restarts from the lead-in once the Clip has finished", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     await toggle(false);
     const player = await openedPlayer();
@@ -402,9 +395,7 @@ describe("session recording panel", () => {
   });
 
   it("opens and closes in the split from its row, like the Flamegraph row", async () => {
-    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
-    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
-    renderPlayer({ kind: "trace", traceId: "t1" });
+    renderClip();
 
     const panel = await section();
     expect(
