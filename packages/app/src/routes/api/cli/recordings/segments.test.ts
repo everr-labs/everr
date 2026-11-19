@@ -8,20 +8,12 @@ vi.mock("#app/lib/clickhouse.ts", () => ({
   runSqlApiQuery: vi.fn(),
 }));
 
-const deployment = vi.hoisted(() => ({ sessionRecordings: false }));
-vi.mock("@composition/client", () => ({ productClient: deployment }));
-
-const actual = vi.hoisted(() => ({
-  readSegments: undefined as typeof Replay.readSegments | undefined,
+vi.mock("#app/data/replay/index.ts", async (importActual) => ({
+  ...(await importActual<typeof Replay>()),
+  readSegments: vi.fn(),
 }));
-vi.mock("#app/data/replay/index.ts", async (importActual) => {
-  const replay = await importActual<typeof Replay>();
-  actual.readSegments = replay.readSegments;
-  return { ...replay, readSegments: vi.fn() };
-});
 
 import { readSegments } from "#app/data/replay/index.ts";
-import { query } from "#app/lib/clickhouse.ts";
 import { cliSessionContext, getRouteHandler } from "../-test-utils";
 import { Route } from "./segments";
 
@@ -87,21 +79,6 @@ describe("/api/cli/recordings/segments", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "bad_request", message: "Pass --at." });
     expect(mockedReadSegments).not.toHaveBeenCalled();
-  });
-
-  it("answers 404 with the reason where recordings are not stored, before any query", async () => {
-    mockedReadSegments.mockImplementation(
-      async (...args) => actual.readSegments?.(...args) as never,
-    );
-
-    const response = await callSegments("stream=8fa44e8b&at=2026-11-14T10:21:41.730Z");
-
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({
-      error: "unavailable",
-      message: "Session recordings are not available on this deployment",
-    });
-    expect(query).not.toHaveBeenCalled();
   });
 
   it("hides an unexpected error behind a 500", async () => {

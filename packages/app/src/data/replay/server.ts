@@ -1,7 +1,7 @@
 import { ClipSubjectSchema, RecordingsRepository } from "@everr/telemetry-explorer/recordings";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
-import { assertSessionRecordings, clipEvents, replayHttpError } from "./session.ts";
+import { clipEvents, replayHttpError } from "./session.ts";
 
 export const getCoveringClips = createAuthenticatedServerFn({ method: "GET" })
   .validator(ClipSubjectSchema)

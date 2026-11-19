@@ -8,14 +8,7 @@
 
 import "@tanstack/react-start/server-only";
 
-import {
-  assertSessionRecordings,
-  loadClips,
-  ReplayError,
-  segmentLines,
-  select,
-  windowAround,
-} from "./session.ts";
+import { loadClips, ReplayError, segmentLines, select, windowAround } from "./session.ts";
 
 export { ReplayError, replayHttpError } from "./session.ts";
 
@@ -83,8 +76,7 @@ export function parseSegmentsRequest(params: URLSearchParams): SegmentsRequest {
 export type SegmentRead = { readAt: Date; lines: AsyncIterable<string> };
 
 /**
- * The Segments of the page of a Stream just after a moment, where recordings
- * are stored:
+ * The Segments of the page of a Stream just after a moment:
  *   windowAround, loadClips  the Stream's Clips within 5 minutes of --at
  *   select                   the Clip covering --at; outside_clip names the nearest
  *   segmentLines             its Segments up to SETTLE_MS after --at, at most to its end
@@ -93,7 +85,6 @@ export async function readSegments(
   organizationId: string,
   request: SegmentsRequest,
 ): Promise<SegmentRead> {
-  assertSessionRecordings();
   const atMs = request.at.getTime();
   const window = windowAround(atMs);
   const clips = await loadClips(organizationId, request.stream, window, atMs);
