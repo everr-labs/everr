@@ -15,7 +15,7 @@ A page with `recording()` keeps its Recording (the Stream) in memory and sends a
 - Automatically around an exception, a 5xx, or a request with no response: `everr.recording.trigger` is `error` or `network`, at most 5 per page.
 - Wherever the app calls `recorder.startClip()` or `recorder.emitClip()`: `trigger` is `manual`. An app can record any visit this way, failing or healthy: every checkout, a feedback button, one cohort.
 
-Which visits have Clips depends on the app. Find Clips (below) shows what it records.
+Find Clips (below) shows what an app records.
 
 Every browser record a page sends once its recorder has started carries `everr.recording.stream.id`, so that id joins a click, a request, an exception, or a vital to its Recording. The first `everr.browser.page_view` and the `ttfb` vital come before the recorder and carry none.
 
@@ -25,7 +25,7 @@ Every browser record a page sends once its recorder has started carries `everr.r
 
 1. **Timeline.** Run "What one user session did" in `rules/browser-events.md` for the session. It covers every visit, recorded or not, and gives each row's `at_ms` and `stream_id`.
 2. **Moments.** Pick the rows that need the page: the exception, the end of a failed request (`at_ms + ms`), a click the user repeated or that a page leave followed.
-3. **Page.** `everr cloud recording show --stream <stream_id> --at <at_ms>` for each. An empty `stream_id` means the page was not recording: report from the timeline alone.
+3. **Page.** `everr cloud recording show --stream <stream_id> --at <at_ms>` for each. A `stream_id` that is empty on every row of the page means the page was not recording: report from the timeline alone.
 
 Whether a click changed the page: read the page before it (`--at <at_ms - 1000>`) and after it (`--at <at_ms>`), and compare. On a `text masked` page, compare with `--html`: a change of Masked text shows only there, as a different run of asterisks.
 
@@ -55,10 +55,11 @@ SELECT toUnixTimestamp64Milli(Timestamp) AS at_ms,
   toString(SpanAttributes.`session.id`) AS session_id,
   toString(SpanAttributes.`everr.recording.stream.id`) AS stream_id
 FROM traces
-WHERE Timestamp > now() - INTERVAL 24 HOUR
+WHERE Timestamp >= (SELECT min(Start) FROM traces_trace_id_ts WHERE TraceId = '<trace_id>')
+  AND Timestamp <= (SELECT max(End) + 1 FROM traces_trace_id_ts WHERE TraceId = '<trace_id>')
   AND TraceId = '<trace_id>'
   AND SpanKind = 'Client'
-  AND toString(SpanAttributes.`session.id`) != ''
+  AND has(SpanAttributesKeys, 'session.id')
 ORDER BY Timestamp
 LIMIT 1
 ```
@@ -89,6 +90,7 @@ SELECT toString(SpanAttributes.`everr.recording.clip.id`) AS clip_id,
 FROM traces
 WHERE Timestamp > now() - INTERVAL 24 HOUR
   AND SpanName = 'recording'
+  AND has(SpanAttributesKeys, 'everr.recording.clip.id')
 ORDER BY Timestamp DESC
 LIMIT 30
 ```
@@ -119,6 +121,7 @@ FROM (
   FROM logs
   WHERE Timestamp > now() - INTERVAL 24 HOUR
     AND EventName = 'everr.browser.interaction.click'
+    AND has(LogAttributesKeys, 'everr.element.selector')
 )
 WHERE third_click_back_ms > 0 AND at_ms - third_click_back_ms <= 2000
 GROUP BY route, selector
@@ -141,6 +144,7 @@ FROM (
     toString(LogAttributes.`exception.type`) AS type
   FROM logs
   WHERE Timestamp > now() - INTERVAL 24 HOUR AND EventName = 'exception'
+    AND has(LogAttributesKeys, 'session.id')
 ) AS e
 ASOF JOIN (
   SELECT toString(LogAttributes.`session.id`) AS session_id, Timestamp,
@@ -149,6 +153,7 @@ ASOF JOIN (
     toString(LogAttributes.`everr.element.selector`) AS selector
   FROM logs
   WHERE Timestamp > now() - INTERVAL 24 HOUR AND EventName = 'everr.browser.interaction.click'
+    AND has(LogAttributesKeys, 'everr.element.selector')
 ) AS c
 ON e.session_id = c.session_id AND e.Timestamp >= c.Timestamp
 WHERE e.at_ms - c.at_ms <= 2000
@@ -157,8 +162,6 @@ ORDER BY sessions DESC
 LIMIT 20
 ```
 
-Whether the page changed after a click: read the page before and after it (Workflow).
-
 ## Reading `show`
 
 ```text
@@ -166,34 +169,31 @@ page 2026-11-14T10:21:42.480Z (--at +0.75s) url="/checkout" text masked
 main
   h1
   form#payment
-    input name="email" type="email" value="********@*******"
+    input name="email" type="email" value="****************"
     button type="submit" disabled
   ul#items
     li ×3
 ```
 
 - The first line is the moment read and the page's path, then notes. `text masked`: the app masks text, so an element shows no text of its own (`--html` shows the asterisks). `coverage incomplete`: a Segment is missing or too large to read, or a change named an element the copy did not have, so parts of the page can be wrong.
-- Each line is an element: `tag#id`, its naming attributes, its state (`disabled`, `checked`, a class token such as `is-loading` or `error`), then its text in quotes. Indentation is nesting. Wrappers with nothing to name them are left out.
+- Each line is an element: `tag#id`, its naming attributes, its state (`disabled`, `checked`, a state class as `class="is-loading"`), then its text in quotes. Indentation is nesting. Wrappers with nothing to name them are left out.
 - A `value` of asterisks is a filled field whose value is Masked; its length is what was typed.
 - `×N` is N identical siblings. `... N more siblings` and `... N more lines` mark what did not fit.
-- The outline is built from the DOM, not from layout: an element hidden by CSS still appears. It is not an accessibility tree.
+- The outline is built from the DOM, not from layout: an element hidden by CSS still appears.
 
 Page text can hold personal data the app did not mask. In reports, tickets, and commits, refer to the time and the element instead of copying that text.
 
 ## Local
 
-`show` reads Cloud only. Locally, the timeline, Find Clips, and the population queries work unchanged on `everr local query`. Segments are ordinary `logs` rows with `EventName = 'everr.browser.recording.segment'`, about 950 KB of rrweb JSON each: select `length(Body)` when you need a Segment's size. The page needs the Cloud reader.
+`show` reads Cloud only. Locally, the timeline, Find Clips, and the population queries work unchanged on `everr local query`.
 
 ## Errors
 
-| Message says                                              | Next move                                                                                             |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `No Clip covers`                                          | It names the nearest Clips. Pass an `--at` inside one, or report that no Recording covers the moment. |
-| `No Clip of stream`                                       | No Clip within 5 minutes of `--at`. Run Find Clips around the moment.                                 |
-| `MiB of Segments`                                         | The page is too large to read. Say so, and continue with the timeline.                                |
-| `Session recordings are not available`                    | This installation does not store Recordings. Say so, and continue with the timeline.                  |
-| `--at "...": no time zone`                                | Add `Z`, or pass epoch milliseconds from `toUnixTimestamp64Milli(Timestamp)`.                         |
-| `This installation may predate`                           | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`.    |
-| `Recording format`                                        | The CLI is older than the server. Run `everr upgrade`, then retry.                                    |
-| `cut short`, or `read took over`                          | Retry once. If it fails again, report the error.                                                      |
-| `Session expired`, or `failed with 500` with a login hint | Run `everr cloud login`, then retry once. If it fails again, report the error.                        |
+Every other message names its own next move.
+
+| Message says                           | Next move                                                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `MiB of Segments`                      | The page is too large to read. Say so, and continue with the timeline.                             |
+| `Session recordings are not available` | This installation does not store Recordings. Say so, and continue with the timeline.               |
+| `This installation may predate`        | The server is older than the CLI. Say so, and continue with the timeline from `everr cloud query`. |
+| `cut short`, or `read took over`       | Retry once. If it fails again, report the error.                                                   |
