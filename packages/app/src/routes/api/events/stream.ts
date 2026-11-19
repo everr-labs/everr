@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createMiddleware } from "@tanstack/react-start";
 import { z } from "zod";
 import { subscribeTenant, subscribeTrace } from "#app/db/hub.ts";
-import { getSession } from "#app/lib/session.server.ts";
+import { requireOrgRequestMiddleware } from "#app/lib/org-request-middleware.server.ts";
 import { createSSEStream } from "#app/lib/sse.ts";
 
 const StreamQuerySchema = z.discriminatedUnion("scope", [
@@ -10,39 +9,12 @@ const StreamQuerySchema = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("trace"), key: z.string().min(1) }),
 ]);
 
-const authMiddleware = createMiddleware({ type: "request" }).server(async ({ next, request }) => {
-  const session = await getSession({
-    headers: request.headers,
-  });
-
-  if (!session?.session || !session?.user) {
-    return Response.json(
-      { error: "You need to be authenticated to use this API" },
-      { status: 401 },
-    );
-  }
-
-  const activeOrgId = session.session.activeOrganizationId;
-  if (!activeOrgId) {
-    return Response.json({ error: "No active organization" }, { status: 403 });
-  }
-
-  return next({
-    context: {
-      session: {
-        userId: session.user.id,
-        organizationId: activeOrgId,
-      },
-    },
-  });
-});
-
 export const Route = createFileRoute("/api/events/stream")({
   server: {
-    middleware: [authMiddleware],
+    middleware: [requireOrgRequestMiddleware],
     handlers: {
       GET: async ({ request, context }) => {
-        const { session } = context;
+        const organizationId = context.organization.id;
         const url = new URL(request.url);
         const parsed = StreamQuerySchema.safeParse({
           scope: url.searchParams.get("scope") ?? undefined,
@@ -64,9 +36,9 @@ export const Route = createFileRoute("/api/events/stream")({
         const unsubscribe = (() => {
           switch (parsed.data.scope) {
             case "tenant":
-              return subscribeTenant(session.organizationId, (payload) => sse.sendEvent(payload));
+              return subscribeTenant(organizationId, (payload) => sse.sendEvent(payload));
             case "trace":
-              return subscribeTrace(session.organizationId, parsed.data.key, (payload) =>
+              return subscribeTrace(organizationId, parsed.data.key, (payload) =>
                 sse.sendEvent(payload),
               );
           }

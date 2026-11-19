@@ -1,52 +1,22 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
-import { db } from "#app/db/client.ts";
-import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
+import { resolveOrganizationAccess, resolveSession } from "#app/lib/org-session.server.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { createOrganizationSql } from "#app/lib/organization-sql.ts";
-import { getSession } from "#app/lib/session.server.ts";
 import { createClickhouseQuery } from "./clickhouse";
 
-const authMiddleware = createMiddleware().server(async ({ request, next }) => {
-  const session = await getSession({
-    headers: request.headers,
-  });
-
-  if (!session?.session || !session?.user) {
-    throw new Error("Unauthenticated");
-  }
-
-  return next({
-    context: {
-      session,
-    },
-  });
-});
+const authMiddleware = createMiddleware().server(async ({ request, next }) =>
+  next({ context: { session: await resolveSession(request.headers) } }),
+);
 
 export const requireOrgMiddleware = createMiddleware()
   .middleware([authMiddleware])
   .server(async ({ next, context: { session } }) => {
-    const activeOrgId = session.session.activeOrganizationId;
-    if (!activeOrgId) {
-      throw new Error("No active organization");
-    }
-
-    const membership = await findOrganizationForMember(db, session.user.id, activeOrgId);
-    if (!membership) throw new Error("Not a member of the active organization");
-    const { memberRole, ...organization } = membership;
-
+    const access = await resolveOrganizationAccess(session);
     return next({
       context: {
-        organization,
-        memberRole,
-        session: {
-          session: {
-            ...session.session,
-            activeOrganizationId: activeOrgId,
-          },
-          user: session.user,
-        },
+        ...access,
         clickhouse: {
-          query: createClickhouseQuery(activeOrgId),
+          query: createClickhouseQuery(access.organization.id),
         },
       },
     });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { requireCliOrgMiddleware } from "./cli-auth.server";
+import { requireOrgRequestMiddleware } from "./org-request-middleware.server";
 import type { FunctionMiddlewareHandler } from "./test-middleware";
 
 const mocked = vi.hoisted(() => ({
@@ -13,7 +13,7 @@ vi.mock("#app/lib/organization-membership.server.ts", () => ({
   findOrganizationForMember: mocked.findOrganizationForMember,
 }));
 
-const { __handler: handler } = requireCliOrgMiddleware as unknown as {
+const { __handler: handler } = requireOrgRequestMiddleware as unknown as {
   __handler: FunctionMiddlewareHandler;
 };
 
@@ -28,7 +28,7 @@ beforeEach(() => {
   mocked.findOrganizationForMember.mockReset();
 });
 
-describe("requireCliOrgMiddleware", () => {
+describe("requireOrgRequestMiddleware", () => {
   it("answers 401 without a valid session", async () => {
     mocked.getSession.mockResolvedValue(null);
     const { result, next } = run();
@@ -54,7 +54,8 @@ describe("requireCliOrgMiddleware", () => {
     await result;
     expect(next).toHaveBeenCalledWith({
       context: {
-        organization: { id: "org-1", name: "Acme", metadata: null, memberRole: "member" },
+        organization: { id: "org-1", name: "Acme", metadata: null },
+        memberRole: "member",
         session: {
           session: { activeOrganizationId: "org-1" },
           user: { id: "user-1" },

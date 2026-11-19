@@ -8,8 +8,8 @@ import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { createOrganizationSql, type OrganizationSql } from "#app/lib/organization-sql.ts";
+import { AuthError, authErrorResponse, resolveOrgSession } from "#app/lib/org-session.server.ts";
 import { HASHED_KEY_CONFIG_ID } from "#app/lib/public-ingest-keys.ts";
-import { getSession } from "#app/lib/session.server.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
 export interface ApplyAuth {
@@ -54,17 +54,14 @@ export function extractBearerKey(headers: Headers): string | null {
   return apiKey ? apiKey.trim() : null;
 }
 
-/**
- * Organization identity and ready SQL access shared by API key and session auth.
- * The direct DB lookup also supports API keys without a user session.
- */
-async function resolveOrganization(organizationId: string) {
+/** Organization identity and ready SQL access for an API key, which has no user session. */
+async function resolveKeyOrganization(organizationId: string) {
   const [row] = await db
     .select({ name: organization.name, metadata: organization.metadata })
     .from(organization)
     .where(eq(organization.id, organizationId))
     .limit(1);
-  if (!row) throw new Error("Organization not found");
+  if (!row) throw new AuthError("Organization not found", 403);
   return {
     organizationName: row.name,
     sql: createOrganizationSql(organizationId, row.metadata),
@@ -82,7 +79,7 @@ async function resolveOrganization(organizationId: string) {
  */
 export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
   const credential = extractBearerKey(headers);
-  if (!credential) throw new Error("Missing credential");
+  if (!credential) throw new AuthError("Missing credential", 401);
 
   if (credential.startsWith("ek_")) {
     const result = await auth.api.verifyApiKey({
@@ -91,32 +88,26 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
       body: { key: credential, configId: HASHED_KEY_CONFIG_ID },
     });
     if (!result.valid || !result.key?.referenceId) {
-      throw new Error("Invalid API key");
+      throw new AuthError("Invalid API key", 401);
     }
     if (!hasApiKeyScope(result.key.permissions, "apply")) {
-      throw new Error("API key is not authorized to apply resources");
+      throw new AuthError("API key is not authorized to apply resources", 403);
     }
     const organizationId = result.key.referenceId;
     mergeTelemetryIdentity({ organizationId });
     return {
       organizationId,
-      ...(await resolveOrganization(organizationId)),
+      ...(await resolveKeyOrganization(organizationId)),
       principalId: `apikey:${result.key.id}`,
       applyActions: result.key.permissions?.apply ?? [],
     };
   }
 
-  const session = await getSession({ headers });
-  if (!session?.session || !session?.user) {
-    throw new Error("Unauthenticated");
-  }
-  const organizationId = session.session.activeOrganizationId;
-  if (!organizationId) {
-    throw new Error("No active organization");
-  }
+  const { organization, session } = await resolveOrgSession(headers);
   return {
-    organizationId,
-    ...(await resolveOrganization(organizationId)),
+    organizationId: organization.id,
+    organizationName: organization.name,
+    sql: createOrganizationSql(organization.id, organization.metadata),
     principalId: `user:${session.user.id}`,
     applyActions: null,
   };
@@ -150,33 +141,19 @@ export function buildApplyContext(apiAuth: ApplyAuth) {
 }
 
 /**
- * Map an auth failure thrown by `resolveApplyAuth` to an explicit HTTP response:
- * 401 for a missing/invalid/unauthenticated credential, 403 for an
- * authenticated principal with no active organization. Returns null for any
- * other error so genuine infrastructure failures still surface as a 500 (a bug
- * must not be masked as an auth rejection). The `{ error }` body mirrors the
- * route's other error shapes; the 401 status is what the CLI keys on to print
- * its apply-specific guidance instead of a generic server error.
+ * Map a failure thrown by `resolveApplyAuth` to an HTTP response: the auth
+ * status (401/403) the CLI keys on, or 503 while the organization's storage is
+ * being set up. Returns null for any other error so infrastructure failures
+ * still surface as a 500 instead of being masked as an auth rejection.
  */
-const AUTH_ERROR_STATUS: Record<string, number> = {
-  "Missing credential": 401,
-  "Invalid API key": 401,
-  "API key is not authorized to apply resources": 403,
-  Unauthenticated: 401,
-  "No active organization": 403,
-  "Organization not found": 403,
-};
-
 export function applyAuthErrorResponse(error: unknown): Response | null {
   if (error instanceof StorageNotReadyError)
     return Response.json(
       { error: error.message },
       { status: 503, headers: { "Retry-After": "5" } },
     );
-  const message = error instanceof Error ? error.message : "";
-  const status = AUTH_ERROR_STATUS[message];
-  if (!status) return null;
-  return Response.json({ error: message }, { status });
+  if (error instanceof AuthError) return authErrorResponse(error);
+  return null;
 }
 
 /**

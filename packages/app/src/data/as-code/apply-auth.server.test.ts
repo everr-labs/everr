@@ -2,6 +2,7 @@ import { storage } from "@composition/storage";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StorageNotReadyError } from "#app/common/storage-readiness.ts";
 import { querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
+import { AuthError } from "#app/lib/org-session.server.ts";
 
 // Org-name lookup goes through a direct DB select; control its result via orgRows.
 
@@ -33,6 +34,10 @@ vi.mock("#app/lib/clickhouse.ts", () => ({
   createClickhouseQuery: () => () => Promise.resolve([]),
   querySqlApiWithMeta: vi.fn(),
 }));
+const findOrganizationForMember = vi.fn();
+vi.mock("#app/lib/organization-membership.server.ts", () => ({
+  findOrganizationForMember: (...a: unknown[]) => findOrganizationForMember(...a),
+}));
 let orgRows: unknown[] = [];
 vi.mock("#app/db/client.ts", () => ({
   db: {
@@ -56,6 +61,12 @@ function headers(map: Record<string, string>): Headers {
 beforeEach(() => {
   vi.clearAllMocks();
   orgRows = [{ name: "Acme", metadata: null }];
+  findOrganizationForMember.mockResolvedValue({
+    id: "org-1",
+    name: "Acme",
+    metadata: null,
+    memberRole: "owner",
+  });
 });
 
 describe("extractBearerKey", () => {
@@ -190,7 +201,12 @@ describe("resolveApplyAuth", () => {
       user: { id: "u1" },
       session: { activeOrganizationId: "org-9" },
     });
-    orgRows = [{ name: "Globex" }];
+    findOrganizationForMember.mockResolvedValueOnce({
+      id: "org-9",
+      name: "Globex",
+      metadata: null,
+      memberRole: "member",
+    });
     const result = await resolveApplyAuth(headers({ authorization: "Bearer sess_token" }));
     expect(result).toEqual({
       organizationId: "org-9",
@@ -209,6 +225,17 @@ describe("resolveApplyAuth", () => {
     });
     await expect(resolveApplyAuth(headers({ authorization: "Bearer sess_token" }))).rejects.toThrow(
       /no active organization/i,
+    );
+  });
+
+  it("throws when the user is no longer a member of the active org", async () => {
+    getSession.mockResolvedValueOnce({
+      user: { id: "u1" },
+      session: { activeOrganizationId: "org-1" },
+    });
+    findOrganizationForMember.mockResolvedValueOnce(undefined);
+    await expect(resolveApplyAuth(headers({ authorization: "Bearer sess_token" }))).rejects.toThrow(
+      "Not a member of the active organization",
     );
   });
 
@@ -280,21 +307,15 @@ describe("canApplyMutate", () => {
 });
 
 describe("applyAuthErrorResponse", () => {
-  it.each([
-    ["Missing credential", 401],
-    ["Invalid API key", 401],
-    ["API key is not authorized to apply resources", 403],
-    ["Unauthenticated", 401],
-    ["No active organization", 403],
-  ])("maps %s to an HTTP %d Response with the message", async (msg, status) => {
-    const res = applyAuthErrorResponse(new Error(msg));
-    expect(res).toBeInstanceOf(Response);
-    expect((res as Response).status).toBe(status);
-    expect(await (res as Response).json()).toEqual({ error: msg });
+  it("maps an auth failure to its status with the message", async () => {
+    const res = applyAuthErrorResponse(new AuthError("Invalid API key", 401));
+    expect(res?.status).toBe(401);
+    expect(await res?.json()).toEqual({ error: "Invalid API key" });
   });
 
   it("returns null for an unknown (non-auth) error so it propagates as 500", () => {
     expect(applyAuthErrorResponse(new Error("connect ECONNREFUSED"))).toBeNull();
+    expect(applyAuthErrorResponse(new Error("Unauthenticated"))).toBeNull();
     expect(applyAuthErrorResponse("not an error")).toBeNull();
   });
 });

@@ -31,14 +31,11 @@ import { Route } from "./stream";
 const mockedSubscribeTenant = vi.mocked(subscribeTenant);
 const mockedSubscribeTrace = vi.mocked(subscribeTrace);
 
-const mockSession = {
-  userId: "u1",
-  organizationId: "org1",
-};
+const mockOrganization = { id: "org1" };
 
 type GetHandler = (args: {
   request: Request;
-  context: { session: typeof mockSession };
+  context: { organization: typeof mockOrganization };
 }) => Promise<Response>;
 
 function getHandler(): GetHandler {
@@ -62,7 +59,7 @@ describe("GET /api/events/stream", () => {
     async (query) => {
       const response = await getHandler()({
         request: new Request(`http://localhost/api/events/stream?${query}`),
-        context: { session: mockSession },
+        context: { organization: mockOrganization },
       });
 
       expect(response.status).toBe(400);
@@ -72,7 +69,7 @@ describe("GET /api/events/stream", () => {
   it("subscribes to tenant topic for scope=tenant", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=tenant"),
-      context: { session: mockSession },
+      context: { organization: mockOrganization },
     });
 
     expect(response.status).toBe(200);
@@ -83,7 +80,7 @@ describe("GET /api/events/stream", () => {
   it("subscribes to trace topic for scope=trace", async () => {
     const response = await getHandler()({
       request: new Request("http://localhost/api/events/stream?scope=trace&key=abc123"),
-      context: { session: mockSession },
+      context: { organization: mockOrganization },
     });
 
     expect(response.status).toBe(200);
@@ -104,7 +101,7 @@ describe("GET /api/events/stream", () => {
 
     await getHandler()({
       request: new Request(`http://localhost/api/events/stream?${query}`),
-      context: { session: mockSession },
+      context: { organization: mockOrganization },
     });
     const onNotify = subscribe().mock.lastCall?.at(-1) as (payload: NotifyPayload) => void;
 
