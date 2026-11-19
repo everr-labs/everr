@@ -20,6 +20,10 @@ const replayers = vi.hoisted(() => {
       readonly events: unknown[],
       readonly config: Record<string, unknown>,
     ) {
+      if (state.failures > 0) {
+        state.failures--;
+        throw new Error("Replayer need at least 2 events.");
+      }
       created.push(this);
     }
     play(offset?: number) {
@@ -42,7 +46,8 @@ const replayers = vi.hoisted(() => {
     }
   }
   const created: FakeReplayer[] = [];
-  return { FakeReplayer, created };
+  const state = { failures: 0 };
+  return { FakeReplayer, created, state };
 });
 
 vi.mock("@rrweb/replay", () => ({ Replayer: replayers.FakeReplayer }));
@@ -121,6 +126,7 @@ beforeEach(() => {
   vi.mocked(getCoveringClips).mockReset();
   vi.mocked(getClipEvents).mockReset();
   replayers.created.length = 0;
+  replayers.state.failures = 0;
 });
 
 describe("session recording panel", () => {
@@ -246,6 +252,25 @@ describe("session recording panel", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
     expect(replayers.created).toHaveLength(0);
+  });
+
+  it("says when the player cannot start, and starts it again on Retry", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    replayers.state.failures = 1;
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    await toggle(false);
+
+    expect(await screen.findByText("Could not start the player.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    const player = await openedPlayer();
+    expect(player?.calls).toEqual(["pause 15000"]);
+    expect(screen.queryByText("Could not start the player.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeEnabled();
+    expect(getClipEvents).toHaveBeenCalledTimes(1);
   });
 
   it("explains a Clip too large to play", async () => {
