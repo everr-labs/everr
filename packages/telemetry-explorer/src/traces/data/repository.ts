@@ -36,6 +36,7 @@ type SpanRow = Omit<Span, "events" | "links" | "spanAttributes" | "resourceAttri
 
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
+const SEARCH_TO_TS_SQL = "parseDateTime64BestEffort({searchToTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const TRACE_DURATION_SQL = `toUInt64(dateDiff('nanosecond', min(Timestamp),
                             max(addNanoseconds(Timestamp, Duration))))`;
@@ -163,8 +164,14 @@ export class TracesRepository {
       });
 
     if (input.withRecording) {
+      // A cursor lowers toTs to the page boundary, but a recorded Span of a
+      // trace on this page can start after that boundary.
+      params.searchToTs = input.toTs;
       pageWhereParts.push(
-        `TraceId IN (${recordedTraceIdsSql(this.tableName, { from: FROM_TS_SQL, to: TO_TS_SQL })})`,
+        `TraceId IN (${recordedTraceIdsSql(this.tableName, {
+          from: FROM_TS_SQL,
+          to: SEARCH_TO_TS_SQL,
+        })})`,
       );
     }
 
