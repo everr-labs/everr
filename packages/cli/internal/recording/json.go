@@ -13,6 +13,11 @@ import (
 // elements deep.
 const maxDepth = 4096
 
+// maxValues is the most values (every scalar, array and object) a read may
+// parse, over all its Bodies. A value takes about 80 bytes here against 2 in
+// the text, so this, not the size of the Bodies, bounds the memory of a read.
+const maxValues = 4_000_000
+
 // linearKeys: objects longer than this find repeated keys through an index.
 const linearKeys = 16
 
@@ -135,12 +140,13 @@ func jsNumber(n float64) string {
 	return mantissa + "e" + sign + digits
 }
 
-// parseJSON reads one JSON value, or reports false when the text is not JSON
-// or nests deeper than maxDepth. Strings come out as JavaScript would show
+// parseJSON reads one JSON value, or reports false when the text is not JSON,
+// nests deeper than maxDepth, or holds more values than are left in budget.
+// Each value read takes one from budget, so one budget spans a whole read. Strings come out as JavaScript would show
 // them: a lone surrogate escape and each invalid UTF-8 byte become U+FFFD.
 // They never share memory with data.
-func parseJSON(data string) (Json, bool) {
-	p := parser{data: data, shared: map[string]string{}}
+func parseJSON(data string, budget *int) (Json, bool) {
+	p := parser{data: data, budget: budget, shared: map[string]string{}}
 	p.space()
 	value, ok := p.value()
 	if !ok {
@@ -162,6 +168,8 @@ type parser struct {
 	data  string
 	pos   int
 	depth int
+	// How many more values may be read.
+	budget *int
 	// The items of the arrays and objects being read, innermost last. Each
 	// takes an exactly sized copy when it closes.
 	open   []member
@@ -197,9 +205,10 @@ func (p *parser) literal(word string) bool {
 }
 
 func (p *parser) value() (Json, bool) {
-	if p.pos >= len(p.data) {
+	if p.pos >= len(p.data) || *p.budget == 0 {
 		return Json{}, false
 	}
+	*p.budget--
 	switch c := p.data[p.pos]; {
 	case c == '{':
 		return p.object()
