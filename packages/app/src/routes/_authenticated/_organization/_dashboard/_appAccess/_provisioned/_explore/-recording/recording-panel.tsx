@@ -124,6 +124,7 @@ function ClipPlayer({
   // Play on a closed player marks the body that mounts next to unfold.
   const unfoldOnMount = useRef(false);
   const [playing, setPlaying] = useState(false);
+  const [playerFailed, setPlayerFailed] = useState(false);
   // Milliseconds after the first event, once the user seeks or the player runs.
   const [positionMs, setPositionMs] = useState<number>();
   const recording = useQuery({ ...clipEventsOptions(clip), enabled: open });
@@ -148,7 +149,7 @@ function ClipPlayer({
   const firstEventMs = events?.[0]?.timestamp;
   const lastEventMs = events?.at(-1)?.timestamp;
   const playable = events ? hasFullSnapshot(events) : true;
-  const blocked = recording.isError || !playable;
+  const blocked = recording.isError || !playable || playerFailed;
   const startMs = firstEventMs === undefined ? 0 : startOffsetMs(clip, firstEventMs);
   const offsetMs = positionMs ?? startMs;
   const timeline = firstEventMs === undefined ? undefined : timelineModel(clip, firstEventMs);
@@ -296,6 +297,13 @@ function ClipPlayer({
               <StageMessage>
                 The start of this clip was not received, so it cannot play.
               </StageMessage>
+            ) : playerFailed ? (
+              <StageMessage>
+                Could not start the player.
+                <Button variant="outline" size="xs" onClick={() => setPlayerFailed(false)}>
+                  Retry
+                </Button>
+              </StageMessage>
             ) : (
               <ReplayStage
                 events={events}
@@ -303,6 +311,10 @@ function ClipPlayer({
                 autoplay={playing}
                 handleRef={stageRef}
                 onClick={togglePlayback}
+                onError={() => {
+                  setPlayerFailed(true);
+                  setPlaying(false);
+                }}
                 onFinish={() => {
                   setPlaying(false);
                   if (firstEventMs !== undefined && lastEventMs !== undefined) {
@@ -313,7 +325,7 @@ function ClipPlayer({
             )}
           </div>
           <Controls
-            timeline={playable ? timeline : undefined}
+            timeline={blocked ? undefined : timeline}
             positionMs={offsetMs}
             playing={playing && !blocked}
             focusLabel={focusLabel}
