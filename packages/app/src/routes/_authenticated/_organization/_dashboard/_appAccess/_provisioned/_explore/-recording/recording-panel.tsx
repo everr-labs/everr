@@ -296,6 +296,9 @@ function ClipPlayer({
             ) : !events || !playable ? (
               <StageMessage>
                 The start of this clip was not received, so it cannot play.
+                <Button variant="outline" size="xs" onClick={() => void recording.refetch()}>
+                  Retry
+                </Button>
               </StageMessage>
             ) : playerFailed ? (
               <StageMessage>

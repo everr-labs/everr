@@ -294,6 +294,68 @@ describe("session recording panel", () => {
     expect(player.wrapper.style.transform).toBe("scale(0.5)");
   });
 
+  it("offers a retry for a Clip whose start was not received", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents)
+      .mockResolvedValueOnce(eventsResponse([]))
+      .mockResolvedValueOnce(eventsResponse(playableEvents));
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    await toggle(false);
+    await screen.findByText("The start of this clip was not received, so it cannot play.");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await openedPlayer();
+    expect(getClipEvents).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Play" })).toBeEnabled();
+  });
+
+  it("looks again for a Clip that arrived after an empty lookup", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.mocked(getCoveringClips).mockResolvedValueOnce([]).mockResolvedValue([coveringClip()]);
+      renderPlayer({ kind: "trace", traceId: "t1" });
+      await waitFor(() => expect(getCoveringClips).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("region", { name: "Session recording" })).not.toBeInTheDocument();
+
+      vi.setSystemTime(Date.now() + 60_000);
+      act(() => {
+        window.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      expect(await section()).toHaveTextContent("error trigger");
+      expect(getCoveringClips).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads the events of a Clip again when the first answer held none", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+      vi.mocked(getClipEvents)
+        .mockResolvedValueOnce(eventsResponse([]))
+        .mockResolvedValueOnce(eventsResponse(playableEvents));
+      renderPlayer({ kind: "trace", traceId: "t1" });
+
+      await toggle(false);
+      await screen.findByText("The start of this clip was not received, so it cannot play.");
+      await toggle(true);
+      await waitFor(() =>
+        expect(screen.queryByText(/start of this clip was not received/)).not.toBeInTheDocument(),
+      );
+
+      vi.setSystemTime(Date.now() + 60_000);
+      await toggle(false);
+
+      await openedPlayer();
+      expect(getClipEvents).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("explains a Clip too large to play", async () => {
     vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
     vi.mocked(getClipEvents).mockResolvedValue(eventsResponse([], 413));
