@@ -56,7 +56,10 @@ const inertClip = ({ last }: EmitClipOptions): RecordingClip => ({
 // instances. Its shutdown releases the page.
 let page: { stream?: Stream } | undefined;
 
-/** Acts on the recorder of the current page. Each method does nothing when no Stream buffers. */
+// The pause that the app asked for. A Stream that starts later starts paused.
+let paused = false;
+
+/** Acts on the recorder of the current page. A Clip method does nothing when no Stream buffers. */
 export const recorder = {
   /** Sends the buffered history now: the last `last` milliseconds, or by default the whole buffer. */
   emitClip(options: EmitClipOptions = {}): void {
@@ -71,10 +74,13 @@ export const recorder = {
   startClip(options: StartClipOptions = {}): RecordingClip {
     return page?.stream?.clip(options, "manual") ?? inertClip(options);
   },
+  /** Stops the capture until `resume()`. A call before the recorder loads holds. */
   pause(): void {
+    paused = true;
     page?.stream?.pause();
   },
   resume(): void {
+    paused = false;
     page?.stream?.resume();
   },
 };
@@ -88,7 +94,7 @@ export function recording(options: RecordingOptions = {}): Instrumentation {
     const id = ctx.ids().sessionId;
     import("./recording/recorder.js")
       .then(({ startStream }) => {
-        if (page === state) state.stream = startStream(ctx, id, options);
+        if (page === state) state.stream = startStream(ctx, id, options, paused);
       })
       // A failed chunk load or start only means no recording. It is never an app error.
       .catch(() => {});
