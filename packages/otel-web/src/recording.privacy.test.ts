@@ -215,6 +215,35 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
     );
   });
 
+  it("strips a query that holds a comma or a space, and each candidate of a srcset", async () => {
+    const json = await recordPage(
+      `<a href="/page?names=alice,comma-secret@example.com">x</a>
+       <form action="/submit?to=a, space-secret"></form>`,
+      { blockAllMedia: false },
+      () => {
+        const img = document.createElement("img");
+        img.setAttribute(
+          "srcset",
+          "/a.png?sig=1,set-secret 1x, /b.png?sig=2,bare-secret, /c.png#frag-secret 3x",
+        );
+        document.body.append(img);
+      },
+    );
+    for (const secret of [
+      "comma-secret",
+      "space-secret",
+      "set-secret",
+      "bare-secret",
+      "frag-secret",
+    ])
+      expect(json, secret).not.toContain(secret);
+    expect(json).toContain('"href":"http://localhost:3000/page"');
+    expect(json).toContain('"action":"/submit"');
+    expect(json).toContain(
+      '"srcset":"http://localhost:3000/a.png 1x, http://localhost:3000/b.png, http://localhost:3000/c.png 3x"',
+    );
+  });
+
   it("strips the query and the fragment of a CSS url", async () => {
     const json = await recordPage(
       `<style>@import "/font?token=import-secret"; body { background: url("/bg?token=sheet-secret#frag-sheet") }</style>

@@ -30,12 +30,17 @@ const stars = (text: string) => text.replace(/\S/g, "*");
 
 /**
  * A URL without its query and fragment. A mailto:, tel:, or sms: URL keeps its
- * scheme only. A reference to an element of the page stays whole.
+ * scheme only. A reference to an element of the page stays whole. The value is
+ * one URL, so all that follows the first ? or # goes, a comma or a space too.
+ * In a srcset, as rrweb 2.1.7 writes it, each URL ends at a space, at a comma
+ * before a space, or at the end.
  */
-const stripUrl = (url: string) =>
+const stripUrl = (url: string, srcset?: boolean) =>
   LOCAL_REF.test(url)
     ? url
-    : url.replace(/^\s*(mailto|tel|sms):.*$/is, "$1:").replace(/[?#][^\s,]*/g, "");
+    : url
+        .replace(/^\s*(mailto|tel|sms):.*$/is, "$1:")
+        .replace(srcset ? /[?#]\S*?(?=,?(\s|$))/g : /[?#].*/s, "");
 
 // The whole capture is one URL, so a comma inside the query goes too.
 // A data: URL stays whole: its payload can contain ? and #, and it is the image.
@@ -120,7 +125,7 @@ export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node 
         if (typeOf(el) === "file") delete out.value;
         else out.value = maskInput(value, el);
       } else if (typeof value === "string" && URL_ATTRIBUTES.test(name))
-        out[name] = stripUrl(value);
+        out[name] = stripUrl(value, name === "srcset");
       else if (typeof value === "string" && maskAttribute(name) && !unmasked(el))
         out[name] = mask(value);
       else if (name === "style" || name === "_cssText") out[name] = stripStyle(value);
