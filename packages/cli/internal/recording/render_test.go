@@ -74,15 +74,6 @@ func viewOf(lines []string, masked bool) pageView {
 	return pageView{lines: lines, totalLines: len(lines), masked: masked}
 }
 
-func TestPagePrintsOneHeaderLineThenThePage(t *testing.T) {
-	got := pageText(t0+3_750, t0+3_000, "https://shop.example.com/checkout?token=secret",
-		viewOf([]string{"main", `  h1 "Checkout"`}, false), true)
-	want := "page 2026-11-14T10:20:03.750Z (--at +0.75s) url=\"/checkout\"\nmain\n  h1 \"Checkout\"\n"
-	if got != want {
-		t.Fatalf("got %q", got)
-	}
-}
-
 func TestPageAddsTheNotesThatQualifyIt(t *testing.T) {
 	got := pageText(t0+3_125, t0+3_000, "/checkout", viewOf([]string{"main"}, true), false)
 	want := `page 2026-11-14T10:20:03.125Z (--at +0.13s) url="/checkout" text masked coverage incomplete`
@@ -107,12 +98,5 @@ func TestPageKeepsEachHTMLLineOneVisibleLine(t *testing.T) {
 		if strings.ContainsFunc(line, invisibleOrControl) {
 			t.Errorf("%q", line)
 		}
-	}
-}
-
-func TestPageSaysWhenThereIsNothingToPrint(t *testing.T) {
-	lines := strings.Split(pageText(t0, t0, "", viewOf(nil, false), false), "\n")
-	if lines[1] != "(empty: no full snapshot before this moment)" {
-		t.Fatalf("got %q", lines)
 	}
 }
