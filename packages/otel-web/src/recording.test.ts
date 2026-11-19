@@ -553,6 +553,25 @@ describe("delivery over fetch", () => {
     // Segment goes plain at once.
     expect(segments.map((r) => r.encoding)).toEqual(["gzip", undefined, undefined]);
   });
+
+  it("stops the retry of a Segment when clearIdentity() ends its Stream", async () => {
+    const segments = collector(() => new Response(null, { status: 503 }));
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    for (let i = 0; i < 400 && segments.length < 1; i++) await settle(100);
+    t.sdk.clearIdentity();
+    await settle();
+    expect(segments).toHaveLength(1);
+  });
+
+  it("does not send a Segment that is still in compression when clearIdentity() ends its Stream", async () => {
+    const segments = collector(() => new Response(null));
+    const t = await start({}, viaFetch);
+    t.rec.recorder.emitClip();
+    t.sdk.clearIdentity();
+    await settle();
+    expect(segments).toEqual([]);
+  });
 });
 
 describe("the Stream and the Session", () => {
@@ -585,15 +604,13 @@ describe("the Stream and the Session", () => {
     expect(logs.at(-1)?.attrs["session.id"]).not.toBe(first.attrs["session.id"]);
   });
 
-  it("keeps one Stream for the page when the Session changes", async () => {
+  it("keeps the Stream when the Session rotates after the idle timeout", async () => {
     const t = await start();
     const before = t.rec.recorder.startClip();
     before.end();
     const [first] = t.segments();
     vi.advanceTimersByTime(31 * 60_000);
     t.sdk.logger.info("new session");
-    t.sdk.clearIdentity();
-    t.sdk.logger.info("cleared");
     const count = t.segments().length;
     const after = t.rec.recorder.startClip();
     expect(after.isRecording()).toBe(true);
@@ -603,6 +620,100 @@ describe("the Stream and the Session", () => {
       first.attrs["everr.recording.stream.id"],
     );
     expect(last[0].attrs["session.id"]).toBe(first.attrs["session.id"]);
+    const [log] = await t.logs();
+    expect(log.attrs["session.id"]).not.toBe(first.attrs["session.id"]);
+  });
+
+  describe.each([
+    [
+      "clearIdentity()",
+      (sdk: typeof Sdk) => {
+        sdk.clearIdentity();
+        sdk.setAnonymized(true);
+      },
+    ],
+    ["setAnonymized(true)", (sdk: typeof Sdk) => sdk.setAnonymized(true)],
+  ])("on %s", (_, refuse) => {
+    it("ends the Stream, sends nothing more of it, and starts a new one", async () => {
+      const t = await start({ maskAllText: false }, { sdkOptions: { anonymized: false } });
+      t.sdk.logger.info("before");
+      const [before] = await t.logs();
+      // An open Clip that has sent its first Segment and holds two later events.
+      const open = t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
+      box().textContent = "second screen";
+      await mutations();
+      box().textContent = "third screen";
+      await mutations();
+      vi.advanceTimersByTime(1_000);
+      const sent = t.sent.length;
+      const count = t.segments().length;
+      const calledAt = Date.now();
+
+      refuse(t.sdk);
+      expect(open.isRecording()).toBe(false);
+      open.end();
+      box().textContent = "fourth screen";
+      await mutations();
+      t.sdk.logger.info("after");
+      t.rec.recorder.emitClip();
+      // Past the flush interval and the cap of the Clip that was open.
+      vi.advanceTimersByTime(60_000);
+      await t.client.flush();
+
+      const later = t.sent
+        .slice(sent)
+        .map((s) => s.body)
+        .join("");
+      expect(later).not.toContain(before.attrs["session.id"]);
+      expect(later).not.toContain(before.attrs["everr.recording.stream.id"]);
+      expect(later).not.toContain("second screen");
+      const after = (await t.logs()).at(-1)!;
+      const segments = t.segments().slice(count);
+      expect(segments).toHaveLength(1);
+      expect(segments[0].attrs).toMatchObject({
+        "session.id": after.attrs["session.id"],
+        "everr.recording.stream.id": after.attrs["everr.recording.stream.id"],
+        "everr.recording.segment.index": "0",
+      });
+      expect(types(segments[0].events).slice(0, 2)).toEqual([META, FULL_SNAPSHOT]);
+      expect(segments[0].events[0].timestamp).toBe(calledAt);
+      expect(JSON.stringify(segments[0].events)).toContain("fourth screen");
+      const spans = await t.spans();
+      expect(spans.map((s) => s.attrs["everr.recording.clip.id"])).not.toContain(open.id);
+      expect(spans).toHaveLength(1);
+      // The new Stream reads no id at the call, so the refused store stays empty.
+      expect(localStorage.length).toBe(0);
+    });
+  });
+
+  it("keeps a pause across clearIdentity()", async () => {
+    const t = await start({ maskAllText: false });
+    t.rec.recorder.pause();
+    t.sdk.clearIdentity();
+    box().textContent = "while paused";
+    await mutations();
+    t.rec.recorder.emitClip();
+    expect(t.segments()).toEqual([]);
+
+    box().textContent = "after the pause";
+    await mutations();
+    t.rec.recorder.resume();
+    t.rec.recorder.emitClip();
+    const events = t.segments().flatMap((s) => s.events);
+    expect(types(events)).toEqual([META, FULL_SNAPSHOT]);
+    expect(JSON.stringify(events)).not.toContain("while paused");
+  });
+
+  it("starts in the Session after clearIdentity() when the call comes before the recorder loads", async () => {
+    const t = await start({}, { settle: false });
+    t.sdk.logger.info("before");
+    t.sdk.clearIdentity();
+    await vi.dynamicImportSettled();
+    t.sdk.logger.info("after");
+    t.rec.recorder.emitClip();
+    const [before, after] = await t.logs();
+    expect(after.attrs["session.id"]).not.toBe(before.attrs["session.id"]);
+    expect(t.segments()[0].attrs["session.id"]).toBe(after.attrs["session.id"]);
   });
 });
 
