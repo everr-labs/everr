@@ -57,6 +57,7 @@ const OTHER_STREAM = "b".repeat(16);
 const IDLE_STREAM = "c".repeat(16);
 const ODD_STREAM = "d".repeat(16);
 const PAGED_STREAM = "e".repeat(16);
+const LONG_TRACE_STREAM = "f".repeat(16);
 const FROM_TS = "2026-11-15 06:00:00";
 const TO_TS = "2026-11-15 12:00:00";
 const ms = (civil: string) => Date.parse(`${civil.replace(" ", "T")}Z`);
@@ -271,6 +272,35 @@ beforeAll(() => {
     SpanAttributes: { "everr.recording.stream.id": PAGED_STREAM },
   });
 
+  // A backend error 90 minutes after the recorded browser Span of its trace.
+  clip({
+    traceId: "rec-long",
+    clipId: "clip-long",
+    stream: LONG_TRACE_STREAM,
+    start: "2026-11-15 08:00:00",
+    seconds: 60,
+    trigger: "error",
+  });
+  span({
+    TraceId: "long",
+    SpanId: "long-fetch",
+    SpanName: "POST /job",
+    Timestamp: "2026-11-15 08:00:10",
+    SpanAttributes: { "everr.recording.stream.id": LONG_TRACE_STREAM },
+  });
+  span({
+    TraceId: "long",
+    SpanId: "long-job",
+    ParentSpanId: "long-fetch",
+    SpanName: "job",
+    ServiceName: "api",
+    ResourceAttributes: { "service.name": "api" },
+    Timestamp: "2026-11-15 08:00:11",
+    Duration: 2 * 3600e9,
+    SpanAttributes: {},
+  });
+  exceptionLog({ type: "LateBackend", at: "2026-11-15 09:30:00", service: "api", traceId: "long" });
+
   exceptionLog({ type: "BrowserInside", at: "2026-11-15 10:00:50.123456789", stream: STREAM });
   exceptionLog({ type: "BrowserAfter", at: "2026-11-15 10:09:00", stream: STREAM });
   exceptionLog({
@@ -392,9 +422,11 @@ describe("session recording coverage against ClickHouse", () => {
       expect(row.listed, row.traceId).toBe(row.playable);
     }
     expect([...listed].sort()).toEqual([
+      "long",
       "paged",
       "rec-error",
       "rec-idle",
+      "rec-long",
       "rec-paged",
       "t-in",
       "t-overlap",
@@ -421,7 +453,7 @@ describe("session recording coverage against ClickHouse", () => {
         };
       }),
     );
-    expect(byOccurrence).toHaveLength(8);
+    expect(byOccurrence).toHaveLength(9);
     for (const row of byOccurrence) {
       expect(row.listed, row.error).toBe(row.playable);
     }
@@ -434,8 +466,26 @@ describe("session recording coverage against ClickHouse", () => {
       "BackendRecordedTrace at 2026-11-15 10:00:30.150000000",
       "BrowserInside at 2026-11-15 10:00:50.123456789",
       "EmptyStreamRecordedTrace at 2026-11-15 10:00:30.200000000",
+      "LateBackend at 2026-11-15 09:30:00.000000000",
       "Mixed at 2026-11-15 10:00:40.000000000",
     ]);
+  });
+
+  it("lists a streamless error when its trace was recorded long before the searched window", async () => {
+    const { issues } = await errors.searchIssues({
+      fromTs: "2026-11-15 09:29:00",
+      toTs: "2026-11-15 09:31:00",
+      q: "",
+      service: [],
+      fingerprint: "",
+      sort: "lastSeen",
+      limit: 50,
+      offset: 0,
+      attributes: [],
+      withRecording: true,
+    });
+    expect(issues.map((issue) => issue.exceptionType)).toEqual(["LateBackend"]);
+    expect(await covered({ kind: "trace", traceId: "long" })).toBe(true);
   });
 
   it("scopes an Error's detail to its recorded occurrences", async () => {
