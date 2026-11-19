@@ -43,6 +43,15 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   drops them instead. `TestSchemaTemplatesMatchVersion` fails when a table's
   DDL changes without a version bump, because a store is only rebuilt when the
   version differs.
+- The version check belongs to the store, not to a config. `NewFactoryWithHandle`
+  builds one `store` for the handle it is given, every exporter the factory
+  builds registers its config with it, and the first `start()` runs the
+  rebuild once per database, dropping the tables of every registered config.
+  With one guard per config, a second exporter component on the same handle
+  would have kept the old shape of its own tables. The collector builds every
+  component before it starts any, which is what lets the first start see them
+  all. `TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst` holds the
+  invariant in both start orders.
 - Writes two placeholders, not three, for the JSON traces attribute-keys
   feature columns. Upstream writes two column names and three placeholders, so
   the insert list does not match the column list. Report this upstream.

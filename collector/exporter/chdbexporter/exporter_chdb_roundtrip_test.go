@@ -78,7 +78,7 @@ func utcSeconds(ts time.Time) string {
 func TestChDBRoundTripStoresMetricTimestamps(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig()
-	exp := newMetricsExporter(zaptest.NewLogger(t), cfg, handle)
+	exp := newMetricsExporter(zaptest.NewLogger(t), cfg, newStore(handle))
 	require.NoError(t, exp.start(t.Context(), nil))
 	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
 
@@ -117,7 +117,7 @@ func TestChDBRoundTripStoresMetricTimestamps(t *testing.T) {
 func TestChDBRoundTripKeepsLogTimestampNanoseconds(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig()
-	exp := newLogsExporter(zaptest.NewLogger(t), cfg, handle)
+	exp := newLogsExporter(zaptest.NewLogger(t), cfg, newStore(handle))
 	require.NoError(t, exp.start(t.Context(), nil))
 	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
 
@@ -136,7 +136,7 @@ func TestChDBRoundTripKeepsLogTimestampNanoseconds(t *testing.T) {
 func TestChDBRoundTripStoresTypedJSONAttributes(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig(func(c *Config) { c.JSON = true })
-	exp := newLogsJSONExporter(zaptest.NewLogger(t), cfg, handle)
+	exp := newLogsJSONExporter(zaptest.NewLogger(t), cfg, newStore(handle))
 	require.NoError(t, exp.start(t.Context(), nil))
 	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
 
@@ -164,7 +164,7 @@ func TestChDBRoundTripStoresTypedJSONAttributes(t *testing.T) {
 func TestChDBRoundTripKeepsSpanTimestampNanoseconds(t *testing.T) {
 	handle := openRealChDB(t)
 	cfg := withDefaultConfig()
-	exp := newTracesExporter(zaptest.NewLogger(t), cfg, handle)
+	exp := newTracesExporter(zaptest.NewLogger(t), cfg, newStore(handle))
 	require.NoError(t, exp.start(t.Context(), nil))
 	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
 

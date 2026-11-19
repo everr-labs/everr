@@ -18,7 +18,6 @@ import (
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
-	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 // anyLogsExporter is an interface that satisfies both the default map logsExporter and the logsJSONExporter
@@ -32,7 +31,7 @@ type logsJSONExporter struct {
 	cfg            *Config
 	logger         *zap.Logger
 	db             driver.Conn
-	handle         *chdb.Handle
+	store          *store
 	insertSQL      string
 	schemaFeatures struct {
 		AttributeKeys bool
@@ -40,20 +39,18 @@ type logsJSONExporter struct {
 	}
 }
 
-func newLogsJSONExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *logsJSONExporter {
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
+func newLogsJSONExporter(logger *zap.Logger, cfg *Config, stores ...*store) *logsJSONExporter {
+	st := storeOf(stores)
+	st.register(cfg)
 	return &logsJSONExporter{
 		cfg:    cfg,
 		logger: logger,
-		handle: handle,
+		store:  st,
 	}
 }
 
 func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
-	db, err := internal.NewChDBConn(e.handle)
+	db, err := internal.NewChDBConn(e.store.handle)
 	if err != nil {
 		return err
 	}
@@ -68,7 +65,7 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 			return fnErr
 		}
 
-		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+		if schemaErr := e.store.ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
 			return schemaErr
 		}
 		if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {

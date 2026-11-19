@@ -52,7 +52,6 @@ func TestLoadConfig(t *testing.T) {
 			id: component.NewIDWithName(metadata.Type, "full"),
 			expected: &Config{
 				collectorVersion:  "unknown",
-				schema:            &schemaGuard{},
 				Endpoint:          defaultEndpoint,
 				Database:          "otel",
 				Username:          "foo",
