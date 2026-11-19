@@ -118,6 +118,19 @@ func TestMarksThePageIncompleteWhenTheReadHasAGap(t *testing.T) {
 	}
 }
 
+func TestMarksThePageIncompleteWhenALaterSnapshotCannotBeRead(t *testing.T) {
+	start := ms(t, checkoutStart)
+	broken := obj{"type": 2, "timestamp": start + 500, "data": obj{}}
+	got := show(t, wireOf(t, start+1_000, segRow(0, body(t, snapshot(start+10, formSnapshot()), broken))), checkoutStart, Outline)
+	if header, _, _ := strings.Cut(got, "\n"); !strings.HasSuffix(header, " coverage incomplete") {
+		t.Fatalf("header %q", header)
+	}
+	got = show(t, wireOf(t, start+1_000, segRow(0, body(t, snapshot(start+10, formSnapshot()), broken, snapshot(start+600, formSnapshot())))), checkoutStart, Outline)
+	if header, _, _ := strings.Cut(got, "\n"); strings.Contains(header, "coverage incomplete") {
+		t.Fatalf("a later whole snapshot covers the page again: header %q", header)
+	}
+}
+
 func TestReadsGenerationsInTimeOrderWhenTheyWereSentOutOfOrder(t *testing.T) {
 	generation := func(at int64, heading string) string {
 		page := obj{"type": 0, "id": at, "childNodes": []any{elID("html", obj{}, []any{
