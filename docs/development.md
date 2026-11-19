@@ -73,7 +73,7 @@ The verification helper runs this same graph with its own `DEV_STATE_DIR`, `COMP
 
 - `process-compose.yaml` owns builds, Mailpit, dependencies, fixed development settings, readiness, process failure handling, and shutdown.
 - `scripts/dev/compose.yaml` declares Mailpit, the database containers, and their volumes. Both ClickHouse servers run the stock image, and the dev servers apply the schema. This file is used through `pnpm dev`; Process Compose owns readiness, so the dev containers do not declare Docker health checks. The separate deployment Compose file retains its health checks.
-- `scripts/dev/collector-app.yaml` declares self-hosted public ingestion and GitHub replay with in-memory buffering.
+- `scripts/dev/collector-app.yaml` declares self-hosted public ingestion and GitHub replay with in-memory buffering. Recording Segments route to `app.recordings` through their own exporter, whose in-memory queue holds at most 32 requests (about 64 MB).
 - `scripts/dev/collector-cloud.yaml` shares Cloud usage accounting and durable queues across public ingestion and GitHub replay. Both preserve authentication, tenant isolation, and retention processors from `collector/config.example.yml`.
 - `scripts/dev/collector.mjs` loads existing package dotenv settings and replaces itself with the native collector.
 - `scripts/dev/bootstrap-env.mjs` initializes unconfigured packages from their `.env` files in the primary worktree.
