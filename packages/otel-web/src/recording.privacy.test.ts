@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, onTestFinished } from "vite-plus/test";
 import type { RecordingOptions } from "./recording.js";
 import { mutations, start, type Started } from "./recording/test-kit.js";
 
@@ -273,6 +273,55 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
     // A style diff keeps the property value rrweb read, which stays relative.
     expect(json).toContain('url(\\"/next\\")');
     expect(json).toContain("AAAA?keep");
+  });
+
+  it("strips the query and the fragment of a CSS url that the CSSOM writes", async () => {
+    // jsdom has no adoptedStyleSheets. With the accessor, rrweb watches it as
+    // in a browser. rrweb leaves its own copy on the document at shutdown.
+    let adopted: CSSStyleSheet[] = [];
+    Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+      configurable: true,
+      get: () => adopted,
+      set: (sheets: CSSStyleSheet[]) => {
+        adopted = sheets;
+      },
+    });
+    onTestFinished(() => {
+      Reflect.deleteProperty(Document.prototype, "adoptedStyleSheets");
+      Reflect.deleteProperty(document, "adoptedStyleSheets");
+    });
+    document.head.innerHTML = `<style>@media screen { p { color: red } }</style>`;
+    const json = await recordPage(`<p>x</p>`, {}, async () => {
+      const sheet = document.querySelector("style")!.sheet!;
+      sheet.insertRule(`body { background: url("/rule?token=rule-secret#rule-frag") }`, 0);
+      (sheet.cssRules[0] as CSSStyleRule).style.setProperty(
+        "background-image",
+        `url("/set?token=set-secret")`,
+      );
+      (sheet.cssRules[1] as CSSMediaRule).insertRule(
+        `i { background: url(/nested?token=nested-secret) }`,
+        0,
+      );
+      const made = new CSSStyleSheet();
+      made.replaceSync(`b { background: url('/adopted?token=adopted-secret') }`);
+      document.adoptedStyleSheets = [made];
+      made.insertRule(`u { background: url("/added?token=added-secret") }`, 0);
+      made.replaceSync(`a { background: url("/sync?token=sync-secret") }`);
+      await made.replace(`a { background: url("/async?token=async-secret") }`);
+    });
+    for (const secret of [
+      "rule-secret",
+      "rule-frag",
+      "set-secret",
+      "nested-secret",
+      "adopted-secret",
+      "added-secret",
+      "sync-secret",
+      "async-secret",
+    ])
+      expect(json, secret).not.toContain(secret);
+    for (const path of ["/rule", "/set", "/nested", "/adopted", "/added", "/sync", "/async"])
+      expect(json, path).toContain(path);
   });
 
   it("keeps references to elements of the page", async () => {

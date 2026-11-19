@@ -18,7 +18,7 @@ const UI_STATE = /^data-(state|side|align|orientation|slot|variant|size|motion|s
 const LOCAL_REF = /^\s*#[\w:.-]*\s*$/;
 const URL_ATTRIBUTES = /^(href|src|srcset|action|formaction|poster|cite|background|ping)$/;
 // The url() shapes rrweb 2.1.7 copies unchanged from a style attribute, a
-// stylesheet's _cssText, and the text of a style element.
+// stylesheet's _cssText, the text of a style element, and the CSSOM events.
 const CSS_URL = /url\((?:(')([^']*)'|(")(.*?)"|([^)]*))\)/gi;
 // The input types whose value rrweb hands to maskInputFn when maskAllInputs is
 // true. rrweb copies every other value as is: hidden, checkbox, radio, button,
@@ -187,6 +187,17 @@ export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node 
       typeof value === "string" &&
       typeof this.id === "number" &&
       inStyle(this.id)
+    )
+      return stripCssUrls(value);
+    // The CSS text of the CSSOM events: a rule that insertRule adds or that an
+    // adopted sheet holds, the text of replace() and replaceSync(), and the
+    // value that setProperty writes in a rule.
+    if (
+      typeof value === "string" &&
+      (key === "rule" ||
+        key === "replace" ||
+        key === "replaceSync" ||
+        (key === "value" && "property" in this))
     )
       return stripCssUrls(value);
     return value;
