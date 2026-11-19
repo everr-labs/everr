@@ -56,6 +56,7 @@ Preconditions:
   for P in traces errors; do
     agent-browser open "$WEB/$P?withRecording=true" && agent-browser wait --text "matching"
     HREFS=$(agent-browser eval "${ROWS/PREFIX/$P}" | tr -d '"'); echo "$P: $HREFS" >> "$SHOTS/replay-05-invariant.txt"
+    [ -n "$HREFS" ] || { echo "EMPTY $P" >> "$SHOTS/replay-05-invariant.txt"; MISSING=$((MISSING + 1)); }
     for H in $HREFS; do
       agent-browser open "$WEB$H" && agent-browser wait --timeout 30000 'section[aria-label="Session recording"]' || { echo "MISSING $H" >> "$SHOTS/replay-05-invariant.txt"; MISSING=$((MISSING + 1)); }
     done
@@ -63,7 +64,7 @@ Preconditions:
   cat "$SHOTS/replay-05-invariant.txt"; test "$MISSING" = 0
   ```
 
-  The `test` exits `0`, and `replay-05-invariant.txt` lists at least one row per list and no `MISSING` line (`replay-invariant`).
+  The `test` exits `0`, and `replay-05-invariant.txt` lists at least one row per list and no `EMPTY` or `MISSING` line (`replay-invariant`).
 - **Lazy lookup.** Open the checkout trace from the filtered list without hovering the recording row, then measure a reload:
 
   ```bash
