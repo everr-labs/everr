@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -33,6 +34,8 @@ type Client struct {
 	// A rejected API key cannot be fixed by `cloud login`, so some endpoints
 	// report a 401 differently for it.
 	apiKey bool
+	// The most a recording read may take, header and body.
+	recordingTimeout time.Duration
 }
 
 // FromSession builds a client for a saved login.
@@ -57,6 +60,8 @@ func fromBearer(apiBaseURL, token string, apiKey bool) (*Client, error) {
 		baseEndpoint: baseURL + "/api/cli",
 		bearer:       bearer,
 		apiKey:       apiKey,
+
+		recordingTimeout: recordingTimeout,
 	}, nil
 }
 
@@ -263,6 +268,10 @@ func (c *Client) PostSQL(ctx context.Context, sql string) (_ string, err error) 
 	return string(data), nil
 }
 
+// recordingTimeout is how long a recording read may take. It can be large, and
+// a stalled connection would otherwise hold the command open.
+const recordingTimeout = 2 * time.Minute
+
 // maxRecordingBytes is the most a segments response may hold, decompressed.
 // The server refuses a read over 32 MiB of Segment bodies; their JSON escaping
 // can grow them.
@@ -273,6 +282,14 @@ const maxRecordingBytes = 256 << 20
 // internal/recording). The transport asks for gzip and undoes it; the body is
 // capped at maxRecordingBytes.
 func (c *Client) RecordingSegments(ctx context.Context, stream, at string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.recordingTimeout)
+	defer cancel()
+	tooSlow := func(err error) error {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("The Recording read took over %s. Retry.", c.recordingTimeout)
+		}
+		return err
+	}
 	query := url.Values{"stream": {stream}, "at": {at}}
 	req, err := c.newRequest(ctx, http.MethodGet, c.baseEndpoint+"/recordings/segments", query, nil, "application/json")
 	if err != nil {
@@ -280,7 +297,7 @@ func (c *Client) RecordingSegments(ctx context.Context, stream, at string) ([]by
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("CLI recording request failed: %w", err)
+		return nil, tooSlow(fmt.Errorf("CLI recording request failed: %w", err))
 	}
 	defer resp.Body.Close()
 	if !success(resp.StatusCode) {
@@ -289,7 +306,7 @@ func (c *Client) RecordingSegments(ctx context.Context, stream, at string) ([]by
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxRecordingBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("failed to read CLI recording response: %w", err)
+		return nil, tooSlow(fmt.Errorf("failed to read CLI recording response: %w", err))
 	}
 	if len(data) > maxRecordingBytes {
 		return nil, fmt.Errorf("The page needs over %d MiB of Segments to read. Continue with the timeline.", maxRecordingBytes>>20)
