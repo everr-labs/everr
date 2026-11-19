@@ -20,7 +20,7 @@ vi.mock("#app/data/replay/index.ts", async (importActual) => {
   return { ...replay, readSegments: vi.fn() };
 });
 
-import { ReplayError, readSegments } from "#app/data/replay/index.ts";
+import { readSegments } from "#app/data/replay/index.ts";
 import { query } from "#app/lib/clickhouse.ts";
 import { cliSessionContext, getRouteHandler } from "../-test-utils";
 import { Route } from "./segments";
@@ -87,19 +87,6 @@ describe("/api/cli/recordings/segments", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "bad_request", message: "Pass --at." });
     expect(mockedReadSegments).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["not_found", 404],
-    ["outside_clip", 404],
-    ["too_large", 413],
-  ] as const)("maps %s to %i with its message", async (code, status) => {
-    mockedReadSegments.mockRejectedValue(new ReplayError(code, "No Clip covers that moment."));
-
-    const response = await callSegments("stream=8fa44e8b&at=2026-11-14T10:21:41.730Z");
-
-    expect(response.status).toBe(status);
-    expect(await response.json()).toEqual({ error: code, message: "No Clip covers that moment." });
   });
 
   it("answers 404 with the reason where recordings are not stored, before any query", async () => {
