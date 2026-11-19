@@ -5,5 +5,4 @@ export const productClient: ProductClient = {
   additionalBuiltinManifest: [],
   missingWorkspaceRoute: "/access-required",
   entryRoutes: ["/access-required"],
-  sessionRecordings: false,
 };

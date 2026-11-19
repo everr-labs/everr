@@ -1,6 +1,5 @@
 import "@tanstack/react-start/server-only";
 
-import { productClient } from "@composition/client";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { query, queryLines } from "#app/lib/clickhouse.ts";
 import { distance, hexId } from "./quote.ts";
@@ -47,18 +46,11 @@ export type ClipWindow = {
  */
 export class ReplayError extends Error {
   constructor(
-    readonly code: "bad_request" | "outside_clip" | "not_found" | "too_large" | "unavailable",
+    readonly code: "bad_request" | "outside_clip" | "not_found" | "too_large",
     message: string,
   ) {
     super(message);
     this.name = "ReplayError";
-  }
-}
-
-/** Recordings are stored only where the product says so (`app.recordings`). */
-export function assertSessionRecordings(): void {
-  if (!productClient.sessionRecordings) {
-    throw new ReplayError("unavailable", "Session recordings are not available on this deployment");
   }
 }
 

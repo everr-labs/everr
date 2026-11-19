@@ -51,7 +51,6 @@ const replayers = vi.hoisted(() => {
 });
 
 vi.mock("@rrweb/replay", () => ({ Replayer: replayers.FakeReplayer }));
-vi.mock("@composition/client", () => ({ productClient: { sessionRecordings: true } }));
 vi.mock("#app/data/replay/server.ts", () => ({
   getCoveringClips: vi.fn(),
   getClipEvents: vi.fn(),
