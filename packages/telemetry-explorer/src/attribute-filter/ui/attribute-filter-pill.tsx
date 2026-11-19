@@ -6,28 +6,117 @@ import {
   CommandItem,
   CommandList,
 } from "@everr/ui/components/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@everr/ui/components/dropdown-menu";
+import { Input } from "@everr/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, X } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import { attributeValuesOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
-import type { AttributeFilter, AttributeOp } from "../schemas";
+import { type AttributeFilter, type AttributeOp, AttributeOpSchema } from "../schemas";
 import {
   ATTRIBUTE_OP_CONNECTORS,
+  ATTRIBUTE_OP_GROUPS,
   ATTRIBUTE_OP_LABELS,
   attributeLabel,
+  opIsNumeric,
+  opTakesOneValue,
   opTakesValues,
 } from "./attribute-meta";
-
-const OPS: AttributeOp[] = ["in", "not_in", "exists", "missing"];
 
 function valueSummary(values: string[]): string | null {
   if (values.length === 0) return null;
   const extra = values.length - 1;
   return extra > 0 ? `${values[0]} +${extra}` : values[0];
+}
+
+function OperatorMenu({ op, onChange }: { op: AttributeOp; onChange: (op: AttributeOp) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="Operator"
+        className={cn(
+          "flex h-7 w-full items-center justify-between gap-1 rounded border px-2 text-[11px] font-medium",
+          "hover:bg-muted/70 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        )}
+      >
+        {ATTRIBUTE_OP_LABELS[op]}
+        <ChevronDown className="text-muted-foreground size-3.5" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-44">
+        <DropdownMenuRadioGroup
+          value={op}
+          onValueChange={(next: unknown) => {
+            const parsed = AttributeOpSchema.safeParse(next);
+            if (parsed.success) onChange(parsed.data);
+          }}
+        >
+          {ATTRIBUTE_OP_GROUPS.map((group, index) => (
+            <Fragment key={group.label}>
+              {index > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                {group.ops.map((candidate) => (
+                  <DropdownMenuRadioItem key={candidate} value={candidate} closeOnClick>
+                    {ATTRIBUTE_OP_LABELS[candidate]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuGroup>
+            </Fragment>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// The value of a text or number operator. It applies on Enter or when the
+// field loses focus, so typing does not run a query per keystroke.
+function OneValueInput({
+  op,
+  value,
+  onCommit,
+}: {
+  op: AttributeOp;
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const numeric = opIsNumeric(op);
+  const invalid = numeric && draft.trim() !== "" && !Number.isFinite(Number(draft));
+  const commit = () => {
+    if (!invalid && draft.trim() !== value) onCommit(draft.trim());
+  };
+  return (
+    <div className="flex flex-col gap-1 border-t p-1.5">
+      <Input
+        aria-label="Value"
+        aria-invalid={invalid || undefined}
+        inputMode={numeric ? "decimal" : undefined}
+        placeholder={numeric ? "A number" : op === "matches" ? "A regular expression" : "Text"}
+        className="h-7 text-xs"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+        }}
+      />
+      {invalid ? <span className="text-destructive text-[11px]">Enter a number.</span> : null}
+    </div>
+  );
 }
 
 function PillEditor({
@@ -45,6 +134,7 @@ function PillEditor({
 }) {
   const name = attributeLabel(filter.key);
   const showValues = opTakesValues(filter.op);
+  const showOneValue = opTakesOneValue(filter.op);
 
   // Debounce the search box so each keystroke doesn't fire a query; the
   // matching slice is fetched server-side so values past the discovery cutoff
@@ -95,25 +185,29 @@ function PillEditor({
         ) : null}
       </div>
 
-      <div className="flex gap-1 p-1.5">
-        {OPS.map((op) => (
-          <button
-            key={op}
-            type="button"
-            data-active={filter.op === op || undefined}
-            aria-pressed={filter.op === op}
-            onClick={() => onChange({ ...filter, op })}
-            className={cn(
-              "flex-1 rounded px-1.5 py-1 text-[11px] transition-colors",
-              "text-muted-foreground hover:bg-muted/70",
-              "outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-              "data-active:bg-muted data-active:text-foreground data-active:font-medium",
-            )}
-          >
-            {ATTRIBUTE_OP_LABELS[op]}
-          </button>
-        ))}
+      <div className="p-1.5">
+        <OperatorMenu
+          op={filter.op}
+          // A single-value operator keeps the first value; a list keeps them all.
+          onChange={(op) =>
+            onChange({
+              ...filter,
+              op,
+              values: opTakesOneValue(op) ? filter.values.slice(0, 1) : filter.values,
+            })
+          }
+        />
       </div>
+
+      {showOneValue ? (
+        <OneValueInput
+          // A new operator starts its own draft.
+          key={filter.op}
+          op={filter.op}
+          value={filter.values[0] ?? ""}
+          onCommit={(value) => onChange({ ...filter, values: value ? [value] : [] })}
+        />
+      ) : null}
 
       {showValues ? (
         <Command
@@ -178,7 +272,8 @@ export function AttributeFilterPill({
   const [open, setOpen] = useState(defaultOpen);
   const name = attributeLabel(filter.key) ?? filter.key;
   const connector = ATTRIBUTE_OP_CONNECTORS[filter.op];
-  const summary = opTakesValues(filter.op) ? valueSummary(filter.values) : null;
+  const takesValue = opTakesValues(filter.op) || opTakesOneValue(filter.op);
+  const summary = takesValue ? valueSummary(filter.values) : null;
 
   return (
     <div className="bg-background ring-offset-background focus-within:border-ring focus-within:ring-primary flex w-full items-stretch overflow-hidden rounded-md border text-xs focus-within:ring-2 focus-within:ring-offset-[3px]">
@@ -197,9 +292,13 @@ export function AttributeFilterPill({
             <span className="truncate font-medium">{name}</span>
             <span className="text-muted-foreground shrink-0">{connector}</span>
           </span>
-          {opTakesValues(filter.op) ? (
+          {takesValue ? (
             <span className="truncate">
-              {summary ?? <span className="text-muted-foreground/70 italic">any value</span>}
+              {summary ?? (
+                <span className="text-muted-foreground/70 italic">
+                  {opTakesOneValue(filter.op) ? "no value yet" : "any value"}
+                </span>
+              )}
             </span>
           ) : null}
         </PopoverTrigger>

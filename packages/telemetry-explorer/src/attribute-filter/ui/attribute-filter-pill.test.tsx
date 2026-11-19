@@ -58,13 +58,32 @@ describe("AttributeFilterPill", () => {
     expect(screen.getByText("custom.unknown.thing")).toBeInTheDocument();
   });
 
-  it("opens the editor with readable op labels and changes the op", () => {
+  it("opens the editor with readable op labels and changes the op", async () => {
     const { onChange } = renderPill(baseFilter);
     fireEvent.click(screen.getByText("Environment"));
-    expect(screen.getByText("Exists")).toBeInTheDocument();
-    expect(screen.getByText("Missing")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Is not"));
+    fireEvent.click(screen.getByRole("button", { name: "Operator" }));
+    expect(await screen.findByRole("menuitemradio", { name: "Exists" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Greater than" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Is not" }));
     expect(onChange).toHaveBeenCalledWith({ ...baseFilter, op: "not_in" });
+  });
+
+  it("applies a text operator's value on Enter", () => {
+    const { onChange } = renderPill({ ...baseFilter, op: "contains" }, { defaultOpen: true });
+    const input = screen.getByRole("textbox", { name: "Value" });
+    fireEvent.change(input, { target: { value: "prod" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith({ ...baseFilter, op: "contains", values: ["prod"] });
+  });
+
+  it("does not apply a number operator's value that is not a number", () => {
+    const { onChange } = renderPill({ ...baseFilter, op: "gt" }, { defaultOpen: true });
+    const input = screen.getByRole("textbox", { name: "Value" });
+    fireEvent.change(input, { target: { value: "fast" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText("Enter a number.")).toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("loads and toggles discovered values for in/not_in", async () => {

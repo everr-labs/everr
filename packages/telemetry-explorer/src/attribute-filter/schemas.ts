@@ -7,7 +7,21 @@ import { z } from "zod";
 export const AttributeSourceSchema = z.enum(["resource", "log", "scope", "span"]);
 export type AttributeSource = z.infer<typeof AttributeSourceSchema>;
 
-export const AttributeOpSchema = z.enum(["in", "not_in", "exists", "missing"]);
+// `in`/`not_in` take a list of values; the text and number operators take one,
+// the first of `values`; `exists`/`missing` take none.
+export const AttributeOpSchema = z.enum([
+  "in",
+  "not_in",
+  "contains",
+  "not_contains",
+  "matches",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "exists",
+  "missing",
+]);
 export type AttributeOp = z.infer<typeof AttributeOpSchema>;
 
 export const AttributeFilterSchema = z.object({

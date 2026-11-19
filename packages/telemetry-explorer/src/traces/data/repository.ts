@@ -13,7 +13,11 @@ import {
   buildAttributeValuesQuery,
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
-import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import {
+  buildAttributeClauses,
+  isNegatedOp,
+  NEGATED_ATTRIBUTE_OPS,
+} from "../../attribute-filter/sql/where";
 import { attributeText, flattenAttributes, type JsonAttributes } from "../../sql/json-attributes";
 import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
 import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
@@ -108,16 +112,17 @@ export class TracesRepository {
       );
       params.namespace = input.namespace;
     }
-    // Positive operators (in/exists) keep the "any-span match" semantics of the
-    // candidate subquery: a trace qualifies if one of its spans carries the
-    // attribute. Negative operators (not_in/missing) cannot: a trace would
-    // match `missing http.route` merely because its DB span lacks the key, even
-    // though its server span has it. Evaluate those at the trace level instead,
-    // as the complement — exclude every trace that has *any* span satisfying the
-    // positive sense (in ↔ not_in, exists ↔ missing).
+    // Positive operators (in, exists, contains, comparisons...) keep the
+    // "any-span match" semantics of the candidate subquery: a trace qualifies
+    // if one of its spans carries the attribute. Negative operators (not_in,
+    // not_contains, missing) cannot: a trace would match `missing http.route`
+    // merely because its DB span lacks the key, even though its server span has
+    // it. Evaluate those at the trace level instead, as the complement: exclude
+    // every trace that has *any* span satisfying the positive sense.
     const attributes = input.attributes ?? [];
+    const negatives = attributes.filter((f) => isNegatedOp(f.op));
     const attr = buildAttributeClauses(
-      attributes.filter((f) => f.op === "in" || f.op === "exists"),
+      attributes.filter((f) => !isNegatedOp(f.op)),
       tracesAttributeColumn,
     );
     spanPreds.push(...attr.clauses);
@@ -135,31 +140,27 @@ export class TracesRepository {
       )`);
     }
 
-    attributes
-      .filter((f) => f.op === "not_in" || f.op === "missing")
-      .forEach((filter, i) => {
-        const positiveSense =
-          filter.op === "not_in"
-            ? { ...filter, op: "in" as const }
-            : { ...filter, op: "exists" as const };
-        // Param namespace disjoint from the positive clauses above.
-        const built = buildAttributeClauses(
-          [positiveSense],
-          tracesAttributeColumn,
-          attributes.length + i,
-        );
-        // `not_in` with no values is a no-op, matching buildAttributeClauses.
-        if (built.clauses.length === 0) return;
-        pageWhereParts.push(
-          `TraceId NOT IN (
+    negatives.forEach((filter, i) => {
+      if (!isNegatedOp(filter.op)) return;
+      const positiveSense = { ...filter, op: NEGATED_ATTRIBUTE_OPS[filter.op] };
+      // Param namespace disjoint from the positive clauses above.
+      const built = buildAttributeClauses(
+        [positiveSense],
+        tracesAttributeColumn,
+        attributes.length + i,
+      );
+      // A negative op with no value is a no-op, matching buildAttributeClauses.
+      if (built.clauses.length === 0) return;
+      pageWhereParts.push(
+        `TraceId NOT IN (
             SELECT DISTINCT TraceId
             FROM ${this.tableName}
             WHERE ${TIME_WINDOW_SQL}
               AND ${built.clauses.join(" AND ")}
           )`,
-        );
-        Object.assign(params, built.params);
-      });
+      );
+      Object.assign(params, built.params);
+    });
 
     // durationNsRaw is an aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
