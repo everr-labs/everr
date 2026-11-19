@@ -620,6 +620,38 @@ describe("pause and resume", () => {
     expect(tags(all)).toEqual(["everr.recording.pause", "everr.recording.resume"]);
     expect(JSON.stringify(all)).not.toContain('"texts":[{');
   });
+
+  it("starts the Stream paused when pause() comes before the recorder loads", async () => {
+    const t = await start({ maskAllText: false }, { settle: false });
+    t.rec.recorder.pause();
+    box().textContent = "sensitive screen";
+    await vi.dynamicImportSettled();
+    await mutations();
+    t.rec.recorder.emitClip();
+    expect(t.segments()).toEqual([]);
+
+    box().textContent = "safe screen";
+    await mutations();
+    const resumedAt = Date.now();
+    t.rec.recorder.resume();
+    t.rec.recorder.emitClip();
+    const events = t.segments().flatMap((s) => s.events);
+    expect(types(events)).toEqual([META, FULL_SNAPSHOT]);
+    expect(events[0].timestamp).toBe(resumedAt);
+    expect(JSON.stringify(events)).toContain("safe screen");
+    expect(JSON.stringify(events)).not.toContain("sensitive screen");
+  });
+
+  it("records from the load when resume() follows pause() before the recorder loads", async () => {
+    const t = await start({ maskAllText: false }, { settle: false });
+    t.rec.recorder.pause();
+    t.rec.recorder.resume();
+    await vi.dynamicImportSettled();
+    box().textContent = "after the load";
+    await mutations();
+    t.rec.recorder.emitClip();
+    expect(JSON.stringify(t.segments().flatMap((s) => s.events))).toContain("after the load");
+  });
 });
 
 describe("large events", () => {

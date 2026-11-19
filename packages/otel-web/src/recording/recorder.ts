@@ -170,6 +170,7 @@ export function startStream(
   ctx: InstrumentationContext,
   sessionId: string,
   options: RecordingOptions,
+  paused: boolean,
 ): Stream {
   const streamId = randomHex(16);
   const { rrweb, replacer } = privacy(options, (id) => record.mirror.getNode(id) ?? null);
@@ -186,7 +187,6 @@ export function startStream(
   let flush: ReturnType<typeof setInterval> | undefined;
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
-  let paused = false;
   let ended = false;
 
   const emitSegment = (body: string, time: number, piece?: Record<string, number>) => {
@@ -397,7 +397,7 @@ export function startStream(
   };
 
   setAttributes({ "everr.recording.stream.id": streamId });
-  run();
+  if (!paused) run();
 
   return {
     clip,
