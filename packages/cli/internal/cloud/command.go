@@ -94,7 +94,7 @@ func queryCommand() *cobra.Command {
 	return cmd
 }
 
-const recordingAbout = "Read recordings of browser pages in the remote installation: the page a user saw. Cloud only"
+const recordingAbout = "Read recordings of browser pages in the remote installation: the page a user saw"
 
 // recordingCommand is `everr cloud recording`. Its output is for agents: it
 // declares no human stdout, so no update notice is ever appended to it.
