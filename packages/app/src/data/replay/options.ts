@@ -22,6 +22,10 @@ export const coveringClipsOptions = (subject: ClipSubject) =>
     staleTime: Number.POSITIVE_INFINITY,
   });
 
+/** A Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
+export const isClipEventsKey = (key: readonly unknown[]) =>
+  key[0] === "recordings" && key[1] === "events";
+
 export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
   // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names
   queryOptions({
