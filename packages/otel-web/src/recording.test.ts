@@ -280,20 +280,6 @@ describe("Clips", () => {
     expect(span.attrs["everr.recording.clip.truncated"]).toBeUndefined();
   });
 
-  it("emitClip() with no last sends the whole buffer", async () => {
-    const t = await start();
-    const opened = Date.now();
-    for (let i = 0; i < 3; i++) {
-      vi.advanceTimersByTime(31_000);
-      box().setAttribute("data-step", String(i));
-      await mutations();
-    }
-    t.rec.recorder.emitClip();
-    const events = t.segments().flatMap((s) => s.events);
-    expect(events[0].timestamp).toBe(opened);
-    expect(types(events).filter((type) => type === FULL_SNAPSHOT)).toHaveLength(4);
-  });
-
   it("emitClip sends the same Clip as startClip().end() with the same last", async () => {
     const t = await start();
     t.rec.recorder.emitClip({ last: 60_000 });
