@@ -1,13 +1,18 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
+import { isClipEventsKey } from "#app/data/replay/options.ts";
 import {
   applyRouteTimeDefaults,
   type RefreshInterval,
   ResolvedTimeRangeSearchSchema,
 } from "#app/lib/time-range.ts";
 import { useRouteTimeDefaults } from "./use-time-range";
+
+function refreshQueries(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ predicate: (query) => !isClipEventsKey(query.queryKey) });
+}
 
 export function useAutoRefresh() {
   const search = useSearch({
@@ -31,7 +36,7 @@ export function useAutoRefresh() {
   };
 
   const refreshNow = () => {
-    void queryClient.invalidateQueries();
+    refreshQueries(queryClient);
   };
 
   useEffect(() => {
@@ -42,9 +47,7 @@ export function useAutoRefresh() {
 
     const ms = getRefreshIntervalMs(refresh);
     if (ms) {
-      intervalRef.current = setInterval(() => {
-        void queryClient.invalidateQueries();
-      }, ms);
+      intervalRef.current = setInterval(() => refreshQueries(queryClient), ms);
     }
 
     return () => {
