@@ -29,7 +29,7 @@ Use `everr cloud status --json` when diagnosing a connection or resolving the re
 | Local app, dev server, local tests, wrapped command output                   | `everr local query "<SQL>"`                                                             |
 | What alerts fired, why, and whether the notification went out                | Read `rules/alert-history.md`, then `everr cloud query "<SQL>"`                         |
 | Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
-| Session recording journey or page HTML at a time (Cloud)                     | `/api/cli/recordings/sessions/...`. Do not `SELECT Body` of recording segments.         |
+| Session recording journey or page HTML at a time                             | `/api/cli/recordings/sessions/...`. Do not `SELECT Body` of recording segments.         |
 | Missing or stale local telemetry                                             | Use the `everr-setup-telemetry` skill                                                   |
 
 If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally**: if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.
