@@ -1,4 +1,5 @@
 import { defineConfig } from "vite-plus";
+import { stripRrweb } from "./strip-rrweb.ts";
 
 const packageVersion = process.env.npm_package_version ?? "0.0.0-dev";
 
@@ -23,6 +24,7 @@ export default defineConfig({
       // demand.
       "recording/recorder": "src/recording/recorder.ts",
     },
+    plugins: [stripRrweb()],
     format: ["esm"],
     dts: true,
     platform: "browser",

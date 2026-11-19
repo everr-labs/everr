@@ -1,6 +1,9 @@
 import { defineConfig } from "vite-plus";
+import { stripRrweb } from "./strip-rrweb.ts";
 
 export default defineConfig({
+  // The tests record with the same rrweb that the build ships.
+  plugins: [stripRrweb()],
   // Vitest transforms the files with the resolve conditions of Node. Those
   // conditions select the server entry for the self-import of the react
   // entry, also in the jsdom tests. This alias selects the browser entry. The
