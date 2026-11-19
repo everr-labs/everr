@@ -84,7 +84,7 @@ An event larger than one Segment, in practice a full snapshot with big text or i
 | `everr.recording.event.piece`  | Int from 0: the place of this piece in the event               |
 | `everr.recording.event.pieces` | The count of pieces of the event                               |
 
-Cloud stores Segment bodies in `app.recordings`, outside `logs`, and the SQL API cannot read them. `everr cloud recording show` reads the page at a moment from them (see `rules/recordings.md`): it handles Piece layout, index order, and shared Segments, and marks the page `coverage incomplete` when a Segment is lost.
+Cloud stores Segment bodies in `app.recordings`, outside `logs`, and the SQL API cannot read them. `everr cloud recording show` reads the page at a moment from them (see `rules/recordings.md`): it handles Piece layout, time order, and shared Segments, and marks the page `coverage incomplete` when a Segment is lost.
 
 Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
 
