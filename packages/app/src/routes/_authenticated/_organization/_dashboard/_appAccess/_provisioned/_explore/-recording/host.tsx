@@ -1,4 +1,3 @@
-import { productClient } from "@composition/client";
 import type { ClipSubject, SessionRecordingsHost } from "@everr/telemetry-explorer/recordings";
 import { RecordingPanel } from "./recording-panel";
 
@@ -9,12 +8,8 @@ function clipSubjectKey(subject: ClipSubject): string {
     : `log:${subject.streamId}:${subject.at}`;
 }
 
-/** Undefined where recordings are not stored: the shared pages then draw no switch and no player. */
-export const sessionRecordingsHost: SessionRecordingsHost | undefined =
-  productClient.sessionRecordings
-    ? {
-        renderPlayer: (subject, placement) => (
-          <RecordingPanel key={clipSubjectKey(subject)} subject={subject} placement={placement} />
-        ),
-      }
-    : undefined;
+export const sessionRecordingsHost: SessionRecordingsHost = {
+  renderPlayer: (subject, placement) => (
+    <RecordingPanel key={clipSubjectKey(subject)} subject={subject} placement={placement} />
+  ),
+};

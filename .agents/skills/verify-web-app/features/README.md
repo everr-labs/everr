@@ -36,7 +36,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Web Explore and Runs pages](./web-explore.md): `/logs`, `/traces`, `/errors`, `/runs` empty for a fresh org, then logs, traces and an error seeded over OTLP with the run's key (`web-seed`).
 - [Web dashboards and runbooks](./web-dashboards.md): `/api/apply` with a Manage-as-code key, grid with a static-list variable, panel pages carrying variables, runbook embed, built-ins, 404s.
 - [Web browser SDK](./web-browser-sdk.md): `@everr/otel-web` on a test page with a public key: CORS preflight, errors, failed requests, recordings into `app.recordings`, and the local endpoint without a key.
-- [Web session recordings](./web-replay.md): the `With session recording` list filters, the player on the trace view and the error detail, lazy events, Play, masking, badges, request-count check, hidden on self-hosted.
+- [Web session recordings](./web-replay.md): the `With session recording` list filters, the player on the trace view and the error detail, lazy events, Play, masking, badges, request-count check, on both products.
 - [Web GitHub connection and webhook ingress](./web-github.md): `/github`, install start, webhook signature checks, signed delivery, and the GitHub App boundary.
 
 No recipe yet. Report a change in these areas as not covered by this map: alerts (`/alerts`, `/alerts/silences`, `/alerts/notifications`), users management and invites (`/users-management`), cost analysis (`/cost-analysis`), repos (`/repos`), billing (`/billing`), account (`/account`), CLI device login (`/device`), MCP consent (`/mcp/consent`).

@@ -1,24 +1,15 @@
-import { productClient } from "@composition/client";
 import { ClipSubjectSchema, RecordingsRepository } from "@everr/telemetry-explorer/recordings";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import { clipEvents, replayHttpError } from "./session.ts";
 
-/** Recordings are stored only where the product says so (`app.recordings`). */
-function assertSessionRecordings(): void {
-  if (!productClient.sessionRecordings) {
-    throw new Error("Session recordings are not available on this deployment");
-  }
-}
-
 export const getCoveringClips = createAuthenticatedServerFn({ method: "GET" })
   .validator(ClipSubjectSchema)
-  .handler(({ data, context: { clickhouse } }) => {
-    assertSessionRecordings();
-    return new RecordingsRepository({
+  .handler(({ data, context: { clickhouse } }) =>
+    new RecordingsRepository({
       execute: (sql, params) => clickhouse.query(sql, params),
-    }).coveringClips(data);
-  });
+    }).coveringClips(data),
+  );
 
 const ClipEventsInputSchema = z.object({
   clipId: z.string().min(1),
@@ -33,7 +24,6 @@ const ClipEventsInputSchema = z.object({
 export const getClipEvents = createAuthenticatedServerFn({ method: "GET" })
   .validator(ClipEventsInputSchema)
   .handler(async ({ data, context: { session } }) => {
-    assertSessionRecordings();
     try {
       const body = JSON.stringify(
         await clipEvents(session.session.activeOrganizationId, data.clipId, data.startMs),

@@ -16,9 +16,4 @@ export interface ProductClient<Additional extends readonly BuiltinManifestEntry[
   missingWorkspaceRoute: ApplicationPath;
   entryRoutes: readonly ApplicationPath[];
   telemetryEndpoint?: string;
-  /**
-   * The deployment stores browser session recordings, so the trace view and
-   * the error detail play them and both lists can filter by them.
-   */
-  sessionRecordings: boolean;
 }
