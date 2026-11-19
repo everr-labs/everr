@@ -13,13 +13,17 @@ export class ClipEventsError extends Error {
   }
 }
 
+// An answer with nothing in it may only mean the Segments or the Clip's span
+// had not arrived yet, so it is looked up again after a while.
+const EMPTY_STALE_MS = 30_000;
+
 // Keys hold the record's identity only. A time resolved against now in a key
 // refetches on every render.
 export const coveringClipsOptions = (subject: ClipSubject) =>
   queryOptions({
     queryKey: ["recordings", "covering", subject],
     queryFn: () => getCoveringClips({ data: subject }),
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: (query) => (query.state.data?.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
   });
 
 /** A Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
@@ -45,6 +49,7 @@ export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">
       }
       return response.json();
     },
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: (query) =>
+      query.state.data?.events.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS,
     retry: (failures, error) => !(error instanceof ClipEventsError) && failures < 3,
   });
