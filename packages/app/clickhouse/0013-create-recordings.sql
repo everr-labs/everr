@@ -1,6 +1,8 @@
 -- Browser recording Segments land here via the collector's
 -- clickhouse/recordings exporter (direct insert, create_schema: false).
--- Not created on self-hosted.
+-- Both products create it. Cloud adds its row policies in
+-- 0014-cloud-recordings-rls.sql. Self-hosted has none, and tenant_id is empty
+-- when its collector stamps no tenant.
 --
 -- MATERIALIZED columns stamp tenant, retention, and Segment ids at insert.
 -- There is no clip_id: overlapping Clips share Segment bodies; membership is
@@ -56,17 +58,6 @@ ORDER BY (tenant_id, stream_id, Timestamp, segment_index)
 TTL toDate(Timestamp) + toIntervalDay(retention_days)
 SETTINGS index_granularity = 32, ttl_only_drop_parts = 1;
 
--- app_ro already has SELECT ON app.*, so the tenant filter must exist as soon
--- as the table does. Without it, reads are cross-tenant.
-CREATE ROW POLICY OR REPLACE tenant_filter_recordings
-ON app.recordings
-FOR SELECT
-USING tenant_id = getSetting('SQL_everr_tenant_id')
-TO app_ro;
-
--- Recordings hold raw rrweb. Deny by default and never GRANT SELECT so an
--- accidental grant later stays fail-closed. Not in SQL_API_TABLES.
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_recordings
-  ON app.recordings FOR SELECT USING 0 TO sql_api_role;
-
+-- The SQL API role gets no GRANT on either product: recordings hold raw
+-- rrweb. Not in SQL_API_TABLES.
 GRANT INSERT ON app.recordings TO collector_rw;
