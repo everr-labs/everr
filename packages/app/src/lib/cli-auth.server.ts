@@ -18,11 +18,10 @@ export const requireCliOrgMiddleware = createMiddleware({ type: "request" }).ser
       return Response.json({ error: "No active organization" }, { status: 403 });
     }
 
-    const membership = await findOrganizationForMember(db, session.user.id, activeOrgId);
-    if (!membership) {
+    const organization = await findOrganizationForMember(db, session.user.id, activeOrgId);
+    if (!organization) {
       return Response.json({ error: "Not a member of the active organization" }, { status: 403 });
     }
-    const { memberRole: _, ...organization } = membership;
 
     return next({
       context: {

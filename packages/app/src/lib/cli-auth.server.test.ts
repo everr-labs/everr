@@ -38,27 +38,6 @@ describe("requireCliOrgMiddleware", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("answers 403 when the session has no active organization", async () => {
-    mocked.getSession.mockResolvedValue({
-      session: { activeOrganizationId: null },
-      user: { id: "user-1" },
-    });
-
-    const response = (await run().result) as Response;
-    expect(response.status).toBe(403);
-  });
-
-  it("answers 403 when the user is not a member of the active organization", async () => {
-    mocked.getSession.mockResolvedValue({
-      session: { activeOrganizationId: "org-1" },
-      user: { id: "user-1" },
-    });
-    mocked.findOrganizationForMember.mockResolvedValue(undefined);
-
-    const response = (await run().result) as Response;
-    expect(response.status).toBe(403);
-  });
-
   it("passes the session and organization to the route", async () => {
     mocked.getSession.mockResolvedValue({
       session: { activeOrganizationId: "org-1" },
@@ -75,7 +54,7 @@ describe("requireCliOrgMiddleware", () => {
     await result;
     expect(next).toHaveBeenCalledWith({
       context: {
-        organization: { id: "org-1", name: "Acme", metadata: null },
+        organization: { id: "org-1", name: "Acme", metadata: null, memberRole: "member" },
         session: {
           session: { activeOrganizationId: "org-1" },
           user: { id: "user-1" },

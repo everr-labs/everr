@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isResourceKind, listResources } from "#app/data/as-code/resource-admin.server.ts";
 import { unknownKindResponse } from "./resources/-responses";
 
-// Auth + org context comes from the parent `/api/cli` route
-// (requireCliOrgMiddleware): these are session-authenticated CLI endpoints, so the
+// Auth + org context comes from the parent `/api/cli` route:
+// these are session-authenticated CLI endpoints, so the
 // handler reads context.session.session.activeOrganizationId directly.
 export const Route = createFileRoute("/api/cli/resources")({
   server: {
