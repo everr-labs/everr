@@ -26,7 +26,7 @@ accounts, authenticate again with `everr cloud login`. Remote queries use
 recorded browser visit just after a moment, as a bounded outline for agents.
 The installation streams the Recording's Segments; the CLI rebuilds the page
 (`internal/recording`). Everything else a browser sent is in traces and logs,
-read with `everr cloud query`. It reads Cloud only; there is no local reader.
+read with `everr cloud query`. It reads a remote installation only; there is no local reader.
 
 Sessions live in `session.json` under the platform's user configuration directory:
 `~/Library/Application Support/everr` on macOS, or
