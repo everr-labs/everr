@@ -9,8 +9,8 @@ import {
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
 
-// Auth + org context comes from the parent `/api/cli` route
-// (requireOrgMiddleware); this is a session-authenticated CLI endpoint.
+// Auth + org context comes from the parent `/api/cli` route:
+// this is a session-authenticated CLI endpoint.
 export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug/adopt")({
   server: {
     handlers: {
