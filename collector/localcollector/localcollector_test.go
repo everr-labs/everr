@@ -104,7 +104,6 @@ func runUntilReady(t *testing.T, g *Gateway, sql string) (cancel func()) {
 	}
 }
 
-// chDB can be opened only once per process, so one test covers the gateway.
 func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	if os.Getenv("CHDB_LIB_PATH") == "" {
 		t.Skip("CHDB_LIB_PATH not set")

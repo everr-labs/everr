@@ -199,7 +199,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   ordinary `logs` table. `recordings` needs `json: true`; `Validate` rejects
   any other combination and any name outside the set.
 - `internal/sqltemplates/recordings_table.sql` is the cloud's `app.recordings`
-  (`packages/app/clickhouse/0013-cloud-create-recordings.sql`) minus
+  (`packages/app/clickhouse/0013-create-recordings.sql`) minus
   `tenant_id` and `retention_days`, which the local store does not have. The
   `session_id`, `stream_id` and `segment_index` columns are MATERIALIZED with
   the cloud's expressions, which never throw on a missing or malformed
