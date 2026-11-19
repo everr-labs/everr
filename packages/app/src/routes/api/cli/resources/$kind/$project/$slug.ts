@@ -9,7 +9,7 @@ import { BUILTIN_PROJECT } from "#app/data/dashboards/schema.ts";
 import { notFoundResponse, reservedProjectResponse, unknownKindResponse } from "../../-responses";
 
 // Auth + org context comes from the parent `/api/cli` route
-// (requireOrgMiddleware); these are session-authenticated CLI endpoints.
+// (requireCliOrgMiddleware); these are session-authenticated CLI endpoints.
 export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug")({
   server: {
     handlers: {

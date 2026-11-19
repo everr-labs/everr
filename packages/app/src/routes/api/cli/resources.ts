@@ -3,7 +3,7 @@ import { isResourceKind, listResources } from "#app/data/as-code/resource-admin.
 import { unknownKindResponse } from "./resources/-responses";
 
 // Auth + org context comes from the parent `/api/cli` route
-// (requireOrgMiddleware): these are session-authenticated CLI endpoints, so the
+// (requireCliOrgMiddleware): these are session-authenticated CLI endpoints, so the
 // handler reads context.session.session.activeOrganizationId directly.
 export const Route = createFileRoute("/api/cli/resources")({
   server: {
