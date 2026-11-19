@@ -51,8 +51,9 @@ export async function query<T>(
 /**
  * An App query's rows as JSON lines, unparsed, for a caller that passes them
  * on. Resolves once ClickHouse answers, so a failing query rejects before the
- * caller starts a response. Stopping early, even before the first row, closes
- * the result, which cancels the query and frees its connection.
+ * caller starts a response. Stopping early, before the first row or while
+ * waiting for one, closes the result, which cancels the query and frees its
+ * connection.
  */
 export async function queryLines(
   query: string,
@@ -78,17 +79,21 @@ export async function queryLines(
       for (const row of batch) yield row.text;
     }
   })();
-  // Stopping part way destroys the stream. A generator stopped before its
-  // first row never runs, so nothing else would release the connection.
-  let started = false;
+  // A generator stopped before its first row never runs, and its return()
+  // waits behind a next() that is waiting for a row. So stopping closes the
+  // result itself, and the read it interrupts ends without an error.
+  let stopped = false;
+  const done: IteratorResult<string> = { done: true, value: undefined };
   const iterator: AsyncIterator<string> = {
-    next: () => {
-      started = true;
-      return rows.next();
-    },
+    next: () =>
+      rows.next().catch((error: unknown) => {
+        if (stopped) return done;
+        throw error;
+      }),
     return: async () => {
-      if (!started) result.close();
-      return rows.return(undefined);
+      stopped = true;
+      result.close();
+      return done;
     },
   };
   return { [Symbol.asyncIterator]: () => iterator };
