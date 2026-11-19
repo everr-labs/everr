@@ -1,6 +1,6 @@
 # Web session recordings
 
-In Cloud, when a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, a resizable panel between the toolbar and the flamegraph) and the error detail (below the stack trace) show a `Session recording` section: a header with the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record, then the picture and a control bar with `Play`/`Pause`, the playback clock and the seek track. The page looks up the covering Clips with the `getCoveringClips` server function and loads a Clip's events through `getClipEvents`. Playback starts 10 s before the trace or the error and runs to the Clip's end. A click on the picture plays or pauses. In the trace view the closed player is one row that opens and closes like the `Flamegraph` row: the whole row is a toggle button (`aria-expanded`, a chevron). Opening it loads the events and opens it, paused, to 40% of the space below the toolbar; the `Resize session recording and trace` handle sets its height, and the row or a drag past its minimum closes it back to the row. The error detail opens with the player open and paused at its start, so its events load with the page; `Hide` and `Show` close and reopen it. Opening and closing ease the player, and the `Flamegraph` row eases the same way. While the player moves, the picture keeps its size and the panel edge uncovers or covers it. With reduced motion the size changes at once and the picture fades. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording. The self-hosted App shows neither the switch nor the section.
+When a browser session recording (a Clip) covers a trace or an error, the trace view (`/traces/<trace id>`, a resizable panel between the toolbar and the flamegraph) and the error detail (below the stack trace) show a `Session recording` section: a header with the Clip's length and start time, a trigger badge (`ERROR TRIGGER`, `NETWORK TRIGGER`, `MANUAL TRIGGER`), gap badges (`1 missing segment`), and a `Clip` picker when several Clips cover the record, then the picture and a control bar with `Play`/`Pause`, the playback clock and the seek track. The page looks up the covering Clips with the `getCoveringClips` server function and loads a Clip's events through `getClipEvents`. Playback starts 10 s before the trace or the error and runs to the Clip's end. A click on the picture plays or pauses. In the trace view the closed player is one row that opens and closes like the `Flamegraph` row: the whole row is a toggle button (`aria-expanded`, a chevron). Opening it loads the events and opens it, paused, to 40% of the space below the toolbar; the `Resize session recording and trace` handle sets its height, and the row or a drag past its minimum closes it back to the row. The error detail opens with the player open and paused at its start, so its events load with the page; `Hide` and `Show` close and reopen it. Opening and closing ease the player, and the `Flamegraph` row eases the same way. While the player moves, the picture keeps its size and the panel edge uncovers or covers it. With reduced motion the size changes at once and the picture fades. The traces and errors lists have a `With session recording` switch in their filter rail (`withRecording=true` in the URL) that keeps exactly the rows whose detail plays a recording.
 
 ## Sub-features
 
@@ -14,7 +14,6 @@ In Cloud, when a browser session recording (a Clip) covers a trace or an error, 
 - `replay-masking` text in the replay iframe is masked (asterisks), and the iframe's `sandbox` is `allow-same-origin` only (no scripts).
 - `replay-gaps` the trigger and gap badges match the stored `recording` span and Segment indexes.
 - `replay-no-loop` with the default range (`Last 7 days`), an open detail settles: at most 10 server function calls in 10 s.
-- `replay-hidden-self-hosted` the App draws no switch and no section, even with `withRecording=true` in the URL.
 
 ## How to get to it (user POV)
 
@@ -25,10 +24,9 @@ In Cloud, when a browser session recording (a Clip) covers a trace or an error, 
 
 Preconditions:
 
-- A Cloud run (the `web-launch` default), signed in, in a checkout with session replay (`web-sdk-page` prints `recording=on`).
+- A signed-in run of either product, Cloud (the `web-launch` default) or the self-hosted App (`web-launch --app app`, after `web-installation.md`), in a checkout with session replay (`web-sdk-page` prints `recording=on`). The recipes below are the same on both.
 - `web-browser-sdk.md` "Errors, network, recording" ran in this run, and its `sdk-recordings` row shows a clip.
 - For the "rows without a recording" checks: `web-explore.md` seeded data in this run (`web-seed`). Without it, report those two checks as skipped.
-- For `replay-hidden-self-hosted`: an App session on `$APP_WEB` (`web-installation.md`, or a `--app app` run).
 
 - **Traces filter.** Run:
 
@@ -131,14 +129,6 @@ Preconditions:
   ```
 
   The heights are `32`, then about 40% of the space below the toolbar, then `32` again (`replay-split`). The line after the click reads `<animations> <panel> <content>`: at least `1` animation, and a content height above the panel height, because the player is laid out at its open height while the panel grows around it.
-- **Hidden on self-hosted.** With the App session, run:
-
-  ```bash
-  agent-browser open "$APP_WEB/traces?withRecording=true" && agent-browser wait --text "Min ms" && agent-browser wait --fn "!document.body.innerText.includes('With session recording')" && ab_save replay-09-app-traces "App traces: no session recording switch"
-  agent-browser open "$APP_WEB/errors?withRecording=true" && agent-browser wait '[aria-label="Last seen"]' && agent-browser wait --fn "!document.body.innerText.includes('With session recording')" && ab_save replay-10-app-errors "App errors: no session recording switch"
-  ```
-
-  Every command exits `0`. If the App has traces, open one: it has no `section[aria-label="Session recording"]` (`replay-hidden-self-hosted`).
 - **Proof.** `web/replay-*`, `net/replay-lazy.*`, `net/replay-error-open.*`, `net/replay-no-loop.*`, `db/replay-clips/`, `db/replay-segments/`, `db/sdk-recordings/`.
 
 ## Gotchas
