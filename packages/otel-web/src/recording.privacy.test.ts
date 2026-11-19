@@ -163,6 +163,56 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
       expect(json, secret).not.toContain(secret);
   });
 
+  it("masks the attributes that hold text once, and keeps the numbers that the replay draws", async () => {
+    const json = await recordPage(
+      `<input type="image" alt="alt-secret" src="/x.png">
+       <select><optgroup label="group-secret"><option label="option-secret">o</option></optgroup></select>
+       <div role="slider" aria-valuetext="valuetext-secret" aria-description="description-secret"
+         aria-placeholder="aria-placeholder-secret" aria-roledescription="role-secret"
+         aria-braillelabel="braille-secret" aria-valuenow="40"></div>
+       <data value="data-secret">d</data>
+       <time datetime="1990-04-12">t</time>
+       <a download="download-secret.pdf">a</a>
+       <table summary="summary-secret"><tr><th abbr="abbr-secret">h</th></tr></table>
+       <ol><li value="7">l</li></ol><progress value="0.5"></progress>`,
+      { maskFn: (text) => `[${text.length}]` },
+      () => {
+        document.querySelector("data")!.setAttribute("value", "late-data-secret");
+        document.querySelector("option")!.setAttribute("label", "late-option-secret");
+      },
+    );
+    for (const secret of [
+      "alt-secret",
+      "group-secret",
+      "option-secret",
+      "valuetext-secret",
+      "description-secret",
+      "aria-placeholder-secret",
+      "role-secret",
+      "braille-secret",
+      "data-secret",
+      "1990-04-12",
+      "download-secret",
+      "summary-secret",
+      "abbr-secret",
+    ])
+      expect(json, secret).not.toContain(secret);
+    // A value masked twice would be the length of the first mask.
+    for (const masked of [
+      '"alt":"[10]"',
+      '"label":"[12]"',
+      '"label":"[13]"',
+      '"label":"[18]"',
+      '"aria-valuetext":"[16]"',
+      '"value":"[11]"',
+      '"value":"[16]"',
+      '"datetime":"[10]"',
+    ])
+      expect(json, masked).toContain(masked);
+    for (const kept of ['"value":"7"', '"value":"0.5"', '"aria-valuenow":"40"'])
+      expect(json, kept).toContain(kept);
+  });
+
   it("keeps the data-* keys of component state, unless maskAttributes is set", async () => {
     const html = `<div data-state="open" data-side="bottom" data-user="data-secret">x</div>`;
     const kept = await recordPage(html, {}, () => {

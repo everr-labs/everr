@@ -6,7 +6,27 @@ type RecordOptions = NonNullable<Parameters<typeof record>[0]>;
 export type FormElement = Element & { type?: string; value?: string };
 
 const MEDIA = 'img,svg,video,object,picture,embed,map,audio,link[rel*="icon"]';
-const DEFAULT_ATTRIBUTES = ["title", "placeholder", "aria-label", "content", "data-*"];
+// The attributes that hold text for a person, or a second copy of masked text
+// that a machine reads, as content and datetime do. An aria-* key that holds a
+// state, a number, or an id is not here: the page can style by it.
+const DEFAULT_ATTRIBUTES = [
+  "title",
+  "placeholder",
+  "alt",
+  "label",
+  "abbr",
+  "summary",
+  "download",
+  "datetime",
+  "content",
+  "aria-label",
+  "aria-description",
+  "aria-valuetext",
+  "aria-placeholder",
+  "aria-roledescription",
+  "aria-braille*",
+  "data-*",
+];
 // The data-* keys of component state that UI kits style by, as in Radix and
 // shadcn selectors like [data-state=open]. Their values are a small vocabulary,
 // and a masked value makes the replay show the wrong state. A boolean key such
@@ -112,10 +132,12 @@ export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node 
       pattern.endsWith("*") ? name.startsWith(pattern.slice(0, -1)) : pattern === name,
     );
   // A value that rrweb did not mask: a type it skips, or an empty current value,
-  // for which rrweb keeps the value attribute of the HTML.
+  // for which rrweb keeps the value attribute of the HTML. The value of a data
+  // element is one more: it is a second copy of the text. The value of li,
+  // meter, and progress is a number that the replay draws, and it stays.
   const rawValue = (el: FormElement | null): el is FormElement =>
     !!el &&
-    /^(INPUT|OPTION|BUTTON|SELECT|TEXTAREA)$/.test(el.tagName) &&
+    /^(INPUT|OPTION|BUTTON|SELECT|TEXTAREA|DATA)$/.test(el.tagName) &&
     (!RRWEB_MASKED.test(typeOf(el)) || !el.value);
 
   const scrubAttributes = (el: FormElement | null, attributes: Record<string, unknown>) => {
