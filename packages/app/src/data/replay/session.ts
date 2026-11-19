@@ -62,14 +62,15 @@ export function windowAround(atMs: number): TimeWindow {
 }
 
 /**
- * The Clips of one Stream whose [start, end] overlaps the window, newest
- * first, at most MAX_CLIPS. A Clip may start up to CLIP_LOOKBACK_MS before
- * the window.
+ * The Clips of one Stream whose [start, end] overlaps the window, at most
+ * MAX_CLIPS: those covering `atMs` first (the one ending last first), then
+ * the nearest. A Clip may start up to CLIP_LOOKBACK_MS before the window.
  */
 export async function loadClips(
   organizationId: string,
   streamId: string,
   window: TimeWindow,
+  atMs: number,
 ): Promise<ClipWindow[]> {
   const rows = await query<SpanRow>(
     `
@@ -84,7 +85,7 @@ WHERE SpanName = 'recording'
   AND Timestamp >= fromUnixTimestamp64Milli({startFromMs: Int64})
   AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
   AND Timestamp + toIntervalNanosecond(Duration) >= fromUnixTimestamp64Milli({fromMs: Int64})
-ORDER BY Timestamp DESC
+ORDER BY greatest(0, startMs - {atMs:Int64}, {atMs:Int64} - endMs), endMs DESC
 LIMIT 1 BY clipId
 LIMIT {cap:UInt16}
 `,
@@ -94,6 +95,7 @@ LIMIT {cap:UInt16}
       startFromMs: window.from.getTime() - CLIP_LOOKBACK_MS,
       fromMs: window.from.getTime(),
       toMs: window.to.getTime(),
+      atMs,
       cap: MAX_CLIPS,
     },
     QUERY_SETTINGS,

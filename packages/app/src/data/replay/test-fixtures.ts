@@ -73,7 +73,8 @@ async function* each(lines: string[]): AsyncGenerator<string> {
 
 /**
  * Answers the mocked queries by SQL shape:
- *   SpanName = 'recording'    Clips of the `stream` param overlapping the window, one per Clip;
+ *   SpanName = 'recording'    Clips of the `stream` param overlapping the window, one per Clip,
+ *                             nearest to the `atMs` param first;
  *                             with a `clipId` param, the spans of that Clip starting in the window
  *   AS bytes                  the size of the Segments (`bytes` overrides it)
  *   FROM recordings           the Segments of the `stream` param (as JSON lines from queryLines)
@@ -102,8 +103,10 @@ export function plan(
         if (typeof params.fromMs === "number" && c.endMs < params.fromMs) return false;
         return !seen.has(c.clipId) && !!seen.add(c.clipId);
       });
+      const at = Number(params.atMs);
+      const gap = (c: SpanRow) => Math.max(0, c.startMs - at, at - c.endMs);
       return matching
-        .sort((a, b) => b.startMs - a.startMs)
+        .sort((a, b) => gap(a) - gap(b) || b.endMs - a.endMs)
         .slice(0, typeof params.cap === "number" ? params.cap : undefined) as never;
     }
     if (/FROM\s+recordings/.test(sql) && sql.includes("AS bytes")) {
