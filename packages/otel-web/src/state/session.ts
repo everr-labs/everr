@@ -172,18 +172,30 @@ export function identify(userId: string, traits?: UserTraits): void {
   setAttributes(user);
 }
 
+// The recording instrumentation ends its Stream at clearIdentity(). Thus no
+// recording connects the ids before the call to the ids after it. One recorder
+// operates for each page, and thus one listener is sufficient.
+let cleared: (() => void) | undefined;
+
+/** @internal For `@everr/otel-web/recording`. */
+export function onClearIdentity(listener: (() => void) | undefined): void {
+  cleared = listener;
+}
+
 /**
  * Removes the `user.*` ambient attributes. It also deletes each id in the
  * store: the visitor id and the session id. The store itself does not change.
  * The consent procedure calls this on a refusal, then
  * `setPersistence("memory")`. Thus the subsequent records carry new ids that
- * end with the page.
+ * end with the page. The `recording()` instrumentation ends its Stream and
+ * starts a new one.
  */
 export function clearIdentity(): void {
   clearUser();
   currentStore().clear();
   visitor = undefined;
   session = null;
+  cleared?.();
 }
 
 /** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */

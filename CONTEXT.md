@@ -168,7 +168,7 @@ To replace an element in a Recording with an empty placeholder of the same size,
 _Avoid_: mask (which keeps the element), exclude
 
 **Stream**:
-The in-memory buffer of one page's Recording, as Generations. It aims for the last 5 minutes and 10 MB, and always keeps the newest Generation, so that one can be older or larger. Each event leaves the page at most once, in a Segment of the Stream. One Stream per page, with the Session id of its start and a random `everr.recording.stream.id`.
+The in-memory buffer of one page's Recording, as Generations. It aims for the last 5 minutes and 10 MB, and always keeps the newest Generation, so that one can be older or larger. Each event leaves the page at most once, in a Segment of the Stream. A page has one Stream at a time, with a random `everr.recording.stream.id` and one Session id: that of the page load, or for a later Stream that of its first Clip. `clearIdentity()` ends the Stream, drops what it holds, and starts a new one.
 _Avoid_: buffer (informal), session recording
 
 **Generation**:
