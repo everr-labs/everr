@@ -9,6 +9,7 @@ package recording
 // events is marked incomplete.
 
 import (
+	"cmp"
 	"maps"
 	"math"
 	"slices"
@@ -40,8 +41,11 @@ func toEvent(value Json) (event, bool) {
 	return event{kind: kind, timestamp: timestamp, data: data}, true
 }
 
-// reassemble gives the events of the rows in Segment order, and whether the
-// read has a gap.
+// reassemble gives the events of the rows in time order, and whether the read
+// has a gap. The SDK numbers Segments as it sends them, and a Clip can send an
+// older Generation after a newer one, so the Segment index orders the pieces of
+// an event and finds gaps, not the page's history. Events of equal time stay in
+// Segment order.
 func reassemble(rows []row) ([]event, bool) {
 	gap := false
 
@@ -119,6 +123,7 @@ func reassemble(rows []row) ([]event, bool) {
 			}
 		}
 	}
+	slices.SortStableFunc(events, func(a, b event) int { return cmp.Compare(a.timestamp, b.timestamp) })
 	return events, gap || len(open) > 0
 }
 
