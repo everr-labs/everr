@@ -2,14 +2,20 @@ package recording
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
 )
 
+func unlimited() *int {
+	n := math.MaxInt
+	return &n
+}
+
 func mustParse(t *testing.T, text string) Json {
 	t.Helper()
-	value, ok := parseJSON(text)
+	value, ok := parseJSON(text, unlimited())
 	if !ok {
 		t.Fatalf("not JSON: %.80s", text)
 	}
@@ -75,7 +81,7 @@ func TestParseRefusesJSONDeeperThanTheBound(t *testing.T) {
 		// Brackets inside strings do not count.
 		{`"` + strings.Repeat("[", 10_000) + `"`, true},
 	} {
-		if _, ok := parseJSON(tc.text); ok != tc.ok {
+		if _, ok := parseJSON(tc.text, unlimited()); ok != tc.ok {
 			t.Errorf("parse %.40s... = %v, want %v", tc.text, ok, tc.ok)
 		}
 	}
@@ -93,12 +99,12 @@ func TestParseRefusesWhatJSONParseRefuses(t *testing.T) {
 		"", "not json", "[1,]", `{"a":1,}`, `{"a" 1}`, "[1 2]", "01", "1.", "-", ".5", "1e",
 		`"a` + "\n" + `b"`, `"\x"`, `"\u12"`, "[1] x", "tru", "nul", `{1:2}`, `"abc`,
 	} {
-		if _, ok := parseJSON(text); ok {
+		if _, ok := parseJSON(text, unlimited()); ok {
 			t.Errorf("parsed %q", text)
 		}
 	}
 	for _, text := range []string{" [ 1 , -0.5e+2 , true , null , \"\\/\\b\" ] ", "{}", "[]", `""`, "1E400"} {
-		if _, ok := parseJSON(text); !ok {
+		if _, ok := parseJSON(text, unlimited()); !ok {
 			t.Errorf("refused %q", text)
 		}
 	}
@@ -123,5 +129,18 @@ func TestJSStringIsJavaScriptsString(t *testing.T) {
 		if got := value.jsString(); got != want {
 			t.Errorf("String(%s) = %q, want %q", text, got, want)
 		}
+	}
+}
+
+func TestParseStopsWhenTheBudgetIsSpentAcrossBodies(t *testing.T) {
+	left := 5
+	if _, ok := parseJSON(`[1,2]`, &left); !ok || left != 2 {
+		t.Fatalf("first: ok %v, %d left", ok, left)
+	}
+	if _, ok := parseJSON(`[1,2]`, &left); ok {
+		t.Fatal("a body over the budget parsed")
+	}
+	if _, ok := parseJSON(`7`, &left); ok {
+		t.Fatal("a body with the budget spent parsed")
 	}
 }
