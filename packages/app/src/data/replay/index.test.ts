@@ -7,6 +7,9 @@ vi.mock("#app/lib/clickhouse.ts", () => ({
   runSqlApiQuery: vi.fn(),
 }));
 
+const deployment = vi.hoisted(() => ({ sessionRecordings: true }));
+vi.mock("@composition/client", () => ({ productClient: deployment }));
+
 import { parseSegmentsRequest, ReplayError, readSegments, segmentsBody } from "./index.ts";
 import {
   calls,
@@ -43,6 +46,7 @@ const isRowRead = (sql: string) => isSegmentQuery(sql) && !sql.includes("AS byte
 
 beforeEach(() => {
   vi.clearAllMocks();
+  deployment.sessionRecordings = true;
   plan();
 });
 
@@ -81,6 +85,16 @@ describe("readSegments", () => {
     expect((failure as Error).message).toContain(
       `clip ${CLIP} 2026-11-14T10:20:41.120Z..2026-11-14T10:21:51.120Z (ends 3m12s before that instant)`,
     );
+  });
+
+  it("refuses where recordings are not stored, before any query", async () => {
+    deployment.sessionRecordings = false;
+    plan({ clips: [CLIP_SPAN], recordings: SEGMENTS });
+    await expect(read(`stream=${STREAM}&at=2026-11-14T10:21:39.700Z`)).rejects.toMatchObject({
+      code: "unavailable",
+      message: "Session recordings are not available on this deployment",
+    });
+    expect(calls()).toEqual([]);
   });
 
   it("is not_found when the Stream has no Clip near --at", async () => {

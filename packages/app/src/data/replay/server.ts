@@ -1,15 +1,7 @@
-import { productClient } from "@composition/client";
 import { ClipSubjectSchema, RecordingsRepository } from "@everr/telemetry-explorer/recordings";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
-import { clipEvents, replayHttpError } from "./session.ts";
-
-/** Recordings are stored only where the product says so (`app.recordings`). */
-function assertSessionRecordings(): void {
-  if (!productClient.sessionRecordings) {
-    throw new Error("Session recordings are not available on this deployment");
-  }
-}
+import { assertSessionRecordings, clipEvents, replayHttpError } from "./session.ts";
 
 export const getCoveringClips = createAuthenticatedServerFn({ method: "GET" })
   .validator(ClipSubjectSchema)
