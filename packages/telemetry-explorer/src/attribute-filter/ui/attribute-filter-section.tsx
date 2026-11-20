@@ -1,5 +1,5 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter, AttributeSource } from "../schemas";
 import { AttributeFilterPill } from "./attribute-filter-pill";
@@ -19,6 +19,7 @@ export function AttributeFilterSection({
   excludedKeys,
   sources,
   onChange,
+  heading,
 }: {
   repo: AttributeRepositoryLike;
   domain: string;
@@ -28,6 +29,8 @@ export function AttributeFilterSection({
   excludedKeys: ReadonlySet<string>;
   sources: AttributeSource[];
   onChange: (next: AttributeFilter[]) => void;
+  /** In place of the plain "Attributes" label, such as one that says what the filters apply to. */
+  heading?: ReactNode;
 }) {
   // The filter just added — its pill mounts with its editor open so the user
   // can pick values immediately.
@@ -51,7 +54,7 @@ export function AttributeFilterSection({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-xs">Attributes</span>
+      {heading ?? <span className="text-muted-foreground text-xs">Attributes</span>}
       {attributes.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {attributes.map((filter, index) => {

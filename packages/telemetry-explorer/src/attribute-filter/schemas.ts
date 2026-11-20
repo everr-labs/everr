@@ -2,9 +2,10 @@ import { type TimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
 // Superset of every domain's attribute maps. Logs/errors use resource|log|scope;
-// traces use resource|span. Validation is permissive; each domain restricts
-// which sources it offers in the UI and maps to columns in SQL.
-export const AttributeSourceSchema = z.enum(["resource", "log", "scope", "span"]);
+// traces use resource|span; metrics use resource|metric (the data point's
+// attributes). Validation is permissive; each domain restricts which sources
+// it offers in the UI and maps to columns in SQL.
+export const AttributeSourceSchema = z.enum(["resource", "log", "scope", "span", "metric"]);
 export type AttributeSource = z.infer<typeof AttributeSourceSchema>;
 
 export const AttributeOpSchema = z.enum(["in", "not_in", "exists", "missing"]);
@@ -25,10 +26,14 @@ export type AttributeFilter = z.infer<typeof AttributeFilterSchema>;
 // stays the shared AttributeFilter (superset) so a narrowed source union does
 // not ripple through the UI and data layers.
 export function attributesField(allowed: readonly AttributeSource[]) {
+  return attributesList(allowed).default([]);
+}
+
+/** `attributesField` without its default, for a field that may be left out. */
+export function attributesList(allowed: readonly AttributeSource[]) {
   const supported = new Set<AttributeSource>(allowed);
   return z
     .array(AttributeFilterSchema)
-    .default([])
     .refine((filters) => filters.every((f) => supported.has(f.source)), {
       message: `attribute source must be one of: ${allowed.join(", ")}`,
     });

@@ -49,7 +49,6 @@ export type TraceExplorerProps = {
   traceId: string;
   search: {
     span?: string;
-    refresh?: string;
   };
   onBack: () => void;
   onSpanChange: (spanId: string | undefined) => void;
@@ -62,7 +61,6 @@ export function TraceExplorer(props: TraceExplorerProps) {
     getTraceOptions({
       repo: props.repo,
       traceId: props.traceId,
-      refresh: props.search.refresh ?? "off",
     }),
   );
   if (isPending)

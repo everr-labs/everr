@@ -30,7 +30,7 @@ function time(date: Date) {
 
 // Tooltip heading: date + local time range, computed from the bucket's
 // timestamps so it always reflects the viewer's timezone.
-function bucketTitle(bucket: HistogramBucket) {
+export function bucketTitle(bucket: HistogramBucket) {
   const start = new Date(bucket.timestamp);
   const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${day} · ${time(start)} – ${time(new Date(bucket.endTimestamp))}`;

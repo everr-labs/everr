@@ -76,7 +76,6 @@ function renderDetail(selectedKey = "") {
         repo={repo}
         fingerprint="fp-1"
         timeRange={{ from: "now-1h", to: "now" }}
-        refresh="off"
         service={[]}
         occurrence={selectedKey}
         renderOccurrenceLink={({ occurrence: linked, label, className, children }) => (

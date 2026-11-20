@@ -6,7 +6,7 @@ import { Children } from "react";
 import type * as React from "react";
 
 const buttonVariants = cva(
-  "focus-visible:border-ring focus-visible:ring-primary aria-invalid:ring-destructive/40 aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-[3px] aria-invalid:ring-2 [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap press disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 group/button select-none",
+  "focus-visible:border-ring focus-visible:ring-primary aria-invalid:border-destructive/50 aria-invalid:focus-visible:ring-destructive rounded-md border border-transparent bg-clip-padding text-xs/relaxed font-medium outline-2 outline-dotted outline-transparent outline-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-[3px] [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap press disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 group/button select-none",
   {
     variants: {
       variant: {

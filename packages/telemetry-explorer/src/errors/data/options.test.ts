@@ -65,7 +65,6 @@ describe("errorIssueOptions / errorServicesOptions", () => {
     const options = errorIssueOptions(makeRepo(), {
       fingerprint: "",
       timeRange: { from: "now-1h", to: "now" },
-      refresh: "",
       service: [],
       occurrenceLimit: 50,
     });
@@ -75,11 +74,9 @@ describe("errorIssueOptions / errorServicesOptions", () => {
   it("keys services by time range", () => {
     const options = errorServicesOptions(makeRepo(), {
       timeRange: { from: "now-1h", to: "now" },
-      refresh: "5s",
       attributes: [],
     });
     expect(options.queryKey[0]).toBe("errors");
     expect(options.queryKey[1]).toBe("services");
-    expect(options.refetchInterval).toBe(5000);
   });
 });

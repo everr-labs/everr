@@ -25,14 +25,13 @@ export function ErrorDetailRouteContent({
   onBack?: () => void;
   onClose?: () => void;
 }) {
-  const { timeRange, service, refresh } = withTimeRange(search);
+  const { timeRange, service } = withTimeRange(search);
 
   return (
     <ErrorDetail
       repo={remoteErrorsRepo}
       fingerprint={fingerprint}
       timeRange={timeRange}
-      refresh={refresh ?? "off"}
       service={service}
       occurrence={search.occurrence}
       onBack={onBack}

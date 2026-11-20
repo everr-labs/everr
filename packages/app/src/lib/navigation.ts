@@ -3,6 +3,7 @@ import {
   BellOff,
   Bug,
   ChartLine,
+  ChartSpline,
   Flame,
   Hash,
   House,
@@ -60,9 +61,10 @@ export const navGroups: NavGroup[] = [
     label: "Explore",
     accent: "[--nav-accent:var(--ctp-mauve)]",
     items: [
+      { title: "Metrics", url: "/metrics", icon: ChartSpline },
       { title: "Logs", url: "/logs", icon: ScrollText },
-      { title: "Errors", url: "/errors", icon: Bug },
       { title: "Traces", url: "/traces", icon: Waypoints },
+      { title: "Errors", url: "/errors", icon: Bug },
     ],
   },
   {

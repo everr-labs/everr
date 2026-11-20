@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider, type QueryKey, useQuery } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type * as RefreshPickerModule from "@everr/ui/components/refresh-picker";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ExploreShell } from "./explore-shell";
@@ -12,7 +13,8 @@ vi.mock("@everr/ui/components/time-range-picker", () => ({
   TimeRangePicker: () => null,
 }));
 
-vi.mock("@everr/ui/components/refresh-picker", () => ({
+vi.mock("@everr/ui/components/refresh-picker", async (importOriginal) => ({
+  ...(await importOriginal<typeof RefreshPickerModule>()),
   RefreshPicker: ({ onRefresh, isFetching }: { onRefresh: () => void; isFetching: boolean }) => (
     <button type="button" aria-busy={isFetching} onClick={onRefresh}>
       Refresh
@@ -62,5 +64,37 @@ describe("Explore refresh", () => {
     await act(async () => finishStatus());
     view.unmount();
     client.clear();
+  });
+
+  it("refreshes every telemetry query on the page at the auto-refresh interval", async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // Neither has a refetch interval of its own.
+    const metadata = vi.fn().mockResolvedValue("metadata");
+    const keys = vi.fn().mockResolvedValue("attribute keys");
+    render(
+      <QueryClientProvider client={client}>
+        <ExploreShell
+          title="Metrics"
+          timeRange={{ from: "now-1h", to: "now" }}
+          refresh="10s"
+          onTimeRangeChange={vi.fn()}
+          onRefreshChange={vi.fn()}
+        >
+          <QueryProbe queryKey={["metrics", "metadata"]} queryFn={metadata} />
+          <QueryProbe queryKey={["metrics:sum:http.requests", "attributeKeys"]} queryFn={keys} />
+        </ExploreShell>
+      </QueryClientProvider>,
+    );
+    try {
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(metadata).toHaveBeenCalledTimes(1);
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(metadata).toHaveBeenCalledTimes(2);
+      expect(keys).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+      client.clear();
+    }
   });
 });

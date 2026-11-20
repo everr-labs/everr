@@ -1,4 +1,4 @@
-import { type TimeRange, withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { inViewerTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import type { AttributeRepositoryLike } from "./repository";
 import type { AttributeSource } from "./schemas";
 
@@ -10,7 +10,10 @@ export function attributeKeysOptions(
   // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   return {
     queryKey: [opts.domain, "attributeKeys", input.timeRange] as const,
-    queryFn: () => repo.attributeKeys(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) =>
+        repo.attributeKeys({ ...input, timeRange }),
+      ),
   };
 }
 
@@ -34,6 +37,9 @@ export function attributeValuesOptions(
       input.key,
       input.search ?? "",
     ] as const,
-    queryFn: () => repo.attributeValues(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) =>
+        repo.attributeValues({ ...input, timeRange }),
+      ),
   };
 }

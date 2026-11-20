@@ -1,17 +1,18 @@
-import { RefreshPicker } from "@everr/ui/components/refresh-picker";
+import { getRefreshIntervalMs, RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type QueryFilters, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { PageTitleBar } from "../app-shell/title-bar";
 
+// Every query on the page, as the cloud app refreshes, but the app's own, such
+// as the collector status it polls by itself.
 const exploreQueries = {
   type: "active",
-  predicate: ({ queryKey }) =>
-    queryKey[0] === "logs" || queryKey[0] === "errors" || queryKey[0] === "traces",
+  predicate: ({ queryKey }) => queryKey[0] !== "local-app",
 } satisfies QueryFilters;
 
-// The shared header for the Explore pages: Logs, Errors and Traces. It holds the
+// The shared header for the Explore pages: Logs, Errors, Traces and Metrics. It holds the
 // page title, the time range control and the refresh control.
 export function ExploreShell({
   title,
@@ -30,6 +31,16 @@ export function ExploreShell({
 }) {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching(exploreQueries) > 0;
+  const refreshMs = getRefreshIntervalMs(refresh);
+  const refreshPage = () => void queryClient.invalidateQueries(exploreQueries);
+
+  // Auto-refresh does what the Refresh button does, every query on the page at
+  // once, as the cloud app's does.
+  useEffect(() => {
+    if (!refreshMs) return;
+    const timer = setInterval(() => void queryClient.invalidateQueries(exploreQueries), refreshMs);
+    return () => clearInterval(timer);
+  }, [refreshMs, queryClient]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -41,7 +52,7 @@ export function ExploreShell({
             <RefreshPicker
               value={refresh}
               onChange={onRefreshChange}
-              onRefresh={() => void queryClient.invalidateQueries(exploreQueries)}
+              onRefresh={refreshPage}
               isFetching={isFetching}
             />
           </>

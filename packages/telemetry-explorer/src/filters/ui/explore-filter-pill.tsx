@@ -37,13 +37,19 @@ export interface ExploreFilterPillProps<TData> {
   className?: string;
   /** Id of the visible label above the control. The trigger is then named
    *  by that label and its current value, e.g. "Service All services". */
-  labelId?: string;
+  labelId: string;
+  /** How a stored value reads in the trigger and the list, such as a label for a code. */
+  formatValue?: (value: string) => string;
+  /** Marks a set filter in the brand color. On for Service and Environment,
+   *  the filters that carry across Explore pages; off for a page's own. */
+  accent?: boolean;
 }
 
 /**
- * Compact, icon-led multi-select for the Explore rail's global Service /
- * Environment filters. Intentionally separate from the shared `FilterCombobox`
- * (used across many other surfaces) so this styling stays local.
+ * Compact, icon-led multi-select for the Explore rail: the global Service and
+ * Environment filters, and page filters that should look the same, such as the
+ * Metrics catalog's Type. Intentionally separate from the shared
+ * `FilterCombobox` (used across many other surfaces) so this styling stays local.
  */
 export function ExploreFilterPill<TData>({
   label,
@@ -56,6 +62,8 @@ export function ExploreFilterPill<TData>({
   countNoun,
   className,
   labelId,
+  formatValue = (value) => value,
+  accent = true,
 }: ExploreFilterPillProps<TData>) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -69,7 +77,8 @@ export function ExploreFilterPill<TData>({
   const isActive = count > 0;
   const noun = countNoun ?? `${label.toLowerCase()}s`;
 
-  const display = count === 0 ? placeholder : count === 1 ? values[0] : `${count} ${noun}`;
+  const display =
+    count === 0 ? placeholder : count === 1 ? formatValue(values[0] ?? "") : `${count} ${noun}`;
 
   const toggle = (value: string) => {
     if (values.includes(value)) {
@@ -82,6 +91,8 @@ export function ExploreFilterPill<TData>({
   const clear = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     onChange([]);
+    // The clear control goes away with the filter; focus stays on the pill.
+    document.getElementById(id)?.focus();
   };
 
   return (
@@ -94,14 +105,17 @@ export function ExploreFilterPill<TData>({
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger and nested clear-control DOM semantics. PopoverTrigger supplies the popup relationship; preserve the existing trigger markup.
             role="combobox"
             aria-expanded={open}
-            aria-labelledby={labelId ? `${labelId} ${id}-value` : undefined}
-            className={cn("max-w-52 gap-1.5", isActive && "border-primary/35", className)}
+            aria-labelledby={`${labelId} ${id}-value`}
+            className={cn("max-w-52 gap-1.5", isActive && accent && "border-primary/35", className)}
           />
         }
       >
         <Icon
           data-icon="inline-start"
-          className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")}
+          className={cn(
+            "size-3.5 shrink-0",
+            isActive && accent ? "text-primary" : "text-muted-foreground",
+          )}
           aria-hidden="true"
         />
         {/* flex-1 puts the chevron and the clear control at the right edge
@@ -161,10 +175,11 @@ export function ExploreFilterPill<TData>({
                 <CommandItem
                   key={item}
                   value={item}
+                  keywords={[formatValue(item)]}
                   data-checked={values.includes(item) || undefined}
                   onSelect={() => toggle(item)}
                 >
-                  <span className="truncate">{item}</span>
+                  <span className="truncate">{formatValue(item)}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

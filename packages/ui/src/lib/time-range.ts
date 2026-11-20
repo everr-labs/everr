@@ -96,6 +96,30 @@ export function toViewerTimeRange(range: Partial<TimeRange>, now = new Date()): 
   return { from: fromDate.toISOString(), to: toDate.toISOString() };
 }
 
+/**
+ * Whether the range, resolved now in the viewer's zone, holds no time. A
+ * relative range can: `now/d` to `now-5h` ends before it starts until 05:00.
+ */
+export function isEmptyTimeRange(range: Partial<TimeRange>, now = new Date()): boolean {
+  const { from, to } = toViewerTimeRange(range, now);
+  return Date.parse(from) >= Date.parse(to);
+}
+
+/**
+ * Runs `fetch` with the range resolved in the viewer's zone, or gives `empty`
+ * without a request when that range holds no time: the page shows its empty
+ * state, and no server is sent a range that ends before it starts.
+ */
+export async function inViewerTimeRange<T>(
+  range: Partial<TimeRange>,
+  empty: T,
+  fetch: (timeRange: TimeRange) => Promise<T>,
+  now = new Date(),
+): Promise<T> {
+  const timeRange = toViewerTimeRange(range, now);
+  return Date.parse(timeRange.from) < Date.parse(timeRange.to) ? fetch(timeRange) : empty;
+}
+
 export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T): T {
   return { ...input, timeRange: toViewerTimeRange(input.timeRange) };
 }

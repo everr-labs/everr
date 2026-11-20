@@ -42,13 +42,12 @@ function ErrorsPage() {
   const { service = [], environment = [] } = useSearch({
     from: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore",
   });
-  const { timeRange, q, fingerprint, sort, refresh, attributes } = withTimeRange(search);
+  const { timeRange, q, fingerprint, sort, attributes } = withTimeRange(search);
 
   return (
     <ErrorIssues
       repo={remoteErrorsRepo}
       timeRange={timeRange}
-      refresh={refresh ?? "off"}
       search={{ q, service, fingerprint, sort, attributes }}
       environment={environment}
       persistentFilters={<ExplorePersistentFilters />}

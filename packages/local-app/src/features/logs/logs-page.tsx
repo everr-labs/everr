@@ -39,7 +39,6 @@ export function LogsPage() {
       <LocalTelemetryGate>
         <LogsExplorer
           repo={repo}
-          refresh={search.refresh ?? ""}
           timeRange={timeRange}
           search={explorerSearch}
           environment={environment}

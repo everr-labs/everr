@@ -26,7 +26,6 @@ export type ErrorIssuesSearchValue = {
 export type ErrorIssuesProps = {
   repo: ErrorsRepositoryLike;
   timeRange: TimeRange;
-  refresh: string;
   search: ErrorIssuesSearchValue;
   environment?: string[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
@@ -39,7 +38,6 @@ export type ErrorIssuesProps = {
 export function ErrorIssues({
   repo,
   timeRange,
-  refresh,
   search,
   environment = [],
   persistentFilters,
@@ -49,7 +47,6 @@ export function ErrorIssues({
   const issuesQuery = useInfiniteQuery({
     ...errorIssuesInfiniteOptions(repo, {
       timeRange,
-      refresh,
       q: search.q,
       service: search.service,
       fingerprint: search.fingerprint,
