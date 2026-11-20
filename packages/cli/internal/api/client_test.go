@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 )
@@ -104,6 +105,25 @@ func TestApplySendsEmptyKindsAsListsAndDecodesSummary(t *testing.T) {
 	if !summary.DryRun || summary.Organization.Name != "Acme" || *summary.Results[0].Note != "preview rules evaluate suppressed" {
 		t.Errorf("unexpected summary %+v", summary)
 	}
+}
+
+func TestRecordingSegmentsGivesUpOnAReadThatStalls(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		io.WriteString(w, `{"format":1,"read_ms":1}`+"\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(srv.Close)
+	client := sessionClient(t, srv.URL)
+	client.recordingTimeout = 50 * time.Millisecond
+
+	_, err := client.RecordingSegments(t.Context(), "9c41e2f0", "2026-11-14T10:21:41.730Z")
+
+	if err == nil {
+		t.Fatal("want a timeout error")
+	}
+	assertContains(t, err.Error(), "The Recording read took over 50ms. Retry.")
 }
 
 func TestRedirectsAreNotFollowed(t *testing.T) {
