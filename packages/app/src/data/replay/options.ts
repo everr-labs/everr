@@ -32,11 +32,15 @@ const isClipEventsKey = (key: readonly unknown[]) => key[0] === "recordings" && 
 const isSettled = (data: ClipEvents | undefined) =>
   data !== undefined && data.events.length > 0 && data.gaps.length === 0;
 
-/** A settled Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
-export const isSettledClipEvents = (query: Query) =>
+/**
+ * A refresh asks again only for a Clip's events that came back empty: nothing
+ * to download twice, and the Segments may have landed. Whole, partial, loading
+ * or failed, megabytes are left be: a reopen or Retry asks again.
+ */
+export const refreshSkips = (query: Query) =>
   isClipEventsKey(query.queryKey) &&
   // oxlint-disable-next-line typescript/consistent-type-assertions -- the key says this query holds a ClipEvents
-  isSettled(query.state.data as ClipEvents | undefined);
+  !(query.state.status === "success" && !(query.state.data as ClipEvents).events.length);
 
 export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
   // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names

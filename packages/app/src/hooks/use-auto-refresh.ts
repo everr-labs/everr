@@ -1,7 +1,7 @@
 import { usePageRefresh } from "@everr/ui/lib/refresh-epoch";
 import type { QueryFilters } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { isSettledClipEvents } from "#app/data/replay/options.ts";
+import { refreshSkips } from "#app/data/replay/options.ts";
 import {
   applyRouteTimeDefaults,
   type RefreshInterval,
@@ -10,7 +10,7 @@ import {
 import { useRouteTimeDefaults } from "./use-time-range";
 
 const REFRESH_FILTERS: QueryFilters = {
-  predicate: (query) => !isSettledClipEvents(query),
+  predicate: (query) => !refreshSkips(query),
 };
 
 export function useAutoRefresh() {
