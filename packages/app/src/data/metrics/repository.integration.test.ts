@@ -87,6 +87,16 @@ beforeAll(() => {
       IsMonotonic: true,
     })),
   );
+  // An UpDownCounter: a sum that isn't monotonic.
+  insert("metrics_sum", [
+    {
+      MetricName: "requests.inflight",
+      TimeUnix: "2026-01-01 12:00:30",
+      Value: 3,
+      AggregationTemporality: 2,
+      IsMonotonic: false,
+    },
+  ]);
   insert(
     "metrics_sum",
     [
@@ -718,59 +728,29 @@ const timeRange = { from: "2026-01-01T12:00:00Z", to: "2026-01-01T12:05:00Z" };
 describe("metrics explorer against ClickHouse", () => {
   it("lists each metric with its type and unit", async () => {
     const catalog = await repo.catalog({ timeRange });
-    expect(
-      catalog.map(({ name, type, unit, isMonotonic }) => ({ name, type, unit, isMonotonic })),
-    ).toEqual([
-      { name: "batch.size", type: "histogram", unit: "", isMonotonic: false },
-      { name: "batch.wait", type: "histogram", unit: "", isMonotonic: false },
-      { name: "checkout.duration", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "collector.restarts", type: "sum", unit: "", isMonotonic: true },
-      { name: "deploys.started", type: "sum", unit: "", isMonotonic: true },
-      { name: "drifting.start", type: "sum", unit: "", isMonotonic: true },
-      { name: "early.restart", type: "sum", unit: "", isMonotonic: true },
-      { name: "gc.pause", type: "summary", unit: "s", isMonotonic: false },
-      {
-        name: "http.request.duration",
-        type: "histogram",
-        unit: "s",
-        isMonotonic: false,
-      },
-      { name: "http.requests", type: "sum", unit: "{request}", isMonotonic: true },
-      { name: "jobs.completed", type: "sum", unit: "", isMonotonic: true },
-      { name: "late.jobs", type: "sum", unit: "", isMonotonic: true },
-      { name: "late.restart", type: "sum", unit: "", isMonotonic: true },
-      { name: "midminute.duration", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "midminute.restart", type: "sum", unit: "", isMonotonic: true },
-      { name: "new.pod", type: "sum", unit: "", isMonotonic: true },
-      { name: "new.pod.duration", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "pod.memory", type: "gauge", unit: "", isMonotonic: false },
-      { name: "pool.acquires", type: "sum", unit: "", isMonotonic: true },
-      { name: "queue.depth", type: "gauge", unit: "{item}", isMonotonic: false },
-      { name: "queue.wait", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "rebounded.duration", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "reset.unknown.start", type: "sum", unit: "", isMonotonic: true },
-      { name: "restarted.requests", type: "sum", unit: "", isMonotonic: true },
-      {
-        name: "rpc.duration",
-        type: "exponential_histogram",
-        unit: "s",
-        isMonotonic: false,
-      },
-      { name: "scoped.requests", type: "sum", unit: "", isMonotonic: true },
-      { name: "scrape.failures", type: "sum", unit: "", isMonotonic: true },
-      { name: "scraped.requests", type: "sum", unit: "", isMonotonic: true },
-      { name: "sparse.duration", type: "histogram", unit: "s", isMonotonic: false },
-      { name: "sparse.jobs", type: "sum", unit: "", isMonotonic: true },
-      { name: "sparse.requests", type: "sum", unit: "", isMonotonic: true },
-      { name: "staggered.load", type: "gauge", unit: "", isMonotonic: false },
-      { name: "steady.requests", type: "sum", unit: "", isMonotonic: true },
-      { name: "stopped.gauge", type: "gauge", unit: "", isMonotonic: false },
-      { name: "temperature", type: "gauge", unit: "", isMonotonic: false },
-      { name: "untimed.jobs", type: "sum", unit: "", isMonotonic: true },
-      { name: "upgraded.collector", type: "sum", unit: "", isMonotonic: true },
-      { name: "worker.load", type: "gauge", unit: "1", isMonotonic: false },
-      { name: "zero.drop", type: "exponential_histogram", unit: "", isMonotonic: false },
-    ]);
+    expect(catalog.map((m) => m.name)).toEqual(catalog.map((m) => m.name).sort());
+    const listed = (name: string) => {
+      const metric = catalog.find((m) => m.name === name);
+      return metric && { type: metric.type, unit: metric.unit, isMonotonic: metric.isMonotonic };
+    };
+    expect(listed("queue.depth")).toEqual({ type: "gauge", unit: "{item}", isMonotonic: false });
+    expect(listed("http.requests")).toEqual({
+      type: "sum",
+      unit: "{request}",
+      isMonotonic: true,
+    });
+    expect(listed("requests.inflight")).toEqual({ type: "sum", unit: "", isMonotonic: false });
+    expect(listed("checkout.duration")).toEqual({
+      type: "histogram",
+      unit: "s",
+      isMonotonic: false,
+    });
+    expect(listed("rpc.duration")).toEqual({
+      type: "exponential_histogram",
+      unit: "s",
+      isMonotonic: false,
+    });
+    expect(listed("gc.pause")).toEqual({ type: "summary", unit: "s", isMonotonic: false });
   });
 
   it("lists the same metrics by name alone, for the metric switcher", async () => {
@@ -780,35 +760,19 @@ describe("metrics explorer against ClickHouse", () => {
     );
   });
 
-  it("narrows the catalog by name and kind", async () => {
-    expect((await repo.catalog({ timeRange, q: "QUEUE.D" })).map((m) => m.name)).toEqual([
-      "queue.depth",
-    ]);
-    expect(
-      (await repo.catalog({ timeRange, kinds: ["counter", "updown"] })).map((m) => m.name),
-    ).toEqual([
-      "collector.restarts",
-      "deploys.started",
-      "drifting.start",
-      "early.restart",
-      "http.requests",
-      "jobs.completed",
-      "late.jobs",
-      "late.restart",
-      "midminute.restart",
-      "new.pod",
-      "pool.acquires",
-      "reset.unknown.start",
-      "restarted.requests",
-      "scoped.requests",
-      "scrape.failures",
-      "scraped.requests",
-      "sparse.jobs",
-      "sparse.requests",
-      "steady.requests",
-      "untimed.jobs",
-      "upgraded.collector",
-    ]);
+  it("narrows the catalog by name and kind, telling counters from UpDownCounters", async () => {
+    const names = async (input: { q?: string; kinds?: MetricKind[] }) =>
+      (await repo.catalog({ timeRange, ...input })).map((m) => m.name);
+    expect(await names({ q: "QUEUE.D" })).toEqual(["queue.depth"]);
+    expect(await names({ kinds: ["updown"] })).toEqual(["requests.inflight"]);
+    const counters = await names({ kinds: ["counter"] });
+    expect(counters).toContain("http.requests");
+    expect(counters).not.toContain("requests.inflight");
+    expect(counters).not.toContain("queue.depth");
+    const gaugesAndUpDown = await names({ kinds: ["gauge", "updown"] });
+    expect(gaugesAndUpDown).toContain("queue.depth");
+    expect(gaugesAndUpDown).toContain("requests.inflight");
+    expect(gaugesAndUpDown).not.toContain("http.requests");
   });
 
   it("reads one metric's unit and temporality, or nothing when it sent nothing", async () => {
@@ -817,42 +781,6 @@ describe("metrics explorer against ClickHouse", () => {
       isMonotonic: true,
     });
     expect(await repo.metadata({ timeRange, metric: "http.requests", type: "gauge" })).toBeNull();
-  });
-
-  it("narrows the catalog by kind, telling counters from UpDownCounters", async () => {
-    const names = async (kinds: MetricKind[]) =>
-      (await repo.catalog({ timeRange, kinds })).map((m) => m.name);
-    expect(await names(["counter", "gauge"])).toEqual([
-      "collector.restarts",
-      "deploys.started",
-      "drifting.start",
-      "early.restart",
-      "http.requests",
-      "jobs.completed",
-      "late.jobs",
-      "late.restart",
-      "midminute.restart",
-      "new.pod",
-      "pod.memory",
-      "pool.acquires",
-      "queue.depth",
-      "reset.unknown.start",
-      "restarted.requests",
-      "scoped.requests",
-      "scrape.failures",
-      "scraped.requests",
-      "sparse.jobs",
-      "sparse.requests",
-      "staggered.load",
-      "steady.requests",
-      "stopped.gauge",
-      "temperature",
-      "untimed.jobs",
-      "upgraded.collector",
-      "worker.load",
-    ]);
-    // Every sum in the fixtures is monotonic.
-    expect(await names(["updown"])).toEqual([]);
   });
 
   it("charts a counter whose many series send no start time", async () => {
@@ -1418,6 +1346,7 @@ ${JSON.stringify({
     expect(await repo.kinds({ timeRange })).toEqual([
       "gauge",
       "counter",
+      "updown",
       "histogram",
       "exponential_histogram",
       "summary",

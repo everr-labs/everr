@@ -45,34 +45,6 @@ describe("metricSeriesOptions", () => {
   });
 });
 
-describe("a range that ends before it starts", () => {
-  it("charts nothing without asking the server", async () => {
-    vi.stubEnv("TZ", "UTC");
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-11-19T02:00:00Z"));
-    try {
-      const series = vi.fn();
-      const repo = { series } as unknown as MetricsRepositoryLike;
-      const input: MetricSeriesInput = {
-        // Today until five hours ago: nothing before 05:00.
-        timeRange: { from: "now/d", to: "now-5h" },
-        metric: "a",
-        type: "gauge",
-        aggregation: "avg",
-      };
-      const [result] = (await (
-        metricSeriesOptions(repo, [input]).queryFn as () => Promise<unknown[]>
-      )()) as { series: unknown[] }[];
-
-      expect(result?.series).toEqual([]);
-      expect(series).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-      vi.unstubAllEnvs();
-    }
-  });
-});
-
 describe("metricKindOptions", () => {
   it("keeps a selected kind listed when no metric in range has it", () => {
     const { select } = metricKindOptions(

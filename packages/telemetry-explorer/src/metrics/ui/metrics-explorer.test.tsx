@@ -117,7 +117,7 @@ describe("MetricsExplorer", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("cpu: change metric"));
   });
 
-  it("names each query's controls after the query, with its filter count", async () => {
+  it("names each query's controls after the query, with its filter count, and the button that adds one", async () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <Page
@@ -142,6 +142,7 @@ describe("MetricsExplorer", () => {
 
     expect(queryB.getByRole("button", { name: /^B 1 filter/ })).toBeTruthy();
     expect(queryB.getAllByLabelText("Stop grouping by host")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Add metric query" })).toBeTruthy();
   });
 
   it("shows no resolution for a range with no intervals", async () => {
@@ -357,17 +358,6 @@ describe("MetricsExplorer", () => {
     expect(forWorker.map((input) => input.aggregation)).toEqual(["p90"]);
   });
 
-  it("names the button that adds a query after what it does", async () => {
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <Page initial={oneQuery} />
-      </QueryClientProvider>,
-    );
-    await settle();
-
-    expect(screen.getByRole("button", { name: "Add metric query" })).toBeTruthy();
-  });
-
   it("groups each query's series under its own heading", async () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -471,13 +461,13 @@ describe("MetricsExplorer", () => {
     expect(screen.getByText(/Query B: the 1 series with the highest values of 12\./)).toBeTruthy();
   });
 
-  it("retries the metric switcher's list from the keyboard after it fails", async () => {
+  it("retries or closes the metric switcher from the keyboard after its list fails", async () => {
     let calls = 0;
     const flaky = {
       ...repo,
       names: async () => {
         calls += 1;
-        if (calls === 1) throw new Error("timed out");
+        if (calls < 3) throw new Error("timed out");
         return [{ name: "memory", type: "gauge", isMonotonic: false }];
       },
     } as MetricsRepositoryLike;
@@ -489,35 +479,21 @@ describe("MetricsExplorer", () => {
       </QueryClientProvider>,
     );
     await settle();
-    fireEvent.click(screen.getByLabelText("cpu: change metric"));
-    await settle();
-    screen.getByRole("button", { name: "Retry" }).focus();
-    await userEvent.keyboard("{Enter}");
-    await settle();
+    const openWithRetryFocused = async () => {
+      fireEvent.click(screen.getByLabelText("cpu: change metric"));
+      await settle();
+      screen.getByRole("button", { name: "Retry" }).focus();
+    };
 
-    expect(screen.getByText("memory")).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByPlaceholderText("Search metrics…"));
-  });
-
-  it("closes the metric switcher with Escape from its Retry", async () => {
-    const failing = {
-      ...repo,
-      names: () => Promise.reject(new Error("timed out")),
-    } as MetricsRepositoryLike;
-    render(
-      <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-      >
-        <Page initial={oneQuery} metrics={failing} />
-      </QueryClientProvider>,
-    );
-    await settle();
-    fireEvent.click(screen.getByLabelText("cpu: change metric"));
-    await settle();
-    screen.getByRole("button", { name: "Retry" }).focus();
+    await openWithRetryFocused();
     await userEvent.keyboard("{Escape}");
     await settle();
-
     expect(screen.queryByText(/Couldn't load metrics/)).toBeNull();
+
+    await openWithRetryFocused();
+    await userEvent.keyboard("{Enter}");
+    await settle();
+    expect(screen.getByText("memory")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByPlaceholderText("Search metrics…"));
   });
 });
