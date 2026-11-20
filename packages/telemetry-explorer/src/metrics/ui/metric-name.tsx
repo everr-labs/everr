@@ -1,4 +1,4 @@
-import type { MetricKind } from "../data/types";
+import type { MetricKind } from "../data/schemas";
 import { Badge } from "@everr/ui/components/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";

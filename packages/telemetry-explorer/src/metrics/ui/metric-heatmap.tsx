@@ -7,15 +7,13 @@ import * as echarts from "echarts/core";
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MetricHeatmap } from "../data/types";
 import { ACCENT_COLOR } from "@everr/ui/lib/series-colors";
-import { formatMetricValue } from "./format";
+import { formatCount, formatMetricValue } from "./format";
 
 echarts.use([HeatmapChart, VisualMapContinuousComponent]);
 
-const count = new Intl.NumberFormat();
-
 /** A label per histogram bucket, low to high: "≤ 100 ms", then "> 1 s" for
  *  the bucket above the last bound. */
-export function bucketLabels(bounds: readonly number[], unit: string): string[] {
+function bucketLabels(bounds: readonly number[], unit: string): string[] {
   const last = bounds.at(-1);
   return [
     ...bounds.map((b) => `≤ ${formatMetricValue(b, unit)}`),
@@ -152,8 +150,8 @@ export function MetricHeatmap({
                 // Interpolated counts are estimates, and fractions of a
                 // request read as false precision.
                 value: Number.isInteger(observed)
-                  ? count.format(observed)
-                  : `≈ ${count.format(Math.round(observed))}`,
+                  ? formatCount(observed)
+                  : `≈ ${formatCount(Math.round(observed))}`,
               },
             ]}
           />

@@ -17,17 +17,16 @@ function mergeOptions(...lists: string[][]): string[] {
   );
 }
 
-/** Metrics are optional: the CLI's local explorer has no Metrics page yet. */
 type MetricsFilterSource = Pick<MetricsRepositoryLike, "services" | "environments">;
 
 export function unionServiceOptions(
   logsRepo: LogsRepositoryLike,
   tracesRepo: TracesRepositoryLike,
   input: { timeRange: TimeRange; selected: string[] },
-  metricsRepo?: MetricsFilterSource,
+  metricsRepo: MetricsFilterSource,
 ) {
   return {
-    queryKey: ["explore", "union-service-options", input.timeRange, Boolean(metricsRepo)] as const,
+    queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: async () => {
       const timeRange = toViewerTimeRange(input.timeRange);
       const [logOptions, traceIdentities, metricServices] = await Promise.all([
@@ -36,7 +35,7 @@ export function unionServiceOptions(
           fromTs: toClickHouseDateTime(new Date(timeRange.from)),
           toTs: toClickHouseDateTime(new Date(timeRange.to)),
         }),
-        metricsRepo?.services({ timeRange }) ?? [],
+        metricsRepo.services({ timeRange }),
       ]);
       return mergeOptions(
         logOptions.services,
@@ -54,15 +53,10 @@ export function unionEnvironmentOptions(
   logsRepo: LogsRepositoryLike,
   tracesRepo: TracesRepositoryLike,
   input: { timeRange: TimeRange; selected: string[] },
-  metricsRepo?: MetricsFilterSource,
+  metricsRepo: MetricsFilterSource,
 ) {
   return {
-    queryKey: [
-      "explore",
-      "union-environment-options",
-      input.timeRange,
-      Boolean(metricsRepo),
-    ] as const,
+    queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: async () => {
       const timeRange = toViewerTimeRange(input.timeRange);
       const attributeInput = {
@@ -73,7 +67,7 @@ export function unionEnvironmentOptions(
       const [logEnvironments, traceEnvironments, metricEnvironments] = await Promise.all([
         logsRepo.attributeValues(attributeInput),
         tracesRepo.attributeValues(attributeInput),
-        metricsRepo?.environments({ timeRange }) ?? [],
+        metricsRepo.environments({ timeRange }),
       ]);
       return mergeOptions(logEnvironments, traceEnvironments, metricEnvironments);
     },

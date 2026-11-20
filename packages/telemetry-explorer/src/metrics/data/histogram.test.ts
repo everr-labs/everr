@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
-import { bucketLayout, bucketQuantile, exponentialBuckets, rebucket } from "./histogram";
+import {
+  bucketLayout,
+  bucketQuantile,
+  exponentialBuckets,
+  exponentialSpan,
+  rebucket,
+} from "./histogram";
+
+// One histogram on its own covers its own span.
+const bucketsOf = (
+  scale: number,
+  positive: Record<string, number>,
+  negative: Record<string, number>,
+  zero: number,
+) => exponentialBuckets(scale, positive, negative, zero, exponentialSpan([{ positive, negative }]));
 
 // Buckets: [0, 0.1], (0.1, 0.5], (0.5, 1], and above 1.
 const bounds = [0.1, 0.5, 1];
@@ -67,7 +81,7 @@ describe("rebucket", () => {
 describe("exponentialBuckets", () => {
   it("turns positive bucket indexes into bounds at the scale's base", () => {
     // Scale 0: base 2, bucket 1 holds (2, 4], bucket 3 holds (8, 16].
-    expect(exponentialBuckets(0, { "1": 5, "3": 2 }, {}, 1)).toEqual({
+    expect(bucketsOf(0, { "1": 5, "3": 2 }, {}, 1)).toEqual({
       bounds: [0, 2, 4, 8, 16],
       counts: [1, 0, 5, 0, 2, 0],
     });
@@ -75,13 +89,13 @@ describe("exponentialBuckets", () => {
 
   it("mirrors negative buckets below zero", () => {
     // Scale 1: base √2, negative bucket 0 holds [-√2, -1).
-    const { bounds, counts } = exponentialBuckets(1, {}, { "0": 3 }, 0);
+    const { bounds, counts } = bucketsOf(1, {}, { "0": 3 }, 0);
     expect(bounds.map((b) => +b.toFixed(4))).toEqual([-1.4142, -1, 0]);
     expect(counts).toEqual([0, 3, 0, 0]);
   });
 
   it("gives percentiles inside the bucket that holds them", () => {
-    const { bounds, counts } = exponentialBuckets(0, { "1": 10 }, {}, 0);
+    const { bounds, counts } = bucketsOf(0, { "1": 10 }, {}, 0);
     expect(bucketQuantile(0.5, bounds, counts)).toBeCloseTo(3);
   });
 });

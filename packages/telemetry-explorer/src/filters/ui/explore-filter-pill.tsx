@@ -37,7 +37,7 @@ export interface ExploreFilterPillProps<TData> {
   className?: string;
   /** Id of the visible label above the control. The trigger is then named
    *  by that label and its current value, e.g. "Service All services". */
-  labelId?: string;
+  labelId: string;
   /** How a stored value reads in the trigger and the list, such as a label for a code. */
   formatValue?: (value: string) => string;
   /** Marks a set filter in the brand color. On for Service and Environment,
@@ -103,7 +103,7 @@ export function ExploreFilterPill<TData>({
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role, jsx-a11y/role-has-required-aria-props -- Preserve the existing composite trigger and nested clear-control DOM semantics. PopoverTrigger supplies the popup relationship; preserve the existing trigger markup.
             role="combobox"
             aria-expanded={open}
-            aria-labelledby={labelId ? `${labelId} ${id}-value` : undefined}
+            aria-labelledby={`${labelId} ${id}-value`}
             className={cn("max-w-52 gap-1.5", isActive && accent && "border-primary/35", className)}
           />
         }

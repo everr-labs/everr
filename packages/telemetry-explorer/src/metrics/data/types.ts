@@ -7,15 +7,18 @@ export interface MetricNameEntry {
   isMonotonic: boolean;
 }
 
-export interface MetricCatalogEntry {
-  name: string;
+/** What describes a metric, the same for every point of it. */
+export interface MetricMetadata {
   type: MetricType;
   unit: string;
   description: string;
   isMonotonic: boolean;
   /** OTLP AggregationTemporality: 1 delta, 2 cumulative, 0 for gauges and summaries. */
   temporality: number;
-  services: number;
+}
+
+export interface MetricCatalogEntry extends MetricMetadata {
+  name: string;
   points: number;
   /** The newest data point, ClickHouse DateTime in UTC. */
   lastSeen: string;
@@ -36,7 +39,7 @@ export interface MetricSeriesResult {
   series: MetricSeries[];
   /** Every series the group-by produced, including those cut from `series`. */
   totalSeries: number;
-  /** Histograms only: bucket counts over time, all series added together. */
+  /** Histograms asked for a heatmap: bucket counts over time, all series added together. */
   heatmap?: MetricHeatmap;
   /** Set when the metric's export interval, not the range, set the step. */
   stepFromExport?: boolean;
@@ -88,8 +91,6 @@ export interface MetricHeatmap {
  * splits in two: a monotonic one is a counter, read as a rate, while a
  * non-monotonic one (an UpDownCounter) is a level, read like a gauge.
  */
-export type { MetricKind };
-
 export function metricKind(type: MetricType, isMonotonic: boolean): MetricKind {
   if (type === "sum") return isMonotonic ? "counter" : "updown";
   return type;
@@ -122,8 +123,7 @@ const DEFAULT_AGGREGATION: Partial<Record<MetricKind, MetricAggregation>> = {
 // A summary reports only the quantiles its SDK was configured with.
 const SUMMARY_PREFERENCE: MetricAggregation[] = ["p95", "p99", "p90", "p50", "max", "avg"];
 
-/** The aggregations a metric kind supports, in display order. Empty when the
- *  explorer can't chart the kind yet. */
+/** The aggregations a metric kind supports, in display order. */
 export function aggregationsFor(kind: MetricKind): MetricAggregation[] {
   return AGGREGATIONS[kind];
 }
@@ -141,7 +141,7 @@ export function summaryAggregations(reported: number[]): MetricAggregation[] {
 
 export function defaultAggregation(
   kind: MetricKind,
-  available: MetricAggregation[] = AGGREGATIONS[kind],
+  available: MetricAggregation[],
 ): MetricAggregation | null {
   if (kind === "summary") {
     return SUMMARY_PREFERENCE.find((aggregation) => available.includes(aggregation)) ?? null;

@@ -9,14 +9,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/po
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, type RefObject, useState } from "react";
+import type { metricNamesOptions } from "../data/options";
 import type { MetricType } from "../data/schemas";
-import { type MetricNameEntry, metricKind } from "../data/types";
+import { metricKind } from "../data/types";
 import { MetricKindLabel } from "./metric-name";
 
 /** What a chart's metric name opens: the metrics in range, to switch to another. */
 export interface MetricPickerProps {
-  metrics: MetricNameEntry[] | undefined;
+  /** The metrics in range, fetched when the list first opens. */
+  metrics: ReturnType<typeof metricNamesOptions>;
   value: { name: string; type: MetricType | undefined };
   onChange: (metric: { name: string; type: MetricType }) => void;
 }
@@ -47,6 +50,7 @@ export function MetricPicker({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const list = useQuery({ ...metrics, enabled: open });
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const current = key(value.name, value.type);
 
@@ -91,8 +95,8 @@ export function MetricPicker({
         <Command className="p-0">
           <CommandInput placeholder="Search metrics…" />
           <CommandList>
-            <CommandEmpty>{metrics ? "No metric matches." : "Loading…"}</CommandEmpty>
-            {(metrics ?? []).map((m) => (
+            <CommandEmpty>{list.data ? "No metric matches." : "Loading…"}</CommandEmpty>
+            {(list.data ?? []).map((m) => (
               <CommandItem
                 key={key(m.name, m.type)}
                 value={key(m.name, m.type)}

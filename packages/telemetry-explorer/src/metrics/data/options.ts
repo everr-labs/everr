@@ -5,6 +5,7 @@ import { MetricKindSchema } from "./schemas";
 import { metricKind, type MetricNameEntry } from "./types";
 import type {
   MetricCatalogInput,
+  MetricNamesInput,
   MetricExemplarsInput,
   MetricExportIntervalInput,
   MetricMetadataInput,
@@ -30,28 +31,20 @@ export function metricCatalogOptions(
   });
 }
 
-export function metricMetadataOptions(
-  repo: MetricsRepositoryLike,
-  input: MetricMetadataInput,
-  refresh: string,
-) {
+// Unit, description and temporality don't change between refreshes, so
+// neither query refetches with the page.
+export function metricMetadataOptions(repo: MetricsRepositoryLike, input: MetricMetadataInput) {
   return queryOptions({
     queryKey: ["metrics", "metadata", input] as const,
     queryFn: () => repo.metadata(input),
-    refetchInterval: refetchInterval(refresh),
   });
 }
 
-export function metricNamesOptions(
-  repo: MetricsRepositoryLike,
-  input: MetricCatalogInput,
-  refresh: string,
-) {
+export function metricNamesOptions(repo: MetricsRepositoryLike, input: MetricNamesInput) {
   return queryOptions({
     queryKey: ["metrics", "names", input] as const,
     queryFn: () => repo.names(input),
     placeholderData: keepPreviousData,
-    refetchInterval: refetchInterval(refresh),
   });
 }
 
@@ -60,7 +53,7 @@ export function metricNamesOptions(
  * reads the names query, so it lists only kinds with data, like Service and
  * Environment, and shares its cache with the metric switcher.
  */
-export function metricKindOptions(repo: MetricsRepositoryLike, input: MetricCatalogInput) {
+export function metricKindOptions(repo: MetricsRepositoryLike, input: MetricNamesInput) {
   return {
     queryKey: ["metrics", "names", input] as const,
     queryFn: () => repo.names(input),

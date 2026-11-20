@@ -30,7 +30,7 @@ export function ExploreGlobalFilters({
 }: {
   logsRepo: LogsRepositoryLike;
   tracesRepo: TracesRepositoryLike;
-  metricsRepo?: Pick<MetricsRepositoryLike, "services" | "environments">;
+  metricsRepo: Pick<MetricsRepositoryLike, "services" | "environments">;
   timeRange: TimeRange;
   service: string[];
   environment: string[];

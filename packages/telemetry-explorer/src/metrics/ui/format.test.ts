@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { unitName } from "./format";
+import { formatMetricValue, unitName } from "./format";
 
 describe("unitName", () => {
   it("spells out UCUM codes", () => {
@@ -12,12 +12,20 @@ describe("unitName", () => {
     expect(unitName("{request}")).toBe("request");
   });
 
-  it("spells out each side of a rate", () => {
+  it("spells out the unit of a rate, keeping its time short", () => {
     expect(unitName("By/s")).toBe("bytes/s");
     expect(unitName("{packet}/s")).toBe("packet/s");
   });
 
   it("keeps codes it doesn't know", () => {
     expect(unitName("W")).toBe("W");
+  });
+});
+
+describe("formatMetricValue", () => {
+  it("scales durations to a readable unit, up to days", () => {
+    expect(formatMetricValue(0.25, "s")).toBe("250 ms");
+    expect(formatMetricValue(90, "min")).toBe("1.5 h");
+    expect(formatMetricValue(36, "h")).toBe("1.5 d");
   });
 });

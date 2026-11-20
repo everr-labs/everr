@@ -4,7 +4,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import type { ReactNode } from "react";
 import type { MetricType } from "../data/schemas";
 import { type MetricCatalogEntry, metricKind } from "../data/types";
-import { unitName } from "./format";
+import { formatCompact, formatCount, unitName } from "./format";
 import { MetricKindLabel, MetricName } from "./metric-name";
 
 export type MetricLinkRenderProps = {
@@ -13,12 +13,6 @@ export type MetricLinkRenderProps = {
   className: string;
   children: ReactNode;
 };
-
-const count = new Intl.NumberFormat();
-const compact = new Intl.NumberFormat(undefined, {
-  maximumSignificantDigits: 3,
-  notation: "compact",
-});
 
 export function MetricCatalog({
   rows,
@@ -92,9 +86,9 @@ export function MetricCatalog({
                 </td>
                 <td
                   className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs tabular-nums sm:table-cell"
-                  title={`${count.format(row.points)} data points`}
+                  title={`${formatCount(row.points)} data points`}
                 >
-                  {compact.format(row.points)}
+                  {formatCompact(row.points)}
                 </td>
                 <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs whitespace-nowrap lg:table-cell">
                   {formatRelativeTime(row.lastSeen)}

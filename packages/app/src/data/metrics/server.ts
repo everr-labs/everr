@@ -6,6 +6,7 @@ import {
   MetricExportIntervalInputSchema,
   MetricFilterOptionsInputSchema,
   MetricMetadataInputSchema,
+  MetricNamesInputSchema,
   MetricSeriesInputSchema,
   MetricSummaryQuantilesInputSchema,
   MetricsRepository,
@@ -31,7 +32,7 @@ export const getMetricMetadata = createAuthenticatedServerFn({ method: "GET" })
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).metadata(data));
 
 export const getMetricNames = createAuthenticatedServerFn({ method: "GET" })
-  .validator(MetricCatalogInputSchema)
+  .validator(MetricNamesInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).names(data));
 
 export const getMetricSeries = createAuthenticatedServerFn({ method: "GET" })

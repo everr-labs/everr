@@ -2,7 +2,7 @@ import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
 import { Shapes } from "lucide-react";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
@@ -27,6 +27,7 @@ import {
   type GroupByKey,
   type MetricAggregation,
   type MetricChartQuery,
+  MetricChartQuerySchema,
   type MetricsSearch,
   type MetricType,
   type MetricViewMode,
@@ -34,6 +35,7 @@ import {
   MetricKindSchema,
 } from "../data/schemas";
 import {
+  type MetricSeriesResult,
   aggregationsFor,
   defaultAggregation,
   isHistogramKind,
@@ -41,11 +43,11 @@ import {
   summaryAggregations,
   valueUnit,
 } from "../data/types";
-import { AddMetricButton, QueryRow } from "./chart-queries";
+import { QueryRow } from "./chart-queries";
 import { METRIC_KIND_SHORT_LABELS } from "./format";
 import type { ExemplarLinkRenderProps } from "./exemplar-card";
 import { MetricCatalog, type MetricLinkRenderProps } from "./metric-catalog";
-import { type ChartLine, MetricView, seriesLabel } from "./metric-view";
+import { AddMetricButton, type ChartLine, MetricView, seriesLabel } from "./metric-view";
 import type { MetricPickerProps } from "./metric-picker";
 
 export type { ExemplarLinkRenderProps, MetricLinkRenderProps };
@@ -91,6 +93,9 @@ const EXEMPLAR_AGGREGATIONS = new Set<MetricAggregation>([
   "min",
   "max",
 ]);
+
+const isMetricKind = (value: string): value is MetricKind =>
+  MetricKindSchema.safeParse(value).success;
 
 const METRIC_ATTRIBUTE_SOURCES_UI = ["metric", "resource"] as const;
 
@@ -182,23 +187,13 @@ function CatalogPage({
             icon={Shapes}
             accent={false}
             values={search.types}
-            onChange={(next) =>
-              onSearchChange({
-                types: next.flatMap((t) => {
-                  const parsed = MetricKindSchema.safeParse(t);
-                  return parsed.success ? [parsed.data] : [];
-                }),
-              })
-            }
+            onChange={(next) => onSearchChange({ types: next.filter(isMetricKind) })}
             options={metricKindOptions(repo, {
               timeRange,
               service,
               attributes: withEnvironment([], environment),
             })}
-            formatValue={(value) => {
-              const parsed = MetricKindSchema.safeParse(value);
-              return parsed.success ? METRIC_KIND_SHORT_LABELS[parsed.data] : value;
-            }}
+            formatValue={(value) => (isMetricKind(value) ? METRIC_KIND_SHORT_LABELS[value] : value)}
             placeholder="All types"
             searchPlaceholder="Search types..."
             className="w-full max-w-none"
@@ -226,16 +221,68 @@ function CatalogPage({
   );
 }
 
+type QueryId = MetricsSearch["hidden"][number];
+
 type QuerySpec = {
-  id: MetricsSearch["hidden"][number];
+  id: QueryId;
   metric: string;
   type: MetricType | undefined;
-  agg: MetricAggregation | undefined;
+  agg?: MetricAggregation;
   by: GroupByKey[];
   attributes: AttributeFilter[];
 };
 
-const QUERY_IDS = ["B", "C", "D"] as const;
+/** The chart's queries in order: A from the page's own fields, then `queries`. */
+function toSpecs(search: MetricsExplorerSearch, metric: string): QuerySpec[] {
+  const queryA: QuerySpec = {
+    id: "A",
+    metric,
+    type: search.metricType,
+    agg: search.agg,
+    by: search.by,
+    attributes: search.attributes,
+  };
+  return [
+    queryA,
+    ...search.queries.map((q) => ({ ...q, by: q.by ?? [], attributes: q.attributes ?? [] })),
+  ];
+}
+
+/**
+ * Writes queries back to the search: the first is A, in the page's own
+ * fields, so a single-metric link stays `?metric=`; the rest keep their letters.
+ */
+function fromSpecs([first, ...rest]: QuerySpec[]): Partial<MetricsExplorerSearch> {
+  if (!first) return {};
+  return {
+    metric: first.metric,
+    metricType: first.type,
+    agg: first.agg,
+    by: first.by,
+    attributes: first.attributes,
+    queries: rest.flatMap(({ id, type, metric, agg, by, attributes }) =>
+      id !== "A" && type
+        ? [
+            {
+              id,
+              type,
+              metric,
+              agg,
+              ...(by.length > 0 ? { by } : {}),
+              ...(attributes.length > 0 ? { attributes } : {}),
+            },
+          ]
+        : [],
+    ),
+  };
+}
+
+const QUERY_IDS = MetricChartQuerySchema.shape.id.options;
+
+// Structurally shared by TanStack Query, so a refetch that returns the same
+// data keeps the same arrays and the chart isn't rebuilt.
+const seriesState = (results: UseQueryResult<MetricSeriesResult>[]) =>
+  results.map(({ data, isPending, error, refetch }) => ({ data, isPending, error, refetch }));
 
 function MetricPage({
   repo,
@@ -253,142 +300,137 @@ function MetricPage({
   metric,
 }: MetricsExplorerProps & { metric: string }) {
   const environmentOnly = withEnvironment([], environment);
-
-  // Every metric in range, for the metric switcher: names and types only,
-  // as the full catalog's counts take seconds over long ranges.
-  const allMetrics = useQuery(
-    metricNamesOptions(repo, { timeRange, service, attributes: environmentOnly }, refresh),
-  );
-  const entryQuery = useQuery(
-    metricMetadataOptions(
-      repo,
-      { timeRange, metric, type: search.metricType, service, attributes: environmentOnly },
-      refresh,
-    ),
-  );
-  const entry = entryQuery.data ?? undefined;
-
-  // Query A is the page's own metric fields; B to D come from `queries`.
-  const queryA: QuerySpec = {
-    id: "A",
-    metric,
-    type: search.metricType ?? entry?.type,
-    agg: search.agg,
-    by: search.by,
-    attributes: search.attributes,
-  };
-  const specs: QuerySpec[] = [
-    queryA,
-    ...search.queries.map((q) => ({
-      id: q.id,
-      metric: q.metric,
-      type: q.type,
-      agg: q.agg,
-      by: q.by,
-      attributes: q.attributes,
-    })),
-  ];
+  const specs = toSpecs(search, metric);
   const multi = specs.length > 1;
   const hidden = new Set<string>(search.hidden);
 
-  // The other queries' metadata (unit, temporality), one metric each.
-  const otherEntryQueries = useQueries({
-    queries: search.queries.map((q) =>
-      metricMetadataOptions(
-        repo,
-        { timeRange, metric: q.metric, type: q.type, service, attributes: environmentOnly },
-        refresh,
-      ),
+  // Every metric in range, for the metric switcher: names and types only,
+  // as the full catalog's counts take seconds over long ranges.
+  const allMetrics = metricNamesOptions(repo, { timeRange, service, attributes: environmentOnly });
+  // Each query's metadata: unit, temporality, and A's type when the link
+  // didn't name it.
+  const metadataQueries = useQueries({
+    queries: specs.map((q) =>
+      metricMetadataOptions(repo, {
+        timeRange,
+        metric: q.metric,
+        type: q.type,
+        service,
+        attributes: environmentOnly,
+      }),
     ),
   });
-  const entries = [entry, ...otherEntryQueries.map((query) => query.data ?? undefined)];
-  // A sum's kind needs its metadata; until then, offer nothing rather than
-  // guess between a counter's rate and an UpDownCounter's sum.
-  const kinds = specs.map((q, i) =>
-    q.type && (q.type !== "sum" || entries[i])
-      ? metricKind(q.type, entries[i]?.isMonotonic ?? false)
-      : null,
-  );
-  const quantileQueries = useQueries({
-    queries: specs.map((q, i) => ({
-      ...metricSummaryQuantilesOptions(repo, { timeRange, metric: q.metric }),
-      enabled: kinds[i] === "summary",
-    })),
-  });
-  // A summary offers only the quantiles it reports, so its aggregation waits
-  // for them instead of defaulting to one that may not exist.
-  const aggregationLists = specs.map((_, i) => {
-    const kind = kinds[i];
-    if (!kind) return [];
-    if (kind !== "summary") return aggregationsFor(kind);
-    const reported = quantileQueries[i]?.data;
-    return reported ? summaryAggregations(reported) : [];
-  });
-  const aggregations = specs.map((q, i) => {
-    const list = aggregationLists[i] ?? [];
-    const kind = kinds[i];
-    if (q.agg && list.includes(q.agg)) return q.agg;
-    return kind && list.length > 0 ? defaultAggregation(kind, list) : null;
+  const described = specs.map((spec, i) => {
+    const metadata = metadataQueries[i];
+    const entry = metadata?.data ?? undefined;
+    const type = spec.type ?? entry?.type;
+    // A sum's kind needs its metadata; until then, offer nothing rather than
+    // guess between a counter's rate and an UpDownCounter's sum.
+    const kind =
+      type && (type !== "sum" || entry) ? metricKind(type, entry?.isMonotonic ?? false) : null;
+    return { ...spec, type, entry, kind, metadata };
   });
 
-  const attributesOf = (q: QuerySpec) => withEnvironment(q.attributes, environment);
+  const view: MetricViewMode =
+    !multi && isHistogramKind(described[0]?.kind ?? null) ? (search.view ?? "lines") : "lines";
+
+  const quantileQueries = useQueries({
+    queries: described.map((q) => ({
+      ...metricSummaryQuantilesOptions(repo, { timeRange, metric: q.metric }),
+      enabled: q.kind === "summary",
+    })),
+  });
+  const aggregated = described.map((q, i) => {
+    const quantiles = quantileQueries[i];
+    // A summary offers only the quantiles it reports, so its aggregation waits
+    // for them instead of defaulting to one that may not exist.
+    const reported = quantiles?.data;
+    const aggregations = !q.kind
+      ? []
+      : q.kind !== "summary"
+        ? aggregationsFor(q.kind)
+        : reported
+          ? summaryAggregations(reported)
+          : [];
+    const aggregation =
+      q.agg && aggregations.includes(q.agg)
+        ? q.agg
+        : q.kind && aggregations.length > 0
+          ? defaultAggregation(q.kind, aggregations)
+          : null;
+    return {
+      ...q,
+      quantiles,
+      aggregations,
+      aggregation,
+      scopedAttributes: withEnvironment(q.attributes, environment),
+    };
+  });
+
   // The chart is never finer than the slowest query's export interval, so
   // every query, and the exemplars, share one step and line up.
   const intervalQueries = useQueries({
-    queries: specs.map((q) => ({
+    queries: aggregated.map((q) => ({
       ...metricExportIntervalOptions(repo, {
         timeRange,
         metric: q.metric,
         type: q.type ?? "gauge",
         service,
-        attributes: attributesOf(q),
+        // Filters narrow which series report, not how often they export.
+        attributes: environmentOnly,
       }),
       enabled: Boolean(q.type),
     })),
   });
-  const intervalsReady = specs.every((q, i) => !q.type || intervalQueries[i]?.isSuccess);
+  const intervalsReady = aggregated.every((q, i) => !q.type || intervalQueries[i]?.isSuccess);
   const minStep = Math.max(0, ...intervalQueries.map((query) => query.data ?? 0)) || undefined;
   const seriesQueries = useQueries({
-    queries: specs.map((q, i) => ({
+    queries: aggregated.map((q) => ({
       ...metricSeriesOptions(
         repo,
         {
           timeRange,
           metric: q.metric,
           type: q.type ?? "gauge",
-          aggregation: aggregations[i] ?? "avg",
+          aggregation: q.aggregation ?? "avg",
           groupBy: q.by,
           service,
-          attributes: attributesOf(q),
+          attributes: q.scopedAttributes,
           minStep,
+          heatmap: view === "heatmap",
         },
         refresh,
       ),
-      enabled: Boolean(q.type && aggregations[i]) && intervalsReady,
+      enabled: Boolean(q.type && q.aggregation) && intervalsReady,
     })),
+    combine: seriesState,
   });
+  const queries = aggregated.map((q, i) => ({
+    ...q,
+    interval: intervalQueries[i],
+    series: seriesQueries[i],
+  }));
+  const [queryA] = queries;
+  if (!queryA) throw new Error("A chart always has query A");
 
-  const kind = kinds[0] ?? null;
-  const aggregation = aggregations[0] ?? null;
   const showExemplars =
     !multi &&
-    kind !== null &&
-    kind !== "counter" &&
-    // Summaries carry no exemplars.
-    kind !== "summary" &&
-    aggregation !== null &&
-    EXEMPLAR_AGGREGATIONS.has(aggregation) &&
-    (!isHistogramKind(kind) || (search.view ?? "lines") === "lines");
+    // Summaries carry no exemplars; a counter's rate and increase aren't on
+    // its values' scale, so EXEMPLAR_AGGREGATIONS leaves them out.
+    queryA.kind !== "summary" &&
+    queryA.aggregation !== null &&
+    EXEMPLAR_AGGREGATIONS.has(queryA.aggregation) &&
+    view === "lines";
   const exemplarsQuery = useQuery({
     ...metricExemplarsOptions(
       repo,
       {
         timeRange,
         metric,
-        type: specs[0]?.type ?? "gauge",
-        groupBy: search.by,
+        type: queryA.type ?? "gauge",
+        groupBy: queryA.by,
         service,
-        attributes: attributesOf(queryA),
+        attributes: queryA.scopedAttributes,
         minStep,
       },
       refresh,
@@ -396,27 +438,23 @@ function MetricPage({
     enabled: showExemplars && intervalsReady,
   });
 
-  const results = seriesQueries.map((query) => query.data);
-  const primary = results[0];
-  const allLoaded = results.every((r, i) => r !== undefined || !specs[i]?.type);
+  const primary = queryA.series?.data;
+  const allLoaded = queries.every((q) => q.series?.data !== undefined || !q.type);
 
-  // Recomputed when any query's data, or what's drawn from it, changes.
-  const drawKey = JSON.stringify([
-    seriesQueries.map((query) => query.dataUpdatedAt),
-    specs.map((q) => [q.id, q.metric]),
-    aggregations,
-    kinds,
-    entries.map((e) => e?.unit),
+  // What the lines are drawn from besides the series data, whose arrays stay
+  // the same across refetches that return the same values.
+  const lineKey = JSON.stringify([
+    queries.map((q) => [q.id, q.metric, q.kind, q.aggregation, q.entry?.unit]),
     search.hidden,
   ]);
   const lines = useMemo(() => {
     if (!primary || !allLoaded) return undefined;
     const out: ChartLine[] = [];
-    specs.forEach((q, i) => {
-      const result = results[i];
-      if (!result || (multi && hidden.has(q.id))) return;
-      const unit = valueUnit(kinds[i] ?? null, aggregations[i] ?? null, entries[i]?.unit ?? "");
-      for (const s of result.series.slice(0, SERIES_ON_CHART)) {
+    for (const q of queries) {
+      const result = q.series?.data;
+      if (!result || (multi && hidden.has(q.id))) continue;
+      const unit = valueUnit(q.kind, q.aggregation, q.entry?.unit ?? "");
+      for (const s of result.series) {
         // Under its query's heading, a series grouped by nothing needs no name.
         const name =
           multi && s.labels.length === 0 ? "all series" : seriesLabel(s.labels, q.metric);
@@ -424,21 +462,19 @@ function MetricPage({
           id: multi ? `${q.id}\u0000${s.labels.join("\u0000")}` : s.labels.join("\u0000") || metric,
           label: multi ? `${q.id} · ${seriesLabel(s.labels, q.metric)}` : name,
           name,
-          ...(multi
-            ? { query: { id: q.id, metric: q.metric, aggregation: aggregations[i] ?? null } }
-            : {}),
+          ...(multi ? { query: { id: q.id, metric: q.metric, aggregation: q.aggregation } } : {}),
           values: s.values,
           unit,
-          aggregation: aggregations[i] ?? null,
+          aggregation: q.aggregation,
         });
       }
-    });
+    }
     return out;
-    // Everything read above is captured by drawKey.
+    // Everything else read above is captured by lineKey.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawKey, primary, allLoaded]);
+  }, [seriesQueries, lineKey, allLoaded]);
 
-  const attributeRepoFor = (q: QuerySpec): AttributeRepositoryLike => ({
+  const attributeRepoFor = (q: Pick<QuerySpec, "metric" | "type">): AttributeRepositoryLike => ({
     attributeKeys: ({ timeRange }) =>
       q.type
         ? repo.attributeKeys({ timeRange, metric: q.metric, type: q.type })
@@ -450,12 +486,8 @@ function MetricPage({
   });
 
   // The rail's Attributes edit one query: A unless another row is picked.
-  const [selectedId, setSelectedId] = useState("A");
-  const selectedIndex = Math.max(
-    0,
-    specs.findIndex((q) => q.id === selectedId),
-  );
-  const selected = specs[selectedIndex] ?? queryA;
+  const [selectedId, setSelectedId] = useState<QueryId>("A");
+  const selected = queries.find((q) => q.id === selectedId) ?? queryA;
   const selectedRepo = useMemo(
     () => attributeRepoFor(selected),
     // A query's attribute lists depend only on its metric.
@@ -468,112 +500,70 @@ function MetricPage({
     [repo, metric, queryA.type],
   );
 
-  const updateQuery = (id: string, patch: Partial<Omit<QuerySpec, "id">>) => {
-    if (id === "A") {
-      onSearchChange({
-        ...(patch.metric !== undefined ? { metric: patch.metric } : {}),
-        ...(patch.type !== undefined ? { metricType: patch.type } : {}),
-        ...("agg" in patch ? { agg: patch.agg } : {}),
-        ...(patch.by !== undefined ? { by: patch.by } : {}),
-        ...(patch.attributes !== undefined ? { attributes: patch.attributes } : {}),
-      });
-      return;
-    }
-    onSearchChange({
-      queries: search.queries.map((q) => (q.id === id ? { ...q, ...patch } : q)),
-    });
-  };
-  const freeQueryId = QUERY_IDS.find((id) => !search.queries.some((q) => q.id === id));
+  // The search with one query changed, every query written back.
+  const withQuery = (id: QueryId, patch: Partial<Omit<QuerySpec, "id">>) =>
+    fromSpecs(queries.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+
+  const freeQueryId = QUERY_IDS.find((id) => !queries.some((q) => q.id === id));
   const addQuery = freeQueryId
     ? () => {
         // A copy of the last query, ready to change: the usual next step is
         // the same metric with another filter, or a sibling metric.
-        const last = specs[specs.length - 1];
+        const last = queries[queries.length - 1];
         if (!last?.type) return;
         onSearchChange({
+          ...fromSpecs([
+            ...queries,
+            // The aggregation only when picked, so the copy follows the default.
+            { ...last, id: freeQueryId },
+          ]),
           view: undefined,
-          queries: [
-            ...search.queries,
-            {
-              id: freeQueryId,
-              metric: last.metric,
-              type: last.type,
-              agg: aggregations[specs.length - 1] ?? undefined,
-              by: last.by,
-              attributes: last.attributes,
-            },
-          ],
         });
         setSelectedId(freeQueryId);
       }
     : undefined;
 
-  const removeQuery = (id: string) => {
-    // Back to one query, the page has no hide toggle, so nothing stays hidden.
-    const single = search.queries.length === 1;
-    if (id !== "A") {
-      onSearchChange({
-        queries: search.queries.filter((q) => q.id !== id),
-        hidden: single ? [] : search.hidden.filter((h) => h !== id),
-      });
-      if (selected.id === id) setSelectedId("A");
-      return;
-    }
-    // Query A is the page's own fields, so the next query moves into them and
-    // becomes A.
-    const [next, ...rest] = search.queries;
-    if (!next) return;
+  const removeQuery = (id: QueryId) => {
+    const remaining = queries.filter((q) => q.id !== id);
+    // The first query left is written back as A, which renames it when A goes.
+    const renamed = remaining[0]?.id;
     onSearchChange({
-      metric: next.metric,
-      metricType: next.type,
-      agg: next.agg,
+      ...fromSpecs(remaining),
       view: undefined,
-      by: next.by,
-      attributes: next.attributes,
-      queries: rest,
-      hidden: single
-        ? []
-        : search.hidden.flatMap((h) => (h === "A" ? [] : h === next.id ? ["A" as const] : [h])),
+      // Back to one query, the page has no hide toggle, so nothing stays hidden.
+      hidden:
+        remaining.length === 1
+          ? []
+          : search.hidden.flatMap((h) => (h === id ? [] : [h === renamed ? "A" : h])),
     });
-    if (selected.id === "A" || selected.id === next.id) setSelectedId("A");
+    if (selectedId === id || selectedId === renamed) setSelectedId("A");
   };
 
   // Switching a query's metric drops what only made sense for the old one.
   const pickerFor = (q: QuerySpec): MetricPickerProps => ({
-    metrics: allMetrics.data,
+    metrics: allMetrics,
     value: { name: q.metric, type: q.type },
-    onChange: ({ name, type }) => {
-      if (!multi) {
-        onSearchChange({ ...CLEAR_METRIC, metric: name, metricType: type });
-      } else if (q.id === "A") {
-        onSearchChange({
-          metric: name,
-          metricType: type,
-          agg: undefined,
-          view: undefined,
-          by: [],
-          attributes: [],
-        });
-      } else {
-        updateQuery(q.id, { metric: name, type, agg: undefined, by: [], attributes: [] });
-      }
-    },
+    onChange: ({ name, type }) =>
+      onSearchChange({
+        ...withQuery(q.id, { metric: name, type, agg: undefined, by: [], attributes: [] }),
+        view: undefined,
+      }),
   });
 
   const queryRows = multi ? (
     <>
-      {specs.map((q, i) => (
+      {queries.map((q, i) => (
         <QueryRow
           key={q.id}
           id={q.id}
           metric={q.metric}
-          kind={kinds[i] ?? null}
-          entry={entries[i]}
+          kind={q.kind}
+          entry={q.entry}
           picker={pickerFor(q)}
           selected={selected.id === q.id}
           filterCount={q.attributes.length}
-          aggregations={aggregationLists[i] ?? []}
-          aggregation={aggregations[i] ?? null}
+          aggregations={q.aggregations}
+          aggregation={q.aggregation}
           groupBy={q.by}
           attributeRepo={i === 0 ? attributeRepo : attributeRepoFor(q)}
           attributeDomain={`metrics:${q.type ?? ""}:${q.metric}`}
@@ -588,8 +578,8 @@ function MetricPage({
             })
           }
           onRemove={() => removeQuery(q.id)}
-          onAggregationChange={(agg) => updateQuery(q.id, { agg })}
-          onGroupByChange={(by) => updateQuery(q.id, { by })}
+          onAggregationChange={(agg) => onSearchChange(withQuery(q.id, { agg }))}
+          onGroupByChange={(by) => onSearchChange(withQuery(q.id, { by }))}
         />
       ))}
       {/* Right-aligned, where the single-query toolbar has it, so it only moves
@@ -602,8 +592,11 @@ function MetricPage({
     </>
   ) : undefined;
 
-  const seriesError = seriesQueries.find((query) => query.error)?.error ?? null;
-  const intervalError = intervalQueries.find((query) => query.error)?.error ?? null;
+  const error =
+    queries.find((q) => q.series?.error)?.series?.error ??
+    queries.find((q) => q.interval?.error)?.interval?.error ??
+    queries.find((q) => q.metadata?.error)?.metadata?.error ??
+    null;
 
   return (
     <>
@@ -611,8 +604,8 @@ function MetricPage({
         label="Metric filters"
         persistentFilters={persistentFilters}
         persistentFilterCount={countPersistentFilters(service, environment)}
-        pageFilterCount={selected.attributes.length ?? 0}
-        onClear={() => updateQuery(selected.id ?? "A", { attributes: [] })}
+        pageFilterCount={selected.attributes.length}
+        onClear={() => onSearchChange(withQuery(selected.id, { attributes: [] }))}
       >
         <AttributeFilterSection
           key={selected.id}
@@ -626,52 +619,52 @@ function MetricPage({
             ) : undefined
           }
           repo={selectedRepo}
-          domain={`metrics:${selected.type ?? ""}:${selected.metric ?? metric}`}
+          domain={`metrics:${selected.type ?? ""}:${selected.metric}`}
           timeRange={timeRange}
-          attributes={selected.attributes ?? []}
+          attributes={selected.attributes}
           promotedAttributes={[]}
           excludedKeys={METRIC_EXCLUDED_KEYS}
           sources={[...METRIC_ATTRIBUTE_SOURCES_UI]}
-          onChange={(next) => updateQuery(selected.id ?? "A", { attributes: next })}
+          onChange={(next) => onSearchChange(withQuery(selected.id, { attributes: next }))}
         />
       </ExploreFilterRail>
       <main className="flex min-h-0 min-w-0 flex-col">
         <MetricView
           metric={metric}
-          kind={kind}
-          entry={entry}
-          aggregations={aggregationLists[0] ?? []}
-          aggregation={aggregation}
-          groupBy={search.by}
+          kind={queryA.kind}
+          entry={queryA.entry}
+          aggregations={queryA.aggregations}
+          aggregation={queryA.aggregation}
+          groupBy={queryA.by}
           result={primary}
           lines={lines}
           metricPicker={pickerFor(queryA)}
           queryRows={queryRows}
-          queryMetrics={multi ? specs.map((q) => q.metric) : undefined}
-          addControls={<AddMetricButton onAdd={addQuery} />}
+          queryMetrics={multi ? queries.map((q) => q.metric) : undefined}
+          onAddQuery={addQuery}
           exemplars={showExemplars ? exemplarsQuery.data : undefined}
-          isPending={
-            entryQuery.isPending ||
-            specs.some(
-              (q, i) =>
-                (kinds[i] === "summary" && quantileQueries[i]?.isPending) ||
-                (q.type && intervalQueries[i]?.isPending) ||
-                (Boolean(aggregations[i]) && seriesQueries[i]?.isPending),
-            )
-          }
-          error={seriesError ?? intervalError ?? entryQuery.error}
+          isPending={queries.some(
+            (q) =>
+              q.metadata?.isPending ||
+              (q.kind === "summary" && q.quantiles?.isPending) ||
+              (q.type && q.interval?.isPending) ||
+              (q.aggregation && q.series?.isPending),
+          )}
+          error={error}
           onRetry={() => {
-            void entryQuery.refetch();
-            intervalQueries.forEach((query) => void query.refetch());
-            seriesQueries.forEach((query) => void query.refetch());
+            for (const q of queries) {
+              void q.metadata?.refetch();
+              void q.interval?.refetch();
+              void q.series?.refetch();
+            }
           }}
           attributeRepo={attributeRepo}
-          attributeDomain={`metrics:${specs[0]?.type ?? ""}:${metric}`}
+          attributeDomain={`metrics:${queryA.type ?? ""}:${metric}`}
           timeRange={timeRange}
           backLink={renderCatalogLink}
           renderTraceLink={renderTraceLink}
           renderLogsLink={renderLogsLink}
-          view={!multi && isHistogramKind(kind) ? (search.view ?? "lines") : "lines"}
+          view={view}
           onViewChange={(view) => onSearchChange({ view })}
           onAggregationChange={(agg) => onSearchChange({ agg })}
           onGroupByChange={(by) => onSearchChange({ by })}
@@ -681,5 +674,3 @@ function MetricPage({
     </>
   );
 }
-
-const SERIES_ON_CHART = 10;

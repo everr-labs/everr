@@ -1,10 +1,10 @@
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
-import { Eye, EyeOff, Plus, X } from "lucide-react";
-import { type ReactNode, useRef } from "react";
+import { Eye, EyeOff, X } from "lucide-react";
+import { useRef } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
-import type { GroupByKey, MetricAggregation } from "../data/schemas";
-import type { MetricCatalogEntry, MetricKind } from "../data/types";
+import type { GroupByKey, MetricAggregation, MetricKind } from "../data/schemas";
+import type { MetricMetadata } from "../data/types";
 import { METRIC_KIND_LABELS, temporalityLabel, unitName } from "./format";
 import { MetricName, queryLetterClass, queryTagClass } from "./metric-name";
 import { MetricPicker, type MetricPickerProps } from "./metric-picker";
@@ -49,7 +49,7 @@ export function QueryRow({
   id: string;
   metric: string;
   kind: MetricKind | null;
-  entry: MetricCatalogEntry | undefined;
+  entry: MetricMetadata | undefined;
   picker: MetricPickerProps;
   selected: boolean;
   filterCount: number;
@@ -126,7 +126,6 @@ export function QueryRow({
         </MetricPicker>
       </div>
       <QueryControls
-        showLabel={false}
         aggregations={aggregations}
         aggregation={aggregation}
         groupBy={groupBy}
@@ -150,16 +149,5 @@ export function QueryRow({
         <RemoveButton label={`Remove query ${id}`} onRemove={onRemove} />
       </div>
     </div>
-  );
-}
-
-/** Adds a query to the chart, a copy of the last one. */
-export function AddMetricButton({ onAdd }: { onAdd?: () => void }): ReactNode {
-  if (!onAdd) return null;
-  return (
-    <Button variant="ghost" size="sm" onClick={onAdd}>
-      <Plus />
-      Metric
-    </Button>
   );
 }

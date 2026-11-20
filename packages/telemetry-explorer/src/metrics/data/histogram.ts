@@ -99,6 +99,10 @@ export function rebucket(
   counts: readonly number[],
   target: readonly number[],
 ): number[] {
+  // The common case: every series in the group reported the same bounds.
+  if (bounds.length === target.length && bounds.every((b, i) => b === target[i])) {
+    return Array.from({ length: target.length + 1 }, (_, i) => counts[i] ?? 0);
+  }
   const out = Array.from({ length: target.length + 1 }, () => 0);
   // The target bucket holding a value: the first whose upper bound is at or above it.
   const holding = (value: number) => {
@@ -171,7 +175,9 @@ export function histogramSeries(
   const groups = new Map<string, HistogramInterval[]>();
   for (const interval of intervals) {
     const id = JSON.stringify(interval.labels);
-    groups.set(id, [...(groups.get(id) ?? []), interval]);
+    const group = groups.get(id);
+    if (group) group.push(interval);
+    else groups.set(id, [interval]);
   }
   const indexOf = new Map(grid.map((t, i) => [t, i]));
   const layouts: BucketLayout[] = [];
@@ -217,22 +223,24 @@ export interface ExponentialSpan {
   negative: [number, number] | null;
 }
 
-function usedIndexes(counts: Record<string, number>): number[] {
-  return Object.entries(counts)
-    .filter(([, count]) => count > 0)
-    .map(([index]) => Number(index));
-}
-
 /** The span covering every given histogram's buckets. */
 export function exponentialSpan(
   histograms: { positive: Record<string, number>; negative: Record<string, number> }[],
 ): ExponentialSpan {
-  const extent = (indexes: number[]): [number, number] | null =>
-    indexes.length > 0 ? [Math.min(...indexes), Math.max(...indexes)] : null;
-  return {
-    positive: extent(histograms.flatMap((h) => usedIndexes(h.positive))),
-    negative: extent(histograms.flatMap((h) => usedIndexes(h.negative))),
+  // A running min and max: spreading every index into Math.min overflows the
+  // stack on large scans.
+  const extent = (side: "positive" | "negative"): [number, number] | null => {
+    let span: [number, number] | null = null;
+    for (const histogram of histograms) {
+      for (const [key, count] of Object.entries(histogram[side])) {
+        if (!(count > 0)) continue;
+        const index = Number(key);
+        span = span ? [Math.min(span[0], index), Math.max(span[1], index)] : [index, index];
+      }
+    }
+    return span;
   };
+  return { positive: extent("positive"), negative: extent("negative") };
 }
 
 /**
@@ -248,7 +256,7 @@ export function exponentialBuckets(
   positive: Record<string, number>,
   negative: Record<string, number>,
   zero: number,
-  span: ExponentialSpan = exponentialSpan([{ positive, negative }]),
+  span: ExponentialSpan,
 ): { bounds: number[]; counts: number[] } {
   const base = 2 ** (2 ** -scale);
   const bounds: number[] = [];

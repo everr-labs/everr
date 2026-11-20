@@ -1,14 +1,26 @@
-import type { MetricAggregation } from "../data/schemas";
-import type { MetricKind } from "../data/types";
+import type { MetricAggregation, MetricKind } from "../data/schemas";
 
 const number = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 3 });
 const compact = new Intl.NumberFormat(undefined, {
   maximumSignificantDigits: 3,
   notation: "compact",
 });
+const count = new Intl.NumberFormat();
 
-const DURATION_SECONDS: Record<string, number> = { ns: 1e-9, us: 1e-6, ms: 1e-3, s: 1, min: 60 };
+export const formatCount = (value: number) => count.format(value);
+export const formatCompact = (value: number) => compact.format(value);
+
+const DURATION_SECONDS: Record<string, number> = {
+  ns: 1e-9,
+  us: 1e-6,
+  ms: 1e-3,
+  s: 1,
+  min: 60,
+  h: 3600,
+  d: 86_400,
+};
 const DURATION_STEPS: [number, string][] = [
+  [86_400, "d"],
   [3600, "h"],
   [60, "min"],
   [1, "s"],

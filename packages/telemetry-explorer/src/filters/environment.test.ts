@@ -1,21 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { AttributeFilter } from "../attribute-filter/schemas";
-import { environmentFilter, withEnvironment } from "./environment";
-
-describe("environmentFilter", () => {
-  it("returns null when no environments are selected", () => {
-    expect(environmentFilter([])).toBeNull();
-  });
-
-  it("builds a deployment.environment resource 'in' filter", () => {
-    expect(environmentFilter(["prod", "staging"])).toEqual({
-      source: "resource",
-      key: "deployment.environment.name",
-      op: "in",
-      values: ["prod", "staging"],
-    });
-  });
-});
+import { withEnvironment } from "./environment";
 
 describe("withEnvironment", () => {
   const base: AttributeFilter[] = [

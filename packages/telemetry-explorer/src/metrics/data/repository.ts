@@ -1,4 +1,4 @@
-import { bucketSeconds } from "@everr/ui/lib/bucket";
+import { bucketSeconds, snapToNiceStep } from "@everr/ui/lib/bucket";
 import { resolveTimeRange, toClickHouseDateTimeSeconds } from "@everr/ui/lib/time-range";
 import type {
   AttributeFilter,
@@ -15,6 +15,8 @@ import {
   type MetricAttributeValuesInput,
   type MetricCatalogInput,
   MetricCatalogInputSchema,
+  type MetricNamesInput,
+  MetricNamesInputSchema,
   type MetricMetadataInput,
   MetricMetadataInputSchema,
   type MetricExemplarsInput,
@@ -39,6 +41,7 @@ import {
 import {
   aggregationsFor,
   type MetricCatalogEntry,
+  type MetricMetadata,
   type MetricNameEntry,
   type MetricExemplar,
   type MetricSeries,
@@ -50,9 +53,9 @@ import {
 export type MetricsRepositoryLike = {
   catalog(input: MetricCatalogInput): Promise<MetricCatalogEntry[]>;
   /** The metrics in range, name and type only, for the metric switcher. */
-  names(input: MetricCatalogInput): Promise<MetricNameEntry[]>;
-  /** One metric's catalog entry, or null when it sent nothing in range. */
-  metadata(input: MetricMetadataInput): Promise<MetricCatalogEntry | null>;
+  names(input: MetricNamesInput): Promise<MetricNameEntry[]>;
+  /** One metric's unit, description and temporality, or null when it sent nothing in range. */
+  metadata(input: MetricMetadataInput): Promise<MetricMetadata | null>;
   series(input: MetricSeriesInput): Promise<MetricSeriesResult>;
   exemplars(input: MetricExemplarsInput): Promise<MetricExemplar[]>;
   attributeKeys(input: MetricAttributeKeysInput): Promise<AttributeKey[]>;
@@ -102,6 +105,11 @@ const SERIES_TARGET_BUCKETS = 120;
 const SERIES_MIN_STEP_SECONDS = 60;
 const SERIES_TOP_N = 10;
 const SERIES_ROW_LIMIT = 200_000;
+// Enough rows to find a unit or description that some points leave empty.
+const METADATA_SAMPLE_ROWS = 1000;
+// The export interval reads the end of the range only: at least this much,
+// or a tenth of a long range, so a slow exporter still reports twice.
+const EXPORT_INTERVAL_MIN_SCAN_MS = 60 * 60 * 1000;
 // One per interval and series keeps the chart readable on long ranges.
 const EXEMPLAR_LIMIT = 1000;
 const ATTRIBUTE_KEYS_SAMPLE = 10_000;
@@ -256,22 +264,25 @@ function bucketGrid(from: Date, to: Date, step: number): number[] {
   return grid;
 }
 
-// Steps a chart may take when the export interval sets it, so buckets stay on
-// round clock times.
-const CLEAN_STEPS = [60, 120, 300, 600, 900, 1800, 3600, 7200, 10_800, 21_600, 43_200, 86_400];
-
 /**
  * The chart's step: about 120 buckets over the range, never under a minute,
  * and never finer than the metric's export interval (`minStep`), which would
  * only leave empty buckets between exports. The interval is rounded up to a
- * clean step, with 10% slack so 61 s of exporter jitter stays at 1 minute.
+ * nice step, so buckets stay on round clock times, with 10% slack so 61 s
+ * of exporter jitter stays at 1 minute. `fromExport` says the interval won.
  */
-function seriesStep(from: Date, to: Date, minStep?: number): number {
+function seriesStep(from: Date, to: Date, minStep?: number): { step: number; fromExport: boolean } {
   const byRange = Math.max(SERIES_MIN_STEP_SECONDS, bucketSeconds(from, to, SERIES_TARGET_BUCKETS));
-  if (!minStep) return byRange;
-  const byExport =
-    CLEAN_STEPS.find((step) => step >= minStep * 0.9) ?? CLEAN_STEPS[CLEAN_STEPS.length - 1] ?? 0;
-  return Math.max(byRange, byExport);
+  const byExport = minStep ? snapToNiceStep(minStep * 0.9) : 0;
+  return { step: Math.max(byRange, byExport), fromExport: byExport > byRange };
+}
+
+/** The scan's time bounds, widened to whole seconds. */
+function windowParams(from: Date, to: Date) {
+  return {
+    fromTs: toClickHouseDateTimeSeconds(from, "floor"),
+    toTs: toClickHouseDateTimeSeconds(to, "ceil"),
+  };
 }
 
 /** One array element per group-by key, read from the series' attributes. */
@@ -324,7 +335,6 @@ interface CatalogRowRaw {
   description: string;
   isMonotonic: boolean | number;
   temporality: number | string;
-  services: number | string;
   points: number | string;
   lastSeen: string;
 }
@@ -350,16 +360,6 @@ interface HistogramRowRaw {
 }
 
 /**
- * Observations per interval and group. Delta points carry an interval's
- * observations already. Cumulative points carry running totals, so each
- * series' interval is its last snapshot minus the one before; a total that
- * dropped, or bounds that changed, mean the series restarted, and the new
- * snapshot is all its observations, as is the first snapshot of a series that
- * started inside the scan. A change spanning more than a step is spread over
- * the buckets it covers (see SPREAD_SQL). Series in one group add up bucket by
- * bucket when their bounds match.
- */
-/**
  * The same as `histogramSql` for exponential histograms. Every point is first
  * brought down to the lowest scale in the scan: at scale s - 1 each bucket
  * merges two neighbours at s, so index i becomes floor(i / 2^d). Series and
@@ -368,18 +368,16 @@ interface HistogramRowRaw {
  * Prometheus merges native histograms of different resolutions.
  */
 function expHistogramSql(table: string, where: string, labelsSql: string, bucketSql: string) {
+  // sumMap adds counts that land on the same index at the lower scale; its
+  // (keys, values) result casts straight to a map.
   const buckets = (offset: string, counts: string) =>
-    `mapFromArrays(
+    `CAST(
         arrayReduce('sumMap',
           [arrayMap(k -> toInt64(floor((${offset} + k) / pow(2, Scale - minScale))), range(length(${counts})))],
-          [arrayMap(c -> toFloat64(c), ${counts})]).1,
-        arrayReduce('sumMap',
-          [arrayMap(k -> toInt64(floor((${offset} + k) / pow(2, Scale - minScale))), range(length(${counts})))],
-          [arrayMap(c -> toFloat64(c), ${counts})]).2)`;
-  const positiveDelta =
-    "mapApply((k, v) -> (k, greatest(v, 0)), mapSubtract(lastPositive, previousPositive))";
-  const negativeDelta =
-    "mapApply((k, v) -> (k, greatest(v, 0)), mapSubtract(lastNegative, previousNegative))";
+          [arrayMap(c -> toFloat64(c), ${counts})]),
+        'Map(Int64, Float64)')`;
+  const clampedDelta = (side: "Positive" | "Negative") =>
+    `mapApply((k, v) -> (k, greatest(v, 0)), mapSubtract(last${side}, previous${side}))`;
   const scaled = (map: string) => `mapApply((k, v) -> (k, v * share), ${map})`;
   return `
 WITH (SELECT min(Scale) FROM ${table} WHERE ${where}) AS minScale
@@ -391,8 +389,8 @@ FROM (
   FROM (
     SELECT labels, t,
       if(temporality = 1, ${DELTA_FROM_SQL}, if(restarted, greatest(previousT, lastStart), previousT)) AS f,
-      if(temporality = 1, deltaPositive, if(restarted, lastPositive, ${positiveDelta})) AS positive,
-      if(temporality = 1, deltaNegative, if(restarted, lastNegative, ${negativeDelta})) AS negative,
+      if(temporality = 1, deltaPositive, if(restarted, lastPositive, ${clampedDelta("Positive")})) AS positive,
+      if(temporality = 1, deltaNegative, if(restarted, lastNegative, ${clampedDelta("Negative")})) AS negative,
       toFloat64(if(temporality = 1, deltaZero, if(restarted, lastZero, lastZero - previousZero))) AS zero,
       toFloat64(if(temporality = 1, deltaCount, if(restarted, lastCount, lastCount - previousCount))) AS count,
       if(temporality = 1, deltaSum, if(restarted, lastSum, lastSum - previousSum)) AS total
@@ -449,6 +447,16 @@ ORDER BY ts
 LIMIT ${SERIES_ROW_LIMIT}`;
 }
 
+/**
+ * Observations per interval and group. Delta points carry an interval's
+ * observations already. Cumulative points carry running totals, so each
+ * series' interval is its last snapshot minus the one before; a total that
+ * dropped, or bounds that changed, mean the series restarted, and the new
+ * snapshot is all its observations, as is the first snapshot of a series that
+ * started inside the scan. A change spanning more than a step is spread over
+ * the buckets it covers (see SPREAD_SQL). Series in one group add up bucket by
+ * bucket when their bounds match.
+ */
 function histogramSql(table: string, where: string, labelsSql: string, bucketSql: string) {
   const asFloats = (array: string) => `arrayMap(x -> toFloat64(x), ${array})`;
   return `
@@ -514,7 +522,31 @@ LIMIT ${SERIES_ROW_LIMIT}`;
 interface SeriesRowRaw {
   ts: number | string;
   labels: string[];
-  value: number | string | null;
+  value: number | string;
+  /** How many groups the query produced, before the cut to the top ones. */
+  groups: number | string;
+}
+
+/**
+ * Keeps the rows of the SERIES_TOP_N groups with the highest peak, so a
+ * group-by over many values sends ten lines, not all of them, and counts the
+ * groups that were cut. Rows without a finite value never make a line.
+ */
+function topSeriesSql(sql: string) {
+  return `
+SELECT * EXCEPT (peak, rank)
+FROM (
+  SELECT *, dense_rank() OVER (ORDER BY peak DESC, labels) AS rank
+  FROM (
+    SELECT *,
+      max(value) OVER (PARTITION BY labels) AS peak,
+      uniqExact(labels) OVER () AS groups
+    FROM (${sql})
+    WHERE isFinite(value)
+  )
+)
+WHERE rank <= ${SERIES_TOP_N}
+ORDER BY ts`;
 }
 
 export class MetricsRepository implements MetricsRepositoryLike {
@@ -530,35 +562,12 @@ export class MetricsRepository implements MetricsRepositoryLike {
 
   async catalog(raw: MetricCatalogInput): Promise<MetricCatalogEntry[]> {
     const input = MetricCatalogInputSchema.parse(raw);
-    return this.catalogEntries(input, kindScope(input.kinds));
-  }
-
-  async metadata(raw: MetricMetadataInput): Promise<MetricCatalogEntry | null> {
-    const input = MetricMetadataInputSchema.parse(raw);
-    const types = input.type ? [input.type] : MetricTypeSchema.options;
-    const entries = await this.catalogEntries(
-      input,
-      types.map((type) => ({ type, clause: "" })),
-    );
-    return entries[0] ?? null;
-  }
-
-  private async catalogEntries(
-    input: {
-      timeRange: MetricCatalogInput["timeRange"];
-      service: string[];
-      attributes: AttributeFilter[];
-      q?: string;
-      metric?: string;
-    },
-    scope: CatalogScope,
-  ): Promise<MetricCatalogEntry[]> {
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
     const where = baseWhere(input);
 
-    const parts = scope.map(
+    const parts = kindScope(input.kinds).map(
       ({ type, clause }) => `
-  SELECT MetricName, '${type}' AS type, MetricUnit, MetricDescription, ServiceName, TimeUnix,
+  SELECT MetricName, '${type}' AS type, MetricUnit, MetricDescription, TimeUnix,
     ${TYPE_COLUMNS[type].monotonic} AS monotonic,
     ${TYPE_COLUMNS[type].temporality} AS temporality
   FROM ${this.tables[type]}
@@ -573,7 +582,6 @@ SELECT
   anyIf(MetricDescription, MetricDescription != '') AS description,
   max(monotonic) AS isMonotonic,
   max(temporality) AS temporality,
-  uniqExact(ServiceName) AS services,
   count() AS points,
   toString(max(TimeUnix)) AS lastSeen
 FROM (${parts.join("\n  UNION ALL")}
@@ -584,8 +592,7 @@ LIMIT ${CATALOG_LIMIT}`;
 
     const rows = await this.client.execute<CatalogRowRaw>(sql, {
       ...where.params,
-      fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(fromDate, toDate),
     });
 
     return rows.map((row) => ({
@@ -595,23 +602,67 @@ LIMIT ${CATALOG_LIMIT}`;
       description: row.description,
       isMonotonic: Boolean(toNumber(row.isMonotonic)),
       temporality: toNumber(row.temporality),
-      services: toNumber(row.services),
       points: toNumber(row.points),
       lastSeen: row.lastSeen,
     }));
   }
 
-  async names(raw: MetricCatalogInput): Promise<MetricNameEntry[]> {
-    const input = MetricCatalogInputSchema.parse(raw);
+  /**
+   * A metric's unit, description and temporality. They're the same on every
+   * point, so a sample of rows per table is enough, however long the range.
+   */
+  async metadata(raw: MetricMetadataInput): Promise<MetricMetadata | null> {
+    const input = MetricMetadataInputSchema.parse(raw);
+    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const where = baseWhere(input);
+    const types = input.type ? [input.type] : MetricTypeSchema.options;
+    const parts = types.map(
+      (type) => `
+  (SELECT MetricUnit, MetricDescription,
+    ${TYPE_COLUMNS[type].monotonic} AS monotonic,
+    ${TYPE_COLUMNS[type].temporality} AS temporality,
+    '${type}' AS type
+  FROM ${this.tables[type]}
+  WHERE ${where.clause}
+  LIMIT ${METADATA_SAMPLE_ROWS})`,
+    );
+    const rows = await this.client.execute<Omit<CatalogRowRaw, "name" | "points" | "lastSeen">>(
+      `
+SELECT
+  type,
+  anyIf(MetricUnit, MetricUnit != '') AS unit,
+  anyIf(MetricDescription, MetricDescription != '') AS description,
+  max(monotonic) AS isMonotonic,
+  max(temporality) AS temporality
+FROM (${parts.join("\n  UNION ALL")}
+)
+GROUP BY type
+ORDER BY type
+LIMIT 1`,
+      { ...where.params, ...windowParams(fromDate, toDate) },
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      type: MetricTypeSchema.parse(row.type),
+      unit: row.unit,
+      description: row.description,
+      isMonotonic: Boolean(toNumber(row.isMonotonic)),
+      temporality: toNumber(row.temporality),
+    };
+  }
+
+  async names(raw: MetricNamesInput): Promise<MetricNameEntry[]> {
+    const input = MetricNamesInputSchema.parse(raw);
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
     const where = baseWhere(input);
     // DISTINCT over the sort key's columns, without the catalog's counts:
     // a few hundred milliseconds over 30 days where the catalog takes seconds.
-    const parts = kindScope(input.kinds).map(
-      ({ type, clause }) => `
+    const parts = MetricTypeSchema.options.map(
+      (type) => `
   SELECT DISTINCT MetricName AS name, '${type}' AS type, ${TYPE_COLUMNS[type].monotonic} AS isMonotonic
   FROM ${this.tables[type]}
-  WHERE ${where.clause}${clause}`,
+  WHERE ${where.clause}`,
     );
     const rows = await this.client.execute<{
       name: string;
@@ -627,8 +678,7 @@ ORDER BY name, type
 LIMIT ${CATALOG_LIMIT}`,
       {
         ...where.params,
-        fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-        toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+        ...windowParams(fromDate, toDate),
       },
     );
     return rows.map((row) => ({
@@ -639,11 +689,11 @@ LIMIT ${CATALOG_LIMIT}`,
   }
 
   async series(raw: MetricSeriesInput): Promise<MetricSeriesResult> {
-    const result = await this.chart(raw);
-    const { fromDate, toDate } = resolveTimeRange(raw.timeRange);
-    return result.stepSeconds > seriesStep(fromDate, toDate)
-      ? { ...result, stepFromExport: true }
-      : result;
+    const input = MetricSeriesInputSchema.parse(raw);
+    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { step, fromExport } = seriesStep(fromDate, toDate, input.minStep);
+    const result = await this.chart(input, fromDate, toDate, step);
+    return fromExport ? { ...result, stepFromExport: true } : result;
   }
 
   /**
@@ -655,6 +705,10 @@ LIMIT ${CATALOG_LIMIT}`,
   async exportInterval(raw: MetricExportIntervalInput): Promise<number | null> {
     const input = MetricExportIntervalInputSchema.parse(raw);
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const span = toDate.getTime() - fromDate.getTime();
+    const scanFrom = new Date(
+      toDate.getTime() - Math.min(span, Math.max(EXPORT_INTERVAL_MIN_SCAN_MS, span / 10)),
+    );
     const where = baseWhere(input);
     const rows = await this.client.execute<{ interval: number | string | null }>(
       `
@@ -675,16 +729,19 @@ FROM (
 )`,
       {
         ...where.params,
-        fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-        toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+        ...windowParams(scanFrom, toDate),
       },
     );
     const interval = rows[0]?.interval;
     return interval === null || interval === undefined ? null : toNumber(interval);
   }
 
-  private async chart(raw: MetricSeriesInput): Promise<MetricSeriesResult> {
-    const input = MetricSeriesInputSchema.parse(raw);
+  private async chart(
+    input: ReturnType<typeof MetricSeriesInputSchema.parse>,
+    fromDate: Date,
+    toDate: Date,
+    step: number,
+  ): Promise<MetricSeriesResult> {
     const kind = metricKind(
       input.type,
       input.aggregation === "rate" || input.aggregation === "increase",
@@ -692,8 +749,6 @@ FROM (
     if (!aggregationsFor(kind).includes(input.aggregation)) {
       throw new Error(`${input.aggregation} does not apply to ${input.type} metrics`);
     }
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-    const step = seriesStep(fromDate, toDate, input.minStep);
     const grid = bucketGrid(fromDate, toDate, step);
     const table = this.tables[input.type];
     const where = baseWhere(input);
@@ -716,12 +771,12 @@ FROM (
     const params = {
       ...where.params,
       ...groupParams,
-      fromTs: toClickHouseDateTimeSeconds(scanFrom, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(scanFrom, toDate),
       gridStart: grid[0],
       step,
     };
 
+    let intervals: HistogramInterval[] | undefined;
     if (isExponential) {
       const rows = await this.client.execute<ExpHistogramRowRaw>(
         expHistogramSql(table, where.clause, labelsSql, bucketSql),
@@ -736,27 +791,19 @@ FROM (
       }));
       // One span for every row keeps every interval on the same bounds.
       const span = exponentialSpan(decoded);
-      const intervals = decoded.map(({ row, positive, negative }): HistogramInterval => ({
+      intervals = decoded.map(({ row, positive, negative }): HistogramInterval => ({
         ts: toNumber(row.ts),
         labels: row.labels,
         ...exponentialBuckets(toNumber(row.scale), positive, negative, toNumber(row.zero), span),
         count: toNumber(row.observations),
         sum: toNumber(row.observedSum),
       }));
-      const { series, merged } = histogramSeries(intervals, grid, step, input.aggregation);
-      return {
-        ...rankSeries(series, grid, step),
-        heatmap: histogramHeatmap(intervals, grid),
-        merged,
-      };
-    }
-
-    if (isHistogram) {
+    } else if (isHistogram) {
       const rows = await this.client.execute<HistogramRowRaw>(
         histogramSql(table, where.clause, labelsSql, bucketSql),
         params,
       );
-      const intervals = rows.map((row): HistogramInterval => ({
+      intervals = rows.map((row): HistogramInterval => ({
         ts: toNumber(row.ts),
         labels: row.labels,
         bounds: row.bounds.map(toNumber),
@@ -764,10 +811,12 @@ FROM (
         count: toNumber(row.observations),
         sum: toNumber(row.observedSum),
       }));
+    }
+    if (intervals) {
       const { series, merged } = histogramSeries(intervals, grid, step, input.aggregation);
       return {
         ...rankSeries(series, grid, step),
-        heatmap: histogramHeatmap(intervals, grid),
+        ...(input.heatmap ? { heatmap: histogramHeatmap(intervals, grid) } : {}),
         merged,
       };
     }
@@ -776,20 +825,22 @@ FROM (
       const quantile = SUMMARY_QUANTILES[input.aggregation];
       if (quantile === undefined) {
         const rows = await this.client.execute<SeriesRowRaw>(
-          this.counterSql(
-            table,
-            where.clause,
-            labelsSql,
-            bucketSql,
-            input.aggregation,
-            SUMMARY_SOURCE,
+          topSeriesSql(
+            this.counterSql(
+              table,
+              where.clause,
+              labelsSql,
+              bucketSql,
+              input.aggregation,
+              SUMMARY_SOURCE,
+            ),
           ),
           params,
         );
         return assembleSeries(rows, grid, step);
       }
       const rows = await this.client.execute<SeriesRowRaw & { seriesCount: number | string }>(
-        this.summaryQuantileSql(table, where.clause, labelsSql, bucketSql),
+        topSeriesSql(this.summaryQuantileSql(table, where.clause, labelsSql, bucketSql)),
         { ...params, quantile },
       );
       const most = Math.max(0, ...rows.map((row) => toNumber(row.seriesCount)));
@@ -808,11 +859,9 @@ FROM (
   WHERE ${where.clause}
   GROUP BY bucket, labels, series
 )
-GROUP BY bucket, labels
-ORDER BY ts
-LIMIT ${SERIES_ROW_LIMIT}`;
+GROUP BY bucket, labels`;
 
-    const rows = await this.client.execute<SeriesRowRaw>(sql, params);
+    const rows = await this.client.execute<SeriesRowRaw>(topSeriesSql(sql), params);
     return assembleSeries(rows, grid, step);
   }
 
@@ -879,9 +928,7 @@ FROM (
   ARRAY JOIN ${SPREAD_BUCKETS_SQL} AS b
 )
 WHERE b >= {gridStart:UInt32}
-GROUP BY b, labels
-ORDER BY ts
-LIMIT ${SERIES_ROW_LIMIT}`;
+GROUP BY b, labels`;
   }
 
   /**
@@ -901,9 +948,7 @@ FROM (
   WHERE ${where} AND has(ValueAtQuantiles.Quantile, {quantile:Float64})
   GROUP BY bucket, labels, series
 )
-GROUP BY bucket, labels
-ORDER BY ts
-LIMIT ${SERIES_ROW_LIMIT}`;
+GROUP BY bucket, labels`;
   }
 
   /**
@@ -915,7 +960,7 @@ LIMIT ${SERIES_ROW_LIMIT}`;
     const input = MetricExemplarsInputSchema.parse(raw);
     if (input.type === "summary") return [];
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-    const step = seriesStep(fromDate, toDate, input.minStep);
+    const { step } = seriesStep(fromDate, toDate, input.minStep);
     const where = baseWhere(input);
     const { labelsSql, groupParams } = groupLabels(input.groupBy);
     const sql = `
@@ -945,8 +990,7 @@ LIMIT ${EXEMPLAR_LIMIT}`;
     }>(sql, {
       ...where.params,
       ...groupParams,
-      fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(fromDate, toDate),
       step,
     });
     return rows.map((row) => ({
@@ -979,8 +1023,7 @@ WHERE key NOT IN {hidden:Array(String)}
 ORDER BY source, key
 LIMIT ${ATTRIBUTE_KEYS_LIMIT}`;
     const rows = await this.client.execute<{ source: AttributeSource; key: string }>(sql, {
-      fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(fromDate, toDate),
       metric: input.metric,
       hidden: HIDDEN_KEYS,
     });
@@ -1003,8 +1046,7 @@ GROUP BY value
 ORDER BY count() DESC
 LIMIT ${ATTRIBUTE_VALUES_LIMIT}`;
     const rows = await this.client.execute<{ value: string }>(sql, {
-      fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(fromDate, toDate),
       metric: input.metric,
       key: input.key,
       ...(input.search ? { search: input.search } : {}),
@@ -1038,8 +1080,7 @@ WHERE value != ''
 ORDER BY value
 LIMIT ${ATTRIBUTE_VALUES_LIMIT}`;
     const rows = await this.client.execute<{ value: string }>(sql, {
-      fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-      toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+      ...windowParams(fromDate, toDate),
     });
     return rows.map((row) => row.value);
   }
@@ -1055,8 +1096,7 @@ WHERE ${TIME_WINDOW_SQL} AND MetricName = {metric:String}
 ORDER BY quantile
 LIMIT 50`,
       {
-        fromTs: toClickHouseDateTimeSeconds(fromDate, "floor"),
-        toTs: toClickHouseDateTimeSeconds(toDate, "ceil"),
+        ...windowParams(fromDate, toDate),
         metric: input.metric,
       },
     );
@@ -1066,13 +1106,13 @@ LIMIT 50`,
 
 /** Lines the rows up on the bucket grid. */
 function assembleSeries(rows: SeriesRowRaw[], grid: number[], step: number): MetricSeriesResult {
+  const groups = rows[0] ? toNumber(rows[0].groups) : 0;
   const indexOf = new Map(grid.map((t, i) => [t, i]));
   const byLabels = new Map<string, MetricSeries>();
   for (const row of rows) {
     const index = indexOf.get(toNumber(row.ts));
-    if (index === undefined || row.value === null) continue;
+    if (index === undefined) continue;
     const value = toNumber(row.value);
-    if (!Number.isFinite(value)) continue;
     const id = JSON.stringify(row.labels);
     let entry = byLabels.get(id);
     if (!entry) {
@@ -1081,11 +1121,14 @@ function assembleSeries(rows: SeriesRowRaw[], grid: number[], step: number): Met
     }
     entry.values[index] = value;
   }
-  return rankSeries([...byLabels.values()], grid, step);
+  return { ...rankSeries([...byLabels.values()], grid, step), totalSeries: groups };
 }
 
-/** Keeps the series with the largest values, so one high-cardinality key
- *  can't flood the chart. */
+/**
+ * Orders series by their peak and keeps the top ones, so one high-cardinality
+ * key can't flood the chart. Series read from SQL arrive already cut; a
+ * histogram's percentiles are only known here.
+ */
 function rankSeries(series: MetricSeries[], grid: number[], step: number): MetricSeriesResult {
   const peak = (s: MetricSeries) =>
     s.values.reduce<number>((max, v) => (v !== null && v > max ? v : max), -Infinity);

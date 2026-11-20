@@ -1,35 +1,38 @@
 import { Badge } from "@everr/ui/components/badge";
+import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { type ChartMarker, type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { AttributeKeyPicker } from "../../attribute-filter/ui/attribute-key-picker";
 import { attributeLabel } from "../../attribute-filter/ui/attribute-meta";
-import { axisLabels } from "../../histogram/volume-histogram";
-import type { GroupByKey, MetricAggregation, MetricViewMode } from "../data/schemas";
+import { axisLabels, bucketTitle } from "../../histogram/volume-histogram";
+import {
+  type GroupByKey,
+  MAX_GROUP_BY,
+  type MetricAggregation,
+  type MetricKind,
+  type MetricViewMode,
+} from "../data/schemas";
 import {
   type BucketMergeNote,
   isHistogramKind,
-  type MetricCatalogEntry,
+  type MetricMetadata,
   type MetricExemplar,
-  type MetricKind,
   type MetricSeriesResult,
 } from "../data/types";
 import { ExemplarCard, type ExemplarLinkRenderProps } from "./exemplar-card";
-import { formatMetricValue, temporalityLabel, unitName } from "./format";
+import { formatCount, formatMetricValue, temporalityLabel, unitName } from "./format";
 import { MetricHeatmap } from "./metric-heatmap";
 import { MetricKindBadge, MetricName, QueryTag } from "./metric-name";
 import { MetricPicker, type MetricPickerProps } from "./metric-picker";
 
-const MAX_GROUP_BY = 3;
 const NO_EXCLUDED_KEYS: ReadonlySet<string> = new Set();
-
-const count = new Intl.NumberFormat();
 
 export function MetricView({
   metric,
@@ -58,11 +61,11 @@ export function MetricView({
   metricPicker,
   queryRows,
   queryMetrics,
-  addControls,
+  onAddQuery,
 }: {
   metric: string;
   kind: MetricKind | null;
-  entry: MetricCatalogEntry | undefined;
+  entry: MetricMetadata | undefined;
   aggregations: MetricAggregation[];
   aggregation: MetricAggregation | null;
   groupBy: GroupByKey[];
@@ -85,14 +88,14 @@ export function MetricView({
   onRangeSelect: (from: Date, to: Date) => void;
   /** What the chart draws: one line per series of each query. */
   lines: ChartLine[] | undefined;
-  /** With several queries, one row each in place of the single query's controls. */
   /** The metric name opens it, to switch the chart to another metric. */
   metricPicker: MetricPickerProps;
+  /** With several queries, one row each in place of the single query's controls. */
   queryRows?: ReactNode;
   /** The metrics the query rows chart, named in the page's heading. */
   queryMetrics?: string[];
-  /** "Add metric", after the single query's controls. */
-  addControls?: ReactNode;
+  /** Unset once the chart has as many queries as it can take. */
+  onAddQuery?: () => void;
 }) {
   const unit = entry?.unit ?? "";
   const temporality = entry ? temporalityLabel(entry.temporality) : null;
@@ -129,7 +132,7 @@ export function MetricView({
         // Each query row names its own metric, so the header keeps only what
         // applies to every line: the shared interval.
         <header className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-          <h1 className="sr-only">{[...new Set(queryMetrics ?? [metric])].join(", ")}</h1>
+          <h1 className="sr-only">{[...new Set(queryMetrics)].join(", ")}</h1>
           {back}
           {resolution ? <dl className="ml-auto flex items-center text-xs">{resolution}</dl> : null}
         </header>
@@ -176,19 +179,22 @@ export function MetricView({
               Observations per bucket, every series added together
             </span>
           ) : (
-            <QueryControls
-              aggregations={aggregations}
-              aggregation={aggregation}
-              groupBy={groupBy}
-              attributeRepo={attributeRepo}
-              attributeDomain={attributeDomain}
-              timeRange={timeRange}
-              onAggregationChange={onAggregationChange}
-              onGroupByChange={onGroupByChange}
-            />
+            <>
+              <span className="text-muted-foreground text-xs">Show</span>
+              <QueryControls
+                aggregations={aggregations}
+                aggregation={aggregation}
+                groupBy={groupBy}
+                attributeRepo={attributeRepo}
+                attributeDomain={attributeDomain}
+                timeRange={timeRange}
+                onAggregationChange={onAggregationChange}
+                onGroupByChange={onGroupByChange}
+              />
+            </>
           )}
           <div className="ml-auto flex items-center gap-2">
-            {view === "lines" ? addControls : null}
+            {view === "lines" ? <AddMetricButton onAdd={onAddQuery} /> : null}
             {isHistogramKind(kind) ? (
               <ToggleGroup
                 value={[view]}
@@ -242,7 +248,6 @@ export function QueryControls({
   timeRange,
   onAggregationChange,
   onGroupByChange,
-  showLabel = true,
 }: {
   aggregations: MetricAggregation[];
   aggregation: MetricAggregation | null;
@@ -252,12 +257,9 @@ export function QueryControls({
   timeRange: { from: string; to: string };
   onAggregationChange: (aggregation: MetricAggregation) => void;
   onGroupByChange: (groupBy: GroupByKey[]) => void;
-  /** Off in query rows, where the letter and metric already lead the row. */
-  showLabel?: boolean;
 }) {
   return (
     <>
-      {showLabel ? <span className="text-muted-foreground text-xs">Show</span> : null}
       <ToggleGroup
         value={aggregation ? [aggregation] : []}
         variant="outline"
@@ -392,14 +394,7 @@ function SeriesPanel({
     );
     return {
       labels: axisLabels(buckets),
-      titles: buckets.map((b) =>
-        new Date(b.timestamp).toLocaleString([], {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      ),
+      titles: buckets.map(bucketTitle),
       series,
       axes: {
         left: { format: leftLine ? formatOf(leftLine) : (v: number) => String(v) },
@@ -443,7 +438,8 @@ function SeriesPanel({
       <RetryError title="Couldn't load this metric" message={error.message} onRetry={onRetry} />
     );
   }
-  if (isPending) {
+  // The lines' result carries no heatmap until the heatmap's own request returns.
+  if (isPending || (view === "heatmap" && result && !result.heatmap)) {
     return (
       <div className="flex flex-col gap-3 p-4">
         <Skeleton className="h-[260px] w-full" />
@@ -594,7 +590,7 @@ function SeriesPanel({
       ) : null}
       {hidden > 0 ? (
         <p className="text-muted-foreground px-4 py-2 text-xs">
-          {`The ${chart.series.length} series with the highest values of ${count.format(result?.totalSeries ?? 0)}. Filter or group by fewer attributes to see the rest.`}
+          {`The ${chart.series.length} series with the highest values of ${formatCount(result?.totalSeries ?? 0)}. Filter or group by fewer attributes to see the rest.`}
         </p>
       ) : null}
     </>
@@ -678,4 +674,15 @@ function scaleKey(line: ChartLine): string {
 export function seriesLabel(labels: string[], metric: string): string {
   if (labels.length === 0) return metric;
   return labels.map((v) => (v === "" ? "(none)" : v)).join(" · ");
+}
+
+/** Adds a query to the chart, a copy of the last one. */
+export function AddMetricButton({ onAdd }: { onAdd?: () => void }): ReactNode {
+  if (!onAdd) return null;
+  return (
+    <Button variant="ghost" size="sm" onClick={onAdd}>
+      <Plus />
+      Metric
+    </Button>
+  );
 }

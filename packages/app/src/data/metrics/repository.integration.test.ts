@@ -107,6 +107,17 @@ beforeAll(() => {
       Value: value,
     })),
   );
+  // Twelve workers, so a group-by on worker has more groups than the chart shows.
+  insert(
+    "metrics_gauge",
+    Array.from({ length: 12 }, (_, i) => ({
+      MetricName: "worker.load",
+      MetricUnit: "1",
+      Attributes: { worker: `w${String(i + 1).padStart(2, "0")}` },
+      TimeUnix: "2026-01-01 12:00:10",
+      Value: i + 1,
+    })),
+  );
   // A cumulative latency histogram that restarts between 12:01 and 12:02.
   // Buckets: [0, 0.1], (0.1, 0.5], (0.5, 1], above 1.
   insert(
@@ -344,6 +355,7 @@ describe("metrics explorer against ClickHouse", () => {
       { name: "sparse.duration", type: "histogram", unit: "s", isMonotonic: false },
       { name: "sparse.jobs", type: "sum", unit: "", isMonotonic: true },
       { name: "sparse.requests", type: "sum", unit: "", isMonotonic: true },
+      { name: "worker.load", type: "gauge", unit: "1", isMonotonic: false },
     ]);
   });
 
@@ -369,9 +381,8 @@ describe("metrics explorer against ClickHouse", () => {
     ]);
   });
 
-  it("reads one metric's entry, or nothing when it sent nothing", async () => {
+  it("reads one metric's unit and temporality, or nothing when it sent nothing", async () => {
     expect(await repo.metadata({ timeRange, metric: "http.requests", type: "sum" })).toMatchObject({
-      name: "http.requests",
       unit: "{request}",
       isMonotonic: true,
     });
@@ -388,6 +399,7 @@ describe("metrics explorer against ClickHouse", () => {
       "queue.depth",
       "sparse.jobs",
       "sparse.requests",
+      "worker.load",
     ]);
     // Every sum in the fixtures is monotonic.
     expect(await names(["updown"])).toEqual([]);
@@ -470,6 +482,7 @@ describe("metrics explorer against ClickHouse", () => {
         metric: "http.request.duration",
         type: "histogram",
         aggregation,
+        heatmap: true,
       });
       return {
         values: result.series[0]?.values.slice(0, 3).map((v) => (v === null ? v : +v.toFixed(4))),
@@ -514,14 +527,31 @@ describe("metrics explorer against ClickHouse", () => {
       metric: "queue.wait",
       type: "histogram",
       aggregation: "avg",
+      heatmap: true,
     });
     expect(result.series[0]?.values[0]).toBeCloseTo(1.2 / 8);
     expect(result.heatmap?.counts[0]).toEqual([4, 4, 0, 0]);
   });
 
+  it("builds the heatmap only when asked", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "queue.wait",
+      type: "histogram",
+      aggregation: "avg",
+    });
+    expect(result.heatmap).toBeUndefined();
+  });
+
   it("combines series with different bucket bounds on every bound", async () => {
     const read = (aggregation: "p50" | "avg") =>
-      repo.series({ timeRange, metric: "checkout.duration", type: "histogram", aggregation });
+      repo.series({
+        timeRange,
+        metric: "checkout.duration",
+        type: "histogram",
+        aggregation,
+        heatmap: true,
+      });
     const p50 = await read("p50");
     // api's (0.1, 0.5] and web's (0.2, 1] each spread evenly over the union
     // 0.1, 0.2, 0.5, 1: the median falls two thirds into (0.2, 0.5].
@@ -577,6 +607,29 @@ describe("metrics explorer against ClickHouse", () => {
       [["/b"], 1],
     ]);
     expect(result.totalSeries).toBe(2);
+  });
+
+  it("charts the ten largest groups and counts every group", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "worker.load",
+      type: "gauge",
+      aggregation: "avg",
+      groupBy: [{ source: "metric", key: "worker" }],
+    });
+    expect(result.series.map((s) => s.labels[0])).toEqual([
+      "w12",
+      "w11",
+      "w10",
+      "w09",
+      "w08",
+      "w07",
+      "w06",
+      "w05",
+      "w04",
+      "w03",
+    ]);
+    expect(result.totalSeries).toBe(12);
   });
 
   it("filters series by attribute value", async () => {

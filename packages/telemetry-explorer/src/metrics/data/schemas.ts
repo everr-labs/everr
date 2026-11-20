@@ -3,10 +3,11 @@ import { z } from "zod";
 import {
   AttributeSourceSchema,
   attributesField,
+  attributesList,
   attributeValuesInputSchema,
 } from "../../attribute-filter/schemas";
 
-export const METRIC_ATTRIBUTE_SOURCES = ["resource", "metric"] as const;
+const METRIC_ATTRIBUTE_SOURCES = ["resource", "metric"] as const;
 
 /** The OTLP data point type, one per ClickHouse table. */
 export const MetricTypeSchema = z.enum([
@@ -29,7 +30,7 @@ export const MetricKindSchema = z.enum([
 ]);
 export type MetricKind = z.infer<typeof MetricKindSchema>;
 
-export const MetricAggregationSchema = z.enum([
+const MetricAggregationSchema = z.enum([
   "avg",
   "min",
   "max",
@@ -44,7 +45,7 @@ export const MetricAggregationSchema = z.enum([
 export type MetricAggregation = z.infer<typeof MetricAggregationSchema>;
 
 /** How a histogram is drawn: a line per series, or bucket counts over time. */
-export const MetricViewSchema = z.enum(["lines", "heatmap"]);
+const MetricViewSchema = z.enum(["lines", "heatmap"]);
 export type MetricViewMode = z.infer<typeof MetricViewSchema>;
 
 const GroupByKeySchema = z.object({
@@ -53,15 +54,17 @@ const GroupByKeySchema = z.object({
 });
 export type GroupByKey = z.infer<typeof GroupByKeySchema>;
 
-const groupByField = z
+export const MAX_GROUP_BY = 3;
+
+const groupByKeys = z
   .array(GroupByKeySchema)
-  .max(3)
-  .default([])
+  .max(MAX_GROUP_BY)
   .refine((keys) => keys.every((k) => k.source === "resource" || k.source === "metric"), {
     message: "group by source must be resource or metric",
   });
+const groupByField = groupByKeys.default([]);
 
-export const MAX_EXTRA_QUERIES = 3;
+const MAX_EXTRA_QUERIES = 3;
 
 /** A query after the first on a chart: its own metric, aggregation, group-by and filters. */
 export const MetricChartQuerySchema = z.object({
@@ -70,8 +73,9 @@ export const MetricChartQuerySchema = z.object({
   metric: z.string().min(1),
   type: MetricTypeSchema,
   agg: MetricAggregationSchema.optional(),
-  by: groupByField,
-  attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
+  // Left out of the URL when empty.
+  by: groupByKeys.optional(),
+  attributes: attributesList(METRIC_ATTRIBUTE_SOURCES).optional(),
 });
 export type MetricChartQuery = z.infer<typeof MetricChartQuerySchema>;
 
@@ -106,7 +110,15 @@ export const MetricCatalogInputSchema = z.object({
 });
 export type MetricCatalogInput = z.input<typeof MetricCatalogInputSchema>;
 
-/** One metric's catalog entry, for its unit, description and temporality. */
+/** Every metric in range, for the metric switcher and the Type filter's options. */
+export const MetricNamesInputSchema = MetricCatalogInputSchema.pick({
+  timeRange: true,
+  service: true,
+  attributes: true,
+});
+export type MetricNamesInput = z.input<typeof MetricNamesInputSchema>;
+
+/** One metric, for its unit, description and temporality. */
 export const MetricMetadataInputSchema = z.object({
   timeRange: TimeRangeSchema,
   metric: z.string().min(1),
@@ -127,6 +139,8 @@ export const MetricSeriesInputSchema = z.object({
   attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
   /** The metric's export interval in seconds; the step won't go below it. */
   minStep: z.number().positive().optional(),
+  /** Histograms only: also count observations per bucket over time, for the heatmap. */
+  heatmap: z.boolean().optional(),
 });
 export type MetricSeriesInput = z.input<typeof MetricSeriesInputSchema>;
 
@@ -134,10 +148,14 @@ export const MetricExportIntervalInputSchema = MetricSeriesInputSchema.omit({
   aggregation: true,
   groupBy: true,
   minStep: true,
+  heatmap: true,
 });
 export type MetricExportIntervalInput = z.input<typeof MetricExportIntervalInputSchema>;
 
-export const MetricExemplarsInputSchema = MetricSeriesInputSchema.omit({ aggregation: true });
+export const MetricExemplarsInputSchema = MetricSeriesInputSchema.omit({
+  aggregation: true,
+  heatmap: true,
+});
 export type MetricExemplarsInput = z.input<typeof MetricExemplarsInputSchema>;
 
 export const MetricAttributeKeysInputSchema = z.object({
