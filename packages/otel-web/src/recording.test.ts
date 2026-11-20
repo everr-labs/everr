@@ -608,10 +608,10 @@ describe("the Segment contract", () => {
 });
 
 describe("delivery over fetch", () => {
-  type Request = { encoding?: string; text: string };
-  /** A collector at a fetch endpoint. `answer` gives the response to each Segment request. */
-  const collector = (answer: (encoding: string | undefined, n: number) => Response) => {
-    const segments: Request[] = [];
+  type Request = { encoding?: string; text: string; index: number; time: number };
+  /** A collector at a fetch endpoint. `answer` gives the response to each Segment request, with its try counted from 1 per Segment. */
+  const collector = (answer: (encoding: string | undefined, attempt: number) => Response) => {
+    const requests: Request[] = [];
     stubTransportFetch(
       vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
         const encoding = ((init?.headers ?? {}) as Record<string, string>)["Content-Encoding"];
@@ -622,13 +622,17 @@ describe("delivery over fetch", () => {
                 new Response(init!.body).body!.pipeThrough(new DecompressionStream("gzip")),
               ).text();
         if (!text.includes("everr.browser.recording.segment")) return new Response(null);
-        segments.push({ encoding, text });
-        return answer(encoding, segments.length);
+        const index = Number(
+          /"everr\.recording\.segment\.index","value":\{"intValue":"(\d+)"\}/.exec(text)![1],
+        );
+        requests.push({ encoding, text, index, time: Date.now() });
+        return answer(encoding, requests.filter((r) => r.index === index).length);
       }),
     );
-    return segments;
+    return requests;
   };
-  // A Clip that stays open sends its opening Segment alone, so a test follows one Segment.
+  // The requests of one Segment, in the order they were made.
+  const of = (requests: Request[], index: number) => requests.filter((r) => r.index === index);
   const viaFetch = { sdkOptions: { send: undefined, endpoint: "https://collector.test" } };
   // A real macrotask: gzip runs on real ticks, which the fake clock does not drive.
   const tick = () =>
@@ -647,80 +651,94 @@ describe("delivery over fetch", () => {
       await vi.advanceTimersByTimeAsync(100);
     }
   };
+  /** Steps the clock until `count` requests are made. A closed Clip has no timer that sends more. */
+  const until = async (requests: Request[], count: number) => {
+    for (let i = 0; i < 400 && requests.length < count; i++) await settle(100);
+  };
 
-  // The shutdown of an open Clip sends its closing Segment. It leaves while this collector still answers, not in the next test.
-  afterEach(async () => {
-    for (const t of running) await t.client.shutdown();
-    await settle(500);
-  });
-
+  // Each test uses emitClip(), which builds its two Segments (the opening one and the
+  // closing one, empty on an unchanged page) before it returns, and no more after. The
+  // test waits for each request it expects, so none is left to reach the next test.
   it("sends Segments gzipped", async () => {
-    const segments = collector(() => new Response(null));
+    const requests = collector(() => new Response(null));
     const t = await start({}, viaFetch);
-    t.rec.recorder.startClip();
+    t.rec.recorder.emitClip();
+    await until(requests, 2);
     await settle();
-    expect(segments.map((r) => r.encoding)).toEqual(["gzip"]);
-    expect(segments[0].text).toContain('\\"type\\":4');
+    expect([0, 1].map((i) => of(requests, i).map((r) => r.encoding))).toEqual([["gzip"], ["gzip"]]);
+    expect(requests).toHaveLength(2);
+    expect(of(requests, 0)[0].text).toContain('\\"type\\":4');
   });
 
   it("tries a 5xx or a 429 again twice, 2 and 4 seconds later, and then gives up", async () => {
-    const times: number[] = [];
-    const segments = collector((_, n) => {
-      times.push(Date.now());
-      return new Response(null, { status: n === 1 ? 503 : 429 });
-    });
+    const requests = collector(
+      (_, attempt) => new Response(null, { status: attempt === 1 ? 503 : 429 }),
+    );
     const t = await start({}, viaFetch);
-    t.rec.recorder.startClip();
-    for (let i = 0; i < 400 && segments.length < 3; i++) await settle(100);
+    t.rec.recorder.emitClip();
+    await until(requests, 6);
     await settle();
-    expect(segments.map((r) => r.encoding)).toEqual(["gzip", "gzip", "gzip"]);
-    expect(times[1] - times[0]).toBeGreaterThanOrEqual(2_000);
-    expect(times[2] - times[1]).toBeGreaterThanOrEqual(4_000);
+    expect(requests).toHaveLength(6);
+    for (const index of [0, 1]) {
+      const [first, second, third] = of(requests, index);
+      expect([first, second, third].map((r) => r.encoding)).toEqual(["gzip", "gzip", "gzip"]);
+      expect(second.time - first.time).toBeGreaterThanOrEqual(2_000);
+      expect(third.time - second.time).toBeGreaterThanOrEqual(4_000);
+    }
   });
 
   it("does not try a 4xx again", async () => {
-    const segments = collector(() => new Response(null, { status: 400 }));
+    const requests = collector(() => new Response(null, { status: 400 }));
     const t = await start({}, viaFetch);
-    t.rec.recorder.startClip();
+    t.rec.recorder.emitClip();
+    await until(requests, 2);
     await settle();
-    expect(segments).toHaveLength(1);
+    expect(requests.map((r) => r.index).sort((a, b) => a - b)).toEqual([0, 1]);
   });
 
   it("sends plain from then on when a gzipped request fails and the plain retry goes through", async () => {
     // A collector whose CORS refuses Content-Encoding fails each gzipped request.
-    const segments = collector((encoding) => {
+    const requests = collector((encoding) => {
       if (encoding) throw new TypeError("Failed to fetch");
       return new Response(null);
     });
     const t = await start({}, viaFetch);
     t.rec.recorder.emitClip();
+    await until(requests, 4);
     await settle();
     box().textContent = "next";
     await mutations();
     t.rec.recorder.emitClip();
+    await until(requests, 6);
     await settle();
-    // Each Clip sends two Segments. The two gzipped tries failed, their plain
-    // retries went through, and the next Segments go plain at once.
-    expect(segments.map((r) => r.encoding)).toEqual(["gzip", "gzip", ...Array(4).fill(undefined)]);
+    expect(requests).toHaveLength(6);
+    // The gzipped try of each Segment of the first Clip failed and its plain retry went
+    // through, and the Segments of the next Clip go plain at once.
+    expect([0, 1, 2, 3].map((i) => of(requests, i).map((r) => r.encoding))).toEqual([
+      ["gzip", undefined],
+      ["gzip", undefined],
+      [undefined],
+      [undefined],
+    ]);
   });
 
   it("stops the retry of a Segment when clearIdentity() ends its Stream", async () => {
-    const segments = collector(() => new Response(null, { status: 503 }));
+    const requests = collector(() => new Response(null, { status: 503 }));
     const t = await start({}, viaFetch);
-    t.rec.recorder.startClip();
-    for (let i = 0; i < 400 && segments.length < 1; i++) await settle(100);
+    t.rec.recorder.emitClip();
+    await until(requests, 2);
     t.sdk.clearIdentity();
     await settle();
-    expect(segments).toHaveLength(1);
+    expect(requests.map((r) => r.index).sort((a, b) => a - b)).toEqual([0, 1]);
   });
 
   it("does not send a Segment that is still in compression when clearIdentity() ends its Stream", async () => {
-    const segments = collector(() => new Response(null));
+    const requests = collector(() => new Response(null));
     const t = await start({}, viaFetch);
     t.rec.recorder.emitClip();
     t.sdk.clearIdentity();
     await settle();
-    expect(segments).toEqual([]);
+    expect(requests).toEqual([]);
   });
 });
 
