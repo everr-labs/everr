@@ -26,6 +26,10 @@ export const coveringClipsOptions = (subject: ClipSubject) =>
     staleTime: (query) => (query.state.data?.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
   });
 
+// Events with no gap are the whole Clip. Without events, or with gaps, Segments may still arrive.
+const isSettled = (data: ClipEvents | undefined) =>
+  data !== undefined && data.events.length > 0 && data.gaps.length === 0;
+
 /** A Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
 export const isClipEventsKey = (key: readonly unknown[]) =>
   key[0] === "recordings" && key[1] === "events";
@@ -49,7 +53,6 @@ export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">
       }
       return response.json();
     },
-    staleTime: (query) =>
-      query.state.data?.events.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS,
+    staleTime: (query) => (isSettled(query.state.data) ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
     retry: (failures, error) => !(error instanceof ClipEventsError) && failures < 3,
   });

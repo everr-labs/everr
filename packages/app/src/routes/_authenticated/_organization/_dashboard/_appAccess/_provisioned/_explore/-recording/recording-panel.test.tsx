@@ -82,8 +82,8 @@ const playableEvents = [
   { type: 3, timestamp: T + 30_000, data: { source: 2 } },
 ];
 
-function eventsResponse(events: unknown[], status = 200): Response {
-  return new Response(JSON.stringify(status === 200 ? { events, gaps: [] } : { error: "x" }), {
+function eventsResponse(events: unknown[], status = 200, gaps: unknown[] = []): Response {
+  return new Response(JSON.stringify(status === 200 ? { events, gaps } : { error: "x" }), {
     status,
     headers: { "content-type": "application/json" },
   });
@@ -347,6 +347,35 @@ describe("session recording panel", () => {
 
       await openedPlayer();
       expect(getClipEvents).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("loads the events of a Clip again when the first answer reported missing Segments", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+      vi.mocked(getClipEvents)
+        .mockResolvedValueOnce(
+          eventsResponse(playableEvents, 200, [
+            { kind: "index", streamId: "stream-1", after: 1, missing: 1 },
+          ]),
+        )
+        .mockResolvedValueOnce(eventsResponse(playableEvents));
+      renderPlayer({ kind: "trace", traceId: "t1" });
+
+      await toggle(false);
+      await openedPlayer();
+      await toggle(true);
+      await waitFor(() =>
+        expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument(),
+      );
+
+      vi.setSystemTime(Date.now() + 60_000);
+      await toggle(false);
+
+      await waitFor(() => expect(getClipEvents).toHaveBeenCalledTimes(2));
     } finally {
       vi.useRealTimers();
     }
