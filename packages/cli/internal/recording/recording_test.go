@@ -260,7 +260,8 @@ func TestSaysWhenTheRecorderWasPausedAtTheMomentAndSince(t *testing.T) {
 		{1_500, `page 1970-01-01T00:00:01.500Z (--at +0.00s) url="/a"`},
 		{2_000, `page 1970-01-01T00:00:02.000Z (--at +0.00s) url="/a" recording paused since 1970-01-01T00:00:02.000Z`},
 		{29_000, `page 1970-01-01T00:00:29.000Z (--at +0.00s) url="/a" recording paused since 1970-01-01T00:00:02.000Z`},
-		{60_000, `page 1970-01-01T00:01:00.000Z (--at +0.00s) url="/a"`},
+		// Resumed, but the page is the old one until the snapshot that follows.
+		{60_000, `page 1970-01-01T00:01:00.000Z (--at +0.00s) url="/a" recording paused since 1970-01-01T00:00:02.000Z`},
 		{60_500, `page 1970-01-01T00:01:00.500Z (--at +0.00s) url="/b"`},
 		{70_000, `page 1970-01-01T00:01:10.000Z (--at +0.00s) url="/b" recording paused since 1970-01-01T00:01:10.000Z`},
 	} {
