@@ -13,10 +13,8 @@ import (
 	"testing"
 )
 
-// segmentsBody is a segments response: one Segment holding a page with an
-// h1, read at readMs.
-func segmentsBody(t *testing.T, readMs int64, heading string) string {
-	t.Helper()
+// pageEvents is the Body of a Segment holding a page with an h1, read at readMs.
+func pageEvents(readMs int64, heading string) string {
 	events, _ := json.Marshal([]any{
 		map[string]any{"type": 4, "timestamp": readMs - 2_000, "data": map[string]any{"href": "https://shop.example/cart?id=7"}},
 		map[string]any{"type": 2, "timestamp": readMs - 1_990, "data": map[string]any{"node": map[string]any{
@@ -29,8 +27,19 @@ func segmentsBody(t *testing.T, readMs int64, heading string) string {
 			},
 		}}},
 	})
-	row, _ := json.Marshal(map[string]any{"segment_index": 0, "Body": string(events), "event_index": "", "piece": "", "pieces": ""})
-	return fmt.Sprintf("{\"format\":1,\"read_ms\":%d}\n%s\n{\"rows\":1}\n", readMs, row)
+	return string(events)
+}
+
+func segmentRow(index int, body string) string {
+	row, _ := json.Marshal(map[string]any{"segment_index": index, "Body": body, "event_index": "", "piece": "", "pieces": ""})
+	return string(row)
+}
+
+// segmentsBody is a segments response: one Segment holding a page with an
+// h1, read at readMs.
+func segmentsBody(t *testing.T, readMs int64, heading string) string {
+	t.Helper()
+	return fmt.Sprintf("{\"format\":1,\"read_ms\":%d}\n%s\n{\"rows\":1}\n", readMs, segmentRow(0, pageEvents(readMs, heading)))
 }
 
 // 2026-11-14T10:21:42.480Z
@@ -96,6 +105,19 @@ func TestRecordingShowSendsTheStreamAndEpochAtAsISOMillisAndPrintsThePage(t *tes
 	}
 	if r.Header.Get("Authorization") != "Bearer token-rec" || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 		t.Errorf("headers = %v", r.Header)
+	}
+}
+
+func TestRecordingShowReadsSegmentsWithAnEmptyBodyAsNoEventsAndNoGap(t *testing.T) {
+	// A Clip opens and closes with a Segment, which holds [] when nothing was unsent.
+	body := fmt.Sprintf("{\"format\":1,\"read_ms\":%d}\n%s\n%s\n%s\n{\"rows\":3}\n",
+		readMs, segmentRow(0, "[]"), segmentRow(1, pageEvents(readMs, "Cart")), segmentRow(2, "[]"))
+	srv := newSegmentsServer(t, 200, []byte(body), nil)
+
+	res := recordingEnv(t, srv).Run("cloud", "recording", "show", "--stream", "s", "--at", "1794651701730").Success(t)
+
+	if want := "page 2026-11-14T10:21:42.480Z (--at +0.75s) url=\"/cart\"\nh1 \"Cart\"\n"; res.Stdout != want {
+		t.Errorf("stdout:\n%s\nwant:\n%s", res.Stdout, want)
 	}
 }
 
