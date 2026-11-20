@@ -323,6 +323,17 @@ describe("Clips", () => {
     expect(open.isRecording()).toBe(false);
   });
 
+  it("ends the Span at the cap when the timer runs late, as in a frozen tab", async () => {
+    const t = await start();
+    const opened = Date.now();
+    t.rec.recorder.startClip({ next: 10_000 });
+    // The clock jumps and the overdue timer runs at the wake.
+    vi.setSystemTime(opened + 2 * 60 * 60 * 1000);
+    vi.advanceTimersByTime(10_000);
+    const [span] = await t.spans();
+    expect(span.end).toBe(opened + 10_000);
+  });
+
   it("makes end() idempotent", async () => {
     const t = await start();
     const clip = t.rec.recorder.startClip();
