@@ -1255,9 +1255,9 @@ FROM (
   FROM (
     SELECT labels, t,
       if(temporality = 1, ${DELTA_FROM_SQL}, ${CUMULATIVE_FROM_SQL}) AS f,
-      if(temporality = 1, delta,
+      if(temporality = 1, toFloat64(delta),
         toFloat64(last) - if(firstReset, 0, toFloat64(previous)) + lost) AS change,
-      if(temporality = 1, deltaTotal,
+      if(temporality = 1, toFloat64(deltaTotal),
         toFloat64(lastTotal) - if(firstReset, 0, toFloat64(previousTotal)) + lostTotal) AS totalChange
     FROM (
       SELECT *,
