@@ -9,7 +9,6 @@
  */
 
 import { z } from "zod";
-import { resolveTimeRange, type TimeRange, toViewerTimeRange } from "./time-range";
 
 // "Nice" bucket widths (seconds), ascending. Snapping the raw width up to one of
 // these keeps `toStartOfInterval` boundaries on clean clock lines. Beyond the
@@ -46,16 +45,6 @@ export const UtcOffsetMinutesSchema = z
   .int()
   .min(-14 * 60)
   .max(14 * 60);
-
-/**
- * A histogram's window in the viewer's zone, plus the viewer's offset at its
- * end so its bars start on the viewer's clock. Call it in `queryFn`.
- */
-export function viewerHistogramWindow(range: TimeRange) {
-  const timeRange = toViewerTimeRange(range);
-  const { toDate } = resolveTimeRange(timeRange);
-  return { timeRange, utcOffsetMinutes: -toDate.getTimezoneOffset() };
-}
 
 /**
  * Start of the bucket holding `ms`, with bucket edges on the clock of a zone

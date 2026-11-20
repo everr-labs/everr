@@ -73,7 +73,7 @@ export type LogsTotalsInput = z.infer<typeof LogsTotalsInputSchema>;
 export const LogHistogramInputSchema = z.object({
   ...LogsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
-  // The viewer's offset, so bars start at the viewer's midnight and hour.
+  /** The viewer's offset, so bars start at the viewer's midnight and hour. */
   utcOffsetMinutes: UtcOffsetMinutesSchema.default(0),
 });
 export type LogHistogramInput = z.infer<typeof LogHistogramInputSchema>;

@@ -19,10 +19,7 @@ export const repoStatsOptions = (input: RepoDetailInput) =>
 export const repoSuccessRateTrendOptions = (input: RepoDetailInput) =>
   queryOptions({
     queryKey: ["repo", "successRateTrend", input],
-    queryFn: () =>
-      getRepoSuccessRateTrend({
-        data: withViewerTimeRange(input),
-      }),
+    queryFn: () => getRepoSuccessRateTrend({ data: withViewerTimeRange(input) }),
   });
 
 export const repoDurationTrendOptions = (input: RepoDetailInput) =>

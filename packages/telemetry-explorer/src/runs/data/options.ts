@@ -1,5 +1,4 @@
-import { viewerHistogramWindow } from "@everr/ui/lib/bucket";
-import { withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { viewerHistogramWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";

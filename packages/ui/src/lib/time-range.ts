@@ -85,23 +85,36 @@ export function resolveTimeRange(range: TimeRange, now = new Date()) {
 }
 
 /**
- * Resolve each rounded bound (`now/d`, `now-1w/w`) to an ISO timestamp in this
+ * Resolve a range that rounds (`now/d`, `now-1w/w`) to ISO timestamps in this
  * process's zone, which in the browser is the viewer's: rounding is the only
- * zone-dependent part of datemath. Other bounds stay relative so the server
- * resolves them against its own clock. A malformed bound falls back to the
- * default, as the servers' `TimeRangeSchema` does. Call it in `queryFn`, so a
- * relative range keeps one cache key and rounds afresh on every refetch.
+ * zone-dependent part of datemath. Both bounds resolve together so they share
+ * one clock. A range without rounding stays relative, so the server resolves it
+ * against its own clock. A malformed bound falls back to the default, as the
+ * servers' `TimeRangeSchema` does. Call it in `queryFn`, so a relative range
+ * keeps one cache key and rounds afresh on every refetch.
  */
 export function toViewerTimeRange(range: Partial<TimeRange>, now = new Date()): TimeRange {
-  const { from, to } = TimeRangeSchema.parse(range);
-  return {
-    from: from.includes("/") ? resolve(from, { now, roundUp: false }).toISOString() : from,
-    to: to.includes("/") ? resolve(to, { now, roundUp: true }).toISOString() : to,
-  };
+  const parsed = TimeRangeSchema.parse(range);
+  if (!parsed.from.includes("/") && !parsed.to.includes("/")) return parsed;
+  const { fromDate, toDate } = resolveTimeRange(parsed, now);
+  return { from: fromDate.toISOString(), to: toDate.toISOString() };
 }
 
 export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T): T {
   return { ...input, timeRange: toViewerTimeRange(input.timeRange) };
+}
+
+/**
+ * A histogram's window in the viewer's zone, plus the viewer's UTC offset so
+ * its bars start on the viewer's clock. The offset is read at the range's end
+ * or now, whichever is earlier: a rounded-up end ("This week") can sit past a
+ * DST change that none of the data crosses.
+ */
+export function viewerHistogramWindow(range: TimeRange, now = new Date()) {
+  const timeRange = toViewerTimeRange(range, now);
+  const { toDate } = resolveTimeRange(timeRange, now);
+  const at = toDate < now ? toDate : now;
+  return { timeRange, utcOffsetMinutes: -at.getTimezoneOffset() };
 }
 
 export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {

@@ -11,10 +11,7 @@ import {
 export const workflowCostSummaryOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "costSummary", input],
-    queryFn: () =>
-      getWorkflowCostSummary({
-        data: withViewerTimeRange(input),
-      }),
+    queryFn: () => getWorkflowCostSummary({ data: withViewerTimeRange(input) }),
   });
 
 export const workflowCostByJobOptions = (input: WorkflowDetailInput) =>
@@ -26,17 +23,11 @@ export const workflowCostByJobOptions = (input: WorkflowDetailInput) =>
 export const workflowRunTimelinesOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "runTimelines", input],
-    queryFn: () =>
-      getWorkflowRunTimelines({
-        data: withViewerTimeRange(input),
-      }),
+    queryFn: () => getWorkflowRunTimelines({ data: withViewerTimeRange(input) }),
   });
 
 export const workflowRecentRunsOptions = (input: WorkflowDetailInput) =>
   queryOptions({
     queryKey: ["workflows", "recentRuns", input],
-    queryFn: () =>
-      getWorkflowRecentRuns({
-        data: withViewerTimeRange(input),
-      }),
+    queryFn: () => getWorkflowRecentRuns({ data: withViewerTimeRange(input) }),
   });

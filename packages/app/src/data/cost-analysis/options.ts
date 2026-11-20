@@ -22,8 +22,5 @@ export const costOverTimeBreakdownOptions = (
   // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
-    queryFn: () =>
-      getCostOverTimeBreakdown({
-        data: withViewerTimeRange(input),
-      }),
+    queryFn: () => getCostOverTimeBreakdown({ data: withViewerTimeRange(input) }),
   });
