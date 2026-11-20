@@ -17,9 +17,9 @@ import {
   coveringClipsOptions,
 } from "#app/data/replay/options.ts";
 import {
+  canDraw,
   clock,
   gapLabels,
-  hasFullSnapshot,
   startOffsetMs,
   throughClipEnd,
   type TimelineModel,
@@ -148,7 +148,7 @@ function ClipPlayer({
   );
   const firstEventMs = events?.[0]?.timestamp;
   const lastEventMs = events?.at(-1)?.timestamp;
-  const playable = events ? hasFullSnapshot(events) : true;
+  const playable = events ? canDraw(events) : true;
   const blocked = recording.isError || !playable || playerFailed;
   const startMs = firstEventMs === undefined ? 0 : startOffsetMs(clip, firstEventMs);
   const offsetMs = positionMs ?? startMs;
