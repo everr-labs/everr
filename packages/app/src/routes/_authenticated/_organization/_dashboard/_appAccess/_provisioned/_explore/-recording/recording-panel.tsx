@@ -41,7 +41,8 @@ export function RecordingPanel({
   placement: PlayerPlacement;
 }) {
   const covering = useQuery(coveringClipsOptions(subject));
-  const [clipIndex, setClipIndex] = useState(0);
+  // The Clip is kept by id: a refetch can add one that sorts before it.
+  const [clipId, setClipId] = useState<string>();
 
   if (covering.isError) {
     const row = (
@@ -62,7 +63,7 @@ export function RecordingPanel({
   }
 
   const clips = covering.data ?? [];
-  const clip = clips[clipIndex] ?? clips[0];
+  const clip = clips.find((option) => option.clipId === clipId) ?? clips[0];
   if (!clip) return null;
 
   return (
@@ -75,12 +76,12 @@ export function RecordingPanel({
         clips.length > 1 && (
           <select
             aria-label="Clip"
-            value={clipIndex}
-            onChange={(event) => setClipIndex(Number(event.target.value))}
+            value={clip.clipId}
+            onChange={(event) => setClipId(event.target.value)}
             className="border-border bg-input/30 h-6 rounded-md border px-1.5 text-xs"
           >
             {clips.map((option, index) => (
-              <option key={option.clipId} value={index}>
+              <option key={option.clipId} value={option.clipId}>
                 Clip {index + 1} of {clips.length}, {new Date(option.startMs).toLocaleTimeString()}
               </option>
             ))}
