@@ -173,6 +173,9 @@ export function createApplicationAuth(
   const { authPlugins, identityAdapter, organizationHooks, createSessionOnboardingHook } = provider;
   const creationHooks = organizationHooks();
   const mcpResource = mcpResourceForBaseURL(baseURL);
+  // The plugin seeds `resources` into the database on startup, and prerendering
+  // has none. The running server seeds on start or on first resource lookup.
+  const mcpResources = process.env.TSS_PRERENDERING === "true" ? [] : [mcpResource];
 
   const auth = betterAuth({
     baseURL,
@@ -392,9 +395,9 @@ export function createApplicationAuth(
         // The MCP resource is installation-wide, as it was with validAudiences.
         // Resource administration is not exposed by Everr.
         resourcePrivileges: () => false,
-        resources: [mcpResource],
+        resources: mcpResources,
         enforcePerClientResources: false,
-        clientRegistrationAllowedResources: [mcpResource],
+        clientRegistrationAllowedResources: mcpResources,
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never
