@@ -181,19 +181,44 @@ async function segmentBytes(organizationId: string, clip: ClipWindow, at: Date):
   return Number(row?.bytes ?? 0);
 }
 
-const SEGMENT_COLUMNS = `
-SELECT
-  segment_index,
-  Body,
-  toString(LogAttributes.\`everr.recording.event.index\`) AS event_index,
-  toString(LogAttributes.\`everr.recording.event.piece\`) AS piece,
-  toString(LogAttributes.\`everr.recording.event.pieces\`) AS pieces`;
+// The Segments of the Stream that start up to an hour before the Clip. The
+// SDK numbers Segments in send order, and a Clip opened later can send an
+// older Generation after a newer one, so such a Segment can hold an index
+// between two the Clip read. Their indexes (not their bodies) tell a hole from
+// a Segment that is merely not part of this Clip. The bound keeps the scan
+// finite on a long Stream.
+const EARLIER_SCOPE = `
+FROM recordings
+WHERE ServiceName = {service:String}
+  AND stream_id = {stream:String}
+  AND Timestamp < fromUnixTimestamp64Nano(toInt64({fromMs: Int64}) * 1000000)
+  AND Timestamp >= fromUnixTimestamp64Nano(toInt64({fromMs: Int64}) * 1000000) - toIntervalHour(1)`;
+
+// The Segments of the Clip, then the indexes of the earlier ones with an empty
+// Body and `earlier` = 1, all in index order.
+const SEGMENT_ROWS = `
+SELECT segment_index, Body, event_index, piece, pieces, earlier
+FROM (
+  SELECT
+    segment_index,
+    Body,
+    toString(LogAttributes.\`everr.recording.event.index\`) AS event_index,
+    toString(LogAttributes.\`everr.recording.event.piece\`) AS piece,
+    toString(LogAttributes.\`everr.recording.event.pieces\`) AS pieces,
+    0 AS earlier${SEGMENT_SCOPE}
+  UNION ALL
+  SELECT segment_index, '' AS Body, '' AS event_index, '' AS piece, '' AS pieces, 1 AS earlier${EARLIER_SCOPE}
+)
+ORDER BY segment_index
+`;
 
 /**
  * The Segment rows the page at `at` needs, from the Clip's start, as the JSON
- * lines ClickHouse writes: `{segment_index, Body, event_index, piece,
- * pieces}`. They are passed on unparsed: the CLI rebuilds the page. A read
- * over MAX_SEGMENT_BYTES is refused before any row is read.
+ * lines ClickHouse writes: `{segment_index, Body, event_index, piece, pieces,
+ * earlier}`. `earlier` is 1 on a row that only names the index of a Segment
+ * from before the Clip, with an empty Body. They are passed on unparsed: the
+ * CLI rebuilds the page. A read over MAX_SEGMENT_BYTES is refused before any
+ * row is read.
  */
 export async function segmentLines(
   organizationId: string,
@@ -207,14 +232,7 @@ export async function segmentLines(
       `The page at ${at.toISOString()} needs ${Math.ceil(bytes / 1024 / 1024)} MiB of Segments, over the ${MAX_SEGMENT_BYTES / 1024 / 1024} MiB a read allows.`,
     );
   }
-  return queryLines(
-    `${SEGMENT_COLUMNS}${SEGMENT_SCOPE}
-ORDER BY segment_index
-`,
-    organizationId,
-    segmentScope(clip, at),
-    QUERY_SETTINGS,
-  );
+  return queryLines(SEGMENT_ROWS, organizationId, segmentScope(clip, at), QUERY_SETTINGS);
 }
 
 // The in-app player: every event of one Clip, parsed here and sent to the
@@ -305,17 +323,19 @@ type SegmentRow = {
   event_index: string;
   piece: string;
   pieces: string;
+  earlier: number;
 };
 
-/** The Segments of a Clip's Stream from its start to its end, each index once. */
+/**
+ * The Segments of a Clip's Stream from its start to its end, each index once,
+ * and the indexes of the Segments from before it, which hold no events here.
+ */
 async function loadSegments(
   organizationId: string,
   clip: ClipWindow,
-): Promise<{ segments: StoredSegment[]; gaps: Gap[] }> {
+): Promise<{ segments: StoredSegment[]; earlier: number[]; gaps: Gap[] }> {
   const rows = await query<SegmentRow>(
-    `${SEGMENT_COLUMNS}${SEGMENT_SCOPE}
-ORDER BY segment_index
-`,
+    SEGMENT_ROWS,
     organizationId,
     segmentScope(clip, clip.end),
     QUERY_SETTINGS,
@@ -324,9 +344,14 @@ ORDER BY segment_index
   let bytes = 0;
   const gaps: Gap[] = [];
   const segments: StoredSegment[] = [];
+  const earlier: number[] = [];
   const seen = new Map<number, string>();
 
   for (const row of rows) {
+    if (Number(row.earlier) === 1) {
+      earlier.push(Number(row.segment_index));
+      continue;
+    }
     bytes += Buffer.byteLength(row.Body);
     if (bytes > MAX_SEGMENT_BYTES) {
       throw new ReplayError("too_large", "recording segment payload exceeds 32 MiB");
@@ -349,11 +374,12 @@ ORDER BY segment_index
     });
   }
 
-  return { segments, gaps };
+  return { segments, earlier, gaps };
 }
 
 function reassemble(
   segments: StoredSegment[],
+  earlier: number[],
   streamId: string,
 ): { events: RrwebEvent[]; gaps: Gap[] } {
   const ordered = [...segments].sort((a, b) => a.segmentIndex - b.segmentIndex);
@@ -361,19 +387,21 @@ function reassemble(
   const gaps: Gap[] = [];
   const open = new Map<string, { parts: string[]; count: number }>();
 
+  // A Segment from before the Clip can sit between two read ones (send order
+  // is not time order), so its index is no hole. Only those inside the read
+  // range count: it is bounded by the read ones, not by the Stream.
   const first = ordered[0];
-  if (first) {
-    let expect = first.segmentIndex;
-    for (const s of ordered) {
-      if (s.segmentIndex > expect) {
-        gaps.push({
-          kind: "index",
-          streamId,
-          after: expect - 1,
-          missing: s.segmentIndex - expect,
-        });
+  const last = ordered[ordered.length - 1];
+  if (first && last) {
+    const present = [...new Set([...ordered.map((s) => s.segmentIndex), ...earlier])]
+      .filter((i) => i >= first.segmentIndex && i <= last.segmentIndex)
+      .sort((a, b) => a - b);
+    let after = present[0];
+    for (const index of present) {
+      if (after !== undefined && index - after > 1) {
+        gaps.push({ kind: "index", streamId, after, missing: index - after - 1 });
       }
-      expect = s.segmentIndex + 1;
+      after = index;
     }
   }
 
@@ -435,8 +463,8 @@ export async function clipEvents(
 ): Promise<ClipEvents> {
   const clip = await loadClipById(organizationId, clipId, atMs);
   if (!clip) throw new ReplayError("outside_clip", "no recording clip found near at");
-  const { segments, gaps } = await loadSegments(organizationId, clip);
-  const { events, gaps: streamGaps } = reassemble(segments, clip.streamId);
+  const { segments, earlier, gaps } = await loadSegments(organizationId, clip);
+  const { events, gaps: streamGaps } = reassemble(segments, earlier, clip.streamId);
   const endMs = clip.end.getTime();
   return {
     events: events.filter((e) => e.timestamp <= endMs).sort((a, b) => a.timestamp - b.timestamp),

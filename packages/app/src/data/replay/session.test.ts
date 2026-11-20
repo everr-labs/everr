@@ -168,6 +168,28 @@ describe("segmentLines", () => {
     expect(rowReads()[0]?.sql).toContain("ORDER BY segment_index");
   });
 
+  it("adds the Segments from before the Clip as body-less rows marked earlier", async () => {
+    const rows = [
+      segRow("[3]", { segment_index: 3, at: T0 - 1_000 }),
+      segRow("[1]", { segment_index: 0, at: T0 + 100 }),
+    ];
+    plan({ recordings: rows });
+    const lines = await collect(await segmentLines(ORG, clip(), new Date(T0 + 1_000)));
+    expect(lines.map((l) => JSON.parse(l))).toEqual([
+      { segment_index: 0, Body: "[1]", event_index: "", piece: "", pieces: "", earlier: 0 },
+      { segment_index: 3, Body: "", event_index: "", piece: "", pieces: "", earlier: 1 },
+    ]);
+    const [read] = rowReads();
+    expect(read?.params).toEqual({
+      service: "verify-sdk-web",
+      stream: STREAM,
+      fromMs: T0,
+      toMs: T0 + 1_000,
+    });
+    expect(read?.sql).toMatch(/ORDER BY segment_index\s*$/);
+    expect(read?.sql).not.toContain("tenant_id");
+  });
+
   it("refuses a read over 32 MiB of Segments before reading a row", async () => {
     plan({ recordings: [segRow("[]")], bytes: 33 * 1024 * 1024 });
     const failure = await segmentLines(ORG, clip(), new Date(T0 + 1_000)).catch((e: unknown) => e);
@@ -248,6 +270,102 @@ describe("clipEvents", () => {
       stream: STREAM,
       fromMs: T0,
       toMs: T0 + 5_000,
+    });
+  });
+
+  describe("Segments sent out of time order", () => {
+    // Clip A (manual, from Generation 5) sent Segments 0 to 2. An error then
+    // opened Clip B, 60 s back: Generation 4 went out as 3 to 5, before A's
+    // start, and Generation 5 went on as 6.
+    const segment = (index: number, at: number) =>
+      segRow(body([event(3, at)]), { segment_index: index, at });
+    const clipA = () => [spanRow({ startMs: T0, endMs: T0 + 5_000 })];
+
+    it("reports no gap when the missing indexes are Segments from before the Clip", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [
+          segment(0, T0 + 100),
+          segment(1, T0 + 200),
+          segment(2, T0 + 300),
+          segment(3, T0 - 60_000),
+          segment(4, T0 - 50_000),
+          segment(5, T0 - 40_000),
+          segment(6, T0 + 400),
+        ],
+      });
+
+      const { events, gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([]);
+      expect(events.map((e) => e.timestamp)).toEqual([T0 + 100, T0 + 200, T0 + 300, T0 + 400]);
+    });
+
+    it("never returns or parses the body of a Segment from before the Clip", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [
+          segment(0, T0 + 100),
+          segRow("not json", { segment_index: 1, at: T0 - 1_000 }),
+          segment(2, T0 + 300),
+        ],
+      });
+
+      const { events, gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([]);
+      expect(events.map((e) => e.timestamp)).toEqual([T0 + 100, T0 + 300]);
+    });
+
+    it("reports a gap for an index that no Segment of the Stream holds", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [
+          segment(0, T0 + 100),
+          segment(1, T0 + 200),
+          segment(2, T0 + 300),
+          segment(3, T0 - 60_000),
+          segment(5, T0 - 40_000),
+          segment(6, T0 + 400),
+        ],
+      });
+
+      const { gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([{ kind: "index", streamId: STREAM, after: 3, missing: 1 }]);
+    });
+
+    it("ignores Segments from before the Clip that sit past the last one read", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [segment(0, T0 + 100), segment(1, T0 + 200), segment(2, T0 - 1_000)],
+      });
+
+      const { gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([]);
+    });
+
+    it("does not look for Segments from before the Clip more than an hour back", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [segment(0, T0 + 100), segment(1, T0 - HOUR - 1), segment(2, T0 + 300)],
+      });
+
+      const { gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([{ kind: "index", streamId: STREAM, after: 0, missing: 1 }]);
+    });
+
+    it("still reports a plain hole in the indexes", async () => {
+      plan({
+        clips: clipA(),
+        recordings: [segment(0, T0 + 100), segment(1, T0 + 200), segment(4, T0 + 400)],
+      });
+
+      const { gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+      expect(gaps).toEqual([{ kind: "index", streamId: STREAM, after: 1, missing: 2 }]);
     });
   });
 

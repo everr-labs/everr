@@ -36,11 +36,11 @@ function callSegments(query: string, headers: Record<string, string> = {}) {
 }
 
 async function* rows(): AsyncGenerator<string> {
-  yield '{"segment_index":0,"Body":"[]","event_index":"","piece":"","pieces":""}';
+  yield '{"segment_index":0,"Body":"[]","event_index":"","piece":"","pieces":"","earlier":0}';
 }
 
 const READ_AT = new Date("2026-11-14T10:21:42.480Z");
-const BODY = `{"format":1,"read_ms":${READ_AT.getTime()}}\n{"segment_index":0,"Body":"[]","event_index":"","piece":"","pieces":""}\n{"rows":1}\n`;
+const BODY = `{"format":1,"read_ms":${READ_AT.getTime()}}\n{"segment_index":0,"Body":"[]","event_index":"","piece":"","pieces":"","earlier":0}\n{"rows":1}\n`;
 
 beforeEach(() => {
   vi.clearAllMocks();

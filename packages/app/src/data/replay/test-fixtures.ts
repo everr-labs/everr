@@ -26,14 +26,21 @@ type SpanRow = {
   sessionId: string;
 };
 
-/** A Segment row. `stream_id` is not selected: plan() filters on it, as the WHERE does. */
+/**
+ * A Segment row. `stream_id` and `at` are not selected: plan() filters on them,
+ * as the WHERE does. `at` is the Segment's Timestamp in epoch ms; a row without
+ * one is always inside the read. `earlier` is 1 on the body-less rows the
+ * reader gets for the Segments before the Clip.
+ */
 type SegmentRow = {
   stream_id: string;
+  at?: number;
   segment_index: number;
   Body: string;
   event_index: string;
   piece: string;
   pieces: string;
+  earlier: number;
 };
 
 export function spanRow(overrides: Partial<SpanRow> = {}): SpanRow {
@@ -58,12 +65,13 @@ export function segRow(body: string, overrides: Partial<SegmentRow> = {}): Segme
     event_index: "",
     piece: "",
     pieces: "",
+    earlier: 0,
     ...overrides,
   };
 }
 
 /** A Segment row as the JSON line ClickHouse writes for it. */
-export function segLine({ stream_id: _stream, ...row }: SegmentRow): string {
+export function segLine({ stream_id: _stream, at: _at, ...row }: SegmentRow): string {
   return JSON.stringify(row);
 }
 
@@ -77,13 +85,27 @@ async function* each(lines: string[]): AsyncGenerator<string> {
  *                             nearest to the `atMs` param first;
  *                             with a `clipId` param, the spans of that Clip starting in the window
  *   AS bytes                  the size of the Segments (`bytes` overrides it)
- *   FROM recordings           the Segments of the `stream` param (as JSON lines from queryLines)
+ *   FROM recordings           the Segments of the `stream` param (as JSON lines from queryLines);
+ *                             a row with `at` is read only inside [fromMs, toMs], and, when the
+ *                             SQL has a UNION ALL, comes as a body-less `earlier` row up to an
+ *                             hour before fromMs
  */
 export function plan(
   rows: { clips?: SpanRow[]; recordings?: SegmentRow[]; bytes?: number } = {},
 ): void {
-  const recordings = (params: Record<string, unknown>) =>
-    (rows.recordings ?? []).filter((r) => r.stream_id === params.stream);
+  const recordings = (params: Record<string, unknown>, sql = "") => {
+    const union = sql.includes("UNION ALL");
+    const out: SegmentRow[] = [];
+    for (const r of rows.recordings ?? []) {
+      if (r.stream_id !== params.stream) continue;
+      if (r.at === undefined || (r.at >= Number(params.fromMs) && r.at <= Number(params.toMs))) {
+        out.push(r);
+      } else if (union && r.at < Number(params.fromMs) && r.at >= Number(params.fromMs) - HOUR) {
+        out.push({ ...r, Body: "", event_index: "", piece: "", pieces: "", earlier: 1 });
+      }
+    }
+    return out.sort((a, b) => a.segment_index - b.segment_index);
+  };
   mockedQuery.mockImplementation(async (sql: string, _org, rawParams) => {
     const params = (rawParams ?? {}) as Record<string, unknown>;
     if (sql.includes("SpanName = 'recording'") && typeof params.clipId === "string") {
@@ -114,13 +136,13 @@ export function plan(
       return [{ bytes: rows.bytes ?? size }] as never;
     }
     if (/FROM\s+recordings/.test(sql)) {
-      return recordings(params).map(({ stream_id: _stream, ...row }) => row) as never;
+      return recordings(params, sql).map(({ stream_id: _stream, at: _at, ...row }) => row) as never;
     }
     throw new Error(`unexpected query: ${sql}`);
   });
   mockedQueryLines.mockImplementation(async (sql: string, _org, rawParams) => {
     const params = (rawParams ?? {}) as Record<string, unknown>;
-    if (/FROM\s+recordings/.test(sql)) return each(recordings(params).map(segLine));
+    if (/FROM\s+recordings/.test(sql)) return each(recordings(params, sql).map(segLine));
     throw new Error(`unexpected query: ${sql}`);
   });
 }
