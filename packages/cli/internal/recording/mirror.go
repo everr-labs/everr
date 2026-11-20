@@ -126,12 +126,10 @@ type node struct {
 	parent, first, last, prev, next int
 }
 
-// rrweb custom event tags the SDK writes when the app pauses or resumes the
-// recorder (see rules/browser-events.md).
-const (
-	tagPause  = "everr.recording.pause"
-	tagResume = "everr.recording.resume"
-)
+// The rrweb custom event tag the SDK writes when the app pauses the recorder
+// (see rules/browser-events.md). The resume tag is not read: the page is the
+// one from before the pause until the full snapshot that follows the resume.
+const tagPause = "everr.recording.pause"
 
 type mirror struct {
 	nodes []node
@@ -139,8 +137,8 @@ type mirror struct {
 	root  int
 	// lost is true once an event referred to a node the mirror did not have.
 	lost bool
-	// paused: the app paused the recorder at pausedAt (ms) and has not resumed,
-	// so the page has changed in ways the Recording does not show.
+	// paused: the app paused the recorder at pausedAt (ms) and no full snapshot
+	// came since, so the page has changed in ways the Recording does not show.
 	paused   bool
 	pausedAt int64
 	// addAttempts counts every try to place an add, over snapshots too.
@@ -274,12 +272,8 @@ func (m *mirror) loaded() bool { return m.root != none }
 func (m *mirror) apply(e event) bool {
 	data := e.data
 	if e.kind == eventCustom {
-		tag, _ := data.get("tag").str()
-		switch {
-		case tag == tagPause && !m.paused:
+		if tag, _ := data.get("tag").str(); tag == tagPause && !m.paused {
 			m.paused, m.pausedAt = true, int64(max(e.timestamp, 0))
-		case tag == tagResume:
-			m.paused = false
 		}
 		return false
 	}
