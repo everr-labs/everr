@@ -8,6 +8,11 @@ describe("MetricsSearchSchema", () => {
     const { queries } = MetricsSearchSchema.parse({ queries: [first, second] });
     expect(queries.map((q) => q.metric)).toEqual(["http.requests"]);
   });
+
+  it("opens the catalog, searching for the name, for a metric without a type", () => {
+    const search = MetricsSearchSchema.parse({ metric: "http.requests", agg: "rate" });
+    expect(search).toMatchObject({ metric: undefined, agg: undefined, q: "http.requests" });
+  });
 });
 
 describe("MetricSeriesInputSchema", () => {

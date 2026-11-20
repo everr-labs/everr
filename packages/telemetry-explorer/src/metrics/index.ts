@@ -7,7 +7,6 @@ export {
 export * from "./data/schemas";
 export * from "./data/types";
 export {
-  CLEAR_METRIC,
   type ExemplarLinkRenderProps,
   type MetricLinkRenderProps,
   MetricsExplorer,

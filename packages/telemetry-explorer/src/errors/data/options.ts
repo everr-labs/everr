@@ -1,13 +1,11 @@
-import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { resolveTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
+import { inViewerTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
-import type { ErrorIssuesResult, ErrorSort } from "./types";
+import type { ErrorIssueDetail, ErrorIssuesResult, ErrorSort } from "./types";
 
 export type ErrorIssuesInfiniteInput = {
   timeRange: TimeRange;
-  refresh: string;
   q: string;
   service: string[];
   fingerprint: string;
@@ -20,8 +18,6 @@ export function errorIssuesInfiniteOptions(
   repo: ErrorsRepositoryLike,
   input: ErrorIssuesInfiniteInput,
 ) {
-  const refreshMs = getRefreshIntervalMs(input.refresh);
-
   return infiniteQueryOptions({
     queryKey: [
       "errors",
@@ -37,20 +33,20 @@ export function errorIssuesInfiniteOptions(
         attributes: input.attributes,
       },
     ] as const,
-    queryFn: ({ pageParam }: { pageParam: number }) => {
-      const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return repo.searchIssues({
-        fromTs: toClickHouseDateTime(fromDate),
-        toTs: toClickHouseDateTime(toDate),
-        q: input.q,
-        service: input.service,
-        fingerprint: input.fingerprint,
-        sort: input.sort,
-        limit: input.limit,
-        offset: pageParam,
-        attributes: input.attributes,
-      });
-    },
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      inViewerTimeRange(input.timeRange, { issues: [] }, (timeRange) =>
+        repo.searchIssues({
+          fromTs: toClickHouseDateTime(new Date(timeRange.from)),
+          toTs: toClickHouseDateTime(new Date(timeRange.to)),
+          q: input.q,
+          service: input.service,
+          fingerprint: input.fingerprint,
+          sort: input.sort,
+          limit: input.limit,
+          offset: pageParam,
+          attributes: input.attributes,
+        }),
+      ),
     initialPageParam: 0,
     getNextPageParam: (
       lastPage: ErrorIssuesResult | undefined,
@@ -60,21 +56,17 @@ export function errorIssuesInfiniteOptions(
       if (lastPage.issues.length < input.limit) return undefined;
       return allPages.reduce((count, page) => count + (page?.issues.length ?? 0), 0);
     },
-    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
 }
 
 export type ErrorIssueOptionsInput = {
   fingerprint: string;
   timeRange: TimeRange;
-  refresh: string;
   service: string[];
   occurrenceLimit: number;
 };
 
 export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueOptionsInput) {
-  const refreshMs = getRefreshIntervalMs(input.refresh);
-
   return queryOptions({
     queryKey: [
       "errors",
@@ -84,18 +76,18 @@ export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueO
       input.service,
       input.occurrenceLimit,
     ] as const,
-    queryFn: () => {
-      const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return repo.getIssue({
-        fingerprint: input.fingerprint,
-        fromTs: toClickHouseDateTime(fromDate),
-        toTs: toClickHouseDateTime(toDate),
-        service: input.service,
-        occurrenceLimit: input.occurrenceLimit,
-      });
-    },
+    // Nothing happened in a range that holds no time, so there's no issue to show.
+    queryFn: () =>
+      inViewerTimeRange<ErrorIssueDetail | null>(input.timeRange, null, (timeRange) =>
+        repo.getIssue({
+          fingerprint: input.fingerprint,
+          fromTs: toClickHouseDateTime(new Date(timeRange.from)),
+          toTs: toClickHouseDateTime(new Date(timeRange.to)),
+          service: input.service,
+          occurrenceLimit: input.occurrenceLimit,
+        }),
+      ),
     enabled: input.fingerprint.length > 0,
-    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
   });
 }
 
@@ -103,22 +95,18 @@ export function errorServicesOptions(
   repo: ErrorsRepositoryLike,
   input: {
     timeRange: TimeRange;
-    refresh: string;
     attributes: AttributeFilter[];
   },
 ) {
-  const refreshMs = getRefreshIntervalMs(input.refresh);
-
   return queryOptions({
     queryKey: ["errors", "services", input.timeRange, input.attributes] as const,
-    queryFn: () => {
-      const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-      return repo.listServices({
-        fromTs: toClickHouseDateTime(fromDate),
-        toTs: toClickHouseDateTime(toDate),
-        attributes: input.attributes,
-      });
-    },
-    refetchInterval: refreshMs && refreshMs > 0 ? refreshMs : false,
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) =>
+        repo.listServices({
+          fromTs: toClickHouseDateTime(new Date(timeRange.from)),
+          toTs: toClickHouseDateTime(new Date(timeRange.to)),
+          attributes: input.attributes,
+        }),
+      ),
   });
 }

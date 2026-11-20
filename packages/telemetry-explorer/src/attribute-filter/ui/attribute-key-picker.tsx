@@ -30,6 +30,7 @@ export function AttributeKeyPicker({
   sources,
   onSelect,
   triggerLabel = "Filter",
+  triggerName,
   triggerClassName = "h-8 w-full justify-start",
   triggerId,
   finalFocus,
@@ -45,6 +46,8 @@ export function AttributeKeyPicker({
   sources: AttributeSource[];
   onSelect: (key: { source: AttributeSource; key: string }) => void;
   triggerLabel?: string;
+  /** The trigger's accessible name, when its label alone doesn't say what it adds. */
+  triggerName?: string;
   triggerClassName?: string;
   triggerId?: string;
   /** Where focus goes when the menu closes; see Base UI's Popover.Popup. */
@@ -122,7 +125,15 @@ export function AttributeKeyPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button id={triggerId} variant="outline" size="sm" className={triggerClassName} />}
+        render={
+          <Button
+            id={triggerId}
+            aria-label={triggerName}
+            variant="outline"
+            size="sm"
+            className={triggerClassName}
+          />
+        }
       >
         <Plus className="size-3.5" />
         {triggerLabel}

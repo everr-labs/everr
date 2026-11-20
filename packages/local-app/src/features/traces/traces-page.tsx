@@ -43,7 +43,6 @@ export function TracesPage() {
         <TracesSearch
           repo={localTracesRepo}
           timeRange={timeRange}
-          refresh={refresh}
           search={{
             namespace: search.namespace,
             service,

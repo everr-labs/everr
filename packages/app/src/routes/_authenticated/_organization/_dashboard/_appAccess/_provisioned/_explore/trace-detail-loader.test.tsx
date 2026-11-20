@@ -49,7 +49,6 @@ it("shares prefetched trace data with the viewer regardless of URL time bounds",
     getTraceOptions({
       repo: remoteTracesRepo,
       traceId: "trace-1",
-      refresh: "off",
     }),
   );
   const unsubscribe = observer.subscribe(() => {});
@@ -61,7 +60,6 @@ it("shares prefetched trace data with the viewer regardless of URL time bounds",
       search: {
         start: "2026-01-01 00:00:00",
         end: "2026-01-01 01:00:00",
-        refresh: "5s",
       },
     });
     expect(remoteTracesRepo.getTrace).toHaveBeenCalledExactlyOnceWith({

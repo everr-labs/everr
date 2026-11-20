@@ -21,13 +21,13 @@ import { MetricKindLabel } from "./metric-name";
 export interface MetricPickerProps {
   /** The metrics in range, fetched when the list first opens. */
   metrics: ReturnType<typeof metricNamesOptions>;
-  value: { name: string; type: MetricType | undefined };
+  value: { name: string; type: MetricType };
   onChange: (metric: { name: string; type: MetricType }) => void;
   /** The button's id, so the page can move focus to it. */
   triggerId?: string;
 }
 
-const key = (name: string, type: MetricType | undefined) => `${type ?? ""}:${name}`;
+const key = (name: string, type: MetricType) => `${type}:${name}`;
 
 /**
  * The metric's name as a button that opens a searchable list of metrics.
@@ -97,7 +97,12 @@ export function MetricPicker({
       ) : (
         trigger
       )}
-      <PopoverContent align="start" anchor={anchor} className="w-96 p-0">
+      <PopoverContent
+        align="start"
+        anchor={anchor}
+        // Narrower than a phone screen, with a margin on each side.
+        className="w-96 max-w-[calc(100vw-1rem)] p-0"
+      >
         <Command className="p-0">
           <CommandInput ref={search} placeholder="Search metrics…" />
           <CommandList>

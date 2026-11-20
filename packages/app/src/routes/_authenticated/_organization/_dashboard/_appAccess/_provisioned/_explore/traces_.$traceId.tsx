@@ -23,7 +23,6 @@ export const Route = createFileRoute(
       getTraceOptions({
         repo: remoteTracesRepo,
         traceId: params.traceId,
-        refresh: "off",
       }),
     );
   },

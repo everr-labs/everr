@@ -125,6 +125,26 @@ beforeAll(() => {
       Value: i + 1,
     })),
   );
+  // Exemplars sampled by two exports of the latency histogram below. The
+  // 12:01:30 export sampled a request at 12:00:45, before the 12:01 interval
+  // it's counted in, and one with no trace, which can't link anywhere.
+  const exemplars = (rows: [string, number, string][]) => ({
+    "Exemplars.FilteredAttributes": rows.map(() => ({})),
+    "Exemplars.TimeUnix": rows.map(([time]) => `2026-01-01 ${time}`),
+    "Exemplars.Value": rows.map(([, value]) => value),
+    "Exemplars.SpanId": rows.map(([, , trace]) => (trace ? `s${trace.slice(1)}` : "")),
+    "Exemplars.TraceId": rows.map(([, , trace]) => trace),
+  });
+  const EXEMPLARS: Record<string, Record<string, unknown>> = {
+    "12:00:30": exemplars([
+      ["12:00:20", 0.08, "t1"],
+      ["12:00:25", 0.3, "t2"],
+    ]),
+    "12:01:30": exemplars([
+      ["12:00:45", 0.4, "t3"],
+      ["12:01:20", 0.9, ""],
+    ]),
+  };
   // A cumulative latency histogram that restarts between 12:01 and 12:02.
   // Buckets: [0, 0.1], (0.1, 0.5], (0.5, 1], above 1.
   insert(
@@ -145,29 +165,9 @@ beforeAll(() => {
       Count: counts.reduce((a: number, b: number) => a + b, 0),
       Sum: sum,
       AggregationTemporality: 2,
+      ...EXEMPLARS[time],
     })),
   );
-  // Exemplars on the latency histogram: two in the 12:00 interval, one in
-  // 12:01, and one with no trace, which can't link anywhere.
-  insert("metrics_histogram", [
-    {
-      MetricName: "http.request.duration",
-      MetricUnit: "s",
-      TimeUnix: "2026-01-01 12:03:30",
-      ExplicitBounds: [0.1, 0.5, 1],
-      AggregationTemporality: 2,
-      "Exemplars.FilteredAttributes": [{}, {}, {}, {}],
-      "Exemplars.TimeUnix": [
-        "2026-01-01 12:00:20",
-        "2026-01-01 12:00:40",
-        "2026-01-01 12:01:20",
-        "2026-01-01 12:01:50",
-      ],
-      "Exemplars.Value": [0.08, 0.3, 0.4, 0.9],
-      "Exemplars.SpanId": ["s1", "s2", "s3", ""],
-      "Exemplars.TraceId": ["t1", "t2", "t3", ""],
-    },
-  ]);
   // A cumulative counter in 25 pools whose SDK sends no start time, so each
   // series' first point says it started in 1970.
   insert(
@@ -1247,17 +1247,135 @@ describe("metrics explorer against ClickHouse", () => {
     ]);
   });
 
-  it("keeps the highest exemplar with a trace in each interval", async () => {
+  it("keeps the highest exemplar with a trace in each interval of its export", async () => {
     const exemplars = await repo.exemplars({
       timeRange,
       metric: "http.request.duration",
       type: "histogram",
     });
+    const at = (hhmm: string) => Date.parse(`2026-01-01T${hhmm}:00Z`) / 1000;
     expect(
-      exemplars.map(({ time, value, traceId, spanId }) => ({ time, value, traceId, spanId })),
+      exemplars.map(({ ts, time, value, traceId, spanId }) => ({
+        ts,
+        time,
+        value,
+        traceId,
+        spanId,
+      })),
     ).toEqual([
-      { time: "2026-01-01 12:01:20", value: 0.4, traceId: "t3", spanId: "s3" },
-      { time: "2026-01-01 12:00:40", value: 0.3, traceId: "t2", spanId: "s2" },
+      // In the interval its export counts it in, not the one of its own time.
+      { ts: at("12:01"), time: "2026-01-01 12:00:45", value: 0.4, traceId: "t3", spanId: "s3" },
+      { ts: at("12:00"), time: "2026-01-01 12:00:25", value: 0.3, traceId: "t2", spanId: "s2" },
+    ]);
+  });
+
+  it("draws an exemplar an SDK repeats on every export once, at the first", async () => {
+    // Every export carries the last exemplar seen, until a new one replaces
+    // it: one sampled at 10:50, long before the range, then one at 12:03:10.
+    const rows = Array.from({ length: 80 }, (_, i) => {
+      const time = new Date(Date.parse("2026-01-06T10:50:30Z") + i * 60_000);
+      const fresh = time >= new Date("2026-01-06T12:03:30Z");
+      return {
+        ServiceName: "api",
+        MetricName: "rpc.duration",
+        TimeUnix: time.toISOString().replace("T", " ").slice(0, 19),
+        ExplicitBounds: [1],
+        BucketCounts: [100, 0],
+        Count: 100,
+        Sum: 10,
+        AggregationTemporality: 2,
+        "Exemplars.FilteredAttributes": [{}],
+        "Exemplars.TimeUnix": [fresh ? "2026-01-06 12:03:10" : "2026-01-06 10:50:00"],
+        "Exemplars.Value": [fresh ? 0.5 : 0.9],
+        "Exemplars.SpanId": [fresh ? "s2" : "s1"],
+        "Exemplars.TraceId": [fresh ? "fresh" : "old"],
+      };
+    });
+    run(
+      `INSERT INTO metrics_histogram FORMAT JSONEachRow\n${rows.map((r) => JSON.stringify(r)).join("\n")}`,
+    );
+    const exemplars = await repo.exemplars({
+      timeRange: { from: "2026-01-06T12:00:00Z", to: "2026-01-06T12:10:00Z" },
+      metric: "rpc.duration",
+      type: "histogram",
+    });
+    expect(exemplars.map(({ ts, traceId }) => ({ ts, traceId }))).toEqual([
+      { ts: Date.parse("2026-01-06T12:03:00Z") / 1000, traceId: "fresh" },
+    ]);
+    // The first hour-long interval starts at 11:00, before the range; the old
+    // exemplar still isn't new there.
+    const hourly = await repo.exemplars({
+      timeRange: { from: "2026-01-06T11:20:00Z", to: "2026-01-06T12:10:00Z" },
+      metric: "rpc.duration",
+      type: "histogram",
+      minStep: 3600,
+    });
+    expect(hourly.map(({ traceId }) => traceId)).toEqual(["fresh"]);
+  });
+
+  it("keeps an exemplar sampled before the range by its export inside it", async () => {
+    // Exported every 65 s: the 12:00:02 export sampled a request at 11:58:59,
+    // more than a minute before the range, after the export before it.
+    const rows = [
+      ["11:58:57", ""],
+      ["12:00:02", "11:58:59"],
+      ["12:01:07", ""],
+    ].map(([time, sampled]) => ({
+      ServiceName: "api",
+      MetricName: "slow.export",
+      TimeUnix: `2026-01-07 ${time}`,
+      ExplicitBounds: [1],
+      BucketCounts: [1, 0],
+      Count: 1,
+      Sum: 1,
+      AggregationTemporality: 1,
+      "Exemplars.FilteredAttributes": sampled ? [{}] : [],
+      "Exemplars.TimeUnix": sampled ? [`2026-01-07 ${sampled}`] : [],
+      "Exemplars.Value": sampled ? [0.7] : [],
+      "Exemplars.SpanId": sampled ? ["s1"] : [],
+      "Exemplars.TraceId": sampled ? ["t1"] : [],
+    }));
+    run(
+      `INSERT INTO metrics_histogram FORMAT JSONEachRow\n${rows.map((r) => JSON.stringify(r)).join("\n")}`,
+    );
+    const exemplars = await repo.exemplars({
+      timeRange: { from: "2026-01-07T12:00:00Z", to: "2026-01-07T12:10:00Z" },
+      metric: "slow.export",
+      type: "histogram",
+      minStep: 65,
+    });
+    expect(exemplars.map(({ ts, traceId }) => ({ ts, traceId }))).toEqual([
+      { ts: Date.parse("2026-01-07T12:00:00Z") / 1000, traceId: "t1" },
+    ]);
+  });
+
+  it("keeps an exemplar from the first interval's exports before the range start", async () => {
+    // The chart's first interval starts at 12:00, before the range, and
+    // counts the 12:00:10 export.
+    run(`INSERT INTO metrics_histogram FORMAT JSONEachRow
+${JSON.stringify({
+  ServiceName: "api",
+  MetricName: "early.export",
+  TimeUnix: "2026-01-08 12:00:10",
+  ExplicitBounds: [1],
+  BucketCounts: [1, 0],
+  Count: 1,
+  Sum: 1,
+  AggregationTemporality: 1,
+  "Exemplars.FilteredAttributes": [{}],
+  "Exemplars.TimeUnix": ["2026-01-08 12:00:05"],
+  "Exemplars.Value": [0.7],
+  "Exemplars.SpanId": ["s1"],
+  "Exemplars.TraceId": ["t1"],
+})}`);
+    const exemplars = await repo.exemplars({
+      timeRange: { from: "2026-01-08T12:00:30Z", to: "2026-01-08T12:10:00Z" },
+      metric: "early.export",
+      type: "histogram",
+      minStep: 60,
+    });
+    expect(exemplars.map(({ ts, traceId }) => ({ ts, traceId }))).toEqual([
+      { ts: Date.parse("2026-01-08T12:00:00Z") / 1000, traceId: "t1" },
     ]);
   });
 
@@ -1340,6 +1458,33 @@ describe("metrics explorer against ClickHouse", () => {
     expect(await read("rate")).toEqual([4 / 60, 6 / 60, null]);
   });
 
+  it("charts the lowest minimum across a summary's series", async () => {
+    run(`INSERT INTO metrics_summary (ServiceName, MetricName, ResourceAttributes, TimeUnix, Count, Sum, ValueAtQuantiles.Quantile, ValueAtQuantiles.Value)
+      VALUES ('api', 'job.latency', map('service.instance.id', 'a'), '2026-01-04 12:00:30', 1, 1, [0, 1], [1, 4]),
+             ('api', 'job.latency', map('service.instance.id', 'b'), '2026-01-04 12:00:30', 1, 1, [0, 1], [5, 9])`);
+    const min = await repo.series({
+      timeRange: { from: "2026-01-04T12:00:00Z", to: "2026-01-04T12:05:00Z" },
+      metric: "job.latency",
+      type: "summary",
+      aggregation: "min",
+    });
+    expect(min.series[0]?.values[0]).toBe(1);
+    expect(min.highestOf).toBeUndefined();
+  });
+
+  it("offers only the quantiles the filtered services report", async () => {
+    run(`INSERT INTO metrics_summary (ServiceName, MetricName, TimeUnix, Count, Sum, ValueAtQuantiles.Quantile, ValueAtQuantiles.Value)
+      VALUES ('api', 'job.wait', '2026-01-04 12:00:30', 1, 1, [0.5, 0.99], [1, 2]),
+             ('worker', 'job.wait', '2026-01-04 12:00:30', 1, 1, [0.5, 0.9], [1, 2])`);
+    expect(
+      await repo.summaryQuantiles({
+        timeRange: { from: "2026-01-04T12:00:00Z", to: "2026-01-04T12:05:00Z" },
+        metric: "job.wait",
+        service: ["worker"],
+      }),
+    ).toEqual([0.5, 0.9]);
+  });
+
   it("charts a summary's reported quantiles, average and rate", async () => {
     const read = async (aggregation: "p99" | "avg" | "rate") =>
       repo.series({ timeRange, metric: "gc.pause", type: "summary", aggregation });
@@ -1394,6 +1539,69 @@ describe("metrics explorer against ClickHouse", () => {
       "w03",
     ]);
     expect(result.totalSeries).toBe(12);
+  });
+
+  it("keeps every interval of a histogram grouped by thousands of values", async () => {
+    // Two hours of 1,666 busy groups fill all but 80 of the rows one chart
+    // reads. The slow group "late" after them would get only its first 80 minutes,
+    // and its high p95 would top the chart, so it's left out whole.
+    const groups = (name: string, n: number, counts: string, count: number) =>
+      run(`INSERT INTO metrics_histogram (ServiceName, MetricName, Attributes, TimeUnix, StartTimeUnix, ExplicitBounds, BucketCounts, Count, Sum, AggregationTemporality)
+        SELECT 'api', 'busy.duration', map('g', ${name}),
+          toDateTime('2026-01-02 10:00:30', 'UTC') + 60 * intDiv(number, ${n}),
+          toDateTime('2026-01-02 09:59:30', 'UTC') + 60 * intDiv(number, ${n}),
+          [1.0], ${counts}, ${count}, 0.5, 1
+        FROM numbers(${n} * 120)`);
+    groups(`concat('busy', toString(number % 1666))`, 1666, "[2, 0]", 2);
+    groups(`'late'`, 1, "[0, 1]", 1);
+    groups(`concat('quiet', toString(number % 200))`, 200, "[1, 0]", 1);
+    const result = await repo.series({
+      timeRange: { from: "2026-01-02T10:00:00Z", to: "2026-01-02T12:00:00Z" },
+      metric: "busy.duration",
+      type: "histogram",
+      aggregation: "p95",
+      groupBy: [{ source: "metric", key: "g" }],
+      heatmap: true,
+    });
+    expect(result.series.map((s) => s.labels[0])).not.toContain("late");
+    expect(result.series.every((s) => s.values.slice(0, -1).every((v) => v !== null))).toBe(true);
+    expect(result.totalSeries).toBe(1867);
+    expect(result.heatmap?.counts.at(-2)?.reduce((a, b) => a + b, 0)).toBe(1666 * 2 + 1 + 200);
+  });
+
+  it("counts only the groups that draw a line", async () => {
+    // A group that exports but observes nothing has no p95.
+    run(`INSERT INTO metrics_histogram (ServiceName, MetricName, Attributes, TimeUnix, StartTimeUnix, ExplicitBounds, BucketCounts, Count, Sum, AggregationTemporality)
+      SELECT 'api', 'idle.duration', map('g', g),
+        toDateTime('2026-01-03 10:00:30', 'UTC') + 60 * m, toDateTime('2026-01-03 09:00:00', 'UTC'),
+        [1.0], if(g = 'idle', [0, 0], [5 + m, 0]), if(g = 'idle', 0, 5 + m), 1, 2
+      FROM (SELECT arrayJoin(['busy', 'idle']) AS g) AS groups CROSS JOIN (SELECT number AS m FROM numbers(10)) AS minutes`);
+    const result = await repo.series({
+      timeRange: { from: "2026-01-03T10:00:00Z", to: "2026-01-03T10:10:00Z" },
+      metric: "idle.duration",
+      type: "histogram",
+      aggregation: "p95",
+      groupBy: [{ source: "metric", key: "g" }],
+    });
+    expect(result.series.map((s) => s.labels[0])).toEqual(["busy"]);
+    expect(result.totalSeries).toBe(1);
+  });
+
+  it("offers a key only one point carries, however many points come first", async () => {
+    run(`INSERT INTO metrics_gauge (ServiceName, MetricName, ResourceAttributes, Attributes, TimeUnix, Value)
+      SELECT 'api', 'queue.size', map('service.name', 'api'), map('pod', toString(number % 50)),
+        toDateTime('2026-01-05 10:00:00', 'UTC') + number % 3600, 1
+      FROM numbers(12000)`);
+    run(`INSERT INTO metrics_gauge (ServiceName, MetricName, ResourceAttributes, Attributes, TimeUnix, Value)
+      VALUES ('worker', 'queue.size', map('k8s.pod.name', 'w1'), map('error.type', 'timeout'), '2026-01-05 10:30:00', 1)`);
+    run("OPTIMIZE TABLE metrics_gauge FINAL");
+    const keys = await repo.attributeKeys({
+      timeRange: { from: "2026-01-05T10:00:00Z", to: "2026-01-05T11:00:00Z" },
+      metric: "queue.size",
+      type: "gauge",
+    });
+    expect(keys).toContainEqual({ source: "metric", key: "error.type" });
+    expect(keys).toContainEqual({ source: "resource", key: "k8s.pod.name" });
   });
 
   it("filters series by attribute value", async () => {

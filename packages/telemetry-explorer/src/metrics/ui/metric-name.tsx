@@ -20,10 +20,13 @@ export function MetricName({ name }: { name: string }) {
  *  as in the type filter, with the full name on hover. */
 export function MetricKindLabel({ kind }: { kind: MetricKind }) {
   const short = METRIC_KIND_SHORT_LABELS[kind];
+  const title = short === METRIC_KIND_LABELS[kind] ? undefined : METRIC_KIND_LABELS[kind];
   return (
+    // A titled label is positioned, so in a catalog row it sits above the
+    // link's cover and shows its title on hover; the rest stays clickable.
     <span
-      className="text-muted-foreground text-xs whitespace-nowrap"
-      title={short === METRIC_KIND_LABELS[kind] ? undefined : METRIC_KIND_LABELS[kind]}
+      className={cn("text-muted-foreground text-xs whitespace-nowrap", title && "relative")}
+      title={title}
     >
       {short}
     </span>

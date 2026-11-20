@@ -1,4 +1,3 @@
-import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   CLEAR_METRIC,
   MetricsExplorer,
@@ -9,19 +8,15 @@ import { createFileRoute, Link, stripSearchParams, useSearch } from "@tanstack/r
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteMetricsRepo } from "#app/data/metrics/remote-repo.ts";
 
-// service/environment live in the shared _explore layout but must also be in
-// the child schema so the leaf route's validateSearch doesn't strip them.
-const RouteSearchSchema = MetricsSearchSchema.extend(ExploreSearchShape);
-
 // Keep the URL clean: without this, every navigation would write the schema
 // defaults (empty arrays and strings) back into the query string.
-const defaultSearch = RouteSearchSchema.parse({});
+const defaultSearch = MetricsSearchSchema.parse({});
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/metrics",
 )({
   staticData: { breadcrumb: "Metrics" },
-  validateSearch: RouteSearchSchema,
+  validateSearch: MetricsSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
   head: () => ({ meta: [{ title: "Everr - Metrics" }] }),
   component: MetricsExplorerPage,
@@ -39,7 +34,6 @@ function MetricsExplorerPage() {
     <MetricsExplorer
       repo={remoteMetricsRepo}
       timeRange={timeRange}
-      refresh={search.refresh ?? "off"}
       search={search}
       service={service}
       environment={environment}

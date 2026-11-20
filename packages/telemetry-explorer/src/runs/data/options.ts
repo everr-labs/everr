@@ -1,4 +1,4 @@
-import { viewerBucketWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { inViewerTimeRange, viewerBucketWindow } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
@@ -13,11 +13,14 @@ export function runsExplorerInfiniteOptions(
   return infiniteQueryOptions({
     queryKey: ["runs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
-      repo.explorer({
-        ...withViewerTimeRange(input),
-        offset: pageParam,
-        includeTotalCount: pageParam === 0,
-      }),
+      inViewerTimeRange(input.timeRange, { runs: [], totalCount: 0 }, (timeRange) =>
+        repo.explorer({
+          ...input,
+          timeRange,
+          offset: pageParam,
+          includeTotalCount: pageParam === 0,
+        }),
+      ),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage || lastPage.runs.length < input.limit) return undefined;
@@ -32,7 +35,10 @@ export function runsHistogramOptions(
 ) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
-    queryFn: () => repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange) }),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], () =>
+        repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange) }),
+      ),
   });
 }
 
@@ -41,6 +47,11 @@ export function runsHistogramOptions(
 export function runsFilterOptions(repo: RunsRepositoryLike, input: Pick<RunsFilter, "timeRange">) {
   return {
     queryKey: ["runs", "filterOptions", input] as const,
-    queryFn: () => repo.filterOptions(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(
+        input.timeRange,
+        { repos: [], branches: [], workflowNames: [] },
+        (timeRange) => repo.filterOptions({ ...input, timeRange }),
+      ),
   };
 }

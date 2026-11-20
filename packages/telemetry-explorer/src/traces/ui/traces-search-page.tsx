@@ -29,7 +29,6 @@ export type TraceSearchValue = {
 export type TracesSearchProps = {
   repo: TracesRepositoryLike;
   timeRange: TimeRange;
-  refresh: string;
   search: TraceSearchValue;
   environment?: string[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
@@ -42,14 +41,13 @@ export type TracesSearchProps = {
 export function TracesSearch({
   repo,
   timeRange,
-  refresh,
   search,
   environment = [],
   persistentFilters,
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
-  const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange, refresh }));
+  const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
   const {
     data,
     fetchNextPage,
@@ -63,7 +61,6 @@ export function TracesSearch({
     ...tracesSearchInfiniteOptions({
       repo,
       timeRange,
-      refresh,
       namespace: search.namespace,
       service: search.service,
       name: search.name,

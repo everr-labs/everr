@@ -7,7 +7,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { ArrowLeft, Plus, X } from "lucide-react";
-import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { AttributeKeyPicker } from "../../attribute-filter/ui/attribute-key-picker";
 import { attributeLabel } from "../../attribute-filter/ui/attribute-meta";
@@ -58,6 +58,7 @@ export function MetricView({
   onGroupByChange,
   onRangeSelect,
   lines,
+  linesGroupBy,
   metricPicker,
   queryRows,
   queryMetrics,
@@ -89,6 +90,8 @@ export function MetricView({
   onRangeSelect: (from: Date, to: Date) => void;
   /** What the chart draws: one line per series of each query. */
   lines: ChartLine[] | undefined;
+  /** The group-by the lines were drawn with, which `groupBy` leads while they reload. */
+  linesGroupBy: GroupByKey[];
   /** The metric name opens it, to switch the chart to another metric. */
   metricPicker: MetricPickerProps;
   /** With several queries, one row each in place of the single query's controls. */
@@ -112,22 +115,24 @@ export function MetricView({
       </>
     ),
   });
-  const resolution = result ? (
-    <MetaItem label="Resolution">
-      <span
-        title={
-          result.stepFromExport
-            ? "One point per export: this metric is exported about this often, so a finer chart would only add empty intervals between exports."
-            : "The chart's interval for this time range."
-        }
-      >
-        {formatMetricValue(result.stepSeconds, "s")}
-        {result.stepFromExport ? (
-          <span className="text-muted-foreground"> · export interval</span>
-        ) : null}
-      </span>
-    </MetaItem>
-  ) : null;
+  // A range that ends before it starts has no intervals, so no resolution.
+  const resolution =
+    result && result.buckets.length > 0 ? (
+      <MetaItem label="Resolution">
+        <span
+          title={
+            result.stepFromExport
+              ? "One point per export: this metric is exported about this often, so a finer chart would only add empty intervals between exports."
+              : "The chart's interval for this time range."
+          }
+        >
+          {formatMetricValue(result.stepSeconds, "s")}
+          {result.stepFromExport ? (
+            <span className="text-muted-foreground"> · export interval</span>
+          ) : null}
+        </span>
+      </MetaItem>
+    ) : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -229,7 +234,7 @@ export function MetricView({
         heatmapUnit={unit}
         view={view}
         aggregation={aggregation}
-        groupBy={groupBy}
+        groupBy={linesGroupBy}
         result={result}
         exemplars={exemplars}
         isPending={isPending}
@@ -335,6 +340,7 @@ export function QueryControls({
           excludedKeys={NO_EXCLUDED_KEYS}
           sources={["metric", "resource"]}
           triggerLabel={groupBy.length === 0 ? "Group by" : "Add"}
+          triggerName={groupBy.length === 0 ? undefined : "Add group-by key"}
           triggerClassName="h-6"
           triggerId={pickerId}
           // The picker goes away with the last key it can add, and the
@@ -389,10 +395,10 @@ function SeriesPanel({
   renderTraceLink: (props: ExemplarLinkRenderProps) => ReactNode;
   renderLogsLink: (props: ExemplarLinkRenderProps) => ReactNode;
 }) {
+  // The exemplar picked and where its card opens. Its values come from the
+  // chart as drawn now, so a new aggregation or group-by updates the card.
   const [picked, setPicked] = useState<{
-    exemplar: MetricExemplar;
-    /** The charted value of its series in its interval. */
-    lineValue: number | null;
+    exemplar: Pick<MetricExemplar, "traceId" | "spanId" | "time">;
     at: { x: number; y: number };
   } | null>(null);
   const chart = useMemo(() => {
@@ -474,6 +480,17 @@ function SeriesPanel({
       },
     );
   }, [chart, exemplars, metric]);
+  const pickedMarker = picked
+    ? markers.find(
+        ({ exemplar: e }) =>
+          e.traceId === picked.exemplar.traceId &&
+          e.spanId === picked.exemplar.spanId &&
+          e.time === picked.exemplar.time,
+      )
+    : undefined;
+  // Back, Forward or a new range can chart other exemplars; the card closes
+  // then rather than describe what's gone.
+  if (picked && !pickedMarker) setPicked(null);
 
   if (error) {
     return (
@@ -565,7 +582,7 @@ function SeriesPanel({
           markers={markers}
           onMarkerClick={(marker, at) => {
             const hit = markers.find((m) => m.id === marker.id);
-            if (hit) setPicked({ exemplar: hit.exemplar, lineValue: hit.lineValue, at });
+            if (hit) setPicked({ exemplar: hit.exemplar, at });
           }}
           className="h-[260px] w-full"
           onSelect={(from, to) => {
@@ -575,35 +592,45 @@ function SeriesPanel({
           }}
         />
       </div>
-      {/* Fixed, so a long name truncates instead of pushing the values off-screen. */}
-      <table className="w-full table-fixed text-sm">
+      {/* The values take the width they need and the series column the rest,
+          truncating a long name rather than pushing the values off-screen. */}
+      <table className="w-full text-sm">
         <thead>
           <tr className="text-muted-foreground border-b text-xs">
-            <th className="px-4 py-1.5 text-left font-medium">{groupHeading}</th>
-            {/* Fixed widths, so the series column takes the rest and the values sit together on the right. */}
-            <th className="w-28 px-2 py-1.5 text-right font-medium">last</th>
-            <th className="w-28 px-2 py-1.5 text-right font-medium">avg</th>
-            <th className="w-28 px-4 py-1.5 text-right font-medium">max</th>
+            <th
+              className="w-full max-w-0 truncate px-4 py-1.5 text-left font-medium"
+              title={groupHeading}
+            >
+              {groupHeading}
+            </th>
+            <th className="w-px px-2 py-1.5 text-right font-medium">last</th>
+            <th className={`w-px px-2 py-1.5 text-right font-medium ${AVG_COLUMN}`}>avg</th>
+            <th className="w-px px-4 py-1.5 text-right font-medium">max</th>
           </tr>
         </thead>
-        <tbody>
-          {chart.series.map((s, i) => (
-            <Fragment key={s.id}>
-              {s.query && s.query.id !== chart.series[i - 1]?.query?.id ? (
-                <tr className="bg-muted/30 border-b">
-                  <th scope="rowgroup" colSpan={4} className="px-4 py-1.5 text-left font-normal">
-                    <span className="flex min-w-0 items-center gap-2 text-xs">
-                      <QueryTag id={s.query.id} metric={s.query.metric} />
-                      {s.query.aggregation ? (
-                        <span className="text-muted-foreground shrink-0">
-                          {s.query.aggregation}
-                        </span>
-                      ) : null}
-                    </span>
-                  </th>
-                </tr>
-              ) : null}
-              <tr className="hover:bg-muted/50 border-b">
+        {/* One row group per query, so each query's heading heads only its own rows. */}
+        {seriesGroups(chart.series).map(({ query, series }) => (
+          <tbody key={query?.id ?? "series"}>
+            {query ? (
+              <tr className="bg-muted/30 border-b">
+                {/* No wider than the table, so a long metric name truncates
+                    rather than widening every column. */}
+                <th
+                  scope="rowgroup"
+                  colSpan={4}
+                  className="max-w-0 px-4 py-1.5 text-left font-normal"
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-xs">
+                    <QueryTag id={query.id} metric={query.metric} />
+                    {query.aggregation ? (
+                      <span className="text-muted-foreground shrink-0">{query.aggregation}</span>
+                    ) : null}
+                  </span>
+                </th>
+              </tr>
+            ) : null}
+            {series.map((s) => (
+              <tr key={s.id} className="hover:bg-muted/50 border-b">
                 <th
                   scope="row"
                   aria-label={s.label}
@@ -620,27 +647,27 @@ function SeriesPanel({
                   </span>
                 </th>
                 <StatCell value={s.stats.last} format={s.format} />
-                <StatCell value={s.stats.avg} format={s.format} />
+                <StatCell value={s.stats.avg} format={s.format} className={AVG_COLUMN} />
                 <StatCell value={s.stats.max} format={s.format} className="pr-4" />
               </tr>
-            </Fragment>
-          ))}
-        </tbody>
+            ))}
+          </tbody>
+        ))}
       </table>
-      {picked ? (
+      {picked && pickedMarker ? (
         <ExemplarCard
-          exemplar={picked.exemplar}
+          exemplar={pickedMarker.exemplar}
           at={picked.at}
-          value={format(picked.exemplar.value)}
+          value={format(pickedMarker.exemplar.value)}
           charted={
-            picked.lineValue !== null && aggregation
-              ? { label: aggregation, value: format(picked.lineValue) }
+            pickedMarker.lineValue !== null && aggregation
+              ? { label: aggregation, value: format(pickedMarker.lineValue) }
               : null
           }
           groups={groupBy.map((g, i) => ({
             id: `${g.source}:${g.key}`,
             label: groupKeyLabel(g, groupBy),
-            value: picked.exemplar.labels[i] ?? "",
+            value: pickedMarker.exemplar.labels[i] ?? "",
           }))}
           renderTraceLink={renderTraceLink}
           renderLogsLink={renderLogsLink}
@@ -702,6 +729,20 @@ function MetaItem({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+// On a phone, last and max leave the series names room.
+const AVG_COLUMN = "hidden sm:table-cell";
+
+/** Consecutive series of the same query, in chart order. */
+function seriesGroups<S extends { query?: { id: string } }>(series: readonly S[]) {
+  const groups: { query: S["query"]; series: S[] }[] = [];
+  for (const s of series) {
+    const last = groups.at(-1);
+    if (last && last.query?.id === s.query?.id) last.series.push(s);
+    else groups.push({ query: s.query, series: [s] });
+  }
+  return groups;
+}
+
 function StatCell({
   value,
   format,
@@ -712,8 +753,11 @@ function StatCell({
   className?: string;
 }) {
   return (
-    <td className={`px-2 py-1.5 text-right text-xs whitespace-nowrap tabular-nums ${className}`}>
-      {value === null ? "—" : format(value)}
+    <td
+      className={`w-px px-2 py-1.5 text-right text-xs whitespace-nowrap tabular-nums ${className}`}
+    >
+      {/* A minimum width, so a value growing a digit on refresh doesn't shift the columns. */}
+      <span className="inline-block min-w-16">{value === null ? "—" : format(value)}</span>
     </td>
   );
 }
@@ -781,7 +825,7 @@ export function seriesLabel(labels: string[], metric: string): string {
 export function AddMetricButton({ onAdd }: { onAdd?: () => void }): ReactNode {
   if (!onAdd) return null;
   return (
-    <Button variant="ghost" size="sm" onClick={onAdd}>
+    <Button variant="ghost" size="sm" aria-label="Add metric query" onClick={onAdd}>
       <Plus />
       Metric
     </Button>

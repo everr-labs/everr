@@ -1,4 +1,3 @@
-import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   CLEAR_METRIC,
   MetricsExplorer,
@@ -13,15 +12,11 @@ import { useExploreControls } from "../explore/use-explore-controls";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
-// service/environment live in the shared Explore topbar but must also be in the
-// route schema so the leaf route's validateSearch doesn't strip them.
-export const MetricsPageSearchSchema = MetricsSearchSchema.extend(ExploreSearchShape);
-
 // The local collector writes the same metrics_* tables as the cloud.
 const localMetricsRepo = new MetricsRepository(localSqlClient);
 
 export function MetricsPage() {
-  const search = MetricsPageSearchSchema.parse(useSearch({ strict: false }));
+  const search = MetricsSearchSchema.parse(useSearch({ strict: false }));
   const navigate = useNavigate();
   const controls = useExploreControls("/metrics");
   const { timeRange, from, to } = withTimeRange(search);
@@ -35,7 +30,6 @@ export function MetricsPage() {
         <MetricsExplorer
           repo={localMetricsRepo}
           timeRange={timeRange}
-          refresh={refresh || "off"}
           search={search}
           service={service}
           environment={environment}

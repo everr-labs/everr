@@ -66,7 +66,6 @@ function ErrorsPageHarness({
       <ErrorIssues
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
-        refresh="off"
         search={search}
         environment={environment}
         persistentFilters={persistentFilters}

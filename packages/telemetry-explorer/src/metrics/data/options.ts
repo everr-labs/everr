@@ -1,7 +1,7 @@
-import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { toViewerTimeRange, withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { inViewerTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import type { MetricsRepositoryLike } from "./repository";
+import type { MetricSeriesResult } from "./types";
 import { MetricKindSchema } from "./schemas";
 import type {
   MetricCatalogInput,
@@ -13,37 +13,32 @@ import type {
   MetricSummaryQuantilesInput,
 } from "./schemas";
 
-function refetchInterval(refresh: string) {
-  const ms = getRefreshIntervalMs(refresh);
-  return ms && ms > 0 ? ms : false;
-}
+const NO_SERIES: MetricSeriesResult = { stepSeconds: 60, buckets: [], series: [], totalSeries: 0 };
 
-export function metricCatalogOptions(
-  repo: MetricsRepositoryLike,
-  input: MetricCatalogInput,
-  refresh: string,
-) {
+export function metricCatalogOptions(repo: MetricsRepositoryLike, input: MetricCatalogInput) {
   return queryOptions({
     queryKey: ["metrics", "catalog", input] as const,
-    queryFn: () => repo.catalog(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) => repo.catalog({ ...input, timeRange })),
     placeholderData: keepPreviousData,
-    refetchInterval: refetchInterval(refresh),
   });
 }
 
-// Unit, description and temporality don't change between refreshes, so
-// neither query refetches with the page.
 export function metricMetadataOptions(repo: MetricsRepositoryLike, input: MetricMetadataInput) {
   return queryOptions({
     queryKey: ["metrics", "metadata", input] as const,
-    queryFn: () => repo.metadata(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, null, (timeRange) =>
+        repo.metadata({ ...input, timeRange }),
+      ),
   });
 }
 
 export function metricNamesOptions(repo: MetricsRepositoryLike, input: MetricNamesInput) {
   return queryOptions({
     queryKey: ["metrics", "names", input] as const,
-    queryFn: () => repo.names(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) => repo.names({ ...input, timeRange })),
     placeholderData: keepPreviousData,
   });
 }
@@ -60,7 +55,8 @@ export function metricKindOptions(
 ) {
   return {
     queryKey: ["metrics", "kinds", input] as const,
-    queryFn: () => repo.kinds(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) => repo.kinds({ ...input, timeRange })),
     select: (kinds: string[]): string[] => {
       const present = new Set([...kinds, ...selected]);
       return MetricKindSchema.options.filter((kind) => present.has(kind));
@@ -77,7 +73,6 @@ export function metricKindOptions(
 export function metricSeriesOptions(
   repo: MetricsRepositoryLike,
   inputs: readonly (MetricSeriesInput | null)[],
-  refresh: string,
 ) {
   return queryOptions({
     queryKey: ["metrics", "series", inputs] as const,
@@ -86,24 +81,26 @@ export function metricSeriesOptions(
       return Promise.all(
         inputs.map(async (input) => {
           return input
-            ? repo.series({ ...input, timeRange: toViewerTimeRange(input.timeRange, now) })
+            ? inViewerTimeRange(
+                input.timeRange,
+                NO_SERIES,
+                (timeRange) => repo.series({ ...input, timeRange }),
+                now,
+              )
             : null;
         }),
       );
     },
-    refetchInterval: refetchInterval(refresh),
   });
 }
 
-export function metricExemplarsOptions(
-  repo: MetricsRepositoryLike,
-  input: MetricExemplarsInput,
-  refresh: string,
-) {
+export function metricExemplarsOptions(repo: MetricsRepositoryLike, input: MetricExemplarsInput) {
   return queryOptions({
     queryKey: ["metrics", "exemplars", input] as const,
-    queryFn: () => repo.exemplars(withViewerTimeRange(input)),
-    refetchInterval: refetchInterval(refresh),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) =>
+        repo.exemplars({ ...input, timeRange }),
+      ),
   });
 }
 
@@ -113,7 +110,10 @@ export function metricSummaryQuantilesOptions(
 ) {
   return queryOptions({
     queryKey: ["metrics", "summary-quantiles", input] as const,
-    queryFn: () => repo.summaryQuantiles(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, [], (timeRange) =>
+        repo.summaryQuantiles({ ...input, timeRange }),
+      ),
   });
 }
 
@@ -123,6 +123,9 @@ export function metricExportIntervalOptions(
 ) {
   return queryOptions({
     queryKey: ["metrics", "export-interval", input] as const,
-    queryFn: () => repo.exportInterval(withViewerTimeRange(input)),
+    queryFn: () =>
+      inViewerTimeRange(input.timeRange, null, (timeRange) =>
+        repo.exportInterval({ ...input, timeRange }),
+      ),
   });
 }

@@ -67,10 +67,15 @@ export function QueryRow({
   onGroupByChange: (groupBy: GroupByKey[]) => void;
 }) {
   const tagRef = useRef<HTMLDivElement>(null);
+  const filters =
+    filterCount === 0 ? null : filterCount === 1 ? "1 filter" : `${filterCount} filters`;
   return (
-    <div
+    <fieldset
+      // Every row has the same controls; the group says which query they're for.
+      aria-label={`Query ${id}`}
       className={cn(
         ROW,
+        "min-w-0",
         selected && "bg-muted/40",
         // The buttons at the end stay readable; the rest dims.
         hidden && "[&>*:not(:last-child)]:opacity-50",
@@ -81,16 +86,13 @@ export function QueryRow({
           type="button"
           onClick={onSelect}
           aria-pressed={selected}
-          aria-label={`Filter query ${id} in the sidebar`}
+          // Starts with what the button shows, so the filter count is read too.
+          aria-label={`${id}${filters ? ` ${filters}` : ""}: filter query ${id} in the sidebar`}
           title="Filter this query in the sidebar"
           className={cn(queryLetterClass(selected), "hover:bg-muted cursor-pointer")}
         >
           {id}
-          {filterCount > 0 ? (
-            <span className="text-muted-foreground font-sans">
-              {filterCount === 1 ? "1 filter" : `${filterCount} filters`}
-            </span>
-          ) : null}
+          {filters ? <span className="text-muted-foreground font-sans">{filters}</span> : null}
         </button>
         <MetricPicker
           {...picker}
@@ -149,6 +151,6 @@ export function QueryRow({
         </Button>
         <RemoveButton label={`Remove query ${id}`} onRemove={onRemove} />
       </div>
-    </div>
+    </fieldset>
   );
 }

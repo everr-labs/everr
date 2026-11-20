@@ -66,8 +66,10 @@ export function MetricCatalog({
                       children: <MetricName name={row.name} />,
                     })}
                     {row.description ? (
+                      // Positioned, so it sits above the link's cover and
+                      // shows its title on hover.
                       <span
-                        className="text-muted-foreground truncate text-xs"
+                        className="text-muted-foreground relative truncate text-xs"
                         title={row.description}
                       >
                         {row.description}
@@ -78,17 +80,19 @@ export function MetricCatalog({
                 <td className="px-4 py-1.5">
                   <MetricKindLabel kind={metricKind(row.type, row.isMonotonic)} />
                 </td>
-                <td
-                  className="text-muted-foreground hidden truncate px-4 py-1.5 text-xs xl:table-cell"
-                  title={row.unit ? `UCUM unit: ${row.unit}` : undefined}
-                >
-                  {row.unit ? unitName(row.unit) : "—"}
+                <td className="text-muted-foreground hidden truncate px-4 py-1.5 text-xs xl:table-cell">
+                  {row.unit ? (
+                    <span className="relative" title={`UCUM unit: ${row.unit}`}>
+                      {unitName(row.unit)}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
                 </td>
-                <td
-                  className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs tabular-nums sm:table-cell"
-                  title={`${formatCount(row.points)} data points`}
-                >
-                  {formatCompact(row.points)}
+                <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs tabular-nums sm:table-cell">
+                  <span className="relative" title={`${formatCount(row.points)} data points`}>
+                    {formatCompact(row.points)}
+                  </span>
                 </td>
                 <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs whitespace-nowrap lg:table-cell">
                   {formatRelativeTime(row.lastSeen)}

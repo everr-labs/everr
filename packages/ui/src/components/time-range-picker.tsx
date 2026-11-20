@@ -1,10 +1,11 @@
 import { isValid, parse, resolve } from "@everr/datemath";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { CheckIcon, ChevronDownIcon, Clock, XIcon } from "lucide-react";
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { notifyManager, useQueryClient } from "@tanstack/react-query";
+import { type KeyboardEvent, useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { useIsMobile } from "../hooks/use-mobile";
-import { DEFAULT_TIME_RANGE, type TimeRange } from "../lib/time-range";
+import { DEFAULT_TIME_RANGE, isEmptyTimeRange, type TimeRange } from "../lib/time-range";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { Calendar } from "./calendar";
@@ -189,6 +190,27 @@ export function TimeRangePicker({
   // the ranges want finger-sized rows. `false` on the server, so the popover
   // is what renders before hydration; the trigger looks the same either way.
   const isMobile = useIsMobile();
+  // A relative range can end before it starts at some times of day, as
+  // "now/d" to "now-5h" does before 05:00; pages then show nothing, and the
+  // trigger says why. Only the viewer's clock knows, so the server says no.
+  // It's checked again whenever a query starts fetching, as a refresh does,
+  // so the trigger always matches the data on the page. React Query can
+  // report that while another component renders, so the check waits.
+  const queryCache = useQueryClient().getQueryCache();
+  const onFetch = useCallback(
+    (check: () => void) =>
+      queryCache.subscribe((event) => {
+        if (event.type === "updated" && event.action.type === "fetch") {
+          notifyManager.schedule(check);
+        }
+      }),
+    [queryCache],
+  );
+  const empty = useSyncExternalStore(
+    onFetch,
+    () => isEmptyTimeRange(value),
+    () => false,
+  );
   const [open, setOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState(() => toEditable(value.from));
   const [customTo, setCustomTo] = useState(() => toEditable(value.to));
@@ -283,6 +305,7 @@ export function TimeRangePicker({
       {/* A custom absolute range reads long; on a phone it truncates so
           the header keeps its other controls. */}
       <span className="truncate max-sm:max-w-28">{formatTimeRangeDisplay(value)}</span>
+      {empty ? <span className="sr-only">, ends before it starts</span> : null}
       <ChevronDownIcon className="size-3 max-sm:hidden" />
     </>
   );
@@ -406,7 +429,18 @@ export function TimeRangePicker({
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetTrigger render={<Button variant="outline" className="gap-1.5" />}>
+        <SheetTrigger
+          render={
+            <Button
+              variant="outline"
+              aria-invalid={empty || undefined}
+              className={cn(
+                "gap-1.5",
+                empty && "text-destructive hover:text-destructive aria-expanded:text-destructive",
+              )}
+            />
+          }
+        >
           {triggerContent}
         </SheetTrigger>
         <SheetContent
@@ -435,14 +469,35 @@ export function TimeRangePicker({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
         <TooltipTrigger
-          render={<PopoverTrigger render={<Button variant="outline" className="gap-1.5" />} />}
+          render={
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="outline"
+                  aria-invalid={empty || undefined}
+                  className={cn(
+                    "gap-1.5",
+                    empty &&
+                      "text-destructive hover:text-destructive aria-expanded:text-destructive",
+                  )}
+                />
+              }
+            />
+          }
         >
           {triggerContent}
         </TooltipTrigger>
-        {currentRangePreview.from && currentRangePreview.to && (
+        {empty ? (
           <TooltipContent>
-            {currentRangePreview.from} — {currentRangePreview.to}
+            Ends before it starts: {currentRangePreview.from} — {currentRangePreview.to}
           </TooltipContent>
+        ) : (
+          currentRangePreview.from &&
+          currentRangePreview.to && (
+            <TooltipContent>
+              {currentRangePreview.from} — {currentRangePreview.to}
+            </TooltipContent>
+          )
         )}
       </Tooltip>
       <PopoverContent align="end" className="w-auto p-0 gap-0 overflow-hidden">

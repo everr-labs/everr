@@ -1,4 +1,4 @@
-import { resolve } from "@everr/datemath";
+import { parse, resolve } from "@everr/datemath";
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import {
   createFileRoute,
@@ -33,6 +33,15 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
     .catch(undefined),
 });
 
+/** A bound that names a date rather than a time relative to now. */
+function isFixed(expr: string): boolean {
+  try {
+    return parse(expr).anchor !== "now";
+  } catch {
+    return false;
+  }
+}
+
 export const Route = createFileRoute("/_authenticated/_organization/_dashboard")({
   validateSearch: DashboardSearchSchema,
   search: {
@@ -58,6 +67,11 @@ export const Route = createFileRoute("/_authenticated/_organization/_dashboard")
   },
   beforeLoad({ search }) {
     const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
+    // Two dates in the wrong order are a typo, so they swap. A relative range
+    // that ends before it starts only does at some times of day ("now/d" to
+    // "now-5h" before 05:00), and in the viewer's zone, not the server's: it
+    // stays, and the pages show nothing while the time picker says why.
+    if (!isFixed(from) || !isFixed(to)) return;
     const fromDate = resolve(from, { roundUp: false });
     const toDate = resolve(to, { roundUp: true });
     if (fromDate >= toDate) {

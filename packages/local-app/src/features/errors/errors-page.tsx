@@ -82,7 +82,6 @@ function ErrorsListView() {
         <ErrorIssues
           repo={localErrorsRepo}
           timeRange={timeRange}
-          refresh={refresh ?? ""}
           search={{ q, service, fingerprint, sort, attributes }}
           environment={environment}
           persistentFilters={
@@ -121,7 +120,7 @@ export function ErrorDetailPage() {
   const { fingerprint }: { fingerprint: string } = useParams({ strict: false });
   const search: ErrorIssueSearch = useSearch({ strict: false });
   const navigate = useNavigate();
-  const { timeRange, service, refresh } = withTimeRange(search);
+  const { timeRange, service } = withTimeRange(search);
 
   return (
     <LocalTelemetryGate>
@@ -129,7 +128,6 @@ export function ErrorDetailPage() {
         repo={localErrorsRepo}
         fingerprint={fingerprint}
         timeRange={timeRange}
-        refresh={refresh ?? ""}
         service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
@@ -169,7 +167,6 @@ function LocalErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
     ...getTraceOptions({
       repo: localTracesRepo,
       traceId: occurrence.traceId,
-      refresh: "",
     }),
     enabled: hasTrace,
   });

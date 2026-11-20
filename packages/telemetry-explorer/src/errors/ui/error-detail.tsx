@@ -28,7 +28,6 @@ export type ErrorDetailProps = {
   repo: ErrorsRepositoryLike;
   fingerprint: string;
   timeRange: TimeRange;
-  refresh: string;
   service: string[];
   /** Selected occurrence key (timestamp|rank), or "" for the latest. */
   occurrence: string;
@@ -43,7 +42,6 @@ export function ErrorDetail({
   repo,
   fingerprint,
   timeRange,
-  refresh,
   service,
   occurrence,
   onBack,
@@ -55,7 +53,6 @@ export function ErrorDetail({
     errorIssueOptions(repo, {
       fingerprint,
       timeRange,
-      refresh,
       service,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),

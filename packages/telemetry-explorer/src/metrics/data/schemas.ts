@@ -8,8 +8,10 @@ import {
   AttributeSourceSchema,
   attributesField,
   attributesList,
+  type AttributeFilter,
   attributeValuesInputSchema,
 } from "../../attribute-filter/schemas";
+import { ExploreSearchShape } from "../../filters/explore-search";
 
 const METRIC_ATTRIBUTE_SOURCES = ["resource", "metric"] as const;
 
@@ -83,7 +85,33 @@ export const MetricChartQuerySchema = z.object({
 });
 export type MetricChartQuery = z.infer<typeof MetricChartQuerySchema>;
 
+const QueryLetterSchema = z.enum(["A", "B", "C", "D"]);
+
+/** Leaving a metric drops what only made sense for it. */
+export const CLEAR_METRIC: {
+  metric: undefined;
+  metricType: undefined;
+  agg: undefined;
+  view: undefined;
+  by: GroupByKey[];
+  attributes: AttributeFilter[];
+  queries: MetricChartQuery[];
+  hidden: z.infer<typeof QueryLetterSchema>[];
+} = {
+  metric: undefined,
+  metricType: undefined,
+  agg: undefined,
+  view: undefined,
+  by: [],
+  attributes: [],
+  queries: [],
+  hidden: [],
+};
+
 export const MetricsSearchSchema = StrictTimeRangeSearchSchema.extend({
+  // Service and Environment live in the shared Explore layout, but the leaf
+  // route's schema must list them too, or it strips them.
+  ...ExploreSearchShape,
   // Catalog filters.
   q: z.string().default(""),
   types: z.array(MetricKindSchema).default([]),
@@ -103,11 +131,14 @@ export const MetricsSearchSchema = StrictTimeRangeSearchSchema.extend({
     .transform((queries) => queries.filter((q, i) => queries.findIndex((o) => o.id === q.id) === i))
     .default([]),
   // Queries kept but left off the chart, by letter.
-  hidden: z
-    .array(z.enum(["A", "B", "C", "D"]))
-    .max(4)
-    .default([]),
-});
+  hidden: z.array(QueryLetterSchema).max(4).default([]),
+})
+  // A chart always names its metric's type, as every link the app makes does.
+  // A hand-written link without one opens the catalog searching for the name,
+  // which lists each type the metric was sent as.
+  .transform((search) =>
+    search.metric && !search.metricType ? { ...search, ...CLEAR_METRIC, q: search.metric } : search,
+  );
 export type MetricsSearch = z.infer<typeof MetricsSearchSchema>;
 
 // A range that ends before it starts has no buckets to chart.
@@ -137,8 +168,8 @@ export type MetricNamesInput = z.input<typeof MetricNamesInputSchema>;
 export const MetricMetadataInputSchema = z.object({
   timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
-  /** The table to read; the same name can be in two. Every table when unknown. */
-  type: MetricTypeSchema.optional(),
+  /** The table to read; the same name can be in two. */
+  type: MetricTypeSchema,
   service: z.array(z.string()).default([]),
   attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
 });
@@ -191,5 +222,8 @@ export type MetricFilterOptionsInput = z.input<typeof MetricFilterOptionsInputSc
 export const MetricSummaryQuantilesInputSchema = z.object({
   timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
+  // The chart's own filters: services can report different quantiles.
+  service: z.array(z.string()).default([]),
+  attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
 });
 export type MetricSummaryQuantilesInput = z.input<typeof MetricSummaryQuantilesInputSchema>;

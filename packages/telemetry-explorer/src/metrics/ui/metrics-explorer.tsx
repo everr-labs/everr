@@ -69,7 +69,6 @@ export type MetricsExplorerSearch = {
 export type MetricsExplorerProps = {
   repo: MetricsRepositoryLike;
   timeRange: TimeRange;
-  refresh: string;
   search: MetricsExplorerSearch;
   service: string[];
   environment: string[];
@@ -106,25 +105,13 @@ const METRIC_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:deployment.environment.name",
 ]);
 
-/** Leaving a metric drops what only made sense for it. */
-export const CLEAR_METRIC: Partial<MetricsExplorerSearch> = {
-  metric: undefined,
-  metricType: undefined,
-  agg: undefined,
-  view: undefined,
-  by: [],
-  attributes: [],
-  queries: [],
-  hidden: [],
-};
-
 export function MetricsExplorer(props: MetricsExplorerProps) {
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-          {props.search.metric ? (
-            <MetricPage {...props} metric={props.search.metric} />
+          {props.search.metric && props.search.metricType ? (
+            <MetricPage {...props} metric={props.search.metric} type={props.search.metricType} />
           ) : (
             <CatalogPage {...props} />
           )}
@@ -137,7 +124,6 @@ export function MetricsExplorer(props: MetricsExplorerProps) {
 function CatalogPage({
   repo,
   timeRange,
-  refresh,
   search,
   service,
   environment,
@@ -146,17 +132,13 @@ function CatalogPage({
   renderMetricLink,
 }: MetricsExplorerProps) {
   const query = useQuery(
-    metricCatalogOptions(
-      repo,
-      {
-        timeRange,
-        q: search.q,
-        kinds: search.types,
-        service,
-        attributes: withEnvironment([], environment),
-      },
-      refresh,
-    ),
+    metricCatalogOptions(repo, {
+      timeRange,
+      q: search.q,
+      kinds: search.types,
+      service,
+      attributes: withEnvironment([], environment),
+    }),
   );
   const pageFilterCount = (search.q ? 1 : 0) + (search.types.length > 0 ? 1 : 0);
   const persistentFilterCount = countPersistentFilters(service, environment);
@@ -227,18 +209,18 @@ type QueryId = MetricsSearch["hidden"][number];
 type QuerySpec = {
   id: QueryId;
   metric: string;
-  type: MetricType | undefined;
+  type: MetricType;
   agg?: MetricAggregation;
   by: GroupByKey[];
   attributes: AttributeFilter[];
 };
 
 /** The chart's queries in order: A from the page's own fields, then `queries`. */
-function toSpecs(search: MetricsExplorerSearch, metric: string): QuerySpec[] {
+function toSpecs(search: MetricsExplorerSearch, metric: string, type: MetricType): QuerySpec[] {
   const queryA: QuerySpec = {
     id: "A",
     metric,
-    type: search.metricType,
+    type,
     agg: search.agg,
     by: search.by,
     attributes: search.attributes,
@@ -262,7 +244,7 @@ function fromSpecs([first, ...rest]: QuerySpec[]): Partial<MetricsExplorerSearch
     by: first.by,
     attributes: first.attributes,
     queries: rest.flatMap(({ id, type, metric, agg, by, attributes }) =>
-      id !== "A" && type
+      id !== "A"
         ? [
             {
               id,
@@ -283,7 +265,6 @@ const QUERY_IDS = MetricChartQuerySchema.shape.id.options;
 function MetricPage({
   repo,
   timeRange,
-  refresh,
   search,
   service,
   environment,
@@ -294,17 +275,17 @@ function MetricPage({
   renderTraceLink,
   renderLogsLink,
   metric,
-}: MetricsExplorerProps & { metric: string }) {
+  type,
+}: MetricsExplorerProps & { metric: string; type: MetricType }) {
   const environmentOnly = withEnvironment([], environment);
-  const specs = toSpecs(search, metric);
+  const specs = toSpecs(search, metric, type);
   const multi = specs.length > 1;
   const hidden = new Set<string>(search.hidden);
 
   // Every metric in range, for the metric switcher: names and types only,
   // as the full catalog's counts take seconds over long ranges.
   const allMetrics = metricNamesOptions(repo, { timeRange, service, attributes: environmentOnly });
-  // Each query's metadata: unit, temporality, and A's type when the link
-  // didn't name it.
+  // Each query's metadata: its unit and temporality.
   const metadataQueries = useDistinctQueries(
     specs.map((q) =>
       metricMetadataOptions(repo, {
@@ -318,20 +299,18 @@ function MetricPage({
   );
   const metadataData = useLastLoaded(
     metadataQueries.map((query) => query.data),
-    specs.map((q) => `${q.metric}\u0000${q.type ?? ""}`),
+    specs.map((q) => `${q.metric}\u0000${q.type}`),
   );
   const described = specs.map((spec, i) => {
     const metadata = metadataQueries[i];
     const loadedMetadata = metadataData[i];
     const entry = loadedMetadata ?? undefined;
-    const type = spec.type ?? entry?.type;
     // A sum's kind needs its metadata; until then, offer nothing rather than
     // guess between a counter's rate and an UpDownCounter's sum.
     const kind =
-      type && (type !== "sum" || entry) ? metricKind(type, entry?.isMonotonic ?? false) : null;
+      spec.type !== "sum" || entry ? metricKind(spec.type, entry?.isMonotonic ?? false) : null;
     return {
       ...spec,
-      type,
       entry,
       kind,
       metadata,
@@ -342,15 +321,22 @@ function MetricPage({
   const view: MetricViewMode =
     !multi && isHistogramKind(described[0]?.kind ?? null) ? (search.view ?? "lines") : "lines";
 
+  const quantileInputs = described.map((q) => ({
+    metric: q.metric,
+    service,
+    attributes: withEnvironment(q.attributes, environment),
+  }));
   const quantileQueries = useDistinctQueries(
-    described.map((q) => ({
-      ...metricSummaryQuantilesOptions(repo, { timeRange, metric: q.metric }),
-      enabled: q.kind === "summary",
+    quantileInputs.map((input, i) => ({
+      ...metricSummaryQuantilesOptions(repo, { timeRange, ...input }),
+      enabled: described[i]?.kind === "summary",
     })),
   );
+  // Services can report different quantiles, so a new filter waits for its
+  // own list; a new range keeps the last one, as quantiles rarely change.
   const quantileData = useLastLoaded(
     quantileQueries.map((query) => query.data),
-    described.map((q) => q.metric),
+    quantileInputs.map((input) => JSON.stringify(input)),
   );
   const aggregated = described.map((q, i) => {
     const quantiles = quantileQueries[i];
@@ -388,15 +374,14 @@ function MetricPage({
       ...metricExportIntervalOptions(repo, {
         timeRange,
         metric: q.metric,
-        type: q.type ?? "gauge",
+        type: q.type,
         service,
         // Filters narrow which series report, not how often they export.
         attributes: environmentOnly,
       }),
-      enabled: Boolean(q.type),
     })),
   );
-  const intervalsReady = aggregated.every((q, i) => !q.type || intervalQueries[i]?.isSuccess);
+  const intervalsReady = intervalQueries.every((query) => query.isSuccess);
   const minStep = Math.max(0, ...intervalQueries.map((query) => query.data ?? 0)) || undefined;
   // One request for every query, so changing one refetches them all and
   // their buckets always come from the same range.
@@ -404,13 +389,14 @@ function MetricPage({
     ...metricSeriesOptions(
       repo,
       aggregated.map((q) =>
-        q.type && q.aggregation
+        q.aggregation
           ? {
               timeRange,
               metric: q.metric,
               type: q.type,
               aggregation: q.aggregation,
-              groupBy: q.by,
+              // The heatmap adds every group together and draws no lines.
+              groupBy: view === "heatmap" ? [] : q.by,
               service,
               attributes: q.scopedAttributes,
               minStep,
@@ -418,12 +404,11 @@ function MetricPage({
             }
           : null,
       ),
-      refresh,
     ),
     // Once every query knows what it fetches, so none is fetched twice.
     enabled:
       intervalsReady &&
-      aggregated.some((q) => q.type && q.aggregation) &&
+      aggregated.some((q) => q.aggregation) &&
       !aggregated.some((q) => q.metadataPending || q.quantilesPending),
   });
   const queries = aggregated.map((q, i) => ({
@@ -444,19 +429,15 @@ function MetricPage({
     EXEMPLAR_AGGREGATIONS.has(queryA.aggregation) &&
     view === "lines";
   const exemplarsQuery = useQuery({
-    ...metricExemplarsOptions(
-      repo,
-      {
-        timeRange,
-        metric,
-        type: queryA.type ?? "gauge",
-        groupBy: queryA.by,
-        service,
-        attributes: queryA.scopedAttributes,
-        minStep,
-      },
-      refresh,
-    ),
+    ...metricExemplarsOptions(repo, {
+      timeRange,
+      metric,
+      type: queryA.type,
+      groupBy: queryA.by,
+      service,
+      attributes: queryA.scopedAttributes,
+      minStep,
+    }),
     enabled: showExemplars && intervalsReady,
   });
 
@@ -518,20 +499,21 @@ function MetricPage({
   // The last chart drawn stays while the same metrics reload with another
   // range, filter, group-by or aggregation. Each line carries its own unit and
   // aggregation, so it reads right until it's replaced. Another metric starts over.
-  const chart = useMemo(() => (lines ? { lines, frame } : undefined), [lines, frame]);
+  // The group-by is the one its data was read with: new lines come only once
+  // the data for a new group-by arrives.
+  const chart = useMemo(
+    () => (lines ? { lines, frame, groupBy: view === "heatmap" ? [] : queryA.by } : undefined),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [lines, frame],
+  );
   const chartKey = queries.map((q) => [q.id, q.metric, q.type].join("\u0000")).join("\u0001");
   const [shown] = useLastLoaded([chart], [chartKey]);
   const current = shown === chart;
 
   const attributeRepoFor = (q: Pick<QuerySpec, "metric" | "type">): AttributeRepositoryLike => ({
     attributeKeys: ({ timeRange }) =>
-      q.type
-        ? repo.attributeKeys({ timeRange, metric: q.metric, type: q.type })
-        : Promise.resolve([]),
-    attributeValues: (input) =>
-      q.type
-        ? repo.attributeValues({ ...input, metric: q.metric, type: q.type })
-        : Promise.resolve([]),
+      repo.attributeKeys({ timeRange, metric: q.metric, type: q.type }),
+    attributeValues: (input) => repo.attributeValues({ ...input, metric: q.metric, type: q.type }),
   });
 
   // The rail's Attributes edit one query: A unless another row is picked.
@@ -572,7 +554,7 @@ function MetricPage({
         // A copy of the last query, ready to change: the usual next step is
         // the same metric with another filter, or a sibling metric.
         const last = queries[queries.length - 1];
-        if (!last?.type) return;
+        if (!last) return;
         onSearchChange({
           ...fromSpecs([
             ...queries,
@@ -641,7 +623,7 @@ function MetricPage({
           aggregation={q.aggregation}
           groupBy={q.by}
           attributeRepo={i === 0 ? attributeRepo : attributeRepoFor(q)}
-          attributeDomain={`metrics:${q.type ?? ""}:${q.metric}`}
+          attributeDomain={`metrics:${q.type}:${q.metric}`}
           timeRange={timeRange}
           onSelect={() => setSelectedId(q.id)}
           hidden={hidden.has(q.id)}
@@ -695,7 +677,7 @@ function MetricPage({
             ) : undefined
           }
           repo={selectedRepo}
-          domain={`metrics:${selected.type ?? ""}:${selected.metric}`}
+          domain={`metrics:${selected.type}:${selected.metric}`}
           timeRange={timeRange}
           attributes={selected.attributes}
           promotedAttributes={[]}
@@ -714,6 +696,7 @@ function MetricPage({
           groupBy={queryA.by}
           result={shown?.frame}
           lines={shown?.lines}
+          linesGroupBy={shown?.groupBy ?? queryA.by}
           metricPicker={pickerFor(queryA)}
           queryRows={queryRows}
           queryMetrics={multi ? queries.map((q) => q.metric) : undefined}
@@ -729,7 +712,7 @@ function MetricPage({
               (q) =>
                 q.metadataPending ||
                 q.quantilesPending ||
-                (q.type && q.interval?.isPending) ||
+                q.interval?.isPending ||
                 (q.aggregation && seriesQuery.isPending),
             )
           }
@@ -744,7 +727,7 @@ function MetricPage({
             if (seriesQuery.error) void seriesQuery.refetch();
           }}
           attributeRepo={attributeRepo}
-          attributeDomain={`metrics:${queryA.type ?? ""}:${metric}`}
+          attributeDomain={`metrics:${queryA.type}:${metric}`}
           timeRange={timeRange}
           backLink={renderCatalogLink}
           renderTraceLink={renderTraceLink}

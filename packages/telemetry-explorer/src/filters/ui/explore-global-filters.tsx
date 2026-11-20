@@ -9,10 +9,10 @@ import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-fi
 import { ExploreFilterPill } from "./explore-filter-pill";
 
 // The top zone of the Explore rail. It holds the two filters that stay set when
-// the user moves between Logs, Errors and Traces.
+// the user moves between Logs, Errors, Traces and Metrics.
 //
-// Each option list is the union of the logs, traces and, when the host has a
-// Metrics page, metrics values. The choices are then the same on every Explore
+// Each option list is the union of the logs, traces and metrics values. The
+// choices are then the same on every Explore
 // page, because the two values are shared search params. Errors are exception
 // logs, which are a subset of logs, so the union already includes them.
 //
