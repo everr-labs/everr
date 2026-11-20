@@ -93,9 +93,8 @@ function ErrorsListView() {
               environment={environment}
             />
           }
-          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
           onSearchChange={(patch) =>
-            navigate({
+            void navigate({
               to: "/errors",
               search: { ...search, ...patch },
               replace: true,
@@ -133,8 +132,7 @@ export function ErrorDetailPage() {
         service={service ?? []}
         occurrence={search.occurrence}
         onClose={() => {
-          // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.
-          navigate({
+          void navigate({
             to: "/errors",
             search: { ...search, occurrence: "" },
           });

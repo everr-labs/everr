@@ -66,8 +66,7 @@ export function ErrorHandoffButton({ issue }: { issue: ErrorIssueSummary }) {
       variant="outline"
       size="sm"
       title="Copy a prompt that hands this Error to an agent"
-      // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-      onClick={handleCopy}
+      onClick={() => void handleCopy()}
     >
       {/* On a narrow screen the label leaves the row to the title of the Error.
           It stays in the accessible name of the button. */}

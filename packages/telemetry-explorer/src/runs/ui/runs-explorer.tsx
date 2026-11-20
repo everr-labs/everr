@@ -133,12 +133,10 @@ export function RunsExplorer({
                   isPending={isPending}
                   isError={isError}
                   error={error}
-                  // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-                  refetch={refetch}
+                  refetch={() => void refetch()}
                   hasMore={hasNextPage}
                   isLoadingMore={isFetchingNextPage}
-                  // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-                  onLoadMore={fetchNextPage}
+                  onLoadMore={() => void fetchNextPage()}
                   empty={
                     <NoResults
                       noun="runs"
