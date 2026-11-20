@@ -107,6 +107,16 @@ func TestReadsAnEventSplitAcrossSegments(t *testing.T) {
 	}
 }
 
+func TestReadsAClipThatOpensAndClosesWithEmptySegmentsAsComplete(t *testing.T) {
+	start := ms(t, checkoutStart)
+	got := show(t, wireOf(t, start+1_000,
+		segRow(0, "[]"), segRow(1, body(t, snapshot(start+10, formSnapshot()))), segRow(2, "[]"), segRow(3, "[]"),
+	), checkoutStart, Outline)
+	if header, _, _ := strings.Cut(got, "\n"); strings.Contains(header, "coverage incomplete") || !strings.Contains(got, `button#pay "Pay now"`) {
+		t.Fatalf("got:\n%s", got)
+	}
+}
+
 func TestMarksThePageIncompleteWhenTheReadHasAGap(t *testing.T) {
 	start := ms(t, checkoutStart)
 	got := show(t, wireOf(t, start+1_000, segRow(0, body(t, snapshot(start+10, formSnapshot()))), segRow(2, "[]")), checkoutStart, Outline)

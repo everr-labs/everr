@@ -64,6 +64,19 @@ func TestReassembleFindsEveryKindOfGap(t *testing.T) {
 	}
 }
 
+func TestReassembleReadsSegmentsWithTheBodyEmptyAsNoEventsAndNoGap(t *testing.T) {
+	ok := body(t, obj{"type": 4, "timestamp": 1, "data": obj{}})
+	// A Clip opens and closes with a Segment, and both are [] when nothing was unsent.
+	events, gap := reassemble([]row{segRow(0, "[]"), segRow(1, ok), segRow(2, "[]"), segRow(2, "[]")}, maxValues)
+	if gap || len(events) != 1 {
+		t.Fatalf("gap %v, %d events", gap, len(events))
+	}
+	events, gap = reassemble([]row{segRow(7, "[]"), segRow(8, "[]")}, maxValues)
+	if gap || len(events) != 0 {
+		t.Fatalf("only []: gap %v, %d events", gap, len(events))
+	}
+}
+
 func TestReassembleRefusesBodiesPastTheValueBudgetAsGaps(t *testing.T) {
 	event := body(t, obj{"type": 4, "timestamp": 1, "data": obj{"href": "x"}})
 	events, gap := reassemble([]row{segRow(0, event), segRow(1, event), segRow(2, event)}, 12)
