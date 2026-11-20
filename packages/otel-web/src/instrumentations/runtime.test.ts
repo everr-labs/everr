@@ -76,7 +76,7 @@ describe("instrumentation runtime", () => {
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(a["url.path"]).toBe("/");
-    expect(a["everr.visitor.id"]).toMatch(UNIQUE_ID);
+    expect(a).not.toHaveProperty("everr.visitor.id");
   });
 
   it("lets an instrumentation timestamp an event when it happened", async () => {
@@ -127,9 +127,10 @@ describe("instrumentation runtime", () => {
 
   it("serves ids() and route() from the live client state", async () => {
     setRouteResolver({ page: () => "/blog/$slug" });
-    let ids: { visitorId: string; sessionId: string } | undefined;
+    let ids: { visitorId: string | undefined; sessionId: string } | undefined;
     let route: string | null | undefined;
     start({
+      anonymized: false,
       instrumentations: [
         (ctx) => {
           ids = ctx.ids();
@@ -144,6 +145,7 @@ describe("instrumentation runtime", () => {
     const a = attrs((await records())[0]);
     expect(a["everr.visitor.id"]).toBe(ids?.visitorId);
     expect(a["session.id"]).toBe(ids?.sessionId);
+    localStorage.clear();
   });
 
   it("route() is null when no resolver is registered", () => {
@@ -216,7 +218,7 @@ describe("instrumentation runtime", () => {
     };
     start({ instrumentations: [instrumentation] });
     await client?.shutdown();
-    start({ instrumentations: [instrumentation], persistence: "localStorage" });
+    start({ instrumentations: [instrumentation], anonymized: false });
     expect(calls).toEqual(["setup", "teardown", "setup"]);
     await client?.shutdown();
     client = undefined;

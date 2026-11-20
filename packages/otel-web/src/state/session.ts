@@ -1,28 +1,33 @@
-// The session and the identity, on the current store (current.ts). There are
-// three parts:
+// The session and the identity. The `anonymized` variable below is the one
+// place that holds the mode, and the other values depend on it. There are four
+// parts:
 //
 // - The page context: the pageview id, the url, and the referrer. It stays in
 //   JS memory. It changes for each SPA navigation, and it ends at a reload or
 //   when the user closes the tab.
 // - `everr.visitor.id`: a random visitor id. It is an id for the device, and
-//   the code never calculates it from a fingerprint. The code makes it when
-//   the current store has none, then keeps it in memory. The
-//   setPersistence() and clearIdentity() functions change it when they change
-//   the store.
+//   the code never calculates it from a fingerprint. It exists only when the
+//   mode is not anonymized. The code makes it when localStorage has none, then
+//   keeps it in memory.
 // - `everr.session`: the session as `{ id, t }`, where `t` is the time of the
 //   last activity. The session changes after the usual timeout of 30 minutes
 //   without activity. Each record that the SDK sends is activity. Thus the
 //   timeout measures an interval without activity, and not an interval of the
-//   clock.
-//
-// The code does not store the identified user. The identify() function writes
-// the `user.*` keys into the ambient set of setAttributes. Thus those keys stay
-// in memory only, and the host identifies the user again at each page load.
+//   clock. While anonymized, the session stays in memory only.
+// - The identified user: the `user.*` keys from identify(). They stay in memory
+//   only, and the host identifies the user again at each page load. The
+//   envelope sends them only when the mode is not anonymized.
 
 import type { AttrValue } from "../pipeline/emitter.js";
-import type { Persistence, UserTraits } from "../types.js";
-import { getAttributes, setAttributes } from "./attributes.js";
-import { currentStore, type SessionState, setStore, storeFor } from "./store.js";
+import type { UserTraits } from "../types.js";
+import {
+  readSession,
+  readVisitor,
+  removeIdentity,
+  type SessionState,
+  writeSession,
+  writeVisitor,
+} from "./store.js";
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -45,23 +50,31 @@ export function randomHex(bytes: number): string {
   return out;
 }
 
+// The mode. While it is true, the code reads, writes, and removes nothing in
+// localStorage, and it sends no visitor id and no `user.*` key. Only
+// setAnonymized() changes it.
+let anonymized = true;
+
 // The code keeps the visitor id in memory. The envelope reads that id for each
 // record, and a read of the store for each record is not efficient. Only
-// setPersistence() and clearIdentity() change the id, and the two functions
-// keep this variable correct.
+// setAnonymized() and clearIdentity() change the id, and the two functions keep
+// this variable correct.
 let visitor: string | undefined;
 
-/** The current visitor id. If the current store has none, the code makes one. */
-export function visitorId(): string {
+/** The current visitor id. It is undefined while anonymized. If localStorage
+ * has no id, the code makes one. */
+export function visitorId(): string | undefined {
+  if (anonymized) return undefined;
   if (!visitor) {
-    visitor = currentStore().readVisitor() ?? uniqueId();
-    currentStore().writeVisitor(visitor);
+    visitor = readVisitor() ?? uniqueId();
+    writeVisitor(visitor);
   }
   return visitor;
 }
 
-// This keeps the session in memory when the store does not operate or when the
-// code changed the store. Without it, the code makes a new session id for each
+// This keeps the session in memory. While anonymized it is the only place of
+// the session. When the mode is not anonymized, it also serves a storage that
+// does not operate. Without it, the code makes a new session id for each
 // record.
 let session: SessionState | null = null;
 
@@ -83,23 +96,22 @@ let lastWrite = 0;
  * Finds the session id for the record that the SDK sends, and records the
  * activity.
  *
- * The code reads the store for each record, because a different tab can move
- * the session. But it writes the store on a delay. Two conditions write
- * immediately: a new session id, which no other tab can find in memory, and the
- * exit path through persistSession().
+ * When the mode is not anonymized, the code reads the store for each record,
+ * because a different tab can move the session. But it writes the store on a
+ * delay. Two conditions write immediately: a new session id, which no other tab
+ * can find in memory, and the exit path through persistSession().
  */
 export function sessionId(): string {
-  const store = currentStore();
-  const base = store.readSession() ?? session;
+  const base = (anonymized ? null : readSession()) ?? session;
   const now = Date.now();
   const next =
     base && now - base.t <= SESSION_TIMEOUT_MS
       ? { id: base.id, t: now }
       : { id: uniqueId(), t: now };
   session = next;
-  if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
+  if (!anonymized && (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS)) {
     lastWrite = now;
-    store.writeSession(next);
+    writeSession(next);
   }
   return next.id;
 }
@@ -108,48 +120,59 @@ export function sessionId(): string {
  * Writes the session in memory to the store immediately. The client calls this
  * on the exit path, before the flush at exit. Thus the last activity of the
  * page goes to the store, and the delay above cannot make the session end too
- * early after the user comes back.
+ * early after the user comes back. It does nothing while anonymized.
  */
 export function persistSession(): void {
-  if (!session) return;
+  if (!session || anonymized) return;
   lastWrite = Date.now();
-  currentStore().writeSession(session);
+  writeSession(session);
+}
+
+// The user from identify(). The envelope reads it through userAttributes().
+let user: Record<string, AttrValue> = {};
+
+/** The identified user, as `user.*` attributes. It is undefined while
+ * anonymized. */
+export const userAttributes = (): Record<string, AttrValue> | undefined =>
+  anonymized ? undefined : user;
+
+// The code forgets the ids in memory, and it removes the stored ids when the
+// mode is not anonymized. The next record then gets a new session id.
+function forgetIds(): void {
+  if (!anonymized) removeIdentity();
+  visitor = undefined;
+  session = null;
 }
 
 /**
- * Changes the identity store during a session. The consent procedure uses
- * this: the app starts with `"memory"`, then it calls
- * `setPersistence("localStorage")` when the user gives consent.
+ * Changes the mode during a session. The consent procedure uses this: the app
+ * starts anonymized, then it calls `setAnonymized(false)` when the user gives
+ * consent. A call with the current value does nothing.
  *
- * The current visitor id goes into the new store. But if the new store already
- * has a visitor id, that id stays. Thus a visitor who gives consent again keeps
- * the permanent id. The session continues, because the code keeps it in memory.
+ * To leave the mode, the visitor id is the id that localStorage already has, or
+ * a new id, and the code writes it. The session continues with the same id,
+ * because the code keeps it in memory, and the code writes it now. The user
+ * from an earlier identify() goes on the next record.
  *
- * The code reads the id of the previous store, but it writes nothing there.
- * Thus the call after clearIdentity() puts no new id into the store that the
- * user refused.
+ * To enter the mode, the code removes the stored ids and forgets the visitor
+ * id. It also drops the session. The old session id would join the new records
+ * to the visitor and the user on the earlier records. The next record gets a
+ * new session id. The code keeps the identified user in memory, but it does not
+ * send it.
  */
-export function setPersistence(persistence: Persistence | undefined): void {
-  const id = visitor ?? currentStore().readVisitor();
-  setStore(storeFor(persistence));
-  visitor = currentStore().readVisitor() ?? id ?? uniqueId();
-  currentStore().writeVisitor(visitor);
-  // The new store has no session. The write of the activity is on a delay, and
-  // thus the code writes the session now. Without this step a reload in the
-  // period of the delay finds no session and makes a new one.
-  persistSession();
-}
-
-const clearUser = (): void => {
-  const set = getAttributes();
-  for (const key of Object.keys(set)) {
-    if (key.startsWith("user.")) delete set[key];
+export function setAnonymized(next: boolean): void {
+  if (next === anonymized) return;
+  if (next) forgetIds();
+  anonymized = next;
+  if (!next) {
+    visitorId();
+    persistSession();
   }
-};
+}
 
 /**
  * Identifies the user. The subsequent events carry `user.id` and the traits as
- * `user.*` attributes in the ambient set of setAttributes.
+ * `user.*` attributes, but only when the mode is not anonymized.
  *
  * A trait must be a single value, the same as in setAttributes. Put the dots
  * in the key yourself, for example `"company.name"`. The code does not change
@@ -157,39 +180,28 @@ const clearUser = (): void => {
  * most recent data wins. Thus a second call to identify replaces all the
  * `user.*` keys.
  *
- * The code never puts this data in a store. The identification stays in memory
- * for the page, and thus the host identifies the user again at each page load.
- * The code writes `user.id` after the traits. Thus a trait with the name `id`
- * cannot replace it.
+ * The code never puts this data in a store, in any mode. The identification
+ * stays in memory for the page, and thus the host identifies the user again at
+ * each page load. The code writes `user.id` after the traits. Thus a trait with
+ * the name `id` cannot replace it.
  */
 export function identify(userId: string, traits?: UserTraits): void {
-  clearUser();
-  const user: Record<string, AttrValue | null> = {};
+  const next: Record<string, AttrValue> = {};
   for (const [key, value] of Object.entries(traits ?? {})) {
-    user[`user.${key}`] = value;
+    if (value !== null) next[`user.${key}`] = value;
   }
-  user["user.id"] = userId;
-  setAttributes(user);
+  next["user.id"] = userId;
+  user = next;
 }
 
 /**
- * Removes the `user.*` ambient attributes. It also deletes each id in the
- * store: the visitor id and the session id. The store itself does not change.
- * The consent procedure calls this on a refusal, then
- * `setPersistence("memory")`. Thus the subsequent records carry new ids that
- * end with the page.
+ * Forgets the identified user, the visitor id, and the session, and it removes
+ * the stored ids when the mode is not anonymized. It never changes the mode.
+ * Call it when the user logs out. The subsequent records carry new ids.
  */
 export function clearIdentity(): void {
-  clearUser();
-  currentStore().clear();
-  visitor = undefined;
-  session = null;
-}
-
-/** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
-export function revoke(): void {
-  clearIdentity();
-  setStore(storeFor("memory"));
+  user = {};
+  forgetIds();
 }
 
 export type PageContext = {

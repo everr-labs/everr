@@ -59,7 +59,9 @@ Choose a browser `service.name` distinct from the server's, per `resources.md`, 
 
 ### Identity And Consent
 
-`persistence: "localStorage"` (the default) keeps a random visitor id and 30-minute-inactivity sessions across reloads and tabs. `persistence: "memory"` uses zero cookies and zero storage. The event schema is identical either way, so a consent-gated app boots with `"memory"` and re-initializes with `"localStorage"` once consent is granted.
+`anonymized` is `true` by default. While it is `true` the SDK reads, writes and removes nothing in localStorage, sets no cookie, sends no `everr.visitor.id`, sends no `user.*` key from `identify()`, and sends a random `session.id` that lives in JS memory only and ends with the page. It does not change the resource attributes (user agent, screen size, time zone, language, landing URL), and it does not remove what the app adds through `setAttributes()`, per-record attributes or `beforeSend`. The app decides whether its data needs a consent banner.
+
+`anonymized: false` keeps a random visitor id and 30-minute-inactivity sessions in localStorage across reloads and tabs, and sends `user.*` from `identify()`. A consent-gated app boots anonymized and calls `setAnonymized(false)` once consent is granted, and `setAnonymized(true)` when it is withdrawn. `clearIdentity()` is the logout call: it forgets the user and the ids and never changes the mode.
 
 ### When The App Already Runs An OTel SDK
 

@@ -10,16 +10,16 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 
 ## The Context Envelope (on every record)
 
-| Attribute              | Meaning                                                                  |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `session.id`           | Rotates after 30 idle minutes; groups one visit                          |
-| `everr.visitor.id`     | Stable per browser (localStorage); groups return visits                  |
-| `everr.page_view.id`   | Joins any record to the pageview it happened on                          |
-| `url.full`, `url.path` | The page the record happened on                                          |
-| `everr.route.pattern`  | Low-cardinality route, e.g. `/posts/{id}`; group by this, not `url.path` |
-| `everr.referrer.url`   | The page's referrer                                                      |
-| `user.id`, `user.*`    | Set by `identify()`; flat traits like `user.plan`                        |
-| ambient `everr.*` keys | Set by the host app via `setAttributes()`                                |
+| Attribute              | Meaning                                                                                         |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `session.id`           | Rotates after 30 idle minutes; groups one visit. Anonymized: in memory only, ends with the page |
+| `everr.visitor.id`     | Stable per browser (localStorage); groups return visits. Absent while anonymized                |
+| `everr.page_view.id`   | Joins any record to the pageview it happened on                                                 |
+| `url.full`, `url.path` | The page the record happened on                                                                 |
+| `everr.route.pattern`  | Low-cardinality route, e.g. `/posts/{id}`; group by this, not `url.path`                        |
+| `everr.referrer.url`   | The page's referrer                                                                             |
+| `user.id`, `user.*`    | Set by `identify()`; flat traits like `user.plan`. Absent while anonymized                      |
+| ambient `everr.*` keys | Set by the host app via `setAttributes()`                                                       |
 
 ## Resource Attributes (in `ResourceAttributes`)
 

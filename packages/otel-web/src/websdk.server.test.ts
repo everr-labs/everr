@@ -25,7 +25,6 @@ import {
   captureError,
   identify,
   logger,
-  revoke,
   setAttributes,
   setRouteResolver,
   tracer,
@@ -191,7 +190,6 @@ describe("init (server)", () => {
     // The identity and the ambient context belong to the browser. On the server
     // these functions throw no error, and they write nothing.
     identify("u_123", { plan: "pro" });
-    revoke();
     setAttributes({ "everr.tenant.id": "acme" });
     setRouteResolver({ page: () => "/blog/$slug" });
     logger.info("after identify");
@@ -222,16 +220,16 @@ describe("init (server)", () => {
 });
 
 describe("inert shared-code surface", () => {
-  it("instrumentation factories and persistence resolve as no-ops in the server graph", async () => {
+  it("instrumentation factories and the anonymized mode resolve as no-ops in the server graph", async () => {
     const {
       errors,
       interactions,
       network,
       pageviews,
       performance: performanceInstrumentation,
-      setPersistence,
+      setAnonymized,
     } = await import("./server.js");
-    setPersistence("localStorage");
+    setAnonymized(false);
     const noopContext = {} as never;
     for (const instrumentation of [
       errors({ ignore: ["x"] }),
