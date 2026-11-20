@@ -229,6 +229,31 @@ func BenchmarkHostileInputsOnABigNode(b *testing.B) {
 	hostileRead(b, events...)
 }
 
+func headerAt(t *testing.T, readMs int64, events ...any) string {
+	t.Helper()
+	got, err := PageText(wireOf(t, readMs, segRow(0, body(t, events...))), readMs, Outline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header, _, _ := strings.Cut(got, "\n")
+	return header
+}
+
+func TestTakesTheURLOfAMetaOnlyWhenItsSnapshotIsApplied(t *testing.T) {
+	events := []any{
+		meta(1_000, "https://x/a"), snapshot(1_001, doc()),
+		meta(5_000, "https://x/b"), snapshot(5_010, doc()),
+		meta(9_000, "https://x/c"), obj{"type": 2, "timestamp": 9_010, "data": obj{}},
+	}
+	for readMs, want := range map[int64]string{
+		1_500: `"/a"`, 5_000: `"/a"`, 5_009: `"/a"`, 5_010: `"/b"`, 9_500: `"/b"`,
+	} {
+		if got := headerAt(t, readMs, events...); !strings.Contains(got, "url="+want+" ") && !strings.HasSuffix(got, "url="+want) {
+			t.Errorf("read at %d: %s, want url=%s", readMs, got, want)
+		}
+	}
+}
+
 func TestKeepsAttributeOrderAndValuesOnANodeWithManyAttributes(t *testing.T) {
 	names := func(from, to int) obj {
 		out := obj{}
