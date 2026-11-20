@@ -41,3 +41,17 @@ func TestReadWireAsksForAnUpgradeOnAFormatItDoesNotRead(t *testing.T) {
 		}
 	}
 }
+
+func TestReadWireMarksTheRowsFromBeforeTheClip(t *testing.T) {
+	w, err := readWire([]byte("{\"format\":1,\"read_ms\":5}\n" +
+		"{\"segment_index\":3,\"Body\":\"\",\"event_index\":\"\",\"piece\":\"\",\"pieces\":\"\",\"earlier\":1}\n" +
+		"{\"segment_index\":4,\"Body\":\"[]\",\"event_index\":\"\",\"piece\":\"\",\"pieces\":\"\",\"earlier\":0}\n" +
+		"{\"segment_index\":5,\"Body\":\"[]\",\"event_index\":\"\",\"piece\":\"\",\"pieces\":\"\"}\n" +
+		"{\"rows\":3}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(w.rows) != 3 || !w.rows[0].earlier || w.rows[1].earlier || w.rows[2].earlier {
+		t.Fatalf("rows = %+v", w.rows)
+	}
+}

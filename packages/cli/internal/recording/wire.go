@@ -3,9 +3,12 @@ package recording
 // The body of `GET /api/cli/recordings/segments`: one JSON value per line.
 //
 //	{"format":1,"read_ms":1794651702480}       the moment the page is read at
-//	{"segment_index":0,"Body":"[...]","event_index":"","piece":"","pieces":""}
+//	{"segment_index":0,"Body":"[...]","event_index":"","piece":"","pieces":"","earlier":0}
 //	...                                         one line per Segment row, as ClickHouse wrote it
 //	{"rows":1}                                  the end, with the number of rows
+//
+// A row with "earlier":1 only names the index of a Segment from before the
+// Clip, with an empty Body. A row without "earlier" is a Segment of the Clip.
 //
 // A body without its end line was cut short.
 
@@ -23,13 +26,15 @@ import (
 const wireFormat = 1
 
 // row is a Segment row. `pieces` is set on the rows of an event too large for
-// one Segment: `piece` of `pieces` for the event `event_index`.
+// one Segment: `piece` of `pieces` for the event `event_index`. An `earlier`
+// row holds no events: it is the index of a Segment from before the Clip.
 type row struct {
 	segmentIndex uint64
 	body         string
 	eventIndex   string
 	piece        string
 	pieces       string
+	earlier      bool
 }
 
 type wire struct {
@@ -100,6 +105,7 @@ func parseRow(line []byte) (row, bool) {
 		EventIndex   *string `json:"event_index"`
 		Piece        *string `json:"piece"`
 		Pieces       *string `json:"pieces"`
+		Earlier      uint8   `json:"earlier"`
 	}
 	if json.Unmarshal(line, &r) != nil || r.SegmentIndex == nil || r.Body == nil ||
 		r.EventIndex == nil || r.Piece == nil || r.Pieces == nil {
@@ -111,5 +117,6 @@ func parseRow(line []byte) (row, bool) {
 		eventIndex:   *r.EventIndex,
 		piece:        *r.Piece,
 		pieces:       *r.Pieces,
+		earlier:      r.Earlier == 1,
 	}, true
 }
