@@ -30,7 +30,15 @@ const QUERY_SETTINGS = { date_time_input_format: "best_effort" } as const;
 /** A time range. Epoch-ms precision; both ends included. */
 export type TimeWindow = { from: Date; to: Date };
 
-/** A Clip as the reader decodes its `recording` span: a time range of one Stream. */
+/**
+ * A Clip as the reader decodes it from the Segments in `recordings`: a time
+ * range of one Stream. A Clip is the Segments of one Stream with the same
+ * `clip_start` (one run of overlapping Clips), from `clip_start` to the last
+ * `segment_end` of the run. Its end is the last time a Segment said the Stream
+ * was complete, so it falls short of the close when the page unloaded first.
+ * Its id is that of the first Clip that opened in the run: a run whose opening
+ * Segment was lost has none and is not a Clip.
+ */
 export type ClipWindow = {
   clipId: string;
   streamId: string;
@@ -54,17 +62,25 @@ export class ReplayError extends Error {
   }
 }
 
-type SpanRow = { serviceName: string; startMs: number; endMs: number; clipId: string };
+type ClipRow = { serviceName: string; startMs: number; endMs: number; clipId: string };
 
 /** Where loadClips looks for the Clips around a moment: 5 minutes either side. */
 export function windowAround(atMs: number): TimeWindow {
   return { from: new Date(atMs - AT_RADIUS_MS), to: new Date(atMs + AT_RADIUS_MS) };
 }
 
+/** How long after the end of a search window a Clip's Segments are still looked for. */
+const CLIP_REACH_MS = 60 * 60 * 1000;
+
 /**
  * The Clips of one Stream whose [start, end] overlaps the window, at most
  * MAX_CLIPS: those covering `atMs` first (the one ending last first), then
  * the nearest. A Clip may start up to CLIP_LOOKBACK_MS before the window.
+ *
+ * A Clip is the Segments of one Stream with the same `clip_start`. The
+ * grouping also collapses rows duplicated by at-least-once delivery. Its
+ * Segments are looked for from CLIP_LOOKBACK_MS before the window to
+ * CLIP_REACH_MS after it.
  */
 export async function loadClips(
   organizationId: string,
@@ -72,19 +88,23 @@ export async function loadClips(
   window: TimeWindow,
   atMs: number,
 ): Promise<ClipWindow[]> {
-  const rows = await query<SpanRow>(
+  // The id is that of the first Clip that opened in the run.
+  const rows = await query<ClipRow>(
     `
 SELECT
-  ServiceName AS serviceName,
-  toUnixTimestamp64Milli(Timestamp) AS startMs,
-  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
-  toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId
-FROM traces
-WHERE SpanName = 'recording'
-  AND toString(SpanAttributes.\`everr.recording.stream.id\`) = {stream:String}
+  any(ServiceName) AS serviceName,
+  toUnixTimestamp64Milli(clip_start) AS startMs,
+  toUnixTimestamp64Milli(max(segment_end)) AS endMs,
+  argMinIf(clip_id, segment_index, clip_id != '') AS clipId
+FROM recordings
+WHERE stream_id = {stream:String}
   AND Timestamp >= fromUnixTimestamp64Milli({startFromMs: Int64})
-  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
-  AND Timestamp + toIntervalNanosecond(Duration) >= fromUnixTimestamp64Milli({fromMs: Int64})
+  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64} + {reachMs: Int64})
+GROUP BY clip_start
+HAVING clipId != ''
+  AND startMs >= {startFromMs: Int64}
+  AND startMs <= {toMs: Int64}
+  AND endMs >= {fromMs: Int64}
 ORDER BY greatest(0, startMs - {atMs:Int64}, {atMs:Int64} - endMs), endMs DESC
 LIMIT 1 BY clipId
 LIMIT {cap:UInt16}
@@ -95,12 +115,13 @@ LIMIT {cap:UInt16}
       startFromMs: window.from.getTime() - CLIP_LOOKBACK_MS,
       fromMs: window.from.getTime(),
       toMs: window.to.getTime(),
+      reachMs: CLIP_REACH_MS,
       atMs,
       cap: MAX_CLIPS,
     },
     QUERY_SETTINGS,
   );
-  // A span without a Clip id or a service names no Segments to read.
+  // A run without a service names no Segments to read.
   return rows
     .filter((r) => r.clipId && r.serviceName)
     .map((r) => ({
@@ -133,7 +154,7 @@ export function select(
   if (clips.length === 0) {
     throw new ReplayError(
       "not_found",
-      `No Clip of ${stream} overlaps ${window.from.toISOString()}..${window.to.toISOString()} (5 minutes either side of --at). Find Clips in the \`recording\` spans of \`traces\`.`,
+      `No Clip of ${stream} overlaps ${window.from.toISOString()}..${window.to.toISOString()} (5 minutes either side of --at). Find Clips in the \`recordings\` table.`,
     );
   }
   const gap = (c: ClipWindow) =>
@@ -155,7 +176,10 @@ export function select(
   );
 }
 
-// The Segments of a Clip's Stream, from the Clip's start up to a moment.
+// The Segments of a Clip's Stream, from the Clip's start up to a moment, by
+// time and not by `clip_start`: an event leaves the page once, so the events
+// of a Clip can sit in Segments sent in an earlier run. A Segment with the
+// body `[]` holds no events and is read like any other.
 const SEGMENT_SCOPE = `
 FROM recordings
 WHERE ServiceName = {service:String}
@@ -182,9 +206,9 @@ async function segmentBytes(organizationId: string, clip: ClipWindow, at: Date):
 }
 
 // The Segments of the Stream that start up to an hour before the Clip. The
-// SDK numbers Segments in send order, and a Clip opened later can send an
-// older Generation after a newer one, so such a Segment can hold an index
-// between two the Clip read. Their indexes (not their bodies) tell a hole from
+// SDK numbers Segments in send order, and a Clip opened later in a run can
+// reach further back and send an older Generation after a newer one, so such a
+// Segment can hold an index between two the Clip read. Their indexes (not their bodies) tell a hole from
 // a Segment that is merely not part of this Clip. The bound keeps the scan
 // finite on a long Stream.
 const EARLIER_SCOPE = `
@@ -251,12 +275,15 @@ type Gap =
 
 export type ClipEvents = { events: RrwebEvent[]; gaps: Gap[] };
 
-type ClipSpanRow = SpanRow & { streamId: string; trigger: string; sessionId: string };
+type ClipByIdRow = ClipRow & { streamId: string; openedTrigger: string; sessionId: string };
 
 /**
- * The Clip of a `recording` span, by its id. `atMs` is the Clip's start: the
- * span is searched an hour either side of it. None, two different spans, or a
- * span missing its Stream, service, Session or trigger is undefined.
+ * The Clip with an id: the run of Segments that holds the Segment opening it,
+ * under that id and that Clip's own trigger. A Clip that opened second in a run
+ * is the run too. `atMs` is the start of the run: the opening Segment is
+ * searched an hour either side of it, and the run must start within that hour.
+ * None, an id in two runs, or a run missing its Stream, service, Session or
+ * trigger is undefined.
  */
 async function loadClipById(
   organizationId: string,
@@ -264,42 +291,45 @@ async function loadClipById(
   atMs: number,
 ): Promise<ClipWindow | undefined> {
   const lookbackMs = 60 * 60 * 1000;
-  const rows = await query<ClipSpanRow>(
+  const rows = await query<ClipByIdRow>(
     `
 SELECT
-  ServiceName AS serviceName,
-  toUnixTimestamp64Milli(Timestamp) AS startMs,
-  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
-  toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId,
-  toString(SpanAttributes.\`everr.recording.stream.id\`) AS streamId,
-  toString(SpanAttributes.\`everr.recording.trigger\`) AS trigger,
-  toString(SpanAttributes.\`session.id\`) AS sessionId
-FROM traces
-WHERE SpanName = 'recording'
-  AND toString(SpanAttributes.\`everr.recording.clip.id\`) = {clipId:String}
+  any(ServiceName) AS serviceName,
+  toUnixTimestamp64Milli(clip_start) AS startMs,
+  toUnixTimestamp64Milli(max(segment_end)) AS endMs,
+  {clipId:String} AS clipId,
+  stream_id AS streamId,
+  any(session_id) AS sessionId,
+  anyIf(trigger, clip_id = {clipId:String}) AS openedTrigger
+FROM recordings
+WHERE (stream_id, clip_start) IN (
+    SELECT stream_id, clip_start
+    FROM recordings
+    WHERE clip_id = {clipId:String}
+      AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
+      AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
+  )
   AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
-  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
-ORDER BY Timestamp ASC
-LIMIT 1 BY clipId
+  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64} + {reachMs: Int64})
+GROUP BY stream_id, clip_start
+HAVING startMs >= {fromMs: Int64} AND startMs <= {toMs: Int64}
 `,
     organizationId,
-    { clipId, fromMs: atMs - lookbackMs, toMs: atMs + lookbackMs },
+    { clipId, fromMs: atMs - lookbackMs, toMs: atMs + lookbackMs, reachMs: CLIP_REACH_MS },
     QUERY_SETTINGS,
   );
-  // `LIMIT 1 BY clipId` collapses rows duplicated by at-least-once delivery on
-  // the server; the dedupe here keeps the same guarantee behind a mock or a
-  // future server change. Two DIFFERENT shapes for one clip id stay rejected.
-  const seen = new Set<string>();
-  const deduped = rows.filter((r) => {
-    const identity = `${r.clipId}:${r.startMs}:${r.endMs}:${r.streamId}:${r.serviceName}:${r.sessionId}`;
-    if (seen.has(identity)) return false;
-    seen.add(identity);
-    return true;
-  });
-  if (deduped.length !== 1) return undefined;
-  const r = deduped[0];
+  // The grouping collapses rows duplicated by at-least-once delivery. One Clip
+  // id in two runs is not a Clip this reader can place.
+  if (rows.length !== 1) return undefined;
+  const r = rows[0];
   if (!r?.clipId || !r.streamId || !r.serviceName || !r.sessionId) return undefined;
-  if (r.trigger !== "error" && r.trigger !== "network" && r.trigger !== "manual") return undefined;
+  if (
+    r.openedTrigger !== "error" &&
+    r.openedTrigger !== "network" &&
+    r.openedTrigger !== "manual"
+  ) {
+    return undefined;
+  }
   return {
     clipId: r.clipId,
     streamId: r.streamId,
@@ -454,7 +484,8 @@ function isRrwebEvent(value: unknown): value is RrwebEvent {
 
 /**
  * The events of one Clip in time order, for the in-app player, ending at the
- * Clip's end. `atMs` is the Clip's start: its span is searched an hour around it.
+ * Clip's end. `atMs` is the Clip's start: its opening Segment is searched an
+ * hour around it.
  */
 export async function clipEvents(
   organizationId: string,

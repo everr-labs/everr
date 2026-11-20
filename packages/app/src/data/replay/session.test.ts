@@ -20,6 +20,7 @@ import {
 import {
   CLIP_ID,
   calls,
+  clipRow,
   collect,
   HOUR,
   isClipQuery,
@@ -29,7 +30,6 @@ import {
   STREAM,
   segLine,
   segRow,
-  spanRow,
 } from "./test-fixtures.ts";
 
 const T0 = Date.UTC(2026, 10, 14, 10, 20, 0);
@@ -57,35 +57,39 @@ describe("loadClips", () => {
     expect(WINDOW).toEqual({ from: new Date(T0 - 5 * 60_000), to: new Date(T0 + 5 * 60_000) });
     await loadClips(ORG, STREAM, WINDOW, T0);
     const [call] = calls(isClipQuery);
-    expect(call?.sql).toContain(
-      "toString(SpanAttributes.`everr.recording.stream.id`) = {stream:String}",
-    );
+    expect(call?.sql).toContain("FROM recordings");
+    expect(call?.sql).toContain("stream_id = {stream:String}");
+    // A Clip is the Segments of the Stream with one clip_start.
+    expect(call?.sql).toContain("GROUP BY clip_start");
     expect(call?.params).toMatchObject({
       stream: STREAM,
       startFromMs: WINDOW.from.getTime() - DAY,
       fromMs: WINDOW.from.getTime(),
       toMs: WINDOW.to.getTime(),
+      reachMs: HOUR,
     });
+    // The scanned Segments and the run start both stay within the lookback.
+    expect(call?.sql).toMatch(/Timestamp >= fromUnixTimestamp64Milli\(\{startFromMs/);
+    expect(call?.sql).toMatch(/startMs >= \{startFromMs/);
     // Overlap: started before the window's end, ended after its start.
-    expect(call?.sql).toMatch(
-      /Timestamp \+ toIntervalNanosecond\(Duration\) >= fromUnixTimestamp64Milli\(\{fromMs/,
-    );
+    expect(call?.sql).toMatch(/startMs <= \{toMs/);
+    expect(call?.sql).toMatch(/endMs >= \{fromMs/);
     expect(call?.settings).toEqual({ date_time_input_format: "best_effort" });
   });
 
   it("finds a Clip that started at an old Generation and still covers the window", async () => {
-    plan({ clips: [spanRow({ startMs: T0 - 3 * HOUR, endMs: T0 + 1_000 })] });
+    plan({ clips: [clipRow({ startMs: T0 - 3 * HOUR, endMs: T0 + 1_000 })] });
     const clips = await loadClips(ORG, STREAM, WINDOW, T0);
     expect(clips.map((c) => c.start.getTime())).toEqual([T0 - 3 * HOUR]);
   });
 
-  it("skips a span without a Clip id or a service, and counts a Clip stored twice once", async () => {
+  it("skips a run without a Clip id or a service, and counts a Clip stored twice once", async () => {
     plan({
       clips: [
-        spanRow({ startMs: T0, clipId: "" }),
-        spanRow({ startMs: T0, clipId: "c2", serviceName: "" }),
-        spanRow({ startMs: T0 }),
-        spanRow({ startMs: T0 }),
+        clipRow({ startMs: T0, clipId: "" }),
+        clipRow({ startMs: T0, clipId: "c2", serviceName: "" }),
+        clipRow({ startMs: T0 }),
+        clipRow({ startMs: T0 }),
       ],
     });
     expect(await loadClips(ORG, STREAM, WINDOW, T0)).toEqual([
@@ -96,7 +100,7 @@ describe("loadClips", () => {
   it("reads at most 20 Clips", async () => {
     plan({
       clips: Array.from({ length: 21 }, (_, i) =>
-        spanRow({ startMs: T0, clipId: i.toString(16).padStart(32, "0") }),
+        clipRow({ startMs: T0, clipId: i.toString(16).padStart(32, "0") }),
       ),
     });
     expect(await loadClips(ORG, STREAM, WINDOW, T0)).toHaveLength(20);
@@ -144,11 +148,11 @@ describe("select", () => {
     expect(message).toContain("Pass an --at inside a Clip.");
   });
 
-  it("is not_found when no Clip overlaps the window, and points at the recording spans", () => {
+  it("is not_found when no Clip overlaps the window, and points at the recordings table", () => {
     expect(() => select([], STREAM, T0, WINDOW)).toThrow(
       expect.objectContaining({
         code: "not_found",
-        message: `No Clip of stream ${STREAM} overlaps ${WINDOW.from.toISOString()}..${WINDOW.to.toISOString()} (5 minutes either side of --at). Find Clips in the \`recording\` spans of \`traces\`.`,
+        message: `No Clip of stream ${STREAM} overlaps ${WINDOW.from.toISOString()}..${WINDOW.to.toISOString()} (5 minutes either side of --at). Find Clips in the \`recordings\` table.`,
       }),
     );
   });
@@ -233,10 +237,7 @@ describe("clipEvents", () => {
     );
     const half = Math.floor(snapshot.length / 2);
     plan({
-      clips: [
-        spanRow({ startMs: T0, endMs: T0 + 5_000 }),
-        spanRow({ startMs: T0, endMs: T0 + 5_000 }),
-      ],
+      clips: [clipRow({ startMs: T0, endMs: T0 + 5_000 })],
       recordings: [
         segRow(body([event(4, T0 + 50, { href: "/" })]), { segment_index: 0 }),
         segRow(snapshot.slice(0, half), {
@@ -273,13 +274,61 @@ describe("clipEvents", () => {
     });
   });
 
+  it("reads a Segment with the body [] as no events, with no gap and no error", async () => {
+    plan({
+      clips: [clipRow({ startMs: T0, endMs: T0 + 5_000 })],
+      recordings: [
+        segRow("[]", { segment_index: 0 }),
+        segRow(body([event(4, T0 + 100, { href: "/" })]), { segment_index: 1 }),
+        segRow("[]", { segment_index: 2 }),
+        segRow("[]", { segment_index: 3 }),
+      ],
+    });
+
+    const { events, gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+    expect(events.map((e) => e.timestamp)).toEqual([T0 + 100]);
+    expect(gaps).toEqual([]);
+  });
+
+  it("reads a Clip whose Segments are all [] as no events and no gap", async () => {
+    plan({
+      clips: [clipRow({ startMs: T0, endMs: T0 + 5_000 })],
+      recordings: [segRow("[]", { segment_index: 0 }), segRow("[]", { segment_index: 1 })],
+    });
+
+    expect(await clipEvents(ORG, CLIP_ID, T0)).toEqual({ events: [], gaps: [] });
+  });
+
+  it("asks for the run of the Clip's own opening Segment, under the Clip's id and trigger", async () => {
+    plan({
+      clips: [clipRow({ startMs: T0, endMs: T0 + 5_000, trigger: "network" })],
+      recordings: [segRow("[]")],
+    });
+
+    await clipEvents(ORG, CLIP_ID, T0);
+
+    const [call] = calls(isClipQuery);
+    expect(call?.sql).toContain("anyIf(trigger, clip_id = {clipId:String})");
+    expect(call?.sql).toContain("GROUP BY stream_id, clip_start");
+    expect(call?.params).toMatchObject({ clipId: CLIP_ID, fromMs: T0 - HOUR, toMs: T0 + HOUR });
+  });
+
+  it("does not place a Clip whose trigger is unknown, or whose id is in two runs", async () => {
+    plan({ clips: [clipRow({ startMs: T0, trigger: "from-a-future-sdk" })] });
+    await expect(clipEvents(ORG, CLIP_ID, T0)).rejects.toMatchObject({ code: "outside_clip" });
+
+    plan({ clips: [clipRow({ startMs: T0 }), clipRow({ startMs: T0 + 1_000 })] });
+    await expect(clipEvents(ORG, CLIP_ID, T0)).rejects.toMatchObject({ code: "outside_clip" });
+  });
+
   describe("Segments sent out of time order", () => {
     // Clip A (manual, from Generation 5) sent Segments 0 to 2. An error then
     // opened Clip B, 60 s back: Generation 4 went out as 3 to 5, before A's
     // start, and Generation 5 went on as 6.
     const segment = (index: number, at: number) =>
       segRow(body([event(3, at)]), { segment_index: index, at });
-    const clipA = () => [spanRow({ startMs: T0, endMs: T0 + 5_000 })];
+    const clipA = () => [clipRow({ startMs: T0, endMs: T0 + 5_000 })];
 
     it("reports no gap when the missing indexes are Segments from before the Clip", async () => {
       plan({
@@ -369,7 +418,7 @@ describe("clipEvents", () => {
     });
   });
 
-  it("answers 404 for a clip id with no recording span near its start", async () => {
+  it("answers 404 for a clip id with no opening Segment near its start", async () => {
     plan({ clips: [], recordings: [] });
     const failure = await clipEvents(ORG, CLIP_ID, T0).catch((error: unknown) => error);
     expect(failure).toMatchObject({ code: "outside_clip" });

@@ -3,8 +3,8 @@
 // `everr cloud recording show`: the Segments of a recorded browser visit up to
 // just after a moment, passed on unparsed. The CLI rebuilds the page from
 // them, so a large or hostile Recording costs the reader, not this server.
-// Everything else about the visit (clicks, requests, errors, navigations, the
-// Clips) is in traces and logs, read with SQL.
+// Everything else about the visit (clicks, requests, errors, navigations) is in
+// traces and logs, and its Clips are in `recordings`, all read with SQL.
 
 import "@tanstack/react-start/server-only";
 
