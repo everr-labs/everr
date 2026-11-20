@@ -20,17 +20,21 @@ func PageText(body []byte, atMs int64, form Form) (string, error) {
 	}
 	events, gap := reassemble(w.rows, maxValues)
 	m := newMirror()
-	pageURL := ""
+	// rrweb writes a Meta just before its full snapshot: the URL belongs to the
+	// page once that snapshot is applied, not before.
+	pageURL, metaURL := "", ""
 	for _, e := range events {
 		if e.timestamp > float64(w.readMs) {
 			break
 		}
 		if e.kind == eventMeta {
 			if href, ok := e.data.get("href").str(); ok {
-				pageURL = href
+				metaURL = href
 			}
 		}
-		m.apply(e)
+		if m.apply(e) {
+			pageURL = metaURL
+		}
 	}
 	view := m.view(form)
 	complete := m.loaded() && !m.lost && !gap

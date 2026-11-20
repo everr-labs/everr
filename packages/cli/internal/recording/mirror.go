@@ -95,7 +95,8 @@ func (f Form) budget() budget {
 
 // pageView is the page as lines. Lines are whole: a budget never cuts inside
 // one. totalLines is what the page takes without a budget. masked: the
-// outline left out text or attribute values the SDK Masked.
+// outline left out text or attribute values the SDK Masked. paused: the
+// recorder was paused at pausedAt (ms) and the page has changed since.
 type pageView struct {
 	lines      []string
 	totalLines int
@@ -248,8 +249,9 @@ func (l *attrList) sweep() {
 // loaded reports whether a snapshot is loaded.
 func (m *mirror) loaded() bool { return m.root != none }
 
-// apply applies one rrweb event. A full snapshot starts the mirror over.
-func (m *mirror) apply(e event) {
+// apply applies one rrweb event. A full snapshot starts the mirror over: it
+// gives true when it did.
+func (m *mirror) apply(e event) bool {
 	data := e.data
 	if e.kind == eventFullSnapshot {
 		if snapshot, ok := data.take("node"); ok && isSnapNode(snapshot) {
@@ -264,10 +266,10 @@ func (m *mirror) apply(e event) {
 			// The page it replaced stays, and no longer covers the moment.
 			m.lost = true
 		}
-		return
+		return m.root != none && !m.lost
 	}
 	if m.root == none || e.kind != eventIncremental {
-		return
+		return false
 	}
 	source, ok := data.get("source").num()
 	switch {
@@ -276,6 +278,7 @@ func (m *mirror) apply(e event) {
 	case ok && source == sourceInput:
 		m.input(data)
 	}
+	return false
 }
 
 func (m *mirror) children(id int) []int {
