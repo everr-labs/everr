@@ -295,3 +295,45 @@ func TestChangesEveryAttributeOfANodeWithTwoHundredThousand(t *testing.T) {
 		t.Fatalf("got:\n%s", got)
 	}
 }
+
+func TestPlacesAddsThatArriveBeforeTheirParentsWhateverElseTheyCarry(t *testing.T) {
+	read := func(adds []any) string {
+		return show(t, wireOf(t, 10_000, segRow(0, body(t, meta(1_000, "https://x/p"), snapshot(1_001, doc()), mutation(1_002, obj{"adds": adds})))), "1970-01-01T00:00:09.250Z", HTML)
+	}
+	got := read(reversedAdds(300)[6250:])
+	if strings.Contains(got, "coverage incomplete") || strings.Count(got, "<b>") != 50 {
+		t.Fatalf("got:\n%s", got)
+	}
+	// An add with no nextId has no place, as in rrweb.
+	adds := reversedAdds(0)[6299:]
+	delete(adds[0].(obj), "nextId")
+	if got := read(adds); !strings.Contains(got, "coverage incomplete") || strings.Contains(got, "<b>") {
+		t.Fatalf("got:\n%s", got)
+	}
+}
+
+// Adds that name the add after them wait through every pass of the retry loop.
+func reversedAdds(junk int) []any {
+	const adds = 6300
+	list := make([]any, adds)
+	for i := range list {
+		parent := 100_000 + int64(i) + 1
+		if i == adds-1 {
+			parent = 4
+		}
+		add := obj{"parentId": parent, "nextId": nil, "node": obj{"type": 2, "tagName": "b", "id": 100_000 + int64(i), "attributes": obj{}, "childNodes": []any{}}}
+		for k := range junk {
+			add[fmt.Sprintf("junk%04d", k)] = 1
+		}
+		list[i] = add
+	}
+	return list
+}
+
+func BenchmarkHostileReversedAdds(b *testing.B) {
+	hostileRead(b, meta(1_000, "https://x/p"), snapshot(1_001, doc()), mutation(1_002, obj{"adds": reversedAdds(0)}))
+}
+
+func BenchmarkHostileReversedAddsPaddedWithKeys(b *testing.B) {
+	hostileRead(b, meta(1_000, "https://x/p"), snapshot(1_001, doc()), mutation(1_002, obj{"adds": reversedAdds(620)}))
+}

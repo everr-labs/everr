@@ -422,6 +422,40 @@ func (m *mirror) nodeOf(value *Json, key string) (int, bool) {
 	return id, ok
 }
 
+// How an add names the node it goes before.
+const (
+	nextNever = iota // absent, or not an id: the add never has a place
+	nextEnd          // null: last in its parent
+	nextNode         // the node with id nextID
+)
+
+// pendingAdd is an add with its fields read once, so that each retry costs two
+// lookups, not a scan of the keys of an object the page made as long as it likes.
+type pendingAdd struct {
+	parent    int64
+	hasParent bool
+	next      int
+	nextID    int64
+	node      Json
+	nodeID    int64
+	hasNodeID bool
+}
+
+func readAdd(add *Json) pendingAdd {
+	var out pendingAdd
+	out.parent, out.hasParent = add.get("parentId").id()
+	if nextID := add.get("nextId"); nextID != nil {
+		if nextID.kind == jsonNull {
+			out.next = nextEnd
+		} else if id, ok := nextID.id(); ok {
+			out.next, out.nextID = nextNode, id
+		}
+	}
+	out.node, _ = add.take("node")
+	out.nodeID, out.hasNodeID = out.node.get("id").id()
+	return out
+}
+
 func (m *mirror) mutate(data Json) {
 	if removes, ok := data.take("removes"); ok && removes.kind == jsonArr {
 		for i := range removes.items {
@@ -434,34 +468,35 @@ func (m *mirror) mutate(data Json) {
 	// An add can name a parent or a next sibling that a later add in the same
 	// event creates. Retry until a pass makes no progress, as rrweb does.
 	if adds, ok := data.take("adds"); ok && adds.kind == jsonArr {
-		pending := make([]Json, len(adds.items))
+		list := make([]pendingAdd, len(adds.items))
+		pending := make([]int, len(list))
 		for i := range adds.items {
-			pending[i] = adds.items[i].value
+			list[i] = readAdd(&adds.items[i].value)
+			pending[i] = i
 		}
 		for len(pending) > 0 {
-			var left []Json
-			for i := range pending {
-				add := &pending[i]
+			var left []int
+			for _, at := range pending {
+				add := &list[at]
 				m.addAttempts++
-				parent, parentOK := m.nodeOf(add, "parentId")
+				parent, parentOK := m.ids[add.parent]
+				parentOK = parentOK && add.hasParent
 				next, nextOK := none, false
-				if nextID := add.get("nextId"); nextID != nil {
-					if nextID.kind == jsonNull {
-						nextOK = true
-					} else {
-						next, nextOK = m.nodeOf(add, "nextId")
-					}
+				switch add.next {
+				case nextEnd:
+					nextOK = true
+				case nextNode:
+					next, nextOK = m.ids[add.nextID]
 				}
 				if !parentOK || !nextOK {
-					left = append(left, *add)
+					left = append(left, at)
 					continue
 				}
 				// A node that is already in the tree moves.
-				if rrID, ok := add.get("node").get("id").id(); ok {
-					m.detach(rrID)
+				if add.hasNodeID {
+					m.detach(add.nodeID)
 				}
-				serialized, _ := add.take("node")
-				built := m.build(serialized)
+				built := m.build(add.node)
 				if built == none {
 					m.lost = true
 					continue
