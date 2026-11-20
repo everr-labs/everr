@@ -215,6 +215,12 @@ function ClipPlayer({
     [split],
   );
   const togglePlayback = playing ? pause : play;
+  // A failed query has no data, so it always counts as stale: Retry is the way to try again.
+  const prefetch = () => {
+    const options = clipEventsOptions(clip);
+    if (queryClient.getQueryState(options.queryKey)?.status === "error") return;
+    void queryClient.prefetchQuery(options);
+  };
 
   const facts = (
     <>
@@ -249,7 +255,7 @@ function ClipPlayer({
             type="button"
             className="hover:bg-muted/40 flex h-full min-w-0 flex-1 items-center gap-2 px-4"
             aria-expanded={open}
-            onPointerEnter={() => void queryClient.prefetchQuery(clipEventsOptions(clip))}
+            onPointerEnter={prefetch}
             onClick={open ? hide : show}
           >
             {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}

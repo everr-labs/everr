@@ -404,6 +404,22 @@ describe("session recording panel", () => {
     expect(getClipEvents).toHaveBeenCalledTimes(1);
   });
 
+  it("does not load a failed Clip again when the pointer passes over its row", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse([], 413));
+    renderPlayer({ kind: "trace", traceId: "t1" });
+
+    await toggle(false);
+    await screen.findByText("This clip is too large to play here.");
+    await toggle(true);
+    const row = screen.getByRole("button", { name: /Session recording/ });
+    fireEvent.pointerEnter(row);
+    fireEvent.pointerEnter(row);
+
+    await act(async () => {});
+    expect(getClipEvents).toHaveBeenCalledTimes(1);
+  });
+
   it("plays to the Clip's end, past the last event, and a click on the picture plays and pauses", async () => {
     renderClip();
 
