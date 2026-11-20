@@ -1,6 +1,6 @@
 # Query local telemetry
 
-`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `traces` and the `metrics_*` family. Bad SQL fails with the ClickHouse error and exit 1.
+`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `recordings` (browser recording Segments, see `local-recordings.md`), `traces` and the `metrics_*` family. Bad SQL fails with the ClickHouse error and exit 1.
 
 ## Sub-features
 
