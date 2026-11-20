@@ -73,7 +73,7 @@ export class LogsRepository {
       built.fromDate,
       built.toDate,
       built.intervalSeconds,
-      built.utcOffsetMinutes,
+      input.utcOffsetMinutes,
     );
   }
 

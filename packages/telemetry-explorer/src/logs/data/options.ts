@@ -1,6 +1,6 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { utcOffsetMinutesAt } from "@everr/ui/lib/bucket";
-import { toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
+import { viewerHistogramWindow } from "@everr/ui/lib/bucket";
+import { withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   LogHistogramInput,
@@ -20,11 +20,7 @@ export function logsExplorerInfiniteOptions(
   return infiniteQueryOptions({
     queryKey: ["logs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
-      repo.explorer({
-        ...input,
-        timeRange: toAbsoluteTimeRange(input.timeRange),
-        offset: pageParam,
-      }),
+      repo.explorer({ ...withViewerTimeRange(input), offset: pageParam }),
     initialPageParam: 0,
     refetchInterval: getRefreshIntervalMs(refresh) ?? false,
     getNextPageParam: (
@@ -42,7 +38,7 @@ export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInp
   return queryOptions({
     queryKey: ["logs", "totals", input],
     refetchInterval: getRefreshIntervalMs(refresh) ?? false,
-    queryFn: () => repo.totals({ ...input, timeRange: toAbsoluteTimeRange(input.timeRange) }),
+    queryFn: () => repo.totals(withViewerTimeRange(input)),
   });
 }
 
@@ -61,13 +57,6 @@ export function logsHistogramOptions(
   return queryOptions({
     queryKey: ["logs", "histogram", input],
     refetchInterval: getRefreshIntervalMs(refresh) ?? false,
-    queryFn: () => {
-      const timeRange = toAbsoluteTimeRange(input.timeRange);
-      return repo.histogram({
-        ...input,
-        timeRange,
-        utcOffsetMinutes: utcOffsetMinutesAt(new Date(timeRange.to)),
-      });
-    },
+    queryFn: () => repo.histogram({ ...input, ...viewerHistogramWindow(input.timeRange) }),
   });
 }

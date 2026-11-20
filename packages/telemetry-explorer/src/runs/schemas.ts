@@ -51,7 +51,7 @@ export interface RunsExplorerResult {
 export interface RunsHistogramInput extends RunsFilter {
   histogramBuckets: number;
   /** The viewer's offset, so bars start at the viewer's midnight and hour. */
-  utcOffsetMinutes?: number;
+  utcOffsetMinutes: number;
 }
 
 export interface RunHistogramBucket {

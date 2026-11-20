@@ -1,7 +1,7 @@
 import {
   resolveTimeRange,
   type TimeRange,
-  toAbsoluteTimeRange,
+  toViewerTimeRange,
   toClickHouseDateTime,
 } from "@everr/ui/lib/time-range";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
@@ -29,7 +29,7 @@ export function unionServiceOptions(
   return {
     queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: async () => {
-      const timeRange = toAbsoluteTimeRange(input.timeRange);
+      const timeRange = toViewerTimeRange(input.timeRange);
       const { fromDate, toDate } = resolveTimeRange(timeRange);
       const [logOptions, traceIdentities] = await Promise.all([
         logsRepo.filterOptions({ timeRange }),
@@ -58,7 +58,7 @@ export function unionEnvironmentOptions(
     queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: async () => {
       const attributeInput = {
-        timeRange: toAbsoluteTimeRange(input.timeRange),
+        timeRange: toViewerTimeRange(input.timeRange),
         source: ENVIRONMENT_ATTRIBUTE.source,
         key: ENVIRONMENT_ATTRIBUTE.key,
       };

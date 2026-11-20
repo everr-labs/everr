@@ -1,4 +1,4 @@
-import { toAbsoluteTimeRange, withTimeRange } from "@everr/ui/lib/time-range";
+import { toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
 import type {
@@ -48,7 +48,7 @@ export const dashboardListOptions = (preview?: string) =>
 export const telemetryCapabilitiesOptions = (from: string, to: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, "capabilities", from, to],
-    queryFn: () => getTelemetryCapabilities({ data: toAbsoluteTimeRange({ from, to }) }),
+    queryFn: () => getTelemetryCapabilities({ data: toViewerTimeRange({ from, to }) }),
     staleTime: 5 * 60_000,
   });
 
@@ -74,7 +74,7 @@ export const panelQueryOptions = (
         runPanelQuery({
           data: {
             source,
-            ...toAbsoluteTimeRange(withTimeRange({ from, to }).timeRange),
+            ...toViewerTimeRange({ from, to }),
             variables,
             variableMeta,
           },
@@ -96,7 +96,7 @@ export const variableOptionsQueryOptions = (query: string, from?: string, to?: s
     queryKey: ["variable-options", query, from, to],
     queryFn: () =>
       runVariableOptionsQuery({
-        data: { query, ...toAbsoluteTimeRange(withTimeRange({ from, to }).timeRange) },
+        data: { query, ...toViewerTimeRange({ from, to }) },
       }),
     enabled: query.trim().length > 0,
   });

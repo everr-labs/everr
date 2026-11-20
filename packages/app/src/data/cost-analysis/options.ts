@@ -1,4 +1,4 @@
-import { toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
+import { withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
@@ -7,15 +7,13 @@ import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./
 export const costOverviewOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["cost", "overview", input],
-    queryFn: () =>
-      getCostOverview({ data: { ...input, timeRange: toAbsoluteTimeRange(input.timeRange) } }),
+    queryFn: () => getCostOverview({ data: withViewerTimeRange(input) }),
   });
 
 export const costByWorkflowOptions = (input: TimeRangeInput) =>
   queryOptions({
     queryKey: ["cost", "byWorkflow", input],
-    queryFn: () =>
-      getCostByWorkflow({ data: { ...input, timeRange: toAbsoluteTimeRange(input.timeRange) } }),
+    queryFn: () => getCostByWorkflow({ data: withViewerTimeRange(input) }),
   });
 
 export const costOverTimeBreakdownOptions = (
@@ -26,6 +24,6 @@ export const costOverTimeBreakdownOptions = (
     queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
     queryFn: () =>
       getCostOverTimeBreakdown({
-        data: { ...input, timeRange: toAbsoluteTimeRange(input.timeRange) },
+        data: withViewerTimeRange(input),
       }),
   });

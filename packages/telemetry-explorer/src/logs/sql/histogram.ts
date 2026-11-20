@@ -20,7 +20,6 @@ export interface HistogramRowRaw {
 
 export interface HistogramBuilt extends BuiltQuery {
   intervalSeconds: number;
-  utcOffsetMinutes: number;
   fromDate: Date;
   toDate: Date;
 }
@@ -68,7 +67,6 @@ export function buildHistogramQuery(
       ...where.params,
     },
     intervalSeconds,
-    utcOffsetMinutes: input.utcOffsetMinutes,
     fromDate,
     toDate,
   };
@@ -96,7 +94,7 @@ export function fillHistogramBuckets(
   fromDate: Date,
   toDate: Date,
   intervalSeconds: number,
-  utcOffsetMinutes = 0,
+  utcOffsetMinutes: number,
 ): LogHistogramBucket[] {
   const intervalMs = intervalSeconds * 1000;
   const startMs = bucketStartMs(fromDate.getTime(), intervalSeconds, utcOffsetMinutes);

@@ -16,25 +16,13 @@ describe("buildHistogramQuery", () => {
     });
     expect(built.sql).toContain("INTERVAL 60 SECOND");
   });
-
-  it("shifts buckets by the viewer's offset", () => {
-    const built = buildHistogramQuery({
-      timeRange: { from: "2026-03-09T00:00:00Z", to: "2026-03-09T01:00:00Z" },
-      levels: [],
-      services: [],
-      attributes: [],
-      histogramBuckets: 60,
-      utcOffsetMinutes: 330,
-    });
-    expect(built.params.utcOffsetSeconds).toBe(330 * 60);
-  });
 });
 
 describe("fillHistogramBuckets", () => {
   it("fills missing buckets with zeros", () => {
     const from = new Date("2026-03-09T00:00:00Z");
     const to = new Date("2026-03-09T00:02:00Z");
-    const buckets = fillHistogramBuckets([], from, to, 60);
+    const buckets = fillHistogramBuckets([], from, to, 60, 0);
     expect(buckets.length).toBeGreaterThanOrEqual(2);
     expect(buckets.every((b) => b.total === 0)).toBe(true);
   });

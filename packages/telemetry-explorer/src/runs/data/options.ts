@@ -1,5 +1,5 @@
-import { utcOffsetMinutesAt } from "@everr/ui/lib/bucket";
-import { toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
+import { viewerHistogramWindow } from "@everr/ui/lib/bucket";
+import { withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
@@ -15,8 +15,7 @@ export function runsExplorerInfiniteOptions(
     queryKey: ["runs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
       repo.explorer({
-        ...input,
-        timeRange: toAbsoluteTimeRange(input.timeRange),
+        ...withViewerTimeRange(input),
         offset: pageParam,
         includeTotalCount: pageParam === 0,
       }),
@@ -28,17 +27,13 @@ export function runsExplorerInfiniteOptions(
   });
 }
 
-export function runsHistogramOptions(repo: RunsRepositoryLike, input: RunsHistogramInput) {
+export function runsHistogramOptions(
+  repo: RunsRepositoryLike,
+  input: Omit<RunsHistogramInput, "utcOffsetMinutes">,
+) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
-    queryFn: () => {
-      const timeRange = toAbsoluteTimeRange(input.timeRange);
-      return repo.histogram({
-        ...input,
-        timeRange,
-        utcOffsetMinutes: utcOffsetMinutesAt(new Date(timeRange.to)),
-      });
-    },
+    queryFn: () => repo.histogram({ ...input, ...viewerHistogramWindow(input.timeRange) }),
   });
 }
 
@@ -47,6 +42,6 @@ export function runsHistogramOptions(repo: RunsRepositoryLike, input: RunsHistog
 export function runsFilterOptions(repo: RunsRepositoryLike, input: Pick<RunsFilter, "timeRange">) {
   return {
     queryKey: ["runs", "filterOptions", input] as const,
-    queryFn: () => repo.filterOptions({ timeRange: toAbsoluteTimeRange(input.timeRange) }),
+    queryFn: () => repo.filterOptions(withViewerTimeRange(input)),
   };
 }

@@ -1,4 +1,4 @@
-import { type TimeRange, toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
+import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import {
   getAlertDetail,
@@ -28,7 +28,7 @@ export const alertTriageOptions = (range: TimeRange) =>
     // The range is part of the key: the row sparklines are scoped to it, so a
     // range change has to refetch rather than serve the old window.
     queryKey: [...alertingQueryKey, "list", range.from, range.to],
-    queryFn: () => getAlertTriage({ data: toAbsoluteTimeRange(range) }),
+    queryFn: () => getAlertTriage({ data: toViewerTimeRange(range) }),
     // Triage is a live board: a stale firing list is the one thing it must
     // never show.
     refetchInterval: 15_000,
@@ -38,7 +38,7 @@ export const ruleStateHistoryOptions = (range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
   queryOptions({
     queryKey: [...alertingQueryKey, "history", range.from, range.to],
-    queryFn: () => getRuleStateHistory({ data: toAbsoluteTimeRange(range) }),
+    queryFn: () => getRuleStateHistory({ data: toViewerTimeRange(range) }),
   });
 
 export const alertDetailOptions = (path: string | undefined, range: TimeRange) =>
@@ -49,7 +49,7 @@ export const alertDetailOptions = (path: string | undefined, range: TimeRange) =
     queryKey: [...alertingQueryKey, "detail", path ?? "", range.from, range.to],
     queryFn: () =>
       getAlertDetail({
-        data: { path: path ?? "", ...toAbsoluteTimeRange(range) },
+        data: { path: path ?? "", ...toViewerTimeRange(range) },
       }),
     enabled: Boolean(path),
   });
@@ -60,7 +60,7 @@ export const alertSilencesOptions = (range: TimeRange) =>
     // Under the triage key on purpose: silencing and cancelling from either
     // screen change what both list, and one invalidation has to reach both.
     queryKey: [...alertingQueryKey, "silences", range.from, range.to],
-    queryFn: () => getAlertSilences({ data: toAbsoluteTimeRange(range) }),
+    queryFn: () => getAlertSilences({ data: toViewerTimeRange(range) }),
     // "Ends in 4m" and a silence that has just lapsed are the two facts the
     // page is read for, and both go stale on their own.
     refetchInterval: 30_000,

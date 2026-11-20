@@ -8,6 +8,9 @@
  * clock). Pure module (no I/O).
  */
 
+import { z } from "zod";
+import { resolveTimeRange, type TimeRange, toViewerTimeRange } from "./time-range";
+
 // "Nice" bucket widths (seconds), ascending. Snapping the raw width up to one of
 // these keeps `toStartOfInterval` boundaries on clean clock lines. Beyond the
 // ladder we round up to a whole number of days.
@@ -36,12 +39,22 @@ export function bucketSeconds(from: Date, to: Date, targetBuckets: number): numb
   return snapToNiceStep(rangeSeconds / target);
 }
 
-/** Largest UTC offset in use (UTC+14 and UTC-12, rounded out), in minutes. */
-export const MAX_UTC_OFFSET_MINUTES = 14 * 60;
+/** A UTC offset in minutes, east positive (New York in winter: -300). Offsets
+ *  in use run from UTC-12 to UTC+14. */
+export const UtcOffsetMinutesSchema = z
+  .number()
+  .int()
+  .min(-14 * 60)
+  .max(14 * 60);
 
-/** The viewer's UTC offset at `at`, east positive (New York in winter: -300). */
-export function utcOffsetMinutesAt(at: Date): number {
-  return -at.getTimezoneOffset();
+/**
+ * A histogram's window in the viewer's zone, plus the viewer's offset at its
+ * end so its bars start on the viewer's clock. Call it in `queryFn`.
+ */
+export function viewerHistogramWindow(range: TimeRange) {
+  const timeRange = toViewerTimeRange(range);
+  const { toDate } = resolveTimeRange(timeRange);
+  return { timeRange, utcOffsetMinutes: -toDate.getTimezoneOffset() };
 }
 
 /**

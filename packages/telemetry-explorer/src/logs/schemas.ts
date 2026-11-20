@@ -1,4 +1,4 @@
-import { MAX_UTC_OFFSET_MINUTES } from "@everr/ui/lib/bucket";
+import { UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
 import { TimeRangeSchema, TimeRangeSearchSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
@@ -74,12 +74,7 @@ export const LogHistogramInputSchema = z.object({
   ...LogsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
   // The viewer's offset, so bars start at the viewer's midnight and hour.
-  utcOffsetMinutes: z
-    .number()
-    .int()
-    .min(-MAX_UTC_OFFSET_MINUTES)
-    .max(MAX_UTC_OFFSET_MINUTES)
-    .default(0),
+  utcOffsetMinutes: UtcOffsetMinutesSchema.default(0),
 });
 export type LogHistogramInput = z.infer<typeof LogHistogramInputSchema>;
 

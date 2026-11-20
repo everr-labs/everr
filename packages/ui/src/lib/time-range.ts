@@ -85,16 +85,23 @@ export function resolveTimeRange(range: TimeRange, now = new Date()) {
 }
 
 /**
- * Resolve a range to the exact instants it covers, in this process's time
- * zone. In the browser that is the viewer's zone, so "Today" means the
- * viewer's day. The result is ISO timestamps, which any server resolves to the
- * same instants whatever its own zone. Call it when the query runs, not when
- * the key is built, so a relative range keeps one cache key and gets a fresh
- * `now` on every refetch.
+ * Resolve each rounded bound (`now/d`, `now-1w/w`) to an ISO timestamp in this
+ * process's zone, which in the browser is the viewer's: rounding is the only
+ * zone-dependent part of datemath. Other bounds stay relative so the server
+ * resolves them against its own clock. A malformed bound falls back to the
+ * default, as the servers' `TimeRangeSchema` does. Call it in `queryFn`, so a
+ * relative range keeps one cache key and rounds afresh on every refetch.
  */
-export function toAbsoluteTimeRange(range: TimeRange, now = new Date()): TimeRange {
-  const { fromDate, toDate } = resolveTimeRange(range, now);
-  return { from: fromDate.toISOString(), to: toDate.toISOString() };
+export function toViewerTimeRange(range: Partial<TimeRange>, now = new Date()): TimeRange {
+  const { from, to } = TimeRangeSchema.parse(range);
+  return {
+    from: from.includes("/") ? resolve(from, { now, roundUp: false }).toISOString() : from,
+    to: to.includes("/") ? resolve(to, { now, roundUp: true }).toISOString() : to,
+  };
+}
+
+export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T): T {
+  return { ...input, timeRange: toViewerTimeRange(input.timeRange) };
 }
 
 export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {

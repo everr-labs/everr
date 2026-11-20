@@ -1,4 +1,4 @@
-import { type TimeRange, toAbsoluteTimeRange } from "@everr/ui/lib/time-range";
+import { type TimeRange, toViewerTimeRange, withViewerTimeRange } from "@everr/ui/lib/time-range";
 import type { AttributeRepositoryLike } from "./repository";
 import type { AttributeSource } from "./schemas";
 
@@ -9,7 +9,7 @@ export function attributeKeysOptions(
 ) {
   return {
     queryKey: [opts.domain, "attributeKeys", input.timeRange] as const,
-    queryFn: () => repo.attributeKeys({ timeRange: toAbsoluteTimeRange(input.timeRange) }),
+    queryFn: () => repo.attributeKeys({ timeRange: toViewerTimeRange(input.timeRange) }),
   };
 }
 
@@ -33,7 +33,6 @@ export function attributeValuesOptions(
       input.key,
       input.search ?? "",
     ] as const,
-    queryFn: () =>
-      repo.attributeValues({ ...input, timeRange: toAbsoluteTimeRange(input.timeRange) }),
+    queryFn: () => repo.attributeValues(withViewerTimeRange(input)),
   };
 }
