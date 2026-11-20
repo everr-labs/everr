@@ -229,6 +229,10 @@ func BenchmarkHostileInputsOnABigNode(b *testing.B) {
 	hostileRead(b, events...)
 }
 
+func custom(at int64, tag string) obj {
+	return obj{"type": 5, "timestamp": at, "data": obj{"tag": tag, "payload": obj{}}}
+}
+
 func headerAt(t *testing.T, readMs int64, events ...any) string {
 	t.Helper()
 	got, err := PageText(wireOf(t, readMs, segRow(0, body(t, events...))), readMs, Outline)
@@ -237,6 +241,40 @@ func headerAt(t *testing.T, readMs int64, events ...any) string {
 	}
 	header, _, _ := strings.Cut(got, "\n")
 	return header
+}
+
+func TestSaysWhenTheRecorderWasPausedAtTheMomentAndSince(t *testing.T) {
+	page := func(h string) obj { return doc(el("h1", obj{}, text(h))) }
+	events := []any{
+		meta(1_000, "https://x/a"), snapshot(1_001, page("Before")),
+		custom(2_000, "everr.recording.pause"),
+		custom(3_000, "everr.recording.pause"), // already paused: the first one counts
+		custom(60_000, "everr.recording.resume"),
+		meta(60_001, "https://x/b"), snapshot(60_002, page("After")),
+		custom(70_000, "everr.recording.pause"),
+	}
+	for _, c := range []struct {
+		readMs int64
+		want   string
+	}{
+		{1_500, `page 1970-01-01T00:00:01.500Z (--at +0.00s) url="/a"`},
+		{2_000, `page 1970-01-01T00:00:02.000Z (--at +0.00s) url="/a" recording paused since 1970-01-01T00:00:02.000Z`},
+		{29_000, `page 1970-01-01T00:00:29.000Z (--at +0.00s) url="/a" recording paused since 1970-01-01T00:00:02.000Z`},
+		{60_000, `page 1970-01-01T00:01:00.000Z (--at +0.00s) url="/a"`},
+		{60_500, `page 1970-01-01T00:01:00.500Z (--at +0.00s) url="/b"`},
+		{70_000, `page 1970-01-01T00:01:10.000Z (--at +0.00s) url="/b" recording paused since 1970-01-01T00:01:10.000Z`},
+	} {
+		if got := headerAt(t, c.readMs, events...); got != c.want {
+			t.Errorf("read at %d:\n got %s\nwant %s", c.readMs, got, c.want)
+		}
+	}
+}
+
+func TestAFullSnapshotEndsAPauseEvenWithNoResumeMarker(t *testing.T) {
+	got := headerAt(t, 5_000, meta(1_000, "https://x/a"), snapshot(1_001, doc()), custom(2_000, "everr.recording.pause"), snapshot(3_000, doc()))
+	if strings.Contains(got, "paused") {
+		t.Fatalf("header %q", got)
+	}
 }
 
 func TestTakesTheURLOfAMetaOnlyWhenItsSnapshotIsApplied(t *testing.T) {
