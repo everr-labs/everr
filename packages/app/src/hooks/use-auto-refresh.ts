@@ -1,7 +1,7 @@
 import { usePageRefresh } from "@everr/ui/lib/refresh-epoch";
 import type { QueryFilters } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { isClipEventsKey } from "#app/data/replay/options.ts";
+import { isSettledClipEvents } from "#app/data/replay/options.ts";
 import {
   applyRouteTimeDefaults,
   type RefreshInterval,
@@ -9,9 +9,8 @@ import {
 } from "#app/lib/time-range.ts";
 import { useRouteTimeDefaults } from "./use-time-range";
 
-// A Clip's events never change, and a refresh would download them again.
 const REFRESH_FILTERS: QueryFilters = {
-  predicate: (query) => !isClipEventsKey(query.queryKey),
+  predicate: (query) => !isSettledClipEvents(query),
 };
 
 export function useAutoRefresh() {

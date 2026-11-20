@@ -1,5 +1,5 @@
 import type { ClipSubject, CoveringClip } from "@everr/telemetry-explorer/recordings";
-import { queryOptions } from "@tanstack/react-query";
+import { type Query, queryOptions } from "@tanstack/react-query";
 import { getClipEvents, getCoveringClips } from "./server";
 import type { ClipEvents } from "./session.ts";
 
@@ -26,13 +26,17 @@ export const coveringClipsOptions = (subject: ClipSubject) =>
     staleTime: (query) => (query.state.data?.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
   });
 
+const isClipEventsKey = (key: readonly unknown[]) => key[0] === "recordings" && key[1] === "events";
+
 // Events with no gap are the whole Clip. Without events, or with gaps, Segments may still arrive.
 const isSettled = (data: ClipEvents | undefined) =>
   data !== undefined && data.events.length > 0 && data.gaps.length === 0;
 
-/** A Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
-export const isClipEventsKey = (key: readonly unknown[]) =>
-  key[0] === "recordings" && key[1] === "events";
+/** A settled Clip's events do not change and weigh megabytes, so a refresh leaves them be. */
+export const isSettledClipEvents = (query: Query) =>
+  isClipEventsKey(query.queryKey) &&
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- the key says this query holds a ClipEvents
+  isSettled(query.state.data as ClipEvents | undefined);
 
 export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
   // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names
