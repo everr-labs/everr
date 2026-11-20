@@ -1,0 +1,96 @@
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+
+vi.mock("@tanstack/react-router", () => ({
+  useSearch: () => ({ refresh: "5s" }),
+  useNavigate: () => vi.fn(),
+}));
+vi.mock("./use-time-range", () => ({ useRouteTimeDefaults: () => ({}) }));
+vi.mock("#app/data/replay/server.ts", () => ({
+  getCoveringClips: vi.fn(),
+  getClipEvents: vi.fn(),
+}));
+
+import { ClipEventsError, clipEventsOptions } from "#app/data/replay/options.ts";
+import { useAutoRefresh } from "./use-auto-refresh";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("useAutoRefresh", () => {
+  it("refreshes the active queries on each tick and on demand, except a Clip's events", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const listFetches = vi.fn(async () => []);
+    const clipFetches = vi.fn(async () => ({
+      events: [{ type: 4, timestamp: 1, data: {} }],
+      gaps: [],
+    }));
+    const watched = [
+      new QueryObserver(queryClient, {
+        queryKey: ["runs"],
+        queryFn: listFetches,
+        staleTime: Number.POSITIVE_INFINITY,
+      }),
+      new QueryObserver(queryClient, {
+        ...clipEventsOptions({ clipId: "clip-1", startMs: 0 }),
+        queryFn: clipFetches,
+      }),
+    ];
+    const unsubscribe = watched.map((observer) => observer.subscribe(() => {}));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(listFetches).toHaveBeenCalledTimes(1);
+    expect(clipFetches).toHaveBeenCalledTimes(1);
+
+    const { result } = renderHook(() => useAutoRefresh(), { wrapper });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await act(async () => result.current.refreshNow());
+
+    expect(listFetches).toHaveBeenCalledTimes(3);
+    expect(clipFetches).toHaveBeenCalledTimes(1);
+    for (const stop of unsubscribe) stop();
+  });
+
+  it("refreshes a Clip's events that came back empty, and leaves partial, loading and failed ones", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const emptyFetches = vi.fn(async () => ({ events: [], gaps: [] }));
+    const partialFetches = vi.fn(async () => ({
+      events: [{ type: 4, timestamp: 1, data: {} }],
+      gaps: [{ kind: "index" as const, streamId: "s", after: 1, missing: 1 }],
+    }));
+    const failedFetches = vi.fn(async () => {
+      throw new ClipEventsError("too_large");
+    });
+    const loadingFetches = vi.fn(() => new Promise<never>(() => {}));
+    const watched = [
+      [emptyFetches, "clip-empty"] as const,
+      [partialFetches, "clip-partial"] as const,
+      [failedFetches, "clip-failed"] as const,
+      [loadingFetches, "clip-loading"] as const,
+    ].map(
+      ([queryFn, clipId]) =>
+        new QueryObserver(queryClient, { ...clipEventsOptions({ clipId, startMs: 0 }), queryFn }),
+    );
+    const unsubscribe = watched.map((observer) => observer.subscribe(() => {}));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const { result } = renderHook(() => useAutoRefresh(), { wrapper });
+    await act(async () => result.current.refreshNow());
+
+    expect(emptyFetches).toHaveBeenCalledTimes(2);
+    expect(partialFetches).toHaveBeenCalledTimes(1);
+    expect(failedFetches).toHaveBeenCalledTimes(1);
+    expect(loadingFetches).toHaveBeenCalledTimes(1);
+    for (const stop of unsubscribe) stop();
+  });
+});

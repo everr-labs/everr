@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
+import type { SessionRecordingsHost } from "../../recordings/host";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { ErrorIssueDetail, ErrorOccurrence } from "../data/types";
 import { ErrorAttributes } from "./error-attributes";
@@ -65,18 +66,27 @@ const detail: ErrorIssueDetail = {
   occurrences: [latest, older],
 };
 
-function renderDetail(selectedKey = "") {
+function renderDetail(
+  selectedKey = "",
+  recordings: {
+    withRecording?: boolean;
+    sessionRecordings?: SessionRecordingsHost;
+    issue?: ErrorIssueDetail;
+  } = {},
+) {
   const repo = {
-    getIssue: vi.fn().mockResolvedValue(detail),
+    getIssue: vi.fn().mockResolvedValue(recordings.issue ?? detail),
   } as unknown as ErrorsRepositoryLike;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  render(
     <QueryClientProvider client={queryClient}>
       <ErrorDetail
         repo={repo}
         fingerprint="fp-1"
         timeRange={{ from: "now-1h", to: "now" }}
         service={[]}
+        withRecording={recordings.withRecording ?? false}
+        sessionRecordings={recordings.sessionRecordings}
         occurrence={selectedKey}
         renderOccurrenceLink={({ occurrence: linked, label, className, children }) => (
           <a
@@ -90,6 +100,7 @@ function renderDetail(selectedKey = "") {
       />
     </QueryClientProvider>,
   );
+  return repo;
 }
 
 describe("ErrorDetail", () => {
@@ -156,5 +167,69 @@ describe("ErrorDetail", () => {
     rerender(<ErrorAttributes occurrence={older} />);
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
     expect(screen.getByText("/orders/:id")).toBeInTheDocument();
+  });
+});
+
+describe("ErrorDetail session recording", () => {
+  const STREAM = "0123456789abcdef";
+  const recorded = occurrence({
+    logAttributes: { "exception.type": "TypeError", "everr.recording.stream.id": STREAM },
+  });
+  const withPlayer = (): SessionRecordingsHost => ({
+    renderPlayer: vi.fn((subject) => (
+      <section aria-label="Session recording">{subject.kind}</section>
+    )),
+  });
+
+  it("draws the player for a browser occurrence below its stack trace, keyed to its stream and instant", async () => {
+    const host = withPlayer();
+    renderDetail("", {
+      sessionRecordings: host,
+      issue: { ...detail, latest: recorded, occurrences: [recorded, older] },
+    });
+
+    const player = await screen.findByRole("region", { name: "Session recording" });
+    expect(host.renderPlayer).toHaveBeenLastCalledWith(
+      { kind: "log", streamId: STREAM, at: recorded.timestamp },
+      "inline",
+    );
+    const stack = screen.getByText(/at renderRow/);
+    expect(player.compareDocumentPosition(stack)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+  });
+
+  it("reaches the recording through the trace of an occurrence without a stream", async () => {
+    const host = withPlayer();
+    renderDetail(getErrorOccurrenceKey(older), { sessionRecordings: host });
+
+    await screen.findByText("Occurrence 2 of 2");
+    expect(host.renderPlayer).toHaveBeenLastCalledWith(
+      { kind: "trace", traceId: older.traceId },
+      "inline",
+    );
+  });
+
+  it("draws no player for an occurrence with neither a stream nor a trace", async () => {
+    const host = withPlayer();
+    const bare = occurrence({ traceId: "" });
+    renderDetail("", {
+      sessionRecordings: host,
+      issue: { ...detail, latest: bare, occurrences: [bare] },
+    });
+
+    await screen.findByText("Occurrence 1 of 1");
+    expect(host.renderPlayer).not.toHaveBeenCalled();
+  });
+
+  it("scopes the occurrences to recorded ones only when the host has recordings", async () => {
+    const scoped = renderDetail("", { withRecording: true, sessionRecordings: withPlayer() });
+    await screen.findByText("Occurrence 1 of 2");
+    expect(scoped.getIssue).toHaveBeenCalledWith(expect.objectContaining({ withRecording: true }));
+    cleanup();
+
+    const unscoped = renderDetail("", { withRecording: true });
+    await screen.findByText("Occurrence 1 of 2");
+    expect(unscoped.getIssue).toHaveBeenCalledWith(
+      expect.objectContaining({ withRecording: false }),
+    );
   });
 });

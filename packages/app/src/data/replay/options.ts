@@ -1,0 +1,68 @@
+import type { ClipSubject, CoveringClip } from "@everr/telemetry-explorer/recordings";
+import { type Query, queryOptions } from "@tanstack/react-query";
+import { getClipEvents, getCoveringClips } from "./server";
+import type { ClipEvents } from "./session.ts";
+
+export type RecordedEvent = ClipEvents["events"][number];
+export type RecordingGap = ClipEvents["gaps"][number];
+
+export class ClipEventsError extends Error {
+  constructor(readonly code: "too_large" | "not_found" | "internal") {
+    super(`Could not load the recording: ${code}`);
+    this.name = "ClipEventsError";
+  }
+}
+
+// An answer with nothing in it may only mean the Segments, or the one that opens
+// the Clip, had not arrived yet, so it is looked up again after a while.
+const EMPTY_STALE_MS = 30_000;
+
+// Keys hold the record's identity only. A time resolved against now in a key
+// refetches on every render.
+export const coveringClipsOptions = (subject: ClipSubject) =>
+  queryOptions({
+    queryKey: ["recordings", "covering", subject],
+    queryFn: () => getCoveringClips({ data: subject }),
+    staleTime: (query) => (query.state.data?.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
+  });
+
+const isClipEventsKey = (key: readonly unknown[]) => key[0] === "recordings" && key[1] === "events";
+
+// Events with no gap are the whole Clip. Without events, or with gaps, Segments may still arrive.
+const isSettled = (data: ClipEvents | undefined) =>
+  data !== undefined && data.events.length > 0 && data.gaps.length === 0;
+
+/**
+ * A refresh asks again only for a Clip's events that came back empty: nothing
+ * to download twice, and the Segments may have landed. Whole, partial, loading
+ * or failed, megabytes are left be: a reopen or Retry asks again.
+ */
+export const refreshSkips = (query: Query) =>
+  isClipEventsKey(query.queryKey) &&
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- the key says this query holds a ClipEvents
+  !(query.state.status === "success" && !(query.state.data as ClipEvents).events.length);
+
+export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
+  // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names
+  queryOptions({
+    queryKey: ["recordings", "events", clip.clipId],
+    queryFn: async (): Promise<ClipEvents> => {
+      const response = await getClipEvents({
+        data: { clipId: clip.clipId, startMs: clip.startMs },
+      });
+      if (!response.ok) {
+        throw new ClipEventsError(
+          response.status === 413
+            ? "too_large"
+            : response.status === 404
+              ? "not_found"
+              : "internal",
+        );
+      }
+      return response.json();
+    },
+    staleTime: (query) => (isSettled(query.state.data) ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
+    // The payload is megabytes, so it goes soon after the player closes.
+    gcTime: 60_000,
+    retry: (failures, error) => !(error instanceof ClipEventsError) && failures < 3,
+  });

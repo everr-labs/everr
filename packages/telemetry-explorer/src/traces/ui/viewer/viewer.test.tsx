@@ -318,3 +318,33 @@ describe("shared trace explorer", () => {
     expect(screen.getByRole("complementary", { name: "Span details" })).toBeInTheDocument();
   });
 });
+
+describe("session recording slot", () => {
+  it("draws the host's player for this trace in a split above the span views", async () => {
+    const renderPlayer = vi.fn(() => <section aria-label="Session recording" />);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <TraceExplorer
+          repo={{
+            getTrace: vi.fn(async () => [span("root")]),
+            search: vi.fn(async () => []),
+            listServiceIdentities: vi.fn(async () => []),
+            attributeKeys: vi.fn(async () => []),
+            attributeValues: vi.fn(async () => []),
+          }}
+          traceId="trace-1"
+          search={{}}
+          sessionRecordings={{ renderPlayer }}
+          onBack={vi.fn()}
+          onSpanChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    const player = await screen.findByRole("region", { name: "Session recording" });
+    expect(renderPlayer).toHaveBeenLastCalledWith({ kind: "trace", traceId: "trace-1" }, "split");
+    const waterfallRow = screen.getByRole("button", { name: "Select root" });
+    expect(player.compareDocumentPosition(waterfallRow)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+});

@@ -26,6 +26,7 @@ const baseInput = {
   sort: "lastSeen" as const,
   limit: 50,
   attributes: [],
+  withRecording: false,
 };
 
 describe("errorIssuesInfiniteOptions", () => {
@@ -66,6 +67,7 @@ describe("errorIssueOptions / errorServicesOptions", () => {
       fingerprint: "",
       timeRange: { from: "now-1h", to: "now" },
       service: [],
+      withRecording: false,
       occurrenceLimit: 50,
     });
     expect(options.enabled).toBe(false);

@@ -20,6 +20,7 @@ const searchBase = {
   name: "",
   status: "all" as const,
   attributes: [] as never[],
+  withRecording: false,
   limit: 25,
 };
 
@@ -55,6 +56,21 @@ describe("TracesRepository.search", () => {
     expect(page).toContain("LIMIT {limit:UInt32}");
     expect(page).not.toMatch(/argMin|groupUniqArray|dateDiff|StatusCode/);
     expect(sql).toContain("AND TraceId IN (SELECT TraceId FROM page)");
+  });
+
+  it("reads recording Clips only when the recording filter is on, and only for the page", async () => {
+    query.mockResolvedValue([]);
+    const window = { fromTs: "2026-05-20 12:00:00", toTs: "2026-05-27 12:00:00" };
+    await makeRepo().search({ ...searchBase, ...window, withRecording: false });
+    await makeRepo().search({ ...searchBase, ...window, withRecording: true });
+
+    const [off, on] = query.mock.calls.map(([sql]) => sql as string);
+    expect(off).not.toMatch(/recording/);
+    const page = on?.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
+    expect(page).toContain("FROM recordings");
+    expect(page).toContain("GROUP BY stream_id, clip_start");
+    expect(page).toContain("everr.recording.stream.id");
+    expect(on?.split("), aggregated AS (")[1]).not.toMatch(/recording/);
   });
 
   it("applies trace filters and the cursor before selecting the page", async () => {
@@ -207,6 +223,7 @@ describe("TracesRepository.search", () => {
       status: "all",
       attributes: [],
       limit: 25,
+      withRecording: false,
     });
 
     const [sql] = query.mock.calls[0] ?? [];

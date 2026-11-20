@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
 import { formatDuration } from "@everr/ui/lib/formatting";
+import { easeAway, easeSplit } from "@everr/ui/lib/unfold";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import { type ComponentProps, useCallback, useMemo, useRef, useState } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
+import type { SessionRecordingsHost } from "../../../recordings/host";
 import { getTraceOptions } from "../../data/options";
 import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
@@ -50,6 +52,7 @@ export type TraceExplorerProps = {
   search: {
     span?: string;
   };
+  sessionRecordings?: SessionRecordingsHost;
   onBack: () => void;
   onSpanChange: (spanId: string | undefined) => void;
 };
@@ -161,6 +164,7 @@ function TraceViewer({
   layoutKey,
   traceId,
   search,
+  sessionRecordings,
   onSpanChange,
   onBack,
 }: Props & { model: TraceModel; layoutKey: (string | number)[] }) {
@@ -180,6 +184,13 @@ function TraceViewer({
     [model, collapsedNodes],
   );
   const [flamegraphOpen, setFlamegraphOpen] = useState(false);
+  // The flamegraph stays while its panel closes, then goes.
+  const [flamegraphClosing, setFlamegraphClosing] = useState(false);
+  const flamegraphShown = flamegraphOpen || flamegraphClosing;
+  const flamegraphPanel = useRef<HTMLDivElement>(null);
+  const waterfallPanel = useRef<HTMLDivElement>(null);
+  // Each close is numbered, so the end of one that a reopening replaced keeps the flamegraph.
+  const flamegraphCloses = useRef(0);
   const [zoomRange, setZoomRange] = useState<ViewRange | null>(null);
   const range = zoomRange ?? { start: 0, end: model.durationMs };
   const flamegraphRef = useRef<FlamegraphHandle>(null);
@@ -210,6 +221,25 @@ function TraceViewer({
     [model, colorBy],
   );
   const colors = useMemo(() => serviceColors(colorGroups), [colorGroups]);
+
+  // It opens and closes on the same motion as the session recording row above it.
+  const toggleFlamegraph = () => {
+    if (!flamegraphOpen) {
+      void easeSplit(waterfallPanel.current, () => {
+        setFlamegraphOpen(true);
+        setFlamegraphClosing(false);
+      });
+      return;
+    }
+    setFlamegraphOpen(false);
+    const close = ++flamegraphCloses.current;
+    const motion = easeAway(flamegraphPanel.current);
+    if (!motion) return;
+    setFlamegraphClosing(true);
+    void motion.then(() => {
+      if (flamegraphCloses.current === close) setFlamegraphClosing(false);
+    });
+  };
 
   const selectSpan = useCallback(
     (id: string, source: "flamegraph" | "waterfall" | "search" = "search") => {
@@ -406,117 +436,122 @@ function TraceViewer({
           </Button>
         </div>
       </div>
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize="72%" minSize="35%">
-          <div className="flex h-full min-h-0 flex-col">
-            <button
-              type="button"
-              className="flex h-8 shrink-0 items-center gap-2 border-b px-4 text-xs font-medium hover:bg-muted/40"
-              aria-expanded={flamegraphOpen}
-              onClick={() => setFlamegraphOpen((prev) => !prev)}
-            >
-              {/* A right chevron turning down, as the waterfall rows do. A down
-                  chevron would be flipped by the global aria-expanded rule. */}
-              <ChevronRight
-                className={cn(
-                  "size-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none",
-                  flamegraphOpen && "rotate-90",
-                )}
-              />
-              Flamegraph
-              <span className="text-muted-foreground ml-auto text-[10px] font-normal">
-                Pinch to zoom · drag to pan
-              </span>
-            </button>
-            <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-              {flamegraphOpen && (
-                <>
-                  <ResizablePanel defaultSize="35%" minSize="15%">
-                    <PreparedFlamegraph
-                      queryKey={layoutKey}
-                      ref={flamegraphRef}
-                      model={model}
-                      selectedSpanId={selectedId}
-                      matchingIds={matchingSet}
-                      filterActive={filterActive}
-                      colorBy={colorBy}
-                      colors={colors}
-                      range={range}
-                      onRangeChange={setZoomRange}
-                      onSelect={(id) => selectSpan(id, "flamegraph")}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
-                </>
-              )}
-              <ResizablePanel minSize="20%">
-                <div className="flex h-full min-h-0 flex-col">
-                  <div className="h-8 shrink-0 border-b px-4 pt-2 text-xs font-medium">
-                    Waterfall
-                  </div>
-                  <TraceWaterfall
-                    rows={visibleRows}
-                    selectedSpanId={selectedId}
-                    openNodes={openNodes}
-                    matchingIds={matchingSet}
-                    filterActive={filterActive}
-                    colorBy={colorBy}
-                    colors={colors}
-                    previewField={previewField}
-                    range={range}
-                    virtuosoRef={waterfallRef}
-                    onSelect={(id) => selectSpan(id, "waterfall")}
-                    onToggle={(id) =>
-                      setCollapsedNodes((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id);
-                        else next.add(id);
-                        return next;
-                      })
-                    }
+      <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+        {sessionRecordings?.renderPlayer({ kind: "trace", traceId }, "split")}
+        <ResizablePanel id="trace" minSize="12rem">
+          <ResizablePanelGroup orientation="horizontal" className="h-full">
+            <ResizablePanel defaultSize="72%" minSize="35%">
+              <div className="flex h-full min-h-0 flex-col">
+                <button
+                  type="button"
+                  className="flex h-8 shrink-0 items-center gap-2 border-b px-4 text-xs font-medium hover:bg-muted/40"
+                  aria-expanded={flamegraphOpen}
+                  onClick={toggleFlamegraph}
+                >
+                  {/* A right chevron turning down, as the waterfall rows do. A down
+                      chevron would be flipped by the global aria-expanded rule. */}
+                  <ChevronRight
+                    className={cn(
+                      "size-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none",
+                      flamegraphOpen && "rotate-90",
+                    )}
                   />
+                  Flamegraph
+                  <span className="text-muted-foreground ml-auto text-[10px] font-normal">
+                    Pinch to zoom · drag to pan
+                  </span>
+                </button>
+                <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+                  {flamegraphShown && (
+                    <>
+                      <ResizablePanel elementRef={flamegraphPanel} defaultSize="35%" minSize="15%">
+                        <PreparedFlamegraph
+                          queryKey={layoutKey}
+                          ref={flamegraphRef}
+                          model={model}
+                          selectedSpanId={selectedId}
+                          matchingIds={matchingSet}
+                          filterActive={filterActive}
+                          colorBy={colorBy}
+                          colors={colors}
+                          range={range}
+                          onRangeChange={setZoomRange}
+                          onSelect={(id) => selectSpan(id, "flamegraph")}
+                        />
+                      </ResizablePanel>
+                      <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
+                    </>
+                  )}
+                  <ResizablePanel elementRef={waterfallPanel} minSize="20%">
+                    <div className="flex h-full min-h-0 flex-col">
+                      <div className="h-8 shrink-0 border-b px-4 pt-2 text-xs font-medium">
+                        Waterfall
+                      </div>
+                      <TraceWaterfall
+                        rows={visibleRows}
+                        selectedSpanId={selectedId}
+                        openNodes={openNodes}
+                        matchingIds={matchingSet}
+                        filterActive={filterActive}
+                        colorBy={colorBy}
+                        colors={colors}
+                        previewField={previewField}
+                        range={range}
+                        virtuosoRef={waterfallRef}
+                        onSelect={(id) => selectSpan(id, "waterfall")}
+                        onToggle={(id) =>
+                          setCollapsedNodes((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(id)) next.delete(id);
+                            else next.add(id);
+                            return next;
+                          })
+                        }
+                      />
+                    </div>
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+                <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-4 py-2 text-[10px] text-muted-foreground">
+                  {colorGroups.map((group) => (
+                    <span key={group} className="flex items-center gap-1">
+                      <span
+                        className="size-2 rounded-sm"
+                        style={{
+                          backgroundColor: colors.get(group),
+                        }}
+                      />
+                      {group}
+                    </span>
+                  ))}
                 </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
-            <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-4 py-2 text-[10px] text-muted-foreground">
-              {colorGroups.map((group) => (
-                <span key={group} className="flex items-center gap-1">
-                  <span
-                    className="size-2 rounded-sm"
-                    style={{
-                      backgroundColor: colors.get(group),
+              </div>
+            </ResizablePanel>
+            {selected && (
+              <>
+                <ResizableHandle withHandle aria-label="Resize span details" />
+                <ResizablePanel defaultSize="28%" minSize="20%">
+                  <SpanDetails
+                    key={selected.spanId}
+                    node={selected}
+                    durationMs={model.durationMs}
+                    onClose={() => onSpanChange(undefined)}
+                    onFocus={() => {
+                      const padding = Math.max((selected.durationNano / 1e6) * 0.1, 0.001);
+                      setZoomRange({
+                        start: Math.max(0, selected.timestamp - padding),
+                        end: Math.min(
+                          model.durationMs,
+                          selected.timestamp + selected.durationNano / 1e6 + padding,
+                        ),
+                      });
+                      flamegraphRef.current?.scrollToSpan(selected.spanId);
                     }}
                   />
-                  {group}
-                </span>
-              ))}
-            </div>
-          </div>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
         </ResizablePanel>
-        {selected && (
-          <>
-            <ResizableHandle withHandle aria-label="Resize span details" />
-            <ResizablePanel defaultSize="28%" minSize="20%">
-              <SpanDetails
-                key={selected.spanId}
-                node={selected}
-                durationMs={model.durationMs}
-                onClose={() => onSpanChange(undefined)}
-                onFocus={() => {
-                  const padding = Math.max((selected.durationNano / 1e6) * 0.1, 0.001);
-                  setZoomRange({
-                    start: Math.max(0, selected.timestamp - padding),
-                    end: Math.min(
-                      model.durationMs,
-                      selected.timestamp + selected.durationNano / 1e6 + padding,
-                    ),
-                  });
-                  flamegraphRef.current?.scrollToSpan(selected.spanId);
-                }}
-              />
-            </ResizablePanel>
-          </>
-        )}
       </ResizablePanelGroup>
     </section>
   );
