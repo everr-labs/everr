@@ -21,6 +21,20 @@ function run(sql: string) {
   return String(session.query(sql, "JSONEachRow") ?? "").trim();
 }
 
+function migration(file: string) {
+  return readFileSync(new URL(`../../../clickhouse/${file}`, import.meta.url), "utf8");
+}
+
+// The statements of a migration: its comments and the grants on Cloud's users
+// are not part of what these tests need.
+function statements(sql: string) {
+  return sql
+    .replace(/--.*$/gm, "")
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement !== "" && !statement.startsWith("GRANT"));
+}
+
 function template(file: string) {
   return readFileSync(
     new URL(
@@ -58,6 +72,9 @@ const IDLE_STREAM = "c".repeat(16);
 const ODD_STREAM = "d".repeat(16);
 const PAGED_STREAM = "e".repeat(16);
 const LONG_TRACE_STREAM = "f".repeat(16);
+const MANUAL_STREAM = "1".repeat(16);
+const RUN_STREAM = "2".repeat(16);
+const LOST_STREAM = "3".repeat(16);
 const FROM_TS = "2026-11-15 06:00:00";
 const TO_TS = "2026-11-15 12:00:00";
 const ms = (civil: string) => Date.parse(`${civil.replace(" ", "T")}Z`);
@@ -84,29 +101,68 @@ function span(row: Record<string, unknown>) {
   run(`INSERT INTO traces FORMAT JSONEachRow\n${JSON.stringify(full)}`);
 }
 
+// A Segment row, as the collector stores it: the materialized columns of the
+// real table are computed from these attributes at insert.
+function segment(row: {
+  stream: string;
+  index: number;
+  at: string;
+  end: string;
+  start: string;
+  session?: string;
+  clipId?: string;
+  trigger?: string;
+  truncated?: boolean;
+}) {
+  const full = {
+    Timestamp: row.at,
+    ServiceName: "web",
+    Body: "[]",
+    ResourceAttributes: {
+      "service.name": "web",
+      "everr.tenant.id": "",
+      "everr.retention.days": "3650",
+    },
+    LogAttributes: {
+      "session.id": row.session ?? "session-1",
+      "everr.recording.stream.id": row.stream,
+      "everr.recording.segment.index": String(row.index),
+      "everr.recording.segment.end": String(ms(row.end)),
+      "everr.recording.clip.start": String(ms(row.start)),
+      ...(row.clipId === undefined
+        ? {}
+        : {
+            "everr.recording.clip.id": row.clipId,
+            "everr.recording.trigger": row.trigger ?? "error",
+            ...(row.truncated ? { "everr.recording.clip.truncated": "true" } : {}),
+          }),
+    },
+  };
+  run(`INSERT INTO recordings FORMAT JSONEachRow\n${JSON.stringify(full)}`);
+}
+
+// One Clip as the SDK sends it: the Segment that opens it, and an empty Segment
+// that closes it. The opening Segment says its Stream is complete only up to
+// its own start, so the Clip reaches its end through the closing Segment.
 function clip(row: {
-  traceId: string;
   clipId: string;
   stream: string;
   start: string;
-  seconds: number;
+  end: string;
   trigger: string;
   truncated?: boolean;
 }) {
-  span({
-    TraceId: row.traceId,
-    SpanId: `${row.traceId}-root`,
-    SpanName: "recording",
-    Timestamp: row.start,
-    Duration: row.seconds * 1e9,
-    SpanAttributes: {
-      "session.id": "session-1",
-      "everr.recording.clip.id": row.clipId,
-      "everr.recording.stream.id": row.stream,
-      "everr.recording.trigger": row.trigger,
-      ...(row.truncated ? { "everr.recording.clip.truncated": "true" } : {}),
-    },
+  segment({
+    stream: row.stream,
+    index: 0,
+    at: row.start,
+    end: row.start,
+    start: row.start,
+    clipId: row.clipId,
+    trigger: row.trigger,
+    truncated: row.truncated,
   });
+  segment({ stream: row.stream, index: 1, at: row.end, end: row.end, start: row.start });
 }
 
 function exceptionLog(row: {
@@ -163,35 +219,116 @@ beforeAll(() => {
       .replace(/\{\{[^}]*\}\}/g, (tag) => (tag === "{{.Engine}}" ? "MergeTree()" : "")),
   );
 
-  // The Clip [10:00:00, 10:01:10] on STREAM, delivered twice.
+  // The real recordings table, as the migrations create it (the collector's
+  // retention function comes first).
+  const retention = migration("0005-create-retention-functions.sql").match(
+    /CREATE OR REPLACE FUNCTION everrRetentionDaysJson[^;]*/,
+  )?.[0];
+  for (const statement of [
+    retention ?? "",
+    ...statements(migration("0013-create-recordings.sql")).map((statement) =>
+      statement.replace("app.recordings", "recordings"),
+    ),
+  ]) {
+    run(statement);
+  }
+
+  // The Clip [10:00:00, 10:01:10] on STREAM, with every Segment delivered twice.
   for (let i = 0; i < 2; i++) {
     clip({
-      traceId: "rec-error",
       clipId: "clip-error",
       stream: STREAM,
       start: "2026-11-15 10:00:00",
-      seconds: 70,
+      end: "2026-11-15 10:01:10",
       trigger: "error",
     });
   }
   // An idle page: the Clip starts more than an hour before what it overlaps.
   clip({
-    traceId: "rec-idle",
     clipId: "clip-idle",
     stream: IDLE_STREAM,
     start: "2026-11-15 07:00:00",
-    seconds: 3 * 3600,
+    end: "2026-11-15 10:00:00",
     trigger: "manual",
     truncated: true,
   });
   clip({
-    traceId: "rec-odd",
     clipId: "clip-odd",
     stream: ODD_STREAM,
     start: "2026-11-15 10:00:00",
-    seconds: 70,
+    end: "2026-11-15 10:01:10",
     trigger: "from-a-future-sdk",
   });
+  clip({
+    clipId: "clip-manual",
+    stream: MANUAL_STREAM,
+    start: "2026-11-15 11:00:00",
+    end: "2026-11-15 11:00:20",
+    trigger: "manual",
+    truncated: true,
+  });
+  span({
+    TraceId: "t-manual",
+    SpanId: "manual",
+    SpanName: "GET /manual",
+    Timestamp: "2026-11-15 11:00:05",
+    SpanAttributes: { "everr.recording.stream.id": MANUAL_STREAM },
+  });
+
+  // Two Clips opened in one run: they share clip_start, and the first id wins.
+  segment({
+    stream: RUN_STREAM,
+    index: 0,
+    at: "2026-11-15 08:30:00",
+    end: "2026-11-15 08:30:00",
+    start: "2026-11-15 08:30:00",
+    clipId: "clip-run-first",
+    trigger: "error",
+  });
+  segment({
+    stream: RUN_STREAM,
+    index: 1,
+    at: "2026-11-15 08:30:20",
+    end: "2026-11-15 08:30:20",
+    start: "2026-11-15 08:30:00",
+    clipId: "clip-run-second",
+    trigger: "manual",
+    truncated: true,
+  });
+  segment({
+    stream: RUN_STREAM,
+    index: 2,
+    at: "2026-11-15 08:31:00",
+    end: "2026-11-15 08:31:00",
+    start: "2026-11-15 08:30:00",
+  });
+  span({
+    TraceId: "t-run",
+    SpanId: "run",
+    SpanName: "GET /run",
+    Timestamp: "2026-11-15 08:30:40",
+    SpanAttributes: { "everr.recording.stream.id": RUN_STREAM },
+  });
+  exceptionLog({ type: "RunInside", at: "2026-11-15 08:30:45", stream: RUN_STREAM });
+
+  // A run whose opening Segment was lost: no Clip, so nothing in it is recorded.
+  for (const index of [3, 4]) {
+    segment({
+      stream: LOST_STREAM,
+      index,
+      at: `2026-11-15 08:50:${index * 10}`,
+      end: `2026-11-15 08:51:${index * 10}`,
+      start: "2026-11-15 08:50:00",
+    });
+  }
+  span({
+    TraceId: "t-lost",
+    SpanId: "lost",
+    SpanName: "GET /lost",
+    Timestamp: "2026-11-15 08:50:45",
+    SpanAttributes: { "everr.recording.stream.id": LOST_STREAM },
+  });
+  exceptionLog({ type: "LostRun", at: "2026-11-15 08:50:45", stream: LOST_STREAM });
 
   span({
     TraceId: "t-in",
@@ -216,6 +353,21 @@ beforeAll(() => {
     SpanName: "documentLoad",
     Timestamp: "2026-11-15 09:59:59",
     Duration: 2e9,
+    SpanAttributes: { "everr.recording.stream.id": STREAM },
+  });
+  // The last Segment ends at 10:01:10 (the closing Segment), the opening one at 10:00:00.
+  span({
+    TraceId: "t-close",
+    SpanId: "close",
+    SpanName: "GET /close",
+    Timestamp: "2026-11-15 10:01:09",
+    SpanAttributes: { "everr.recording.stream.id": STREAM },
+  });
+  span({
+    TraceId: "t-past",
+    SpanId: "past",
+    SpanName: "GET /past",
+    Timestamp: "2026-11-15 10:01:11",
     SpanAttributes: { "everr.recording.stream.id": STREAM },
   });
   span({
@@ -247,14 +399,20 @@ beforeAll(() => {
     SpanAttributes: { "everr.recording.stream.id": ODD_STREAM },
   });
 
-  // Trace "paged" starts before the Clip's root Span, and its recorded Span starts after it.
+  // Trace "paged" starts before the trace "paged-edge", and its recorded Span starts after it.
   clip({
-    traceId: "rec-paged",
     clipId: "clip-paged",
     stream: PAGED_STREAM,
     start: "2026-11-15 10:10:03",
-    seconds: 70,
+    end: "2026-11-15 10:11:13",
     trigger: "error",
+  });
+  span({
+    TraceId: "paged-edge",
+    SpanId: "paged-edge",
+    SpanName: "GET /paged-edge",
+    Timestamp: "2026-11-15 10:10:03",
+    SpanAttributes: { "everr.recording.stream.id": PAGED_STREAM },
   });
   span({
     TraceId: "paged",
@@ -274,11 +432,10 @@ beforeAll(() => {
 
   // A backend error 90 minutes after the recorded browser Span of its trace.
   clip({
-    traceId: "rec-long",
     clipId: "clip-long",
     stream: LONG_TRACE_STREAM,
     start: "2026-11-15 08:00:00",
-    seconds: 60,
+    end: "2026-11-15 08:01:00",
     trigger: "error",
   });
   span({
@@ -420,12 +577,12 @@ describe("session recording coverage against ClickHouse", () => {
     expect([...listed].sort()).toEqual([
       "long",
       "paged",
-      "rec-error",
-      "rec-idle",
-      "rec-long",
-      "rec-paged",
+      "paged-edge",
+      "t-close",
       "t-in",
+      "t-manual",
       "t-overlap",
+      "t-run",
     ]);
   });
 
@@ -449,7 +606,7 @@ describe("session recording coverage against ClickHouse", () => {
         };
       }),
     );
-    expect(byOccurrence).toHaveLength(9);
+    expect(byOccurrence).toHaveLength(11);
     for (const row of byOccurrence) {
       expect(row.listed, row.error).toBe(row.playable);
     }
@@ -464,6 +621,7 @@ describe("session recording coverage against ClickHouse", () => {
       "EmptyStreamRecordedTrace at 2026-11-15 10:00:30.200000000",
       "LateBackend at 2026-11-15 09:30:00.000000000",
       "Mixed at 2026-11-15 10:00:40.000000000",
+      "RunInside at 2026-11-15 08:30:45.000000000",
     ]);
   });
 
@@ -525,8 +683,42 @@ describe("session recording coverage against ClickHouse", () => {
         focus: { startMs: ms("2026-11-15 10:00:50.123"), endMs: ms("2026-11-15 10:00:50.123") },
       },
     ]);
-    expect(await recordings.coveringClips({ kind: "trace", traceId: "rec-idle" })).toMatchObject([
-      { clipId: "clip-idle", trigger: "manual", truncated: true },
+    expect(await recordings.coveringClips({ kind: "trace", traceId: "t-manual" })).toMatchObject([
+      { clipId: "clip-manual", trigger: "manual", truncated: true },
     ]);
+  });
+
+  it("collapses Segments delivered twice into one Clip", async () => {
+    const stored = run(`SELECT count() AS n FROM recordings WHERE stream_id = '${STREAM}'`);
+    expect(JSON.parse(stored)).toEqual({ n: 4 });
+    expect(await recordings.coveringClips({ kind: "trace", traceId: "t-in" })).toHaveLength(1);
+  });
+
+  it("reads a run with two Clips opened in it as one Clip, with the first id and trigger", async () => {
+    expect(await recordings.coveringClips({ kind: "trace", traceId: "t-run" })).toMatchObject([
+      {
+        clipId: "clip-run-first",
+        streamId: RUN_STREAM,
+        trigger: "error",
+        truncated: false,
+        startMs: ms("2026-11-15 08:30:00"),
+        endMs: ms("2026-11-15 08:31:00"),
+      },
+    ]);
+  });
+
+  it("reads a run whose opening Segment was lost as no Clip", async () => {
+    expect(await covered({ kind: "trace", traceId: "t-lost" })).toBe(false);
+    expect(await covered({ kind: "log", streamId: LOST_STREAM, at: "2026-11-15 08:50:45" })).toBe(
+      false,
+    );
+    expect(await listedTraceIds()).not.toContain("t-lost");
+  });
+
+  it("covers up to the close time, which only the closing Segment says, and not past it", async () => {
+    expect(await covered({ kind: "trace", traceId: "t-close" })).toBe(true);
+    expect(await covered({ kind: "trace", traceId: "t-past" })).toBe(false);
+    expect(await listedTraceIds()).toContain("t-close");
+    expect(await listedTraceIds()).not.toContain("t-past");
   });
 });

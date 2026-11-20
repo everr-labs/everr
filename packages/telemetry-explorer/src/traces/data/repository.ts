@@ -70,12 +70,14 @@ const tracesTimeBound = (param: string) => `parseDateTime64BestEffort({${param}:
 
 export class TracesRepository {
   private readonly tableName: string;
+  private readonly recordingsTable: string;
 
   constructor(
     private readonly client: SqlClient,
     options: TracesRepositoryOptions = {},
   ) {
     this.tableName = options.tableName ?? "traces";
+    this.recordingsTable = options.recordingsTable ?? "recordings";
   }
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
@@ -168,10 +170,10 @@ export class TracesRepository {
       // trace on this page can start after that boundary.
       params.searchToTs = input.toTs;
       pageWhereParts.push(
-        `TraceId IN (${recordedTraceIdsSql(this.tableName, {
-          from: FROM_TS_SQL,
-          to: SEARCH_TO_TS_SQL,
-        })})`,
+        `TraceId IN (${recordedTraceIdsSql(
+          { traces: this.tableName, recordings: this.recordingsTable },
+          { from: FROM_TS_SQL, to: SEARCH_TO_TS_SQL },
+        )})`,
       );
     }
 
@@ -347,6 +349,7 @@ export class TracesRepository {
 
 export interface TracesRepositoryOptions {
   tableName?: string;
+  recordingsTable?: string;
 }
 
 export type TracesRepositoryLike = Pick<

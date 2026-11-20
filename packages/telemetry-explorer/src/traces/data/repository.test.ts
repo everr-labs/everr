@@ -67,7 +67,8 @@ describe("TracesRepository.search", () => {
     const [off, on] = query.mock.calls.map(([sql]) => sql as string);
     expect(off).not.toMatch(/recording/);
     const page = on?.split("WITH page AS (")[1]?.split("), aggregated AS (")[0];
-    expect(page).toContain("SpanName = 'recording'");
+    expect(page).toContain("FROM recordings");
+    expect(page).toContain("GROUP BY stream_id, clip_start");
     expect(page).toContain("everr.recording.stream.id");
     expect(on?.split("), aggregated AS (")[1]).not.toMatch(/recording/);
   });

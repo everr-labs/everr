@@ -15,6 +15,11 @@ import { CLIP_TRIGGERS, type ClipSubject, RECORDING_STREAM_ATTRIBUTE } from "../
  *
  * (c) keeps every scan window finite and the same in the filters and the
  * lookup. One hour is also loadClipById's lookback in the app's reader.
+ *
+ * A Clip is not stored as a row. It is read from the Segments in the
+ * recordings table, by the rule of the app's replay reader (CLIP_GROUP in
+ * packages/app/src/data/replay/session.ts): the Segments of one Stream with
+ * the same clip_start. Its range runs from clip_start to the last segment_end.
  */
 const REACH = "INTERVAL 1 HOUR";
 
@@ -23,23 +28,53 @@ type TimeBounds = { from: string; to: string };
 
 const span = (key: string) => attributeText("SpanAttributes", key);
 
-/** Valid Clips that can cover a record starting within `bounds`, one row per clip id. */
-function clipsSql(traces: string, bounds: TimeBounds): string {
+/** The tables the coverage queries read. */
+type CoverageTables = { traces: string; recordings: string };
+
+/**
+ * Valid Clips that can cover a record starting within `bounds`, one row per
+ * clip id.
+ *
+ * The inner query reads the Segments, which carry no Clip row. A run is the
+ * Segments of one Stream with the same clip_start. The id, trigger and
+ * truncated flag are those of the first Clip that opened in the run (the
+ * lowest index among Segments with a clip id). A run whose opening Segment was
+ * lost has an empty id and is not a Clip. The grouping also collapses rows
+ * duplicated by at-least-once delivery. Its columns have other names than the
+ * table's, because an output alias that equals a column name is read as the
+ * alias inside the same query.
+ *
+ * A Clip starts within REACH of a record, and its Segments are looked for
+ * within REACH after its start, as the reader does.
+ */
+function clipsSql(recordings: string, bounds: TimeBounds): string {
   return `
     SELECT
-      ${span("everr.recording.clip.id")} AS clip_id,
-      ${span(RECORDING_STREAM_ATTRIBUTE)} AS clip_stream,
-      ${span("session.id")} AS clip_session,
-      ServiceName AS clip_service,
-      ${span("everr.recording.trigger")} AS clip_trigger,
-      toUInt8(${span("everr.recording.clip.truncated")} = 'true') AS clip_truncated,
-      Timestamp AS clip_start,
-      addNanoseconds(Timestamp, Duration) AS clip_end
-    FROM ${traces}
-    WHERE SpanName = 'recording'
-      AND Timestamp BETWEEN (${bounds.from}) - ${REACH} AND (${bounds.to}) + ${REACH}
-      AND clip_id != '' AND clip_stream != '' AND clip_session != '' AND clip_service != ''
-      AND clip_trigger IN (${CLIP_TRIGGERS.map((t) => `'${t}'`).join(", ")})
+      opened_id AS clip_id,
+      run_stream AS clip_stream,
+      run_session AS clip_session,
+      run_service AS clip_service,
+      opened_trigger AS clip_trigger,
+      opened_truncated AS clip_truncated,
+      run_start AS clip_start,
+      run_end AS clip_end
+    FROM (
+      SELECT
+        argMinIf(clip_id, segment_index, clip_id != '') AS opened_id,
+        stream_id AS run_stream,
+        any(session_id) AS run_session,
+        any(ServiceName) AS run_service,
+        argMinIf(trigger, segment_index, clip_id != '') AS opened_trigger,
+        toUInt8(argMinIf(truncated, segment_index, clip_id != '')) AS opened_truncated,
+        toDateTime64(clip_start, 9) AS run_start,
+        toDateTime64(max(segment_end), 9) AS run_end
+      FROM ${recordings}
+      WHERE Timestamp BETWEEN (${bounds.from}) - ${REACH} AND (${bounds.to}) + ${REACH} + ${REACH}
+      GROUP BY stream_id, clip_start
+      HAVING opened_id != '' AND run_stream != '' AND run_session != '' AND run_service != ''
+        AND opened_trigger IN (${CLIP_TRIGGERS.map((t) => `'${t}'`).join(", ")})
+        AND run_start BETWEEN (${bounds.from}) - ${REACH} AND (${bounds.to}) + ${REACH}
+    )
     ORDER BY clip_start ASC
     LIMIT 1 BY clip_id`;
 }
@@ -48,7 +83,11 @@ const CLIP_COLUMNS =
   "c.clip_id, c.clip_stream, c.clip_session, c.clip_service, c.clip_trigger, c.clip_truncated, c.clip_start, c.clip_end";
 
 /** (span, Clip) pairs. `spanWhere` picks the spans and keeps their starts within `bounds`. */
-function spanClipPairsSql(traces: string, spanWhere: string, bounds: TimeBounds): string {
+function spanClipPairsSql(
+  { traces, recordings }: CoverageTables,
+  spanWhere: string,
+  bounds: TimeBounds,
+): string {
   return `
     SELECT
       s.trace_id AS trace_id,
@@ -65,13 +104,13 @@ function spanClipPairsSql(traces: string, spanWhere: string, bounds: TimeBounds)
       WHERE ${spanWhere}
         AND ${attributeExists("SpanAttributes", RECORDING_STREAM_ATTRIBUTE)}
     ) AS s
-    INNER JOIN (${clipsSql(traces, bounds)}) AS c ON s.span_stream = c.clip_stream
+    INNER JOIN (${clipsSql(recordings, bounds)}) AS c ON s.span_stream = c.clip_stream
     WHERE s.span_start <= c.clip_end AND s.span_end >= c.clip_start
       AND c.clip_start BETWEEN s.span_start - ${REACH} AND s.span_start + ${REACH}`;
 }
 
 /** (log instant, Clip) pairs. `logsSql` yields `log_stream` and `log_ts` within `bounds`. */
-function logClipPairsSql(traces: string, logsSql: string, bounds: TimeBounds): string {
+function logClipPairsSql(recordings: string, logsSql: string, bounds: TimeBounds): string {
   return `
     SELECT
       l.log_stream AS log_stream,
@@ -80,7 +119,7 @@ function logClipPairsSql(traces: string, logsSql: string, bounds: TimeBounds): s
       l.log_ts AS focus_start,
       l.log_ts AS focus_end
     FROM (${logsSql}) AS l
-    INNER JOIN (${clipsSql(traces, bounds)}) AS c ON l.log_stream = c.clip_stream
+    INNER JOIN (${clipsSql(recordings, bounds)}) AS c ON l.log_stream = c.clip_stream
     WHERE l.log_ts BETWEEN c.clip_start AND c.clip_end
       AND c.clip_start >= l.log_ts - ${REACH}`;
 }
@@ -90,15 +129,16 @@ function logClipPairsSql(traces: string, logsSql: string, bounds: TimeBounds): s
  * `TraceId IN (...)`. `onlyTraces`, a TraceId subquery, narrows the span scan.
  */
 export function recordedTraceIdsSql(
-  traces: string,
+  tables: CoverageTables,
   bounds: TimeBounds,
   onlyTraces?: string,
 ): string {
-  validateTableName(traces);
+  validateTableName(tables.traces);
+  validateTableName(tables.recordings);
   const spanWhere = `Timestamp BETWEEN ${bounds.from} AND ${bounds.to}${
     onlyTraces ? ` AND TraceId IN (${onlyTraces})` : ""
   }`;
-  return `SELECT DISTINCT trace_id FROM (${spanClipPairsSql(traces, spanWhere, bounds)})`;
+  return `SELECT DISTINCT trace_id FROM (${spanClipPairsSql(tables, spanWhere, bounds)})`;
 }
 
 /**
@@ -109,11 +149,12 @@ export function recordedTraceIdsSql(
  * against '' so a key present with an empty value takes the trace path in both.
  */
 export function recordedLogPredicateSql(
-  tables: { traces: string; logs: string },
+  tables: CoverageTables & { logs: string },
   bounds: TimeBounds,
   exceptionFilter: string,
 ): string {
   validateTableName(tables.traces);
+  validateTableName(tables.recordings);
   validateTableName(tables.logs);
   const stream = attributeText("LogAttributes", RECORDING_STREAM_ATTRIBUTE);
   const inWindow = `Timestamp BETWEEN ${bounds.from} AND ${bounds.to} AND ${exceptionFilter}`;
@@ -133,30 +174,31 @@ export function recordedLogPredicateSql(
   };
   return `(
     (${stream} != '' AND (${stream}, Timestamp) IN (
-      SELECT log_stream, log_ts FROM (${logClipPairsSql(tables.traces, ownLogs, bounds)})
+      SELECT log_stream, log_ts FROM (${logClipPairsSql(tables.recordings, ownLogs, bounds)})
     ))
     OR (${stream} = '' AND TraceId != '' AND TraceId IN (
-      ${recordedTraceIdsSql(tables.traces, traceBounds, streamlessTraces)}
+      ${recordedTraceIdsSql(tables, traceBounds, streamlessTraces)}
     ))
   )`;
 }
 
 /** The Clips covering one subject: one row per Clip, earliest first, at most 10. */
 export function coveringClipsQuery(
-  traces: string,
+  tables: CoverageTables,
   subject: ClipSubject,
 ): { sql: string; params: Record<string, unknown> } {
-  validateTableName(traces);
+  validateTableName(tables.traces);
+  validateTableName(tables.recordings);
   let pairs: string;
   let params: Record<string, unknown>;
   switch (subject.kind) {
     case "trace": {
       // The window getTrace reads, from the TraceId-sorted lookup table.
-      const lookup = `${traces}_trace_id_ts`;
+      const lookup = `${tables.traces}_trace_id_ts`;
       const from = `(SELECT toDateTime64(min(Start), 9) FROM ${lookup} WHERE TraceId = {traceId:String})`;
       const to = `(SELECT toDateTime64(max(End), 9) + INTERVAL 1 SECOND FROM ${lookup} WHERE TraceId = {traceId:String})`;
       pairs = spanClipPairsSql(
-        traces,
+        tables,
         `TraceId = {traceId:String} AND Timestamp >= ${from} AND Timestamp < ${to}`,
         { from, to },
       );
@@ -165,10 +207,14 @@ export function coveringClipsQuery(
     }
     case "log": {
       const at = "parseDateTime64BestEffort({at:String}, 9)";
-      pairs = logClipPairsSql(traces, `SELECT {streamId:String} AS log_stream, ${at} AS log_ts`, {
-        from: at,
-        to: at,
-      });
+      pairs = logClipPairsSql(
+        tables.recordings,
+        `SELECT {streamId:String} AS log_stream, ${at} AS log_ts`,
+        {
+          from: at,
+          to: at,
+        },
+      );
       params = { streamId: subject.streamId, at: subject.at };
       break;
     }
