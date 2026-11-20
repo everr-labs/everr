@@ -201,16 +201,32 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - `internal/sqltemplates/recordings_table.sql` is the cloud's `app.recordings`
   (`packages/app/clickhouse/0013-create-recordings.sql`) minus
   `tenant_id` and `retention_days`, which the local store does not have. The
-  `session_id`, `stream_id` and `segment_index` columns are MATERIALIZED with
-  the cloud's expressions, which never throw on a missing or malformed
-  attribute. The key is `(stream_id, Timestamp, segment_index)` and the
-  granularity is 32, because a row is close to 1 MB. The TTL is the exporter's
-  `ttl`, like the other local tables. Keep the column list, the expressions and
-  the key in step with the cloud DDL, because the cloud reader's queries must
-  run against the local table unchanged.
+  MATERIALIZED columns (`session_id`, `stream_id`, `segment_index`,
+  `segment_end`, `clip_start`, `clip_id`, `trigger`, `truncated`) carry the
+  cloud's names, types and expressions, which never throw on a missing or
+  malformed attribute. Keep the column list and the expressions in step with
+  the cloud DDL, because the shared readers' queries must run against the
+  local table unchanged.
+- Keys: `PARTITION BY toDate(Timestamp, 'UTC')` and
+  `ORDER BY (toStartOfHour(Timestamp, 'UTC'), stream_id, segment_index)`. These
+  are the cloud's keys without `tenant_id` and `retention_days`. The granularity
+  is 32, because a row is close to 1 MB. The TTL is the exporter's `ttl`, like
+  the other local tables, read as `toDateTime(Timestamp, 'UTC')` (the cloud's
+  is a whole number of days, per row). `Timestamp` is not in the sort key and
+  the zone is explicit for the reason in the cloud DDL. It also matters here:
+  the engine runs with `--session_timezone=UTC`, but a table reattached after
+  a restart takes the machine's zone for an implicit `toDate(Timestamp)`, and a
+  partition written under UTC is then pruned by local dates. `logs` and
+  `traces` still use the implicit form.
+- `everrUnixMilliOrEpoch` is registered, like `errorFingerprint`, before the
+  recordings table is created (`create_unix_milli_function.sql`, identical to
+  the statement in 0013; `packages/app/src/db/clickhouse-migrations.test.ts`
+  compares them). ClickHouse expands a function into the column expression
+  when the table is created, so a store does not need the function to load.
 - The insert path is shared with `logs`: MATERIALIZED columns are not inserted.
-- `localSchemaVersion` stays 2. The new table is created by
-  `CREATE TABLE IF NOT EXISTS` in a store that lacks it and no existing table
-  changes shape. The recordings template joins `shapedTemplatesDigest`, so a
-  later edit to it has to bump the version. A store that already holds
-  Segments in `logs` keeps them there until `ttl` removes them.
+- `localSchemaVersion` is 3. A store built at version 2, which holds
+  the `recordings` table without the Clip columns or with the older keys, is
+  rebuilt on start like any other version change: every table is dropped and
+  recreated. The recordings template joins `shapedTemplatesDigest`, so a later
+  edit to it has to bump the version. A store that already holds Segments in
+  `logs` keeps them there until `ttl` removes them.
