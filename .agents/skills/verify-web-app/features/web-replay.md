@@ -12,7 +12,7 @@ When a browser session recording (a Clip) covers a trace or an error, the trace 
 - `replay-play` `Play` in the control bar runs the player, the button turns into `Pause`, and the clock advances.
 - `replay-split` in the trace view the closed player is 32px tall with `aria-expanded=false`, the row opens it with an animation that keeps the picture at its open size, the handle resizes it, and the row returns it to 32px; opening it again restores the height it had.
 - `replay-masking` text in the replay iframe is masked (asterisks), and the iframe's `sandbox` is `allow-same-origin` only (no scripts).
-- `replay-gaps` the trigger and gap badges match the stored `recording` span and Segment indexes.
+- `replay-gaps` the trigger and gap badges match the Clips and Segment indexes stored in `app.recordings`.
 - `replay-no-loop` with the default range (`Last 7 days`), an open detail settles: at most 10 server function calls in 10 s.
 
 ## How to get to it (user POV)
@@ -36,7 +36,7 @@ Preconditions:
   agent-browser wait --text "/verify-api/checkout" && agent-browser wait --fn "!document.body.innerText.includes('POST /checkout')" && ab_save replay-02-traces-filtered "With session recording on: the checkout trace stays, the seeded trace leaves"
   ```
 
-  Every command exits `0`. `replay-02-traces-filtered.txt` lists `GET /verify-api/checkout` and the `recording` trace (a Clip covers its own span) (`replay-filter-traces`).
+  Every command exits `0`. `replay-02-traces-filtered.txt` lists `GET /verify-api/checkout` (`replay-filter-traces`).
 - **Errors filter.** Run:
 
   ```bash
@@ -102,7 +102,7 @@ Preconditions:
 - **Badges against the data.** Run:
 
   ```bash
-  $V web-ch replay-clips "SELECT toString(SpanAttributes.everr.recording.clip.id) AS clip, toString(SpanAttributes.everr.recording.trigger) AS trigger FROM app.traces WHERE ServiceName = 'verify-sdk-web' AND SpanName = 'recording'"
+  $V web-ch replay-clips "SELECT argMinIf(clip_id, segment_index, clip_id != '') AS clip, argMinIf(trigger, segment_index, clip_id != '') AS clip_trigger FROM app.recordings WHERE ServiceName = 'verify-sdk-web' GROUP BY stream_id, clip_start HAVING clip != ''"
   $V web-ch replay-segments "SELECT stream_id, arraySort(groupUniqArray(segment_index)) AS indexes FROM app.recordings WHERE ServiceName = 'verify-sdk-web' GROUP BY stream_id"
   agent-browser get text 'section[aria-label="Session recording"]'
   ```
@@ -136,7 +136,6 @@ Preconditions:
 - `agent-browser click` moves the pointer over its target first, and hovering the trace view's recording row prefetches the events. Measure `replay-lazy` before any click or hover on that row.
 - A Clip lands about 10 s after the error that triggered it (60 s for a manual Clip). An empty lookup goes stale after 30 seconds, so a detail opened before the Clip landed shows the section after the next remount, window focus or auto refresh tick, without a full reload.
 - The lists filter within the selected time range: a trace whose recorded span starts outside the range is not listed, though its detail still plays.
-- The `recording` trace is listed under the filter and plays its own Clip; that is expected.
 - When the error and the failed request share a Clip, both details show `ERROR TRIGGER`. Assert on `TRIGGER`.
 - The badges are uppercase through CSS. `get text` returns them uppercase, the DOM text is lowercase (`error trigger`).
 - Never click `Accept all` on the consent banner; run `$V web-onboard` (answers `Deny`) before screenshots.
