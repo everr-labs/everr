@@ -102,7 +102,7 @@ LIMIT 30
 
 A Clip starts at the last full snapshot before what opened it, which can be hours earlier: for one moment you already know, pass it to `show --at` instead. `end_ms` is the last Segment sent. A page unload sends nothing, so it can be seconds before the page went away. A Clip that opens inside a run and reaches back further than the run so far gives a second row for the Stream, and the rows overlap. A run whose opening Segment is gone is not listed. Clip counts are not a rate, since Clips exist only where the app's triggers fired.
 
-`recordings` has one row per Segment. `Body` is not readable through SQL, so `SELECT *` and `DESCRIBE TABLE recordings` are refused: name the columns, or use `SELECT * EXCEPT (Body)`. Bound `Timestamp`, since the table is sorted by its hour.
+`recordings` has one row per Segment. `Body` is not readable through SQL (`length(Body)` is), so `SELECT *` and `DESCRIBE TABLE recordings` are refused: name the columns, or use `SELECT * EXCEPT (Body)`. Bound `Timestamp`, since the table is sorted by its hour.
 
 ## Population Queries
 
