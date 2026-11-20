@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Link, Outlet } from "@tanstack/react-router";
-import { Bug, Code, ScrollText, Settings, Workflow } from "lucide-react";
+import { Bug, ChartSpline, Code, ScrollText, Settings, Workflow } from "lucide-react";
 import { useState } from "react";
 import { TitleBarSlotsContext } from "./title-bar";
 
@@ -26,6 +26,9 @@ export function AppShell() {
         <TitleBarSlotsContext.Provider value={{ left: titleLeft, right: titleRight }}>
           <div className="flex min-h-0 flex-1 flex-row">
             <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-white/[0.06] pt-2 pb-3">
+              <SidebarLink to="/metrics" label="Metrics">
+                <ChartSpline className="size-[18px]" />
+              </SidebarLink>
               <SidebarLink to="/logs" label="Logs">
                 <ScrollText className="size-[18px]" />
               </SidebarLink>

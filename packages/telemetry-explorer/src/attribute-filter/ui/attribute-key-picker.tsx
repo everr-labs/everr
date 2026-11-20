@@ -29,6 +29,8 @@ export function AttributeKeyPicker({
   excludedKeys,
   sources,
   onSelect,
+  triggerLabel = "Filter",
+  triggerClassName = "h-8 w-full justify-start",
 }: {
   repo: AttributeRepositoryLike;
   domain: string;
@@ -40,6 +42,8 @@ export function AttributeKeyPicker({
   excludedKeys: ReadonlySet<string>;
   sources: AttributeSource[];
   onSelect: (key: { source: AttributeSource; key: string }) => void;
+  triggerLabel?: string;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { data: keys = [], isLoading } = useQuery({
@@ -112,11 +116,9 @@ export function AttributeKeyPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={<Button variant="outline" size="sm" className="h-8 w-full justify-start" />}
-      >
+      <PopoverTrigger render={<Button variant="outline" size="sm" className={triggerClassName} />}>
         <Plus className="size-3.5" />
-        Filter
+        {triggerLabel}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-(--anchor-width) min-w-56 p-0">
         <Command className="p-0">

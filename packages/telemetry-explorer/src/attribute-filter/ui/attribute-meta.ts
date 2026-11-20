@@ -26,6 +26,7 @@ export const ATTRIBUTE_SOURCE_LABELS: Record<AttributeSource, string> = {
   log: "Log",
   scope: "Scope",
   span: "Span",
+  metric: "Metric",
 };
 
 // Friendly display names for well-known OTel attribute keys, keyed by raw key.

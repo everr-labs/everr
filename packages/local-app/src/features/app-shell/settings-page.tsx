@@ -15,7 +15,7 @@ function LocalTelemetrySection() {
   return (
     <SettingsSection
       title="Local telemetry"
-      description="Collector status and local endpoints used by Logs, Errors, and Traces."
+      description="Collector status and local endpoints used by Logs, Errors, Traces, and Metrics."
       action={
         <Button
           type="button"

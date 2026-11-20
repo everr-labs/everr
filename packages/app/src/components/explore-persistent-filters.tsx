@@ -2,6 +2,7 @@ import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
+import { remoteMetricsRepo } from "#app/data/metrics/remote-repo.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
 /**
@@ -10,7 +11,7 @@ import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
  * Each Explore page puts this component in its rail. The component reads and
  * writes the `service` and `environment` search params, which are on the
  * `_dashboard` layout. The selection therefore stays set when the user moves
- * between Traces, Logs and Errors. See the notes on the retain and strip
+ * between Traces, Logs, Errors and Metrics. See the notes on the retain and strip
  * middleware in `_dashboard.tsx`.
  */
 export function ExplorePersistentFilters() {
@@ -46,6 +47,7 @@ export function ExplorePersistentFilters() {
     <ExploreGlobalFilters
       logsRepo={remoteRepo}
       tracesRepo={remoteTracesRepo}
+      metricsRepo={remoteMetricsRepo}
       timeRange={timeRange}
       service={service}
       environment={environment}

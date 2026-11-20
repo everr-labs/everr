@@ -52,6 +52,33 @@ describe("unionServiceOptions", () => {
   });
 });
 
+describe("with metrics", () => {
+  const metricsRepo = {
+    services: async () => ["collector", "api"],
+    environments: async () => ["production", "canary"],
+  };
+
+  it("adds services that send only metrics", async () => {
+    const options = unionServiceOptions(
+      logsRepo(["web"], []),
+      tracesRepo(["api"], []),
+      { timeRange, selected: [] },
+      metricsRepo,
+    );
+    expect(options.select(await options.queryFn())).toEqual(["api", "collector", "web"]);
+  });
+
+  it("adds environments that only metrics report", async () => {
+    const options = unionEnvironmentOptions(
+      logsRepo([], ["production"]),
+      tracesRepo([], ["staging"]),
+      { timeRange, selected: [] },
+      metricsRepo,
+    );
+    expect(options.select(await options.queryFn())).toEqual(["canary", "production", "staging"]);
+  });
+});
+
 describe("unionEnvironmentOptions", () => {
   it("unions logs + traces environments, deduped and sorted", async () => {
     const options = unionEnvironmentOptions(

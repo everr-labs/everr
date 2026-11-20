@@ -9,12 +9,19 @@ import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { resolveCssColor, useEChart } from "@everr/ui/hooks/use-echart";
 import { chartLabel } from "@everr/ui/lib/chart-label";
 import { cn } from "@everr/ui/lib/utils";
-import { BarChart, type BarSeriesOption, LineChart, type LineSeriesOption } from "echarts/charts";
+import {
+  BarChart,
+  type BarSeriesOption,
+  LineChart,
+  type LineSeriesOption,
+  ScatterChart,
+  type ScatterSeriesOption,
+} from "echarts/charts";
 import { MarkAreaComponent } from "echarts/components";
 import * as echarts from "echarts/core";
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-echarts.use([BarChart, LineChart, MarkAreaComponent]);
+echarts.use([BarChart, LineChart, ScatterChart, MarkAreaComponent]);
 
 export interface ChartSeries {
   id: string;
@@ -28,6 +35,18 @@ export interface ChartSeries {
   rightAxis?: boolean;
   /** Bars sharing a stack id pile up. */
   stack?: string;
+}
+
+/** A point of interest drawn over the series, such as an exemplar. */
+export interface ChartMarker {
+  id: string;
+  /** The x-axis point it sits on. */
+  index: number;
+  /** Its value on the left axis. */
+  value: number;
+  color: string;
+  /** Names it in the hover tooltip. */
+  label: string;
 }
 
 export interface ChartValueAxis {
@@ -62,7 +81,17 @@ interface SeriesChartProps {
   /** The caller picked which points to label (the rest are ""): draw every
    *  label given, instead of a share of them chosen by spacing. */
   sparseLabels?: boolean;
+  /** Curve lines between points. Off draws straight segments, so a reading
+   *  shows exactly where each point lies. */
+  smooth?: boolean;
+  /** Drawn as diamonds over the series; a click on one reports it, with the
+   *  pointer's viewport position, instead of starting a range drag. */
+  markers?: readonly ChartMarker[];
+  onMarkerClick?: (marker: ChartMarker, at: { x: number; y: number }) => void;
 }
+
+// How close the pointer must be to a marker to hover it, in pixels.
+const MARKER_HIT_RADIUS = 8;
 
 interface Pointer {
   index: number;
@@ -109,10 +138,14 @@ export function SeriesChart({
   compact = false,
   className,
   sparseLabels = false,
+  smooth = true,
+  markers,
+  onMarkerClick,
 }: SeriesChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [pointer, setPointer] = useState<Pointer | null>(null);
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  const [hoveredMarker, setHoveredMarker] = useState<ChartMarker | null>(null);
   const clearPointer = useCallback(() => setPointer(null), []);
   const mounted = useEChart(elementRef, true, clearPointer);
   const chart = mounted?.chart ?? null;
@@ -195,51 +228,79 @@ export function SeriesChart({
           valueAxis(axes.left, true),
           ...(axes.right ? [{ ...valueAxis(axes.right, false), position: "right" as const }] : []),
         ],
-        series: series.map((s, index): BarSeriesOption | LineSeriesOption => {
-          const color = resolveCssColor(element, s.color);
-          const opacity = activeSeries !== null && activeSeries !== s.id ? 0.25 : 1;
-          const markArea =
-            index === 0 && shadeFrom !== null && shadeTo !== null
-              ? {
-                  silent: true,
-                  itemStyle: {
-                    color: shade,
-                    opacity: 0.08,
-                    borderColor: shade,
-                    borderWidth: 1,
-                    borderType: "dashed" as const,
-                  },
-                  data: shadeData,
-                }
-              : undefined;
-          const common = {
-            id: s.id,
-            data: [...s.values],
-            yAxisIndex: s.rightAxis && axes.right ? 1 : 0,
-            silent: true,
-            markArea,
-          };
-          if (s.kind === "bar") {
-            const top = !s.stack || stackTops.get(s.stack) === s.id;
+        series: [
+          ...series.map((s, index): BarSeriesOption | LineSeriesOption => {
+            const color = resolveCssColor(element, s.color);
+            const opacity = activeSeries !== null && activeSeries !== s.id ? 0.25 : 1;
+            const markArea =
+              index === 0 && shadeFrom !== null && shadeTo !== null
+                ? {
+                    silent: true,
+                    itemStyle: {
+                      color: shade,
+                      opacity: 0.08,
+                      borderColor: shade,
+                      borderWidth: 1,
+                      borderType: "dashed" as const,
+                    },
+                    data: shadeData,
+                  }
+                : undefined;
+            const common = {
+              id: s.id,
+              data: [...s.values],
+              yAxisIndex: s.rightAxis && axes.right ? 1 : 0,
+              silent: true,
+              markArea,
+            };
+            if (s.kind === "bar") {
+              const top = !s.stack || stackTops.get(s.stack) === s.id;
+              return {
+                ...common,
+                type: "bar",
+                stack: s.stack,
+                barMaxWidth: 48,
+                itemStyle: { color, opacity, borderRadius: top ? [2, 2, 0, 0] : 0 },
+              };
+            }
+            // A point with a gap on both sides has no segment to draw, so it
+            // gets a dot; every other point stays bare.
+            const isolated = (index: number) =>
+              s.values[index] != null && s.values[index - 1] == null && s.values[index + 1] == null;
             return {
               ...common,
-              type: "bar",
-              stack: s.stack,
-              barMaxWidth: 48,
-              itemStyle: { color, opacity, borderRadius: top ? [2, 2, 0, 0] : 0 },
+              type: "line",
+              smooth,
+              smoothMonotone: "x",
+              showSymbol: true,
+              symbol: "circle",
+              symbolSize: (_: unknown, params: { dataIndex: number }) =>
+                isolated(params.dataIndex) ? (compact ? 4 : 5) : 0,
+              lineStyle: { color, width: compact ? 1.5 : 2, opacity },
+              itemStyle: { color, opacity },
+              areaStyle: s.kind === "area" ? { color, opacity: 0.15 * opacity } : undefined,
             };
-          }
-          return {
-            ...common,
-            type: "line",
-            smooth: true,
-            smoothMonotone: "x",
-            showSymbol: false,
-            lineStyle: { color, width: compact ? 1.5 : 2, opacity },
-            itemStyle: { color },
-            areaStyle: s.kind === "area" ? { color, opacity: 0.15 * opacity } : undefined,
-          };
-        }),
+          }),
+          ...(markers && markers.length > 0
+            ? [
+                {
+                  type: "scatter",
+                  silent: true,
+                  z: 5,
+                  symbol: "diamond",
+                  symbolSize: compact ? 7 : 9,
+                  data: markers.map((m) => ({
+                    value: [String(m.index), m.value],
+                    itemStyle: {
+                      color: theme.cardColor,
+                      borderColor: resolveCssColor(element, m.color),
+                      borderWidth: 1.5,
+                    },
+                  })),
+                } satisfies ScatterSeriesOption,
+              ]
+            : []),
+        ],
       },
       { notMerge: true },
     );
@@ -254,6 +315,8 @@ export function SeriesChart({
     shadeFrom,
     shadeTo,
     sparseLabels,
+    smooth,
+    markers,
     theme,
   ]);
 
@@ -271,7 +334,34 @@ export function SeriesChart({
     return { index, x: event.clientX, y: event.clientY };
   };
 
+  /** The marker within reach of the pointer, nearest first. */
+  const markerAt = (event: PointerEvent): ChartMarker | null => {
+    const element = elementRef.current;
+    if (!chart || !element || !markers || markers.length === 0) return null;
+    const bounds = element.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    let nearest: ChartMarker | null = null;
+    let nearestDistance = MARKER_HIT_RADIUS;
+    for (const marker of markers) {
+      const pixel: unknown = chart.convertToPixel({ gridIndex: 0 }, [
+        String(marker.index),
+        marker.value,
+      ]);
+      if (!Array.isArray(pixel)) continue;
+      const [mx, my] = pixel;
+      if (typeof mx !== "number" || typeof my !== "number") continue;
+      const distance = Math.hypot(mx - x, my - y);
+      if (distance <= nearestDistance) {
+        nearest = marker;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  };
+
   const handlePointerMove = (event: PointerEvent) => {
+    if (!drag) setHoveredMarker(markerAt(event));
     if (drag) {
       const point = pointAt(event, true);
       if (point) setDrag({ ...drag, to: point.index });
@@ -280,6 +370,7 @@ export function SeriesChart({
   };
 
   const handlePointerDown = (event: PointerEvent) => {
+    if (onMarkerClick && markerAt(event)) return;
     if (!onSelect || isOnLegend(event.target)) return;
     const point = pointAt(event);
     if (!point) return;
@@ -288,18 +379,34 @@ export function SeriesChart({
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (event: PointerEvent) => {
+    const marker = !drag && onMarkerClick ? markerAt(event) : null;
+    if (marker) onMarkerClick?.(marker, { x: event.clientX, y: event.clientY });
     if (drag && onSelect) onSelect(Math.min(drag.from, drag.to), Math.max(drag.from, drag.to));
     setDrag(null);
   };
 
   const rows = pointer
-    ? series.flatMap(({ id, label, color, values, rightAxis }) => {
-        const value = values[pointer.index];
-        if (typeof value !== "number" || (activeSeries !== null && id !== activeSeries)) return [];
-        const format = rightAxis && axes.right ? axes.right.format : axes.left.format;
-        return [{ key: id, color, label, value: format(value) }];
-      })
+    ? [
+        ...(hoveredMarker
+          ? [
+              {
+                key: `marker:${hoveredMarker.id}`,
+                color: hoveredMarker.color,
+                label: hoveredMarker.label,
+                value: axes.left.format(hoveredMarker.value),
+                active: true,
+              },
+            ]
+          : []),
+        ...series.flatMap(({ id, label, color, values, rightAxis }) => {
+          const value = values[pointer.index];
+          if (typeof value !== "number" || (activeSeries !== null && id !== activeSeries))
+            return [];
+          const format = rightAxis && axes.right ? axes.right.format : axes.left.format;
+          return [{ key: id, color, label, value: format(value) }];
+        }),
+      ]
     : [];
 
   return (
@@ -309,13 +416,17 @@ export function SeriesChart({
       className={cn(
         "relative text-muted-foreground",
         onSelect && "cursor-ew-resize select-none",
+        hoveredMarker && onMarkerClick && "cursor-pointer",
         className,
       )}
       onPointerMove={handlePointerMove}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => setDrag(null)}
-      onPointerLeave={() => setPointer(null)}
+      onPointerLeave={() => {
+        setPointer(null);
+        setHoveredMarker(null);
+      }}
     >
       {/* Hover is ours: ECharts would track the pointer too, forcing a layout per move. */}
       {/* The canvas has no text of its own: say what it shows. */}

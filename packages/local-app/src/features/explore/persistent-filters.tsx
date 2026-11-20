@@ -1,16 +1,18 @@
 import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
 import { LogsRepository } from "@everr/telemetry-explorer/logs";
+import { MetricsRepository } from "@everr/telemetry-explorer/metrics";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useNavigate } from "@tanstack/react-router";
 import { localSqlClient } from "../logs/local-sql-client";
 
-// The option lists for Service and Environment are the union of the logs values
-// and the traces values. The lists are then the same on every Explore page.
-// These two repositories supply the option lists only. Each page uses its own
-// repository for the data.
+// The option lists for Service and Environment are the union of the logs, traces
+// and metrics values. The lists are then the same on every Explore page. These
+// repositories supply the option lists only. Each page uses its own repository
+// for the data.
 const filterLogsRepo = new LogsRepository(localSqlClient);
 const filterTracesRepo = new TracesRepository(localSqlClient);
+const filterMetricsRepo = new MetricsRepository(localSqlClient);
 
 /**
  * The top zone of the Explore filter rail.
@@ -29,7 +31,7 @@ export function ExplorePersistentFilters({
   service,
   environment,
 }: {
-  to: "/logs" | "/errors" | "/traces";
+  to: "/logs" | "/errors" | "/traces" | "/metrics";
   timeRange: TimeRange;
   service: string[];
   environment: string[];
@@ -40,6 +42,7 @@ export function ExplorePersistentFilters({
     <ExploreGlobalFilters
       logsRepo={filterLogsRepo}
       tracesRepo={filterTracesRepo}
+      metricsRepo={filterMetricsRepo}
       timeRange={timeRange}
       service={service}
       environment={environment}

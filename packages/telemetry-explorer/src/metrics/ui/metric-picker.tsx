@@ -1,0 +1,115 @@
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@everr/ui/components/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
+import { cn } from "@everr/ui/lib/utils";
+import { ChevronDown } from "lucide-react";
+import { type ReactNode, type RefObject, useState } from "react";
+import type { MetricType } from "../data/schemas";
+import { type MetricNameEntry, metricKind } from "../data/types";
+import { MetricKindLabel } from "./metric-name";
+
+/** What a chart's metric name opens: the metrics in range, to switch to another. */
+export interface MetricPickerProps {
+  metrics: MetricNameEntry[] | undefined;
+  value: { name: string; type: MetricType | undefined };
+  onChange: (metric: { name: string; type: MetricType }) => void;
+}
+
+const key = (name: string, type: MetricType | undefined) => `${type ?? ""}:${name}`;
+
+/**
+ * The metric's name as a button that opens a searchable list of metrics.
+ * `details` shows on hover, until the list opens.
+ */
+export function MetricPicker({
+  metrics,
+  value,
+  onChange,
+  onOpen,
+  anchor,
+  label,
+  details,
+  className,
+  children,
+}: MetricPickerProps & {
+  onOpen?: () => void;
+  /** What the list opens under, when not the name itself. */
+  anchor?: RefObject<HTMLElement | null>;
+  label: string;
+  details?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const current = key(value.name, value.type);
+
+  const trigger = (
+    <PopoverTrigger
+      render={
+        <button
+          type="button"
+          aria-label={label}
+          className={cn(
+            "hover:bg-muted aria-expanded:bg-muted flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md text-left",
+            className,
+          )}
+        />
+      }
+    >
+      {children}
+      <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+    </PopoverTrigger>
+  );
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setTooltipOpen(false);
+          onOpen?.();
+        }
+      }}
+    >
+      {details ? (
+        <Tooltip open={tooltipOpen && !open} onOpenChange={setTooltipOpen}>
+          <TooltipTrigger render={trigger} />
+          <TooltipContent className="flex max-w-80 flex-col gap-1">{details}</TooltipContent>
+        </Tooltip>
+      ) : (
+        trigger
+      )}
+      <PopoverContent align="start" anchor={anchor} className="w-96 p-0">
+        <Command className="p-0">
+          <CommandInput placeholder="Search metrics…" />
+          <CommandList>
+            <CommandEmpty>{metrics ? "No metric matches." : "Loading…"}</CommandEmpty>
+            {(metrics ?? []).map((m) => (
+              <CommandItem
+                key={key(m.name, m.type)}
+                value={key(m.name, m.type)}
+                keywords={[m.name]}
+                data-checked={key(m.name, m.type) === current || undefined}
+                onSelect={() => {
+                  setOpen(false);
+                  if (key(m.name, m.type) !== current) onChange({ name: m.name, type: m.type });
+                }}
+              >
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">{m.name}</span>
+                <MetricKindLabel kind={metricKind(m.type, m.isMonotonic)} />
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}

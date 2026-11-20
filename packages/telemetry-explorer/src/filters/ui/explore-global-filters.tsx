@@ -3,6 +3,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Boxes, Layers } from "lucide-react";
 import { useId } from "react";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
+import type { MetricsRepositoryLike } from "../../metrics/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { unionEnvironmentOptions, unionServiceOptions } from "../data/explore-filter-options";
 import { ExploreFilterPill } from "./explore-filter-pill";
@@ -10,16 +11,17 @@ import { ExploreFilterPill } from "./explore-filter-pill";
 // The top zone of the Explore rail. It holds the two filters that stay set when
 // the user moves between Logs, Errors and Traces.
 //
-// Each option list is the union of the logs values and the traces values. The
-// choices are then the same on every Explore page, because the two values are
-// shared search params. Errors are exception logs, which are a subset of logs,
-// so the union already includes them.
+// Each option list is the union of the logs, traces and, when the host has a
+// Metrics page, metrics values. The choices are then the same on every Explore
+// page, because the two values are shared search params. Errors are exception
+// logs, which are a subset of logs, so the union already includes them.
 //
 // Each control fills the width of the rail and has a label, like every other
 // section of the rail.
 export function ExploreGlobalFilters({
   logsRepo,
   tracesRepo,
+  metricsRepo,
   timeRange,
   service,
   environment,
@@ -28,6 +30,7 @@ export function ExploreGlobalFilters({
 }: {
   logsRepo: LogsRepositoryLike;
   tracesRepo: TracesRepositoryLike;
+  metricsRepo?: Pick<MetricsRepositoryLike, "services" | "environments">;
   timeRange: TimeRange;
   service: string[];
   environment: string[];
@@ -44,10 +47,12 @@ export function ExploreGlobalFilters({
       icon: Boxes,
       values: service,
       onChange: onServiceChange,
-      options: unionServiceOptions(logsRepo, tracesRepo, {
-        timeRange,
-        selected: service,
-      }),
+      options: unionServiceOptions(
+        logsRepo,
+        tracesRepo,
+        { timeRange, selected: service },
+        metricsRepo,
+      ),
       placeholder: "All services",
       searchPlaceholder: "Search services...",
     },
@@ -56,10 +61,12 @@ export function ExploreGlobalFilters({
       icon: Layers,
       values: environment,
       onChange: onEnvironmentChange,
-      options: unionEnvironmentOptions(logsRepo, tracesRepo, {
-        timeRange,
-        selected: environment,
-      }),
+      options: unionEnvironmentOptions(
+        logsRepo,
+        tracesRepo,
+        { timeRange, selected: environment },
+        metricsRepo,
+      ),
       placeholder: "All environments",
       searchPlaceholder: "Search environments...",
     },

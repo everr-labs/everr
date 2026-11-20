@@ -1082,6 +1082,9 @@ importers:
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
       lucide-react:
         specifier: 'catalog:'
         version: 1.14.0(react@19.2.6)
