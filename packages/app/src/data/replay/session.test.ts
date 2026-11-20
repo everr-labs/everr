@@ -20,7 +20,7 @@ const HOUR = 60 * 60 * 1000;
 const WINDOW_MAX_MS = 24 * HOUR;
 const T0 = Date.now() - 10_000;
 
-type SpanRow = {
+type ClipRow = {
   serviceName: string;
   startMs: number;
   endMs: number;
@@ -40,7 +40,7 @@ type SegmentRow = {
   pieces: string;
 };
 
-function spanRow(overrides: Partial<SpanRow> = {}): SpanRow {
+function clipRow(overrides: Partial<ClipRow> = {}): ClipRow {
   return {
     serviceName: SERVICE,
     startMs: T0,
@@ -207,18 +207,19 @@ function sizesOf(rows: SegmentRow[]): SizeRow[] {
   return [...sizes.values()];
 }
 
+// The text that only the Clip queries carry.
+const CLIP_QUERY = "GROUP BY stream_id, clip_start";
+
 function plan(rows?: {
-  traces?: Array<unknown>;
+  clips?: Array<unknown>;
   recordings?: SegmentRow[];
   sizes?: SizeRow[];
 }): void {
   mockedQuery.mockImplementation(async (sql: string, _org, params) => {
-    if (/FROM\s+traces/.test(sql)) {
-      const traces = rows?.traces ?? [];
-      if (!sql.includes("LIMIT 1 BY clipId, streamId")) return traces as never;
-      // As ClickHouse does: one row per clip and stream.
+    if (sql.includes(CLIP_QUERY)) {
+      // As ClickHouse does: the grouping leaves one row per clip and stream.
       const seen = new Set<string>();
-      return traces.filter((t) => {
+      return (rows?.clips ?? []).filter((t) => {
         const key = JSON.stringify([
           (t as { clipId?: string }).clipId,
           (t as { streamId?: string }).streamId,
@@ -245,9 +246,9 @@ interface QueryCall {
   settings?: Record<string, string>;
 }
 
-function callsFor(table: "traces" | "recordings"): QueryCall[] {
+function callsFor(kind: "clips" | "segments"): QueryCall[] {
   return mockedQuery.mock.calls
-    .filter(([sql]) => sql.includes(`FROM ${table}`))
+    .filter(([sql]) => sql.includes(CLIP_QUERY) === (kind === "clips"))
     .map(([sql, _org, params, settings]) => ({
       sql,
       params: (params ?? {}) as Record<string, unknown>,
@@ -263,7 +264,7 @@ beforeEach(() => {
 describe("sessionJourney", () => {
   it("projects steps and facts from numeric clip windows and segment events", async () => {
     plan({
-      traces: [spanRow()],
+      clips: [clipRow()],
       recordings: [
         segRow(
           eventBody([
@@ -291,11 +292,11 @@ describe("sessionJourney", () => {
     // The clip window crosses the boundary as epoch numbers, parsed from the
     // row side with a tz-independent expression; queries run with best_effort
     // so string parameters (ISO-8601 UTC) stay true to the instant they name.
-    const trace = callsFor("traces")[0];
-    expect(trace.sql).toContain("fromUnixTimestamp64Milli");
-    expect(trace.sql).toContain("toUnixTimestamp64Milli");
-    expect(trace.settings).toEqual({ date_time_input_format: "best_effort" });
-    expect(trace.params).toMatchObject({
+    const clipCall = callsFor("clips")[0];
+    expect(clipCall.sql).toContain("fromUnixTimestamp64Milli");
+    expect(clipCall.sql).toContain("toUnixTimestamp64Milli");
+    expect(clipCall.settings).toEqual({ date_time_input_format: "best_effort" });
+    expect(clipCall.params).toMatchObject({
       sessionId: SESSION,
       fromMs: expect.any(Number),
       toMs: expect.any(Number),
@@ -304,26 +305,26 @@ describe("sessionJourney", () => {
   });
 
   it("caps the implicit window at 24 hours: no window and to-only both work", async () => {
-    plan({ traces: [spanRow()], recordings: [] });
+    plan({ clips: [clipRow()], recordings: [] });
 
     const toOnly = await sessionJourney(ORG, SESSION, { to: new Date(T0 + HOUR) });
     expect(toOnly.windowEnd).toBe(new Date(T0 + HOUR).toISOString());
-    const toCall = callsFor("traces").at(-1);
+    const toCall = callsFor("clips").at(-1);
     expect(toCall).toBeDefined();
     expect(toOnly.windowStart).toBe(new Date(T0 + HOUR - WINDOW_MAX_MS).toISOString());
     expect((toCall?.params.toMs as number) - (toCall?.params.fromMs as number)).toBe(WINDOW_MAX_MS);
   });
 
   it("caps the no-window call at 24 hours too", async () => {
-    plan({ traces: [], recordings: [] });
+    plan({ clips: [], recordings: [] });
 
     await sessionJourney(ORG, SESSION);
-    const call = callsFor("traces")[0];
+    const call = callsFor("clips")[0];
     expect((call.params.toMs as number) - (call.params.fromMs as number)).toBe(WINDOW_MAX_MS);
   });
 
   it("returns an empty journey when nothing exists in the window", async () => {
-    plan({ traces: [], recordings: [] });
+    plan({ clips: [], recordings: [] });
 
     const journey: SessionJourney = await sessionJourney(ORG, SESSION, {
       from: new Date(T0 - HOUR),
@@ -338,7 +339,7 @@ describe("sessionJourney", () => {
   });
 
   it("rejects a window wider than 24 hours and from after to", async () => {
-    plan({ traces: [], recordings: [] });
+    plan({ clips: [], recordings: [] });
 
     await expect(
       sessionJourney(ORG, SESSION, {
@@ -352,12 +353,12 @@ describe("sessionJourney", () => {
     ).rejects.toMatchObject({ code: "bad_request" });
   });
 
-  it("skips spans with a missing id or an unknown trigger as clip gaps", async () => {
+  it("skips Clips with a missing id or an unknown trigger as clip gaps", async () => {
     plan({
-      traces: [
-        spanRow({ clipId: "" }),
-        spanRow({ clipId: "clip-bad-trigger", trigger: "everr.automatic" }),
-        spanRow(),
+      clips: [
+        clipRow({ clipId: "" }),
+        clipRow({ clipId: "clip-bad-trigger", trigger: "everr.automatic" }),
+        clipRow(),
       ],
       recordings: [segRow(eventBody([metaEvent(T0 + 10)]))],
     });
@@ -371,7 +372,7 @@ describe("sessionJourney", () => {
 
   it("caps steps globally across streams at 500", async () => {
     plan({
-      traces: [spanRow({ streamId: "stream-a" }), spanRow({ streamId: "stream-b" })],
+      clips: [clipRow({ streamId: "stream-a" }), clipRow({ streamId: "stream-b" })],
       recordings: [
         segRow(eventBody(Array.from({ length: 510 }, (_, i) => clickEvent(T0 + i * 2))), {
           stream_id: "stream-a",
@@ -397,7 +398,7 @@ describe("sessionJourney", () => {
 
   it("names the element of each click, as the page was then, and folds a run of input into one step", async () => {
     plan({
-      traces: [spanRow()],
+      clips: [clipRow()],
       recordings: [
         segRow(
           eventBody([
@@ -427,13 +428,13 @@ describe("sessionJourney", () => {
   });
 
   it("flags more clips than the cap, and counts a clip stored twice once", async () => {
-    const many = Array.from({ length: 21 }, (_, i) => spanRow({ clipId: `clip-${i}` }));
-    plan({ traces: many, recordings: [] });
+    const many = Array.from({ length: 21 }, (_, i) => clipRow({ clipId: `clip-${i}` }));
+    plan({ clips: many, recordings: [] });
     const capped = await sessionJourney(ORG, SESSION);
     expect(capped.clips).toHaveLength(20);
     expect(capped.truncated).toBe(true);
 
-    plan({ traces: [spanRow(), spanRow()], recordings: [] });
+    plan({ clips: [clipRow(), clipRow()], recordings: [] });
     const once = await sessionJourney(ORG, SESSION);
     expect(once.clips).toHaveLength(1);
     expect(once.facts.clipsByTrigger.error).toBe(1);
@@ -443,10 +444,10 @@ describe("sessionJourney", () => {
   it("keeps to its byte budget: newest stream whole, then without snapshot pieces, then left out", async () => {
     const MiB = 1024 * 1024;
     plan({
-      traces: [
-        spanRow({ streamId: "newest", clipId: "c1", endMs: T0 + 9_000 }),
-        spanRow({ streamId: "middle", clipId: "c2", endMs: T0 + 8_000 }),
-        spanRow({ streamId: "oldest", clipId: "c3", endMs: T0 + 7_000 }),
+      clips: [
+        clipRow({ streamId: "newest", clipId: "c1", endMs: T0 + 9_000 }),
+        clipRow({ streamId: "middle", clipId: "c2", endMs: T0 + 8_000 }),
+        clipRow({ streamId: "oldest", clipId: "c3", endMs: T0 + 7_000 }),
       ],
       recordings: [
         segRow(eventBody([metaEvent(T0 + 10)]), { stream_id: "newest" }),
@@ -474,7 +475,7 @@ describe("sessionJourney", () => {
       { kind: "budget", streamId: "oldest", skipped: "stream" },
     ]);
     expect(new Set(journey.steps.map((s) => s.streamId))).toEqual(new Set(["newest", "middle"]));
-    const reads = callsFor("recordings").filter((c) => !c.sql.includes("GROUP BY"));
+    const reads = callsFor("segments").filter((c) => !c.sql.includes("GROUP BY"));
     expect(reads.map((c) => [c.params.streams, c.params.withoutPieces])).toEqual([
       [["newest", "middle"], ["middle"]],
     ]);
@@ -482,7 +483,7 @@ describe("sessionJourney", () => {
 
   it("records index, piece, and conflict gaps", async () => {
     plan({
-      traces: [spanRow()],
+      clips: [clipRow()],
       recordings: [
         // The reader matches segments against the clip's stream id; a missing
         // segment index shows up as an index gap, duplicated bodies as a
@@ -505,8 +506,8 @@ describe("sessionJourney", () => {
 });
 
 /** One Clip with one Segment that holds `events`. */
-function planSegment(events: Array<Record<string, unknown>>, traces = [spanRow()]): void {
-  plan({ traces, recordings: [segRow(eventBody(events))] });
+function planSegment(events: Array<Record<string, unknown>>, clips = [clipRow()]): void {
+  plan({ clips, recordings: [segRow(eventBody(events))] });
 }
 
 /** The events of a page: its Meta, a snapshot of the form, and what happens later. */
@@ -521,7 +522,7 @@ function pageAfter(ms: number, options?: { compact?: boolean }) {
 
 describe("pageAt", () => {
   it("builds the page from deduplicated at-least-once clip rows", async () => {
-    planSegment([metaEvent(T0 + 10), snapshotEvent(T0 + 200)], [spanRow(), spanRow()]);
+    planSegment([metaEvent(T0 + 10), snapshotEvent(T0 + 200)], [clipRow(), clipRow()]);
     const page = await pageAfter(1_000);
 
     expect(page).toMatchObject({ clipId: CLIP_ID, sessionId: SESSION, coverage: "complete" });
@@ -530,7 +531,7 @@ describe("pageAt", () => {
 
   it("refuses a clip from another session", async () => {
     plan({
-      traces: [spanRow({ sessionId: "sess-2" })],
+      clips: [clipRow({ sessionId: "sess-2" })],
       recordings: [],
     });
     await expect(
@@ -605,7 +606,7 @@ describe("pageAt", () => {
 
   it("rejects an at outside the clip span with 404", async () => {
     plan({
-      traces: [spanRow()],
+      clips: [clipRow()],
       recordings: [],
     });
     const failure = await pageAt(ORG, {
