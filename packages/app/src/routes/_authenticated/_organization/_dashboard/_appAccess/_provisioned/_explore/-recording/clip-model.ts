@@ -4,6 +4,7 @@ import type { RecordedEvent, RecordingGap } from "#app/data/replay/options.ts";
 /** Playback starts this far before the subject so the lead-up is on screen. */
 const LEAD_IN_MS = 10_000;
 const FULL_SNAPSHOT = 2;
+const META = 4;
 const CUSTOM = 5;
 /** An instant focus still needs a visible band. */
 const MIN_FOCUS_PCT = 0.5;
@@ -16,9 +17,15 @@ export function startOffsetMs(clip: ClipTimes, firstEventMs: number): number {
   return Math.max(0, target - firstEventMs);
 }
 
-/** rrweb draws nothing without a full snapshot: the Clip's first Segment was lost. */
-export function hasFullSnapshot(events: RecordedEvent[]): boolean {
-  return events.some((event) => event.type === FULL_SNAPSHOT);
+/**
+ * rrweb draws nothing without a full snapshot, and keeps its page hidden until a Meta
+ * event sizes it: either one missing means the Clip's first Segment was lost.
+ */
+export function canDraw(events: RecordedEvent[]): boolean {
+  return (
+    events.some((event) => event.type === FULL_SNAPSHOT) &&
+    events.some((event) => event.type === META)
+  );
 }
 
 /**

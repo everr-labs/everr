@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  canDraw,
   clock,
   gapLabels,
-  hasFullSnapshot,
   startOffsetMs,
   throughClipEnd,
   timelineModel,
@@ -54,11 +54,12 @@ describe("gapLabels", () => {
   });
 });
 
-describe("hasFullSnapshot", () => {
-  it("needs a full snapshot event to draw anything", () => {
-    expect(hasFullSnapshot([{ type: 4, timestamp: T, data: {} }])).toBe(false);
+describe("canDraw", () => {
+  it("needs a full snapshot and a Meta event to draw anything", () => {
+    expect(canDraw([{ type: 4, timestamp: T, data: {} }])).toBe(false);
+    expect(canDraw([{ type: 2, timestamp: T, data: {} }])).toBe(false);
     expect(
-      hasFullSnapshot([
+      canDraw([
         { type: 4, timestamp: T, data: {} },
         { type: 2, timestamp: T, data: {} },
       ]),

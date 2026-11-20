@@ -254,6 +254,18 @@ describe("session recording panel", () => {
     expect(replayers.created).toHaveLength(0);
   });
 
+  it("explains a Clip with a full snapshot but no Meta event, which rrweb would leave blank", async () => {
+    renderClip(playableEvents.filter((event) => event.type !== 4));
+
+    await toggle(false);
+
+    expect(
+      await screen.findByText("The start of this clip was not received, so it cannot play."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeDisabled();
+    expect(replayers.created).toHaveLength(0);
+  });
+
   it("says when the player cannot start, and starts it again on Retry", async () => {
     replayers.state.failures = 1;
     renderClip();
