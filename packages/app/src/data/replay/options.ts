@@ -58,5 +58,7 @@ export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">
       return response.json();
     },
     staleTime: (query) => (isSettled(query.state.data) ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
+    // The payload is megabytes, so it goes soon after the player closes.
+    gcTime: 60_000,
     retry: (failures, error) => !(error instanceof ClipEventsError) && failures < 3,
   });
