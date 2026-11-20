@@ -213,10 +213,17 @@ func TestGatewayStoresRecordingSegmentsApartFromLogs(t *testing.T) {
 		segment(1, segmentBody,
 			stringAttr("session.id", "session-1"),
 			stringAttr("everr.recording.stream.id", "stream-1"),
-			`{"key":"everr.recording.segment.index","value":{"intValue":"0"}}`),
+			`{"key":"everr.recording.segment.index","value":{"intValue":"0"}}`,
+			`{"key":"everr.recording.segment.end","value":{"intValue":"1700000005250"}}`,
+			`{"key":"everr.recording.clip.start","value":{"intValue":"1700000000000"}}`,
+			stringAttr("everr.recording.clip.id", "clip-1"),
+			stringAttr("everr.recording.trigger", "error"),
+			stringAttr("everr.recording.clip.truncated", "true")),
 		segment(2, "malformed index",
 			stringAttr("everr.recording.stream.id", "stream-1"),
-			stringAttr("everr.recording.segment.index", "not a number")),
+			stringAttr("everr.recording.segment.index", "not a number"),
+			stringAttr("everr.recording.segment.end", "soon"),
+			`{"key":"everr.recording.clip.start","value":{"doubleValue":9e18}}`),
 		segment(3, "missing index", stringAttr("everr.recording.stream.id", "stream-2")),
 	}
 	payload := `{"resourceLogs":[{"resource":{"attributes":[` + stringAttr("service.name", "browser") + `]},` +
@@ -240,6 +247,25 @@ func TestGatewayStoresRecordingSegmentsApartFromLogs(t *testing.T) {
 	require.EqualValues(t, 0, segments[1]["segment_index"], "a malformed index stores 0")
 	require.Equal(t, "stream-2", segments[2]["stream_id"])
 	require.EqualValues(t, 0, segments[2]["segment_index"], "a missing index stores 0")
+
+	// The Clip listing the shared reader runs, unchanged, on the same columns.
+	clips := queryRows(t, sql, `SELECT stream_id, toUnixTimestamp64Milli(clip_start) AS clip_start,
+		toUnixTimestamp64Milli(max(segment_end)) AS clip_end,
+		argMinIf(clip_id, segment_index, clip_id != '') AS opened_id,
+		argMinIf(trigger, segment_index, clip_id != '') AS opened_trigger,
+		argMinIf(truncated, segment_index, clip_id != '') AS opened_truncated
+		FROM recordings WHERE Timestamp > now() - INTERVAL 1 HOUR
+		GROUP BY stream_id, clip_start ORDER BY stream_id, clip_start DESC`)
+	require.Len(t, clips, 3)
+	require.Equal(t, "stream-1", clips[0]["stream_id"])
+	require.EqualValues(t, 1700000000000, clips[0]["clip_start"])
+	require.EqualValues(t, 1700000005250, clips[0]["clip_end"])
+	require.Equal(t, "clip-1", clips[0]["opened_id"])
+	require.Equal(t, "error", clips[0]["opened_trigger"])
+	require.Equal(t, true, clips[0]["opened_truncated"])
+	require.EqualValues(t, 0, clips[1]["clip_start"], "a start past the DateTime64 range stores the epoch")
+	require.EqualValues(t, 0, clips[1]["clip_end"], "an end that is not a number stores the epoch")
+	require.Equal(t, "", clips[1]["opened_id"])
 
 	require.Eventually(t, func() bool { return countLogs(t, sql, "ordinary log") == 1 }, 15*time.Second, 100*time.Millisecond)
 	inLogs := queryRows(t, sql, "SELECT count() AS n FROM logs WHERE EventName = 'everr.browser.recording.segment'")
