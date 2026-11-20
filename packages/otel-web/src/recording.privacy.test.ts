@@ -25,7 +25,7 @@ async function recordPage(
   // The whole buffer, with the act() events.
   const clip = t.rec.recorder.startClip({ last: 5 * 60_000 });
   clip.end();
-  return JSON.stringify(await t.clipEvents(clip.id));
+  return JSON.stringify(t.clipEvents(clip.id));
 }
 
 const type = (el: Element | null, value: string) => {
