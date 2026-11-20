@@ -1,4 +1,8 @@
-import { StrictTimeRangeSearchSchema, TimeRangeSchema } from "@everr/ui/lib/time-range";
+import {
+  isValidTimeRange,
+  StrictTimeRangeSearchSchema,
+  TimeRangeSchema,
+} from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   AttributeSourceSchema,
@@ -91,7 +95,13 @@ export const MetricsSearchSchema = StrictTimeRangeSearchSchema.extend({
   by: groupByField,
   attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
   // More queries on the same chart, B to D; the fields above are query A.
-  queries: z.array(MetricChartQuerySchema).max(MAX_EXTRA_QUERIES).default([]),
+  queries: z
+    .array(MetricChartQuerySchema)
+    .max(MAX_EXTRA_QUERIES)
+    // A hand-edited link can repeat a letter; the first query with it wins,
+    // rather than the page failing on the link.
+    .transform((queries) => queries.filter((q, i) => queries.findIndex((o) => o.id === q.id) === i))
+    .default([]),
   // Queries kept but left off the chart, by letter.
   hidden: z
     .array(z.enum(["A", "B", "C", "D"]))
@@ -100,8 +110,13 @@ export const MetricsSearchSchema = StrictTimeRangeSearchSchema.extend({
 });
 export type MetricsSearch = z.infer<typeof MetricsSearchSchema>;
 
+// A range that ends before it starts has no buckets to chart.
+const QueryTimeRangeSchema = TimeRangeSchema.refine((range) => isValidTimeRange(range), {
+  message: "The time range must end after it starts.",
+});
+
 export const MetricCatalogInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: QueryTimeRangeSchema,
   q: z.string().default(""),
   /** Narrows to these kinds; a Counter and an UpDownCounter are both sums. */
   kinds: z.array(MetricKindSchema).default([]),
@@ -120,7 +135,7 @@ export type MetricNamesInput = z.input<typeof MetricNamesInputSchema>;
 
 /** One metric, for its unit, description and temporality. */
 export const MetricMetadataInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
   /** The table to read; the same name can be in two. Every table when unknown. */
   type: MetricTypeSchema.optional(),
@@ -130,7 +145,7 @@ export const MetricMetadataInputSchema = z.object({
 export type MetricMetadataInput = z.input<typeof MetricMetadataInputSchema>;
 
 export const MetricSeriesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
   type: MetricTypeSchema,
   aggregation: MetricAggregationSchema,
@@ -159,7 +174,7 @@ export const MetricExemplarsInputSchema = MetricSeriesInputSchema.omit({
 export type MetricExemplarsInput = z.input<typeof MetricExemplarsInputSchema>;
 
 export const MetricAttributeKeysInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
   type: MetricTypeSchema,
 });
@@ -170,11 +185,11 @@ export const MetricAttributeValuesInputSchema = attributeValuesInputSchema(
 ).and(z.object({ metric: z.string().min(1), type: MetricTypeSchema }));
 export type MetricAttributeValuesInput = z.infer<typeof MetricAttributeValuesInputSchema>;
 
-export const MetricFilterOptionsInputSchema = z.object({ timeRange: TimeRangeSchema });
+export const MetricFilterOptionsInputSchema = z.object({ timeRange: QueryTimeRangeSchema });
 export type MetricFilterOptionsInput = z.input<typeof MetricFilterOptionsInputSchema>;
 
 export const MetricSummaryQuantilesInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: QueryTimeRangeSchema,
   metric: z.string().min(1),
 });
 export type MetricSummaryQuantilesInput = z.input<typeof MetricSummaryQuantilesInputSchema>;

@@ -14,8 +14,15 @@ function run(sql: string) {
 
 const quote = (value: unknown) => `'${String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 
+// The local app's SQL gateway (collector/internal/localgateway/sqlhttp)
+// renders only these parameter types.
+const LOCAL_PARAM_TYPES = ["String", "UInt32", "UInt64", "Int32", "Int64", "Array(String)"];
+
 const repo = new MetricsRepository({
   async execute<T>(sql: string, params: Record<string, unknown> = {}) {
+    for (const [, type] of sql.matchAll(/\{\w+:([^}]+)\}/g)) {
+      if (!LOCAL_PARAM_TYPES.includes(type!)) throw new Error(`The local app can't send a ${type}`);
+    }
     for (const [key, value] of Object.entries(params)) {
       const literal = Array.isArray(value) ? `[${value.map(quote).join(", ")}]` : String(value);
       run(`SET param_${key} = ${quote(literal)}`);
@@ -161,6 +168,83 @@ beforeAll(() => {
       "Exemplars.TraceId": ["t1", "t2", "t3", ""],
     },
   ]);
+  // A cumulative counter in 25 pools whose SDK sends no start time, so each
+  // series' first point says it started in 1970.
+  insert(
+    "metrics_sum",
+    Array.from({ length: 25 }, (_, pool) =>
+      (
+        [
+          ["11:59:30", 0],
+          ["12:00:30", 60],
+          ["12:01:30", 120],
+        ] as const
+      ).map(([time, value]) => ({
+        MetricName: "pool.acquires",
+        Attributes: { pool: `p${pool}` },
+        TimeUnix: `2026-01-01 ${time}`,
+        Value: value,
+        AggregationTemporality: 2,
+        IsMonotonic: true,
+      })),
+    ).flat(),
+  );
+  // A cumulative histogram whose bounds change at 12:01 while keeping the
+  // same number of buckets: the new snapshot starts over, it isn't a change
+  // from the old one.
+  insert(
+    "metrics_histogram",
+    (
+      [
+        ["11:59:30", [1, 2, 3], [0, 0, 0, 0]],
+        ["12:00:30", [1, 2, 3], [5, 0, 0, 0]],
+        ["12:01:30", [10, 20, 30], [2, 6, 0, 0]],
+      ] as const
+    ).map(([time, bounds, counts]) => ({
+      MetricName: "batch.size",
+      TimeUnix: `2026-01-01 ${time}`,
+      BucketCounts: counts,
+      ExplicitBounds: bounds,
+      Count: counts.reduce((a: number, b: number) => a + b, 0),
+      AggregationTemporality: 2,
+    })),
+  );
+  // A cumulative counter whose first point says its start is unknown, by
+  // giving its own time as the start, as the Prometheus receiver does.
+  insert(
+    "metrics_sum",
+    (
+      [
+        ["12:00:30", 5000],
+        ["12:01:30", 5060],
+        ["12:02:30", 5120],
+      ] as const
+    ).map(([time, value]) => ({
+      MetricName: "scraped.requests",
+      StartTimeUnix: "2026-01-01 12:00:30",
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: value,
+      AggregationTemporality: 2,
+      IsMonotonic: true,
+    })),
+  );
+  // A delta histogram whose bounds change between two exports in one minute.
+  insert(
+    "metrics_histogram",
+    (
+      [
+        ["12:00:10", [10, 20], [0, 0, 5]],
+        ["12:00:40", [1, 2, 3], [3, 0, 0, 0]],
+      ] as const
+    ).map(([time, bounds, counts]) => ({
+      MetricName: "batch.wait",
+      TimeUnix: `2026-01-01 ${time}`,
+      BucketCounts: counts,
+      ExplicitBounds: bounds,
+      Count: counts.reduce((a: number, b: number) => a + b, 0),
+      AggregationTemporality: 1,
+    })),
+  );
   // A cumulative counter deployed at 12:02, which has exported once.
   insert("metrics_sum", [
     {
@@ -318,6 +402,310 @@ beforeAll(() => {
       AggregationTemporality: 1,
     },
   ]);
+  // Cumulative counters started long before the scan, so their first point is
+  // only a baseline. A failed scrape writes a point flagged "no recorded
+  // value" with a 0.
+  const counter = (
+    name: string,
+    points: [time: string, value: number, extra?: Record<string, unknown>][],
+  ) =>
+    insert(
+      "metrics_sum",
+      points.map(([time, value, extra]) => ({
+        MetricName: name,
+        StartTimeUnix: "2026-01-01 10:00:00",
+        TimeUnix: `2026-01-01 ${time}`,
+        Value: value,
+        AggregationTemporality: 2,
+        IsMonotonic: true,
+        ...extra,
+      })),
+    );
+  counter("scrape.failures", [
+    ["12:00:30", 1000],
+    ["12:01:30", 1010],
+    ["12:02:30", 0, { Flags: 1 }],
+    ["12:03:30", 1020],
+    ["12:04:30", 1030],
+  ]);
+  // The same counter from two instrumentation scopes, each counting 10 a minute.
+  counter(
+    "scoped.requests",
+    (["12:00:30", "12:01:30", "12:02:30", "12:03:30"] as const).flatMap(
+      (time, i): [string, number, Record<string, unknown>][] => [
+        [time, 1000 + i * 10, { ScopeName: "lib.a" }],
+        [time, 10 + i * 10, { ScopeName: "lib.b" }],
+      ],
+    ),
+  );
+  // Restarted at 12:02 and already above the old total by its first export.
+  counter("restarted.requests", [
+    ["12:00:30", 100],
+    ["12:01:30", 110],
+    ["12:02:30", 200, { StartTimeUnix: "2026-01-01 12:02:00" }],
+    ["12:03:30", 210, { StartTimeUnix: "2026-01-01 12:02:00" }],
+  ]);
+  const minutes = (from: number, to: number, second: string) =>
+    Array.from({ length: to - from + 1 }, (_, i) => {
+      const minute = from + i;
+      return `${String(11 + Math.floor(minute / 60))}:${String(minute % 60).padStart(2, "0")}:${second}`;
+    });
+  // Scraped every 15 s. The collector restarts at 12:02:15: that scrape's
+  // start is its own time, and later scrapes report it as their start.
+  counter(
+    "collector.restarts",
+    minutes(58, 64, "").flatMap((minute, i) =>
+      ["00", "15", "30", "45"].map((second, j): [string, number, Record<string, unknown>] => {
+        const time = `${minute}${second}`;
+        return [
+          time,
+          1000 + i * 4 + j,
+          time >= "12:02:15" ? { StartTimeUnix: "2026-01-01 12:02:15" } : {},
+        ];
+      }),
+    ),
+  );
+  // A start derived from uptime, a second off from one export to the next.
+  counter(
+    "drifting.start",
+    minutes(58, 64, "30").map((time, i) => [
+      time,
+      7000 + i * 5,
+      { StartTimeUnix: `2026-01-01 10:00:0${i % 2}` },
+    ]),
+  );
+  // A receiver's scope version is the collector's, so it changes on upgrade.
+  counter(
+    "upgraded.collector",
+    minutes(58, 64, "30").map((time, i) => [
+      time,
+      5000 + i * 10,
+      {
+        StartTimeUnix: "2026-01-01 11:30:00",
+        ScopeName: "hostmetricsreceiver",
+        ScopeVersion: time < "12:03" ? "0.110.0" : "0.111.0",
+      },
+    ]),
+  );
+  // Two instances serving one request a second each: one exports every
+  // minute, the other every five.
+  counter(
+    "steady.requests",
+    minutes(55, 67, "15").map((time, i) => [time, i * 60, { Attributes: { instance: "a" } }]),
+  );
+  counter(
+    "steady.requests",
+    minutes(50, 65, "15")
+      .filter((_, i) => i % 5 === 0)
+      .map((time, i) => [time, i * 300, { Attributes: { instance: "b" } }]),
+  );
+  // A delta counter that sends no start time: 60 jobs a minute.
+  insert(
+    "metrics_sum",
+    minutes(58, 64, "30").map((time) => ({
+      MetricName: "untimed.jobs",
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: 60,
+      AggregationTemporality: 1,
+      IsMonotonic: true,
+    })),
+  );
+  // Two workers sampled every minute, at :10 and at :50.
+  insert(
+    "metrics_gauge",
+    ["10", "50"].flatMap((second) =>
+      minutes(55, 61, second).map((time) => ({
+        MetricName: "staggered.load",
+        Attributes: { worker: second },
+        TimeUnix: `2026-01-01 ${time}`,
+        Value: 1,
+      })),
+    ),
+  );
+  // Scraped every 15 s at 1/s, reset at 11:59:56. The first scrape after it
+  // doesn't know the start, so it sends its own time, which later ones keep.
+  counter("reset.unknown.start", [
+    ...["11:59:10", "11:59:25", "11:59:40", "11:59:55"].map((time, i): [string, number] => [
+      time,
+      1000 + i * 15,
+    ]),
+    ["12:00:10", 14, { StartTimeUnix: "2026-01-01 12:00:10" }],
+    ["12:00:25", 29, { StartTimeUnix: "2026-01-01 12:00:10" }],
+  ]);
+  // Started at 12:00, restarted at 12:00:15 inside its first minute.
+  counter("early.restart", [
+    ["12:00:10", 10, { StartTimeUnix: "2026-01-01 12:00:00" }],
+    ["12:00:50", 35, { StartTimeUnix: "2026-01-01 12:00:15" }],
+    ["12:01:50", 95, { StartTimeUnix: "2026-01-01 12:00:15" }],
+  ]);
+  // Scraped every 15 s at 5 a scrape. The process restarts at 12:02:10, so
+  // 12:02's change is the 5 counted before the restart and 15 after it.
+  const scrapes = minutes(59, 64, "").flatMap((minute) =>
+    ["00", "15", "30", "45"].map((second) => `${minute}${second}`),
+  );
+  const restartAt = scrapes.indexOf("12:02:15");
+  counter(
+    "midminute.restart",
+    scrapes.map((time, i): [string, number, Record<string, unknown>?] =>
+      i < restartAt
+        ? [time, 1000 + i * 5]
+        : [time, (i - restartAt + 1) * 5, { StartTimeUnix: "2026-01-01 12:02:10" }],
+    ),
+  );
+  // A counter with no start time on the restart, one point per insert, but
+  // 12:02's first three points arrive in one late batch. It counts 1 a
+  // scrape, restarts to 5 at 12:02:30, then reads 500 at 12:02:45.
+  const lateValue = (i: number) =>
+    i < restartAt + 1 ? 100 + i : i === restartAt + 1 ? 5 : 500 + (i - restartAt - 2) * 5;
+  const late = scrapes.map((time, i): [string, number] => [time, lateValue(i)]);
+  const lateBatch = ["12:02:00", "12:02:15", "12:02:30"];
+  // Unmerged, so the parts are read in the order they arrived.
+  run("SYSTEM STOP MERGES metrics_sum");
+  for (const point of late.filter(([time]) => !lateBatch.includes(time))) {
+    counter("late.restart", [point]);
+  }
+  counter(
+    "late.restart",
+    late.filter(([time]) => lateBatch.includes(time)),
+  );
+  // The same as a cumulative histogram: one observation a scrape in
+  // (0.1, 0.5], restarting at 12:02:10 with no start time.
+  insert(
+    "metrics_histogram",
+    scrapes.map((time, i) => {
+      const count = i < restartAt ? 100 + i : i - restartAt + 1;
+      return {
+        MetricName: "midminute.duration",
+        MetricUnit: "s",
+        TimeUnix: `2026-01-01 ${time}`,
+        BucketCounts: [0, count, 0, 0],
+        ExplicitBounds: [0.1, 0.5, 1],
+        Count: count,
+        Sum: 0,
+        AggregationTemporality: 2,
+      };
+    }),
+  );
+  // The same restart, coming back with new bounds.
+  insert(
+    "metrics_histogram",
+    scrapes.map((time, i) => {
+      const restarted = i >= restartAt;
+      const count = restarted ? i - restartAt + 1 : 100 + i;
+      return {
+        MetricName: "rebounded.duration",
+        MetricUnit: "s",
+        TimeUnix: `2026-01-01 ${time}`,
+        BucketCounts: restarted ? [0, count, 0] : [0, count, 0, 0],
+        ExplicitBounds: restarted ? [0.1, 0.5] : [0.1, 0.5, 1],
+        Count: count,
+        Sum: 0,
+        AggregationTemporality: 2,
+      };
+    }),
+  );
+  // A pod that appears at 12:02, scraped every 15 s by the Prometheus
+  // receiver: its start is its first scrape's own time, so that scrape is a
+  // total from before, and 12:02 counts from it.
+  const newPod = ["12:02:00", "12:02:15", "12:02:30", "12:02:45", "12:03:00", "12:03:15"];
+  counter(
+    "new.pod",
+    newPod.map((time, i) => [time, 100 + i * 10, { StartTimeUnix: "2026-01-01 12:02:00" }]),
+  );
+  insert(
+    "metrics_histogram",
+    newPod.map((time, i) => ({
+      MetricName: "new.pod.duration",
+      MetricUnit: "s",
+      StartTimeUnix: "2026-01-01 12:02:00",
+      TimeUnix: `2026-01-01 ${time}`,
+      BucketCounts: [0, 100 + i * 10, 0, 0],
+      ExplicitBounds: [0.1, 0.5, 1],
+      Count: 100 + i * 10,
+      Sum: 0,
+      AggregationTemporality: 2,
+    })),
+  );
+  // A cumulative exponential histogram whose zero count drops at 12:02:30
+  // while its total doesn't: a restart that only the zero count shows.
+  insert(
+    "metrics_exponential_histogram",
+    (
+      [
+        ["11:59:30", 0, 0, [0]],
+        ["12:00:30", 10, 5, [5]],
+        ["12:01:30", 20, 10, [10]],
+        ["12:02:30", 25, 0, [25]],
+      ] as const
+    ).map(([time, count, zero, counts]) => ({
+      MetricName: "zero.drop",
+      TimeUnix: `2026-01-01 ${time}`,
+      Scale: 0,
+      PositiveOffset: 0,
+      PositiveBucketCounts: counts,
+      ZeroCount: zero,
+      Count: count,
+      Sum: 0,
+      AggregationTemporality: 2,
+    })),
+  );
+  // Jobs a minute, and another job that only reported 5 s into 12:02.
+  insert("metrics_sum", [
+    ...minutes(58, 61, "30").map((time) => ({
+      MetricName: "late.jobs",
+      Attributes: { queue: "steady" },
+      // Each export covers the 30 s since the minute started.
+      StartTimeUnix: `2026-01-01 ${time.replace(/:30$/, ":00")}`,
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: 60,
+      AggregationTemporality: 1,
+      IsMonotonic: true,
+    })),
+    {
+      MetricName: "late.jobs",
+      Attributes: { queue: "late" },
+      TimeUnix: "2026-01-01 12:02:05",
+      Value: 600,
+      AggregationTemporality: 1,
+      IsMonotonic: true,
+    },
+  ]);
+  // Sampled every 10 s until 12:00:59.
+  insert(
+    "metrics_gauge",
+    ["12:00:39", "12:00:49", "12:00:59"].map((time) => ({
+      MetricName: "stopped.gauge",
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: 7,
+    })),
+  );
+  // Two pods' memory: one exported every minute, the other every two.
+  insert(
+    "metrics_gauge",
+    [
+      ...minutes(60, 64, "30").map((time) => ["a", time, 10] as const),
+      ...minutes(60, 64, "30")
+        .filter((_, i) => i % 2 === 0)
+        .map((time) => ["b", time, 100] as const),
+    ].map(([pod, time, value]) => ({
+      MetricName: "pod.memory",
+      Attributes: { pod },
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: value,
+    })),
+  );
+  insert(
+    "metrics_gauge",
+    [
+      ["12:00:10", 5],
+      ["12:00:20", "nan"],
+      ["12:01:10", 7],
+    ].map(([time, value]) => ({
+      MetricName: "temperature",
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: value,
+    })),
+  );
 });
 
 afterAll(() => {
@@ -333,8 +721,13 @@ describe("metrics explorer against ClickHouse", () => {
     expect(
       catalog.map(({ name, type, unit, isMonotonic }) => ({ name, type, unit, isMonotonic })),
     ).toEqual([
+      { name: "batch.size", type: "histogram", unit: "", isMonotonic: false },
+      { name: "batch.wait", type: "histogram", unit: "", isMonotonic: false },
       { name: "checkout.duration", type: "histogram", unit: "s", isMonotonic: false },
+      { name: "collector.restarts", type: "sum", unit: "", isMonotonic: true },
       { name: "deploys.started", type: "sum", unit: "", isMonotonic: true },
+      { name: "drifting.start", type: "sum", unit: "", isMonotonic: true },
+      { name: "early.restart", type: "sum", unit: "", isMonotonic: true },
       { name: "gc.pause", type: "summary", unit: "s", isMonotonic: false },
       {
         name: "http.request.duration",
@@ -344,18 +737,39 @@ describe("metrics explorer against ClickHouse", () => {
       },
       { name: "http.requests", type: "sum", unit: "{request}", isMonotonic: true },
       { name: "jobs.completed", type: "sum", unit: "", isMonotonic: true },
+      { name: "late.jobs", type: "sum", unit: "", isMonotonic: true },
+      { name: "late.restart", type: "sum", unit: "", isMonotonic: true },
+      { name: "midminute.duration", type: "histogram", unit: "s", isMonotonic: false },
+      { name: "midminute.restart", type: "sum", unit: "", isMonotonic: true },
+      { name: "new.pod", type: "sum", unit: "", isMonotonic: true },
+      { name: "new.pod.duration", type: "histogram", unit: "s", isMonotonic: false },
+      { name: "pod.memory", type: "gauge", unit: "", isMonotonic: false },
+      { name: "pool.acquires", type: "sum", unit: "", isMonotonic: true },
       { name: "queue.depth", type: "gauge", unit: "{item}", isMonotonic: false },
       { name: "queue.wait", type: "histogram", unit: "s", isMonotonic: false },
+      { name: "rebounded.duration", type: "histogram", unit: "s", isMonotonic: false },
+      { name: "reset.unknown.start", type: "sum", unit: "", isMonotonic: true },
+      { name: "restarted.requests", type: "sum", unit: "", isMonotonic: true },
       {
         name: "rpc.duration",
         type: "exponential_histogram",
         unit: "s",
         isMonotonic: false,
       },
+      { name: "scoped.requests", type: "sum", unit: "", isMonotonic: true },
+      { name: "scrape.failures", type: "sum", unit: "", isMonotonic: true },
+      { name: "scraped.requests", type: "sum", unit: "", isMonotonic: true },
       { name: "sparse.duration", type: "histogram", unit: "s", isMonotonic: false },
       { name: "sparse.jobs", type: "sum", unit: "", isMonotonic: true },
       { name: "sparse.requests", type: "sum", unit: "", isMonotonic: true },
+      { name: "staggered.load", type: "gauge", unit: "", isMonotonic: false },
+      { name: "steady.requests", type: "sum", unit: "", isMonotonic: true },
+      { name: "stopped.gauge", type: "gauge", unit: "", isMonotonic: false },
+      { name: "temperature", type: "gauge", unit: "", isMonotonic: false },
+      { name: "untimed.jobs", type: "sum", unit: "", isMonotonic: true },
+      { name: "upgraded.collector", type: "sum", unit: "", isMonotonic: true },
       { name: "worker.load", type: "gauge", unit: "1", isMonotonic: false },
+      { name: "zero.drop", type: "exponential_histogram", unit: "", isMonotonic: false },
     ]);
   });
 
@@ -373,11 +787,27 @@ describe("metrics explorer against ClickHouse", () => {
     expect(
       (await repo.catalog({ timeRange, kinds: ["counter", "updown"] })).map((m) => m.name),
     ).toEqual([
+      "collector.restarts",
       "deploys.started",
+      "drifting.start",
+      "early.restart",
       "http.requests",
       "jobs.completed",
+      "late.jobs",
+      "late.restart",
+      "midminute.restart",
+      "new.pod",
+      "pool.acquires",
+      "reset.unknown.start",
+      "restarted.requests",
+      "scoped.requests",
+      "scrape.failures",
+      "scraped.requests",
       "sparse.jobs",
       "sparse.requests",
+      "steady.requests",
+      "untimed.jobs",
+      "upgraded.collector",
     ]);
   });
 
@@ -393,16 +823,324 @@ describe("metrics explorer against ClickHouse", () => {
     const names = async (kinds: MetricKind[]) =>
       (await repo.catalog({ timeRange, kinds })).map((m) => m.name);
     expect(await names(["counter", "gauge"])).toEqual([
+      "collector.restarts",
       "deploys.started",
+      "drifting.start",
+      "early.restart",
       "http.requests",
       "jobs.completed",
+      "late.jobs",
+      "late.restart",
+      "midminute.restart",
+      "new.pod",
+      "pod.memory",
+      "pool.acquires",
       "queue.depth",
+      "reset.unknown.start",
+      "restarted.requests",
+      "scoped.requests",
+      "scrape.failures",
+      "scraped.requests",
       "sparse.jobs",
       "sparse.requests",
+      "staggered.load",
+      "steady.requests",
+      "stopped.gauge",
+      "temperature",
+      "untimed.jobs",
+      "upgraded.collector",
       "worker.load",
     ]);
     // Every sum in the fixtures is monotonic.
     expect(await names(["updown"])).toEqual([]);
+  });
+
+  it("charts a counter whose many series send no start time", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "pool.acquires",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(result.series[0]?.values.slice(0, 3)).toEqual([25 * 60, 25 * 60, null]);
+  });
+
+  it("doesn't count the total of a first point whose start is unknown", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "scraped.requests",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(result.series[0]?.values.slice(0, 3)).toEqual([null, 60, 60]);
+  });
+
+  it("keeps a delta histogram's bucket layouts apart within a step", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "batch.wait",
+      type: "histogram",
+      aggregation: "p50",
+    });
+    // 3 observations up to 1 and 5 above 20: the median is above 20, which
+    // reports the last bound.
+    expect(result.series[0]?.values[0]).toBe(20);
+  });
+
+  it("starts over when a histogram's bounds change", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "batch.size",
+      type: "histogram",
+      aggregation: "rate",
+    });
+    // 12:01 counts the 8 observations of the new layout, not 8 minus 5.
+    expect(result.series[0]?.values[1]).toBeCloseTo(8 / 60);
+  });
+
+  it("skips a failed scrape instead of reading it as a restart", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "scrape.failures",
+      type: "sum",
+      aggregation: "increase",
+    });
+    // The 10 counted at 12:03:30 spreads over the two minutes since 12:01:30.
+    expect(result.series[0]?.values).toEqual([null, 12.5, 5, 2.5, 10, null]);
+  });
+
+  it("keeps two scopes' series of one metric apart", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "scoped.requests",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(result.series[0]?.values).toEqual([null, 20, 20, 20, null, null]);
+  });
+
+  it("starts over when a counter reports a new start time", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "restarted.requests",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(result.series[0]?.values).toEqual([null, 10, 200, 10, null, null]);
+  });
+
+  it("keeps counting across a collector restart or upgrade, and a start that drifts", async () => {
+    const increase = async (metric: string) =>
+      (await repo.series({ timeRange, metric, type: "sum", aggregation: "increase" })).series[0]
+        ?.values;
+    expect(await increase("collector.restarts")).toEqual([4, 4, 4, 4, 4, null]);
+    expect(await increase("drifting.start")).toEqual([5, 5, 5, 5, 5, null]);
+    expect(await increase("upgraded.collector")).toEqual([10, 10, 10, 10, 10, null]);
+  });
+
+  it("holds each series' last value until its next export", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "pod.memory",
+      type: "gauge",
+      aggregation: "sum",
+      minStep: 60,
+    });
+    expect(result.series[0]?.values).toEqual([110, 110, 110, 110, 110, 110]);
+  });
+
+  it("measures the last bucket's rate over the time its exports cover", async () => {
+    // Ten hours, so 5 minute steps over a metric exported every minute.
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T02:07:30Z", to: "2026-01-01T12:07:30Z" },
+      metric: "steady.requests",
+      type: "sum",
+      aggregation: "rate",
+      minStep: 60,
+    });
+    expect(result.stepSeconds).toBe(300);
+    // 1/s from each instance, though one exported only once in the last bucket.
+    expect(result.series[0]?.values.slice(-2)).toEqual([2, 2]);
+    // 30 s into a bucket, before every instance has exported in it, no rate yet.
+    const early = await repo.series({
+      timeRange: { from: "2026-01-01T02:05:30Z", to: "2026-01-01T12:05:30Z" },
+      metric: "steady.requests",
+      type: "sum",
+      aggregation: "rate",
+      minStep: 60,
+    });
+    expect(early.series[0]?.values.slice(-2)).toEqual([2, null]);
+    // Delta points without a start cover the bucket up to the range's end:
+    // 4 minutes of them by 12:04.
+    const untimed = await repo.series({
+      timeRange: { from: "2026-01-01T02:04:00Z", to: "2026-01-01T12:04:00Z" },
+      metric: "untimed.jobs",
+      type: "sum",
+      aggregation: "rate",
+      minStep: 60,
+    });
+    expect(untimed.series[0]?.values.at(-1)).toBe(1);
+  });
+
+  it("counts a restart in a series' first minute from its start", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "early.restart",
+      type: "sum",
+      aggregation: "increase",
+    });
+    // 10 before the restart and 35 after it.
+    expect(result.series[0]?.values).toEqual([45, 60, null, null, null, null]);
+  });
+
+  it("keeps what was counted before a restart inside a bucket", async () => {
+    const counted = await repo.series({
+      timeRange,
+      metric: "midminute.restart",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(counted.series[0]?.values).toEqual([20, 20, 20, 20, 20, null]);
+    const observed = await repo.series({
+      timeRange,
+      metric: "midminute.duration",
+      type: "histogram",
+      aggregation: "rate",
+      heatmap: true,
+    });
+    expect(observed.series[0]?.values.slice(0, 5).map((v) => v && +v.toFixed(4))).toEqual(
+      Array(5).fill(+(4 / 60).toFixed(4)),
+    );
+    expect(observed.heatmap?.counts[2]).toEqual([0, 4, 0, 0]);
+  });
+
+  it("finds a restart inside a bucket whose points arrived out of order", async () => {
+    // One thread reads the parts in the order they were inserted.
+    run("SET max_threads = 1");
+    try {
+      const result = await repo.series({
+        timeRange,
+        metric: "late.restart",
+        type: "sum",
+        aggregation: "increase",
+      });
+      // 1 + 1 before the restart, 5 at it, 495 after.
+      expect(result.series[0]?.values[2]).toBe(502);
+    } finally {
+      run("SET max_threads = 0");
+    }
+  });
+
+  it("counts a series' first bucket from its first point when that point is a total from before", async () => {
+    const counted = await repo.series({
+      timeRange,
+      metric: "new.pod",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(counted.series[0]?.values).toEqual([null, null, 30, 20, null, null]);
+    const observed = await repo.series({
+      timeRange,
+      metric: "new.pod.duration",
+      type: "histogram",
+      aggregation: "rate",
+    });
+    expect(observed.series[0]?.values.slice(0, 4)).toEqual([null, null, 30 / 60, 20 / 60]);
+  });
+
+  it("keeps counting observations across a restart with new bounds", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "rebounded.duration",
+      type: "histogram",
+      aggregation: "rate",
+    });
+    expect(result.series[0]?.values.slice(0, 5).map((v) => v && +v.toFixed(4))).toEqual(
+      Array(5).fill(+(4 / 60).toFixed(4)),
+    );
+  });
+
+  it("never counts a negative zero bucket", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "zero.drop",
+      type: "exponential_histogram",
+      aggregation: "p50",
+      heatmap: true,
+    });
+    expect(result.heatmap?.counts[2]?.every((count) => count >= 0)).toBe(true);
+  });
+
+  it("ranks only the buckets it draws", async () => {
+    // 30 s into 12:02, which a rate leaves out, along with the queue that only
+    // reported there.
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T12:00:00Z", to: "2026-01-01T12:02:30Z" },
+      metric: "late.jobs",
+      type: "sum",
+      aggregation: "rate",
+      groupBy: [{ source: "metric", key: "queue" }],
+      minStep: 60,
+    });
+    expect(result.series.map((s) => s.labels)).toEqual([["steady"]]);
+    expect(result.totalSeries).toBe(1);
+  });
+
+  it("charts a rate over a range inside one step", async () => {
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T12:01:05Z", to: "2026-01-01T12:01:55Z" },
+      metric: "steady.requests",
+      type: "sum",
+      aggregation: "rate",
+      minStep: 60,
+    });
+    expect(result.series[0]?.values[0]).toBeGreaterThan(0);
+  });
+
+  it("holds a series that hasn't exported yet in the range's last bucket", async () => {
+    // Ten hours, so 5 minute steps; the last one has 30 s, before the :50 export.
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T02:00:30Z", to: "2026-01-01T12:00:30Z" },
+      metric: "staggered.load",
+      type: "gauge",
+      aggregation: "sum",
+      minStep: 60,
+    });
+    expect(result.series[0]?.values.at(-1)).toBe(2);
+  });
+
+  it("measures a reset with an unknown start from the export before it", async () => {
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T11:58:00Z", to: "2026-01-01T12:00:30Z" },
+      metric: "reset.unknown.start",
+      type: "sum",
+      aggregation: "rate",
+      minStep: 15,
+    });
+    // 29 since the reset, counted over the 30 s since 11:59:55, not the 15 s
+    // since the first scrape after it.
+    expect(result.series[0]?.values.at(-1)).toBeCloseTo(29 / 30);
+  });
+
+  it("holds no value past its bucket when the step is far longer than the interval", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "stopped.gauge",
+      type: "gauge",
+      aggregation: "max",
+      minStep: 10,
+    });
+    expect(result.series[0]?.values.slice(0, 2)).toEqual([7, null]);
+  });
+
+  it("leaves NaN samples out of a gauge's average", async () => {
+    const result = await repo.series({
+      timeRange,
+      metric: "temperature",
+      type: "gauge",
+      aggregation: "avg",
+    });
+    expect(result.series[0]?.values.slice(0, 2)).toEqual([5, 7]);
   });
 
   it("measures a cumulative counter's increase across a restart", async () => {
@@ -436,7 +1174,7 @@ describe("metrics explorer against ClickHouse", () => {
   });
 
   it("charts no finer than the metric's export interval", async () => {
-    const wide = { from: "2026-01-01T11:00:00Z", to: "2026-01-01T12:10:00Z" };
+    const wide = { from: "2026-01-01T11:00:00Z", to: "2026-01-01T12:15:00Z" };
     const input = { timeRange: wide, metric: "sparse.requests", type: "sum" as const };
     expect(await repo.exportInterval(input)).toBe(900);
     // A dense metric keeps the step the range gives.
@@ -451,8 +1189,10 @@ describe("metrics explorer against ClickHouse", () => {
       "2026-01-01T11:30:00.000Z",
       "2026-01-01T11:45:00.000Z",
       "2026-01-01T12:00:00.000Z",
+      "2026-01-01T12:15:00.000Z",
     ]);
-    expect(result.series[0]?.values).toEqual([null, null, null, null, 1]);
+    // The bucket the range ends in has no time yet, so no rate.
+    expect(result.series[0]?.values).toEqual([null, null, null, null, 1, null]);
   });
 
   it("counts a counter that started in range from its first point", async () => {
@@ -543,6 +1283,29 @@ describe("metrics explorer against ClickHouse", () => {
     expect(result.heatmap).toBeUndefined();
   });
 
+  it("keeps the heatmap's last minute when a rate leaves it out", async () => {
+    // 45 s into 12:02: too short for a rate, but its observations still count.
+    const result = await repo.series({
+      timeRange: { from: "2026-01-01T12:00:00Z", to: "2026-01-01T12:02:45Z" },
+      metric: "http.request.duration",
+      type: "histogram",
+      aggregation: "rate",
+      heatmap: true,
+    });
+    expect(result.series[0]?.values.at(-1)).toBeNull();
+    expect(result.heatmap?.counts.at(-1)?.reduce((a, b) => a + b, 0)).toBe(4);
+  });
+
+  it("lists every kind of metric in range", async () => {
+    expect(await repo.kinds({ timeRange })).toEqual([
+      "gauge",
+      "counter",
+      "histogram",
+      "exponential_histogram",
+      "summary",
+    ]);
+  });
+
   it("combines series with different bucket bounds on every bound", async () => {
     const read = (aggregation: "p50" | "avg") =>
       repo.series({
@@ -581,9 +1344,10 @@ describe("metrics explorer against ClickHouse", () => {
     const read = async (aggregation: "p99" | "avg" | "rate") =>
       repo.series({ timeRange, metric: "gc.pause", type: "summary", aggregation });
     expect(await repo.summaryQuantiles({ timeRange, metric: "gc.pause" })).toEqual([0.5, 0.99]);
-    // Quantiles can't be combined, so the line is the slower instance's.
+    // Quantiles can't be combined, so the line is the slower instance's. The
+    // 12:01:30 exports still hold at 12:02, within an export interval.
     const p99 = await read("p99");
-    expect(p99.series[0]?.values.slice(0, 3)).toEqual([0.3, 0.2, null]);
+    expect(p99.series[0]?.values.slice(0, 4)).toEqual([0.3, 0.2, 0.2, null]);
     expect(p99.highestOf).toBe(2);
     // Count and Sum add up across instances: 90 pauses a minute, 4.2 s of them.
     const values = async (aggregation: "avg" | "rate") =>

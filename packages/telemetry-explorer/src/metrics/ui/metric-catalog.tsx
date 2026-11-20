@@ -3,7 +3,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import type { ReactNode } from "react";
 import type { MetricType } from "../data/schemas";
-import { type MetricCatalogEntry, metricKind } from "../data/types";
+import { METRIC_LIST_LIMIT, type MetricCatalogEntry, metricKind } from "../data/types";
 import { formatCompact, formatCount, unitName } from "./format";
 import { MetricKindLabel, MetricName } from "./metric-name";
 
@@ -98,6 +98,11 @@ export function MetricCatalog({
           })}
         </tbody>
       </table>
+      {rows.length >= METRIC_LIST_LIMIT ? (
+        <p className="text-muted-foreground px-4 py-3 text-xs">
+          {`Showing the first ${formatCount(METRIC_LIST_LIMIT)} metrics by name. Search to find the rest.`}
+        </p>
+      ) : null}
     </div>
   );
 }

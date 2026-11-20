@@ -1,10 +1,17 @@
 import type { MetricAggregation, MetricKind } from "../data/schemas";
 
-const number = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 3 });
-const compact = new Intl.NumberFormat(undefined, {
-  maximumSignificantDigits: 3,
-  notation: "compact",
-});
+const formats = new Map<string, Intl.NumberFormat>();
+// Three significant digits, unless a caller needs more to tell values apart.
+function numberFormat(digits: number, notation: "standard" | "compact" = "standard") {
+  const key = `${digits}:${notation}`;
+  let format = formats.get(key);
+  if (!format) {
+    format = new Intl.NumberFormat(undefined, { maximumSignificantDigits: digits, notation });
+    formats.set(key, format);
+  }
+  return format;
+}
+const compact = numberFormat(3, "compact");
 const count = new Intl.NumberFormat();
 
 export const formatCount = (value: number) => count.format(value);
@@ -30,21 +37,29 @@ const DURATION_STEPS: [number, string][] = [
 ];
 const BYTE_STEPS = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number, digits: number): string {
   if (seconds === 0) return "0 s";
   const abs = Math.abs(seconds);
-  const [scale, label] = DURATION_STEPS.find(([s]) => abs >= s) ?? [1e-9, "ns"];
-  return `${number.format(seconds / scale)} ${label}`;
+  let index = DURATION_STEPS.findIndex(([s]) => abs >= s);
+  if (index === -1) index = DURATION_STEPS.length - 1;
+  // A value that rounds up into the next unit reads in it: 0.9996 s is 1 s, not 1,000 ms.
+  const [current] = DURATION_STEPS[index] ?? [1];
+  const [above] = DURATION_STEPS[index - 1] ?? [Infinity];
+  // The rounded value, so 59.96 s reads 1 min, not 0.999 min.
+  const rounded = Number((seconds / current).toPrecision(digits)) * current;
+  if (Math.abs(rounded) >= above) index -= 1;
+  const [scale, label] = DURATION_STEPS[index] ?? [1, "s"];
+  return `${numberFormat(digits).format(rounded / scale)} ${label}`;
 }
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number, digits: number): string {
   let value = bytes;
   let step = 0;
   while (Math.abs(value) >= 1024 && step < BYTE_STEPS.length - 1) {
     value /= 1024;
     step += 1;
   }
-  return `${number.format(value)} ${BYTE_STEPS[step]}`;
+  return `${numberFormat(digits).format(value)} ${BYTE_STEPS[step]}`;
 }
 
 const UNIT_NAMES: Record<string, string> = {
@@ -84,24 +99,45 @@ export function unitName(unit: string): string {
     .join("/");
 }
 
+// Byte units, in bytes, so every size scales the same way.
+const BYTES: Record<string, number> = {
+  By: 1,
+  kBy: 1e3,
+  MBy: 1e6,
+  GBy: 1e9,
+  KiBy: 1024,
+  MiBy: 1024 ** 2,
+  GiBy: 1024 ** 3,
+  TiBy: 1024 ** 4,
+};
+
+const SYMBOLS: Record<string, string> = { Cel: "°C" };
+
 /**
  * A value in its UCUM unit as OpenTelemetry sends it: durations and bytes
- * scale to a readable size, `{request}`-style annotations and the
- * dimensionless `1` print as plain numbers, and any other unit is appended.
+ * scale to a readable size, a unit per second such as `By/s` scales its
+ * numerator, `{request}`-style annotations and the dimensionless `1` print as
+ * plain numbers, and any other unit is appended. `digits` significant digits,
+ * three by default.
  */
 export function formatMetricValue(
   value: number,
   unit: string,
   aggregation?: MetricAggregation,
+  digits = 3,
 ): string {
   const perSecond = aggregation === "rate" ? "/s" : "";
+  if (unit.length > 2 && unit.endsWith("/s")) {
+    return `${formatMetricValue(value, unit.slice(0, -2), undefined, digits)}/s${perSecond}`;
+  }
   const seconds = DURATION_SECONDS[unit];
-  if (seconds !== undefined) return formatDuration(value * seconds) + perSecond;
-  if (unit === "By") return formatBytes(value) + perSecond;
-  if (unit === "%") return `${number.format(value)}%${perSecond}`;
-  const plain = compact.format(value);
+  if (seconds !== undefined) return formatDuration(value * seconds, digits) + perSecond;
+  const bytes = BYTES[unit];
+  if (bytes !== undefined) return formatBytes(value * bytes, digits) + perSecond;
+  if (unit === "%") return `${numberFormat(digits).format(value)}%${perSecond}`;
+  const plain = numberFormat(digits, "compact").format(value);
   if (unit === "" || unit === "1" || /^\{.*\}$/.test(unit)) return plain + perSecond;
-  return `${plain} ${unit}${perSecond}`;
+  return `${plain} ${SYMBOLS[unit] ?? unit}${perSecond}`;
 }
 
 export const METRIC_KIND_LABELS: Record<MetricKind, string> = {

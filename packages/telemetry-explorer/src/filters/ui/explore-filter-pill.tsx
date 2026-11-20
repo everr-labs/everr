@@ -91,6 +91,8 @@ export function ExploreFilterPill<TData>({
   const clear = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     onChange([]);
+    // The clear control goes away with the filter; focus stays on the pill.
+    document.getElementById(id)?.focus();
   };
 
   return (

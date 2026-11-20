@@ -35,6 +35,8 @@ export interface ChartSeries {
   rightAxis?: boolean;
   /** Bars sharing a stack id pile up. */
   stack?: string;
+  /** Its values in the tooltip, when its unit isn't its axis's. */
+  format?: (value: number) => string;
 }
 
 /** A point of interest drawn over the series, such as an exemplar. */
@@ -229,58 +231,79 @@ export function SeriesChart({
           ...(axes.right ? [{ ...valueAxis(axes.right, false), position: "right" as const }] : []),
         ],
         series: [
-          ...series.map((s, index): BarSeriesOption | LineSeriesOption => {
-            const color = resolveCssColor(element, s.color);
-            const opacity = activeSeries !== null && activeSeries !== s.id ? 0.25 : 1;
-            const markArea =
-              index === 0 && shadeFrom !== null && shadeTo !== null
-                ? {
-                    silent: true,
-                    itemStyle: {
-                      color: shade,
-                      opacity: 0.08,
-                      borderColor: shade,
-                      borderWidth: 1,
-                      borderType: "dashed" as const,
-                    },
-                    data: shadeData,
-                  }
-                : undefined;
-            const common = {
-              id: s.id,
-              data: [...s.values],
-              yAxisIndex: s.rightAxis && axes.right ? 1 : 0,
-              silent: true,
-              markArea,
-            };
-            if (s.kind === "bar") {
-              const top = !s.stack || stackTops.get(s.stack) === s.id;
-              return {
-                ...common,
-                type: "bar",
-                stack: s.stack,
-                barMaxWidth: 48,
-                itemStyle: { color, opacity, borderRadius: top ? [2, 2, 0, 0] : 0 },
+          ...series.flatMap(
+            (s, index): (BarSeriesOption | LineSeriesOption | ScatterSeriesOption)[] => {
+              const color = resolveCssColor(element, s.color);
+              const opacity = activeSeries !== null && activeSeries !== s.id ? 0.25 : 1;
+              const markArea =
+                index === 0 && shadeFrom !== null && shadeTo !== null
+                  ? {
+                      silent: true,
+                      itemStyle: {
+                        color: shade,
+                        opacity: 0.08,
+                        borderColor: shade,
+                        borderWidth: 1,
+                        borderType: "dashed" as const,
+                      },
+                      data: shadeData,
+                    }
+                  : undefined;
+              const common = {
+                id: s.id,
+                data: [...s.values],
+                yAxisIndex: s.rightAxis && axes.right ? 1 : 0,
+                silent: true,
+                markArea,
               };
-            }
-            // A point with a gap on both sides has no segment to draw, so it
-            // gets a dot; every other point stays bare.
-            const isolated = (index: number) =>
-              s.values[index] != null && s.values[index - 1] == null && s.values[index + 1] == null;
-            return {
-              ...common,
-              type: "line",
-              smooth,
-              smoothMonotone: "x",
-              showSymbol: true,
-              symbol: "circle",
-              symbolSize: (_: unknown, params: { dataIndex: number }) =>
-                isolated(params.dataIndex) ? (compact ? 4 : 5) : 0,
-              lineStyle: { color, width: compact ? 1.5 : 2, opacity },
-              itemStyle: { color, opacity },
-              areaStyle: s.kind === "area" ? { color, opacity: 0.15 * opacity } : undefined,
-            };
-          }),
+              if (s.kind === "bar") {
+                const top = !s.stack || stackTops.get(s.stack) === s.id;
+                return [
+                  {
+                    ...common,
+                    type: "bar",
+                    stack: s.stack,
+                    barMaxWidth: 48,
+                    itemStyle: { color, opacity, borderRadius: top ? [2, 2, 0, 0] : 0 },
+                  },
+                ];
+              }
+              // A point with a gap on both sides has no segment to draw, so it
+              // gets a dot. Only those points: a symbol on every point, even of
+              // size 0, is one more element each to draw on every update.
+              const isolated = s.values.flatMap((value, i) =>
+                value != null && s.values[i - 1] == null && s.values[i + 1] == null
+                  ? [[String(i), value]]
+                  : [],
+              );
+              return [
+                {
+                  ...common,
+                  type: "line",
+                  smooth,
+                  smoothMonotone: "x",
+                  showSymbol: false,
+                  lineStyle: { color, width: compact ? 1.5 : 2, opacity },
+                  itemStyle: { color, opacity },
+                  areaStyle: s.kind === "area" ? { color, opacity: 0.15 * opacity } : undefined,
+                },
+                ...(isolated.length > 0
+                  ? [
+                      {
+                        id: `${s.id}\u0000isolated`,
+                        type: "scatter",
+                        silent: true,
+                        yAxisIndex: common.yAxisIndex,
+                        symbol: "circle",
+                        symbolSize: compact ? 4 : 5,
+                        itemStyle: { color, opacity },
+                        data: isolated,
+                      } satisfies ScatterSeriesOption,
+                    ]
+                  : []),
+              ];
+            },
+          ),
           ...(markers && markers.length > 0
             ? [
                 {
@@ -399,11 +422,11 @@ export function SeriesChart({
               },
             ]
           : []),
-        ...series.flatMap(({ id, label, color, values, rightAxis }) => {
+        ...series.flatMap(({ id, label, color, values, rightAxis, format: own }) => {
           const value = values[pointer.index];
           if (typeof value !== "number" || (activeSeries !== null && id !== activeSeries))
             return [];
-          const format = rightAxis && axes.right ? axes.right.format : axes.left.format;
+          const format = own ?? (rightAxis && axes.right ? axes.right.format : axes.left.format);
           return [{ key: id, color, label, value: format(value) }];
         }),
       ]

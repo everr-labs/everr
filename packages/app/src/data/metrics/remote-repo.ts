@@ -6,6 +6,7 @@ import {
   getMetricEnvironments,
   getMetricExemplars,
   getMetricExportInterval,
+  getMetricKinds,
   getMetricMetadata,
   getMetricNames,
   getMetricSeries,
@@ -16,6 +17,7 @@ import {
 export const remoteMetricsRepo: MetricsRepositoryLike = {
   catalog: (input) => getMetricCatalog({ data: input }),
   names: (input) => getMetricNames({ data: input }),
+  kinds: (input) => getMetricKinds({ data: input }),
   metadata: (input) => getMetricMetadata({ data: input }),
   series: (input) => getMetricSeries({ data: input }),
   exemplars: (input) => getMetricExemplars({ data: input }),

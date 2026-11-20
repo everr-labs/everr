@@ -162,3 +162,6 @@ export function valueUnit(
 export function isHistogramKind(kind: MetricKind | null | undefined): boolean {
   return kind === "histogram" || kind === "exponential_histogram";
 }
+
+/** The most metrics the catalog and the metric switcher list, first by name. */
+export const METRIC_LIST_LIMIT = 2000;

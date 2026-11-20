@@ -10,10 +10,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/to
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, type RefObject, useState } from "react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 import type { metricNamesOptions } from "../data/options";
 import type { MetricType } from "../data/schemas";
-import { metricKind } from "../data/types";
+import { METRIC_LIST_LIMIT, metricKind } from "../data/types";
+import { formatCount } from "./format";
 import { MetricKindLabel } from "./metric-name";
 
 /** What a chart's metric name opens: the metrics in range, to switch to another. */
@@ -22,6 +23,8 @@ export interface MetricPickerProps {
   metrics: ReturnType<typeof metricNamesOptions>;
   value: { name: string; type: MetricType | undefined };
   onChange: (metric: { name: string; type: MetricType }) => void;
+  /** The button's id, so the page can move focus to it. */
+  triggerId?: string;
 }
 
 const key = (name: string, type: MetricType | undefined) => `${type ?? ""}:${name}`;
@@ -34,6 +37,7 @@ export function MetricPicker({
   metrics,
   value,
   onChange,
+  triggerId,
   onOpen,
   anchor,
   label,
@@ -50,6 +54,7 @@ export function MetricPicker({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const search = useRef<HTMLInputElement>(null);
   const list = useQuery({ ...metrics, enabled: open });
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const current = key(value.name, value.type);
@@ -59,6 +64,7 @@ export function MetricPicker({
       render={
         <button
           type="button"
+          id={triggerId}
           aria-label={label}
           className={cn(
             "hover:bg-muted aria-expanded:bg-muted flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md text-left",
@@ -93,9 +99,34 @@ export function MetricPicker({
       )}
       <PopoverContent align="start" anchor={anchor} className="w-96 p-0">
         <Command className="p-0">
-          <CommandInput placeholder="Search metrics…" />
+          <CommandInput ref={search} placeholder="Search metrics…" />
           <CommandList>
-            <CommandEmpty>{list.data ? "No metric matches." : "Loading…"}</CommandEmpty>
+            <CommandEmpty>
+              {list.data ? (
+                "No metric matches."
+              ) : list.error && !list.isFetching ? (
+                <>
+                  {"Couldn't load metrics. "}
+                  <button
+                    type="button"
+                    className="cursor-pointer underline"
+                    onClick={() => {
+                      // The button gives way to the list, so focus moves to its search.
+                      search.current?.focus();
+                      void list.refetch();
+                    }}
+                    onKeyDown={(event) => {
+                      // The list takes Enter to pick an item and cancels it everywhere else.
+                      if (event.key === "Enter") event.stopPropagation();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </>
+              ) : (
+                "Loading…"
+              )}
+            </CommandEmpty>
             {(list.data ?? []).map((m) => (
               <CommandItem
                 key={key(m.name, m.type)}
@@ -111,6 +142,11 @@ export function MetricPicker({
                 <MetricKindLabel kind={metricKind(m.type, m.isMonotonic)} />
               </CommandItem>
             ))}
+            {(list.data?.length ?? 0) >= METRIC_LIST_LIMIT ? (
+              <p className="text-muted-foreground px-2 py-1.5 text-xs">
+                {`Only the first ${formatCount(METRIC_LIST_LIMIT)} metrics by name. Find the rest in the catalog.`}
+              </p>
+            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>

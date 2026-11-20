@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/po
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { attributeKeysOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeKey, AttributeSource } from "../schemas";
@@ -31,6 +31,8 @@ export function AttributeKeyPicker({
   onSelect,
   triggerLabel = "Filter",
   triggerClassName = "h-8 w-full justify-start",
+  triggerId,
+  finalFocus,
 }: {
   repo: AttributeRepositoryLike;
   domain: string;
@@ -44,6 +46,9 @@ export function AttributeKeyPicker({
   onSelect: (key: { source: AttributeSource; key: string }) => void;
   triggerLabel?: string;
   triggerClassName?: string;
+  triggerId?: string;
+  /** Where focus goes when the menu closes; see Base UI's Popover.Popup. */
+  finalFocus?: ComponentProps<typeof PopoverContent>["finalFocus"];
 }) {
   const [open, setOpen] = useState(false);
   const { data: keys = [], isLoading } = useQuery({
@@ -116,11 +121,17 @@ export function AttributeKeyPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="outline" size="sm" className={triggerClassName} />}>
+      <PopoverTrigger
+        render={<Button id={triggerId} variant="outline" size="sm" className={triggerClassName} />}
+      >
         <Plus className="size-3.5" />
         {triggerLabel}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-(--anchor-width) min-w-56 p-0">
+      <PopoverContent
+        align="start"
+        className="w-(--anchor-width) min-w-56 p-0"
+        finalFocus={finalFocus}
+      >
         <Command className="p-0">
           <CommandInput
             wrapperClassName="p-0 border-b"

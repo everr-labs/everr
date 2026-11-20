@@ -7,7 +7,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { ArrowLeft, Plus, X } from "lucide-react";
-import { Fragment, type ReactNode, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { AttributeKeyPicker } from "../../attribute-filter/ui/attribute-key-picker";
 import { attributeLabel } from "../../attribute-filter/ui/attribute-meta";
@@ -62,6 +62,7 @@ export function MetricView({
   queryRows,
   queryMetrics,
   onAddQuery,
+  allHidden = false,
 }: {
   metric: string;
   kind: MetricKind | null;
@@ -96,6 +97,8 @@ export function MetricView({
   queryMetrics?: string[];
   /** Unset once the chart has as many queries as it can take. */
   onAddQuery?: () => void;
+  /** Several queries, every one of them hidden. */
+  allHidden?: boolean;
 }) {
   const unit = entry?.unit ?? "";
   const temporality = entry ? temporalityLabel(entry.temporality) : null;
@@ -222,6 +225,7 @@ export function MetricView({
         metric={metric}
         lines={lines}
         multi={Boolean(queryRows)}
+        allHidden={allHidden}
         heatmapUnit={unit}
         view={view}
         aggregation={aggregation}
@@ -258,6 +262,25 @@ export function QueryControls({
   onAggregationChange: (aggregation: MetricAggregation) => void;
   onGroupByChange: (groupBy: GroupByKey[]) => void;
 }) {
+  // Removing a key, or adding the last one allowed, unmounts the control that
+  // did it, so focus moves to the remove button now in its place, else the
+  // picker, else the last remove button, once the host renders the new keys.
+  const byLabel = useRef<HTMLSpanElement>(null);
+  const pickerId = useId();
+  const focusAfter = useRef<{ index: number; keys: number } | null>(null);
+  useEffect(() => {
+    const pending = focusAfter.current;
+    if (!pending || pending.keys !== groupBy.length) return;
+    focusAfter.current = null;
+    const removes =
+      byLabel.current?.parentElement?.querySelectorAll<HTMLElement>("[data-group-by-remove]") ?? [];
+    (
+      removes[pending.index] ??
+      document.getElementById(pickerId) ??
+      removes[removes.length - 1]
+    )?.focus();
+  });
+
   return (
     <>
       <ToggleGroup
@@ -277,17 +300,26 @@ export function QueryControls({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <span className="text-muted-foreground ml-2 text-xs">by</span>
-      {groupBy.map((key) => (
+      <span ref={byLabel} className="text-muted-foreground ml-2 text-xs">
+        by
+      </span>
+      {groupBy.map((key, index) => (
         <Badge key={`${key.source}:${key.key}`} variant="secondary" className="h-6 gap-1 pr-1">
           <span className="font-mono">{key.key}</span>
+          {sourceOf(key, groupBy) ? (
+            <span className="text-muted-foreground">{sourceOf(key, groupBy)}</span>
+          ) : null}
           <button
             type="button"
-            aria-label={`Stop grouping by ${key.key}`}
+            data-group-by-remove
+            aria-label={["Stop grouping by", key.key, sourceOf(key, groupBy)]
+              .filter(Boolean)
+              .join(" ")}
             className="hover:text-foreground text-muted-foreground cursor-pointer rounded-sm"
-            onClick={() =>
-              onGroupByChange(groupBy.filter((k) => k.source !== key.source || k.key !== key.key))
-            }
+            onClick={() => {
+              focusAfter.current = { index, keys: groupBy.length - 1 };
+              onGroupByChange(groupBy.filter((k) => k.source !== key.source || k.key !== key.key));
+            }}
           >
             <X className="size-3" />
           </button>
@@ -304,7 +336,16 @@ export function QueryControls({
           sources={["metric", "resource"]}
           triggerLabel={groupBy.length === 0 ? "Group by" : "Add"}
           triggerClassName="h-6"
-          onSelect={(key) => onGroupByChange([...groupBy, key])}
+          triggerId={pickerId}
+          // The picker goes away with the last key it can add, and the
+          // focus move above takes over, so the menu leaves focus alone.
+          finalFocus={() => focusAfter.current === null}
+          onSelect={(key) => {
+            if (groupBy.length + 1 === MAX_GROUP_BY) {
+              focusAfter.current = { index: MAX_GROUP_BY, keys: MAX_GROUP_BY };
+            }
+            onGroupByChange([...groupBy, key]);
+          }}
         />
       ) : null}
     </>
@@ -315,6 +356,7 @@ function SeriesPanel({
   metric,
   lines,
   multi,
+  allHidden,
   heatmapUnit,
   view,
   aggregation,
@@ -332,6 +374,7 @@ function SeriesPanel({
   lines: ChartLine[] | undefined;
   /** Several queries: no exemplars, notes or group-by heading of one query. */
   multi: boolean;
+  allHidden: boolean;
   /** The metric's own unit, which labels the heatmap's buckets. */
   heatmapUnit: string;
   view: MetricViewMode;
@@ -373,9 +416,8 @@ function SeriesPanel({
     const series = lines.map(
       (
         line,
-        i,
       ): ChartSeries & {
-        query?: { id: string; metric: string; aggregation: MetricAggregation | null };
+        query?: LineQuery;
         name: string;
         stats: SeriesStats;
         format: (v: number) => string;
@@ -384,7 +426,7 @@ function SeriesPanel({
         label: line.label,
         query: line.query,
         name: line.name,
-        color: SERIES_COLORS[i % SERIES_COLORS.length] ?? ACCENT_COLOR,
+        color: SERIES_COLORS[line.color % SERIES_COLORS.length] ?? ACCENT_COLOR,
         kind: "line",
         values: line.values,
         rightAxis: scales.length > 1 && scaleKey(line) === scales[1],
@@ -447,7 +489,20 @@ function SeriesPanel({
       </div>
     );
   }
-  if (!chart || chart.series.length === 0) {
+  if (allHidden) {
+    return (
+      <Empty className="flex-1">
+        <EmptyHeader>
+          <EmptyTitle>All queries are hidden</EmptyTitle>
+          <EmptyDescription>Show a query to chart it.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+  // A rate can leave out a short last bucket that the heatmap still counts.
+  const heatmapHasData =
+    view === "heatmap" && Boolean(result?.heatmap?.counts.some((row) => row.some((c) => c > 0)));
+  if (!chart || (chart.series.length === 0 && !heatmapHasData)) {
     return (
       <Empty className="flex-1">
         <EmptyHeader>
@@ -478,10 +533,23 @@ function SeriesPanel({
     );
   }
 
-  const hidden = multi ? 0 : (result?.totalSeries ?? 0) - chart.series.length;
+  // Each query's lines are its top series: say what was left out.
+  const linesOf = new Map<string, { query: LineQuery; shown: number }>();
+  for (const { query } of chart.series) {
+    if (query) linesOf.set(query.id, { query, shown: (linesOf.get(query.id)?.shown ?? 0) + 1 });
+  }
+  const cuts = multi
+    ? [...linesOf.values()].flatMap(({ query, shown }) =>
+        query.totalSeries > shown
+          ? [{ prefix: `Query ${query.id}: the`, shown, total: query.totalSeries }]
+          : [],
+      )
+    : (result?.totalSeries ?? 0) > chart.series.length
+      ? [{ prefix: "The", shown: chart.series.length, total: result?.totalSeries ?? 0 }]
+      : [];
   const groupHeading =
     !multi && groupBy.length > 0
-      ? groupBy.map((k) => attributeLabel(k.key) ?? k.key).join(" · ")
+      ? groupBy.map((k) => groupKeyLabel(k, groupBy)).join(" · ")
       : "Series";
 
   return (
@@ -507,7 +575,8 @@ function SeriesPanel({
           }}
         />
       </div>
-      <table className="w-full text-sm">
+      {/* Fixed, so a long name truncates instead of pushing the values off-screen. */}
+      <table className="w-full table-fixed text-sm">
         <thead>
           <tr className="text-muted-foreground border-b text-xs">
             <th className="px-4 py-1.5 text-left font-medium">{groupHeading}</th>
@@ -568,7 +637,11 @@ function SeriesPanel({
               ? { label: aggregation, value: format(picked.lineValue) }
               : null
           }
-          groups={groupBy.map((g, i) => ({ key: g.key, value: picked.exemplar.labels[i] ?? "" }))}
+          groups={groupBy.map((g, i) => ({
+            id: `${g.source}:${g.key}`,
+            label: groupKeyLabel(g, groupBy),
+            value: picked.exemplar.labels[i] ?? "",
+          }))}
           renderTraceLink={renderTraceLink}
           renderLogsLink={renderLogsLink}
           onClose={() => setPicked(null)}
@@ -588,9 +661,15 @@ function SeriesPanel({
           {`Summary quantiles can't be combined across series, so each line shows the highest of up to ${result.highestOf} series. Group by an attribute such as service.instance.id to see each one.`}
         </p>
       ) : null}
-      {hidden > 0 ? (
+      {cuts.length > 0 ? (
         <p className="text-muted-foreground px-4 py-2 text-xs">
-          {`The ${chart.series.length} series with the highest values of ${formatCount(result?.totalSeries ?? 0)}. Filter or group by fewer attributes to see the rest.`}
+          {cuts
+            .map(
+              (cut) =>
+                `${cut.prefix} ${cut.shown} series with the highest values of ${formatCount(cut.total)}.`,
+            )
+            .join(" ")}{" "}
+          Filter or group by fewer attributes to see the rest.
         </p>
       ) : null}
     </>
@@ -652,19 +731,41 @@ function stats(values: readonly (number | null)[]): SeriesStats {
 }
 
 /** One line on the chart: a series of a query. */
+type LineQuery = {
+  id: string;
+  metric: string;
+  aggregation: MetricAggregation | null;
+  /** Its series before the cut to the top ones. */
+  totalSeries: number;
+};
+
 export type ChartLine = {
   id: string;
   /** The line's name, with its query's letter first when there are several. */
   label: string;
   /** With several queries, the line's query, which heads its group in the series list. */
-  query?: { id: string; metric: string; aggregation: MetricAggregation | null };
+  query?: LineQuery;
   /** The series' group-by values, or the metric when it has none. */
   name: string;
   values: (number | null)[];
   /** The values' unit; a histogram's rate has none. */
   unit: string;
   aggregation: MetricAggregation | null;
+  /** Its place in the palette, counted with hidden queries' lines, so hiding one recolors nothing. */
+  color: number;
 };
+
+// Grouping by a key from both the metric's and the resource's attributes
+// names each by its source, so the two read apart.
+function sourceOf(key: GroupByKey, groupBy: GroupByKey[]): string | null {
+  return groupBy.some((k) => k.key === key.key && k.source !== key.source)
+    ? `(${key.source})`
+    : null;
+}
+
+function groupKeyLabel(key: GroupByKey, groupBy: GroupByKey[]): string {
+  return [attributeLabel(key.key) ?? key.key, sourceOf(key, groupBy)].filter(Boolean).join(" ");
+}
 
 // Lines that format the same way share an axis; a rate adds "/s".
 function scaleKey(line: ChartLine): string {

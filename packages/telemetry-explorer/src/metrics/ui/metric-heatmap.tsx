@@ -12,13 +12,24 @@ import { formatCount, formatMetricValue } from "./format";
 echarts.use([HeatmapChart, VisualMapContinuousComponent]);
 
 /** A label per histogram bucket, low to high: "≤ 100 ms", then "> 1 s" for
- *  the bucket above the last bound. */
+ *  the bucket above the last bound. Close bounds get more digits, up to six,
+ *  so neighbouring rows read differently. Equal bounds, as an exponential
+ *  histogram's zero bucket and the empty gap before it, can't, and bounds
+ *  too close for six digits keep three rather than every label growing. */
 function bucketLabels(bounds: readonly number[], unit: string): string[] {
   const last = bounds.at(-1);
-  return [
-    ...bounds.map((b) => `≤ ${formatMetricValue(b, unit)}`),
-    ...(last === undefined ? [] : [`> ${formatMetricValue(last, unit)}`]),
+  const labels = (digits: number) => [
+    ...bounds.map((b) => `≤ ${formatMetricValue(b, unit, undefined, digits)}`),
+    ...(last === undefined ? [] : [`> ${formatMetricValue(last, unit, undefined, digits)}`]),
   ];
+  for (let digits = 3; digits <= 6; digits++) {
+    const tried = labels(digits);
+    const distinct = tried.every(
+      (label, i) => label !== tried[i - 1] || bounds[i] === bounds[i - 1],
+    );
+    if (distinct) return tried;
+  }
+  return labels(3);
 }
 
 /**

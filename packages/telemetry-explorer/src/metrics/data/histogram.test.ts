@@ -4,6 +4,7 @@ import {
   bucketQuantile,
   exponentialBuckets,
   exponentialSpan,
+  fitExponentialScale,
   rebucket,
 } from "./histogram";
 
@@ -76,6 +77,10 @@ describe("rebucket", () => {
     // (0.25, 0.75] halves at 0.5; above 0.75 lands just above it.
     expect(rebucket([0.25, 0.75], [10, 20, 4], [0.25, 0.5, 0.75, 1])).toEqual([10, 10, 10, 4, 0]);
   });
+
+  it("keeps buckets below a first bound at or under zero", () => {
+    expect(rebucket([-10, -5, 5, 10], [0, 10, 0, 0, 0], [-5, 5, 10])).toEqual([10, 0, 0, 0]);
+  });
 });
 
 describe("exponentialBuckets", () => {
@@ -90,12 +95,38 @@ describe("exponentialBuckets", () => {
   it("mirrors negative buckets below zero", () => {
     // Scale 1: base √2, negative bucket 0 holds [-√2, -1).
     const { bounds, counts } = bucketsOf(1, {}, { "0": 3 }, 0);
-    expect(bounds.map((b) => +b.toFixed(4))).toEqual([-1.4142, -1, 0]);
-    expect(counts).toEqual([0, 3, 0, 0]);
+    expect(bounds.map((b) => +b.toFixed(4))).toEqual([-1.4142, -1, 0, 0]);
+    expect(counts).toEqual([0, 3, 0, 0, 0]);
+  });
+
+  it("keeps zeros at zero when there are negative values", () => {
+    // One value near -1.5, ten zeros and one near 1.5: the median is zero.
+    const { bounds, counts } = bucketsOf(0, { "0": 1 }, { "0": 1 }, 10);
+    expect(bucketQuantile(0.5, bounds, counts)).toBe(0);
   });
 
   it("gives percentiles inside the bucket that holds them", () => {
     const { bounds, counts } = bucketsOf(0, { "1": 10 }, {}, 0);
     expect(bucketQuantile(0.5, bounds, counts)).toBeCloseTo(3);
+  });
+});
+
+describe("fitExponentialScale", () => {
+  it("lowers the scale until the span fits", () => {
+    // Indexes 0 and 1000 at one scale would expand to 1001 buckets.
+    const { shift, histograms } = fitExponentialScale([
+      { positive: { "0": 1, "1000": 1 }, negative: {} },
+    ]);
+    expect(shift).toBe(3);
+    expect(histograms[0]?.positive).toEqual({ "0": 1, "125": 1 });
+  });
+
+  it("adds up buckets that merge at the lower scale", () => {
+    const { histograms } = fitExponentialScale([{ positive: { "2": 1, "3": 2 }, negative: {} }], 1);
+    expect(histograms[0]?.positive).toEqual({ "1": 3 });
+  });
+
+  it("leaves a narrow span as it is", () => {
+    expect(fitExponentialScale([{ positive: { "1": 1, "5": 1 }, negative: {} }]).shift).toBe(0);
   });
 });

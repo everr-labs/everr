@@ -78,7 +78,7 @@ export function QueryTag({ id, metric }: { id: string; metric: string }) {
   return (
     <span className={queryTagClass(false)}>
       <span className={queryLetterClass(false)}>{id}</span>
-      <span className="flex items-center truncate px-2 font-mono" title={metric}>
+      <span className="block min-w-0 truncate px-2 font-mono leading-[22px]" title={metric}>
         <MetricName name={metric} />
       </span>
     </span>

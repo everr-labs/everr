@@ -2,7 +2,6 @@ import { Popover, PopoverContent } from "@everr/ui/components/popover";
 import { formatRowTimestamp } from "@everr/ui/lib/timestamp";
 import { ScrollText, Waypoints } from "lucide-react";
 import { type ReactNode, useRef } from "react";
-import { attributeLabel } from "../../attribute-filter/ui/attribute-meta";
 import { CopyId } from "../../errors/ui/copy-id";
 import type { MetricExemplar } from "../data/types";
 
@@ -39,7 +38,7 @@ export function ExemplarCard({
   /** The line it sits next to, e.g. { label: "p95", value: "984 ms" }. */
   charted: { label: string; value: string } | null;
   /** The group-by keys and this exemplar's values for them. */
-  groups: { key: string; value: string }[];
+  groups: { id: string; label: string; value: string }[];
   renderTraceLink: (props: ExemplarLinkRenderProps) => ReactNode;
   renderLogsLink: (props: ExemplarLinkRenderProps) => ReactNode;
   onClose: () => void;
@@ -83,9 +82,9 @@ export function ExemplarCard({
         </dl>
 
         <dl className="flex flex-col gap-1 border-t px-3 py-2">
-          {groups.map(({ key, value }) => (
-            <div key={key} className="flex items-center justify-between gap-3">
-              <dt className="text-muted-foreground shrink-0">{attributeLabel(key) ?? key}</dt>
+          {groups.map(({ id, label, value }) => (
+            <div key={id} className="flex items-center justify-between gap-3">
+              <dt className="text-muted-foreground shrink-0">{label}</dt>
               <dd className="min-w-0 truncate font-mono" title={value}>
                 {value === "" ? "(none)" : value}
               </dd>

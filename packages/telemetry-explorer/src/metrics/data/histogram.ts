@@ -43,12 +43,14 @@ export interface HistogramInterval {
   counts: number[];
   count: number;
   sum: number;
+  /** Observations per second, each series' over the time its changes cover. */
+  rate: number;
 }
 
-function reduce(interval: HistogramInterval, aggregation: MetricAggregation, step: number) {
+function reduce(interval: HistogramInterval, aggregation: MetricAggregation) {
   const quantile = QUANTILES[aggregation];
   if (quantile !== undefined) return bucketQuantile(quantile, interval.bounds, interval.counts);
-  if (aggregation === "rate") return interval.count / step;
+  if (aggregation === "rate") return interval.rate;
   // avg
   return interval.count > 0 ? interval.sum / interval.count : null;
 }
@@ -125,7 +127,8 @@ export function rebucket(
     }
     for (let j = holding(lower); j < out.length; j++) {
       const top = target[j] ?? Infinity;
-      const bottom = j === 0 ? Math.min(0, target[0] ?? 0) : (target[j - 1] ?? 0);
+      // The first target bucket has no lower edge, like a quantile's.
+      const bottom = j === 0 ? -Infinity : (target[j - 1] ?? 0);
       const overlap = Math.min(upper, top) - Math.max(lower, bottom);
       if (overlap > 0) out[j] += (count * overlap) / (upper - lower);
       if (top >= upper) break;
@@ -148,6 +151,7 @@ function combine(intervals: HistogramInterval[], layout: BucketLayout): Histogra
     current.counts = current.counts.map((c, i) => c + (counts[i] ?? 0));
     current.count += interval.count;
     current.sum += interval.sum;
+    current.rate += interval.rate;
   }
   return [...byKey.values()];
 }
@@ -169,7 +173,6 @@ function mergeNote(layouts: BucketLayout[]): BucketMergeNote | undefined {
 export function histogramSeries(
   intervals: HistogramInterval[],
   grid: number[],
-  step: number,
   aggregation: MetricAggregation,
 ): { series: MetricSeries[]; merged?: BucketMergeNote } {
   const groups = new Map<string, HistogramInterval[]>();
@@ -189,7 +192,7 @@ export function histogramSeries(
     for (const interval of combine(group, layout)) {
       const index = indexOf.get(interval.ts);
       if (index === undefined) continue;
-      const value = reduce(interval, aggregation, step);
+      const value = reduce(interval, aggregation);
       if (value === null || !Number.isFinite(value)) continue;
       entry ??= { labels: interval.labels, values: grid.map(() => null) };
       entry.values[index] = value;
@@ -221,6 +224,43 @@ export function histogramHeatmap(intervals: HistogramInterval[], grid: number[])
 export interface ExponentialSpan {
   positive: [number, number] | null;
   negative: [number, number] | null;
+}
+
+// The most buckets a side of an exponential histogram expands to, as
+// Prometheus caps native histograms.
+const MAX_EXPONENTIAL_BUCKETS = 160;
+
+/**
+ * Lowers exponential histograms' scale until each side spans at most `max`
+ * buckets. Series that each saw a narrow range keep a high scale, and one
+ * span over all of them could otherwise cover millions of buckets. At scale
+ * s - shift, index i becomes floor(i / 2^shift), as the SQL merges scales.
+ */
+export function fitExponentialScale<
+  H extends { positive: Record<string, number>; negative: Record<string, number> },
+>(histograms: H[], max = MAX_EXPONENTIAL_BUCKETS): { shift: number; histograms: H[] } {
+  const span = exponentialSpan(histograms);
+  const width = (side: [number, number] | null, shift: number) =>
+    side ? Math.floor(side[1] / 2 ** shift) - Math.floor(side[0] / 2 ** shift) + 1 : 0;
+  let shift = 0;
+  while (Math.max(width(span.positive, shift), width(span.negative, shift)) > max) shift++;
+  if (shift === 0) return { shift, histograms };
+  const merge = (counts: Record<string, number>) => {
+    const merged: Record<string, number> = {};
+    for (const [index, count] of Object.entries(counts)) {
+      const key = String(Math.floor(Number(index) / 2 ** shift));
+      merged[key] = (merged[key] ?? 0) + count;
+    }
+    return merged;
+  };
+  return {
+    shift,
+    histograms: histograms.map((h) => ({
+      ...h,
+      positive: merge(h.positive),
+      negative: merge(h.negative),
+    })),
+  };
 }
 
 /** The span covering every given histogram's buckets. */
@@ -270,7 +310,13 @@ export function exponentialBuckets(
       bounds.push(-(base ** i));
       counts.push(negative[String(i)] ?? 0);
     }
+    // Between the least negative bucket and zero: nothing. Without it, the
+    // zero count would sit in a bucket reaching down to that bucket's bound,
+    // and percentiles among zeros would read below zero.
+    bounds.push(0);
+    counts.push(0);
   }
+  // The zero bucket, [0, 0], when the side before it ends at zero too.
   bounds.push(0);
   counts.push(zero);
   if (span.positive) {

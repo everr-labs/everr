@@ -35,6 +35,10 @@ export const getMetricNames = createAuthenticatedServerFn({ method: "GET" })
   .validator(MetricNamesInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).names(data));
 
+export const getMetricKinds = createAuthenticatedServerFn({ method: "GET" })
+  .validator(MetricNamesInputSchema)
+  .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).kinds(data));
+
 export const getMetricSeries = createAuthenticatedServerFn({ method: "GET" })
   .validator(MetricSeriesInputSchema)
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).series(data));

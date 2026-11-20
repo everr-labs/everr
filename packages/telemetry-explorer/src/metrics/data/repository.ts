@@ -28,17 +28,20 @@ import {
   type MetricSeriesInput,
   MetricSeriesInputSchema,
   type MetricKind,
+  MetricKindSchema,
   type MetricType,
   MetricTypeSchema,
 } from "./schemas";
 import {
   exponentialBuckets,
   exponentialSpan,
+  fitExponentialScale,
   type HistogramInterval,
   histogramHeatmap,
   histogramSeries,
 } from "./histogram";
 import {
+  METRIC_LIST_LIMIT,
   aggregationsFor,
   type MetricCatalogEntry,
   type MetricMetadata,
@@ -54,6 +57,8 @@ export type MetricsRepositoryLike = {
   catalog(input: MetricCatalogInput): Promise<MetricCatalogEntry[]>;
   /** The metrics in range, name and type only, for the metric switcher. */
   names(input: MetricNamesInput): Promise<MetricNameEntry[]>;
+  /** The kinds of metric in range, for the catalog's Type filter. */
+  kinds(input: MetricNamesInput): Promise<MetricKind[]>;
   /** One metric's unit, description and temporality, or null when it sent nothing in range. */
   metadata(input: MetricMetadataInput): Promise<MetricMetadata | null>;
   series(input: MetricSeriesInput): Promise<MetricSeriesResult>;
@@ -98,7 +103,6 @@ const ATTRIBUTE_COLUMNS: Partial<Record<AttributeSource, string>> = {
 // Stamped by ingest on every row; the row policy already filters on it.
 const HIDDEN_KEYS = ["everr.tenant.id"];
 
-const CATALOG_LIMIT = 2000;
 const SERIES_TARGET_BUCKETS = 120;
 // SDKs export every 60s by default. A finer step leaves most buckets empty,
 // which breaks gauge lines into dots and counter rates into spikes.
@@ -119,8 +123,172 @@ const ATTRIBUTE_VALUES_LIMIT = 100;
 // A cumulative series whose start time falls inside the scan began counting
 // there, so its first point is all change: a counter deployed mid-range, or
 // one that has exported only once. A start time before the scan, or none
-// (0), means its first point is a running total from outside the range.
-const STARTED_IN_SCAN_SQL = "started >= parseDateTimeBestEffort({fromTs:String})";
+// (0), means its first point is a running total from outside the range. So
+// does a start equal to the point's own time: OpenTelemetry's way of saying
+// the start is unknown, which the Prometheus receiver uses.
+const STARTED_IN_SCAN_SQL =
+  "started >= parseDateTimeBestEffort({fromTs:String}) AND started < firstSeen";
+
+// A cumulative series that reports a new start time restarted, even when its
+// new total is already above the old one. A start counts only when it's known,
+// before the point's own time (the Prometheus receiver sends a point's own
+// time when it doesn't know it, then that time as the start of later points),
+// and after the previous export, as a real restart's is: a start that drifts by
+// a second between exports is the same start.
+const startChangedSql = (start: string, time: string, prevStart: string, prevTime: string) =>
+  `(${start} != ${prevStart} AND ${start} > 0 AND ${start} < ${time} AND ${start} >= ${prevTime}
+    AND ${prevStart} > 0 AND ${prevStart} < ${prevTime})`;
+
+// Between a bucket's first point and the previous bucket's last.
+const FIRST_START_CHANGED_SQL = startChangedSql(
+  "firstStart",
+  "toUInt32(firstSeen)",
+  "previousStart",
+  "previousT",
+);
+
+// OpenTelemetry identifies a series by its resource, scope and attributes:
+// two libraries reporting the same metric are two series. Not the scope's
+// version: receivers report the collector's, and an upgrade isn't a new series.
+const SERIES_SQL = "cityHash64(Attributes, ResourceAttributes, ScopeName)";
+
+interface CumulativeBuckets {
+  /** The table and filter, or a subquery, the points come from. */
+  from: string;
+  bucketSql: string;
+  labelsSql: string;
+  /** The type's own aggregates per bucket, including `temporality`. */
+  aggregates: string;
+  /** The column that tells delta (1) from cumulative points. */
+  temporality: string;
+  /** The running total whose drop is a restart. */
+  counted: string;
+  /** Another sign, per bucket, that it may hold a restart. */
+  restartedIf?: string;
+  /** More group keys. */
+  groupBy?: string;
+  /** Columns of the point before, by name, for `drop` and `lost`. */
+  previous: Record<string, string>;
+  /** A restart between a point and the one before, besides a new start time. */
+  drop: string;
+  /** Aggregates over the points where the series restarted, of the totals it dropped. */
+  lost: string;
+}
+
+/**
+ * A cumulative series' points per bucket, with what restarts inside each
+ * bucket dropped. A bucket's change is its last total minus the one before,
+ * plus the total each restart in it dropped, as Prometheus' increase() adds
+ * up the change point by point. Pairing every point with the one before needs
+ * a sort of every point in range, so it runs only on the buckets that may
+ * hold a restart: those whose total fell between two points, or with a start
+ * time at or after their first point, which a restart's start inside the
+ * bucket is. Elsewhere nothing was dropped. Picking them takes a second,
+ * leaner grouping. The bucket's first point is paired with the bucket before
+ * by the caller, which also detects restarts there.
+ */
+function cumulativeBucketsSql(o: CumulativeBuckets) {
+  const grouped = `
+    SELECT ${o.bucketSql} AS bucket, ${o.labelsSql} AS labels, ${SERIES_SQL} AS series,
+      ${o.aggregates},
+      argMin(${o.counted}, TimeUnix) AS firstCounted,
+      min(StartTimeUnix) AS started,
+      min(TimeUnix) AS firstSeen,
+      toUInt32(max(TimeUnix)) AS t,
+      toUInt32(argMin(StartTimeUnix, TimeUnix)) AS firstStart,
+      toUInt32(argMax(StartTimeUnix, TimeUnix)) AS lastStart,
+      toUInt32(min(StartTimeUnix)) AS deltaFrom
+    FROM ${o.from}
+    GROUP BY bucket, labels, series${o.groupBy ? `, ${o.groupBy}` : ""}`;
+  const lags = Object.entries(o.previous).map(
+    ([name, expr]) => `lagInFrame(${expr}) OVER p AS ${name}`,
+  );
+  const lost = `
+    SELECT bucket, series, ${o.lost}
+    FROM (
+      SELECT *, prevTime > 0 AND (${o.drop}
+        OR ${startChangedSql("toUInt32(StartTimeUnix)", "toUInt32(TimeUnix)", "prevStart", "prevTime")}) AS reset
+      FROM (
+        SELECT *, ${lags.join(", ")},
+          lagInFrame(toUInt32(TimeUnix)) OVER p AS prevTime,
+          lagInFrame(toUInt32(StartTimeUnix)) OVER p AS prevStart
+        FROM (SELECT *, ${o.bucketSql} AS bucket, ${SERIES_SQL} AS series FROM ${o.from})
+        WHERE (bucket, series) IN (
+          SELECT ${o.bucketSql} AS bucket, ${SERIES_SQL} AS series
+          FROM ${o.from}
+          GROUP BY bucket, series
+          -- A fall shows as increases adding up to more than last minus
+          -- first, but deltaSumTimestamp adds them in the order points are
+          -- read, which a late batch breaks. A restart's low total also sits
+          -- below the bucket's first one, or a total above its last, in any
+          -- order; only a dip that stays between the two, as a series that
+          -- had just started can make, needs points read in time order.
+          HAVING any(${o.temporality}) != 1 AND (
+            min(${o.counted}) < argMin(${o.counted}, TimeUnix)
+            OR max(${o.counted}) > argMax(${o.counted}, TimeUnix)
+            OR deltaSumTimestamp(toFloat64(${o.counted}), toUInt64(toUnixTimestamp64Nano(toDateTime64(TimeUnix, 9))))
+              > (toFloat64(argMax(${o.counted}, TimeUnix)) - toFloat64(argMin(${o.counted}, TimeUnix)))
+                * (1 + 1e-9) + 1e-9
+            OR toUInt32(max(StartTimeUnix)) >= toUInt32(min(TimeUnix))
+            ${o.restartedIf ? `OR ${o.restartedIf}` : ""}))
+        WINDOW p AS (PARTITION BY series, bucket ORDER BY TimeUnix ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+      )
+    )
+    GROUP BY bucket, series`;
+  return `SELECT * FROM (${grouped}) AS g LEFT JOIN (${lost}) AS r USING (bucket, series)`;
+}
+
+// The previous bucket's `last`. A series' first bucket has none: one that
+// started in the scan counted up from `zero`, and any other's first point is
+// a running total from before, so the bucket counts from that point, `first`.
+const previousOr = (last: string, first: string, zero: string) =>
+  `lagInFrame(${last}, 1, if(${STARTED_IN_SCAN_SQL}, ${zero}, ${first}))`;
+const PREVIOUS_T_SQL = `${previousOr("t", "toUInt32(firstSeen)", "0")} OVER w AS previousT`;
+
+// The buckets that count: a series' first one only when it started in the
+// scan, or has more points after its first, a total from before the scan.
+const COUNTED_BUCKETS_SQL = `temporality = 1 OR position > 1 OR ${STARTED_IN_SCAN_SQL}
+        OR toUInt32(firstSeen) < t`;
+
+// Where a cumulative change starts: the export before, or the known start of
+// a restart at the bucket's first point. An unknown one, the first point's own
+// time after a reset, is later than the reset itself, so the change would look
+// faster than it was. A restart later in the bucket follows exports in it, so
+// the change still starts at the export before. A series' first change has no
+// export before it, so it starts at its start.
+const CUMULATIVE_FROM_SQL = `if(position = 1
+    OR (firstReset AND firstStart > 0 AND firstStart < toUInt32(firstSeen)),
+  greatest(previousT, firstStart), previousT)`;
+
+/**
+ * A level per bucket and series, carried into the buckets after it until the
+ * series' next export or for `{carry}` seconds past its last point (one export
+ * interval, none when the step is far longer), as Prometheus looks back for a
+ * gauge's latest sample. Without
+ * it a series whose export lands just past a bucket's end, or that exports
+ * less often than the step, drops out of that bucket and the group's sum and
+ * average dip. `perSeries` returns bucket, labels, series, t (its last point)
+ * and v.
+ */
+function carriedSql(perSeries: string) {
+  return `
+SELECT b AS ts, labels, series, v
+FROM (
+  SELECT *, leadInFrame(toUInt32(bucket)) OVER (
+    PARTITION BY series ORDER BY bucket ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS next
+  FROM (${perSeries})
+)
+ARRAY JOIN range(
+  toUInt32(bucket),
+  least(if(next = 0, 4294967295, next), t + {carry:UInt32} + 1),
+  {step:UInt32}) AS b
+WHERE b >= {gridStart:UInt32} AND b <= {gridEnd:UInt32}
+  -- A step over twice the interval already holds a point of every live
+  -- series, and carrying would hold a stopped series through a whole bucket
+  -- it never reported in. The range's last bucket is partial, though, so
+  -- series that haven't exported in it yet still carry there.
+  AND (b = toUInt32(bucket) OR {step:UInt32} <= 2 * {carry:UInt32} OR b + {step:UInt32} > {end:UInt32})`;
+}
 
 interface CounterSource {
   /** The running total or delta that's counted, and whose drop is a restart. */
@@ -161,6 +329,17 @@ const SPREAD_BUCKETS_SQL = `if(${SPREAD_SQL},
 const SPREAD_SHARE_SQL = `if(${SPREAD_SQL},
     (toFloat64(least(t, b + {step:UInt32})) - toFloat64(greatest(f, b))) / (toFloat64(t) - toFloat64(f)),
     1)`;
+
+// The time one series' change in a bucket covers, which its rate divides by:
+// the step, except in the bucket the range ends in, whose exports measure only
+// up to the range's end. There the change covers from its export before, often
+// before the bucket starts, to its own. A change with no span, delta points
+// without a start, covers the bucket up to the range's end.
+const CHANGE_SECONDS_SQL = `multiIf(
+    b + {step:UInt32} <= {end:UInt32}, {step:UInt32},
+    least(t, b + {step:UInt32}) > if(${SPREAD_SQL}, greatest(f, b), f),
+      toFloat64(least(t, b + {step:UInt32})) - toFloat64(if(${SPREAD_SQL}, greatest(f, b), f)),
+    greatest(toFloat64({end:UInt32}) - toFloat64(b), 1))`;
 
 const TIME_WINDOW_SQL =
   "TimeUnix >= parseDateTimeBestEffort({fromTs:String}) AND TimeUnix <= parseDateTimeBestEffort({toTs:String})";
@@ -348,6 +527,7 @@ interface ExpHistogramRowRaw {
   zero: number | string;
   observations: number | string;
   observedSum: number | string;
+  observedRate: number | string;
 }
 
 interface HistogramRowRaw {
@@ -357,6 +537,7 @@ interface HistogramRowRaw {
   bucketCounts: (number | string)[];
   observations: number | string;
   observedSum: number | string;
+  observedRate: number | string;
 }
 
 /**
@@ -377,40 +558,54 @@ function expHistogramSql(table: string, where: string, labelsSql: string, bucket
           [arrayMap(c -> toFloat64(c), ${counts})]),
         'Map(Int64, Float64)')`;
   const clampedDelta = (side: "Positive" | "Negative") =>
-    `mapApply((k, v) -> (k, greatest(v, 0)), mapSubtract(last${side}, previous${side}))`;
+    `mapApply((k, v) -> (k, greatest(v, 0)),
+      mapAdd(
+        mapSubtract(last${side}, if(firstReset, CAST(map(), 'Map(Int64, Float64)'), previous${side})),
+        lost${side}))`;
   const scaled = (map: string) => `mapApply((k, v) -> (k, v * share), ${map})`;
+  const unlessReset = (previous: string) => `if(firstReset, 0, toFloat64(${previous}))`;
   return `
 WITH (SELECT min(Scale) FROM ${table} WHERE ${where}) AS minScale
 SELECT b AS ts, labels, any(minScale) AS scale,
   sumMap(${scaled("positive")}) AS positive, sumMap(${scaled("negative")}) AS negative,
-  sum(zero * share) AS zero, sum(count * share) AS observations, sum(total * share) AS observedSum
+  sum(zero * share) AS zero, sum(count * share) AS observations, sum(total * share) AS observedSum,
+  sum(count * share / ${CHANGE_SECONDS_SQL}) AS observedRate
 FROM (
-  SELECT b, labels, positive, negative, zero, count, total, ${SPREAD_SHARE_SQL} AS share
+  SELECT b, labels, t, f, positive, negative, zero, count, total, ${SPREAD_SHARE_SQL} AS share
   FROM (
     SELECT labels, t,
-      if(temporality = 1, ${DELTA_FROM_SQL}, if(restarted, greatest(previousT, lastStart), previousT)) AS f,
-      if(temporality = 1, deltaPositive, if(restarted, lastPositive, ${clampedDelta("Positive")})) AS positive,
-      if(temporality = 1, deltaNegative, if(restarted, lastNegative, ${clampedDelta("Negative")})) AS negative,
-      toFloat64(if(temporality = 1, deltaZero, if(restarted, lastZero, lastZero - previousZero))) AS zero,
-      toFloat64(if(temporality = 1, deltaCount, if(restarted, lastCount, lastCount - previousCount))) AS count,
-      if(temporality = 1, deltaSum, if(restarted, lastSum, lastSum - previousSum)) AS total
+      if(temporality = 1, ${DELTA_FROM_SQL}, ${CUMULATIVE_FROM_SQL}) AS f,
+      if(temporality = 1, deltaPositive, ${clampedDelta("Positive")}) AS positive,
+      if(temporality = 1, deltaNegative, ${clampedDelta("Negative")}) AS negative,
+      if(temporality = 1, toFloat64(deltaZero),
+        greatest(toFloat64(lastZero) - ${unlessReset("previousZero")} + lostZero, 0)) AS zero,
+      if(temporality = 1, toFloat64(deltaCount),
+        toFloat64(lastCount) - ${unlessReset("previousCount")} + lostCount) AS count,
+      if(temporality = 1, deltaSum, lastSum - ${unlessReset("previousSum")} + lostSum) AS total
     FROM (
-      SELECT *, position = 1 OR lastCount < previousCount AS restarted
+      SELECT *,
+        position > 1 AND (firstCounted < previousCount OR ${FIRST_START_CHANGED_SQL}) AS firstReset
       FROM (
-        SELECT labels, temporality, started, t, lastStart, deltaFrom,
-          deltaPositive, deltaNegative, deltaZero, deltaCount, deltaSum,
-          lastPositive, lastNegative, lastZero, lastCount, lastSum,
-          lagInFrame(lastPositive) OVER w AS previousPositive,
-          lagInFrame(lastNegative) OVER w AS previousNegative,
-          lagInFrame(lastZero) OVER w AS previousZero,
-          lagInFrame(lastCount) OVER w AS previousCount,
-          lagInFrame(lastSum) OVER w AS previousSum,
-          lagInFrame(t) OVER w AS previousT,
+        SELECT *,
+          ${previousOr("lastPositive", "firstPositive", "CAST(map(), 'Map(Int64, Float64)')")} OVER w AS previousPositive,
+          ${previousOr("lastNegative", "firstNegative", "CAST(map(), 'Map(Int64, Float64)')")} OVER w AS previousNegative,
+          ${previousOr("lastZero", "firstZero", "0")} OVER w AS previousZero,
+          ${previousOr("lastCount", "firstCounted", "0")} OVER w AS previousCount,
+          ${previousOr("lastSum", "firstSum", "0")} OVER w AS previousSum,
+          ${PREVIOUS_T_SQL},
+          lagInFrame(lastStart) OVER w AS previousStart,
           row_number() OVER w AS position
-        FROM (
-          SELECT ${bucketSql} AS bucket, ${labelsSql} AS labels,
-            cityHash64(Attributes, ResourceAttributes) AS series,
-            any(AggregationTemporality) AS temporality,
+        FROM (${cumulativeBucketsSql({
+          from: `(
+            SELECT *,
+              ${buckets("PositiveOffset", "PositiveBucketCounts")} AS positiveBuckets,
+              ${buckets("NegativeOffset", "NegativeBucketCounts")} AS negativeBuckets
+            FROM ${table}
+            WHERE ${where}
+          )`,
+          bucketSql,
+          labelsSql,
+          aggregates: `any(AggregationTemporality) AS temporality,
             sumMap(positiveBuckets) AS deltaPositive,
             sumMap(negativeBuckets) AS deltaNegative,
             sum(ZeroCount) AS deltaZero,
@@ -421,22 +616,29 @@ FROM (
             argMax(ZeroCount, TimeUnix) AS lastZero,
             argMax(Count, TimeUnix) AS lastCount,
             argMax(Sum, TimeUnix) AS lastSum,
-            min(StartTimeUnix) AS started,
-            toUInt32(max(TimeUnix)) AS t,
-            toUInt32(argMax(StartTimeUnix, TimeUnix)) AS lastStart,
-            toUInt32(min(StartTimeUnix)) AS deltaFrom
-          FROM (
-            SELECT *,
-              ${buckets("PositiveOffset", "PositiveBucketCounts")} AS positiveBuckets,
-              ${buckets("NegativeOffset", "NegativeBucketCounts")} AS negativeBuckets
-            FROM ${table}
-            WHERE ${where}
-          )
-          GROUP BY bucket, labels, series
-        )
+            argMin(positiveBuckets, TimeUnix) AS firstPositive,
+            argMin(negativeBuckets, TimeUnix) AS firstNegative,
+            argMin(ZeroCount, TimeUnix) AS firstZero,
+            argMin(Sum, TimeUnix) AS firstSum`,
+          temporality: "AggregationTemporality",
+          counted: "Count",
+          previous: {
+            prevPositive: "positiveBuckets",
+            prevNegative: "negativeBuckets",
+            prevZero: "ZeroCount",
+            prevCount: "Count",
+            prevSum: "Sum",
+          },
+          drop: "Count < prevCount",
+          lost: `sumMapIf(prevPositive, reset) AS lostPositive,
+            sumMapIf(prevNegative, reset) AS lostNegative,
+            sumIf(toFloat64(prevZero), reset) AS lostZero,
+            sumIf(toFloat64(prevCount), reset) AS lostCount,
+            sumIf(prevSum, reset) AS lostSum`,
+        })})
         WINDOW w AS (PARTITION BY series ORDER BY bucket ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
       )
-      WHERE temporality = 1 OR position > 1 OR ${STARTED_IN_SCAN_SQL}
+      WHERE ${COUNTED_BUCKETS_SQL}
     )
   )
   ARRAY JOIN ${SPREAD_BUCKETS_SQL} AS b
@@ -450,65 +652,87 @@ LIMIT ${SERIES_ROW_LIMIT}`;
 /**
  * Observations per interval and group. Delta points carry an interval's
  * observations already. Cumulative points carry running totals, so each
- * series' interval is its last snapshot minus the one before; a total that
- * dropped, or bounds that changed, mean the series restarted, and the new
- * snapshot is all its observations, as is the first snapshot of a series that
- * started inside the scan. A change spanning more than a step is spread over
+ * series' interval is its last snapshot minus the one before, plus what each
+ * restart in it dropped (see cumulativeBucketsSql); a total that dropped, or bounds that
+ * changed, mean the series restarted. The first snapshot of a series that
+ * started inside the scan is all its observations. A change spanning more than a step is spread over
  * the buckets it covers (see SPREAD_SQL). Series in one group add up bucket by
  * bucket when their bounds match.
  */
 function histogramSql(table: string, where: string, labelsSql: string, bucketSql: string) {
   const asFloats = (array: string) => `arrayMap(x -> toFloat64(x), ${array})`;
+  const unlessReset = (previous: string) => `if(firstReset, 0, toFloat64(${previous}))`;
   return `
 SELECT b AS ts, labels, bounds,
   sumForEach(arrayMap(x -> x * share, counts)) AS bucketCounts,
-  sum(count * share) AS observations, sum(total * share) AS observedSum
+  sum(count * share) AS observations, sum(total * share) AS observedSum,
+  sum(count * share / ${CHANGE_SECONDS_SQL}) AS observedRate
 FROM (
-  SELECT b, labels, bounds, counts, count, total, ${SPREAD_SHARE_SQL} AS share
+  SELECT b, labels, bounds, t, f, counts, count, total, ${SPREAD_SHARE_SQL} AS share
   FROM (
     SELECT labels, bounds, t,
-      if(temporality = 1, ${DELTA_FROM_SQL}, if(restarted, greatest(previousT, lastStart), previousT)) AS f,
+      if(temporality = 1, ${DELTA_FROM_SQL}, ${CUMULATIVE_FROM_SQL}) AS f,
+      -- Counts on new bounds can't be compared with the old ones, so a
+      -- bucket whose bounds changed counts only its last snapshot.
       if(temporality = 1, ${asFloats("deltaCounts")},
-        if(restarted, ${asFloats("lastCounts")},
-          arrayMap((a, b) -> greatest(toFloat64(a) - toFloat64(b), 0), lastCounts, previousCounts))) AS counts,
+        if(boundsChanged, ${asFloats("lastCounts")},
+          arrayMap((a, b, c) -> greatest(toFloat64(a) - toFloat64(b) + toFloat64(c), 0),
+            lastCounts,
+            arrayResize(if(firstReset, emptyArrayUInt64(), previousCounts), length(lastCounts)),
+            arrayResize(lostCounts, length(lastCounts))))) AS counts,
       if(temporality = 1, toFloat64(deltaCount),
-        if(restarted, toFloat64(lastCount), toFloat64(lastCount) - toFloat64(previousCount))) AS count,
-      if(temporality = 1, deltaSum, if(restarted, lastSum, lastSum - previousSum)) AS total
+        toFloat64(lastCount) - ${unlessReset("previousCount")} + lostCount) AS count,
+      if(temporality = 1, deltaSum, lastSum - ${unlessReset("previousSum")} + lostSum) AS total
     FROM (
       SELECT *,
-        position = 1
-          OR lastCount < previousCount
-          OR length(lastCounts) != length(previousCounts) AS restarted
+        position > 1 AND (firstCounted < previousCount
+          OR firstBounds != previousBounds
+          OR ${FIRST_START_CHANGED_SQL}) AS firstReset
       FROM (
-        SELECT labels, temporality, bounds, started, t, lastStart, deltaFrom,
-          deltaCounts, deltaCount, deltaSum, lastCounts, lastCount, lastSum,
-          lagInFrame(lastCounts) OVER w AS previousCounts,
-          lagInFrame(lastCount) OVER w AS previousCount,
-          lagInFrame(lastSum) OVER w AS previousSum,
-          lagInFrame(t) OVER w AS previousT,
+        SELECT *,
+          ${previousOr("lastCounts", "firstCounts", "emptyArrayUInt64()")} OVER w AS previousCounts,
+          lagInFrame(bounds) OVER w AS previousBounds,
+          ${previousOr("lastCount", "firstCounted", "0")} OVER w AS previousCount,
+          ${previousOr("lastSum", "firstSum", "0")} OVER w AS previousSum,
+          ${PREVIOUS_T_SQL},
+          lagInFrame(lastStart) OVER w AS previousStart,
           row_number() OVER w AS position
-        FROM (
-          SELECT ${bucketSql} AS bucket, ${labelsSql} AS labels,
-            cityHash64(Attributes, ResourceAttributes) AS series,
-            any(AggregationTemporality) AS temporality,
+        FROM (${cumulativeBucketsSql({
+          from: `${table} WHERE ${where}`,
+          bucketSql,
+          labelsSql,
+          aggregates: `any(AggregationTemporality) AS temporality,
             argMax(ExplicitBounds, TimeUnix) AS bounds,
+            argMin(ExplicitBounds, TimeUnix) AS firstBounds,
+            uniqExact(ExplicitBounds) > 1 AS boundsChanged,
             sumForEach(BucketCounts) AS deltaCounts,
             sum(Count) AS deltaCount,
             sum(Sum) AS deltaSum,
             argMax(BucketCounts, TimeUnix) AS lastCounts,
             argMax(Count, TimeUnix) AS lastCount,
             argMax(Sum, TimeUnix) AS lastSum,
-            min(StartTimeUnix) AS started,
-            toUInt32(max(TimeUnix)) AS t,
-            toUInt32(argMax(StartTimeUnix, TimeUnix)) AS lastStart,
-            toUInt32(min(StartTimeUnix)) AS deltaFrom
-          FROM ${table}
-          WHERE ${where}
-          GROUP BY bucket, labels, series
-        )
+            argMin(BucketCounts, TimeUnix) AS firstCounts,
+            argMin(Sum, TimeUnix) AS firstSum`,
+          temporality: "AggregationTemporality",
+          counted: "Count",
+          restartedIf: "uniqExact(ExplicitBounds) > 1",
+          // Delta exports add up within a step only on the same bounds; each
+          // layout stays its own row, merged later onto one set of bounds.
+          groupBy: "if(AggregationTemporality = 1, cityHash64(ExplicitBounds), 0)",
+          previous: {
+            prevCounts: "BucketCounts",
+            prevBounds: "ExplicitBounds",
+            prevCount: "Count",
+            prevSum: "Sum",
+          },
+          drop: "Count < prevCount OR ExplicitBounds != prevBounds",
+          lost: `sumForEachIf(prevCounts, reset) AS lostCounts,
+            sumIf(toFloat64(prevCount), reset) AS lostCount,
+            sumIf(prevSum, reset) AS lostSum`,
+        })})
         WINDOW w AS (PARTITION BY series ORDER BY bucket ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
       )
-      WHERE temporality = 1 OR position > 1 OR ${STARTED_IN_SCAN_SQL}
+      WHERE ${COUNTED_BUCKETS_SQL}
     )
   )
   ARRAY JOIN ${SPREAD_BUCKETS_SQL} AS b
@@ -588,7 +812,7 @@ FROM (${parts.join("\n  UNION ALL")}
 )
 GROUP BY name, type
 ORDER BY name, type
-LIMIT ${CATALOG_LIMIT}`;
+LIMIT ${METRIC_LIST_LIMIT}`;
 
     const rows = await this.client.execute<CatalogRowRaw>(sql, {
       ...where.params,
@@ -675,7 +899,7 @@ FROM (${parts.join("\n  UNION ALL")}
 )
 GROUP BY name, type
 ORDER BY name, type
-LIMIT ${CATALOG_LIMIT}`,
+LIMIT ${METRIC_LIST_LIMIT}`,
       {
         ...where.params,
         ...windowParams(fromDate, toDate),
@@ -686,6 +910,29 @@ LIMIT ${CATALOG_LIMIT}`,
       type: MetricTypeSchema.parse(row.type),
       isMonotonic: Boolean(toNumber(row.isMonotonic)),
     }));
+  }
+
+  /** Every kind in range, where `names` stops at its first metrics by name. */
+  async kinds(raw: MetricNamesInput): Promise<MetricKind[]> {
+    const input = MetricNamesInputSchema.parse(raw);
+    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const where = baseWhere(input);
+    const parts = MetricTypeSchema.options.map(
+      (type) => `
+  SELECT DISTINCT '${type}' AS type, ${TYPE_COLUMNS[type].monotonic} AS isMonotonic
+  FROM ${this.tables[type]}
+  WHERE ${where.clause}`,
+    );
+    const rows = await this.client.execute<{ type: string; isMonotonic: boolean | number }>(
+      parts.join("\n  UNION ALL"),
+      { ...where.params, ...windowParams(fromDate, toDate) },
+    );
+    const present = new Set(
+      rows.map((row) =>
+        metricKind(MetricTypeSchema.parse(row.type), Boolean(toNumber(row.isMonotonic))),
+      ),
+    );
+    return MetricKindSchema.options.filter((kind) => present.has(kind));
   }
 
   async series(raw: MetricSeriesInput): Promise<MetricSeriesResult> {
@@ -719,7 +966,7 @@ FROM (
     SELECT series, t,
       lagInFrame(t) OVER (PARTITION BY series ORDER BY t ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS previous
     FROM (
-      SELECT cityHash64(Attributes, ResourceAttributes) AS series, toInt64(toUInt32(TimeUnix)) AS t
+      SELECT ${SERIES_SQL} AS series, toInt64(toUInt32(TimeUnix)) AS t
       FROM ${this.tables[input.type]}
       WHERE ${where.clause}
     )
@@ -752,6 +999,12 @@ FROM (
     const grid = bucketGrid(fromDate, toDate, step);
     const table = this.tables[input.type];
     const where = baseWhere(input);
+    // Only recorded values: a failed scrape writes a point flagged "no
+    // recorded value" with a 0, which would read as a counter reset, and one
+    // NaN gauge sample would blank its bucket's avg and sum.
+    const points = `${where.clause} AND bitAnd(Flags, 1) = 0${
+      input.type === "gauge" || input.type === "sum" ? " AND isFinite(Value)" : ""
+    }`;
     const { labelsSql, groupParams } = groupLabels(input.groupBy);
     const bucketSql = "toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND)";
     const isExponential = input.type === "exponential_histogram";
@@ -766,41 +1019,69 @@ FROM (
     // one for a series exported every few minutes. Buckets before the range
     // are dropped after.
     const lookback = Math.max(step, LOOKBACK_SECONDS);
+    // A level carries for one export interval, so the scan starts that much
+    // early to carry one into the first bucket.
+    const interval = input.minStep ?? SERIES_MIN_STEP_SECONDS;
     const scanFrom =
-      isCounter || isHistogram || isSummaryTotal ? new Date((grid[0] - lookback) * 1000) : fromDate;
+      isCounter || isHistogram || isSummaryTotal
+        ? new Date((grid[0] - lookback) * 1000)
+        : new Date((grid[0] - interval) * 1000);
+    const end = Math.ceil(toDate.getTime() / 1000);
+    // A rate's last bucket, while shorter than an export interval, holds only
+    // the series that already exported in it, so it would read low. It's left
+    // out before ranking, unless it's the only one; a histogram's heatmap
+    // keeps it, as it counts observations, not a rate.
+    const lastBucket = grid[grid.length - 1] ?? grid[0];
+    const lastRateBucket =
+      input.aggregation === "rate" && grid.length > 1 && end - lastBucket < interval
+        ? (grid[grid.length - 2] ?? lastBucket)
+        : lastBucket;
     const params = {
       ...where.params,
       ...groupParams,
       ...windowParams(scanFrom, toDate),
       gridStart: grid[0],
+      gridEnd: grid[grid.length - 1],
       step,
+      carry: interval,
+      lastRateBucket,
+      end,
     };
 
     let intervals: HistogramInterval[] | undefined;
     if (isExponential) {
       const rows = await this.client.execute<ExpHistogramRowRaw>(
-        expHistogramSql(table, where.clause, labelsSql, bucketSql),
+        expHistogramSql(table, points, labelsSql, bucketSql),
         params,
       );
       const numbers = (map: Record<string, number | string>) =>
         Object.fromEntries(Object.entries(map).map(([k, v]) => [k, toNumber(v)]));
-      const decoded = rows.map((row) => ({
-        row,
-        positive: numbers(row.positive),
-        negative: numbers(row.negative),
-      }));
+      const { shift, histograms: decoded } = fitExponentialScale(
+        rows.map((row) => ({
+          row,
+          positive: numbers(row.positive),
+          negative: numbers(row.negative),
+        })),
+      );
       // One span for every row keeps every interval on the same bounds.
       const span = exponentialSpan(decoded);
       intervals = decoded.map(({ row, positive, negative }): HistogramInterval => ({
         ts: toNumber(row.ts),
         labels: row.labels,
-        ...exponentialBuckets(toNumber(row.scale), positive, negative, toNumber(row.zero), span),
+        ...exponentialBuckets(
+          toNumber(row.scale) - shift,
+          positive,
+          negative,
+          toNumber(row.zero),
+          span,
+        ),
         count: toNumber(row.observations),
         sum: toNumber(row.observedSum),
+        rate: toNumber(row.observedRate),
       }));
     } else if (isHistogram) {
       const rows = await this.client.execute<HistogramRowRaw>(
-        histogramSql(table, where.clause, labelsSql, bucketSql),
+        histogramSql(table, points, labelsSql, bucketSql),
         params,
       );
       intervals = rows.map((row): HistogramInterval => ({
@@ -810,10 +1091,15 @@ FROM (
         counts: row.bucketCounts.map(toNumber),
         count: toNumber(row.observations),
         sum: toNumber(row.observedSum),
+        rate: toNumber(row.observedRate),
       }));
     }
     if (intervals) {
-      const { series, merged } = histogramSeries(intervals, grid, step, input.aggregation);
+      const { series, merged } = histogramSeries(
+        intervals.filter((interval) => interval.ts <= lastRateBucket),
+        grid,
+        input.aggregation,
+      );
       return {
         ...rankSeries(series, grid, step),
         ...(input.heatmap ? { heatmap: histogramHeatmap(intervals, grid) } : {}),
@@ -826,40 +1112,34 @@ FROM (
       if (quantile === undefined) {
         const rows = await this.client.execute<SeriesRowRaw>(
           topSeriesSql(
-            this.counterSql(
-              table,
-              where.clause,
-              labelsSql,
-              bucketSql,
-              input.aggregation,
-              SUMMARY_SOURCE,
-            ),
+            this.counterSql(table, points, labelsSql, bucketSql, input.aggregation, SUMMARY_SOURCE),
           ),
           params,
         );
         return assembleSeries(rows, grid, step);
       }
       const rows = await this.client.execute<SeriesRowRaw & { seriesCount: number | string }>(
-        topSeriesSql(this.summaryQuantileSql(table, where.clause, labelsSql, bucketSql)),
-        { ...params, quantile },
+        topSeriesSql(this.summaryQuantileSql(table, points, labelsSql, bucketSql)),
+        { ...params, quantile: String(quantile) },
       );
       const most = Math.max(0, ...rows.map((row) => toNumber(row.seriesCount)));
       return { ...assembleSeries(rows, grid, step), ...(most > 1 ? { highestOf: most } : {}) };
     }
 
     const sql = isCounter
-      ? this.counterSql(table, where.clause, labelsSql, bucketSql, input.aggregation)
+      ? this.counterSql(table, points, labelsSql, bucketSql, input.aggregation)
       : `
-SELECT toUInt32(bucket) AS ts, labels, ${levelOuterSql(input.aggregation)} AS value
-FROM (
+SELECT ts, labels, ${levelOuterSql(input.aggregation)} AS value
+FROM (${carriedSql(`
   SELECT ${bucketSql} AS bucket, ${labelsSql} AS labels,
-    cityHash64(Attributes, ResourceAttributes) AS series,
+    ${SERIES_SQL} AS series,
+    toUInt32(max(TimeUnix)) AS t,
     ${levelInnerSql(input.aggregation)} AS v
   FROM ${table}
-  WHERE ${where.clause}
-  GROUP BY bucket, labels, series
+  WHERE ${points}
+  GROUP BY bucket, labels, series`)}
 )
-GROUP BY bucket, labels`;
+GROUP BY ts, labels`;
 
     const rows = await this.client.execute<SeriesRowRaw>(topSeriesSql(sql), params);
     return assembleSeries(rows, grid, step);
@@ -874,60 +1154,65 @@ GROUP BY bucket, labels`;
     source: CounterSource = SUM_SOURCE,
   ): string {
     // Delta points carry the change itself. Cumulative points carry a running
-    // total, so the change is the difference from the series' previous bucket;
-    // a drop means the process restarted and counted up from zero again, since
-    // its start time if that's known. A series' first point counts only when
-    // the series started in the scan. A change spanning more than a step is
+    // total, so the change is the difference from the series' previous bucket,
+    // plus what each restart in the bucket dropped (see cumulativeBucketsSql): a drop, or
+    // a new start time, means the process restarted and counted up from zero
+    // again. A series' first point counts only when the series started in the
+    // scan. A change spanning more than a step is
     // spread over the buckets it covers (see SPREAD_SQL). `total` follows the
     // same restarts as the counted value, so avg is total over count.
     const outer =
       aggregation === "avg"
         ? "sum(totalChange * share) / nullIf(sum(change * share), 0)"
         : aggregation === "rate"
-          ? "sum(change * share) / {step:UInt32}"
+          ? `sum(change * share / ${CHANGE_SECONDS_SQL})`
           : "sum(change * share)";
     return `
 SELECT b AS ts, labels, ${outer} AS value
 FROM (
-  SELECT b, labels, change, totalChange, ${SPREAD_SHARE_SQL} AS share
+  SELECT b, labels, t, f, change, totalChange, ${SPREAD_SHARE_SQL} AS share
   FROM (
     SELECT labels, t,
-      if(temporality = 1, ${DELTA_FROM_SQL},
-        if(position = 1 OR last < previous, greatest(previousT, lastStart), previousT)) AS f,
+      if(temporality = 1, ${DELTA_FROM_SQL}, ${CUMULATIVE_FROM_SQL}) AS f,
       if(temporality = 1, delta,
-        if(position = 1, if(${STARTED_IN_SCAN_SQL}, last, NULL),
-          if(last >= previous, last - previous, last))) AS change,
+        toFloat64(last) - if(firstReset, 0, toFloat64(previous)) + lost) AS change,
       if(temporality = 1, deltaTotal,
-        if(position = 1, if(${STARTED_IN_SCAN_SQL}, lastTotal, NULL),
-          if(last >= previous, lastTotal - previousTotal, lastTotal))) AS totalChange
+        toFloat64(lastTotal) - if(firstReset, 0, toFloat64(previousTotal)) + lostTotal) AS totalChange
     FROM (
-      SELECT labels, temporality, delta, last, deltaTotal, lastTotal, started, t, lastStart, deltaFrom,
-        lagInFrame(last) OVER w AS previous,
-        lagInFrame(lastTotal) OVER w AS previousTotal,
-        lagInFrame(t) OVER w AS previousT,
-        row_number() OVER w AS position
+      SELECT *,
+        position > 1 AND (firstCounted < previous OR ${FIRST_START_CHANGED_SQL}) AS firstReset
       FROM (
-        SELECT ${bucketSql} AS bucket, ${labelsSql} AS labels,
-          cityHash64(Attributes, ResourceAttributes) AS series,
-          any(${source.temporality}) AS temporality,
-          sum(${source.value}) AS delta,
-          argMax(${source.value}, TimeUnix) AS last,
-          sum(${source.total}) AS deltaTotal,
-          argMax(${source.total}, TimeUnix) AS lastTotal,
-          min(StartTimeUnix) AS started,
-          toUInt32(max(TimeUnix)) AS t,
-          toUInt32(argMax(StartTimeUnix, TimeUnix)) AS lastStart,
-          toUInt32(min(StartTimeUnix)) AS deltaFrom
-        FROM ${table}
-        WHERE ${where}
-        GROUP BY bucket, labels, series
+        SELECT *,
+          ${previousOr("last", "firstCounted", "0")} OVER w AS previous,
+          ${previousOr("lastTotal", "firstTotal", "0")} OVER w AS previousTotal,
+          ${PREVIOUS_T_SQL},
+          lagInFrame(lastStart) OVER w AS previousStart,
+          row_number() OVER w AS position
+        FROM (${cumulativeBucketsSql({
+          from: `${table} WHERE ${where}`,
+          bucketSql,
+          labelsSql,
+          aggregates: `any(${source.temporality}) AS temporality,
+            sum(${source.value}) AS delta,
+            argMax(${source.value}, TimeUnix) AS last,
+            sum(${source.total}) AS deltaTotal,
+            argMax(${source.total}, TimeUnix) AS lastTotal,
+            argMin(${source.total}, TimeUnix) AS firstTotal`,
+          temporality: source.temporality,
+          counted: source.value,
+          previous: { prevValue: source.value, prevTotal: source.total },
+          drop: `${source.value} < prevValue`,
+          lost: `sumIf(toFloat64(prevValue), reset) AS lost,
+            sumIf(toFloat64(prevTotal), reset) AS lostTotal`,
+        })})
+        WINDOW w AS (PARTITION BY series ORDER BY bucket ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
       )
-      WINDOW w AS (PARTITION BY series ORDER BY bucket ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      WHERE ${COUNTED_BUCKETS_SQL}
     )
   )
   ARRAY JOIN ${SPREAD_BUCKETS_SQL} AS b
 )
-WHERE b >= {gridStart:UInt32}
+WHERE b >= {gridStart:UInt32} AND b <= {lastRateBucket:UInt32}
 GROUP BY b, labels`;
   }
 
@@ -939,16 +1224,18 @@ GROUP BY b, labels`;
    */
   private summaryQuantileSql(table: string, where: string, labelsSql: string, bucketSql: string) {
     return `
-SELECT toUInt32(bucket) AS ts, labels, max(v) AS value, uniqExact(series) AS seriesCount
-FROM (
+SELECT ts, labels, max(v) AS value, uniqExact(series) AS seriesCount
+FROM (${carriedSql(`
   SELECT ${bucketSql} AS bucket, ${labelsSql} AS labels,
-    cityHash64(Attributes, ResourceAttributes) AS series,
-    argMax(ValueAtQuantiles.Value[indexOf(ValueAtQuantiles.Quantile, {quantile:Float64})], TimeUnix) AS v
+    ${SERIES_SQL} AS series,
+    toUInt32(max(TimeUnix)) AS t,
+    argMax(ValueAtQuantiles.Value[indexOf(ValueAtQuantiles.Quantile, wanted)], TimeUnix) AS v
   FROM ${table}
-  WHERE ${where} AND has(ValueAtQuantiles.Quantile, {quantile:Float64})
-  GROUP BY bucket, labels, series
+  -- A String parameter: the local app's SQL gateway takes no Float64.
+  WHERE ${where} AND has(ValueAtQuantiles.Quantile, toFloat64({quantile:String}) AS wanted)
+  GROUP BY bucket, labels, series`)}
 )
-GROUP BY bucket, labels`;
+GROUP BY ts, labels`;
   }
 
   /**
@@ -978,7 +1265,7 @@ WHERE ${where.clause}
   AND Exemplars.TimeUnix >= parseDateTimeBestEffort({fromTs:String})
   AND Exemplars.TimeUnix <= parseDateTimeBestEffort({toTs:String})
 ORDER BY value DESC
-LIMIT 1 BY ts, labels, cityHash64(Attributes, ResourceAttributes)
+LIMIT 1 BY ts, labels, ${SERIES_SQL}
 LIMIT ${EXEMPLAR_LIMIT}`;
     const rows = await this.client.execute<{
       ts: number | string;

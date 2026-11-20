@@ -139,7 +139,8 @@ export function QueryRow({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={hidden ? `Show query ${id} on the chart` : `Hide query ${id} from the chart`}
+          // One name, pressed while hidden, so it never reads as both.
+          aria-label={`Hide query ${id} from the chart`}
           aria-pressed={hidden}
           title={hidden ? "Show on the chart" : "Hide from the chart"}
           onClick={onToggleHidden}
