@@ -101,6 +101,11 @@ func segRow(index uint64, body string) row {
 	return row{segmentIndex: index, body: body}
 }
 
+// earlierRow is the body-less row for a Segment from before the Clip.
+func earlierRow(index uint64) row {
+	return row{segmentIndex: index, earlier: true}
+}
+
 // pieceRows gives one event's JSON in `pieces` rows from first, cut at byte
 // boundaries. An empty eventIndex makes plain rows.
 func pieceRows(first uint64, eventIndex, json string, pieces int) []row {
@@ -120,7 +125,12 @@ func pieceRows(first uint64, eventIndex, json string, pieces int) []row {
 func wireOf(t testing.TB, readMs int64, rows ...row) []byte {
 	out := toJSON(t, obj{"format": 1, "read_ms": readMs})
 	for _, r := range rows {
+		earlier := 0
+		if r.earlier {
+			earlier = 1
+		}
 		out += "\n" + toJSON(t, obj{
+			"earlier":       earlier,
 			"segment_index": r.segmentIndex,
 			"Body":          r.body,
 			"event_index":   r.eventIndex,

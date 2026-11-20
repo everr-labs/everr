@@ -49,13 +49,22 @@ func toEvent(value Json) (event, bool) {
 // Generation after a newer one, so the Segment index orders the pieces of an
 // event and finds gaps, not the page's history. Events of equal time stay in
 // Segment order.
+//
+// An `earlier` row names a Segment from before the Clip: it can sit between
+// two read ones, so its index is no hole. It holds no events and is otherwise
+// skipped.
 func reassemble(rows []row, budget int) ([]event, bool) {
 	gap := false
 
 	// A Segment stored twice counts once; twice with different bodies is a gap.
 	segments := make([]row, 0, len(rows))
 	seen := make(map[uint64]int, len(rows))
+	var earlier []uint64
 	for _, r := range rows {
+		if r.earlier {
+			earlier = append(earlier, r.segmentIndex)
+			continue
+		}
 		if at, ok := seen[r.segmentIndex]; ok {
 			gap = gap || segments[at].body != r.body
 			continue
@@ -72,8 +81,16 @@ func reassemble(rows []row, budget int) ([]event, bool) {
 		}
 		return 0
 	})
+	// Between two read indexes, a hole is an index no earlier Segment holds.
+	earlier = slices.Compact(slices.Sorted(slices.Values(earlier)))
 	for i := 1; i < len(segments); i++ {
-		if segments[i].segmentIndex-segments[i-1].segmentIndex > 1 {
+		low, high := segments[i-1].segmentIndex, segments[i].segmentIndex
+		if high-low <= 1 {
+			continue
+		}
+		from, _ := slices.BinarySearch(earlier, low+1)
+		to, _ := slices.BinarySearch(earlier, high)
+		if uint64(to-from) < high-low-1 {
 			gap = true
 		}
 	}
