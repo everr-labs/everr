@@ -15,8 +15,11 @@ export const CLIP_ID = "8fa44e8b05e90c9b9204397b6efeb32f";
 const SERVICE = "verify-sdk-web";
 export const HOUR = 60 * 60 * 1000;
 
-/** A `recording` span row. plan() filters on `streamId` and `clipId`, as the WHERE does. */
-type SpanRow = {
+/**
+ * A Clip as the reader's query returns it: the aggregate of the Segments of one
+ * run. plan() filters on `streamId` and `clipId`, as the WHERE and HAVING do.
+ */
+type ClipRow = {
   serviceName: string;
   startMs: number;
   endMs: number;
@@ -43,7 +46,7 @@ type SegmentRow = {
   earlier: number;
 };
 
-export function spanRow(overrides: Partial<SpanRow> = {}): SpanRow {
+export function clipRow(overrides: Partial<ClipRow> = {}): ClipRow {
   const startMs = overrides.startMs ?? Date.now() - 10_000;
   return {
     serviceName: SERVICE,
@@ -81,9 +84,10 @@ async function* each(lines: string[]): AsyncGenerator<string> {
 
 /**
  * Answers the mocked queries by SQL shape:
- *   SpanName = 'recording'    Clips of the `stream` param overlapping the window, one per Clip,
+ *   GROUP BY clip_start       Clips of the `stream` param overlapping the window, one per Clip,
  *                             nearest to the `atMs` param first;
- *                             with a `clipId` param, the spans of that Clip starting in the window
+ *                             with a `clipId` param, the run of that Clip, starting in the window,
+ *                             with its trigger as `openedTrigger`
  *   AS bytes                  the size of the Segments (`bytes` overrides it)
  *   FROM recordings           the Segments of the `stream` param (as JSON lines from queryLines);
  *                             a row with `at` is read only inside [fromMs, toMs], and, when the
@@ -91,7 +95,7 @@ async function* each(lines: string[]): AsyncGenerator<string> {
  *                             hour before fromMs
  */
 export function plan(
-  rows: { clips?: SpanRow[]; recordings?: SegmentRow[]; bytes?: number } = {},
+  rows: { clips?: ClipRow[]; recordings?: SegmentRow[]; bytes?: number } = {},
 ): void {
   const recordings = (params: Record<string, unknown>, sql = "") => {
     const union = sql.includes("UNION ALL");
@@ -108,25 +112,27 @@ export function plan(
   };
   mockedQuery.mockImplementation(async (sql: string, _org, rawParams) => {
     const params = (rawParams ?? {}) as Record<string, unknown>;
-    if (sql.includes("SpanName = 'recording'") && typeof params.clipId === "string") {
-      return (rows.clips ?? []).filter(
-        (c) =>
-          c.clipId === params.clipId &&
-          c.startMs >= Number(params.fromMs) &&
-          c.startMs <= Number(params.toMs),
-      ) as never;
+    if (isClipQuery(sql) && typeof params.clipId === "string") {
+      return (rows.clips ?? [])
+        .filter(
+          (c) =>
+            c.clipId === params.clipId &&
+            c.startMs >= Number(params.fromMs) &&
+            c.startMs <= Number(params.toMs),
+        )
+        .map(({ trigger, ...run }) => ({ ...run, openedTrigger: trigger })) as never;
     }
-    if (sql.includes("SpanName = 'recording'")) {
+    if (isClipQuery(sql)) {
       const seen = new Set<string>();
       const matching = (rows.clips ?? []).filter((c) => {
-        if (c.streamId !== params.stream) return false;
+        if (!c.clipId || c.streamId !== params.stream) return false;
         if (typeof params.startFromMs === "number" && c.startMs < params.startFromMs) return false;
         if (typeof params.toMs === "number" && c.startMs > params.toMs) return false;
         if (typeof params.fromMs === "number" && c.endMs < params.fromMs) return false;
         return !seen.has(c.clipId) && !!seen.add(c.clipId);
       });
       const at = Number(params.atMs);
-      const gap = (c: SpanRow) => Math.max(0, c.startMs - at, at - c.endMs);
+      const gap = (c: ClipRow) => Math.max(0, c.startMs - at, at - c.endMs);
       return matching
         .sort((a, b) => gap(a) - gap(b) || b.endMs - a.endMs)
         .slice(0, typeof params.cap === "number" ? params.cap : undefined) as never;
@@ -163,8 +169,8 @@ export function calls(match: (sql: string) => boolean = () => true): QueryCall[]
     }));
 }
 
-export const isClipQuery = (sql: string) => sql.includes("SpanName = 'recording'");
-export const isSegmentQuery = (sql: string) => /FROM\s+recordings/.test(sql);
+export const isClipQuery = (sql: string) => /GROUP BY[^\n]*clip_start/.test(sql);
+export const isSegmentQuery = (sql: string) => !isClipQuery(sql) && /FROM\s+recordings/.test(sql);
 
 export async function collect(lines: AsyncIterable<string>): Promise<string[]> {
   const out: string[] = [];

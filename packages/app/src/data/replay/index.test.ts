@@ -17,7 +17,7 @@ import {
   plan,
   segLine,
   segRow,
-  spanRow,
+  clipRow,
 } from "./test-fixtures.ts";
 
 const T = Date.UTC(2026, 10, 14, 10, 20, 41, 120);
@@ -29,7 +29,7 @@ const SEGMENTS = [
   segRow("[1]", { stream_id: STREAM }),
   segRow("[2]", { stream_id: STREAM, segment_index: 1 }),
 ];
-const CLIP_SPAN = spanRow({
+const CLIP_ROW = clipRow({
   clipId: CLIP,
   streamId: STREAM,
   serviceName: "checkout-web",
@@ -48,7 +48,7 @@ beforeEach(() => {
 
 describe("readSegments", () => {
   it("passes on the Segments of the covering Clip up to 0.75 s after --at, as ClickHouse wrote them", async () => {
-    plan({ clips: [CLIP_SPAN], recordings: SEGMENTS });
+    plan({ clips: [CLIP_ROW], recordings: SEGMENTS });
     const { readAt, lines } = await read(`stream=${STREAM}&at=2026-11-14T10:21:39.700Z`);
     expect(readAt.toISOString()).toBe("2026-11-14T10:21:40.450Z");
     expect(await collect(lines)).toEqual(SEGMENTS.map(segLine));
@@ -59,13 +59,13 @@ describe("readSegments", () => {
   });
 
   it("reads no later than the Clip's end", async () => {
-    plan({ clips: [CLIP_SPAN], recordings: SEGMENTS });
+    plan({ clips: [CLIP_ROW], recordings: SEGMENTS });
     const { readAt } = await read(`stream=${STREAM}&at=2026-11-14T10:21:51.000Z`);
     expect(readAt.toISOString()).toBe("2026-11-14T10:21:51.120Z");
   });
 
   it("refuses a read over 32 MiB of Segments before reading a row", async () => {
-    plan({ clips: [CLIP_SPAN], recordings: SEGMENTS, bytes: 33 * 1024 * 1024 });
+    plan({ clips: [CLIP_ROW], recordings: SEGMENTS, bytes: 33 * 1024 * 1024 });
     await expect(read(`stream=${STREAM}&at=2026-11-14T10:21:39.700Z`)).rejects.toMatchObject({
       code: "too_large",
       message: expect.stringContaining("needs 33 MiB of Segments, over the 32 MiB"),
@@ -74,7 +74,7 @@ describe("readSegments", () => {
   });
 
   it("names the nearest Clips when none covers --at", async () => {
-    plan({ clips: [CLIP_SPAN], recordings: SEGMENTS });
+    plan({ clips: [CLIP_ROW], recordings: SEGMENTS });
     const failure = await read(`stream=${STREAM}&at=2026-11-14T10:25:03Z`).catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(ReplayError);
     expect(failure).toMatchObject({ code: "outside_clip" });
