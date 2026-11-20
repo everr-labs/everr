@@ -108,11 +108,12 @@ Preconditions:
   ```
 
   The section shows `<trigger> TRIGGER` for the Clip's trigger and `<n> missing segment` only when `indexes` skips `n` numbers (`replay-gaps`).
-- **No refetch loop.** With the error detail open on the default range, run `$V web-net replay-no-loop 10`. The `NET` line has `serverfn=` at most `10` (`replay-no-loop`). A count in the hundreds is a refetch loop: a query key changes every render. Report it as a failure with the count.
+- **No refetch loop.** With the error detail open on the default range, run `$V web-net replay-no-loop 10 --reload` (without the reload the log is empty). The `NET` line has `serverfn=` at most `10` (`replay-no-loop`). A count in the hundreds is a refetch loop: a query key changes every render. Report it as a failure with the count.
 - **Trace view.** Run:
 
   ```bash
-  agent-browser open "$WEB/traces?withRecording=true" && agent-browser find text "/verify-api/checkout" click && agent-browser wait --fn "location.pathname.startsWith('/traces/')"
+  agent-browser open "$WEB/traces?withRecording=true" && agent-browser wait --text "/verify-api/checkout"
+  agent-browser find text "/verify-api/checkout" click && agent-browser wait --fn "location.pathname.startsWith('/traces/')"
   agent-browser wait 'section[aria-label="Session recording"] button[aria-expanded="false"]' && agent-browser wait --text "TRIGGER" && ab_save replay-08-trace "Trace view: the closed Session recording row above the flamegraph"
   ```
 
