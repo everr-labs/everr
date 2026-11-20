@@ -628,7 +628,7 @@ describe("clipEvents", () => {
     const snapshot = JSON.stringify(snapshotEvent(T0 + 100));
     const half = Math.floor(snapshot.length / 2);
     plan({
-      traces: [spanRow(), spanRow()],
+      clips: [clipRow(), clipRow()],
       recordings: [
         segRow(eventBody([metaEvent(T0 + 50)]), { segment_index: 0 }),
         segRow(snapshot.slice(0, half), {
@@ -657,16 +657,16 @@ describe("clipEvents", () => {
       [3, T0 + 4_000],
     ]);
     expect(gaps).toEqual([{ kind: "index", streamId: STREAM, after: 2, missing: 1 }]);
-    expect(callsFor("traces")[0]?.params).toMatchObject({ clipId: CLIP_ID });
-    expect(callsFor("recordings")[0]?.params).toMatchObject({
+    expect(callsFor("clips")[0]?.params).toMatchObject({ clipId: CLIP_ID });
+    expect(callsFor("segments")[0]?.params).toMatchObject({
       streams: [STREAM],
       fromMs: T0,
       toMs: T0 + 5_000,
     });
   });
 
-  it("answers 404 for a clip id with no recording span near its start", async () => {
-    plan({ traces: [], recordings: [] });
+  it("answers 404 for a clip id with no Clip near its start", async () => {
+    plan({ clips: [], recordings: [] });
     const failure = await clipEvents(ORG, CLIP_ID, T0).catch((error: unknown) => error);
     expect(failure).toMatchObject({ code: "outside_clip" });
     expect(replayHttpError(failure).status).toBe(404);
