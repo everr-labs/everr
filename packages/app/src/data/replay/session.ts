@@ -113,7 +113,7 @@ class ReplayError extends Error {
 }
 
 /**
- * An unrecognized trigger value skips the span where it is read (recorded as a
+ * An unrecognized trigger value skips the Clip where it is read (recorded as a
  * "clip" gap), so a future producer version cannot fail a whole session.
  */
 function parseTrigger(raw: string): Trigger | undefined {
@@ -133,7 +133,7 @@ function parseInstant(raw: string): Date {
   return d;
 }
 
-type SpanRow = {
+type ClipRow = {
   serviceName: string;
   startMs: number;
   endMs: number;
@@ -144,46 +144,63 @@ type SpanRow = {
   sessionId: string;
 };
 
+/** How long after its start a Clip's Segments are looked for. */
+const CLIP_REACH_MS = 60 * 60 * 1000;
+
+// A Clip is the Segments of one Stream with the same clip_start: one run of
+// overlapping Clips, complete from clip_start through the last segment_end.
+// The grouping also collapses rows duplicated by at-least-once delivery.
+const CLIP_GROUP = "GROUP BY stream_id, clip_start";
+const CLIP_RANGE = `
+  any(ServiceName) AS serviceName,
+  toUnixTimestamp64Milli(clip_start) AS startMs,
+  toUnixTimestamp64Milli(max(segment_end)) AS endMs,
+  stream_id AS streamId,
+  any(session_id) AS sessionId`;
+
 async function loadClips(
   organizationId: string,
   sessionId: string,
   from: Date,
   to: Date,
 ): Promise<{ clips: ClipWindow[]; gaps: Gap[]; more: boolean }> {
-  const rows = await query<SpanRow>(
+  // The id and trigger are those of the first Clip that opened in the run.
+  const rows = await query<ClipRow>(
     `
-SELECT
-  ServiceName AS serviceName,
-  toUnixTimestamp64Milli(Timestamp) AS startMs,
-  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
-  toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId,
-  toString(SpanAttributes.\`everr.recording.stream.id\`) AS streamId,
-  toString(SpanAttributes.\`everr.recording.trigger\`) AS trigger,
-  toString(SpanAttributes.\`everr.recording.clip.truncated\`) AS truncated,
-  toString(SpanAttributes.\`session.id\`) AS sessionId
-FROM traces
-WHERE SpanName = 'recording'
-  AND toString(SpanAttributes.\`session.id\`) = {sessionId:String}
+SELECT${CLIP_RANGE},
+  argMinIf(clip_id, segment_index, clip_id != '') AS clipId,
+  argMinIf(trigger, segment_index, clip_id != '') AS trigger,
+  toString(argMinIf(truncated, segment_index, clip_id != '')) AS truncated
+FROM recordings
+WHERE session_id = {sessionId:String}
   AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
-  AND Timestamp < fromUnixTimestamp64Milli({toMs: Int64})
-ORDER BY Timestamp DESC
-LIMIT 1 BY clipId, streamId
+  AND Timestamp < fromUnixTimestamp64Milli({toMs: Int64} + {reachMs: Int64})
+${CLIP_GROUP}
+HAVING startMs >= {fromMs: Int64} AND startMs < {toMs: Int64}
+ORDER BY startMs DESC
 LIMIT {cap:UInt16}
 `,
     organizationId,
     // One more than the cap tells a full window from a truncated one.
-    { sessionId, fromMs: from.getTime(), toMs: to.getTime(), cap: MAX_CLIPS + 1 },
+    {
+      sessionId,
+      fromMs: from.getTime(),
+      toMs: to.getTime(),
+      reachMs: CLIP_REACH_MS,
+      cap: MAX_CLIPS + 1,
+    },
     QUERY_SETTINGS,
   );
 
   const clips: ClipWindow[] = [];
   const gaps: Gap[] = [];
   for (const r of rows.slice(0, MAX_CLIPS)) {
+    // The Segment that opens the Clip carries its id: without it, it was lost.
     if (!r.clipId || !r.streamId || !r.serviceName) {
       gaps.push({
         kind: "clip",
         atMs: Number(r.startMs ?? 0),
-        reason: "recording span missing clip, stream, or service",
+        reason: "recording missing clip, stream, or service",
       });
       continue;
     }
@@ -201,8 +218,8 @@ LIMIT {cap:UInt16}
       streamId: r.streamId,
       sessionId: r.sessionId || sessionId,
       serviceName: r.serviceName,
-      start: new Date(r.startMs),
-      end: new Date(r.endMs),
+      start: new Date(Number(r.startMs)),
+      end: new Date(Number(r.endMs)),
       trigger,
       bufferTruncated: r.truncated === "true",
     });
@@ -216,41 +233,32 @@ async function loadClipById(
   atMs: number,
 ): Promise<ClipWindow | undefined> {
   const lookbackMs = 60 * 60 * 1000;
-  const rows = await query<SpanRow>(
+  // The run that holds the Segment opening this Clip, under this Clip's id and trigger.
+  const rows = await query<ClipRow>(
     `
-SELECT
-  ServiceName AS serviceName,
-  toUnixTimestamp64Milli(Timestamp) AS startMs,
-  toUnixTimestamp64Milli(Timestamp) + intDiv(Duration, 1000000) AS endMs,
-  toString(SpanAttributes.\`everr.recording.clip.id\`) AS clipId,
-  toString(SpanAttributes.\`everr.recording.stream.id\`) AS streamId,
-  toString(SpanAttributes.\`everr.recording.trigger\`) AS trigger,
-  toString(SpanAttributes.\`everr.recording.clip.truncated\`) AS truncated,
-  toString(SpanAttributes.\`session.id\`) AS sessionId
-FROM traces
-WHERE SpanName = 'recording'
-  AND toString(SpanAttributes.\`everr.recording.clip.id\`) = {clipId:String}
+SELECT${CLIP_RANGE},
+  {clipId:String} AS clipId,
+  anyIf(trigger, clip_id = {clipId:String}) AS trigger,
+  toString(anyIf(truncated, clip_id = {clipId:String})) AS truncated
+FROM recordings
+WHERE (stream_id, clip_start) IN (
+    SELECT stream_id, clip_start
+    FROM recordings
+    WHERE clip_id = {clipId:String}
+      AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
+      AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
+  )
   AND Timestamp >= fromUnixTimestamp64Milli({fromMs: Int64})
-  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64})
-ORDER BY Timestamp ASC
-LIMIT 1 BY clipId
+  AND Timestamp <= fromUnixTimestamp64Milli({toMs: Int64} + {reachMs: Int64})
+${CLIP_GROUP}
 `,
     organizationId,
-    { clipId, fromMs: atMs - lookbackMs, toMs: atMs + lookbackMs },
+    { clipId, fromMs: atMs - lookbackMs, toMs: atMs + lookbackMs, reachMs: CLIP_REACH_MS },
     QUERY_SETTINGS,
   );
-  // `LIMIT 1 BY clipId` collapses rows duplicated by at-least-once delivery on
-  // the server; the dedupe here keeps the same guarantee behind a mock or a
-  // future server change. Two DIFFERENT shapes for one clip id stay rejected.
-  const seen = new Set<string>();
-  const deduped = rows.filter((r) => {
-    const identity = `${r.clipId}:${r.startMs}:${r.endMs}:${r.streamId}:${r.serviceName}:${r.sessionId}`;
-    if (seen.has(identity)) return false;
-    seen.add(identity);
-    return true;
-  });
-  if (deduped.length !== 1) return undefined;
-  const r = deduped[0];
+  // One clip id in two runs is not a Clip this reader can place.
+  if (rows.length !== 1) return undefined;
+  const r = rows[0];
   if (!r?.clipId || !r.streamId || !r.serviceName || !r.sessionId) return undefined;
   const trigger = parseTrigger(r.trigger ?? "");
   if (!trigger) return undefined;
@@ -259,8 +267,8 @@ LIMIT 1 BY clipId
     streamId: r.streamId,
     sessionId: r.sessionId,
     serviceName: r.serviceName,
-    start: new Date(r.startMs),
-    end: new Date(r.endMs),
+    start: new Date(Number(r.startMs)),
+    end: new Date(Number(r.endMs)),
     trigger,
     bufferTruncated: r.truncated === "true",
   };
