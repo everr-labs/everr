@@ -13,8 +13,8 @@ export class ClipEventsError extends Error {
   }
 }
 
-// An answer with nothing in it may only mean the Segments or the Clip's span
-// had not arrived yet, so it is looked up again after a while.
+// An answer with nothing in it may only mean the Segments, or the one that opens
+// the Clip, had not arrived yet, so it is looked up again after a while.
 const EMPTY_STALE_MS = 30_000;
 
 // Keys hold the record's identity only. A time resolved against now in a key
