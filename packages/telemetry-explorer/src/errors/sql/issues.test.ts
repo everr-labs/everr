@@ -60,7 +60,8 @@ describe("recording filter", () => {
     const on = buildSummaryQuery({ ...base, withRecording: true }, "logs");
 
     expect(off.sql).not.toMatch(/recording/);
-    expect(exceptionLogs(on.sql)).toContain("SpanName = 'recording'");
+    expect(exceptionLogs(on.sql)).toContain("FROM recordings");
+    expect(exceptionLogs(on.sql)).toContain("GROUP BY stream_id, clip_start");
     expect(exceptionLogs(on.sql)).toContain("everr.recording.stream.id");
     expect(on.params).toEqual(off.params);
   });
@@ -71,6 +72,6 @@ describe("recording filter", () => {
     const on = buildOccurrencesQuery({ ...detail, withRecording: true }, "logs");
 
     expect(off.sql).not.toMatch(/recording/);
-    expect(exceptionLogs(on.sql)).toContain("SpanName = 'recording'");
+    expect(exceptionLogs(on.sql)).toContain("FROM recordings");
   });
 });

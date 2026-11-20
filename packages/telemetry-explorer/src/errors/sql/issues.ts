@@ -68,7 +68,7 @@ function buildExceptionLogsCte(
   if (input.withRecording) {
     filters.push(
       recordedLogPredicateSql(
-        { traces: "traces", logs: tableName },
+        { traces: "traces", recordings: "recordings", logs: tableName },
         {
           from: "parseDateTime64BestEffort({fromTs:String}, 9)",
           to: "parseDateTime64BestEffort({toTs:String}, 9)",

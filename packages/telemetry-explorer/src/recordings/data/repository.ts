@@ -18,17 +18,22 @@ type CoveringClipRow = {
 
 export class RecordingsRepository {
   private readonly tracesTable: string;
+  private readonly recordingsTable: string;
 
   constructor(
     private readonly client: SqlClient,
-    options: { tracesTable?: string } = {},
+    options: { tracesTable?: string; recordingsTable?: string } = {},
   ) {
     this.tracesTable = options.tracesTable ?? "traces";
+    this.recordingsTable = options.recordingsTable ?? "recordings";
   }
 
   /** The Clips that cover `subject`, earliest first. Empty for most records. */
   async coveringClips(subject: ClipSubject): Promise<CoveringClip[]> {
-    const { sql, params } = coveringClipsQuery(this.tracesTable, subject);
+    const { sql, params } = coveringClipsQuery(
+      { traces: this.tracesTable, recordings: this.recordingsTable },
+      subject,
+    );
     const rows = await this.client.execute<CoveringClipRow>(sql, params);
     return rows.map(parseCoveringClipRow);
   }
