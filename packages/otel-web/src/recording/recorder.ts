@@ -380,6 +380,8 @@ export function startStream(
       },
     });
 
+    // A frozen tab runs the timer late, so the Span ends at the cap, not at the wake.
+    const capMs = Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS);
     let live = true;
     const state = {
       from: fromBuffer ? generations[first].n : generationCount,
@@ -390,7 +392,7 @@ export function startStream(
         if (!hide) sendLive();
         clips.delete(state);
         if (!clips.size) clearInterval(flush);
-        if (!drop) span.end();
+        if (!drop) span.end(Math.min(Date.now(), now + capMs));
       },
     };
     if (!clips.size) flush = setInterval(sendLive, FLUSH_MS);
@@ -404,10 +406,7 @@ export function startStream(
         // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
       }
     }
-    const cap = setTimeout(
-      () => state.close(false),
-      Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS),
-    );
+    const cap = setTimeout(() => state.close(false), capMs);
     if (range.next === 0) state.close(false);
     return { id, startTime: start, isRecording: () => live, end: () => state.close(false) };
   };
