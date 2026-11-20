@@ -2,6 +2,7 @@ package localcollector
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 func freeOrigin(t *testing.T) string {
@@ -101,7 +104,6 @@ func runUntilReady(t *testing.T, g *Gateway, sql string) (cancel func()) {
 	}
 }
 
-// chDB can be opened only once per process, so one test covers the gateway.
 func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	if os.Getenv("CHDB_LIB_PATH") == "" {
 		t.Skip("CHDB_LIB_PATH not set")
@@ -139,4 +141,135 @@ func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	sendLog(t, otlp, "second")
 	require.Eventually(t, func() bool { return countLogs(t, sql, "second") == 1 }, 10*time.Second, 100*time.Millisecond)
 	require.Equal(t, 1, countLogs(t, sql, "first"))
+}
+
+func queryRows(t *testing.T, sql, query string) []map[string]any {
+	t.Helper()
+	resp := postSQL(t, sql, query)
+	defer resp.Body.Close()
+	out, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(out))
+	var rows []map[string]any
+	dec := json.NewDecoder(bytes.NewReader(out))
+	for dec.More() {
+		var row map[string]any
+		require.NoError(t, dec.Decode(&row), string(out))
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// sendGzipped posts one OTLP/HTTP logs request, gzipped as the browser SDK
+// sends Segments.
+func sendGzipped(t *testing.T, otlp, payload string) {
+	t.Helper()
+	var compressed bytes.Buffer
+	zw := gzip.NewWriter(&compressed)
+	_, err := zw.Write([]byte(payload))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	req, err := http.NewRequest(http.MethodPost, otlp+"/v1/logs", &compressed)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(out))
+}
+
+func TestGatewayStoresRecordingSegmentsApartFromLogs(t *testing.T) {
+	if os.Getenv("CHDB_LIB_PATH") == "" {
+		t.Skip("CHDB_LIB_PATH not set")
+	}
+	t.Cleanup(chdb.ResetForTesting)
+	chdb.ResetForTesting()
+
+	otlp, sql := freeOrigin(t), freeOrigin(t)
+	g, err := Open(Options{
+		OTLPEndpoint: otlp,
+		SQLEndpoint:  sql,
+		ChDBPath:     t.TempDir(),
+		TTL:          24 * time.Hour,
+	})
+	require.NoError(t, err)
+	defer g.Close(context.Background())
+	defer runUntilReady(t, g, sql)()
+
+	now := time.Now().UnixNano()
+	segmentBody := "[" + strings.Repeat(`{"type":3}`, 95000) + "]" // about 950 KB
+	stringAttr := func(key, value string) string {
+		return fmt.Sprintf(`{"key":%q,"value":{"stringValue":%q}}`, key, value)
+	}
+	segment := func(offset int64, body string, attributes ...string) string {
+		return fmt.Sprintf(`{"timeUnixNano":"%d","eventName":"everr.browser.recording.segment","body":{"stringValue":%q},"attributes":[%s]}`,
+			now+offset, body, strings.Join(attributes, ","))
+	}
+	records := []string{
+		fmt.Sprintf(`{"timeUnixNano":"%d","body":{"stringValue":"ordinary log"}}`, now),
+		segment(1, segmentBody,
+			stringAttr("session.id", "session-1"),
+			stringAttr("everr.recording.stream.id", "stream-1"),
+			`{"key":"everr.recording.segment.index","value":{"intValue":"0"}}`,
+			`{"key":"everr.recording.segment.end","value":{"intValue":"1700000005250"}}`,
+			`{"key":"everr.recording.clip.start","value":{"intValue":"1700000000000"}}`,
+			stringAttr("everr.recording.clip.id", "clip-1"),
+			stringAttr("everr.recording.trigger", "error"),
+			stringAttr("everr.recording.clip.truncated", "true")),
+		segment(2, "malformed index",
+			stringAttr("everr.recording.stream.id", "stream-1"),
+			stringAttr("everr.recording.segment.index", "not a number"),
+			stringAttr("everr.recording.segment.end", "soon"),
+			`{"key":"everr.recording.clip.start","value":{"doubleValue":9e18}}`),
+		segment(3, "missing index", stringAttr("everr.recording.stream.id", "stream-2")),
+	}
+	payload := `{"resourceLogs":[{"resource":{"attributes":[` + stringAttr("service.name", "browser") + `]},` +
+		`"scopeLogs":[{"logRecords":[` + strings.Join(records, ",") + `]}]}]}`
+
+	sendGzipped(t, otlp, payload)
+
+	require.Eventually(t, func() bool {
+		rows := queryRows(t, sql, "SELECT count() AS n FROM recordings")
+		return len(rows) == 1 && rows[0]["n"] == float64(3)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	segments := queryRows(t, sql,
+		"SELECT stream_id, segment_index, session_id, length(Body) AS bytes FROM recordings ORDER BY Timestamp")
+	require.Len(t, segments, 3)
+	require.Equal(t, "stream-1", segments[0]["stream_id"])
+	require.EqualValues(t, 0, segments[0]["segment_index"])
+	require.Equal(t, "session-1", segments[0]["session_id"])
+	require.EqualValues(t, len(segmentBody), segments[0]["bytes"])
+	require.Equal(t, "stream-1", segments[1]["stream_id"])
+	require.EqualValues(t, 0, segments[1]["segment_index"], "a malformed index stores 0")
+	require.Equal(t, "stream-2", segments[2]["stream_id"])
+	require.EqualValues(t, 0, segments[2]["segment_index"], "a missing index stores 0")
+
+	// The Clip listing the shared reader runs, unchanged, on the same columns.
+	clips := queryRows(t, sql, `SELECT stream_id, toUnixTimestamp64Milli(clip_start) AS clip_start,
+		toUnixTimestamp64Milli(max(segment_end)) AS clip_end,
+		argMinIf(clip_id, segment_index, clip_id != '') AS opened_id,
+		argMinIf(trigger, segment_index, clip_id != '') AS opened_trigger,
+		argMinIf(truncated, segment_index, clip_id != '') AS opened_truncated
+		FROM recordings WHERE Timestamp > now() - INTERVAL 1 HOUR
+		GROUP BY stream_id, clip_start ORDER BY stream_id, clip_start DESC`)
+	require.Len(t, clips, 3)
+	require.Equal(t, "stream-1", clips[0]["stream_id"])
+	require.EqualValues(t, 1700000000000, clips[0]["clip_start"])
+	require.EqualValues(t, 1700000005250, clips[0]["clip_end"])
+	require.Equal(t, "clip-1", clips[0]["opened_id"])
+	require.Equal(t, "error", clips[0]["opened_trigger"])
+	require.Equal(t, true, clips[0]["opened_truncated"])
+	require.EqualValues(t, 0, clips[1]["clip_start"], "a start past the DateTime64 range stores the epoch")
+	require.EqualValues(t, 0, clips[1]["clip_end"], "an end that is not a number stores the epoch")
+	require.Equal(t, "", clips[1]["opened_id"])
+
+	require.Eventually(t, func() bool { return countLogs(t, sql, "ordinary log") == 1 }, 15*time.Second, 100*time.Millisecond)
+	inLogs := queryRows(t, sql, "SELECT count() AS n FROM logs WHERE EventName = 'everr.browser.recording.segment'")
+	require.EqualValues(t, 0, inLogs[0]["n"], "no Segment is stored as a log")
+	ordinaryInRecordings := queryRows(t, sql, "SELECT count() AS n FROM recordings WHERE Body = 'ordinary log'")
+	require.EqualValues(t, 0, ordinaryInRecordings[0]["n"])
 }

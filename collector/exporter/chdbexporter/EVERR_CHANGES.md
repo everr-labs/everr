@@ -43,6 +43,15 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   drops them instead. `TestSchemaTemplatesMatchVersion` fails when a table's
   DDL changes without a version bump, because a store is only rebuilt when the
   version differs.
+- The version check belongs to the store, not to a config. `NewFactoryWithHandle`
+  builds one `store` for the handle it is given, every exporter the factory
+  builds registers its config with it, and the first `start()` runs the
+  rebuild once per database, dropping the tables of every registered config.
+  With one guard per config, a second exporter component on the same handle
+  would have kept the old shape of its own tables. The collector builds every
+  component before it starts any, which is what lets the first start see them
+  all. `TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst` holds the
+  invariant in both start orders.
 - Writes two placeholders, not three, for the JSON traces attribute-keys
   feature columns. Upstream writes two column names and three placeholders, so
   the insert list does not match the column list. Report this upstream.
@@ -180,3 +189,43 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   `testdata/config.yaml`.
 - `example/docker-compose.yml` keeps its ClickHouse image pin.
 - `localSchemaVersion` stays 2: the table DDL is unchanged.
+
+## Recordings layout
+
+- `logs_layout` (`logs` by default, or `recordings`) picks the shape of the
+  JSON logs table from a closed set (`logsLayoutTemplates`). The cloud routes
+  browser recording Segments to their own `recordings` table, and the local
+  collector does the same, so a Segment is not stored as one huge row of the
+  ordinary `logs` table. `recordings` needs `json: true`; `Validate` rejects
+  any other combination and any name outside the set.
+- `internal/sqltemplates/recordings_table.sql` is the cloud's `app.recordings`
+  (`packages/app/clickhouse/0013-create-recordings.sql`) minus
+  `tenant_id` and `retention_days`, which the local store does not have. The
+  MATERIALIZED columns (`session_id`, `stream_id`, `segment_index`,
+  `segment_end`, `clip_start`, `clip_id`, `trigger`, `truncated`) carry the
+  cloud's names, types and expressions, which never throw on a missing or
+  malformed attribute. Keep the column list and the expressions in step with
+  the cloud DDL, because the shared readers' queries must run against the
+  local table unchanged.
+- Keys: `PARTITION BY toDate(Timestamp, 'UTC')` and
+  `ORDER BY (toStartOfHour(Timestamp, 'UTC'), stream_id, segment_index)`. These
+  are the cloud's keys without `tenant_id` and `retention_days`. The granularity
+  is 32, because a row is close to 1 MB. The TTL is the exporter's `ttl`, like
+  the other local tables, read as `toDateTime(Timestamp, 'UTC')` (the cloud's
+  is a whole number of days, per row). `Timestamp` is not in the sort key and
+  the zone is explicit for the reason in the cloud DDL. It also matters here:
+  the engine runs with `--session_timezone=UTC`, but a table reattached after
+  a restart takes the machine's zone for an implicit `toDate(Timestamp)`, and a
+  partition written under UTC is then pruned by local dates. `logs` and
+  `traces` still use the implicit form.
+- `everrUnixMilliOrEpoch` is registered, like `errorFingerprint`, before the
+  recordings table is created (`create_unix_milli_function.sql`, identical to
+  the statement in 0013; `packages/app/src/db/clickhouse-migrations.test.ts`
+  compares them). ClickHouse expands a function into the column expression
+  when the table is created, so a store does not need the function to load.
+- The insert path is shared with `logs`: MATERIALIZED columns are not inserted.
+- `localSchemaVersion` stays 2. A released store has no `recordings` table, so
+  `CREATE TABLE IF NOT EXISTS` creates it with this shape. The recordings
+  template joins `shapedTemplatesDigest`, so a later edit to it has to bump the
+  version. A store that already holds Segments in `logs` keeps them there until
+  `ttl` removes them.

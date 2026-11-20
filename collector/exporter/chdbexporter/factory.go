@@ -25,20 +25,21 @@ func NewFactory() exporter.Factory {
 
 // NewFactoryWithHandle creates a factory for the local chDB exporter.
 func NewFactoryWithHandle(handle *chdb.Handle) exporter.Factory {
+	store := newStore(handle)
 	return xexporter.NewFactory(
 		metadata.Type,
 		createDefaultConfig,
 		xexporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
-			return createLogsExporter(ctx, set, cfg, handle)
+			return createLogsExporter(ctx, set, cfg, store)
 		}, metadata.LogsStability),
 		xexporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
-			return createTracesExporter(ctx, set, cfg, handle)
+			return createTracesExporter(ctx, set, cfg, store)
 		}, metadata.TracesStability),
 		xexporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
-			return createMetricExporter(ctx, set, cfg, handle)
+			return createMetricExporter(ctx, set, cfg, store)
 		}, metadata.MetricsStability),
 		xexporter.WithProfiles(func(ctx context.Context, set exporter.Settings, cfg component.Config) (xexporter.Profiles, error) {
-			return createProfilesExporter(ctx, set, cfg, handle)
+			return createProfilesExporter(ctx, set, cfg, store)
 		}, metadata.ProfilesStability),
 	)
 }
@@ -47,16 +48,16 @@ func createLogsExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
-	handle *chdb.Handle,
+	store *store,
 ) (exporter.Logs, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyLogsExporter
 	if c.JSON {
-		exp = newLogsJSONExporter(set.Logger, c, handle)
+		exp = newLogsJSONExporter(set.Logger, c, store)
 	} else {
-		exp = newLogsExporter(set.Logger, c, handle)
+		exp = newLogsExporter(set.Logger, c, store)
 	}
 
 	return exporterhelper.NewLogs(
@@ -76,16 +77,16 @@ func createTracesExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
-	handle *chdb.Handle,
+	store *store,
 ) (exporter.Traces, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
 	var exp anyTracesExporter
 	if c.JSON {
-		exp = newTracesJSONExporter(set.Logger, c, handle)
+		exp = newTracesJSONExporter(set.Logger, c, store)
 	} else {
-		exp = newTracesExporter(set.Logger, c, handle)
+		exp = newTracesExporter(set.Logger, c, store)
 	}
 
 	return exporterhelper.NewTraces(
@@ -105,12 +106,12 @@ func createProfilesExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
-	handle *chdb.Handle,
+	store *store,
 ) (xexporter.Profiles, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
-	exp := newProfilesExporter(set.Logger, c, handle)
+	exp := newProfilesExporter(set.Logger, c, store)
 
 	return xexporterhelper.NewProfiles(
 		ctx,
@@ -129,11 +130,11 @@ func createMetricExporter(
 	ctx context.Context,
 	set exporter.Settings,
 	cfg component.Config,
-	handle *chdb.Handle,
+	store *store,
 ) (exporter.Metrics, error) {
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
-	exp := newMetricsExporter(set.Logger, c, handle)
+	exp := newMetricsExporter(set.Logger, c, store)
 
 	return exporterhelper.NewMetrics(
 		ctx,

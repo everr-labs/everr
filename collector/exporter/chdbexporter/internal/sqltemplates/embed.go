@@ -31,6 +31,14 @@ func newTemplate(name, text string) *template.Template {
 //go:embed create_error_fingerprint_function.sql
 var CreateErrorFingerprintFunction string
 
+// CreateUnixMilliFunction is the DDL registering the everrUnixMilliOrEpoch
+// UDF that the recordings table's columns call. Must match the one in
+// packages/app/clickhouse/0013-create-recordings.sql
+// (packages/app/src/db/clickhouse-migrations.test.ts compares them).
+//
+//go:embed create_unix_milli_function.sql
+var CreateUnixMilliFunction string
+
 // LOGS
 
 //go:embed logs_table.sql
@@ -45,12 +53,20 @@ var LogsJSONCreateTable string
 //go:embed logs_json_insert.sql
 var LogsJSONInsert string
 
+// RecordingsCreateTable is the logs table of browser recording Segments. Its
+// columns match the cloud's app.recordings, without the tenant and retention
+// columns the local store does not have. It calls everrUnixMilliOrEpoch.
+//
+//go:embed recordings_table.sql
+var RecordingsCreateTable string
+
 // Parsed templates for logs (text/template).
 var (
-	LogsCreateTableTmpl     = newTemplate("logs_table", LogsCreateTable)
-	LogsInsertTmpl          = newTemplate("logs_insert", LogsInsert)
-	LogsJSONCreateTableTmpl = newTemplate("logs_json_table", LogsJSONCreateTable)
-	LogsJSONInsertTmpl      = newTemplate("logs_json_insert", LogsJSONInsert)
+	LogsCreateTableTmpl       = newTemplate("logs_table", LogsCreateTable)
+	LogsInsertTmpl            = newTemplate("logs_insert", LogsInsert)
+	LogsJSONCreateTableTmpl   = newTemplate("logs_json_table", LogsJSONCreateTable)
+	LogsJSONInsertTmpl        = newTemplate("logs_json_insert", LogsJSONInsert)
+	RecordingsCreateTableTmpl = newTemplate("recordings_table", RecordingsCreateTable)
 )
 
 // CreateTableData contains the template parameters for creating a logs table.

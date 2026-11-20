@@ -14,29 +14,26 @@ import (
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metrics"
-	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 type metricsExporter struct {
-	db     driver.Conn
-	handle *chdb.Handle
+	db    driver.Conn
+	store *store
 
 	logger       *zap.Logger
 	cfg          *Config
 	tablesConfig metrics.MetricTablesConfigMapper
 }
 
-func newMetricsExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *metricsExporter {
+func newMetricsExporter(logger *zap.Logger, cfg *Config, stores ...*store) *metricsExporter {
 	tablesConfig := generateMetricTablesConfigMapper(cfg)
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
+	st := storeOf(stores)
+	st.register(cfg)
 
 	return &metricsExporter{
 		logger:       logger,
 		cfg:          cfg,
-		handle:       handle,
+		store:        st,
 		tablesConfig: tablesConfig,
 	}
 }
@@ -44,7 +41,7 @@ func newMetricsExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle
 func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 	metrics.SetLogger(e.logger)
 
-	db, err := internal.NewChDBConn(e.handle)
+	db, err := internal.NewChDBConn(e.store.handle)
 	if err != nil {
 		return err
 	}
@@ -56,7 +53,7 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 			return err
 		}
 
-		if err := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); err != nil {
+		if err := e.store.ensureLocalSchema(ctx, e.db, e.cfg, e.logger); err != nil {
 			return err
 		}
 

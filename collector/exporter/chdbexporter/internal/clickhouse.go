@@ -22,9 +22,18 @@ const DefaultDatabase = "default"
 // the statement runs with a real output format, and Exec uses an empty one. The
 // DDL must match the latest packages/app/clickhouse migration that defines errorFingerprint.
 func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
-	rows, err := db.Query(ctx, sqltemplates.CreateErrorFingerprintFunction)
-	if err != nil {
+	if err := CreateFunction(ctx, db, sqltemplates.CreateErrorFingerprintFunction); err != nil {
 		return fmt.Errorf("create errorFingerprint function: %w", err)
+	}
+	return nil
+}
+
+// CreateFunction runs one CREATE OR REPLACE FUNCTION statement. It goes
+// through Query for the reason CreateErrorFingerprintFunction does.
+func CreateFunction(ctx context.Context, db driver.Conn, statement string) error {
+	rows, err := db.Query(ctx, statement)
+	if err != nil {
+		return err
 	}
 	if rows != nil {
 		_ = rows.Close()

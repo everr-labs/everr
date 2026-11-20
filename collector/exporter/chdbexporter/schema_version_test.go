@@ -9,29 +9,37 @@ import (
 	"encoding/hex"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metadata"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 // shapedTemplatesDigest pins the DDL that decides the shape of the local
-// store. localSchemaVersion has to change with it, because a store built by an
-// older binary is only dropped and rebuilt when the version differs.
-const shapedTemplatesDigest = "2414fb829f1db0f493f12bbc6ca8ead5d7606da2c51eaf5e2172813f589f2acf"
+// store. localSchemaVersion has to change with a released table's shape,
+// because a store built by an older binary is only dropped and rebuilt when the
+// version differs.
+const shapedTemplatesDigest = "8a3b0fe238fdddb3126980b71856e730da4541a316d34b33a4914a806bc737f7"
 
 func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	digest := sha256.New()
 	for _, template := range []string{
 		sqltemplates.LogsCreateTable,
 		sqltemplates.LogsJSONCreateTable,
+		sqltemplates.RecordingsCreateTable,
 		sqltemplates.TracesCreateTable,
 		sqltemplates.TracesJSONCreateTable,
 		sqltemplates.TracesCreateTsTable,
@@ -47,7 +55,7 @@ func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	}
 
 	require.Equal(t, shapedTemplatesDigest, hex.EncodeToString(digest.Sum(nil)),
-		"a table's DDL changed: bump localSchemaVersion so existing stores rebuild, "+
+		"a table's DDL changed: if the table was released, bump localSchemaVersion so existing stores rebuild, "+
 			"then update shapedTemplatesDigest to the value above")
 }
 
@@ -116,7 +124,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 
 	// A store filled by an earlier run.
 	first := withDefaultConfig()
-	filled := newLogsExporter(zaptest.NewLogger(t), first, handle)
+	filled := newLogsExporter(zaptest.NewLogger(t), first, newStore(handle))
 	require.NoError(t, filled.start(t.Context(), nil))
 	ld := plog.NewLogs()
 	record := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
@@ -136,7 +144,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	require.NoError(t, writeSchemaVersion(t.Context(), conn, first.database(), localSchemaVersion-1))
 
 	second := withDefaultConfig()
-	rebuilt := newLogsExporter(zaptest.NewLogger(t), second, handle)
+	rebuilt := newLogsExporter(zaptest.NewLogger(t), second, newStore(handle))
 	require.NoError(t, rebuilt.start(t.Context(), nil))
 	t.Cleanup(func() { _ = rebuilt.shutdown(context.Background()) })
 
@@ -144,4 +152,82 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	version, err := readSchemaVersion(t.Context(), conn, second.database())
 	require.NoError(t, err)
 	require.Equal(t, localSchemaVersion, version)
+}
+
+func TestRebuildCoversEveryComponentOfTheStoreWhicheverStartsFirst(t *testing.T) {
+	for _, order := range [][]string{{"first", "second"}, {"second", "first"}} {
+		t.Run(strings.Join(order, " then "), func(t *testing.T) {
+			handle := openRealChDB(t)
+			conn, err := internal.NewChDBConn(handle)
+			require.NoError(t, err)
+
+			// A store from an older binary: both components' tables exist
+			// with a shape that has none of today's columns.
+			tables := map[string]string{"first": "logs", "second": "recordings"}
+			for _, table := range tables {
+				require.NoError(t, conn.Exec(t.Context(),
+					`CREATE TABLE "default"."`+table+`" (old UInt8) ENGINE = MergeTree ORDER BY old`))
+			}
+			_, err = readSchemaVersion(t.Context(), conn, "default") // creates the marker table
+			require.NoError(t, err)
+			require.NoError(t, writeSchemaVersion(t.Context(), conn, "default", localSchemaVersion-1))
+
+			factory := NewFactoryWithHandle(handle)
+			exporters := map[string]interface {
+				Start(context.Context, component.Host) error
+				ConsumeLogs(context.Context, plog.Logs) error
+				Shutdown(context.Context) error
+			}{}
+			for name, table := range tables {
+				cfg := withDefaultConfig(func(cfg *Config) {
+					cfg.JSON = true
+					cfg.LogsTableName = table
+					if table == "recordings" {
+						cfg.LogsLayout = LogsLayoutRecordings
+					}
+					cfg.QueueSettings = configoptional.None[exporterhelper.QueueBatchConfig]()
+				})
+				exp, createErr := factory.CreateLogs(t.Context(), exportertest.NewNopSettings(metadata.Type), cfg)
+				require.NoError(t, createErr)
+				exporters[name] = exp
+				t.Cleanup(func() { _ = exp.Shutdown(context.Background()) })
+			}
+
+			countRows := func(table string) string {
+				rows := queryJSONRows(t, handle, `SELECT toString(count()) AS n FROM "default"."`+table+`"`)
+				require.Len(t, rows, 1)
+				return rows[0]["n"].(string)
+			}
+
+			require.NoError(t, exporters[order[0]].Start(t.Context(), nil))
+			ld := plog.NewLogs()
+			record := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+			record.SetTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+			record.Body().SetStr("written between the two starts")
+			require.NoError(t, exporters[order[0]].ConsumeLogs(t.Context(), ld))
+
+			require.NoError(t, exporters[order[1]].Start(t.Context(), nil))
+
+			// A second rebuild would have dropped the row the first component
+			// wrote before the second one started.
+			require.Equal(t, "1", countRows(tables[order[0]]))
+
+			for _, table := range tables {
+				columns := queryJSONRows(t, handle,
+					`SELECT name FROM system.columns WHERE database = 'default' AND table = '`+table+`'`)
+				names := make([]any, 0, len(columns))
+				for _, column := range columns {
+					names = append(names, column["name"])
+				}
+				require.Contains(t, names, "Timestamp", "%s kept the shape of the older version", table)
+				require.NotContains(t, names, "old", "%s kept the shape of the older version", table)
+				if table == "recordings" {
+					require.Contains(t, names, "stream_id", "%s was not rebuilt as the recordings layout", table)
+				}
+			}
+			version, err := readSchemaVersion(t.Context(), conn, "default")
+			require.NoError(t, err)
+			require.Equal(t, localSchemaVersion, version)
+		})
+	}
 }

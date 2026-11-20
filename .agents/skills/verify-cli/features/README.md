@@ -38,6 +38,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Local stack lifecycle](./local-lifecycle.md): `everr local start`, `status`, `stop`, idempotent restart, stopped exit code.
 - [Wrap a command](./wrap.md): `everr wrap` mirrors output and exit code and ingests stdout/stderr/exit as logs.
 - [Query local telemetry](./local-query.md): `everr local query` over chDB in json/ndjson/table, errors, read-only behavior.
+- [Local recordings](./local-recordings.md): Segments land in `recordings` with the Clip columns, fallbacks for malformed attributes, hour pruning, and a non-UTC machine zone.
 - [Local Logs UI](./local-ui-logs.md): the browser Logs explorer and its command API show ingested logs and search.
 - [Bundled skills](./skills.md): `everr skills list/install/uninstall` for a project, including dry-run.
 
@@ -47,6 +48,6 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 
 | Changed path | Run |
 | --- | --- |
-| `packages/cli/**`, `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
+| `packages/cli/**`, `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` (+ `local-recordings.md` for the recordings table or routing) |
 | `packages/local-app/**`, `packages/telemetry-explorer/**`, `packages/ui/**` | `local-ui-logs.md` (+ `local-query.md`) |
 | `skills/**`, skills commands | `skills.md` |

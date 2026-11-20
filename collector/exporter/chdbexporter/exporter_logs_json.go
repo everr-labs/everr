@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
-	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 // anyLogsExporter is an interface that satisfies both the default map logsExporter and the logsJSONExporter
@@ -32,7 +32,7 @@ type logsJSONExporter struct {
 	cfg            *Config
 	logger         *zap.Logger
 	db             driver.Conn
-	handle         *chdb.Handle
+	store          *store
 	insertSQL      string
 	schemaFeatures struct {
 		AttributeKeys bool
@@ -40,20 +40,18 @@ type logsJSONExporter struct {
 	}
 }
 
-func newLogsJSONExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *logsJSONExporter {
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
+func newLogsJSONExporter(logger *zap.Logger, cfg *Config, stores ...*store) *logsJSONExporter {
+	st := storeOf(stores)
+	st.register(cfg)
 	return &logsJSONExporter{
 		cfg:    cfg,
 		logger: logger,
-		handle: handle,
+		store:  st,
 	}
 }
 
 func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
-	db, err := internal.NewChDBConn(e.handle)
+	db, err := internal.NewChDBConn(e.store.handle)
 	if err != nil {
 		return err
 	}
@@ -67,8 +65,13 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 		if fnErr := internal.CreateErrorFingerprintFunction(ctx, e.db); fnErr != nil {
 			return fnErr
 		}
+		for _, function := range logsLayoutTemplates[e.cfg.LogsLayout].functions {
+			if fnErr := internal.CreateFunction(ctx, e.db, function); fnErr != nil {
+				return fnErr
+			}
+		}
 
-		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+		if schemaErr := e.store.ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
 			return schemaErr
 		}
 		if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {
@@ -287,18 +290,46 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 	return nil
 }
 
+// logsLayout is one shape the JSON logs table can take: the statement that
+// creates it, and the expression its TTL reads.
+type logsLayout struct {
+	createTable *template.Template
+	ttlField    string
+	// functions are created before the table, because its columns call them.
+	functions []string
+}
+
+// logsLayoutTemplates is the closed set of shapes the JSON logs table can
+// take. The insert path is the same for all of them: the columns a layout adds
+// are MATERIALIZED, so they are never inserted.
+var logsLayoutTemplates = map[LogsLayout]logsLayout{
+	LogsLayoutLogs: {
+		createTable: sqltemplates.LogsJSONCreateTableTmpl,
+		ttlField:    "toDateTime(Timestamp)",
+	},
+	LogsLayoutRecordings: {
+		createTable: sqltemplates.RecordingsCreateTableTmpl,
+		// Explicit zone, as in the partition and the sort key of the table.
+		ttlField:  "toDateTime(Timestamp, 'UTC')",
+		functions: []string{sqltemplates.CreateUnixMilliFunction},
+	},
+}
+
 func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
-	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
+	layout, ok := logsLayoutTemplates[cfg.LogsLayout]
+	if !ok {
+		return "", fmt.Errorf("unknown logs layout %q", cfg.LogsLayout)
+	}
 	data := sqltemplates.CreateTableData{
 		Database:      cfg.database(),
 		TableName:     cfg.LogsTableName,
 		ClusterString: cfg.tableClusterString(),
 		Engine:        cfg.tableEngineString(),
-		TTL:           ttlExpr,
+		TTL:           internal.GenerateTTLExpr(cfg.TTL, layout.ttlField),
 	}
 
 	var buf bytes.Buffer
-	if err := sqltemplates.LogsJSONCreateTableTmpl.Execute(&buf, data); err != nil {
+	if err := layout.createTable.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("execute logs json create table template: %w", err)
 	}
 

@@ -17,25 +17,22 @@ import (
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/traceutil"
-	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
 type tracesExporter struct {
 	db        driver.Conn
-	handle    *chdb.Handle
+	store     *store
 	insertSQL string
 
 	logger *zap.Logger
 	cfg    *Config
 }
 
-func newTracesExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *tracesExporter {
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
+func newTracesExporter(logger *zap.Logger, cfg *Config, stores ...*store) *tracesExporter {
+	st := storeOf(stores)
+	st.register(cfg)
 	return &tracesExporter{
-		handle:    handle,
+		store:     st,
 		insertSQL: renderInsertTracesSQL(cfg),
 		logger:    logger,
 		cfg:       cfg,
@@ -43,7 +40,7 @@ func newTracesExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle)
 }
 
 func (e *tracesExporter) start(ctx context.Context, _ component.Host) error {
-	db, err := internal.NewChDBConn(e.handle)
+	db, err := internal.NewChDBConn(e.store.handle)
 	if err != nil {
 		return err
 	}
@@ -54,7 +51,7 @@ func (e *tracesExporter) start(ctx context.Context, _ component.Host) error {
 			return err
 		}
 
-		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+		if schemaErr := e.store.ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
 			return schemaErr
 		}
 

@@ -22,7 +22,7 @@ func TestTracesJSONChDBSpanEventsAndLinks(t *testing.T) {
 				c.JSON = true
 				c.TracesTableName = "traces"
 			})
-			exporter := newTracesJSONExporter(zap.NewNop(), cfg, handle)
+			exporter := newTracesJSONExporter(zap.NewNop(), cfg, newStore(handle))
 			require.NoError(t, exporter.start(t.Context(), nil))
 			t.Cleanup(func() { _ = exporter.shutdown(context.Background()) })
 			db := exporter.db

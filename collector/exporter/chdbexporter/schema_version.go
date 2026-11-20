@@ -6,15 +6,18 @@ package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/c
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.uber.org/zap"
+
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// Bump localSchemaVersion when a table shape changes, alongside the template
-// digest. A version mismatch discards cached local telemetry and rebuilds it.
+// Bump localSchemaVersion when the shape of a released table changes,
+// alongside the template digest. A version mismatch discards cached local telemetry and rebuilds it.
 const localSchemaVersion = 2
 
 // Keep the version marker inside the store so deleting the data also resets it.
@@ -33,38 +36,80 @@ var legacyLocalTableNames = []string{
 	"otel_metrics_summary",
 }
 
-// schemaGuard runs the version check once per store. Each signal has its own
-// exporter with its own start(), all of them share one chDB handle, and the
-// first one through has to finish the rebuild before any other creates a
-// table. It hangs off Config because that is the one value the collector hands
-// to every signal of a single exporter component.
-type schemaGuard struct {
+// store is the chDB store behind one factory. Every exporter component the
+// factory builds shares it, and each signal of a component has its own
+// exporter with its own start(). The first start has to finish the rebuild
+// before any other creates a table, and the rebuild has to drop the tables of
+// every component, not only the first one's: a table of another component that
+// an older build created would otherwise keep its old shape for ever.
+//
+// Components register their config when the collector builds them, and the
+// collector builds every component before it starts any, so the rebuild sees
+// all of them.
+type store struct {
+	handle *chdb.Handle
+
+	mu       sync.Mutex
+	configs  []*Config
+	rebuilds map[string]*rebuild
+}
+
+// rebuild is the version check of one database. The version marker lives in
+// the database, so that is the unit that is checked once.
+type rebuild struct {
 	once sync.Once
 	err  error
 }
 
-// ensureLocalSchema rebuilds the store when the version it was built at does
-// not match this binary's. Call it once the database exists and before
-// creating any table.
-func ensureLocalSchema(ctx context.Context, db driver.Conn, cfg *Config, logger *zap.Logger) error {
-	guard := cfg.schema
-	if guard == nil {
-		// A Config assembled by hand rather than by createDefaultConfig, which
-		// only happens in a test holding a single exporter. Nothing to
-		// serialise against.
-		return rebuildStaleStore(ctx, db, cfg, logger)
-	}
-
-	guard.once.Do(func() {
-		guard.err = rebuildStaleStore(ctx, db, cfg, logger)
-	})
-
-	return guard.err
+func newStore(handle *chdb.Handle) *store {
+	return &store{handle: handle, rebuilds: map[string]*rebuild{}}
 }
 
-func rebuildStaleStore(ctx context.Context, db driver.Conn, cfg *Config, logger *zap.Logger) error {
+// storeOf is the store an exporter constructor was given, or a store of its
+// own for the tests that build one exporter by hand.
+func storeOf(stores []*store) *store {
+	if len(stores) > 0 {
+		return stores[0]
+	}
+	return newStore(nil)
+}
+
+func (s *store) register(cfg *Config) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !slices.Contains(s.configs, cfg) {
+		s.configs = append(s.configs, cfg)
+	}
+}
+
+// ensureLocalSchema rebuilds the store when the version it was built at does
+// not match this binary's. Call it once the database exists and before
+// creating any table. Concurrent callers wait for the one that runs it.
+func (s *store) ensureLocalSchema(ctx context.Context, db driver.Conn, cfg *Config, logger *zap.Logger) error {
 	database := cfg.database()
 
+	s.mu.Lock()
+	r, ok := s.rebuilds[database]
+	if !ok {
+		r = &rebuild{}
+		s.rebuilds[database] = r
+	}
+	configs := slices.Clone(s.configs)
+	s.mu.Unlock()
+
+	r.once.Do(func() {
+		// A config nobody registered is a test that built an exporter by hand.
+		if !slices.Contains(configs, cfg) {
+			configs = append(configs, cfg)
+		}
+		configs = slices.DeleteFunc(configs, func(c *Config) bool { return c.database() != database })
+		r.err = rebuildStaleStore(ctx, db, database, configs, logger)
+	})
+
+	return r.err
+}
+
+func rebuildStaleStore(ctx context.Context, db driver.Conn, database string, configs []*Config, logger *zap.Logger) error {
 	found, err := readSchemaVersion(ctx, db, database)
 	if err != nil {
 		return err
@@ -78,7 +123,7 @@ func rebuildStaleStore(ctx context.Context, db driver.Conn, cfg *Config, logger 
 		zap.Int("to_version", localSchemaVersion),
 	)
 
-	for _, table := range staleTableNames(cfg) {
+	for _, table := range staleTableNames(configs...) {
 		// DROP TABLE also removes materialized views and plain views, which is
 		// what the oldest layout left behind under these names.
 		if err := db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %q.%q", database, table)); err != nil {
@@ -95,24 +140,30 @@ func rebuildStaleStore(ctx context.Context, db driver.Conn, cfg *Config, logger 
 }
 
 // staleTableNames is everything a rebuild removes, views before the tables
-// they read. It covers the names this config uses and the names earlier
+// they read. It covers the names these configs use and the names earlier
 // layouts used, because a rebuild that leaves either behind leaves a table
 // nothing will ever drop.
-func staleTableNames(cfg *Config) []string {
-	names := []string{
-		cfg.TracesTableName + "_trace_id_ts_mv",
-		"otel_traces_trace_id_ts_mv",
-		cfg.TracesTableName + "_trace_id_ts",
-		"otel_traces_trace_id_ts",
-		cfg.LogsTableName,
-		cfg.TracesTableName,
-		cfg.ProfilesTableName,
-		cfg.MetricsTables.Gauge.Name,
-		cfg.MetricsTables.Sum.Name,
-		cfg.MetricsTables.Histogram.Name,
-		cfg.MetricsTables.ExponentialHistogram.Name,
-		cfg.MetricsTables.Summary.Name,
+func staleTableNames(cfgs ...*Config) []string {
+	var views, tables []string
+	for _, cfg := range cfgs {
+		views = append(views, cfg.TracesTableName+"_trace_id_ts_mv")
+		tables = append(tables,
+			cfg.TracesTableName+"_trace_id_ts",
+			cfg.LogsTableName,
+			cfg.TracesTableName,
+			cfg.ProfilesTableName,
+			cfg.MetricsTables.Gauge.Name,
+			cfg.MetricsTables.Sum.Name,
+			cfg.MetricsTables.Histogram.Name,
+			cfg.MetricsTables.ExponentialHistogram.Name,
+			cfg.MetricsTables.Summary.Name,
+		)
 	}
+	// The oldest layout named its lookup table and view after otel_traces.
+	views = append(views, "otel_traces_trace_id_ts_mv")
+	tables = append(tables, "otel_traces_trace_id_ts")
+
+	names := append(views, tables...)
 	names = append(names, legacyLocalTableNames...)
 
 	seen := make(map[string]struct{}, len(names))

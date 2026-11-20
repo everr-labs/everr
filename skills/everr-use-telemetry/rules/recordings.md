@@ -192,7 +192,7 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 
 ## Local
 
-`show` reads the remote installation you logged in to with `everr cloud login`, Everr Cloud or a self-hosted one, and never the local collector. Locally, the timeline, Find Clips, and the population queries work unchanged on `everr local query`.
+The Clip listing query and the population queries run on `everr local query` against the local `recordings` table, with the columns of the server table except `tenant_id` and `retention_days`. Do not select `Body`: it is raw rrweb, up to 950 KB a row. Select `length(Body)`. `show` reads the remote installation you logged in to with `everr cloud login`, never the local collector.
 
 ## Errors
 
