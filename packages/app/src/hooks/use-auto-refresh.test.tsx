@@ -13,7 +13,7 @@ vi.mock("#app/data/replay/server.ts", () => ({
   getClipEvents: vi.fn(),
 }));
 
-import { clipEventsOptions } from "#app/data/replay/options.ts";
+import { ClipEventsError, clipEventsOptions } from "#app/data/replay/options.ts";
 import { useAutoRefresh } from "./use-auto-refresh";
 
 afterEach(() => {
@@ -57,7 +57,7 @@ describe("useAutoRefresh", () => {
     for (const stop of unsubscribe) stop();
   });
 
-  it("refreshes a Clip's events that came back empty or with gaps, since Segments may still arrive", async () => {
+  it("refreshes a Clip's events that came back empty, and leaves partial, loading and failed ones", async () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) => (
@@ -68,16 +68,19 @@ describe("useAutoRefresh", () => {
       events: [{ type: 4, timestamp: 1, data: {} }],
       gaps: [{ kind: "index" as const, streamId: "s", after: 1, missing: 1 }],
     }));
+    const failedFetches = vi.fn(async () => {
+      throw new ClipEventsError("too_large");
+    });
+    const loadingFetches = vi.fn(() => new Promise<never>(() => {}));
     const watched = [
-      new QueryObserver(queryClient, {
-        ...clipEventsOptions({ clipId: "clip-empty", startMs: 0 }),
-        queryFn: emptyFetches,
-      }),
-      new QueryObserver(queryClient, {
-        ...clipEventsOptions({ clipId: "clip-partial", startMs: 0 }),
-        queryFn: partialFetches,
-      }),
-    ];
+      [emptyFetches, "clip-empty"] as const,
+      [partialFetches, "clip-partial"] as const,
+      [failedFetches, "clip-failed"] as const,
+      [loadingFetches, "clip-loading"] as const,
+    ].map(
+      ([queryFn, clipId]) =>
+        new QueryObserver(queryClient, { ...clipEventsOptions({ clipId, startMs: 0 }), queryFn }),
+    );
     const unsubscribe = watched.map((observer) => observer.subscribe(() => {}));
     await vi.advanceTimersByTimeAsync(0);
 
@@ -85,7 +88,9 @@ describe("useAutoRefresh", () => {
     await act(async () => result.current.refreshNow());
 
     expect(emptyFetches).toHaveBeenCalledTimes(2);
-    expect(partialFetches).toHaveBeenCalledTimes(2);
+    expect(partialFetches).toHaveBeenCalledTimes(1);
+    expect(failedFetches).toHaveBeenCalledTimes(1);
+    expect(loadingFetches).toHaveBeenCalledTimes(1);
     for (const stop of unsubscribe) stop();
   });
 });

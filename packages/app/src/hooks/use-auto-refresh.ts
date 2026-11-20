@@ -2,7 +2,7 @@ import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { isSettledClipEvents } from "#app/data/replay/options.ts";
+import { refreshSkips } from "#app/data/replay/options.ts";
 import {
   applyRouteTimeDefaults,
   type RefreshInterval,
@@ -11,7 +11,7 @@ import {
 import { useRouteTimeDefaults } from "./use-time-range";
 
 function refreshQueries(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ predicate: (query) => !isSettledClipEvents(query) });
+  void queryClient.invalidateQueries({ predicate: (query) => !refreshSkips(query) });
 }
 
 export function useAutoRefresh() {
