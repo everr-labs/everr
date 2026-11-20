@@ -67,8 +67,9 @@ export const panelQueryOptions = (
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
       // The key keeps the relative range (`now-1h`) so a refresh hits the same
-      // cache entry. The server returns the exact window it queried, which the
-      // panel's axis renders.
+      // cache entry. The range resolves here once the query gets a slot; the
+      // server returns it rounded to whole seconds, which the panel's axis
+      // renders.
       const { rows, timeRange } = await panelLimiter(signal, () =>
         runPanelQuery({
           data: {

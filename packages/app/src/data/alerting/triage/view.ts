@@ -57,9 +57,9 @@ export type TriageAlert = {
 /**
  * The window a chart's data is measured against. Every window-relative number
  * on this screen (`at`, `from`, `to`) is minutes before `endsAt`, and `endsAt`
- * is the server's own end of window at the moment it read the data.
+ * is the end of the window the data was read for.
  *
- * It travels with the data rather than being re-resolved in the browser: a
+ * It travels with the data rather than being resolved again at render: a
  * relative range ("last hour") resolves to a different instant on every fetch,
  * and a chart that pinned its right edge at mount time would draw a refetch's
  * points minutes to the left of where they happened.

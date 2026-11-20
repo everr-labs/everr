@@ -1,9 +1,4 @@
-import {
-  resolveTimeRange,
-  type TimeRange,
-  toViewerTimeRange,
-  toClickHouseDateTime,
-} from "@everr/ui/lib/time-range";
+import { type TimeRange, toClickHouseDateTime, toViewerTimeRange } from "@everr/ui/lib/time-range";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { ENVIRONMENT_ATTRIBUTE } from "../ui/dedicated-attributes";
@@ -30,12 +25,11 @@ export function unionServiceOptions(
     queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: async () => {
       const timeRange = toViewerTimeRange(input.timeRange);
-      const { fromDate, toDate } = resolveTimeRange(timeRange);
       const [logOptions, traceIdentities] = await Promise.all([
         logsRepo.filterOptions({ timeRange }),
         tracesRepo.listServiceIdentities({
-          fromTs: toClickHouseDateTime(fromDate),
-          toTs: toClickHouseDateTime(toDate),
+          fromTs: toClickHouseDateTime(new Date(timeRange.from)),
+          toTs: toClickHouseDateTime(new Date(timeRange.to)),
         }),
       ]);
       return mergeOptions(
