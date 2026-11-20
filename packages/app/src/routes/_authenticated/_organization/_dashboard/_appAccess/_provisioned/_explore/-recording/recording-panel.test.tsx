@@ -434,6 +434,25 @@ describe("session recording panel", () => {
     expect(player?.calls.at(-1)).toBe("play 15000");
   });
 
+  it("ignores a finish that a closed player's timer fires late", async () => {
+    renderClip();
+
+    await toggle(false);
+    const player = await openedPlayer();
+    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    if (player) player.time = 17_000;
+    await toggle(true);
+    await waitFor(() =>
+      expect(screen.queryByRole("slider", { name: "Seek" })).not.toBeInTheDocument(),
+    );
+    expect(player?.calls).toContain("destroy");
+
+    act(() => player?.emit("finish"));
+    await toggle(false);
+
+    expect(await screen.findByRole("slider", { name: "Seek" })).toHaveValue("17000");
+  });
+
   it("opens and closes in the split from its row, like the Flamegraph row", async () => {
     renderClip();
 
