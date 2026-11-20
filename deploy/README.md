@@ -41,8 +41,9 @@ person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
 The self-hosted app applies its PostgreSQL and ClickHouse migrations during
-startup, so an upgrade only needs newer app and collector images, both at the
-same version. ClickHouse runs the stock
+startup. An upgrade needs newer app and collector images, both at the same
+version, and the `collector.yaml` of the same release (see [Versions](#versions)).
+ClickHouse runs the stock
 `clickhouse/clickhouse-server` image. The app connects as `default` and applies the
 databases, base users, table definitions, and SQL query limits from
 `packages/app/clickhouse`, without the files tagged `cloud`. It creates `otel`
@@ -99,6 +100,12 @@ need a public ingest key with their origin allowed. Send a request through your
 application and check its service in Everr's traces, logs, or metrics explorer.
 The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
+
+Browser session recordings from `@everr/otel-web` are stored in ClickHouse's
+`app.recordings` table, which the app creates on startup. They are kept apart
+from logs, and the SQL API reads every column except `Body`. They follow the logs retention
+window and queue under `recordings/` on the collector volume. Recordings sent
+before the table existed stay in the logs.
 
 The SQL API uses one restricted ClickHouse user, configured by
 `CLICKHOUSE_SQL_API_USERNAME` (default `sql_api`). Its password is generated in
@@ -173,7 +180,13 @@ EVERR_VERSION=0.10.2
 ```
 
 `EVERR_VERSION` sets both images, so the app and collector stay at the same
-version. To upgrade, change it (or update `compose.yaml`) and run:
+version. The collector also reads `collector.yaml` from this directory, not from
+the image, so update this checkout to the release you pin: the file and the
+images must match. The release that added session recordings also added the
+`routing` connector to the file. With an older `collector.yaml`, recording
+Segments stay in `logs`, where the SQL API can read them. With an older
+collector image, the collector fails at startup with an unknown component
+`routing`. To upgrade, change `EVERR_VERSION` (or update `compose.yaml`) and run:
 
 ```sh
 docker compose pull
