@@ -66,7 +66,7 @@ describe("useAutoRefresh", () => {
     const emptyFetches = vi.fn(async () => ({ events: [], gaps: [] }));
     const partialFetches = vi.fn(async () => ({
       events: [{ type: 4, timestamp: 1, data: {} }],
-      gaps: [{ kind: "index", streamId: "s", after: 1, missing: 1 }],
+      gaps: [{ kind: "index" as const, streamId: "s", after: 1, missing: 1 }],
     }));
     const watched = [
       new QueryObserver(queryClient, {
