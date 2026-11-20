@@ -167,8 +167,11 @@ interface CumulativeBuckets {
   restartedIf?: string;
   /** More group keys. */
   groupBy?: string;
-  /** Columns of the point before, by name, for `drop` and `lost`. */
-  previous: Record<string, string>;
+  /**
+   * Columns compared between a point and the one before, by name: `Count`
+   * is `curCount` on the point and `prevCount` on the one before.
+   */
+  compared: Record<string, string>;
   /** A restart between a point and the one before, besides a new start time. */
   drop: string;
   /** Aggregates over the points where the series restarted, of the totals it dropped. */
@@ -200,20 +203,29 @@ function cumulativeBucketsSql(o: CumulativeBuckets) {
       toUInt32(min(StartTimeUnix)) AS deltaFrom
     FROM ${o.from}
     GROUP BY bucket, labels, series${o.groupBy ? `, ${o.groupBy}` : ""}`;
-  const lags = Object.entries(o.previous).map(
-    ([name, expr]) => `lagInFrame(${expr}) OVER p AS ${name}`,
-  );
+  const compared = Object.entries({
+    Time: "toUInt32(TimeUnix)",
+    Start: "toUInt32(StartTimeUnix)",
+    ...o.compared,
+  });
+  const pairs = compared.flatMap(([name], i) => [
+    `point.${i + 1} AS cur${name}`,
+    `before.${i + 1} AS prev${name}`,
+  ]);
+  // Each bucket's points are paired in an array rather than a window: a
+  // window holds several times as much per point.
   const lost = `
     SELECT bucket, series, ${o.lost}
     FROM (
       SELECT *, prevTime > 0 AND (${o.drop}
-        OR ${startChangedSql("toUInt32(StartTimeUnix)", "toUInt32(TimeUnix)", "prevStart", "prevTime")}) AS reset
+        OR ${startChangedSql("curStart", "curTime", "prevStart", "prevTime")}) AS reset
       FROM (
-        SELECT *, ${lags.join(", ")},
-          lagInFrame(toUInt32(TimeUnix)) OVER p AS prevTime,
-          lagInFrame(toUInt32(StartTimeUnix)) OVER p AS prevStart
-        FROM (SELECT *, ${o.bucketSql} AS bucket, ${SERIES_SQL} AS series FROM ${o.from})
-        WHERE (bucket, series) IN (
+        SELECT bucket, series, ${pairs.join(", ")}
+        FROM (
+          SELECT bucket, series,
+            arraySort(p -> p.1, groupArray((${compared.map(([, expr]) => expr).join(", ")}))) AS points
+          FROM (SELECT *, ${o.bucketSql} AS bucket, ${SERIES_SQL} AS series FROM ${o.from})
+          WHERE (bucket, series) IN (
           SELECT ${o.bucketSql} AS bucket, ${SERIES_SQL} AS series
           FROM ${o.from}
           GROUP BY bucket, series
@@ -231,7 +243,10 @@ function cumulativeBucketsSql(o: CumulativeBuckets) {
                 * (1 + 1e-9) + 1e-9
             OR toUInt32(max(StartTimeUnix)) >= toUInt32(min(TimeUnix))
             ${o.restartedIf ? `OR ${o.restartedIf}` : ""}))
-        WINDOW p AS (PARTITION BY series, bucket ORDER BY TimeUnix ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+          GROUP BY bucket, series
+        )
+        -- The first point has none before it: its prevTime is 0.
+        ARRAY JOIN points AS point, arrayShiftRight(points, 1) AS before
       )
     )
     GROUP BY bucket, series`;
@@ -626,14 +641,14 @@ FROM (
             argMin(Sum, TimeUnix) AS firstSum`,
           temporality: "AggregationTemporality",
           counted: "Count",
-          previous: {
-            prevPositive: "positiveBuckets",
-            prevNegative: "negativeBuckets",
-            prevZero: "ZeroCount",
-            prevCount: "Count",
-            prevSum: "Sum",
+          compared: {
+            Positive: "positiveBuckets",
+            Negative: "negativeBuckets",
+            Zero: "ZeroCount",
+            Count: "Count",
+            Sum: "Sum",
           },
-          drop: "Count < prevCount",
+          drop: "curCount < prevCount",
           lost: `sumMapIf(prevPositive, reset) AS lostPositive,
             sumMapIf(prevNegative, reset) AS lostNegative,
             sumIf(toFloat64(prevZero), reset) AS lostZero,
@@ -650,6 +665,9 @@ FROM (
 WHERE b >= {gridStart:UInt32}
 GROUP BY b, labels`;
 }
+
+// A histogram's bounds, compared by hash.
+const LAYOUT_SQL = "cityHash64(ExplicitBounds)";
 
 /**
  * Observations per interval and group. Delta points carry an interval's
@@ -688,12 +706,12 @@ FROM (
     FROM (
       SELECT *,
         position > 1 AND (firstCounted < previousCount
-          OR firstBounds != previousBounds
+          OR firstLayout != previousLayout
           OR ${FIRST_START_CHANGED_SQL}) AS firstReset
       FROM (
         SELECT *,
           ${previousOr("lastCounts", "firstCounts", "emptyArrayUInt64()")} OVER w AS previousCounts,
-          lagInFrame(bounds) OVER w AS previousBounds,
+          lagInFrame(lastLayout) OVER w AS previousLayout,
           ${previousOr("lastCount", "firstCounted", "0")} OVER w AS previousCount,
           ${previousOr("lastSum", "firstSum", "0")} OVER w AS previousSum,
           ${PREVIOUS_T_SQL},
@@ -703,31 +721,35 @@ FROM (
           from: `${table} WHERE ${where}`,
           bucketSql,
           labelsSql,
+          // An array kept by argMax costs several times its size per
+          // interval and series; its text costs about its size. The bounds
+          // are compared by hash.
           aggregates: `any(AggregationTemporality) AS temporality,
-            argMax(ExplicitBounds, TimeUnix) AS bounds,
-            argMin(ExplicitBounds, TimeUnix) AS firstBounds,
-            uniqExact(ExplicitBounds) > 1 AS boundsChanged,
-            sumForEach(BucketCounts) AS deltaCounts,
+            CAST(argMax(toString(ExplicitBounds), TimeUnix), 'Array(Float64)') AS bounds,
+            argMin(${LAYOUT_SQL}, TimeUnix) AS firstLayout,
+            argMax(${LAYOUT_SQL}, TimeUnix) AS lastLayout,
+            min(${LAYOUT_SQL}) != max(${LAYOUT_SQL}) AS boundsChanged,
+            sumForEachIf(BucketCounts, AggregationTemporality = 1) AS deltaCounts,
             sum(Count) AS deltaCount,
             sum(Sum) AS deltaSum,
-            argMax(BucketCounts, TimeUnix) AS lastCounts,
+            CAST(argMax(toString(BucketCounts), TimeUnix), 'Array(UInt64)') AS lastCounts,
             argMax(Count, TimeUnix) AS lastCount,
             argMax(Sum, TimeUnix) AS lastSum,
-            argMin(BucketCounts, TimeUnix) AS firstCounts,
+            CAST(argMin(toString(BucketCounts), TimeUnix), 'Array(UInt64)') AS firstCounts,
             argMin(Sum, TimeUnix) AS firstSum`,
           temporality: "AggregationTemporality",
           counted: "Count",
-          restartedIf: "uniqExact(ExplicitBounds) > 1",
+          restartedIf: `min(${LAYOUT_SQL}) != max(${LAYOUT_SQL})`,
           // Delta exports add up within a step only on the same bounds; each
           // layout stays its own row, merged later onto one set of bounds.
-          groupBy: "if(AggregationTemporality = 1, cityHash64(ExplicitBounds), 0)",
-          previous: {
-            prevCounts: "BucketCounts",
-            prevBounds: "ExplicitBounds",
-            prevCount: "Count",
-            prevSum: "Sum",
+          groupBy: `if(AggregationTemporality = 1, ${LAYOUT_SQL}, 0)`,
+          compared: {
+            Counts: "BucketCounts",
+            Layout: LAYOUT_SQL,
+            Count: "Count",
+            Sum: "Sum",
           },
-          drop: "Count < prevCount OR ExplicitBounds != prevBounds",
+          drop: "curCount < prevCount OR curLayout != prevLayout",
           lost: `sumForEachIf(prevCounts, reset) AS lostCounts,
             sumIf(toFloat64(prevCount), reset) AS lostCount,
             sumIf(prevSum, reset) AS lostSum`,
@@ -1256,8 +1278,8 @@ FROM (
             argMin(${source.total}, TimeUnix) AS firstTotal`,
           temporality: source.temporality,
           counted: source.value,
-          previous: { prevValue: source.value, prevTotal: source.total },
-          drop: `${source.value} < prevValue`,
+          compared: { Value: source.value, Total: source.total },
+          drop: "curValue < prevValue",
           lost: `sumIf(toFloat64(prevValue), reset) AS lost,
             sumIf(toFloat64(prevTotal), reset) AS lostTotal`,
         })})
@@ -1314,50 +1336,77 @@ GROUP BY ts, labels`;
     const where = baseWhere(input);
     const { labelsSql, groupParams } = groupLabels(input.groupBy);
     // Some SDKs attach an exemplar to every export until a new one replaces
-    // it, so an export's exemplar counts only if it was sampled after the
-    // series' export before. The scan starts early so the first interval's
-    // first export has one before it.
+    // it, so an exemplar counts only if it was sampled after the series' last
+    // export before the interval: one carried over from an earlier interval
+    // was sampled before that export. Within an interval only the highest is
+    // kept, so a repeat there changes nothing. The scan starts early so the
+    // first interval has an export before it.
     const start = Math.floor(seconds(fromDate) / step) * step;
     const scanFrom = new Date((start - Math.max(step, LOOKBACK_SECONDS)) * 1000);
+    const table = this.tables[input.type];
+    const params = {
+      ...where.params,
+      ...groupParams,
+      ...windowParams(scanFrom, toDate),
+      start,
+      step,
+    };
+    // Most metrics carry no exemplars. Finding that out reads only the
+    // exemplar counts, where the query below reads every series' attributes.
+    const carrying = await this.client.execute(
+      `SELECT 1 FROM ${table}
+WHERE ${where.clause} AND TimeUnix >= toDateTime({start:UInt32}) AND notEmpty(Exemplars.TraceId)
+LIMIT 1`,
+      params,
+    );
+    if (carrying.length === 0) return [];
+    const interval = "toUInt32(toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND))";
     const sql = `
 SELECT ts, time, value, traceId, spanId, labels
 FROM (
-  -- The interval of the export that carries it, which is where the chart
-  -- counts the observation it sampled; its own time can be an interval earlier.
-  SELECT toUInt32(toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND)) AS ts, labels, series,
+  SELECT ts, labels, series,
     argMax((toString(exemplarTime), exemplarValue, exemplarTrace, exemplarSpan), exemplarValue) AS best,
     best.1 AS time, best.2 AS value, best.3 AS traceId, best.4 AS spanId
   FROM (
-    SELECT TimeUnix, ${labelsSql} AS labels, ${SERIES_SQL} AS series,
+    -- The interval of the export that carries it, which is where the chart
+    -- counts the observation it sampled; its own time can be an interval earlier.
+    SELECT ${interval} AS ts, ${labelsSql} AS labels, ${SERIES_SQL} AS series,
       Exemplars.TimeUnix AS times, Exemplars.Value AS values,
       Exemplars.TraceId AS traces, Exemplars.SpanId AS spans
-    FROM ${this.tables[input.type]}
+    FROM ${table}
     WHERE ${where.clause}
+      AND TimeUnix >= toDateTime({start:UInt32})
+      AND notEmpty(Exemplars.TraceId)
   ) AS points
-  -- Each export's previous one, from the series and time alone: sorting the
-  -- exemplars along with them, or deduplicating the pairs first, costs
-  -- several times the memory. Two exports of a series in the same second
-  -- only repeat rows the argMax below collapses.
+  -- One row per interval and series, however many exports the range holds.
   INNER JOIN (
-    SELECT series, TimeUnix,
-      lagInFrame(TimeUnix, 1, toDateTime(0)) OVER (
-        PARTITION BY series ORDER BY TimeUnix ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
-      ) AS previous
+    SELECT ts, series, previous
     FROM (
-      SELECT ${SERIES_SQL} AS series, TimeUnix
-      FROM ${this.tables[input.type]}
-      WHERE ${where.clause}
+      SELECT ts, series, withExemplars,
+        lagInFrame(last, 1, toDateTime(0)) OVER (
+          PARTITION BY series ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+        ) AS previous
+      FROM (
+        SELECT ${interval} AS ts, ${SERIES_SQL} AS series, max(TimeUnix) AS last,
+          max(notEmpty(Exemplars.TraceId)) AS withExemplars
+        FROM ${table}
+        WHERE ${where.clause}
+        GROUP BY ts, series
+      )
     )
-  ) AS exports USING (series, TimeUnix)
+    WHERE withExemplars AND ts >= {start:UInt32}
+  ) AS intervals USING (ts, series)
   ARRAY JOIN times AS exemplarTime, values AS exemplarValue,
     traces AS exemplarTrace, spans AS exemplarSpan
-  WHERE TimeUnix >= toDateTime({start:UInt32})
-    AND exemplarTrace != ''
-    AND exemplarTime > previous
+  WHERE exemplarTrace != '' AND exemplarTime > previous
   GROUP BY ts, labels, series
 )
 ORDER BY value DESC
-LIMIT ${EXEMPLAR_LIMIT}`;
+LIMIT ${EXEMPLAR_LIMIT}
+-- The join builds its table from the intervals. ClickHouse would otherwise
+-- build it from the exports when it guesses those are fewer, holding every
+-- exemplar in the range in memory.
+SETTINGS query_plan_join_swap_table = 'false'`;
     const rows = await this.client.execute<{
       ts: number | string;
       time: string;
@@ -1365,13 +1414,7 @@ LIMIT ${EXEMPLAR_LIMIT}`;
       traceId: string;
       spanId: string;
       labels: string[];
-    }>(sql, {
-      ...where.params,
-      ...groupParams,
-      ...windowParams(scanFrom, toDate),
-      start,
-      step,
-    });
+    }>(sql, params);
     return rows.map((row) => ({
       ts: toNumber(row.ts),
       time: row.time,
