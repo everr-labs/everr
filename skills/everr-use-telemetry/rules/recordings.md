@@ -25,7 +25,7 @@ Every browser record a page sends once its recorder has started carries `everr.r
 
 1. **Timeline.** Run "What one user session did" in `rules/browser-events.md` for the session. It covers every visit, recorded or not, and gives each row's `at_ms` and `stream_id`.
 2. **Moments.** Pick the rows that need the page: the exception, the end of a failed request (`at_ms + ms`), a click the user repeated or that a page leave followed.
-3. **Page.** `everr cloud recording show --stream <stream_id> --at <at_ms>` for each. A `stream_id` that is empty on every row of the page means the page was not recording: report from the timeline alone.
+3. **Page.** `everr cloud recording show --stream <stream_id> --at <at_ms>` for each. A `stream_id` that is empty on every row of the page means the page was not recording: report from the timeline alone. A `stream_id` on a row only means the page was recording into its buffer, not that a Clip was saved, and a Clip may not reach back to your comparison time: run Find Clips filtered by that `stream_id` first, and pick moments a Clip covers.
 
 Whether a click changed the page: read the page before it (`--at <at_ms - 1000>`) and after it (`--at <at_ms>`), and compare. On a `text masked` page, compare with `--html`: a change of Masked text shows only there, as a different run of asterisks.
 
