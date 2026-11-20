@@ -178,7 +178,7 @@ main
 - The first line is the moment read and the page's path, then notes. `text masked`: the app masks text, so an element shows no text of its own (`--html` shows the asterisks). `recording paused since <time>`: the app paused the recorder then and had not resumed at the moment read, so the printed page is the one from before the pause and the real page may differ; read a moment after the resume instead. `coverage incomplete`: a Segment is missing or too large to read, or a change named an element the copy did not have, so parts of the page can be wrong.
 - Each line is an element: `tag#id`, its naming attributes, its state (`disabled`, `checked`, a state class as `class="is-loading"`), then its text in quotes. Indentation is nesting. Wrappers with nothing to name them are left out.
 - A `value` of asterisks is a filled field whose value is Masked; its length is what was typed.
-- `×N` is N identical siblings. `... N more siblings` and `... N more lines` mark what did not fit.
+- `×N` is N identical siblings. `... N more siblings` and `... N more lines` mark what did not fit. In `--html`, `... N more attributes` ends a tag that had more attributes than it prints.
 - The outline is built from the DOM, not from layout: an element hidden by CSS still appears.
 
 Page text can hold personal data the app did not mask. In reports, tickets, and commits, refer to the time and the element instead of copying that text.

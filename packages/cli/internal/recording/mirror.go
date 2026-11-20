@@ -65,6 +65,12 @@ const (
 	maxChildren = 12
 	// Attribute values and text in the HTML form stop here.
 	htmlValueCap = 200
+	// The opening tag of one element in the HTML form prints at most this many
+	// attributes, names of at most htmlNameCap, and stops adding attributes once
+	// it is htmlTagCap characters long, so one element cannot fill the budget.
+	htmlAttrCap = 16
+	htmlNameCap = 64
+	htmlTagCap  = 2_000
 	// totalLines stops counting here.
 	countCap = 50_000
 	// The views do not go below this depth: no budget prints a page that deep.
@@ -818,6 +824,8 @@ func (m *mirror) html(id, depth int) []viewItem {
 		return m.htmlChildren(id, depth)
 	}
 	var attrs strings.Builder
+	cut := 0
+	shown := 0
 	for i := range n.attrs.items {
 		if !n.attrs.live(i) {
 			continue
@@ -827,9 +835,17 @@ func (m *mirror) html(id, depth int) []viewItem {
 		if strings.HasPrefix(name, "rr_") || strings.HasPrefix(name, "_") || name == "style" {
 			continue
 		}
+		if shown == htmlAttrCap || attrs.Len() >= htmlTagCap {
+			cut++
+			continue
+		}
+		shown++
 		value := escapeHTML(capText(n.attrs.items[i].value.jsString(), htmlValueCap))
 		value = strings.NewReplacer("\r", "&#10;", "\n", "&#10;").Replace(value)
-		fmt.Fprintf(&attrs, " %s=\"%s\"", escapeHTML(name), value)
+		fmt.Fprintf(&attrs, " %s=\"%s\"", escapeHTML(capText(name, htmlNameCap)), value)
+	}
+	if cut > 0 {
+		fmt.Fprintf(&attrs, " ... %d more attributes", cut)
 	}
 	// An <svg> is drawing, not content: the element only.
 	if tag == "svg" {
@@ -1055,17 +1071,30 @@ func fit(items []viewItem, b budget) ([]string, int) {
 	if found {
 		return best, total
 	}
-	// Room for the marker line: one line and its characters.
-	lines := renderItems(items, 1)
-	var kept []string
-	chars := 0
-	for _, l := range lines {
-		length := utf16Len(l)
-		if len(kept)+2 > b.lines || chars+length+1+32 > b.chars {
-			break
-		}
-		kept = append(kept, l)
-		chars += length + 1
+	// Whole elements only, so an opening tag keeps its closing tag. Room for the
+	// marker line: one line and its characters.
+	shown := items[:min(len(items), maxChildren)]
+	groups := make([][]string, 0, len(shown)+1)
+	for i := range shown {
+		groups = append(groups, renderItems(shown[i:i+1], 1))
 	}
-	return append(kept, fmt.Sprintf("... %d more lines", len(lines)-len(kept))), total
+	if len(items) > len(shown) {
+		groups = append(groups, []string{fmt.Sprintf("... %d more siblings", len(items)-len(shown))})
+	}
+	var kept []string
+	chars, all := 0, 0
+	full := false
+	for _, group := range groups {
+		all += len(group)
+		if full {
+			continue
+		}
+		if len(kept)+len(group)+1 > b.lines || chars+charsOf(group)+32 > b.chars {
+			full = true
+			continue
+		}
+		kept = append(kept, group...)
+		chars += charsOf(group)
+	}
+	return append(kept, fmt.Sprintf("... %d more lines", all-len(kept))), total
 }
