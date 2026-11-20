@@ -7,7 +7,22 @@ FOR SELECT
 USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
 
--- Recordings hold raw rrweb. Deny by default and never GRANT SELECT so an
--- accidental grant later stays fail-closed. Not in SQL_API_TABLES.
+-- The SQL API reads recordings without Body (raw rrweb, megabytes per row,
+-- holds page text). Content is read through the /api/cli/recordings routes.
+-- Same order as 0009: the default-deny policy first, then the grant, so a run
+-- that stops part way leaves the table unreadable and never readable by
+-- everyone. The per-organization policies come from provisioning
+-- (SQL_API_TABLES). The column list must stay equal to
+-- SQL_API_TABLE_COLUMNS.recordings in packages/app/src/lib/sql-api-tables.ts
+-- (a test compares them).
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_recordings
   ON app.recordings FOR SELECT USING 0 TO sql_api_role;
+
+GRANT SELECT(
+  Timestamp, TraceId, SpanId, TraceFlags, SeverityText, SeverityNumber, ServiceName,
+  ResourceSchemaUrl, ResourceAttributes, ResourceAttributesKeys,
+  ScopeSchemaUrl, ScopeName, ScopeVersion, ScopeAttributes, ScopeAttributesKeys,
+  LogAttributes, LogAttributesKeys, EventName,
+  tenant_id, retention_days, session_id, stream_id, segment_index,
+  segment_end, clip_start, clip_id, trigger, truncated
+) ON app.recordings TO sql_api_role;
