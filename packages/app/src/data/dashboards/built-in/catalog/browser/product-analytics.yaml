@@ -52,7 +52,7 @@ document:
         spec:
           display:
             name: Visitors
-            description: Distinct visitor ids.
+            description: Distinct visitor ids. A session without a visitor id (anonymized) counts as one visitor.
           plugin:
             kind: StatChart
             spec:
@@ -64,7 +64,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors
+                      SELECT uniqExact(coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`))) AS visitors
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
       sessions:
@@ -195,7 +195,7 @@ document:
                       SELECT ts, counted.1 AS series, counted.2 AS value
                       FROM (
                         SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                               uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
+                               uniqExact(coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`))) AS visitors,
                                uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
                                count() AS views
                         FROM logs
@@ -254,7 +254,7 @@ document:
                              round(avgIf(seconds, left), 1) AS avg_seconds
                       FROM (
                         SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
-                               toString(LogAttributes.`everr.visitor.id`) AS visitor,
+                               coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`)) AS visitor,
                                countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
                                countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
                                maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds
@@ -284,7 +284,7 @@ document:
                     query: |-
                       SELECT multiIf(toString(LogAttributes.`everr.referrer.url`) = '', 'direct', domain(toString(LogAttributes.`everr.referrer.url`)) = '', 'other', domain(toString(LogAttributes.`everr.referrer.url`))) AS referrer,
                              uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
-                             uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
+                             uniqExact(coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`))) AS visitors,
                              count() AS views
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND EventName = 'everr.browser.page_view'
@@ -313,7 +313,7 @@ document:
                       SELECT multiIf(position(toString(ResourceAttributes.`user_agent.original`), 'Headless') > 0, 'Headless Chrome', position(toString(ResourceAttributes.`user_agent.original`), 'Edg/') > 0, 'Edge', position(toString(ResourceAttributes.`user_agent.original`), 'Firefox/') > 0, 'Firefox', position(toString(ResourceAttributes.`user_agent.original`), 'Chrome/') > 0, 'Chrome', position(toString(ResourceAttributes.`user_agent.original`), 'Safari/') > 0, 'Safari', 'Other') AS browser,
                              extract(toString(ResourceAttributes.`user_agent.original`), '(?:Edg|Firefox|Chrome|Version)/([0-9]+)') AS version,
                              uniqExact(toString(LogAttributes.`session.id`)) AS sessions,
-                             uniqExact(toString(LogAttributes.`everr.visitor.id`)) AS visitors,
+                             uniqExact(coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`))) AS visitors,
                              count() AS views
                       FROM logs
                       WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
