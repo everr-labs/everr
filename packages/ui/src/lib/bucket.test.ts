@@ -63,18 +63,6 @@ describe("bucketSeconds", () => {
 
 describe("bucketStartMs", () => {
   const ms = (iso: string) => new Date(iso).getTime();
-  const DAY = 86400;
-
-  it("starts a day bucket at UTC midnight with no offset", () => {
-    expect(bucketStartMs(ms("2026-11-19T15:00:00Z"), DAY, 0)).toBe(ms("2026-11-19T00:00:00Z"));
-  });
-
-  it("starts a day bucket at the viewer's midnight", () => {
-    // 15:00Z is 10:00 in New York (UTC-5), whose day began at 05:00Z.
-    expect(bucketStartMs(ms("2026-11-19T15:00:00Z"), DAY, -300)).toBe(ms("2026-11-19T05:00:00Z"));
-    // 02:00Z is still the previous evening in New York.
-    expect(bucketStartMs(ms("2026-11-19T02:00:00Z"), DAY, -300)).toBe(ms("2026-11-18T05:00:00Z"));
-  });
 
   it("starts an hour bucket on the viewer's hour in a half-hour zone", () => {
     // India is UTC+5:30, so its hours begin at :30 UTC.

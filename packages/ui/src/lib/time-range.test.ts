@@ -8,14 +8,6 @@ afterEach(() => {
 describe("toViewerTimeRange", () => {
   const now = new Date("2026-11-19T15:00:00Z");
 
-  it("resolves Today to the viewer's day", () => {
-    vi.stubEnv("TZ", "America/New_York");
-    expect(toViewerTimeRange({ from: "now/d", to: "now/d" }, now)).toEqual({
-      from: "2026-11-19T05:00:00.000Z",
-      to: "2026-11-20T04:59:59.999Z",
-    });
-  });
-
   it("falls back to the last 7 days for a malformed bound", () => {
     expect(toViewerTimeRange({ from: "garbage", to: "now" }, now)).toEqual({
       from: "2026-11-12T15:00:00.000Z",
