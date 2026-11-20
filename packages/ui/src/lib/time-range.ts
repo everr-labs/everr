@@ -85,18 +85,14 @@ export function resolveTimeRange(range: TimeRange, now = new Date()) {
 }
 
 /**
- * Resolve a range that rounds (`now/d`, `now-1w/w`) to ISO timestamps in this
- * process's zone, which in the browser is the viewer's: rounding is the only
- * zone-dependent part of datemath. Both bounds resolve together so they share
- * one clock. A range without rounding stays relative, so the server resolves it
- * against its own clock. A malformed bound falls back to the default, as the
- * servers' `TimeRangeSchema` does. Call it in `queryFn`, so a relative range
- * keeps one cache key and rounds afresh on every refetch.
+ * Resolve a range to ISO timestamps in this process's zone, which in the
+ * browser is the viewer's, so "Today" means the viewer's day. A malformed bound
+ * falls back to the default, as the servers' `TimeRangeSchema` does. Call it in
+ * `queryFn`, so a relative range keeps one cache key and gets a fresh `now` on
+ * every refetch.
  */
 export function toViewerTimeRange(range: Partial<TimeRange>, now = new Date()): TimeRange {
-  const parsed = TimeRangeSchema.parse(range);
-  if (!parsed.from.includes("/") && !parsed.to.includes("/")) return parsed;
-  const { fromDate, toDate } = resolveTimeRange(parsed, now);
+  const { fromDate, toDate } = resolveTimeRange(TimeRangeSchema.parse(range), now);
   return { from: fromDate.toISOString(), to: toDate.toISOString() };
 }
 
@@ -112,8 +108,8 @@ export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T
  */
 export function viewerHistogramWindow(range: TimeRange, now = new Date()) {
   const timeRange = toViewerTimeRange(range, now);
-  const { toDate } = resolveTimeRange(timeRange, now);
-  const at = toDate < now ? toDate : now;
+  const end = new Date(timeRange.to);
+  const at = end < now ? end : now;
   return { timeRange, utcOffsetMinutes: -at.getTimezoneOffset() };
 }
 
