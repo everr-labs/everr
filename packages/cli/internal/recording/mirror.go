@@ -110,7 +110,7 @@ type node struct {
 	rrID  int64
 	hasID bool
 	tag   string
-	attrs []member
+	attrs attrList
 	text  string
 
 	parent, first, last, prev, next int
@@ -147,18 +147,102 @@ func isSnapNode(value Json) bool {
 	return ok
 }
 
-func setAttr(attrs []member, name string, value Json) []member {
-	for i := range attrs {
-		if attrs[i].key == name {
-			attrs[i].value = value
-			return attrs
-		}
-	}
-	return append(attrs, member{key: name, value: value})
+// attrList is a node's attributes in the order they were first set, as --html
+// prints them. A list longer than linearKeys finds a name through an index, so
+// n changes to one node cost n, not n squared. A removal from an indexed list
+// leaves a hole; the holes are swept once they outnumber the live entries.
+type attrList struct {
+	items []member
+	// gone marks the holes; nil until a removal from an indexed list.
+	gone  []bool
+	index map[string]int
+	holes int
 }
 
-func removeAttr(attrs []member, name string) []member {
-	return slices.DeleteFunc(attrs, func(m member) bool { return m.key == name })
+func (l *attrList) live(i int) bool { return l.gone == nil || !l.gone[i] }
+
+// indexed makes the index of a list long enough to need one.
+func (l *attrList) indexed() {
+	if l.index != nil || len(l.items) <= linearKeys {
+		return
+	}
+	l.index = make(map[string]int, len(l.items))
+	for i := range l.items {
+		l.index[l.items[i].key] = i
+	}
+}
+
+// at is the place of name, or -1. It scans a list with no index: a view reads
+// each element once, and an index per element would cost more than it saves.
+func (l *attrList) at(name string) int {
+	if l.index != nil {
+		if i, ok := l.index[name]; ok {
+			return i
+		}
+		return -1
+	}
+	for i := range l.items {
+		if l.items[i].key == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func (l *attrList) get(name string) *Json {
+	if i := l.at(name); i >= 0 {
+		return &l.items[i].value
+	}
+	return nil
+}
+
+func (l *attrList) set(name string, value Json) {
+	l.indexed()
+	if i := l.at(name); i >= 0 {
+		l.items[i].value = value
+		return
+	}
+	l.items = append(l.items, member{key: name, value: value})
+	if l.gone != nil {
+		l.gone = append(l.gone, false)
+	}
+	if l.index != nil {
+		l.index[name] = len(l.items) - 1
+	}
+}
+
+func (l *attrList) remove(name string) {
+	l.indexed()
+	i := l.at(name)
+	if i < 0 {
+		return
+	}
+	if l.index == nil {
+		l.items = slices.Delete(l.items, i, i+1)
+		return
+	}
+	if l.gone == nil {
+		l.gone = make([]bool, len(l.items))
+	}
+	delete(l.index, name)
+	l.gone[i] = true
+	l.items[i] = member{}
+	if l.holes++; l.holes*2 > len(l.items) {
+		l.sweep()
+	}
+}
+
+func (l *attrList) sweep() {
+	kept := l.items[:0]
+	for i := range l.items {
+		if l.gone[i] {
+			continue
+		}
+		kept = append(kept, l.items[i])
+	}
+	clear(l.items[len(kept):])
+	l.items, l.gone, l.index, l.holes = kept, nil, nil, 0
+	l.indexed()
 }
 
 // loaded reports whether a snapshot is loaded.
@@ -234,9 +318,9 @@ func (m *mirror) build(value Json) int {
 			continue
 		}
 		children, _ := value.take("childNodes")
-		var attrs []member
+		var attrs attrList
 		if attributes, ok := value.take("attributes"); ok && attributes.kind == jsonObj {
-			attrs = attributes.items
+			attrs.items = attributes.items
 		}
 		kind, ok := value.get("type").num()
 		if !ok {
@@ -429,11 +513,11 @@ func (m *mirror) mutate(data Json) {
 			for _, attribute := range attributes.items {
 				switch {
 				case attribute.value.kind == jsonNull:
-					m.nodes[id].attrs = removeAttr(m.nodes[id].attrs, attribute.key)
+					m.nodes[id].attrs.remove(attribute.key)
 				case attribute.value.kind == jsonObj && attribute.key == "style":
 					// A style diff: no view shows style, so it is not applied.
 				default:
-					m.nodes[id].attrs = setAttr(m.nodes[id].attrs, attribute.key, attribute.value)
+					m.nodes[id].attrs.set(attribute.key, attribute.value)
 				}
 			}
 		}
@@ -450,13 +534,13 @@ func (m *mirror) input(data Json) {
 		return
 	}
 	if text, ok := data.take("text"); ok && text.kind == jsonStr {
-		m.nodes[id].attrs = setAttr(m.nodes[id].attrs, "value", text)
+		m.nodes[id].attrs.set("value", text)
 	}
 	if checked := data.get("isChecked"); checked != nil && checked.kind == jsonBool {
 		if checked.b {
-			m.nodes[id].attrs = setAttr(m.nodes[id].attrs, "checked", jsonString(""))
+			m.nodes[id].attrs.set("checked", jsonString(""))
 		} else {
-			m.nodes[id].attrs = removeAttr(m.nodes[id].attrs, "checked")
+			m.nodes[id].attrs.remove("checked")
 		}
 	}
 }
@@ -480,17 +564,12 @@ func (m *mirror) view(form Form) pageView {
 }
 
 func (m *mirror) stringAttr(id int, name string) string {
-	for i := range m.nodes[id].attrs {
-		if m.nodes[id].attrs[i].key == name {
-			s, _ := m.nodes[id].attrs[i].value.str()
-			return s
-		}
-	}
-	return ""
+	s, _ := m.nodes[id].attrs.get(name).str()
+	return s
 }
 
 func (m *mirror) hasAttr(id int, name string) bool {
-	return slices.ContainsFunc(m.nodes[id].attrs, func(a member) bool { return a.key == name })
+	return m.nodes[id].attrs.get(name) != nil
 }
 
 func (m *mirror) tagOf(id int) string {
@@ -676,13 +755,16 @@ func (m *mirror) html(id, depth int) []viewItem {
 		return m.htmlChildren(id, depth)
 	}
 	var attrs strings.Builder
-	for i := range n.attrs {
-		name := n.attrs[i].key
+	for i := range n.attrs.items {
+		if !n.attrs.live(i) {
+			continue
+		}
+		name := n.attrs.items[i].key
 		// rrweb's own attributes (rr_width, _cssText, ...) are replay hints.
 		if strings.HasPrefix(name, "rr_") || strings.HasPrefix(name, "_") || name == "style" {
 			continue
 		}
-		value := escapeHTML(capText(n.attrs[i].value.jsString(), htmlValueCap))
+		value := escapeHTML(capText(n.attrs.items[i].value.jsString(), htmlValueCap))
 		value = strings.NewReplacer("\r", "&#10;", "\n", "&#10;").Replace(value)
 		fmt.Fprintf(&attrs, " %s=\"%s\"", escapeHTML(name), value)
 	}

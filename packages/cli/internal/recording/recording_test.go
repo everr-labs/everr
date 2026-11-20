@@ -1,6 +1,7 @@
 package recording
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -172,5 +173,125 @@ func TestMarksThePageIncompleteWhenAddsWaitForTheirParentsBeyondTheWorkOfARead(t
 	got := show(t, wireOf(t, 2_000, segRow(0, body(t, events...))), "1970-01-01T00:00:02Z", Outline)
 	if header, _, _ := strings.Cut(got, "\n"); !strings.HasSuffix(header, " coverage incomplete") {
 		t.Fatalf("header %q", header)
+	}
+}
+
+// Hostile pages that fit the server's read limit. Each benchmark is one read
+// through PageText: `go test -run xxx -bench Hostile -benchtime 1x`.
+
+func attrNames(n int) obj {
+	attrs := make(obj, n)
+	for i := range n {
+		attrs[fmt.Sprintf("a%07d", i)] = "v"
+	}
+	return attrs
+}
+
+func hostileRead(b *testing.B, events ...any) {
+	b.Helper()
+	data := wireOf(b, 10_000, segRow(0, body(b, events...)))
+	b.ResetTimer()
+	for range b.N {
+		if _, err := PageText(data, 10_000, Outline); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkHostileSetEveryAttribute(b *testing.B) {
+	const n = 100_000
+	changed := make(obj, n)
+	for name := range attrNames(n) {
+		changed[name] = "w"
+	}
+	hostileRead(b,
+		meta(1_000, "https://x/p"),
+		snapshot(1_001, doc(elID("div", attrNames(n), nil, 5))),
+		mutation(1_002, obj{"attributes": []any{obj{"id": 5, "attributes": changed}}}),
+	)
+}
+
+func BenchmarkHostileAddAttributes(b *testing.B) {
+	const n = 100_000
+	hostileRead(b,
+		meta(1_000, "https://x/p"),
+		snapshot(1_001, doc(elID("div", obj{}, nil, 5))),
+		mutation(1_002, obj{"attributes": []any{obj{"id": 5, "attributes": attrNames(n)}}}),
+	)
+}
+
+func BenchmarkHostileInputsOnABigNode(b *testing.B) {
+	const n = 200_000
+	events := []any{meta(1_000, "https://x/p"), snapshot(1_001, doc(elID("input", attrNames(n), nil, 5)))}
+	for i := range 50_000 {
+		events = append(events, input(1_002+int64(i%100), 5, "typed"))
+	}
+	hostileRead(b, events...)
+}
+
+func TestKeepsAttributeOrderAndValuesOnANodeWithManyAttributes(t *testing.T) {
+	names := func(from, to int) obj {
+		out := obj{}
+		for i := from; i < to; i++ {
+			out[fmt.Sprintf("a%02d", i)] = "v"
+		}
+		return out
+	}
+	nulls := func(from, to int, keep int) obj {
+		out := obj{}
+		for i := from; i < to; i++ {
+			if i != keep {
+				out[fmt.Sprintf("a%02d", i)] = nil
+			}
+		}
+		return out
+	}
+	change := func(at int64, attributes obj) obj {
+		return mutation(at, obj{"attributes": []any{obj{"id": 5, "attributes": attributes}}})
+	}
+	read := func(events ...any) string {
+		all := append([]any{meta(1_000, "https://x/p"), snapshot(1_001, doc(elID("div", names(0, 40), nil, 5)))}, events...)
+		got := show(t, wireOf(t, 10_000, segRow(0, body(t, all...))), "1970-01-01T00:00:09.250Z", HTML)
+		return strings.Split(got, "\n")[2]
+	}
+	// Removing from the middle keeps the rest in order, and a re-added name goes last.
+	got := read(
+		change(1_002, nulls(10, 40, 20)),
+		change(1_003, obj{"a03": "new", "a12": "again", "z1": "z"}),
+		change(1_004, obj{"a00": nil}),
+	)
+	want := `  <div a01="v" a02="v" a03="new" a04="v" a05="v" a06="v" a07="v" a08="v" a09="v" a20="v" a12="again" z1="z"></div>`
+	if got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+
+	// Setting a name to another value keeps its place; removing a name that is not there changes nothing.
+	got = read(change(1_002, obj{"a39": "w", "missing": nil}), change(1_003, nulls(0, 38, -1)))
+	if want := `  <div a38="v" a39="w"></div>`; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+
+	// Input events set value and checked on the same list.
+	got = read(input(1_002, 5, "typed"), obj{"type": 3, "timestamp": 1_003, "data": obj{"source": 5, "id": 5, "text": "again", "isChecked": true}}, change(1_004, nulls(0, 37, -1)))
+	if want := `  <div a37="v" a38="v" a39="v" value="again" checked=""></div>`; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
+func TestChangesEveryAttributeOfANodeWithTwoHundredThousand(t *testing.T) {
+	const n = 200_000
+	renamed := make(obj, n)
+	for name := range attrNames(n) {
+		renamed[name] = nil
+	}
+	renamed["a0000042"] = "kept"
+	renamed["fresh"] = "new"
+	got := show(t, wireOf(t, 10_000, segRow(0, body(t,
+		meta(1_000, "https://x/p"),
+		snapshot(1_001, doc(elID("div", attrNames(n), nil, 5))),
+		mutation(1_002, obj{"attributes": []any{obj{"id": 5, "attributes": renamed}}}),
+	))), "1970-01-01T00:00:09.250Z", HTML)
+	if want := `  <div a0000042="kept" fresh="new"></div>`; strings.Split(got, "\n")[2] != want {
+		t.Fatalf("got:\n%s", got)
 	}
 }
