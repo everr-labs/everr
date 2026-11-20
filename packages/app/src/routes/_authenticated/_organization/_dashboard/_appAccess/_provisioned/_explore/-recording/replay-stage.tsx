@@ -82,7 +82,10 @@ export function ReplayStage({
         const { initialTime: at, autoplay: play } = startRef.current;
         if (play) created.play(at);
         else created.pause(at);
-        created.on("finish", () => onFinishRef.current());
+        // rrweb fires finish from a timer that destroy() does not cancel.
+        created.on("finish", () => {
+          if (!dead) onFinishRef.current();
+        });
 
         const fit = () => {
           const frame = created.iframe;
