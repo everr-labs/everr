@@ -242,9 +242,14 @@ describe("the buffer", () => {
     const count = t.segments().length;
     const b = t.rec.recorder.startClip({ last: 60_000 });
     b.end();
-    // The second Clip finds nothing unsent, so its only Segment is the empty one that opens it.
-    expect(t.segments()).toHaveLength(count + 1);
-    expect(t.segments().at(-1)?.events).toEqual([]);
+    // The second Clip finds nothing unsent, so its Segments are the empty ones that open and close it.
+    expect(t.segments()).toHaveLength(count + 2);
+    expect(
+      t
+        .segments()
+        .slice(count)
+        .map((s) => s.body),
+    ).toEqual(["[]", "[]"]);
     expect(types(t.clipEvents(b.id))).toEqual(types(t.clipEvents(a.id)));
     expect(a.id).not.toBe(b.id);
   });
@@ -309,11 +314,13 @@ describe("Clips", () => {
     vi.advanceTimersByTime(7_000);
     expect(clip.isRecording()).toBe(false);
     expect(t.segments().map((s) => Number(s.attrs["everr.recording.segment.index"]))).toEqual([
-      0, 1, 2,
+      0, 1, 2, 3,
     ]);
+    // The close at 12 seconds sends an empty Segment, for the 2 seconds since the flush.
     expect(t.segments().map((s) => s.attrs["everr.recording.segment.end"])).toEqual(
-      [0, 5_000, 10_000].map((ms) => String(opened + ms)),
+      [0, 5_000, 10_000, 12_000].map((ms) => String(opened + ms)),
     );
+    expect(t.segments().at(-1)?.body).toBe("[]");
   });
 
   it("closes a Clip at 60 seconds, and next: 0 at once", async () => {
@@ -365,10 +372,11 @@ describe("Clips", () => {
     expect(segments.every((s) => bytes(s.body) <= 950_000)).toBe(true);
     const parts = segments.filter((s) => s.attrs["everr.recording.event.pieces"] !== undefined);
     expect(parts.map((s) => s.attrs)).toEqual([
-      expect.objectContaining(piece(segments.length - 2, 0, 2)),
-      expect.objectContaining(piece(segments.length - 2, 1, 2)),
+      expect.objectContaining(piece(segments.length - 3, 0, 2)),
+      expect.objectContaining(piece(segments.length - 3, 1, 2)),
     ]);
-    expect(segments.at(-1)?.time).toBe(Date.now());
+    expect(segments.at(-2)?.time).toBe(Date.now());
+    expect(segments.at(-1)?.body).toBe("[]");
     const events = reassemble(segments);
     expect(JSON.stringify(events.at(-1))).toContain("z".repeat(1_200_000));
   });
@@ -430,7 +438,8 @@ describe("Clips", () => {
       },
     );
     t.rec.recorder.emitClip();
-    expect(seen).toEqual(["everr.browser.recording.segment"]);
+    // The Segment that opens the Clip and the empty one that closes it.
+    expect(seen).toEqual(Array(2).fill("everr.browser.recording.segment"));
     expect(types(t.segments()[0].events)).toEqual([META, FULL_SNAPSHOT]);
   });
 
@@ -468,12 +477,11 @@ describe("the Segment contract", () => {
     expect(segments.every((s) => attr(s, "clip.start") === String(opened))).toBe(true);
   });
 
-  it("starts the Segments at the earliest open Clip, and moves to the later Clip once the earlier one closes", async () => {
+  it("keeps clip.start at the start of the run when the earlier Clip closes, and starts a new run after the last close", async () => {
     const t = await start();
     const first = Date.now();
     const a = t.rec.recorder.startClip();
     vi.advanceTimersByTime(2_000);
-    const second = Date.now();
     const b = t.rec.recorder.startClip();
     box().setAttribute("data-step", "1");
     await mutations();
@@ -486,11 +494,56 @@ describe("the Segment contract", () => {
     await mutations();
     vi.advanceTimersByTime(3_000);
     b.end();
+    // a opens, b opens, the flush with both open, the close of a, the flush with only b open, and the close of b.
+    expect(t.segments().map((s) => attr(s, "clip.start"))).toEqual(Array(6).fill(String(first)));
+
+    vi.advanceTimersByTime(4_000);
+    const second = Date.now();
+    const c = t.rec.recorder.startClip();
+    c.end();
+    const later = t.segments().slice(6);
+    expect(later.map((s) => attr(s, "clip.start"))).toEqual([String(second), String(second)]);
+  });
+
+  it("moves clip.start earlier when a later Clip of the run reaches further back, and never later", async () => {
+    const t = await start();
+    const loaded = Date.now();
+    vi.advanceTimersByTime(2_000);
+    const a = t.rec.recorder.startClip();
+    const second = Date.now();
+    const b = t.rec.recorder.startClip({ last: 600_000 });
+    a.end();
+    box().setAttribute("data-step", "1");
+    await mutations();
+    vi.advanceTimersByTime(5_000);
+    b.end();
     const starts = t.segments().map((s) => attr(s, "clip.start"));
-    // a opens, b opens, the flush with both open, the close of a, and the flush with only b open.
-    expect(starts).toEqual([first, first, first, first, second].map(String));
-    expect(a.startTime).toBe(first);
-    expect(b.startTime).toBe(second);
+    // a opens, then b opens with the first generation, then the close of a, the flush, and the close of b.
+    expect(starts).toEqual([second, loaded, loaded, loaded, loaded].map(String));
+    expect(a.startTime).toBe(second);
+    expect(b.startTime).toBe(loaded);
+  });
+
+  it("closes a Clip with an empty Segment on a page that did not change, at the close time", async () => {
+    const t = await start();
+    const clip = t.rec.recorder.startClip({ last: 60_000, next: 8_000 });
+    const opened = t.segments().length;
+    vi.advanceTimersByTime(8_000);
+    expect(clip.isRecording()).toBe(false);
+    const closing = t.segments().slice(opened);
+    expect(closing.map((s) => s.body)).toEqual(["[]"]);
+    expect(attr(closing[0], "segment.end")).toBe(String(Date.now()));
+    expect(attr(closing[0], "clip.id")).toBeUndefined();
+  });
+
+  it("sends nothing when the page unloads, not even an empty Segment", async () => {
+    const t = await start();
+    t.rec.recorder.startClip({ last: 60_000, next: 30_000 });
+    const count = t.segments().length;
+    vi.advanceTimersByTime(1_000);
+    window.dispatchEvent(new Event("pagehide"));
+    vi.advanceTimersByTime(60_000);
+    expect(t.segments()).toHaveLength(count);
   });
 
   it("puts the opening attributes on exactly one Segment per Clip", async () => {
@@ -575,6 +628,7 @@ describe("delivery over fetch", () => {
     );
     return segments;
   };
+  // A Clip that stays open sends its opening Segment alone, so a test follows one Segment.
   const viaFetch = { sdkOptions: { send: undefined, endpoint: "https://collector.test" } };
   // A real macrotask: gzip runs on real ticks, which the fake clock does not drive.
   const tick = () =>
@@ -594,10 +648,16 @@ describe("delivery over fetch", () => {
     }
   };
 
+  // The shutdown of an open Clip sends its closing Segment. It leaves while this collector still answers, not in the next test.
+  afterEach(async () => {
+    for (const t of running) await t.client.shutdown();
+    await settle(500);
+  });
+
   it("sends Segments gzipped", async () => {
     const segments = collector(() => new Response(null));
     const t = await start({}, viaFetch);
-    t.rec.recorder.emitClip();
+    t.rec.recorder.startClip();
     await settle();
     expect(segments.map((r) => r.encoding)).toEqual(["gzip"]);
     expect(segments[0].text).toContain('\\"type\\":4');
@@ -610,7 +670,7 @@ describe("delivery over fetch", () => {
       return new Response(null, { status: n === 1 ? 503 : 429 });
     });
     const t = await start({}, viaFetch);
-    t.rec.recorder.emitClip();
+    t.rec.recorder.startClip();
     for (let i = 0; i < 400 && segments.length < 3; i++) await settle(100);
     await settle();
     expect(segments.map((r) => r.encoding)).toEqual(["gzip", "gzip", "gzip"]);
@@ -621,7 +681,7 @@ describe("delivery over fetch", () => {
   it("does not try a 4xx again", async () => {
     const segments = collector(() => new Response(null, { status: 400 }));
     const t = await start({}, viaFetch);
-    t.rec.recorder.emitClip();
+    t.rec.recorder.startClip();
     await settle();
     expect(segments).toHaveLength(1);
   });
@@ -639,15 +699,15 @@ describe("delivery over fetch", () => {
     await mutations();
     t.rec.recorder.emitClip();
     await settle();
-    // The gzipped try failed, its plain retry went through, and the next
-    // Segment goes plain at once.
-    expect(segments.map((r) => r.encoding)).toEqual(["gzip", undefined, undefined]);
+    // Each Clip sends two Segments. The two gzipped tries failed, their plain
+    // retries went through, and the next Segments go plain at once.
+    expect(segments.map((r) => r.encoding)).toEqual(["gzip", "gzip", ...Array(4).fill(undefined)]);
   });
 
   it("stops the retry of a Segment when clearIdentity() ends its Stream", async () => {
     const segments = collector(() => new Response(null, { status: 503 }));
     const t = await start({}, viaFetch);
-    t.rec.recorder.emitClip();
+    t.rec.recorder.startClip();
     for (let i = 0; i < 400 && segments.length < 1; i++) await settle(100);
     t.sdk.clearIdentity();
     await settle();
@@ -760,7 +820,9 @@ describe("the Stream and the Session", () => {
       expect(later).not.toContain("second screen");
       const after = (await t.logs()).at(-1)!;
       const segments = t.segments().slice(count);
-      expect(segments).toHaveLength(1);
+      // The Segment that opens the Clip and the empty one that closes it.
+      expect(segments.map((s) => s.body).slice(1)).toEqual(["[]"]);
+      expect(segments).toHaveLength(2);
       expect(segments[0].attrs).toMatchObject({
         "session.id": after.attrs["session.id"],
         "everr.recording.stream.id": after.attrs["everr.recording.stream.id"],

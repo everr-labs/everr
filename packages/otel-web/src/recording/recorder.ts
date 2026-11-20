@@ -188,25 +188,26 @@ export function startStream(
   const streamId = randomHex(16);
   const { rrweb, replacer } = privacy(options, (id) => record.mirror.getNode(id) ?? null);
   // The Clips are ranges over this Stream, so each event leaves the page at
-  // most once. A Segment says where the earliest open Clip starts and how far
-  // the Stream is sent, so a reader finds the events of a Clip by the Stream id.
+  // most once. A Segment says that the Stream is complete from the start of the
+  // run of overlapping Clips through the time the Segment was built.
   const generations: Generation[] = [];
   let generationCount = 0;
   let bytes = 0;
   let index = 0;
   const buckets = new Map<number, [tokens: number, time: number]>();
   // Each open Clip needs the events of its first generation and after.
-  const clips = new Set<{ from: number; start: number; close(hide: boolean): void }>();
+  const clips = new Set<{ from: number; close(hide: boolean): void }>();
   let flush: ReturnType<typeof setInterval> | undefined;
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
   let ended = false;
   // What the next Segment carries to open its Clip. A Clip sets it at open and
   // the Segment that leaves first takes it, so each Clip has its own.
-  let opening: Record<string, string | boolean> | undefined;
+  let opening: Record<string, string | boolean | undefined> | undefined;
 
-  // The least of one number over the open Clips, or Infinity with none open.
-  const earliest = (key: "from" | "start") => Math.min(...Array.from(clips, (c) => c[key]));
+  // The start of the run: from a Clip that opens with none open, to the close of
+  // the last one. A later Clip of the run can only move it earlier.
+  let runStart: number;
 
   const emitSegment = (body: string, time: number, piece?: Record<string, number>) => {
     const request = ctx.emitNow(
@@ -216,7 +217,7 @@ export function startStream(
         "everr.recording.stream.id": streamId,
         "everr.recording.segment.index": index++,
         "everr.recording.segment.end": Date.now(),
-        "everr.recording.clip.start": earliest("start"),
+        "everr.recording.clip.start": runStart,
         ...opening,
         ...piece,
       },
@@ -261,9 +262,15 @@ export function startStream(
     if (batch.length) emitBatch(batch);
   };
 
-  const sendLive = () => {
-    const from = earliest("from");
+  // The first generation that an open Clip needs, or Infinity with none open.
+  const liveFrom = () => Math.min(...Array.from(clips, (c) => c.from));
+  // With `empty`, a send of nothing still gives an empty Segment, so it says
+  // how far the Stream is sent.
+  const sendLive = (empty?: boolean) => {
+    const from = liveFrom();
+    const before = index;
     for (const generation of generations) if (generation.n >= from) send(generation);
+    if (empty && index === before) emitSegment("[]", Date.now());
   };
 
   // Drops whole generations, oldest first, past the 5-minute window or the
@@ -277,7 +284,7 @@ export function startStream(
     ) {
       const oldest = generations[0];
       generations.shift();
-      if (oldest.n >= earliest("from")) send(oldest);
+      if (oldest.n >= liveFrom()) send(oldest);
       bytes -= oldest.bytes;
     }
   };
@@ -375,22 +382,26 @@ export function startStream(
     let live = true;
     const state = {
       from: fromBuffer ? generations[first].n : generationCount,
-      start,
       close(hide: boolean) {
         if (!live) return;
         live = false;
         clearTimeout(cap);
-        if (!hide) sendLive();
+        if (!hide) sendLive(true);
         clips.delete(state);
         if (!clips.size) clearInterval(flush);
       },
     };
-    if (!clips.size) flush = setInterval(sendLive, FLUSH_MS);
+    if (clips.size) runStart = Math.min(runStart, start);
+    else {
+      runStart = start;
+      flush = setInterval(sendLive, FLUSH_MS);
+    }
     clips.add(state);
     opening = {
       "everr.recording.clip.id": id,
       "everr.recording.trigger": trigger,
-      ...(truncated ? { "everr.recording.clip.truncated": true } : {}),
+      // An undefined value is not sent.
+      "everr.recording.clip.truncated": truncated || undefined,
     };
     // A paused recorder takes the snapshot on resume.
     if (!fromBuffer && !paused) {
@@ -400,9 +411,7 @@ export function startStream(
         // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
       }
     }
-    sendLive();
-    // With nothing unsent, an empty Segment still says that the Clip opened.
-    if (opening) emitSegment("[]", now);
+    sendLive(true);
     const cap = setTimeout(
       () => state.close(false),
       Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS),
