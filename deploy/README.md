@@ -104,10 +104,11 @@ The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
 
 Browser session recordings from `@everr/otel-web` are stored in ClickHouse's
-`app.recordings` table, which the app creates on startup. They are kept apart
-from logs, and the SQL API reads every column except `Body`. They follow the logs retention
-window and queue under `recordings/` on the collector volume. Recordings sent
-before the table existed stay in the logs.
+`app.recordings` table, which the app creates on startup, and play in the trace
+view and the error detail. They are kept apart from logs, and the SQL API reads
+every column except `Body`. They follow the logs retention window and queue
+under `recordings/` on the collector volume. Recordings sent before the table
+existed stay in the logs and do not play.
 
 The SQL API uses one restricted ClickHouse user, `sql_api`. Its password is
 generated in `.env` as `CLICKHOUSE_SQL_API_PASSWORD`. GitHub webhook ingestion is not configured by this
