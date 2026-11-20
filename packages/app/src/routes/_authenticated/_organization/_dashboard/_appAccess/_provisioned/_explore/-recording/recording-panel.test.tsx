@@ -108,6 +108,7 @@ function renderPlayer(subject: ClipSubject, placement: PlayerPlacement = "split"
   );
   const view = render(wrap(host.renderPlayer(subject, placement)));
   return {
+    queryClient,
     rerender: (next: ClipSubject) => view.rerender(wrap(host.renderPlayer(next, placement))),
   };
 }
@@ -119,6 +120,11 @@ function renderClip(events: unknown[] = playableEvents) {
   renderPlayer({ kind: "trace", traceId: "t1" });
 }
 
+/** Picks the option whose label matches, whatever value the picker gives it. */
+const chooseClip = (picker: HTMLElement, label: RegExp) =>
+  fireEvent.change(picker, {
+    target: { value: (screen.getByRole("option", { name: label }) as HTMLOptionElement).value },
+  });
 const section = () => screen.findByRole("region", { name: "Session recording" });
 /** The trace view's recording row, which opens and closes like the Flamegraph row. */
 const toggle = async (expanded: boolean) =>
@@ -238,8 +244,30 @@ describe("session recording panel", () => {
 
     const picker = await screen.findByRole("combobox", { name: "Clip" });
     expect(await section()).toHaveTextContent("error trigger");
-    fireEvent.change(picker, { target: { value: "1" } });
+    chooseClip(picker, /Clip 2 of 2/);
     expect(await section()).toHaveTextContent("network trigger");
+  });
+
+  it("keeps the chosen Clip when one that arrived late sorts before it", async () => {
+    const first = coveringClip();
+    const second = coveringClip({
+      clipId: "clip-2",
+      trigger: "network",
+      startMs: T + 70_000,
+      endMs: T + 80_000,
+    });
+    vi.mocked(getCoveringClips).mockResolvedValue([first, second]);
+    const { queryClient } = renderPlayer({ kind: "trace", traceId: "t1" });
+    chooseClip(await screen.findByRole("combobox", { name: "Clip" }), /Clip 2 of 2/);
+    expect(await section()).toHaveTextContent("network trigger");
+
+    const late = coveringClip({ clipId: "clip-0", startMs: T - 10_000, endMs: T - 5_000 });
+    vi.mocked(getCoveringClips).mockResolvedValue([late, first, second]);
+    await act(() => queryClient.invalidateQueries({ queryKey: ["recordings", "covering"] }));
+
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Clip" })).toHaveLength(3));
+    expect(await section()).toHaveTextContent("network trigger");
+    expect(screen.getByRole("option", { name: /Clip 3 of 3/, selected: true })).toBeInTheDocument();
   });
 
   it("explains a Clip that cannot play", async () => {
