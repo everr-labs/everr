@@ -12,18 +12,18 @@ describe("sanitizeSqlApiError", () => {
     expect(sanitizeSqlApiError(e)).toBe(SCHEMA_PROBE_MESSAGE);
   });
 
-  it("names the readable columns when a column-granted table refuses the query", () => {
+  it("names the withheld column when a table with one refuses the query", () => {
     for (const message of [
       "Not enough privileges. To execute this query, it's necessary to have the grant SELECT ON app.recordings. (ACCESS_DENIED)",
       "necessary to have the grant SELECT(Body) ON app.recordings",
       "necessary to have the grant SHOW COLUMNS ON app.recordings",
     ]) {
-      const text = sanitizeSqlApiError(
-        new ClickHouseError({ message, code: "497", type: "ACCESS_DENIED" }),
+      expect(
+        sanitizeSqlApiError(new ClickHouseError({ message, code: "497", type: "ACCESS_DENIED" })),
+      ).toBe(
+        "recordings: column Body is not readable, and SELECT * and DESCRIBE are refused. " +
+          "Name the columns or use SELECT * EXCEPT (Body). length(Body) works.",
       );
-      expect(text).toContain("recordings is readable by column only");
-      expect(text).toContain("stream_id");
-      expect(text).not.toContain("Body");
     }
   });
 
