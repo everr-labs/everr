@@ -105,7 +105,7 @@ retention from the verified key. It keeps queued telemetry on a persistent volum
 
 Browser session recordings from `@everr/otel-web` are stored in ClickHouse's
 `app.recordings` table, which the app creates on startup. They are kept apart
-from logs, and the SQL API cannot read them. They follow the logs retention
+from logs, and the SQL API reads every column except `Body`. They follow the logs retention
 window and queue under `recordings/` on the collector volume. Recordings sent
 before the table existed stay in the logs.
 
