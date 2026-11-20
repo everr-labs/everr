@@ -81,20 +81,27 @@ const UNIT_NAMES: Record<string, string> = {
   Hz: "hertz",
 };
 
+// A unit comes from the data: "constructor" or "__proto__" are unknown units,
+// not the lookup objects' inherited properties.
+function known<T>(table: Record<string, T>, unit: string): T | undefined {
+  return Object.hasOwn(table, unit) ? table[unit] : undefined;
+}
+
 /**
  * The UCUM unit OpenTelemetry sends, spelled out: `By` reads "bytes",
  * `By/s` "bytes/s", and a `{request}` annotation "request". Codes it doesn't
  * know stay as sent.
  */
 export function unitName(unit: string): string {
-  if (UNIT_NAMES[unit]) return UNIT_NAMES[unit];
+  const name = known(UNIT_NAMES, unit);
+  if (name) return name;
   return unit
     .split("/")
     .map((part, i) => {
       const annotation = /^\{(.*)\}$/.exec(part)?.[1];
       if (annotation !== undefined) return annotation;
       // After a slash, a time unit reads better short: bytes/s, not bytes/seconds.
-      return i > 0 ? part : (UNIT_NAMES[part] ?? part);
+      return i > 0 ? part : (known(UNIT_NAMES, part) ?? part);
     })
     .join("/");
 }
@@ -130,14 +137,14 @@ export function formatMetricValue(
   if (unit.length > 2 && unit.endsWith("/s")) {
     return `${formatMetricValue(value, unit.slice(0, -2), undefined, digits)}/s${perSecond}`;
   }
-  const seconds = DURATION_SECONDS[unit];
+  const seconds = known(DURATION_SECONDS, unit);
   if (seconds !== undefined) return formatDuration(value * seconds, digits) + perSecond;
-  const bytes = BYTES[unit];
+  const bytes = known(BYTES, unit);
   if (bytes !== undefined) return formatBytes(value * bytes, digits) + perSecond;
   if (unit === "%") return `${numberFormat(digits).format(value)}%${perSecond}`;
   const plain = numberFormat(digits, "compact").format(value);
   if (unit === "" || unit === "1" || /^\{.*\}$/.test(unit)) return plain + perSecond;
-  return `${plain} ${SYMBOLS[unit] ?? unit}${perSecond}`;
+  return `${plain} ${known(SYMBOLS, unit) ?? unit}${perSecond}`;
 }
 
 export const METRIC_KIND_LABELS: Record<MetricKind, string> = {

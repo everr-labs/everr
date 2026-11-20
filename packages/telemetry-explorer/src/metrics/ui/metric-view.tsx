@@ -227,7 +227,6 @@ export function MetricView({
       )}
 
       <SeriesPanel
-        metric={metric}
         lines={lines}
         multi={Boolean(queryRows)}
         allHidden={allHidden}
@@ -359,7 +358,6 @@ export function QueryControls({
 }
 
 function SeriesPanel({
-  metric,
   lines,
   multi,
   allHidden,
@@ -376,7 +374,6 @@ function SeriesPanel({
   renderTraceLink,
   renderLogsLink,
 }: {
-  metric: string;
   lines: ChartLine[] | undefined;
   /** Several queries: no exemplars, notes or group-by heading of one query. */
   multi: boolean;
@@ -464,7 +461,7 @@ function SeriesPanel({
     return exemplars.flatMap(
       (exemplar, n): (ChartMarker & { exemplar: MetricExemplar; lineValue: number | null })[] => {
         const index = indexOf.get(exemplar.ts);
-        const series = seriesOf.get(exemplar.labels.join("\u0000") || metric);
+        const series = seriesOf.get(lineId(exemplar.labels));
         if (index === undefined || !series) return [];
         return [
           {
@@ -479,7 +476,7 @@ function SeriesPanel({
         ];
       },
     );
-  }, [chart, exemplars, metric]);
+  }, [chart, exemplars]);
   const pickedMarker = picked
     ? markers.find(
         ({ exemplar: e }) =>
@@ -814,6 +811,11 @@ function groupKeyLabel(key: GroupByKey, groupBy: GroupByKey[]): string {
 // Lines that format the same way share an axis; a rate adds "/s".
 function scaleKey(line: ChartLine): string {
   return `${line.unit}|${line.aggregation === "rate" ? "rate" : ""}`;
+}
+
+/** A line's ID, from its query and its group's labels, so no two groups share one. */
+export function lineId(labels: string[], queryId?: string): string {
+  return JSON.stringify(queryId ? [queryId, ...labels] : labels);
 }
 
 export function seriesLabel(labels: string[], metric: string): string {

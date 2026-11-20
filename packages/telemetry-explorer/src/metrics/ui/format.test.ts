@@ -17,8 +17,11 @@ describe("unitName", () => {
     expect(unitName("{packet}/s")).toBe("packet/s");
   });
 
-  it("keeps codes it doesn't know", () => {
+  it("keeps codes it doesn't know, including object property names", () => {
     expect(unitName("W")).toBe("W");
+    expect(unitName("__proto__")).toBe("__proto__");
+    expect(unitName("constructor/s")).toBe("constructor/s");
+    expect(formatMetricValue(2, "constructor")).toBe("2 constructor");
   });
 });
 

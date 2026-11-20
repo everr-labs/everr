@@ -134,10 +134,13 @@ const STARTED_IN_SCAN_SQL =
 // before the point's own time (the Prometheus receiver sends a point's own
 // time when it doesn't know it, then that time as the start of later points),
 // and after the previous export, as a real restart's is: a start that drifts by
-// a second between exports is the same start.
+// a second between exports is the same start. After exports with no start, one
+// strictly after the previous export is a restart too; one at that export's
+// time is a receiver filling in a start it didn't know.
 const startChangedSql = (start: string, time: string, prevStart: string, prevTime: string) =>
-  `(${start} != ${prevStart} AND ${start} > 0 AND ${start} < ${time} AND ${start} >= ${prevTime}
-    AND ${prevStart} > 0 AND ${prevStart} < ${prevTime})`;
+  `(${start} != ${prevStart} AND ${start} > 0 AND ${start} < ${time} AND (
+    (${start} >= ${prevTime} AND ${prevStart} > 0 AND ${prevStart} < ${prevTime})
+    OR (${prevStart} = 0 AND ${start} > ${prevTime})))`;
 
 // Between a bucket's first point and the previous bucket's last.
 const FIRST_START_CHANGED_SQL = startChangedSql(

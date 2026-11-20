@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { TimeRangePicker } from "./time-range-picker";
 
@@ -54,6 +54,29 @@ describe("TimeRangePicker", () => {
       expect(screen.queryByRole("button", { name: /ends before it starts/ })).toBeNull(),
     );
     expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe("TimeRangePicker's tooltip", () => {
+  it("shows the endpoints it checked, after a refresh past midnight", async () => {
+    vi.stubEnv("TZ", "UTC");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-19T23:59:00Z"));
+    const client = new QueryClient();
+    const page = (refresh: number) => (
+      <QueryClientProvider client={client}>
+        <TimeRangePicker value={range} onChange={() => {}} />
+        <Chart refresh={refresh} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(page(0));
+    vi.setSystemTime(new Date("2026-11-20T00:01:00Z"));
+    rerender(page(1));
+    const button = await screen.findByRole("button", { name: /ends before it starts/ });
+    fireEvent.mouseEnter(button);
+    fireEvent.focus(button);
+
+    expect((await screen.findByText(/Ends before it starts:/)).textContent).toContain("Nov 20");
   });
 });
 

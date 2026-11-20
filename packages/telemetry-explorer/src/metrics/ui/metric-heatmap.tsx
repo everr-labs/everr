@@ -108,8 +108,9 @@ export function MetricHeatmap({
           min: 0,
           max: Math.sqrt(max) || 1,
           inRange: {
+            // ECharts can't blend a color-mix(); it draws it black.
             color: [
-              resolveCssColor(element, `color-mix(in oklab, ${ACCENT_COLOR} 12%, transparent)`),
+              echarts.color.modifyAlpha(resolveCssColor(element, ACCENT_COLOR), 0.12),
               resolveCssColor(element, ACCENT_COLOR),
             ],
           },

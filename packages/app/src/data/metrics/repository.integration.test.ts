@@ -1071,6 +1071,45 @@ describe("metrics explorer against ClickHouse", () => {
     expect(result.series[0]?.values.slice(0, 2)).toEqual([5, 7]);
   });
 
+  it("starts over at a known start after exports with no start time", async () => {
+    // No start time until the process restarts at 12:02:00, after the 12:01:30
+    // export: the 200 at 12:02:30 were all counted since.
+    const rows = (
+      [
+        ["12:00:30", "1970-01-01 00:00:00", 100],
+        ["12:01:30", "1970-01-01 00:00:00", 110],
+        ["12:02:30", "2026-01-09 12:02:00", 200],
+      ] as const
+    ).map(([time, start, value]) => ({
+      ServiceName: "api",
+      MetricName: "unknown.then.known",
+      TimeUnix: `2026-01-09 ${time}`,
+      StartTimeUnix: start,
+      Value: value,
+      AggregationTemporality: 2,
+      IsMonotonic: true,
+    }));
+    run(
+      `INSERT INTO metrics_sum FORMAT JSONEachRow\n${rows.map((r) => JSON.stringify(r)).join("\n")}`,
+    );
+    const result = await repo.series({
+      timeRange: { from: "2026-01-09T12:01:00Z", to: "2026-01-09T12:03:00Z" },
+      metric: "unknown.then.known",
+      type: "sum",
+      aggregation: "increase",
+    });
+    expect(result.series[0]?.values.slice(0, 2)).toEqual([10, 200]);
+    // In one five-minute interval: 10 before the restart and 200 after it.
+    const coarse = await repo.series({
+      timeRange: { from: "2026-01-09T12:00:00Z", to: "2026-01-09T12:05:00Z" },
+      metric: "unknown.then.known",
+      type: "sum",
+      aggregation: "increase",
+      minStep: 300,
+    });
+    expect(coarse.series[0]?.values[0]).toBe(210);
+  });
+
   it("measures a cumulative counter's increase across a restart", async () => {
     const result = await repo.series({
       timeRange,

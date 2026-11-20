@@ -218,6 +218,38 @@ describe("MetricsExplorer", () => {
     expect(screen.getByText("max this interval").nextElementSibling?.textContent).toBe("7");
   });
 
+  it("ties an exemplar to its own group when another group is named after the metric", async () => {
+    const grouped = {
+      ...repo,
+      // One host has no name; another is called like the metric.
+      series: async () => ({
+        stepSeconds: 60,
+        buckets: [new Date(0).toISOString()],
+        series: [
+          { labels: [""], values: [3] },
+          { labels: ["cpu"], values: [7] },
+        ],
+        totalSeries: 2,
+      }),
+      exemplars: async () => [
+        { ts: 0, time: "1970-01-01 00:00:10", value: 9, traceId: "t1", spanId: "s1", labels: [""] },
+      ],
+    } as unknown as MetricsRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page
+          initial={{ ...oneQuery, by: [{ source: "metric", key: "host" }] }}
+          metrics={grouped}
+          agg="max"
+        />
+      </QueryClientProvider>,
+    );
+    await settle();
+    fireEvent.click(screen.getByText("exemplar"));
+
+    expect(screen.getByText("max this interval").nextElementSibling?.textContent).toBe("3");
+  });
+
   it("asks for the heatmap without grouping", async () => {
     const series = vi.fn(repo.series);
     const histogram = {

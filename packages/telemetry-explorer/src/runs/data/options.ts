@@ -35,10 +35,16 @@ export function runsHistogramOptions(
 ) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
-    queryFn: () =>
-      inViewerTimeRange(input.timeRange, [], () =>
-        repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange) }),
-      ),
+    queryFn: () => {
+      // One "now" for the check and the window, so both read the same range.
+      const now = new Date();
+      return inViewerTimeRange(
+        input.timeRange,
+        [],
+        () => repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange, now) }),
+        now,
+      );
+    },
   });
 }
 

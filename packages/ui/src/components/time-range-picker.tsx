@@ -247,12 +247,11 @@ export function TimeRangePicker({
     };
   }, [customFrom, customTo]);
 
-  const currentRangePreview = useMemo(() => {
-    return {
-      from: resolvePreview(value.from, false)?.label ?? null,
-      to: resolvePreview(value.to, true)?.label ?? null,
-    };
-  }, [value.from, value.to]);
+  // Resolved on every render, with the range check: "now" moves.
+  const currentRangePreview = {
+    from: resolvePreview(value.from, false)?.label ?? null,
+    to: resolvePreview(value.to, true)?.label ?? null,
+  };
 
   const handlePresetClick = (from: string, to: string) => {
     onChange({ from, to });

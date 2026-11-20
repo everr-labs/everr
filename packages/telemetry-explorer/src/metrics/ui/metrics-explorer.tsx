@@ -46,7 +46,7 @@ import { QueryRow } from "./chart-queries";
 import { METRIC_KIND_SHORT_LABELS } from "./format";
 import type { ExemplarLinkRenderProps } from "./exemplar-card";
 import { MetricCatalog, type MetricLinkRenderProps } from "./metric-catalog";
-import { AddMetricButton, type ChartLine, MetricView, seriesLabel } from "./metric-view";
+import { AddMetricButton, type ChartLine, lineId, MetricView, seriesLabel } from "./metric-view";
 import type { MetricPickerProps } from "./metric-picker";
 import { useDistinctQueries } from "./use-distinct-queries";
 import { useLastLoaded } from "./use-last-loaded";
@@ -481,7 +481,7 @@ function MetricPage({
         const name =
           multi && s.labels.length === 0 ? "all series" : seriesLabel(s.labels, q.metric);
         out.push({
-          id: multi ? `${q.id}\u0000${s.labels.join("\u0000")}` : s.labels.join("\u0000") || metric,
+          id: lineId(s.labels, multi ? q.id : undefined),
           label: multi ? `${q.id} · ${seriesLabel(s.labels, q.metric)}` : name,
           name,
           ...(multi ? { query } : {}),
