@@ -292,6 +292,54 @@ func TestTakesTheURLOfAMetaOnlyWhenItsSnapshotIsApplied(t *testing.T) {
 	}
 }
 
+func manyLongAttributes(n int) obj {
+	attrs := obj{}
+	for i := range n {
+		attrs[fmt.Sprintf("data-%03d", i)] = strings.Repeat("x", 200)
+	}
+	return attrs
+}
+
+func htmlOf(t *testing.T, page obj) []string {
+	t.Helper()
+	got := show(t, wireOf(t, 10_000, segRow(0, body(t, meta(1_000, "https://x/p"), snapshot(1_001, page)))), "1970-01-01T00:00:09.250Z", HTML)
+	return strings.Split(strings.TrimRight(got, "\n"), "\n")[1:]
+}
+
+func TestHTMLCapsWhatOneElementPrintsSoTheDepthStillFits(t *testing.T) {
+	lines := htmlOf(t, doc(
+		el("div", manyLongAttributes(90)),
+		el("main", obj{}, el("h1", obj{}, text("Checkout"))),
+	))
+	if len(lines) != 6 || !strings.HasPrefix(lines[1], "  <div data-000=") || lines[2] != "  <main>" || lines[3] != "    <h1>Checkout</h1>" {
+		t.Fatalf("lines:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.HasSuffix(lines[1], " more attributes></div>") || len(lines[1]) > 3_000 {
+		t.Fatalf("div line (%d chars): ...%s", len(lines[1]), lines[1][max(0, len(lines[1])-60):])
+	}
+}
+
+func TestHTMLNeverCutsBetweenAnOpeningTagAndItsClosingTag(t *testing.T) {
+	var sections []any
+	for range 12 {
+		sections = append(sections, el("section", manyLongAttributes(90), el("p", obj{}, text("x"))))
+	}
+	lines := htmlOf(t, obj{"type": 0, "id": 1, "childNodes": sections})
+	opened, closed := 0, 0
+	for _, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "<section"):
+			opened++
+		case line == "</section>":
+			closed++
+		}
+	}
+	last := lines[len(lines)-1]
+	if opened == 0 || opened != closed || !strings.HasPrefix(last, "... ") || !strings.HasSuffix(last, " more lines") {
+		t.Fatalf("%d opened, %d closed, last %q", opened, closed, last)
+	}
+}
+
 func TestKeepsAttributeOrderAndValuesOnANodeWithManyAttributes(t *testing.T) {
 	names := func(from, to int) obj {
 		out := obj{}
@@ -399,4 +447,15 @@ func BenchmarkHostileReversedAdds(b *testing.B) {
 
 func BenchmarkHostileReversedAddsPaddedWithKeys(b *testing.B) {
 	hostileRead(b, meta(1_000, "https://x/p"), snapshot(1_001, doc()), mutation(1_002, obj{"adds": reversedAdds(620)}))
+}
+
+func TestHTMLPrintsAtMostSixteenShortAttributesAndSaysHowManyWereCut(t *testing.T) {
+	attrs := obj{}
+	for i := range 40 {
+		attrs[fmt.Sprintf("a%02d", i)] = "v"
+	}
+	lines := htmlOf(t, doc(el("p", attrs)))
+	if want := `  <p a00="v" a01="v" a02="v" a03="v" a04="v" a05="v" a06="v" a07="v" a08="v" a09="v" a10="v" a11="v" a12="v" a13="v" a14="v" a15="v" ... 24 more attributes></p>`; lines[1] != want {
+		t.Fatalf("got %s", lines[1])
+	}
 }
