@@ -4,8 +4,11 @@ extensions:
     create_directory: true
     fsync: true
   # Recording Segments queue apart from the ordinary telemetry, under the same
-  # volume. Its exporter caps the queue at 500 requests (one Segment each, at
-  # most about 2 MB), so a ClickHouse stall cannot fill the disk that logs use.
+  # volume. Its exporter caps the queue at 500 requests. The SDK sends one
+  # Segment per request, at most about 2 MB, so SDK traffic keeps a ClickHouse
+  # stall under about 1 GB on the disk that logs use. The receiver accepts
+  # requests up to 20 MiB (max_request_body_size), so the worst case is
+  # 500 requests of 20 MiB, about 10 GB.
   file_storage/recordings:
     directory: ${env:EVERR_QUEUE_DIRECTORY:-/var/lib/everr/queue}/recordings
     create_directory: true

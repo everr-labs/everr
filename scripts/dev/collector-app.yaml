@@ -123,8 +123,10 @@ exporters:
     sending_queue:
       enabled: true
       wait_for_result: false
-      # One request is one Segment, up to about 2 MB. The queue is in memory,
-      # so 32 requests hold at most about 64 MB. A full queue refuses new
+      # The SDK sends one Segment per request, at most about 2 MB. The queue
+      # is in memory, so SDK traffic fills 32 requests with about 64 MB. The
+      # receiver accepts requests up to 20 MiB (max_request_body_size), so the
+      # worst case is 32 requests of 20 MiB, 640 MiB. A full queue refuses new
       # Segments and the browser tries them again.
       queue_size: 32
       num_consumers: 10
