@@ -17,42 +17,13 @@ export const SQL_API_TABLES = [
 
 type SqlApiTable = (typeof SQL_API_TABLES)[number];
 
-// A table the role reads through a column grant, not a whole-table one. Every
-// column of the table is readable except the ones left out here. For
-// recordings that is Body: raw rrweb, megabytes per row, with page text in it.
-// The grants in 0014-cloud-recordings-rls.sql and
-// 0015-self-hosted-recordings-sql-api-grant.sql spell this list out, and
-// sql-api-tables.test.ts keeps them equal. Schema discovery documents these
-// columns and no others.
-export const SQL_API_TABLE_COLUMNS = {
-  recordings: [
-    "Timestamp",
-    "TraceId",
-    "SpanId",
-    "TraceFlags",
-    "SeverityText",
-    "SeverityNumber",
-    "ServiceName",
-    "ResourceSchemaUrl",
-    "ResourceAttributes",
-    "ResourceAttributesKeys",
-    "ScopeSchemaUrl",
-    "ScopeName",
-    "ScopeVersion",
-    "ScopeAttributes",
-    "ScopeAttributesKeys",
-    "LogAttributes",
-    "LogAttributesKeys",
-    "EventName",
-    "tenant_id",
-    "retention_days",
-    "session_id",
-    "stream_id",
-    "segment_index",
-    "segment_end",
-    "clip_start",
-    "clip_id",
-    "trigger",
-    "truncated",
-  ],
+// Columns the role is denied on a table it otherwise reads whole. For recordings
+// that is Body: raw rrweb, megabytes per row, with page text in it. The
+// migrations grant the table and then revoke exactly these columns
+// (0014-cloud-recordings-rls.sql, 0015-self-hosted-recordings-sql-api-grant.sql),
+// and sql-api-tables.test.ts keeps them equal. The grant is table-wide with a
+// revoke, not a column list, because under a column grant ClickHouse refuses
+// JSON subcolumn reads such as LogAttributes.`url.path`.
+export const SQL_API_WITHHELD_COLUMNS = {
+  recordings: ["Body"],
 } as const satisfies Partial<Record<SqlApiTable, readonly string[]>>;
