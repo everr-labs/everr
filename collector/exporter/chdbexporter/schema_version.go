@@ -16,9 +16,9 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// Bump localSchemaVersion when a table shape changes, alongside the template
-// digest. A version mismatch discards cached local telemetry and rebuilds it.
-const localSchemaVersion = 3
+// Bump localSchemaVersion when the shape of a released table changes,
+// alongside the template digest. A version mismatch discards cached local telemetry and rebuilds it.
+const localSchemaVersion = 2
 
 // Keep the version marker inside the store so deleting the data also resets it.
 // A missing or empty marker reads as version 0.

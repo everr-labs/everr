@@ -224,9 +224,8 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   compares them). ClickHouse expands a function into the column expression
   when the table is created, so a store does not need the function to load.
 - The insert path is shared with `logs`: MATERIALIZED columns are not inserted.
-- `localSchemaVersion` is 3. A store built at version 2, which holds
-  the `recordings` table without the Clip columns or with the older keys, is
-  rebuilt on start like any other version change: every table is dropped and
-  recreated. The recordings template joins `shapedTemplatesDigest`, so a later
-  edit to it has to bump the version. A store that already holds Segments in
-  `logs` keeps them there until `ttl` removes them.
+- `localSchemaVersion` stays 2. A released store has no `recordings` table, so
+  `CREATE TABLE IF NOT EXISTS` creates it with this shape. The recordings
+  template joins `shapedTemplatesDigest`, so a later edit to it has to bump the
+  version. A store that already holds Segments in `logs` keeps them there until
+  `ttl` removes them.

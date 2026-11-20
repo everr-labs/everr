@@ -29,8 +29,9 @@ import (
 )
 
 // shapedTemplatesDigest pins the DDL that decides the shape of the local
-// store. localSchemaVersion has to change with it, because a store built by an
-// older binary is only dropped and rebuilt when the version differs.
+// store. localSchemaVersion has to change with a released table's shape,
+// because a store built by an older binary is only dropped and rebuilt when the
+// version differs.
 const shapedTemplatesDigest = "8a3b0fe238fdddb3126980b71856e730da4541a316d34b33a4914a806bc737f7"
 
 func TestSchemaTemplatesMatchVersion(t *testing.T) {
@@ -54,7 +55,7 @@ func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	}
 
 	require.Equal(t, shapedTemplatesDigest, hex.EncodeToString(digest.Sum(nil)),
-		"a table's DDL changed: bump localSchemaVersion so existing stores rebuild, "+
+		"a table's DDL changed: if the table was released, bump localSchemaVersion so existing stores rebuild, "+
 			"then update shapedTemplatesDigest to the value above")
 }
 

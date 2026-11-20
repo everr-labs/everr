@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
@@ -291,39 +290,4 @@ func TestRecordingsTableSurvivesAChDBRestart(t *testing.T) {
 	require.NoError(t, again.pushLogsData(t.Context(), segmentLogs(segment{roundTripTime, attrs, "after"})))
 	rows = queryJSONRows(t, second, `SELECT count() AS n FROM "`+cfg.database()+`"."recordings"`)
 	require.EqualValues(t, 2, rows[0]["n"])
-}
-
-func TestRecordingsTableOfAnOlderShapeIsRebuilt(t *testing.T) {
-	// The shape before the Clip columns: developer machines hold it, and
-	// CREATE TABLE IF NOT EXISTS would keep it for ever.
-	handle := openRealChDB(t)
-	conn, err := internal.NewChDBConn(handle)
-	require.NoError(t, err)
-	require.NoError(t, conn.Exec(t.Context(), `CREATE TABLE "default"."recordings" (
-		Timestamp DateTime64(9), Body String, LogAttributes JSON(max_dynamic_paths = 256),
-		stream_id String MATERIALIZED toString(getSubcolumn(LogAttributes, 'everr.recording.stream.id')),
-		segment_index UInt32 MATERIALIZED toUInt32OrZero(toString(getSubcolumn(LogAttributes, 'everr.recording.segment.index')))
-	) ENGINE = MergeTree PARTITION BY toDate(Timestamp) ORDER BY (stream_id, Timestamp, segment_index)`))
-	require.NoError(t, conn.Exec(t.Context(), `INSERT INTO "default"."recordings" (Timestamp, Body) VALUES (now(), 'old')`))
-	_, err = readSchemaVersion(t.Context(), conn, "default")
-	require.NoError(t, err)
-	require.NoError(t, writeSchemaVersion(t.Context(), conn, "default", localSchemaVersion-1))
-
-	cfg := withDefaultConfig(func(c *Config) {
-		c.JSON = true
-		c.LogsTableName = "recordings"
-		c.LogsLayout = LogsLayoutRecordings
-	})
-	exp := newLogsJSONExporter(zaptest.NewLogger(t), cfg, newStore(handle))
-	require.NoError(t, exp.start(t.Context(), nil))
-	t.Cleanup(func() { _ = exp.shutdown(context.Background()) })
-
-	columns := queryJSONRows(t, handle, `SELECT name FROM system.columns WHERE database = 'default' AND table = 'recordings'`)
-	names := make([]any, 0, len(columns))
-	for _, column := range columns {
-		names = append(names, column["name"])
-	}
-	require.Subset(t, names, []any{"segment_end", "clip_start", "clip_id", "trigger", "truncated"})
-	rows := queryJSONRows(t, handle, `SELECT count() AS n FROM "default"."recordings"`)
-	require.EqualValues(t, 0, rows[0]["n"])
 }
