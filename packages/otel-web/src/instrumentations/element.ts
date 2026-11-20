@@ -19,10 +19,13 @@ import type { AttrValue } from "../pipeline/emitter.js";
 // fully ignores a password input and a hidden input, and it sees nothing below
 // an element that has the `everr-no-capture` class.
 
+/** The region that no capture sees: the interactions here, and the recording, which Blocks it. */
+export const NO_CAPTURE = ".everr-no-capture";
+
 /** The shared test before a capture. It refuses the regions that have the
  * no-capture class, the password inputs, and the hidden inputs. */
 export function guardOf(el: Element): Element | null {
-  return el.closest(".everr-no-capture") || el.matches("input[type=password],input[type=hidden]")
+  return el.closest(NO_CAPTURE) || el.matches("input[type=password],input[type=hidden]")
     ? null
     : el;
 }

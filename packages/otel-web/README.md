@@ -120,6 +120,46 @@ Browser parenting follows time: overlapping work joins the most recently active 
 
 Before initialization, after shutdown, or with only a keyless production SDK, the browser tracer returns non-recording spans and still runs callbacks. An imported tracer follows SDK replacement. On the server, it uses the application's registered OpenTelemetry provider and context manager, without requiring a `WebSDK`; the provider controls export and async context propagation there.
 
+## Session recording
+
+`recording()` from `@everr/otel-web/recording` keeps the page in memory with [rrweb](https://github.com/rrweb-io/rrweb), aiming for the last 5 minutes and 10 MB. Nothing leaves the page until a Clip is emitted: automatically on an error from `errors()`, or from `network()` on a 5xx response or a request that gets no response (up to 5 per page), or by you. `network()` still marks a 4xx span as an error, and that response opens no Clip.
+
+```ts
+import { WebSDK, errors, network, sampled } from "@everr/otel-web";
+import { recorder, recording } from "@everr/otel-web/recording";
+
+new WebSDK({
+  serviceName: "acme-web",
+  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+  instrumentations: [errors(), network(), sampled(recording(), 0.2)],
+});
+
+// Call these from a user action. A call before the recorder loads produces no Clip.
+function onErrorReport() {
+  recorder.emitClip({ last: 15_000 }); // send the last 15 seconds
+  recorder.emitClip(); // send the whole buffer
+}
+
+async function onCheckoutSubmit() {
+  const flow = recorder.startClip(); // records from here until end()
+  try {
+    await submitOrder();
+  } finally {
+    flow.end();
+  }
+}
+```
+
+A Clip from `startClip()` holds only what happens between the call and `end()`, and closes after 60 seconds at the latest (`next` sets a shorter close). Pass `last` to start it that many milliseconds before the call instead. Automatic Clips cover 60 seconds before the error, the 5xx response, or the request with no response, and 10 seconds after it.
+
+A Clip starts at a full snapshot. The buffer takes a new one at the first change 30 seconds after the last, so on an idle page `last` reaches back to the one snapshot it has. The buffer leaves the page as Segment logs of at most 950 KB, each event at most once, so overlapping Clips share Segments. Each Segment carries `everr.recording.clip.start` and `everr.recording.segment.end`, both in Unix milliseconds, and says that the Stream is complete from the first through the second. The first is the start of the run of overlapping Clips, so the Segments of one run share it. The first Segment of a Clip, which leaves when the Clip opens, also carries its `everr.recording.clip.id` and `everr.recording.trigger`, and `everr.recording.clip.truncated` when the buffer did not reach back to the requested start. An event larger than a Segment, such as the full snapshot of a page with a big inline image, is split into pieces sent as consecutive Segments, and the reader joins them back. The buffer aims for the last 5 minutes and 10 MB. It drops whole snapshots with their changes, oldest first, and always keeps the newest one, so that snapshot can be older than 5 minutes or larger than 10 MB.
+
+Segments go gzipped, in their own requests. A failed request (a network error, a 5xx, or a 429) is tried again twice, 2 and 4 seconds later. A collector must allow the `Content-Encoding` header in CORS for gzip. When it does not, the first gzipped request fails, its plain retry goes through, and the page sends plain from then on. With a custom `send`, Segments reach it as plain text, and a promise it returns that rejects is retried the same way. `beforeSend` sees each Segment with its event name as the body, so a hook can drop it or change its attributes but never parses or rewrites the recording. An open Clip sends what it has when the tab is hidden, and goes on when the tab comes back. When a Clip closes, it always sends a Segment, an empty one when nothing changed, so the Stream is complete up to the close. On `pagehide` it ends and sends nothing, so the last seconds before an unload can be missing. A Segment request does not use keepalive, so one that is not finished when the page unloads can be lost, also one sent when the tab was hidden a moment before. A Clip can thus arrive without its last Segments.
+
+`clearIdentity()` and `revoke()` end the Stream, which is the buffer of the page with its `everr.recording.stream.id`, and start a new one. What the old Stream held is dropped, a Clip that was open ends and sends nothing more, and a Segment that waits for its compression or for a retry is not sent. The new Stream has a new id, starts with a full snapshot, and takes the Session of its first Clip, so no record of the recording joins the ids from before the call to the ids after it. `recorder.pause()` stops the capture until `recorder.resume()`. It holds when the call comes before the recorder loads, and across a new Stream.
+
+Wrap `recording()` in `sampled()` to record a share of Sessions. Only a sampled Session downloads the recorder chunk, and the decision holds for the whole page. Text and inputs are masked, and media is blocked. The attributes that hold text are masked too: `title`, `placeholder`, `alt`, `label`, `abbr`, `summary`, `download`, `datetime`, `content`, `data-*`, and the ARIA text attributes (`aria-label`, `aria-description`, `aria-valuetext`, `aria-placeholder`, `aria-roledescription`, `aria-braille*`). The `value` of a `<data>` element is masked as an input value is. An `aria-*` key that holds a state, a number or an id keeps its value, and so does the `value` of `<li>`, `<meter>` and `<progress>`, because the replay draws from them. The `data-*` keys that UI kits style by (`data-state`, `data-side`, `data-align`, `data-orientation`, `data-slot` and similar) keep their values, unless you set `maskAttributes`. URLs keep no query or fragment, including a `url()` in a style or a stylesheet. A reference to an element of the page, such as `#icon`, stays whole. Change this with `mask`, `unmask`, `block`, `ignore`, `maskFn`, `maskAttributes`, `maskAllText`, `maskAllInputs` and `blockAllMedia`, or mark elements with the `everr-mask`, `everr-block` and `everr-ignore` classes or `data-everr-*` attributes. A `.everr-no-capture` region is blocked, as it is hidden from element capture. Password fields are always masked.
+
 ## Identity
 
 `persistence: "localStorage"` (the default) keeps a random visitor id and 30-minute-inactivity sessions across reloads and tabs. `persistence: "memory"` uses zero cookies and zero storage: the same ids exist only in JS memory and die with the page.

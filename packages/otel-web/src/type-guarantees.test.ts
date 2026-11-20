@@ -1,5 +1,6 @@
 import type * as ServerTypes from "./server.js";
 import type * as IndexTypes from "./index.js";
+import type * as RecordingTypes from "./recording.js";
 import { describe, expect, it } from "vite-plus/test";
 import { identify, revoke } from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
@@ -48,11 +49,18 @@ function entriesStayInLockstep(server: typeof ServerTypes, browser: typeof Index
   void serverCoversBrowser;
 }
 
+// The recording entry takes no sampling option of its own.
+function recordingSamplesThroughSampled(recording: typeof RecordingTypes): void {
+  // @ts-expect-error - sampling is sampled(recording(), rate)
+  void recording.recording({ sampleRate: 0.2 });
+}
+
 describe("type guarantees", () => {
   it("hold at compile time", () => {
     expect(rejectsUnknownPersistence.serviceName).toBe("x");
     expect(persistenceIsOptional.persistence).toBeUndefined();
     expect(identifyAndRevokeAreFreeFunctions).toBeTypeOf("function");
     expect(entriesStayInLockstep).toBeTypeOf("function");
+    expect(recordingSamplesThroughSampled).toBeTypeOf("function");
   });
 });

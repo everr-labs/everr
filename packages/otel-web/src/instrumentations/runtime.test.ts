@@ -103,7 +103,7 @@ describe("instrumentation runtime", () => {
     expect(a["url.path"]).toBe("/overridden");
   });
 
-  it("exposes exactly the eight context members", () => {
+  it("exposes exactly the ten context members", () => {
     let ctx: InstrumentationContext | undefined;
     start({
       instrumentations: [
@@ -115,9 +115,11 @@ describe("instrumentation runtime", () => {
     expect(Object.keys(ctx as object).sort()).toEqual([
       "dev",
       "emit",
+      "emitNow",
       "ids",
       "onHide",
       "onNavigation",
+      "onRecord",
       "page",
       "route",
       "tracer",
