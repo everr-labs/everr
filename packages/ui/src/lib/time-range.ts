@@ -84,6 +84,36 @@ export function resolveTimeRange(range: TimeRange, now = new Date()) {
   };
 }
 
+/**
+ * Resolve a range to ISO timestamps in this process's zone, which in the
+ * browser is the viewer's, so "Today" means the viewer's day. A malformed bound
+ * falls back to the default, as the servers' `TimeRangeSchema` does. Call it in
+ * `queryFn`, so a relative range keeps one cache key and gets a fresh `now` on
+ * every refetch.
+ */
+export function toViewerTimeRange(range: Partial<TimeRange>, now = new Date()): TimeRange {
+  const { fromDate, toDate } = resolveTimeRange(TimeRangeSchema.parse(range), now);
+  return { from: fromDate.toISOString(), to: toDate.toISOString() };
+}
+
+export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T): T {
+  return { ...input, timeRange: toViewerTimeRange(input.timeRange) };
+}
+
+/**
+ * A bucketed chart's window in the viewer's zone, plus the viewer's UTC offset
+ * so its bars start on the viewer's clock. The offset is read at the range's end
+ * or now, whichever is earlier: a rounded-up end ("This week") can sit past a
+ * DST change that none of the data crosses. Rounded because dates before
+ * standard time have fractional offsets, which the servers reject.
+ */
+export function viewerBucketWindow(range: TimeRange, now = new Date()) {
+  const timeRange = toViewerTimeRange(range, now);
+  const end = new Date(timeRange.to);
+  const at = end < now ? end : now;
+  return { timeRange, utcOffsetMinutes: -Math.round(at.getTimezoneOffset()) };
+}
+
 export function isValidTimeRange(range: TimeRange, now = new Date()): boolean {
   try {
     const { fromDate, toDate } = resolveTimeRange(range, now);

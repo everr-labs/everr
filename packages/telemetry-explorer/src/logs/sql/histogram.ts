@@ -1,4 +1,4 @@
-import { bucketSeconds } from "@everr/ui/lib/bucket";
+import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
@@ -35,7 +35,10 @@ export function buildHistogramQuery(
   const intervalSeconds = bucketSeconds(fromDate, toDate, input.histogramBuckets);
   const sql = `
       SELECT
-        toStartOfInterval(toDateTime(Timestamp), INTERVAL ${intervalSeconds} SECOND) AS bucket,
+        toStartOfInterval(
+          toDateTime(Timestamp) + toIntervalSecond({utcOffsetSeconds:Int32}),
+          INTERVAL ${intervalSeconds} SECOND
+        ) - toIntervalSecond({utcOffsetSeconds:Int32}) AS bucket,
         count() AS total,
         countIf(level = 'error') AS error,
         countIf(level = 'warning') AS warning,
@@ -60,6 +63,7 @@ export function buildHistogramQuery(
       levels: input.levels,
       services: input.services,
       traceId: input.traceId,
+      utcOffsetSeconds: input.utcOffsetMinutes * 60,
       ...where.params,
     },
     intervalSeconds,
@@ -90,10 +94,11 @@ export function fillHistogramBuckets(
   fromDate: Date,
   toDate: Date,
   intervalSeconds: number,
+  utcOffsetMinutes: number,
 ): LogHistogramBucket[] {
   const intervalMs = intervalSeconds * 1000;
-  const startMs = Math.floor(fromDate.getTime() / intervalMs) * intervalMs;
-  const endMs = Math.floor(toDate.getTime() / intervalMs) * intervalMs;
+  const startMs = bucketStartMs(fromDate.getTime(), intervalSeconds, utcOffsetMinutes);
+  const endMs = bucketStartMs(toDate.getTime(), intervalSeconds, utcOffsetMinutes);
   const rowsByBucket = new Map(
     rows.map((row) => [new Date(normalizeTimestampToUtc(row.bucket)).getTime(), row]),
   );

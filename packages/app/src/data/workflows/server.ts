@@ -155,8 +155,11 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
       dailySpend.set(row.date, (dailySpend.get(row.date) ?? 0) + spend);
     }
 
+    // Step through every UTC date the window touches, matching `toDate(Timestamp)`:
+    // a viewer's day spans two UTC dates outside UTC+0.
     const overTime: number[] = [];
-    for (const d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+    const firstDate = new Date(fromDate.toISOString().slice(0, 10));
+    for (const d = firstDate; d <= toDate; d.setUTCDate(d.getUTCDate() + 1)) {
       overTime.push(dailySpend.get(d.toISOString().slice(0, 10)) ?? 0);
     }
 

@@ -1,4 +1,4 @@
-import type { TimeRange } from "@everr/ui/lib/time-range";
+import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 import { getAlertNotifications } from "./server";
@@ -12,7 +12,7 @@ export const alertNotificationsOptions = (range: TimeRange) =>
     // scoped to it, so a range change has to refetch rather than serve the
     // old window.
     queryKey: [...notificationsQueryKey, range.from, range.to],
-    queryFn: () => getAlertNotifications({ data: range }),
+    queryFn: () => getAlertNotifications({ data: toViewerTimeRange(range) }),
   });
 
 /**

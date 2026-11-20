@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vite-plus/test";
-import { logsExplorerInfiniteOptions, logsTotalsOptions } from "./options";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { logsExplorerInfiniteOptions, logsHistogramOptions, logsTotalsOptions } from "./options";
 import type { LogsRepositoryLike } from "./repository";
 
 const repo: LogsRepositoryLike = {
@@ -57,4 +57,28 @@ it("keeps refresh off and uses the selected cadence instead of a global polling 
     client.clear();
     vi.useRealTimers();
   }
+});
+
+describe("logsHistogramOptions", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("queries Today as the viewer's day, keyed by the relative range", async () => {
+    vi.stubEnv("TZ", "America/New_York");
+    vi.useFakeTimers({ now: new Date("2026-11-19T15:00:00Z") });
+    const histogram = vi.fn().mockResolvedValue([]);
+    const today = { ...input, timeRange: { from: "now/d", to: "now/d" }, histogramBuckets: 80 };
+    const options = logsHistogramOptions({ ...repo, histogram }, today);
+    await new QueryClient().fetchQuery(options);
+
+    expect(options.queryKey).toEqual(["logs", "histogram", today]);
+    expect(histogram).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timeRange: { from: "2026-11-19T05:00:00.000Z", to: "2026-11-20T04:59:59.999Z" },
+        utcOffsetMinutes: -300,
+      }),
+    );
+  });
 });

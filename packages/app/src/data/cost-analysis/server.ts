@@ -1,3 +1,4 @@
+import { bucketStartMs, UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { TimeRangeInputSchema } from "#app/data/analytics/schemas.ts";
@@ -12,29 +13,22 @@ import {
   type CostSummary,
 } from "./schemas";
 
+const BUCKET_SECONDS: Record<BucketGranularity, number> = { hour: 3600, day: 86400 };
+
+// Buckets start on the viewer's clock: shift by their offset, round, shift
+// back. `bucketKey` must produce the same string for the buckets it fills in.
 function bucketExpr(granularity: BucketGranularity): string {
-  return granularity === "hour"
-    ? "formatDateTime(toStartOfHour(Timestamp), '%Y-%m-%dT%H:00:00Z')"
-    : "formatDateTime(toStartOfDay(Timestamp), '%Y-%m-%dT00:00:00Z')";
+  return `formatDateTime(
+          toStartOfInterval(
+            toDateTime(Timestamp) + toIntervalSecond({utcOffsetSeconds:Int32}),
+            INTERVAL ${BUCKET_SECONDS[granularity]} SECOND
+          ) - toIntervalSecond({utcOffsetSeconds:Int32}),
+          '%Y-%m-%dT%H:%i:00Z'
+        )`;
 }
 
-function floorToBucket(date: Date, granularity: BucketGranularity): Date {
-  const d = new Date(date);
-  d.setUTCMinutes(0, 0, 0);
-  if (granularity === "day") d.setUTCHours(0);
-  return d;
-}
-
-function advanceBucket(date: Date, granularity: BucketGranularity): void {
-  if (granularity === "hour") {
-    date.setUTCHours(date.getUTCHours() + 1);
-  } else {
-    date.setUTCDate(date.getUTCDate() + 1);
-  }
-}
-
-function bucketIso(date: Date): string {
-  return `${date.toISOString().slice(0, 13)}:00:00Z`;
+function bucketKey(ms: number): string {
+  return `${new Date(ms).toISOString().slice(0, 16)}:00Z`;
 }
 
 const RESOURCE_ATTRIBUTE_KEYS = {
@@ -200,6 +194,7 @@ const BREAKDOWN_TOP_N = 6;
 
 const BreakdownInputSchema = TimeRangeInputSchema.extend({
   dimension: z.enum(["repo", "runner"]),
+  utcOffsetMinutes: UtcOffsetMinutesSchema.default(0),
 });
 
 export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
@@ -208,7 +203,7 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
   .validator(BreakdownInputSchema)
   .handler(
     async ({
-      data: { timeRange, dimension },
+      data: { timeRange, dimension, utcOffsetMinutes },
       context: { clickhouse },
     }): Promise<CostOverTimeBreakdown> => {
       const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
@@ -245,7 +240,7 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
         labels: string;
         totalDurationMs: string;
         roundedMinutes: string;
-      }>(sql, { fromTime: fromISO, toTime: toISO });
+      }>(sql, { fromTime: fromISO, toTime: toISO, utcOffsetSeconds: utcOffsetMinutes * 60 });
 
       const totalsByKey = new Map<string, number>();
       const byDateKey = new Map<string, Map<string, { cost: number; minutes: number }>>();
@@ -274,12 +269,13 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
       const otherKeys = new Set(sortedKeys.slice(BREAKDOWN_TOP_N));
 
       const buckets = new Set(byDateKey.keys());
+      const bucketMs = BUCKET_SECONDS[granularity] * 1000;
       for (
-        const d = floorToBucket(fromDate, granularity);
-        d <= toDate;
-        advanceBucket(d, granularity)
+        let ms = bucketStartMs(fromDate.getTime(), BUCKET_SECONDS[granularity], utcOffsetMinutes);
+        ms <= toDate.getTime();
+        ms += bucketMs
       ) {
-        buckets.add(bucketIso(d));
+        buckets.add(bucketKey(ms));
       }
 
       const points: CostOverTimeBreakdown["points"] = Array.from(buckets)

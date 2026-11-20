@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { bucketSeconds, snapToNiceStep } from "./bucket";
+import { bucketSeconds, bucketStartMs, snapToNiceStep } from "./bucket";
 
 describe("snapToNiceStep", () => {
   it("rounds up to the nearest nice clock step", () => {
@@ -58,5 +58,15 @@ describe("bucketSeconds", () => {
 
   it("floors at 1 second for a zero/negative range", () => {
     expect(bucketSeconds(at("2026-06-10T09:00:00Z"), at("2026-06-10T09:00:00Z"), 500)).toBe(1);
+  });
+});
+
+describe("bucketStartMs", () => {
+  const ms = (iso: string) => new Date(iso).getTime();
+
+  it("starts an hour bucket on the viewer's hour in a half-hour zone", () => {
+    // India is UTC+5:30, so its hours begin at :30 UTC.
+    expect(bucketStartMs(ms("2026-11-19T10:45:00Z"), 3600, 330)).toBe(ms("2026-11-19T10:30:00Z"));
+    expect(bucketStartMs(ms("2026-11-19T10:15:00Z"), 3600, 330)).toBe(ms("2026-11-19T09:30:00Z"));
   });
 });

@@ -4,8 +4,11 @@
  * bucket width in seconds snapped to a "nice" clock-aligned value, so a series
  * bucketed with `toStartOfInterval(col, INTERVAL <n> SECOND)` keeps a roughly
  * bounded point count at any zoom and its boundaries land on clean clock lines
- * (`:00`/`:30`, the hour, the UTC day). Pure module (no I/O).
+ * (`:00`/`:30`, the hour, the day; see `bucketStartMs` for the viewer's
+ * clock). Pure module (no I/O).
  */
+
+import { z } from "zod";
 
 // "Nice" bucket widths (seconds), ascending. Snapping the raw width up to one of
 // these keeps `toStartOfInterval` boundaries on clean clock lines. Beyond the
@@ -33,4 +36,25 @@ export function bucketSeconds(from: Date, to: Date, targetBuckets: number): numb
   const rangeSeconds = (to.getTime() - from.getTime()) / 1000;
   const target = Math.max(1, Math.floor(targetBuckets));
   return snapToNiceStep(rangeSeconds / target);
+}
+
+/** A UTC offset in minutes, east positive (New York in winter: -300). Offsets
+ *  in use run from UTC-12 to UTC+14. */
+export const UtcOffsetMinutesSchema = z
+  .number()
+  .int()
+  .min(-14 * 60)
+  .max(14 * 60);
+
+/**
+ * Start of the bucket holding `ms`, with bucket edges on the clock of a zone
+ * `utcOffsetMinutes` from UTC: a day bucket starts at that zone's midnight and
+ * an hour bucket on its hour. The SQL that buckets rows shifts by the same
+ * offset, so the two always agree. A fixed offset drifts by an hour across a
+ * DST change inside the range, which only moves bars of an hour or wider.
+ */
+export function bucketStartMs(ms: number, intervalSeconds: number, utcOffsetMinutes: number) {
+  const intervalMs = intervalSeconds * 1000;
+  const offsetMs = utcOffsetMinutes * 60_000;
+  return Math.floor((ms + offsetMs) / intervalMs) * intervalMs - offsetMs;
 }

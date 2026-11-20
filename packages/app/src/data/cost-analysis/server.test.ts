@@ -50,4 +50,29 @@ describe("cost analysis queries", () => {
     expect(sql).toContain("has(ResourceAttributesKeys, 'cicd.pipeline.task.run.id')");
     expect(sql).toContain("has(ResourceAttributesKeys, 'vcs.repository.name')");
   });
+
+  it("starts the over-time hours on the viewer's clock", async () => {
+    mockedQuery.mockResolvedValueOnce([
+      {
+        date: "2026-11-18T19:30:00Z",
+        series: "everr",
+        labels: '["ubuntu-latest"]',
+        totalDurationMs: "60000",
+        roundedMinutes: "1",
+      },
+    ]);
+
+    // Today in Kolkata (UTC+5:30): 18:30Z to 18:29:59.999Z the next day.
+    const result = await getCostOverTimeBreakdown({
+      data: {
+        timeRange: { from: "2026-11-18T18:30:00.000Z", to: "2026-11-19T18:29:59.999Z" },
+        dimension: "repo",
+        utcOffsetMinutes: 330,
+      },
+    });
+
+    expect(result.points).toHaveLength(24);
+    expect(result.points[0]?.date).toBe("2026-11-18T18:30:00Z");
+    expect(result.points[1]?.cost.everr).toBeGreaterThan(0);
+  });
 });

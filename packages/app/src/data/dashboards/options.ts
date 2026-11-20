@@ -1,3 +1,4 @@
+import { toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
 import type {
@@ -47,7 +48,7 @@ export const dashboardListOptions = (preview?: string) =>
 export const telemetryCapabilitiesOptions = (from: string, to: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, "capabilities", from, to],
-    queryFn: () => getTelemetryCapabilities({ data: { from, to } }),
+    queryFn: () => getTelemetryCapabilities({ data: toViewerTimeRange({ from, to }) }),
     staleTime: 5 * 60_000,
   });
 
@@ -66,10 +67,18 @@ export const panelQueryOptions = (
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
       // The key keeps the relative range (`now-1h`) so a refresh hits the same
-      // cache entry. The server resolves it when the query runs and returns
-      // the exact window it queried, which the panel's axis renders.
+      // cache entry. The range resolves here once the query gets a slot; the
+      // server returns it rounded to whole seconds, which the panel's axis
+      // renders.
       const { rows, timeRange } = await panelLimiter(signal, () =>
-        runPanelQuery({ data: { source, from, to, variables, variableMeta } }),
+        runPanelQuery({
+          data: {
+            source,
+            ...toViewerTimeRange({ from, to }),
+            variables,
+            variableMeta,
+          },
+        }),
       );
       return { rows, timeRange: { from: new Date(timeRange.from), to: new Date(timeRange.to) } };
     },
@@ -85,6 +94,9 @@ export const panelQueryOptions = (
 export const variableOptionsQueryOptions = (query: string, from?: string, to?: string) =>
   queryOptions({
     queryKey: ["variable-options", query, from, to],
-    queryFn: () => runVariableOptionsQuery({ data: { query, from, to } }),
+    queryFn: () =>
+      runVariableOptionsQuery({
+        data: { query, ...toViewerTimeRange({ from, to }) },
+      }),
     enabled: query.trim().length > 0,
   });

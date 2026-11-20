@@ -128,9 +128,9 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
 }
 
 /**
- * The window the newest fetch queried. The server resolves each query's
- * relative range when it runs, and a multi-query panel's queries can run a few
- * seconds apart, so the latest window is used. Placeholder data belongs to the
+ * The window the newest fetch queried. Each query resolves its relative range
+ * when it runs, and a multi-query panel's queries can run a few seconds apart,
+ * so the latest window is used. Placeholder data belongs to the
  * previous key, so its window is ignored.
  */
 export function latestQueriedRange(

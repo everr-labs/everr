@@ -1,4 +1,5 @@
 import { RUN_STATUS_FILTERS } from "@everr/telemetry-explorer/runs";
+import { UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
 import { TimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
@@ -53,6 +54,7 @@ export type RunsListInput = z.infer<typeof RunsListInputSchema>;
 export const RunsHistogramInputSchema = z.object({
   ...RunsFilterShape,
   histogramBuckets: z.number().int().min(12).max(240).default(80),
+  utcOffsetMinutes: UtcOffsetMinutesSchema.default(0),
 });
 
 export interface RunHistogramBucket {

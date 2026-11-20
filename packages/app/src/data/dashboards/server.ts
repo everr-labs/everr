@@ -30,8 +30,9 @@ import { testDataSpec } from "./testdata/spec";
 const PANEL_TARGET_POINTS = 500;
 
 /**
- * Shared panel and variable parameters, including the adaptive `{step}`.
- * Resolve a (possibly relative) range once, at query time. Bounds are rounded
+ * Shared panel and variable parameters, including the adaptive `{step}`. The
+ * app sends the range already resolved in the viewer's zone; a relative range
+ * from an older client still resolves here. Bounds are rounded
  * outward to whole seconds because DateTime columns refuse fractional literals.
  * `window` is the exact range the query covers, returned to the client so the
  * panel axis renders over it.

@@ -1,5 +1,7 @@
 import type { BucketGranularity } from "#app/data/cost-analysis/schemas.ts";
 
+// Buckets start on the viewer's clock, so they are labelled in the viewer's zone.
+
 export function formatBucket(
   iso: string,
   granularity: BucketGranularity,
@@ -11,7 +13,6 @@ export function formatBucket(
       return d.toLocaleTimeString("en-US", {
         hour: "numeric",
         hour12: true,
-        timeZone: "UTC",
       });
     }
     return d.toLocaleString("en-US", {
@@ -19,15 +20,13 @@ export function formatBucket(
       day: "numeric",
       hour: "numeric",
       hour12: true,
-      timeZone: "UTC",
     });
   }
   if (variant === "axis") {
     return d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      timeZone: "UTC",
     });
   }
-  return d.toLocaleDateString(undefined, { timeZone: "UTC" });
+  return d.toLocaleDateString();
 }
