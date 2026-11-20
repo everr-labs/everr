@@ -65,6 +65,11 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 		if fnErr := internal.CreateErrorFingerprintFunction(ctx, e.db); fnErr != nil {
 			return fnErr
 		}
+		for _, function := range logsLayoutTemplates[e.cfg.LogsLayout].functions {
+			if fnErr := internal.CreateFunction(ctx, e.db, function); fnErr != nil {
+				return fnErr
+			}
+		}
 
 		if schemaErr := e.store.ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
 			return schemaErr
@@ -285,31 +290,46 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 	return nil
 }
 
+// logsLayout is one shape the JSON logs table can take: the statement that
+// creates it, and the expression its TTL reads.
+type logsLayout struct {
+	createTable *template.Template
+	ttlField    string
+	// functions are created before the table, because its columns call them.
+	functions []string
+}
+
 // logsLayoutTemplates is the closed set of shapes the JSON logs table can
-// take, each with the statement that creates it. The insert path is the same
-// for all of them: the columns a layout adds are MATERIALIZED, so they are
-// never inserted.
-var logsLayoutTemplates = map[LogsLayout]*template.Template{
-	LogsLayoutLogs:       sqltemplates.LogsJSONCreateTableTmpl,
-	LogsLayoutRecordings: sqltemplates.RecordingsCreateTableTmpl,
+// take. The insert path is the same for all of them: the columns a layout adds
+// are MATERIALIZED, so they are never inserted.
+var logsLayoutTemplates = map[LogsLayout]logsLayout{
+	LogsLayoutLogs: {
+		createTable: sqltemplates.LogsJSONCreateTableTmpl,
+		ttlField:    "toDateTime(Timestamp)",
+	},
+	LogsLayoutRecordings: {
+		createTable: sqltemplates.RecordingsCreateTableTmpl,
+		// Explicit zone, as in the partition and the sort key of the table.
+		ttlField:  "toDateTime(Timestamp, 'UTC')",
+		functions: []string{sqltemplates.CreateUnixMilliFunction},
+	},
 }
 
 func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
-	tmpl, ok := logsLayoutTemplates[cfg.LogsLayout]
+	layout, ok := logsLayoutTemplates[cfg.LogsLayout]
 	if !ok {
 		return "", fmt.Errorf("unknown logs layout %q", cfg.LogsLayout)
 	}
-	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
 		Database:      cfg.database(),
 		TableName:     cfg.LogsTableName,
 		ClusterString: cfg.tableClusterString(),
 		Engine:        cfg.tableEngineString(),
-		TTL:           ttlExpr,
+		TTL:           internal.GenerateTTLExpr(cfg.TTL, layout.ttlField),
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
+	if err := layout.createTable.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("execute logs json create table template: %w", err)
 	}
 

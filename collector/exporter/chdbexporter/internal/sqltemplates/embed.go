@@ -31,6 +31,14 @@ func newTemplate(name, text string) *template.Template {
 //go:embed create_error_fingerprint_function.sql
 var CreateErrorFingerprintFunction string
 
+// CreateUnixMilliFunction is the DDL registering the everrUnixMilliOrEpoch
+// UDF that the recordings table's columns call. Must match the one in
+// packages/app/clickhouse/0013-create-recordings.sql
+// (packages/app/src/db/clickhouse-migrations.test.ts compares them).
+//
+//go:embed create_unix_milli_function.sql
+var CreateUnixMilliFunction string
+
 // LOGS
 
 //go:embed logs_table.sql
@@ -47,7 +55,7 @@ var LogsJSONInsert string
 
 // RecordingsCreateTable is the logs table of browser recording Segments. Its
 // columns match the cloud's app.recordings, without the tenant and retention
-// columns the local store does not have.
+// columns the local store does not have. It calls everrUnixMilliOrEpoch.
 //
 //go:embed recordings_table.sql
 var RecordingsCreateTable string
