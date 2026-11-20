@@ -101,12 +101,12 @@ export function withViewerTimeRange<T extends { timeRange: TimeRange }>(input: T
 }
 
 /**
- * A histogram's window in the viewer's zone, plus the viewer's UTC offset so
- * its bars start on the viewer's clock. The offset is read at the range's end
+ * A bucketed chart's window in the viewer's zone, plus the viewer's UTC offset
+ * so its bars start on the viewer's clock. The offset is read at the range's end
  * or now, whichever is earlier: a rounded-up end ("This week") can sit past a
  * DST change that none of the data crosses.
  */
-export function viewerHistogramWindow(range: TimeRange, now = new Date()) {
+export function viewerBucketWindow(range: TimeRange, now = new Date()) {
   const timeRange = toViewerTimeRange(range, now);
   const end = new Date(timeRange.to);
   const at = end < now ? end : now;

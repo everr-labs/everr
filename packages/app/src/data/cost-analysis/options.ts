@@ -1,4 +1,4 @@
-import { withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { viewerBucketWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import { getCostByWorkflow, getCostOverTimeBreakdown, getCostOverview } from "./server";
@@ -22,5 +22,6 @@ export const costOverTimeBreakdownOptions = (
   // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
   queryOptions({
     queryKey: ["cost", "overTimeBreakdown", input.timeRange, input.dimension],
-    queryFn: () => getCostOverTimeBreakdown({ data: withViewerTimeRange(input) }),
+    queryFn: () =>
+      getCostOverTimeBreakdown({ data: { ...input, ...viewerBucketWindow(input.timeRange) } }),
   });

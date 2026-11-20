@@ -1,4 +1,4 @@
-import { viewerHistogramWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { viewerBucketWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
@@ -32,7 +32,7 @@ export function runsHistogramOptions(
 ) {
   return queryOptions({
     queryKey: ["runs", "histogram", input] as const,
-    queryFn: () => repo.histogram({ ...input, ...viewerHistogramWindow(input.timeRange) }),
+    queryFn: () => repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange) }),
   });
 }
 

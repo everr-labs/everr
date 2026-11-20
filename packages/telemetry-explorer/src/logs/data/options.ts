@@ -1,5 +1,5 @@
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { viewerHistogramWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
+import { viewerBucketWindow, withViewerTimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   LogHistogramInput,
@@ -56,6 +56,6 @@ export function logsHistogramOptions(
   return queryOptions({
     queryKey: ["logs", "histogram", input],
     refetchInterval: getRefreshIntervalMs(refresh) ?? false,
-    queryFn: () => repo.histogram({ ...input, ...viewerHistogramWindow(input.timeRange) }),
+    queryFn: () => repo.histogram({ ...input, ...viewerBucketWindow(input.timeRange) }),
   });
 }
