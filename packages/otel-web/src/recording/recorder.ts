@@ -70,7 +70,7 @@ export type Stream = {
   /**
    * Sends what the open Clips still need, ends them, and drops the buffer.
    * With `drop`, for clearIdentity(), nothing more goes out under the ids of
-   * the Stream: no Segment, also one on its way, and no Span of an open Clip.
+   * the Stream: no Segment, also one on its way.
    */
   end(drop?: boolean): void;
 };
@@ -188,19 +188,25 @@ export function startStream(
   const streamId = randomHex(16);
   const { rrweb, replacer } = privacy(options, (id) => record.mirror.getNode(id) ?? null);
   // The Clips are ranges over this Stream, so each event leaves the page at
-  // most once. A reader finds the events of a Clip by the Stream id and the
-  // time range of the Clip's Span.
+  // most once. A Segment says where the earliest open Clip starts and how far
+  // the Stream is sent, so a reader finds the events of a Clip by the Stream id.
   const generations: Generation[] = [];
   let generationCount = 0;
   let bytes = 0;
   let index = 0;
   const buckets = new Map<number, [tokens: number, time: number]>();
   // Each open Clip needs the events of its first generation and after.
-  const clips = new Set<{ from: number; close(hide: boolean, drop?: boolean): void }>();
+  const clips = new Set<{ from: number; start: number; close(hide: boolean): void }>();
   let flush: ReturnType<typeof setInterval> | undefined;
   let auto: RecordingClip | undefined;
   let stop: (() => void) | undefined;
   let ended = false;
+  // What the next Segment carries to open its Clip. A Clip sets it at open and
+  // the Segment that leaves first takes it, so each Clip has its own.
+  let opening: Record<string, string | boolean> | undefined;
+
+  // The least of one number over the open Clips, or Infinity with none open.
+  const earliest = (key: "from" | "start") => Math.min(...Array.from(clips, (c) => c[key]));
 
   const emitSegment = (body: string, time: number, piece?: Record<string, number>) => {
     const request = ctx.emitNow(
@@ -209,11 +215,15 @@ export function startStream(
         "session.id": sessionId,
         "everr.recording.stream.id": streamId,
         "everr.recording.segment.index": index++,
+        "everr.recording.segment.end": Date.now(),
+        "everr.recording.clip.start": earliest("start"),
+        ...opening,
         ...piece,
       },
       time,
       body,
     );
+    opening = undefined;
     if (request) void deliver(request);
   };
   const emitBatch = (events: Entry[]) =>
@@ -251,14 +261,8 @@ export function startStream(
     if (batch.length) emitBatch(batch);
   };
 
-  // The first generation that an open Clip needs, or Infinity with none open.
-  const liveFrom = () => {
-    let from = Infinity;
-    for (const c of clips) from = Math.min(from, c.from);
-    return from;
-  };
   const sendLive = () => {
-    const from = liveFrom();
+    const from = earliest("from");
     for (const generation of generations) if (generation.n >= from) send(generation);
   };
 
@@ -273,7 +277,7 @@ export function startStream(
     ) {
       const oldest = generations[0];
       generations.shift();
-      if (oldest.n >= liveFrom()) send(oldest);
+      if (oldest.n >= earliest("from")) send(oldest);
       bytes -= oldest.bytes;
     }
   };
@@ -368,45 +372,41 @@ export function startStream(
     // A Stream without a Session takes the one of its first Clip. A Segment
     // goes only for a Clip, so it finds the Session set.
     sessionId ??= ctx.ids().sessionId;
-    const span = ctx.tracer.startSpan("recording", {
-      root: true,
-      startTime: start,
-      attributes: {
-        "session.id": sessionId,
-        "everr.recording.clip.id": id,
-        "everr.recording.stream.id": streamId,
-        "everr.recording.trigger": trigger,
-        ...(truncated ? { "everr.recording.clip.truncated": true } : {}),
-      },
-    });
-
-    // A frozen tab runs the timer late, so the Span ends at the cap, not at the wake.
-    const capMs = Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS);
     let live = true;
     const state = {
       from: fromBuffer ? generations[first].n : generationCount,
-      close(hide: boolean, drop?: boolean) {
+      start,
+      close(hide: boolean) {
         if (!live) return;
         live = false;
         clearTimeout(cap);
         if (!hide) sendLive();
         clips.delete(state);
         if (!clips.size) clearInterval(flush);
-        if (!drop) span.end(Math.min(Date.now(), now + capMs));
       },
     };
     if (!clips.size) flush = setInterval(sendLive, FLUSH_MS);
     clips.add(state);
-    if (fromBuffer) sendLive();
+    opening = {
+      "everr.recording.clip.id": id,
+      "everr.recording.trigger": trigger,
+      ...(truncated ? { "everr.recording.clip.truncated": true } : {}),
+    };
     // A paused recorder takes the snapshot on resume.
-    else if (!paused) {
+    if (!fromBuffer && !paused) {
       try {
         record.takeFullSnapshot(true);
       } catch {
         // rrweb throws when it is not recording. The Clip then starts at the next snapshot.
       }
     }
-    const cap = setTimeout(() => state.close(false), capMs);
+    sendLive();
+    // With nothing unsent, an empty Segment still says that the Clip opened.
+    if (opening) emitSegment("[]", now);
+    const cap = setTimeout(
+      () => state.close(false),
+      Math.min(range.next ?? CLIP_CAP_MS, CLIP_CAP_MS),
+    );
     if (range.next === 0) state.close(false);
     return { id, startTime: start, isRecording: () => live, end: () => state.close(false) };
   };
@@ -440,7 +440,7 @@ export function startStream(
     end(drop = false) {
       if (ended) return;
       if (drop) drops++;
-      for (const open of clips) open.close(drop, drop);
+      for (const open of clips) open.close(drop);
       halt();
       ended = true;
       generations.length = 0;

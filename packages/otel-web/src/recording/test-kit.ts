@@ -15,13 +15,7 @@ type WireRecord = {
   attributes: Wire[];
   traceId?: string;
 };
-type WireSpan = {
-  name: string;
-  startTimeUnixNano: string;
-  endTimeUnixNano: string;
-  parentSpanId?: string;
-  attributes: Wire[];
-};
+type WireSpan = { name: string };
 // oxlint-disable-next-line typescript/no-explicit-any -- Tests walk rrweb event trees whose shape depends on the event type.
 export type RrwebEvent = { type: number; timestamp: number; data: Record<string, any> };
 
@@ -82,18 +76,12 @@ export async function start(
           events: piece ? [] : (JSON.parse(body) as RrwebEvent[]),
         };
       });
-  const spans = async () => {
+  const spanNames = async () => {
     await client.flush();
     return sent
       .filter((s) => s.signal === "traces")
       .flatMap((s): WireSpan[] => JSON.parse(s.body).resourceSpans[0].scopeSpans[0].spans)
-      .filter((s) => s.name === "recording")
-      .map((s) => ({
-        ...s,
-        attrs: flat(s.attributes),
-        start: ms(s.startTimeUnixNano),
-        end: ms(s.endTimeUnixNano),
-      }));
+      .map((s) => s.name);
   };
   const logs = async () => {
     await client.flush();
@@ -101,24 +89,26 @@ export async function start(
       .filter((r) => r.eventName !== "everr.browser.recording.segment")
       .map((r) => ({ eventName: r.eventName, attrs: flat(r.attributes) }));
   };
+  /** The opening Segment of a Clip: the one that carries its id. */
+  const opening = (clipId: string) =>
+    segments().find((s) => s.attrs["everr.recording.clip.id"] === clipId)!;
   /**
    * The events of one Clip, as a reader finds them: the Segments of its Stream
-   * in the time range of its Span, up to the end of the Span.
+   * from the `clip.start` of its opening Segment, which is its own start when
+   * no earlier Clip is open.
    */
-  const clipEvents = async (clipId: string) => {
-    const span = (await spans()).find((s) => s.attrs["everr.recording.clip.id"] === clipId)!;
-    const stream = span.attrs["everr.recording.stream.id"];
+  const clipEvents = (clipId: string) => {
+    const first = opening(clipId);
     return reassemble(
       segments().filter(
         (s) =>
-          s.attrs["everr.recording.stream.id"] === stream &&
-          s.time >= span.start &&
-          s.time <= span.end,
+          s.attrs["everr.recording.stream.id"] === first.attrs["everr.recording.stream.id"] &&
+          s.time >= Number(first.attrs["everr.recording.clip.start"]),
       ),
-    ).filter((e) => e.timestamp <= span.end);
+    );
   };
 
-  return { sdk, rec, client, sent, segments, spans, logs, clipEvents };
+  return { sdk, rec, client, sent, segments, spanNames, logs, opening, clipEvents };
 }
 
 /**

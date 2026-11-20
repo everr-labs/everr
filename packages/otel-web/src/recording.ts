@@ -41,7 +41,7 @@ export type RecordingClip = {
   readonly startTime: number;
   /** False before the recorder chunk loads, in an unsampled Session, after the Stream ends, or after end(). */
   isRecording(): boolean;
-  /** Sends what the Clip still needs and emits the recording Span. Idempotent. */
+  /** Sends what the Clip still needs. Idempotent. */
   end(): void;
 };
 
