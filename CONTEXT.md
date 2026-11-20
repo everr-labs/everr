@@ -176,11 +176,11 @@ The events of a Stream from one full snapshot up to the next. A new one starts a
 _Avoid_: checkout (rrweb's word for taking the snapshot)
 
 **Clip**:
-A time range of a Stream that leaves the page: automatically on an error, a 5xx response, or a request that gets no response (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its opening Segment carries its id and starts the range; the Clip sends only the Segments the Stream has not sent yet.
+A time range of a Stream that leaves the page: automatically on an error, a 5xx response, or a request that gets no response (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its opening Segment carries its id; the Clip sends only the Segments the Stream has not sent yet, and its close always sends a Segment, empty when nothing changed. Clips that overlap form a run.
 _Avoid_: recording (the whole history), snippet, replay
 
 **Segment**:
-One OTLP Log (`everr.browser.recording.segment`) that carries part of a Stream as a JSON array of rrweb events, about 950 KB at most, inside one Generation. Its time is that of its first event. Ordered by `everr.recording.segment.index`. An event larger than one Segment goes in Pieces.
+One OTLP Log (`everr.browser.recording.segment`) that carries part of a Stream as a JSON array of rrweb events, about 950 KB at most, inside one Generation. Its time is that of its first event. Ordered by `everr.recording.segment.index`. It says that the Stream is complete from `everr.recording.clip.start`, the start of its run of Clips, through `everr.recording.segment.end`. An event larger than one Segment goes in Pieces.
 _Avoid_: chunk, batch, part
 
 **Piece**:
@@ -188,7 +188,7 @@ A Segment that carries a slice, cut between characters, of one rrweb event too l
 _Avoid_: chunk, fragment
 
 **Replay**:
-Playing back the Segments of a Clip's Stream from its `everr.recording.clip.start`, in an rrweb player.
+Playing back the Segments of a Clip's Stream from the `everr.recording.clip.start` of its run, in an rrweb player.
 _Avoid_: playback video, recording
 
 ### CI
