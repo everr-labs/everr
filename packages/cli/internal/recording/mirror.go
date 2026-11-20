@@ -31,6 +31,7 @@ const (
 	eventFullSnapshot = 2
 	eventIncremental  = 3
 	eventMeta         = 4
+	eventCustom       = 5
 )
 
 // rrweb IncrementalSource values.
@@ -101,6 +102,8 @@ type pageView struct {
 	lines      []string
 	totalLines int
 	masked     bool
+	paused     bool
+	pausedAt   int64
 }
 
 const none = -1
@@ -117,12 +120,23 @@ type node struct {
 	parent, first, last, prev, next int
 }
 
+// rrweb custom event tags the SDK writes when the app pauses or resumes the
+// recorder (see rules/browser-events.md).
+const (
+	tagPause  = "everr.recording.pause"
+	tagResume = "everr.recording.resume"
+)
+
 type mirror struct {
 	nodes []node
 	ids   map[int64]int
 	root  int
 	// lost is true once an event referred to a node the mirror did not have.
 	lost bool
+	// paused: the app paused the recorder at pausedAt (ms) and has not resumed,
+	// so the page has changed in ways the Recording does not show.
+	paused   bool
+	pausedAt int64
 	// addAttempts counts every try to place an add, over snapshots too.
 	addAttempts int
 }
@@ -253,6 +267,16 @@ func (m *mirror) loaded() bool { return m.root != none }
 // gives true when it did.
 func (m *mirror) apply(e event) bool {
 	data := e.data
+	if e.kind == eventCustom {
+		tag, _ := data.get("tag").str()
+		switch {
+		case tag == tagPause && !m.paused:
+			m.paused, m.pausedAt = true, int64(max(e.timestamp, 0))
+		case tag == tagResume:
+			m.paused = false
+		}
+		return false
+	}
 	if e.kind == eventFullSnapshot {
 		if snapshot, ok := data.take("node"); ok && isSnapNode(snapshot) {
 			attempts := m.addAttempts
@@ -265,6 +289,7 @@ func (m *mirror) apply(e event) bool {
 		} else {
 			// The page it replaced stays, and no longer covers the moment.
 			m.lost = true
+			m.paused = false
 		}
 		return m.root != none && !m.lost
 	}
@@ -598,7 +623,7 @@ func (m *mirror) view(form Form) pageView {
 		items = collapseRuns(m.outline(m.root, 0, &masked))
 	}
 	lines, total := fit(items, form.budget())
-	return pageView{lines: lines, totalLines: total, masked: masked}
+	return pageView{lines: lines, totalLines: total, masked: masked, paused: m.paused, pausedAt: m.pausedAt}
 }
 
 func (m *mirror) stringAttr(id int, name string) string {

@@ -127,13 +127,16 @@ func pathOf(raw string) string {
 }
 
 // pageText is `page <time> (--at +<offset>) url=<path>`, the notes that
-// qualify the page (`text masked`, `coverage incomplete`), then one line per
-// element.
+// qualify the page (`text masked`, `recording paused since <time>`,
+// `coverage incomplete`), then one line per element.
 func pageText(readMs, atMs int64, pageURL string, view pageView, complete bool) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "page %s (--at %s) url=%s", iso(readMs), offset(readMs-atMs), pathOf(pageURL))
 	if view.masked {
 		out.WriteString(" text masked")
+	}
+	if view.paused {
+		out.WriteString(" recording paused since " + iso(view.pausedAt))
 	}
 	if !complete {
 		out.WriteString(" coverage incomplete")
