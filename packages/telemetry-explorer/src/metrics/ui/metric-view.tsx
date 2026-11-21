@@ -431,8 +431,10 @@ function SeriesPanel({
     exemplar: Pick<MetricExemplar, "traceId" | "spanId" | "time">;
     at: { x: number; y: number };
   } | null>(null);
-  // The table row under the pointer, whose line the chart brings forward.
-  const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
+  // The table row under the pointer, whose line the chart brings forward. A row
+  // that unmounts (loading, an error, the heatmap) gets no pointer leave, so the
+  // hover holds only for the chart it was set on.
+  const [hovered, setHovered] = useState<{ id: string; chart: unknown } | null>(null);
   const chart = useMemo(() => {
     if (!result || !lines) return null;
     const step = result.stepSeconds * 1000;
@@ -484,6 +486,7 @@ function SeriesPanel({
       sharedAxis: scales.length > 2,
     };
   }, [result, lines]);
+  const hoveredSeries = hovered && hovered.chart === chart ? hovered.id : null;
   // Exemplars and the card read the single query's line.
   const format = chart?.series[0]?.format ?? ((value: number) => String(value));
 
@@ -666,8 +669,8 @@ function SeriesPanel({
               <tr
                 key={s.id}
                 className="hover:bg-muted/50 border-b"
-                onPointerEnter={() => setHoveredSeries(s.id)}
-                onPointerLeave={() => setHoveredSeries(null)}
+                onPointerEnter={() => setHovered({ id: s.id, chart })}
+                onPointerLeave={() => setHovered(null)}
               >
                 <th
                   scope="row"
