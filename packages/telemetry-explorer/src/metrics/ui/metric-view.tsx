@@ -431,6 +431,8 @@ function SeriesPanel({
     exemplar: Pick<MetricExemplar, "traceId" | "spanId" | "time">;
     at: { x: number; y: number };
   } | null>(null);
+  // The table row under the pointer, whose line the chart brings forward.
+  const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
   const chart = useMemo(() => {
     if (!result || !lines) return null;
     const step = result.stepSeconds * 1000;
@@ -614,6 +616,7 @@ function SeriesPanel({
             const hit = markers.find((m) => m.id === marker.id);
             if (hit) setPicked({ exemplar: hit.exemplar, at });
           }}
+          focusedSeries={hoveredSeries}
           className="h-[260px] w-full"
           onSelect={(from, to) => {
             const start = chart.buckets[from];
@@ -660,7 +663,12 @@ function SeriesPanel({
               </tr>
             ) : null}
             {series.map((s) => (
-              <tr key={s.id} className="hover:bg-muted/50 border-b">
+              <tr
+                key={s.id}
+                className="hover:bg-muted/50 border-b"
+                onPointerEnter={() => setHoveredSeries(s.id)}
+                onPointerLeave={() => setHoveredSeries(null)}
+              >
                 <th
                   scope="row"
                   aria-label={s.label}

@@ -164,7 +164,6 @@ document:
             kind: TimeSeriesChart
             spec:
               valueFormat: { unit: By, scale: binary }
-              lineWidth: 2
               curveType: linear
               showLegend: true
               stacked: true
@@ -185,7 +184,6 @@ document:
             kind: TimeSeriesChart
             spec:
               valueFormat: { unit: By, scale: binary }
-              lineWidth: 2
               curveType: linear
               connectNulls: true
           queries:

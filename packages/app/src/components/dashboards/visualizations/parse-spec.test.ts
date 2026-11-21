@@ -46,7 +46,7 @@ describe("parseSpecLenient", () => {
       lineWidth: "3",
       valueFormat: { unit: "ms" },
     });
-    expect(spec.lineWidth).toBe(1.5);
+    expect(spec.lineWidth).toBe(1);
     expect(spec.valueFormat?.unit).toBe("ms");
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/^lineWidth: /);
@@ -66,7 +66,7 @@ describe("parseSpecLenient", () => {
       curveType: "wiggly",
       showLegend: true,
     });
-    expect(spec.lineWidth).toBe(1.5);
+    expect(spec.lineWidth).toBe(1);
     expect(spec.curveType).toBe("monotone");
     expect(spec.showLegend).toBe(true);
     expect(warnings).toHaveLength(2);
@@ -85,7 +85,7 @@ describe("parseSpecLenient", () => {
 
   it("falls back to all defaults for a non-object spec", () => {
     const { spec, warnings } = parseSpecLenient(timeSeriesChartSpec, "nope");
-    expect(spec.lineWidth).toBe(1.5);
+    expect(spec.lineWidth).toBe(1);
     expect(warnings.length).toBeGreaterThan(0);
   });
 
