@@ -2,11 +2,13 @@ import { deleteCurrentUserAccount } from "@everr/app/account-settings/actions";
 import { DeleteAccountDialog } from "@everr/app/account-settings/dialog";
 import { authClient } from "@everr/app/identity/client";
 import { isOrganizationOwner } from "@everr/app/identity/roles";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 export function AccountDeletion() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const [deleteOrganization, setDeleteOrganization] = useState(false);
@@ -31,6 +33,7 @@ export function AccountDeletion() {
             ? { confirmation: "DELETE", deleteOrganization: true }
             : { confirmation: "DELETE" },
         });
+        queryClient.clear();
         await navigate({ to: "/" });
       }}
     >

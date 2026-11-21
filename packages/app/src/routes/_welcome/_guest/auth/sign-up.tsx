@@ -2,6 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useForm } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
@@ -34,6 +35,7 @@ export const Route = createFileRoute("/_welcome/_guest/auth/sign-up")({
 function SignUp() {
   const { googleSignInEnabled } = Route.useRouteContext();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { redirect: redirectTo, email: prefillEmail } = Route.useSearch();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,6 +68,8 @@ function SignUp() {
           return;
         }
 
+        // Nothing read while signed out, or by a previous session, carries over.
+        queryClient.clear();
         await navigate({
           href: redirectTo ?? "/",
           replace: true,

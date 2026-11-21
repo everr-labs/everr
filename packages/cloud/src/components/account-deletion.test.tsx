@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
@@ -23,7 +24,11 @@ vi.mock("@tanstack/react-router", () => ({
 import { AccountDeletion } from "./account-deletion";
 
 function renderPage() {
-  return render(<AccountDeletion />);
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <AccountDeletion />
+    </QueryClientProvider>,
+  );
 }
 beforeEach(() => {
   mocks.deleteCurrentUserAccount.mockReset().mockResolvedValue(undefined);

@@ -1,7 +1,10 @@
 import { Spinner } from "@everr/ui/components/spinner";
 import { routeTree } from "@composition/routes";
-import { QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
+import { createQueryClient } from "#app/lib/query-client.ts";
+import { dehydrateRootAccess, hydrateRootAccess } from "#app/lib/route-access-cache.ts";
+import type { RootAccess } from "#app/routes/__root.tsx";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
 import { RootErrorComponent } from "./components/root-error";
@@ -42,21 +45,18 @@ const routeMasks = [
  * if the cache key learns about the options.
  */
 export const getRouter = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        gcTime: 5 * 60_000,
-        refetchOnWindowFocus: true,
-        retry: 3,
-      },
-    },
-  });
+  // One per call, and Start calls this once per server request, so cached
+  // session and organization data never outlives the request it was read for.
+  const queryClient = createQueryClient(() => router);
 
   const router = createRouter({
     routeTree,
     routeMasks,
     context: { queryClient },
+    dehydrate: (): { rootAccess: RootAccess } => ({
+      rootAccess: dehydrateRootAccess(queryClient, router.state.location.pathname),
+    }),
+    hydrate: ({ rootAccess }) => hydrateRootAccess(queryClient, rootAccess),
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
     defaultErrorComponent: RootErrorComponent,

@@ -1,0 +1,56 @@
+import { MutationCache, type Query, QueryCache, QueryClient } from "@tanstack/react-query";
+import { isRouteAccessQuery, resetRouteAccess } from "#app/lib/route-access-cache.ts";
+
+// The messages `AuthError` carries in org-session.server.ts. Server function
+// errors reach the browser as plain `Error`s, so the message is what survives.
+const AUTH_FAILURES = new Set([
+  "Unauthenticated",
+  "No active organization",
+  "Not a member of the active organization",
+  "Organization suspended",
+]);
+
+/**
+ * The session ended, the user lost the active organization, or its subscription
+ * was suspended. Retrying cannot fix any of them.
+ */
+function isAuthFailure(error: unknown) {
+  return error instanceof Error && AUTH_FAILURES.has(error.message);
+}
+
+export function createQueryClient(router: () => { invalidate: () => Promise<void> }) {
+  // Route guards keep their data until something resets it, so a session that
+  // ends elsewhere (signed out in another tab, expired, revoked) or a removed
+  // membership first shows up as a failed data request. Dropping the guard
+  // data and re-running the guards sends the user to sign-in, to pick a
+  // workspace, or to the suspended organization's billing, with the current
+  // page as the return destination where there is one.
+  let invalidating: Promise<void> | undefined;
+  const onAuthFailure = (error: unknown, query?: Pick<Query, "queryKey">) => {
+    // A guard's own failure already surfaces through the router; re-running the
+    // guards from it could loop.
+    if (!isAuthFailure(error) || (query && isRouteAccessQuery(query))) return;
+    // Many requests fail together when a session ends; one re-run covers them.
+    if (invalidating) return;
+    resetRouteAccess(queryClient);
+    invalidating = router()
+      .invalidate()
+      .finally(() => {
+        invalidating = undefined;
+      });
+  };
+
+  const queryClient: QueryClient = new QueryClient({
+    queryCache: new QueryCache({ onError: (error, query) => onAuthFailure(error, query) }),
+    mutationCache: new MutationCache({ onError: (error) => onAuthFailure(error) }),
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: true,
+        retry: (failureCount, error) => !isAuthFailure(error) && failureCount < 3,
+      },
+    },
+  });
+  return queryClient;
+}

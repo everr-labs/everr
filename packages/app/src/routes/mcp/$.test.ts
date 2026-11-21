@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   createMcpHandler: vi.fn(),
   withMcpAuth: vi.fn(),
   transport: vi.fn(),
+  runSqlForConnection: vi.fn(),
+  access: "enabled" as "enabled" | "suspended",
 }));
 
 vi.mock("mcp-handler", () => ({
@@ -17,11 +19,16 @@ vi.mock("#app/lib/mcp-resource.ts", () => ({
   MCP_RESOURCE: "http://localhost:3000/mcp",
 }));
 vi.mock("#app/db/client.ts", () => ({ db: {} }));
+vi.mock("#app/data/mcp/run-sql.ts", () => ({ runSqlForConnection: mocks.runSqlForConnection }));
+vi.mock("@composition/product", () => ({
+  product: { forOrganization: async () => ({ access: mocks.access }) },
+}));
 
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.stubEnv("TSS_PRERENDERING", undefined);
+  mocks.access = "enabled";
   mocks.createMcpHandler.mockReturnValue(mocks.transport);
   mocks.withMcpAuth.mockReturnValue(mocks.transport);
   mocks.transport.mockImplementation(
@@ -114,5 +121,39 @@ describe("MCP transport lifecycle", () => {
       throw new Error("Transport initialization failed");
     });
     await expect(import("./$")).rejects.toThrow("Transport initialization failed");
+  });
+});
+
+describe("query tool", () => {
+  async function queryTool() {
+    await import("./$");
+    const [register] = mocks.createMcpHandler.mock.calls[0] as [
+      (server: { registerTool: (name: string, def: unknown, fn: Function) => void }) => void,
+    ];
+    const tools = new Map<string, Function>();
+    register({ registerTool: (name, _def, fn) => tools.set(name, fn) });
+    const query = tools.get("query");
+    if (!query) throw new Error("Missing query tool");
+    return (sql: string) =>
+      query({ sql }, { authInfo: { extra: { orgId: "org", userId: "user", metadata: null } } });
+  }
+
+  it("tells the client the organization is suspended instead of running the query", async () => {
+    mocks.access = "suspended";
+    const query = await queryTool();
+
+    await expect(query("SELECT 1")).resolves.toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining("subscription is suspended") }],
+    });
+    expect(mocks.runSqlForConnection).not.toHaveBeenCalled();
+  });
+
+  it("runs the query for an active organization", async () => {
+    mocks.runSqlForConnection.mockResolvedValue({ isError: false, content: ["[]"] });
+    const query = await queryTool();
+
+    await expect(query("SELECT 1")).resolves.toMatchObject({ isError: false });
+    expect(mocks.runSqlForConnection).toHaveBeenCalledOnce();
   });
 });

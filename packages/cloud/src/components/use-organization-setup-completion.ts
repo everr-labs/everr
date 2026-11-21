@@ -1,3 +1,5 @@
+import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { completeOrganizationSetup } from "../organization-provisioning/actions";
@@ -12,6 +14,7 @@ export function useOrganizationSetupCompletion(
   minimumDurationMs = ORGANIZATION_SETUP_MINIMUM_MS,
 ) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
@@ -19,7 +22,10 @@ export function useOrganizationSetupCompletion(
       () => {
         void Promise.resolve(completeOrganizationSetup({ data: { organizationId } }))
           .then(() => {
-            if (!cancelled) return router.navigate({ href: returnTo, replace: true });
+            if (cancelled) return;
+            // The organization is now provisioned and past its setup entry.
+            resetRouteAccess(queryClient);
+            return router.navigate({ href: returnTo, replace: true });
           })
           .catch(() => {
             /* The next readiness poll retries the continuation. */
@@ -31,5 +37,5 @@ export function useOrganizationSetupCompletion(
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [ready, startedAt, returnTo, organizationId, router, minimumDurationMs]);
+  }, [ready, startedAt, returnTo, organizationId, router, queryClient, minimumDurationMs]);
 }

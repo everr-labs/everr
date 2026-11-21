@@ -1,5 +1,7 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
+import { dehydrateRootAccess, hydrateRootAccess } from "#app/lib/route-access-cache.ts";
 import { Route } from "./__root";
 
 const mocks = vi.hoisted(() => ({
@@ -28,9 +30,10 @@ vi.mock("@tanstack/react-start/server", () => ({
   getCookie: mocks.getCookie,
 }));
 vi.mock("@tanstack/react-start", () => ({
-  createServerFn: () => ({
-    validator: () => ({ handler: (fn: () => unknown) => fn }),
-  }),
+  createServerFn: () => {
+    const handler = (fn: (options: unknown) => unknown) => fn;
+    return { handler, validator: () => ({ handler }) };
+  },
   createIsomorphicFn: () => ({
     server: (fn: () => unknown) => ({ client: () => fn }),
   }),
@@ -43,9 +46,10 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllEnvs());
 
-async function loadContext(pathname = "/") {
+async function loadContext(pathname = "/", queryClient = new QueryClient()) {
   return (Route.options.beforeLoad as (options: unknown) => unknown)({
     location: { pathname },
+    context: { queryClient },
   });
 }
 
@@ -103,3 +107,41 @@ it.each([{ href: "/setup" }, { to: "/" }])(
     expect(mocks.getEntryRedirect).toHaveBeenCalledWith("/some-path");
   },
 );
+
+it("reuses the session across navigations and asks for the entry redirect once per path", async () => {
+  const queryClient = new QueryClient();
+  mocks.getSession.mockResolvedValue({ user: { id: "user-1" }, session: { id: "session-1" } });
+
+  await loadContext("/metrics", queryClient);
+  await loadContext("/metrics", queryClient);
+  await loadContext("/logs", queryClient);
+
+  expect(mocks.getSession).toHaveBeenCalledOnce();
+  expect(mocks.getEntryRedirect.mock.calls).toEqual([["/metrics"], ["/logs"]]);
+});
+
+it("keeps redirecting a path whose entry redirect was already read", async () => {
+  const queryClient = new QueryClient();
+  mocks.getEntryRedirect.mockResolvedValueOnce({ to: "/" });
+
+  await expect(loadContext("/setup", queryClient)).rejects.toMatchObject({
+    options: { to: "/" },
+  });
+  await expect(loadContext("/setup", queryClient)).rejects.toMatchObject({
+    options: { to: "/" },
+  });
+  expect(mocks.getEntryRedirect).toHaveBeenCalledOnce();
+});
+
+it("hands the page load's session to the browser so its first navigation does not ask again", async () => {
+  mocks.getSession.mockResolvedValue({ user: { id: "user-1" }, session: { id: "session-1" } });
+  const server = new QueryClient();
+  await loadContext("/metrics", server);
+
+  const browser = new QueryClient();
+  hydrateRootAccess(browser, dehydrateRootAccess(server, "/metrics"));
+  await loadContext("/metrics", browser);
+
+  expect(mocks.getSession).toHaveBeenCalledOnce();
+  expect(mocks.getEntryRedirect).toHaveBeenCalledOnce();
+});

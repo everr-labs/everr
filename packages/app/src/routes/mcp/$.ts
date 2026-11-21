@@ -6,6 +6,7 @@ import { getMcpIdentity } from "#app/data/mcp/identity.ts";
 import { assertMcpGrant } from "#app/data/mcp/grant.ts";
 import { QUERY_TOOL_DESCRIPTION } from "#app/data/mcp/query-tool-description.ts";
 import { runSqlForConnection } from "#app/data/mcp/run-sql.ts";
+import { isOrganizationSuspended } from "#app/lib/org-session.server.ts";
 import { AUTH_BASE, AUTH_ISSUER, MCP_RESOURCE } from "#app/lib/mcp-resource.ts";
 import { mcpResourceClient } from "#app/lib/mcp-resource-client.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
@@ -35,6 +36,19 @@ function createTransport() {
             return {
               isError: true,
               content: [{ type: "text", text: "No org context." }],
+            };
+          }
+          // A tool error rather than a 401: a 401 sends the client back through
+          // sign-in, which cannot fix a suspended subscription.
+          if (await isOrganizationSuspended(ctx.orgId)) {
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text",
+                  text: "This organization's subscription is suspended. An Owner or Admin can restore it from Billing in Everr.",
+                },
+              ],
             };
           }
           const result = await runSqlForConnection({

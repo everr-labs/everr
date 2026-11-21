@@ -2,6 +2,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 import { authClient } from "#app/lib/auth-client.ts";
+import { resetRouteAccess } from "#app/lib/route-access-cache.ts";
 
 import type { Invitation, Member, OrgRole } from "./schemas";
 export type { Invitation, Member, OrgRole } from "./schemas";
@@ -93,6 +94,8 @@ export function useUpdateMemberRole() {
       return res.data;
     },
     onSuccess: () => {
+      // The role may be the current user's own, which decides the admin pages.
+      resetRouteAccess(qc);
       void qc.invalidateQueries({ queryKey: membersQueryKey });
     },
   });

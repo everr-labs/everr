@@ -1,9 +1,10 @@
 import { authClient } from "@everr/app/identity/client";
+import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { EverrLogoMark } from "@everr/ui/components/everr-logo";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowUpRight,
@@ -50,17 +51,18 @@ const ENTER = cn(
 
 function CheckoutSuccessPage(): ReactElement {
   const { checkout_id } = Route.useSearch();
-  const queryClient = useQueryClient();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const confirmation = useQuery({
     queryKey: ["organization-checkout", checkout_id],
     enabled: Boolean(checkout_id),
-    queryFn: async () => {
+    queryFn: async ({ client }) => {
       const result = await confirmOrgCheckout({
         data: { checkoutId: checkout_id ?? "" },
       });
       if (result.status === "completed") {
-        await queryClient.invalidateQueries({
+        // The plan decides app access and which pages the organization gets.
+        resetRouteAccess(client);
+        await client.invalidateQueries({
           queryKey: ["organization-creation-options"],
         });
       }

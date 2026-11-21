@@ -1,3 +1,4 @@
+import { product } from "@composition/product";
 import { db } from "#app/db/client.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { getSession } from "#app/lib/session.server.ts";
@@ -26,11 +27,30 @@ export async function resolveSession(headers: Headers): Promise<Session> {
   return session;
 }
 
+export async function isOrganizationSuspended(organizationId: string) {
+  return (await product.forOrganization(organizationId)).access === "suspended";
+}
+
+/**
+ * A suspended organization keeps only what restores its access (billing). Read
+ * on every request, not cached: a cached "suspended" would keep blocking right
+ * after the subscription is paid.
+ */
+export async function assertOrganizationNotSuspended(organizationId: string) {
+  if (await isOrganizationSuspended(organizationId)) {
+    throw new AuthError("Organization suspended", 403);
+  }
+}
+
 /**
  * Checks that the session's active organization is one the user still belongs
  * to: the session keeps its active organization after the user is removed.
+ * `allowSuspended` is for what a suspended organization needs to restore access.
  */
-export async function resolveOrganizationAccess({ session, user }: Session) {
+export async function resolveOrganizationAccess(
+  { session, user }: Session,
+  { allowSuspended = false }: { allowSuspended?: boolean } = {},
+) {
   const activeOrgId = session.activeOrganizationId;
   if (!activeOrgId) {
     throw new AuthError("No active organization", 403);
@@ -41,6 +61,7 @@ export async function resolveOrganizationAccess({ session, user }: Session) {
     throw new AuthError("Not a member of the active organization", 403);
   }
   const { memberRole, ...organization } = membership;
+  if (!allowSuspended) await assertOrganizationNotSuspended(organization.id);
 
   return {
     organization,

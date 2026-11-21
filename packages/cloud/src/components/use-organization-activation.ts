@@ -1,4 +1,5 @@
 import { authClient } from "@everr/app/identity/client";
+import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback } from "react";
@@ -14,6 +15,7 @@ export function useOrganizationActivation() {
       });
       if (error) throw new Error(error.message ?? "Could not select this organization.");
 
+      resetRouteAccess(queryClient);
       // Stop previous organization requests from repopulating the shared cache.
       // Mark data stale, then let the guard redirect before starting refetches.
       await queryClient.cancelQueries();

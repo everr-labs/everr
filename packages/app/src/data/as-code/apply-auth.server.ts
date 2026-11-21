@@ -8,7 +8,12 @@ import { auth } from "#app/identity/server.ts";
 import { hasApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { createClickhouseQuery } from "#app/lib/clickhouse.ts";
 import { createOrganizationSql, type OrganizationSql } from "#app/lib/organization-sql.ts";
-import { AuthError, authErrorResponse, resolveOrgSession } from "#app/lib/org-session.server.ts";
+import {
+  AuthError,
+  assertOrganizationNotSuspended,
+  authErrorResponse,
+  resolveOrgSession,
+} from "#app/lib/org-session.server.ts";
 import { HASHED_KEY_CONFIG_ID } from "#app/lib/public-ingest-keys.ts";
 import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 
@@ -62,6 +67,7 @@ async function resolveKeyOrganization(organizationId: string) {
     .where(eq(organization.id, organizationId))
     .limit(1);
   if (!row) throw new AuthError("Organization not found", 403);
+  await assertOrganizationNotSuspended(organizationId);
   return {
     organizationName: row.name,
     sql: createOrganizationSql(organizationId, row.metadata),

@@ -1,6 +1,7 @@
 const EXPECTED_SERVER_FUNCTION_MESSAGES = new Set([
   "Alert not found",
   "No active organization",
+  "Organization suspended",
   "Unauthenticated",
 ]);
 
