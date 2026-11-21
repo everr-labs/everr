@@ -2,7 +2,7 @@ name: everr
 
 services:
   app:
-    image: ghcr.io/everr-labs/everr-app:${EVERR_VERSION:-0.11.0}
+    image: ghcr.io/everr-labs/everr-app:${EVERR_VERSION:-0.12.0}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -90,7 +90,7 @@ services:
       retries: 30
 
   collector:
-    image: ghcr.io/everr-labs/everr-collector:${EVERR_VERSION:-0.11.0}
+    image: ghcr.io/everr-labs/everr-collector:${EVERR_VERSION:-0.12.0}
     restart: unless-stopped
     stop_grace_period: 60s
     depends_on:

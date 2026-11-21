@@ -1,5 +1,54 @@
 # @everr/cli
 
+## 0.12.0
+
+### Minor Changes
+
+- 04315d5: Explore has a new **Metrics** page, in Everr and in the local explorer opened by `everr local start`. In Everr it's listed first in the Explore sidebar, followed by Logs, Traces and Errors.
+
+  - **Catalog:** lists every metric your services send in the time range, with its type, unit, data point count and when it last reported. Search by name or filter by type.
+  - **Charts:** open a metric to chart it.
+    - Gauges show avg, min, max or sum.
+    - Counters show a per-second rate or the increase per interval, and cumulative counters stay correct across process restarts.
+    - UpDownCounters show the sum across series.
+    - Histograms show p50, p95 or p99 (worked out from bucket counts), the average or the observation rate, plus a heatmap of observations per bucket over time.
+    - Exponential histograms chart the same way as histograms, and stay exact when an SDK changes their scale.
+    - Summaries chart the quantiles your SDK reports, the average and the rate. An SDK computes a summary's quantiles per instance, so a line that covers several instances shows the highest of them. Group by instance to see each one.
+  - **Mixed bucket bounds:** when the series in one line report different bucket bounds, for example two services on different SDK versions, they're combined on one set of bounds. A note says whether the percentiles are exact or estimated.
+  - **Exemplars:** when your SDK records exemplars, the chart marks the slowest sampled request in each interval with a diamond. Click one to open its trace or its logs.
+  - **Resolution:** a chart is never finer than how often the metric is exported, so a metric sent every 15 minutes draws a line rather than scattered points. The header shows the chart's resolution.
+  - **Several queries:** add up to three more metrics to the same chart, each with its own aggregation, grouping and filters. Hide any of them without losing its setup, or click a metric's name to switch it to another.
+  - **Reloading:** a chart stays on screen while it reloads, and dims if the reload takes more than a moment. A query you didn't change keeps its data, so adding a copy of a query or editing one of several doesn't reload the others. Their latest interval can hold slightly less data than the query you changed, and refreshing brings every query up to date.
+  - **Grouping and zoom:** group the chart by up to three attributes, filter by attribute values, and drag across the chart to zoom. As on dashboards, each zoom adds a history entry, so Back returns to the previous range.
+  - **Filters:** Service and Environment carry over from the other Explore pages. Their menus on every Explore page now include services and environments that send only metrics.
+
+### Patch Changes
+
+- a05bb7d: A relative time range that ends before it starts, such as "today until 5 hours ago" opened before 05:00, no longer sends queries or shows errors on the Explore pages (Logs, Traces, Errors, Metrics), in Everr and in the local explorer, or on Runs in Everr.
+
+  - The pages show their empty state.
+  - The time range picker turns red, and its tooltip says the range ends before it starts.
+  - In Everr, such a range is no longer swapped into a different one when you open a page. Two dates in the wrong order still are.
+
+- 45eb6fb: Zooming by dragging across a chart now works the same on dashboards, on the Logs page and on Runs. Logs changes in Everr and in the local explorer.
+
+  - A click no longer zooms, and neither does a press that moves only up or down. A drag must select at least one second.
+  - On Logs and Runs, each zoom adds a history entry, so Back returns to the previous range. It used to replace it.
+  - The selection looks the same as on dashboards, and the mouse pointer stays the default arrow.
+  - On a touch screen, tapping or sliding a finger sideways across the Logs and Runs volume charts shows the values under it, as on dashboard charts. Vertical swipes still scroll the page.
+
+- ea3c434: Explore and chart fixes:
+
+  - **Auto-refresh in Everr:** Logs, Traces and Errors now fetch their data once per interval instead of twice.
+  - **Local trace view:** a trace no longer refreshes on its own when you open it from a Traces page with auto-refresh on, as in Everr. Reopen it or reload the page to see spans that arrived later.
+  - **Filter focus:** clearing a Service or Environment filter with the keyboard now leaves focus on the filter, so the next Tab continues from there instead of from the top of the page.
+  - **Isolated points in Everr:** line and area charts, including dashboard time series panels and the repository and run charts, now draw a dot for a point with no data on either side. Such a point used to be invisible, so a series that reported once in the range looked empty.
+
+- adfca0c: In the local UI started by `everr local start`, bars in the Logs volume histogram now start at your local midnight and on your local hour, instead of at UTC boundaries.
+- dcfa61c: On the Metrics page, hovering a series in the table under the chart highlights its line in the chart and dims the others. This works in Everr and in the local explorer.
+
+  Chart lines are now 1px wide. Dashboard time series panels default to a `lineWidth` of `1` instead of `1.5`; a panel that sets `lineWidth` keeps its value.
+
 ## 0.11.0
 
 ### Minor Changes
