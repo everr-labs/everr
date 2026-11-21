@@ -680,9 +680,9 @@ function SeriesLines({
       </div>
       {/* The values take the width they need and the series column the rest,
           truncating a long name rather than pushing the values off-screen. */}
-      <table className="w-full text-sm">
+      <table className="w-full border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <thead>
-          <tr className="text-muted-foreground border-b text-xs">
+          <tr className="text-muted-foreground text-xs">
             <th
               className="w-full max-w-0 truncate px-4 py-1.5 text-left font-medium"
               title={groupHeading}
@@ -698,7 +698,7 @@ function SeriesLines({
         {seriesGroups(series).map(({ query, series }) => (
           <tbody key={query?.id ?? "series"}>
             {query ? (
-              <tr className="bg-muted/30 border-b">
+              <tr className="bg-muted/30">
                 {/* No wider than the table, so a long metric name truncates
                     rather than widening every column. */}
                 <th
@@ -718,7 +718,7 @@ function SeriesLines({
             {series.map((s) => (
               <tr
                 key={s.id}
-                className="hover:bg-muted/50 border-b"
+                className="hover:bg-muted/50"
                 onPointerEnter={() => setHoveredSeries(s.id)}
                 onPointerLeave={() => setHoveredSeries(null)}
               >

@@ -12,4 +12,5 @@ Pages no longer jump around while they load.
 - Home shows your dashboard straight away instead of a placeholder while it checks your setup.
 - Settings pages (account, members, API keys, GitHub) load their data with the page instead of after it.
 - Dialogs and side panels (new channel, edit delivery, new silence, change role, alert and log details on small screens) now animate out when closed instead of vanishing.
+- In Safari, the separators in the Metrics list and series table are no longer brighter than in the other lists.
 - Log and trace timestamps no longer wrap onto two lines in Safari, and the log severity counts stay blank instead of showing "—" until they load.

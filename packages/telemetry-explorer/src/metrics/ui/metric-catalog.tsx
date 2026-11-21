@@ -37,12 +37,15 @@ export function MetricCatalog({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <table className="w-full table-fixed text-sm">
+      {/* Borders on the cells, not collapsed onto the rows: Safari paints a
+          collapsed row border once per row it separates, so a translucent
+          line came out twice as bright as the other lists'. */}
+      <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <CatalogHead />
         <tbody>
           {rows.map((row) => {
             return (
-              <tr key={`${row.type}:${row.name}`} className="hover:bg-muted/50 relative border-b">
+              <tr key={`${row.type}:${row.name}`} className="hover:bg-muted/50 relative">
                 <td className="px-4 py-1.5">
                   <div className="flex min-w-0 flex-col">
                     {renderMetricLink({
@@ -102,7 +105,7 @@ export function MetricCatalog({
 function CatalogHead() {
   return (
     <thead className="bg-background sticky top-0 z-10">
-      <tr className="text-muted-foreground border-b text-xs">
+      <tr className="text-muted-foreground text-xs">
         <th className="px-4 py-1.5 text-left font-medium">Metric</th>
         <th className="w-36 px-4 py-1.5 text-left font-medium">Type</th>
         <th className="hidden w-36 px-4 py-1.5 text-left font-medium xl:table-cell">Unit</th>
@@ -120,11 +123,11 @@ function CatalogHead() {
 function CatalogSkeleton() {
   return (
     <div aria-hidden className="min-h-0 flex-1 overflow-hidden">
-      <table className="w-full table-fixed text-sm">
+      <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <CatalogHead />
         <tbody>
           {Array.from({ length: 12 }, (_, i) => (
-            <tr key={i} className="border-b">
+            <tr key={i}>
               <td className="px-4 py-1.5">
                 <div className="flex h-5 items-center">
                   <Skeleton
