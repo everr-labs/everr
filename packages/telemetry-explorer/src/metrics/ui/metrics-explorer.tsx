@@ -538,7 +538,14 @@ function MetricPage({
   }, [seriesVersion, chartKey, allLoaded]);
   const [last] = useLastLoaded([chart], [""]);
   const current = last === chart;
-  // A removed or hidden query's lines go at once rather than linger until the reload.
+  // A removed or hidden query's lines go at once rather than linger until the
+  // reload. Removing A renames the next query to A, so the held chart's lines
+  // are matched by the letters they were drawn under.
+  const [removal, setRemoval] = useState<{
+    chart: typeof last;
+    removed: QueryId;
+    renamed?: QueryId;
+  }>();
   const visibleIds = queries
     .filter((q) => !hidden.has(q.id))
     .map((q) => q.id)
@@ -546,9 +553,15 @@ function MetricPage({
   const shown = useMemo(() => {
     if (!last || current) return last;
     const ids = new Set(visibleIds.split(","));
-    const lines = last.lines.filter((line) => !line.query || ids.has(line.query.id));
+    const renames = removal?.chart === last ? removal : undefined;
+    const idNow = (id: string) =>
+      id === renames?.removed ? undefined : id === renames?.renamed ? "A" : id;
+    const lines = last.lines.filter((line) => {
+      const id = line.query && idNow(line.query.id);
+      return !line.query || (id !== undefined && ids.has(id));
+    });
     return lines.length === last.lines.length ? last : { ...last, lines };
-  }, [last, current, visibleIds]);
+  }, [last, current, visibleIds, removal]);
 
   const held = queryA.metadataPending ? shown : undefined;
 
@@ -616,6 +629,7 @@ function MetricPage({
     const remaining = queries.filter((q) => q.id !== id);
     // The first query left is written back as A, which renames it when A goes.
     const renamed = remaining[0]?.id;
+    setRemoval({ chart: last, removed: id, renamed });
     onSearchChange({
       ...fromSpecs(remaining),
       view: undefined,

@@ -1,5 +1,5 @@
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
-import { useLocation } from "@tanstack/react-router";
+import { useMatches } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { useTimeRange } from "./use-time-range";
 
@@ -16,10 +16,16 @@ const TimeAnchorContext = createContext<TimeAnchor | null>(null);
  */
 export function TimeAnchorProvider({ children }: { children: ReactNode }) {
   const { timeRange } = useTimeRange();
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const { at, epoch } = useRefreshInstant(
-    `${pathname}\u0000${timeRange.from}\u0000${timeRange.to}`,
-  );
+  // The page on screen, not one still loading. A maximized panel is still its
+  // dashboard's page, so maximizing and restoring keep the instant.
+  const page = useMatches({
+    select: (matches) =>
+      matches
+        .filter((match) => !match.routeId.endsWith("/panel/$panelKey"))
+        .at(-1)
+        ?.pathname.replace(/\/$/, ""),
+  });
+  const { at, epoch } = useRefreshInstant(`${page}\u0000${timeRange.from}\u0000${timeRange.to}`);
   const anchor = useMemo(() => ({ at, epoch }), [at, epoch]);
   return <TimeAnchorContext.Provider value={anchor}>{children}</TimeAnchorContext.Provider>;
 }

@@ -582,6 +582,31 @@ describe("MetricsExplorer", () => {
     expect(screen.queryByRole("rowheader", { name: "B · memory" })).toBeNull();
   });
 
+  it("drops the removed query's lines, not the next one's, when A is removed", async () => {
+    let loading = false;
+    const reloading = {
+      ...repo,
+      // Removing the 5-minute cpu gives the chart a finer step, so it reloads.
+      exportInterval: async ({ metric }: { metric: string }) => (metric === "cpu" ? 300 : 60),
+      series: (input: unknown) => (loading ? new Promise(() => {}) : repo.series(input as never)),
+    } as unknown as MetricsRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page
+          initial={{ ...oneQuery, queries: [{ id: "B", metric: "memory", type: "gauge" }] }}
+          metrics={reloading}
+        />
+      </QueryClientProvider>,
+    );
+    await settle();
+    loading = true;
+    fireEvent.click(screen.getByLabelText("Remove query A"));
+    await settle();
+
+    expect(screen.queryByRole("rowheader", { name: "A · cpu" })).toBeNull();
+    expect(screen.getByRole("rowheader", { name: "B · memory" })).toBeTruthy();
+  });
+
   it("charts a copy of a query without fetching its data again", async () => {
     const series = vi.fn(repo.series);
     render(
