@@ -20,7 +20,19 @@ export function DashboardLayout() {
   const { session } = useRouteContext({ from: "/_authenticated" });
   const search = useSearch({ strict: false });
 
-  const matches = useMatches();
+  // Only what the shell reads, structurally shared: the router updates its
+  // matches at every step of a navigation, and re-rendering the whole shell on
+  // each one was most of a navigation's cost.
+  const matches = useMatches({
+    select: (all) =>
+      all.map((match) => ({
+        routeId: match.routeId,
+        setupRequested: "setup" in match.search && match.search.setup === 1,
+        showDataControls: match.staticData.showDataControls,
+        hideTimeRangePicker: match.staticData.hideTimeRangePicker,
+      })),
+    structuralSharing: true,
+  });
   const homeMatch = matches.find(
     (match) =>
       match.routeId === "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
@@ -31,21 +43,20 @@ export function DashboardLayout() {
     // Home owns the poll; the layout only observes its cached view decision.
     refetchInterval: false,
   });
-  const showDataControls = matches.some((match) => match.staticData.showDataControls);
+  const showDataControls = matches.some((match) => match.showDataControls);
   // The account pages share this shell but not the organization's time range.
   const hasTimeRange = matches.some(
     (match) => match.routeId === "/_authenticated/_organization/_dashboard",
   );
   let hideTimeRangePicker = false;
   for (const match of matches) {
-    if (match.staticData?.hideTimeRangePicker !== undefined) {
-      hideTimeRangePicker = match.staticData.hideTimeRangePicker;
+    if (match.hideTimeRangePicker !== undefined) {
+      hideTimeRangePicker = match.hideTimeRangePicker;
     }
   }
 
   if (homeMatch) {
-    const setupRequested = "setup" in homeMatch.search && homeMatch.search.setup === 1;
-    hideTimeRangePicker = homeView(homeStatus.data, setupRequested) !== "dashboard";
+    hideTimeRangePicker = homeView(homeStatus.data, homeMatch.setupRequested) !== "dashboard";
   }
 
   if (!session.session.activeOrganizationId) {

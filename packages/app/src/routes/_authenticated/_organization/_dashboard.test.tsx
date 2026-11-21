@@ -36,9 +36,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
         session: { activeOrganizationId: mocks.activeOrganizationId },
       },
     }),
-    useSearch: () => ({}),
+    useSearch: (options?: { select?: (search: object) => unknown }) =>
+      options?.select ? options.select({}) : {},
     Outlet: () => <div>Route content</div>,
-    useMatches: () => mocks.matches,
+    useMatches: (options?: { select?: (matches: typeof mocks.matches) => unknown }) =>
+      options?.select ? options.select(mocks.matches) : mocks.matches,
   };
 });
 

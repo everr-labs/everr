@@ -138,7 +138,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function Component() {
-  const { queryClient, consent } = Route.useRouteContext();
+  // Selected one by one: the root's `beforeLoad` returns a new context on every
+  // navigation, and reading the whole of it re-rendered everything mounted
+  // here (the toaster, the devtools) at each one.
+  const queryClient = Route.useRouteContext({ select: (context) => context.queryClient });
+  const consent = Route.useRouteContext({ select: (context) => context.consent });
   const router = useRouter();
 
   useEffect(() => {
