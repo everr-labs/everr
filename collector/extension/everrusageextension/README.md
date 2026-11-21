@@ -131,7 +131,8 @@ Changing the definition after release requires a billing migration.
 
 See [config.example.yml](../../config.example.yml) for complete wiring. Enable
 the usage and file-storage extensions. Place the usage processor directly before
-one persistent exporter, with fsync, queue-admission acknowledgment
+one persistent exporter (only Everr's own enrichment, `everr_fingerprint`, may sit
+between them, so customers are not billed for data Everr adds), with fsync, queue-admission acknowledgment
 (`wait_for_result: false`), and unlimited retries. Startup validation checks this
 immediate boundary and requires the matching usage connector beside that exporter.
 It also checks the publication graph: one cumulative conversion before fanout,

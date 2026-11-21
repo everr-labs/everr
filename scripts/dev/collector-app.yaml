@@ -30,6 +30,9 @@ receivers:
         app_id: ${env:GITHUB_APP_ID}
         private_key: ${env:GITHUB_APP_PRIVATE_KEY}
 processors:
+  # Stamps everr.error.fingerprint on exception logs so Errors group
+  # without hashing at query time.
+  everr_fingerprint: {}
   filter/reserved_everr:
     error_mode: propagate
     metric_conditions:
@@ -132,6 +135,7 @@ service:
         - attributes/strip_user_tenant
         - resource/public_tenant
         - resource/public_retention_logs
+        - everr_fingerprint
       exporters:
         - clickhouse
     traces/github:

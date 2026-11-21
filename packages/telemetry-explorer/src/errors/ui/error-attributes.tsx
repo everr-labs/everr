@@ -2,11 +2,13 @@ import { CopyValueButton } from "@everr/ui/components/detail-panel";
 import { Input } from "@everr/ui/components/input";
 import { useState } from "react";
 import type { ErrorOccurrence } from "../data/types";
+import { ERROR_FINGERPRINT_ATTRIBUTE } from "../sql/fingerprint";
 import { ErrorDetailSection } from "./error-detail-section";
 
 // The page shows these attributes in the header and in the stack trace
 // sections, in a form that is easier to read than a table cell.
 const SHOWN_ELSEWHERE: ReadonlySet<string> = new Set([
+  ERROR_FINGERPRINT_ATTRIBUTE,
   "exception.type",
   "exception.message",
   "exception.stacktrace",

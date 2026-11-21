@@ -41,6 +41,10 @@ receivers:
         private_key: ${env:GITHUB_APP_PRIVATE_KEY}
 processors:
   everr_usage: {}
+  # Stamps everr.error.fingerprint on exception logs so Errors group
+  # without hashing at query time. It runs after everr_usage so customers
+  # are not billed for the attribute.
+  everr_fingerprint: {}
   delta_to_cumulative/usage:
     max_stale: 5m
     max_streams: 60000
@@ -184,6 +188,7 @@ service:
         - resource/public_tenant
         - resource/public_retention_logs
         - everr_usage
+        - everr_fingerprint
       exporters:
         - clickhouse
         - everr_usage_connector
