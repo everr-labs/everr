@@ -5,7 +5,10 @@ import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
 import type { auth } from "#app/identity/server.ts";
 import { routeAccessQuery } from "#app/lib/route-access-cache.ts";
 
-type Session = typeof auth.$Infer.Session;
+type Session = {
+  user: typeof auth.$Infer.Session.user;
+  session: Omit<typeof auth.$Infer.Session.session, "token">;
+};
 
 // Keyed by the session too, so a missed reset can never hand one session's
 // organization to another.

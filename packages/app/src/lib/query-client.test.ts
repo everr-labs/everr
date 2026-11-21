@@ -1,7 +1,11 @@
 import { MutationObserver } from "@tanstack/react-query";
-import { expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createQueryClient } from "./query-client";
 import { routeAccessQuery } from "./route-access-cache";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function setup() {
   const router = { invalidate: vi.fn(() => Promise.resolve()) };
@@ -30,6 +34,7 @@ it.each([
   "No active organization",
   "Not a member of the active organization",
   "Organization suspended",
+  "Not authorized",
 ])("re-runs the guards when a change fails with %s", async (message) => {
   const { router, queryClient, guardData } = setup();
 
@@ -41,6 +46,27 @@ it.each([
 
   expect(router.invalidate).toHaveBeenCalledOnce();
   expect(guardData()).toBeUndefined();
+});
+
+it("stops re-running the guards for a page that keeps failing after they let it through", async () => {
+  vi.useFakeTimers();
+  const { router, queryClient } = setup();
+  const fail = () =>
+    queryClient
+      .fetchQuery({
+        queryKey: ["api-keys"],
+        queryFn: () => Promise.reject(new Error("Not authorized")),
+        staleTime: 0,
+      })
+      .catch(() => {});
+
+  await fail();
+  await fail();
+  expect(router.invalidate).toHaveBeenCalledOnce();
+
+  vi.advanceTimersByTime(10_000);
+  await fail();
+  expect(router.invalidate).toHaveBeenCalledTimes(2);
 });
 
 it("leaves other failures to the page", async () => {
