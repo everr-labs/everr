@@ -153,7 +153,7 @@ export function useDashboardPanelData(
   // variable-options queries read the same range internally.
   const { from, to } = useTimeRange().timeRange;
   // Every panel on the page reads the range at the same instant.
-  const at = useTimeAnchor();
+  const { at, epoch } = useTimeAnchor();
   const range = useMemo(() => toViewerTimeRange({ from, to }, new Date(at)), [from, to, at]);
 
   const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
@@ -174,7 +174,7 @@ export function useDashboardPanelData(
   const overTime = drawsOverTime(panel.spec.plugin.kind);
   const results = useQueries({
     queries: requests.map((r) => ({
-      ...panelQueryOptions(r.source, range, overTime, r.variables, r.variableMeta),
+      ...panelQueryOptions(r.source, range, epoch, overTime, r.variables, r.variableMeta),
       placeholderData: keepPreviousData,
       enabled:
         active &&

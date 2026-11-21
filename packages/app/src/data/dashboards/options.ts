@@ -57,12 +57,22 @@ export const panelQueryOptions = (
   source: PanelQuerySource,
   /** The page's range, resolved at the instant every panel shares. */
   range: TimeRange,
+  /** The page's refresh count, so a refresh refetches a range that resolves the same. */
+  epoch: number,
   alignToStep: boolean,
   variables?: VariableValues,
   variableMeta?: VariableMeta,
 ) =>
   queryOptions({
-    queryKey: ["panel-query", source, range, alignToStep, variables ?? null, variableMeta ?? null],
+    queryKey: [
+      "panel-query",
+      source,
+      range,
+      epoch,
+      alignToStep,
+      variables ?? null,
+      variableMeta ?? null,
+    ],
     queryFn: async ({
       signal,
     }): Promise<{ rows: QueryResultRow[]; timeRange?: ResolvedTimeRange }> => {

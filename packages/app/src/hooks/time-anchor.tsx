@@ -1,23 +1,32 @@
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
-import { createContext, type ReactNode, useContext } from "react";
+import { useLocation } from "@tanstack/react-router";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { useTimeRange } from "./use-time-range";
 
-const TimeAnchorContext = createContext<number | null>(null);
+type TimeAnchor = { at: number; epoch: number };
+
+const TimeAnchorContext = createContext<TimeAnchor | null>(null);
 
 /**
  * Resolves the page's range at one instant for every panel under it, so they
- * all agree on `now`: the same until the range changes or the page refreshes.
- * A panel loaded later, or re-run by a variable, reads the same instant.
+ * all agree on `now`: the same until the page, its range or a refresh changes
+ * it. A panel loaded later, or re-run by a variable, reads the same instant.
+ * `epoch` counts refreshes, so a range that resolves the same, such as an
+ * absolute one or Today, still refetches on refresh.
  */
 export function TimeAnchorProvider({ children }: { children: ReactNode }) {
   const { timeRange } = useTimeRange();
-  const { at } = useRefreshInstant(`${timeRange.from}\u0000${timeRange.to}`);
-  return <TimeAnchorContext.Provider value={at}>{children}</TimeAnchorContext.Provider>;
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const { at, epoch } = useRefreshInstant(
+    `${pathname}\u0000${timeRange.from}\u0000${timeRange.to}`,
+  );
+  const anchor = useMemo(() => ({ at, epoch }), [at, epoch]);
+  return <TimeAnchorContext.Provider value={anchor}>{children}</TimeAnchorContext.Provider>;
 }
 
-/** The instant the page resolves its range at. */
-export function useTimeAnchor(): number {
-  const at = useContext(TimeAnchorContext);
-  if (at === null) throw new Error("useTimeAnchor needs a TimeAnchorProvider");
-  return at;
+/** The instant the page resolves its range at, and the refresh it was taken for. */
+export function useTimeAnchor(): TimeAnchor {
+  const anchor = useContext(TimeAnchorContext);
+  if (anchor === null) throw new Error("useTimeAnchor needs a TimeAnchorProvider");
+  return anchor;
 }

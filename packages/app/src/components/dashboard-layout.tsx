@@ -32,6 +32,10 @@ export function DashboardLayout() {
     refetchInterval: false,
   });
   const showDataControls = matches.some((match) => match.staticData.showDataControls);
+  // The account pages share this shell but not the organization's time range.
+  const hasTimeRange = matches.some(
+    (match) => match.routeId === "/_authenticated/_organization/_dashboard",
+  );
   let hideTimeRangePicker = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
@@ -105,9 +109,13 @@ export function DashboardLayout() {
               {search.reason ? ` (${search.reason})` : ""}.
             </div>
           )}
-          <TimeAnchorProvider>
+          {hasTimeRange ? (
+            <TimeAnchorProvider>
+              <Outlet />
+            </TimeAnchorProvider>
+          ) : (
             <Outlet />
-          </TimeAnchorProvider>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>
