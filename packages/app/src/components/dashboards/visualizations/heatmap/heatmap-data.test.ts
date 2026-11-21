@@ -219,6 +219,23 @@ describe("buildHeatmapModel", () => {
       expect(model.cells).toMatchObject([{ value: 10, samples: 3 }]);
     });
 
+    it("keeps the column and row of a row with no value, as an empty cell", () => {
+      const model = buildHeatmapModel(
+        [
+          [
+            { hour: 0, weekday: "Mon", energy: null },
+            { hour: 1, weekday: "Mon", energy: 4 },
+            { hour: 0, weekday: "Tue", energy: null },
+          ],
+        ],
+        specWith({ xColumn: "hour", valueColumn: "energy" }),
+        DOMAIN,
+      );
+      expect(model.columns).toMatchObject({ labels: ["0", "1"] });
+      expect(model.yBuckets).toEqual(["Mon", "Tue"]);
+      expect(model.cells).toEqual([{ column: 1, bucket: 0, value: 4, samples: 1 }]);
+    });
+
     it("defaults y and value to columns other than x and time", () => {
       const model = buildHeatmapModel(
         [[{ ts: ts(10), hour: 3, weekday: "Mon", energy: 4 }]],

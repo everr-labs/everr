@@ -137,12 +137,14 @@ function buildCategoryGrid(frames: QueryResultRow[][], spec: HeatmapSpec, xKey: 
     for (const row of rows) {
       const rawX = row[xKey];
       const rawBucket = row[keys.yKey];
-      const value = toNumber(row[keys.valueKey]);
-      if (rawX == null || rawBucket == null || value === null) continue;
+      if (rawX == null || rawBucket == null) continue;
       const x = String(rawX);
       const bucket = String(rawBucket);
       xSeen.add(x);
       bucketsSeen.add(bucket);
+      const value = toNumber(row[keys.valueKey]);
+      // A row without a value keeps its column and row on the grid, as an empty cell.
+      if (value === null) continue;
       const key = `${x}${SEP}${bucket}`;
       const sum = sums.get(key);
       if (sum) {

@@ -515,7 +515,7 @@ plugin:
   spec: { xColumn: hour, yColumn: weekday, valueColumn: requests }
 ```
 
-Numeric x values (like hours) sort ascending left to right; text ones keep their first-seen order, so `ORDER BY` sets it. The tooltip shows the x label instead of a time span. Every distinct x value is a column, so keep the x column low-cardinality (hours, weekdays, regions). A query whose result has no `xColumn` column draws nothing.
+Numeric x values (like hours) sort ascending left to right; text ones keep their first-seen order, so `ORDER BY` sets it. The tooltip shows the x label instead of a time span. Every distinct x value is a column, so keep the x column low-cardinality (hours, weekdays, regions). A query whose result has no `xColumn` column draws nothing. A row with a `NULL` value keeps its column and row on the grid as an empty cell, so returning the full grid (every weekday and hour, `NULL` where nothing reported) keeps the layout the same on every range.
 
 ### Node graph
 
