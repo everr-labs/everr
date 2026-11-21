@@ -36,10 +36,6 @@ afterEach(() => {
   for (const client of clients.splice(0)) client.clear();
 });
 
-/**
- * The routes that mount the layout, under the ids the layout reads them by:
- * the organization dashboard with Home below it, and the account pages.
- */
 function renderLayout({
   path = "/",
   status,

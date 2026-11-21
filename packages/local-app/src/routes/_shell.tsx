@@ -9,8 +9,7 @@ import { LocalSidebarFooter } from "../features/app-shell/sidebar-footer";
 const shell = shellRouteOptions();
 
 // Every query on the page, but not the app's own, such as the collector status
-// it polls by itself. A constant: a new object would restart the auto-refresh
-// timer on each render.
+// it polls by itself.
 const refreshScope = {
   type: "active",
   predicate: ({ queryKey }) => queryKey[0] !== "local-app",

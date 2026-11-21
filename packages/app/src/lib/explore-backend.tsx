@@ -9,7 +9,6 @@ import { remoteMetricsRepo } from "#app/data/metrics/remote-repo.ts";
 import { runJobsOptions, runSpansOptions } from "#app/data/runs/options.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
-/** The error trace panel draws the spans of the CI run the trace belongs to. */
 function useCiRunSpans(traceId: string, enabled: boolean) {
   const spansQuery = useQuery({
     ...runSpansOptions(traceId),

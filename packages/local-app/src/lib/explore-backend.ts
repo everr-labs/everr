@@ -9,7 +9,6 @@ import { localSqlClient } from "@/features/logs/local-sql-client";
 
 const tracesRepo = new TracesRepository(localSqlClient);
 
-/** The error trace panel draws the spans of the trace the occurrence belongs to. */
 function useLocalErrorTraceSpans(traceId: string, enabled: boolean) {
   const traceQuery = useQuery({ ...getTraceOptions({ repo: tracesRepo, traceId }), enabled });
   return {
@@ -27,7 +26,6 @@ function useLocalErrorTraceSpans(traceId: string, enabled: boolean) {
   };
 }
 
-/** What the Explore pages of `@everr/app-shell` read in the local app. */
 export const localExploreBackend: ExploreBackend = {
   repos: {
     logs: new LogsRepository(localSqlClient),

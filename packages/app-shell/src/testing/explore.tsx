@@ -5,7 +5,6 @@ import { createContractRouter } from "../contract/router";
 import type { ExploreBackend } from "../explore/backend";
 import { fakeExploreBackend } from "./backend";
 
-/** Renders the contract router at `url`, the way an app mounts the Explore routes. */
 export function renderExplore(url: string, explore: ExploreBackend = fakeExploreBackend()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createContractRouter(url, { queryClient, explore });

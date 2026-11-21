@@ -52,7 +52,6 @@ export function useTimeRange() {
   return { timeRange: { from, to }, setTimeRange };
 }
 
-/** `scope` narrows the queries a refresh covers, every query when it is omitted. */
 export function useAutoRefresh(scope?: QueryFilters) {
   const { refresh } = useTimeSearch();
   const patchSearch = useSearchPatch();

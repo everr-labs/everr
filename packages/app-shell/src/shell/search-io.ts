@@ -32,7 +32,6 @@ export function useRouteSearch<T>(schema: { parse: (search: unknown) => T }): T 
   return useMemo(() => schema.parse(search), [schema, search]);
 }
 
-/** A path param of the route this component is mounted on. */
 export function useRouteParam(name: "traceId" | "fingerprint"): string {
   const value = useParams({ strict: false, select: (params) => params[name] });
   if (value === undefined) {

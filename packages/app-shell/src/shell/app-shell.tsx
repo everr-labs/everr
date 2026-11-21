@@ -44,11 +44,7 @@ export function AppShell({
   dataActions?: ReactNode;
   /** When set, wins over what the matched routes declare in `staticData`. */
   hideTimeRangePicker?: boolean;
-  /**
-   * The queries a refresh covers and the refresh picker waits for: every query
-   * when omitted. Pass a constant, as a new object restarts the auto-refresh
-   * timer on each render.
-   */
+  /** The queries a refresh covers and the refresh picker waits for: every query when omitted. */
   refreshScope?: QueryFilters;
   /** The page panel's content. */
   children: ReactNode;

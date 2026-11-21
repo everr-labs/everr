@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import type { ApplicationPath } from "#app/composition/client.ts";
 
-/** The sidebar groups, held to the paths this application's router has. */
 export type NavGroup = ShellNavGroup<ApplicationPath>;
 
 export const navGroups: NavGroup[] = [

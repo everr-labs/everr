@@ -36,7 +36,6 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// An app's own queries, such as a status it polls by itself, stay out of a refresh.
 const appOwnScope = {
   type: "active",
   predicate: ({ queryKey }) => queryKey[0] !== "app-own",

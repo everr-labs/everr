@@ -102,6 +102,7 @@ jobs:
               - '.dockerignore'
               - 'packages/cli/**'
               - 'packages/local-app/**'
+              - 'packages/app-shell/**'
               - 'packages/datemath/**'
               - 'packages/otel-errors/**'
               - 'packages/otel-web/**'

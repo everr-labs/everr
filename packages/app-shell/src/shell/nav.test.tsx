@@ -12,7 +12,6 @@ import { BellOff, Flame, Hash, House } from "lucide-react";
 import { describe, expect, it } from "vite-plus/test";
 import { type NavGroup, NavMain } from "./nav";
 
-// A section index (`/alerts`) with pages nested under it, next to a pinned Home.
 const navGroups: NavGroup[] = [
   { accent: "", items: [{ title: "Home", url: "/", icon: House, exact: true }] },
   {

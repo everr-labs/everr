@@ -4,7 +4,7 @@ import {
   type QueryFilters,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
 import { getRefreshIntervalMs } from "../components/refresh-picker";
 
 let epoch = 0;
@@ -77,10 +77,11 @@ export function refreshPage(queryClient: QueryClient, filters: QueryFilters = {}
 export function usePageRefresh(refresh: string, filters?: QueryFilters): () => void {
   const queryClient = useQueryClient();
   const ms = getRefreshIntervalMs(refresh);
+  const refreshNow = useEffectEvent(() => refreshPage(queryClient, filters));
   useEffect(() => {
     if (!ms) return;
-    const timer = setInterval(() => refreshPage(queryClient, filters), ms);
+    const timer = setInterval(refreshNow, ms);
     return () => clearInterval(timer);
-  }, [ms, queryClient, filters]);
+  }, [ms]);
   return () => refreshPage(queryClient, filters);
 }

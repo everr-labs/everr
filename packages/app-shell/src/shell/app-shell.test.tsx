@@ -25,9 +25,6 @@ function PageRange() {
   return <p>{`page range ${timeRange.from} to ${timeRange.to}`}</p>;
 }
 
-/** A shell layout over three pages: one with data controls, one that hides the
- *  time range, one without data controls. `/logs` validates search of its own,
- *  as a real page does. */
 function renderShell(initialEntry: string, hideTimeRangePicker?: boolean) {
   const rootRoute = createRootRoute();
   const shellRoute = createRoute({
