@@ -1,21 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { runSqlApiQuery } from "@everr/app/lib/clickhouse";
 import { type AdminCommandOptions, adminCommand } from "@everr/app/lib/clickhouse-writer";
+import {
+  createSqlApiOrgPolicy,
+  isSqlApiOrgId,
+  sqlApiOrgPolicyName,
+  sqlApiOrgUserName,
+} from "@everr/app/lib/sql-api-org-users";
 import { SQL_API_TABLES } from "@everr/app/lib/sql-api-tables";
-import { sqlApiOrgPassword, sqlApiOrgUserName } from "./credentials";
+import { sqlApiOrgPassword } from "./credentials";
 
 // Every provisioning statement interpolates the organization id into DDL: the
 // username inside backticks, and the tenant id inside the row policy's string
-// literal. better-auth generates the id today, so it is not caller-chosen,
-// and this keeps it that way rather than trusting that it stays true.
+// literal.
 function assertSqlApiOrgId(organizationId: string): void {
-  if (!/^[A-Za-z0-9_-]+$/.test(organizationId)) {
+  if (!isSqlApiOrgId(organizationId)) {
     throw new Error("organization id is not safe to interpolate into DDL");
   }
-}
-
-function sqlApiOrgPolicyName(organizationId: string, table: string): string {
-  return `${sqlApiOrgUserName(organizationId)}_${table}`;
 }
 
 // Create the per-org ClickHouse user, set its profile + default role, grant
@@ -28,7 +29,6 @@ export async function provisionSqlApiOrgUser(
   assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
-  const tenantLiteral = `'${organizationId}'`;
   const command = (sql: string, options: AdminCommandOptions = {}) =>
     adminCommand(sql, {
       ...options,
@@ -53,10 +53,7 @@ export async function provisionSqlApiOrgUser(
   await command(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
 
   for (const table of SQL_API_TABLES) {
-    const policy = sqlApiOrgPolicyName(organizationId, table);
-    await command(
-      `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
-    );
+    await command(createSqlApiOrgPolicy(organizationId, table));
   }
 
   // Authenticate through the same client as user queries before publishing

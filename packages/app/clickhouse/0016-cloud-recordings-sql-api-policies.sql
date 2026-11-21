@@ -1,0 +1,4 @@
+-- No statements. The seed next to this file gives the organizations that
+-- exist when it runs their SQL API row policy on app.recordings
+-- (0014-cloud-recordings-rls.sql denies the table to a user without one).
+-- Provisioning writes the policy for every organization created later.

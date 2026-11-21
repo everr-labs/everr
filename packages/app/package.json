@@ -34,6 +34,7 @@
     "./identity/roles": "./src/lib/organization-role.ts",
     "./lib/route-access": "./src/lib/route-access.ts",
     "./lib/serverFn": "./src/lib/serverFn.ts",
+    "./lib/sql-api-org-users": "./src/lib/sql-api-org-users.ts",
     "./lib/sql-api-tables": "./src/lib/sql-api-tables.ts",
     "./migrate": "./scripts/migrate.ts",
     "./product/module": "./src/product/module.ts",
