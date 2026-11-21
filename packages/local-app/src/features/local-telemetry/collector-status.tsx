@@ -28,7 +28,8 @@ const collectorStatusQueryKey = ["local-app", "collector-status"] as const;
 /**
  * Route loaders run outside the gate, so one that ran while the collector was
  * down has failed. When the collector comes up they run again, so the page
- * recovers without a reload.
+ * recovers without a reload. The first status counts as coming up: a loader
+ * can fail just before the collector is ready and the status is first read.
  */
 function useRerunFailedLoadersWhenRunning() {
   const queryClient = useQueryClient();

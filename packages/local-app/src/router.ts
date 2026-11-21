@@ -1,4 +1,5 @@
 import { type AssertExploreMounted, errorDetailMask } from "@everr/app-shell/explore/routes";
+import { RoutePending } from "@everr/app-shell/shell";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { localExploreBackend } from "./lib/explore-backend";
 import { createQueryClient } from "./lib/query-client";
@@ -14,6 +15,9 @@ export function getRouter() {
     routeMasks,
     context: { queryClient: createQueryClient(), explore: localExploreBackend },
     defaultPreload: "intent",
+    // A route that waits for its loader, such as a trace, shows the frame
+    // with this in the page while it waits.
+    defaultPendingComponent: RoutePending,
   });
 }
 export const router = getRouter();

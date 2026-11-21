@@ -227,7 +227,7 @@ async function cmdDoctor(): Promise<number> {
   console.log(`run: ${r.id}`);
   console.log(`binary: ${version.status === 0 ? version.stdout.trim() : "missing"}  head: ${run("git", ["-C", REPO, "rev-parse", "--short", "HEAD"]).stdout.trim()}`);
   const binMtime = existsSync(BIN) ? statSync(BIN).mtimeMs : 0;
-  const stale = newerThan(["packages/cli/cmd", "packages/cli/internal", "packages/cli/go.mod", "packages/local-app/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/localcollector", "collector/internal/localgateway", "collector/exporter/chdbexporter", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
+  const stale = newerThan(["packages/cli/cmd", "packages/cli/internal", "packages/cli/go.mod", "packages/local-app/src", "packages/app-shell/src", "packages/telemetry-explorer/src", "packages/ui/src", "collector/localcollector", "collector/internal/localgateway", "collector/exporter/chdbexporter", "skills"].map((d) => path.join(REPO, d)), binMtime, 3);
   if (stale.length) {
     console.log("WARN sources newer than binary (rebuild with 'verify-cli build'):");
     for (const f of stale) console.log(`       ${f}`);

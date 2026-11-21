@@ -7,7 +7,7 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { type ErrorComponentProps, Link, useNavigate } from "@tanstack/react-router";
+import { type ErrorComponentProps, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useRouteParam, useRouteSearch, useSearchPatch } from "../../shell/search-io";
 import { useExploreBackend } from "../backend";
 import { tracesRoute } from "../routes";
@@ -80,7 +80,8 @@ export function TraceDetailRoute() {
 }
 
 export function TraceDetailError({ error }: ErrorComponentProps) {
-  const search = useRouteSearch(TraceDetailParamsSchema);
+  // The search itself can be what failed, so it goes on the link only when it is valid.
+  const search = TraceDetailParamsSchema.safeParse(useSearch({ strict: false }));
   return (
     <Empty>
       <EmptyHeader>
@@ -93,7 +94,7 @@ export function TraceDetailError({ error }: ErrorComponentProps) {
         variant="outline"
         size="sm"
         nativeButton={false}
-        render={<Link to="/traces" search={toTraceListSearch(search)} />}
+        render={<Link to="/traces" search={search.success ? toTraceListSearch(search.data) : {}} />}
       >
         Back to traces
       </Button>

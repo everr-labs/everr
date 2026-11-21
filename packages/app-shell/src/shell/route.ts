@@ -64,7 +64,7 @@ export function shellRouteOptions(options: { retain?: readonly string[] } = {}) 
       if (!isFixed(from) || !isFixed(to)) return;
       const fromDate = resolve(from, { roundUp: false });
       const toDate = resolve(to, { roundUp: true });
-      if (fromDate >= toDate) {
+      if (fromDate > toDate) {
         throw redirect({
           search: { ...search, from: to, to: from },
           replace: true,

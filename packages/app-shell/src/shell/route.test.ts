@@ -16,6 +16,13 @@ describe("shell time range", () => {
     });
   });
 
+  it("keeps two equal dates, an empty range", () => {
+    expect(() => beforeLoad({ search: { from: "2026-01-01", to: "2026-01-01" } })).not.toThrow();
+    expect(() =>
+      beforeLoad({ search: { from: "2026-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" } }),
+    ).not.toThrow();
+  });
+
   it("keeps a relative range that ends before it starts", () => {
     expect(() => beforeLoad({ search: { from: "now", to: "now-1h" } })).not.toThrow();
   });

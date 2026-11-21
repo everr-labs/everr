@@ -1,6 +1,6 @@
 ---
 name: verify-cli
-description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, the collector packages it builds in (`collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`), `packages/local-app` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
+description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, the collector packages it builds in (`collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`), `packages/local-app`, `packages/app-shell` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
 user-invocable: true
 metadata:
   internal: true
@@ -58,7 +58,7 @@ Read-only. Run first, and whenever anything looks off:
 $V doctor
 ```
 
-Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/cmd`, `packages/cli/internal`, `packages/cli/go.mod`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
+Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/cmd`, `packages/cli/internal`, `packages/cli/go.mod`, `packages/local-app/src`, `packages/app-shell/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
 
 ## Drive
 

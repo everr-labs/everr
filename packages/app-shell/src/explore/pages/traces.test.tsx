@@ -114,4 +114,13 @@ describe("/traces route", () => {
     expect(router.state.location.pathname).toBe("/traces");
     expect(router.state.location.search).toEqual({ name: "checkout" });
   });
+
+  it("shows the load error for a search the trace page cannot read", async () => {
+    const router = renderTracesRoute("/traces/trace-1?minMs=-1");
+
+    expect(await screen.findByText("Failed to load trace")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Back to traces" }));
+    expect(await screen.findByText("Trace list page")).toBeInTheDocument();
+    expect(router.state.location.search).toEqual({});
+  });
 });

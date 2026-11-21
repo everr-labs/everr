@@ -27,7 +27,13 @@ const failed = {
   ...endpoints,
 } satisfies CollectorStatus;
 
-function renderMainApp(options: { collectorStatus?: CollectorStatus; initialEntry?: string } = {}) {
+function renderMainApp(
+  options: {
+    collectorStatus?: CollectorStatus;
+    initialEntry?: string;
+    sqlQuery?: () => unknown;
+  } = {},
+) {
   let collectorStatus = options.collectorStatus ?? running;
   const restartCollectorSpy = vi.fn(() => {
     collectorStatus = running;
@@ -41,7 +47,7 @@ function renderMainApp(options: { collectorStatus?: CollectorStatus; initialEntr
       case "telemetry_sql_query":
         // The collector's SQL endpoint answers only while it runs.
         if (collectorStatus.status !== "running") throw new Error("collector is not running");
-        return [];
+        return options.sqlQuery ? options.sqlQuery() : [];
       case "restart_collector":
         return restartCollectorSpy();
       default:
@@ -210,6 +216,22 @@ describe("local telemetry collector", () => {
       expect(restartCollectorSpy).toHaveBeenCalledTimes(1);
     });
     expect(await screen.findByText("running")).toBeInTheDocument();
+  });
+});
+
+describe("trace page", () => {
+  it("shows the frame while the trace loads", async () => {
+    let finishQuery = () => {};
+    renderMainApp({
+      initialEntry: "/traces/trace-1",
+      sqlQuery: () =>
+        new Promise((resolve) => {
+          finishQuery = () => resolve([]);
+        }),
+    });
+
+    await waitFor(() => expect(sidebarLink("Logs")).toBeInTheDocument(), { timeout: 3_000 });
+    await act(async () => finishQuery());
   });
 });
 
