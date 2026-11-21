@@ -330,7 +330,7 @@ plugin:
 
 ## Heatmap
 
-A time × bucket grid of color-intensity cells: request-duration histograms over time, status-code distributions, per-entity activity. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Heatmap](#shaping-heatmap).
+A time × bucket grid of color-intensity cells: request-duration histograms over time, status-code distributions, per-entity activity. With `xColumn`, the x-axis is a category column instead of time (hour of day × weekday, region × tier). On a time x-axis it supports drag-to-zoom (writes the new range to the URL). Data shape: see [Heatmap](#shaping-heatmap).
 
 Cells are opaque: a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
 
@@ -348,7 +348,8 @@ plugin:
 
 | Option        | Type    | Default                               | Notes                                                                                                                                                 |
 | ------------- | ------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `yColumn`     | string  | first non-time column                 | Y-bucket column.                                                                                                                                      |
+| `xColumn`     | string  | none (time x-axis)                    | Category x-axis: one column per distinct value, no time column needed. Numeric values sort ascending, others keep first-seen order.                   |
+| `yColumn`     | string  | first column other than time and x    | Y-bucket column.                                                                                                                                      |
 | `valueColumn` | string  | first remaining numeric column        | Cell intensity column.                                                                                                                                |
 | `valueFormat` | object  | none                                  | Shared [value formatting](#value-formatting).                                                                                                         |
 | `showLegend`  | boolean | `true`                                | Color ramp legend (min → max) below the grid.                                                                                                         |
@@ -494,6 +495,27 @@ ORDER BY ts
 ```
 
 Rows that land on the same (time, bucket) cell are summed, within a query and across queries. Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down.
+
+With `xColumn` set, no time column is needed: return the x column, the bucket column and the value, and keep filtering on `{from}` and `{to}` so the time picker still selects the data:
+
+```sql
+SELECT toHour(Timestamp) AS hour,
+       toDayOfWeek(Timestamp) AS dow,
+       dateName('weekday', Timestamp) AS weekday,
+       count() AS requests
+FROM traces
+WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+GROUP BY hour, dow, weekday
+ORDER BY dow, hour
+```
+
+```yaml
+plugin:
+  kind: Heatmap
+  spec: { xColumn: hour, yColumn: weekday, valueColumn: requests }
+```
+
+Numeric x values (like hours) sort ascending left to right; text ones keep their first-seen order, so `ORDER BY` sets it. The tooltip shows the x label instead of a time span. Every distinct x value is a column, so keep the x column low-cardinality (hours, weekdays, regions). A query whose result has no `xColumn` column draws nothing.
 
 ### Node graph
 

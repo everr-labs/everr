@@ -6,11 +6,11 @@ spec:
   display:
     name: Heatmap
     description: >-
-      Heatmap regression sheet — every option (yColumn/valueColumn selection,
+      Heatmap regression sheet — every option (xColumn/yColumn/valueColumn selection,
       unit, showValues, showLegend, all six colorScheme values, all scaleType
       values, min/max domain, cellGap) and behavior (spec defaults, numeric
-      bucket ordering, multi-query summing, empty, no time column) exercised
-      with deterministic TestData.
+      bucket ordering, multi-query summing, empty, no time column, category
+      x-axis) exercised with deterministic TestData.
   timeRange:
     from: now-7d
     to: now
@@ -270,7 +270,7 @@ spec:
       spec:
         display:
           name: "Heatmap: no time column"
-          description: "Result without a ts/time/timestamp column can't be placed on the grid → empty state"
+          description: "Result without a ts/time/timestamp column (and no xColumn) can't be placed on the grid → empty state"
         plugin:
           kind: Heatmap
           spec: {}
@@ -285,6 +285,87 @@ spec:
                   rows:
                     - ["<10ms", 12]
                     - ["<100ms", 48]
+    hm-category-numeric:
+      kind: Panel
+      spec:
+        display:
+          name: "Heatmap: numeric category x-axis"
+          description: "xColumn: hour — no time column; one column per hour, numeric labels ascending left to right (rows arrive out of order); labels thin out on narrow panels; no drag-to-zoom"
+        plugin:
+          kind: Heatmap
+          spec:
+            xColumn: hour
+            colorScheme: blues
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: table
+                  seed: 120
+                  rows: 168
+                  columns:
+                    - {
+                        name: hour,
+                        values:
+                          [
+                            12,
+                            13,
+                            14,
+                            15,
+                            16,
+                            17,
+                            18,
+                            19,
+                            20,
+                            21,
+                            22,
+                            23,
+                            0,
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7,
+                            8,
+                            9,
+                            10,
+                            11,
+                          ],
+                      }
+                    - { name: weekday, values: [Mon, Tue, Wed, Thu, Fri, Sat, Sun] }
+                    - { name: energy, walk: { start: 40, noise: 12, min: 0, round: 1 } }
+    hm-category-text:
+      kind: Panel
+      spec:
+        display:
+          name: "Heatmap: text category x-axis"
+          description: "xColumn: region, yColumn: tier, valueColumn: requests — text labels in first-seen order; repeated (eu, free) rows sum to 30; (ap, pro) has no row and stays empty; tooltip title is the x label"
+        plugin:
+          kind: Heatmap
+          spec:
+            xColumn: region
+            yColumn: tier
+            valueColumn: requests
+            showValues: true
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [region, errors, tier, requests]
+                  rows:
+                    - [us, 1, free, 40]
+                    - [eu, 2, free, 10]
+                    - [eu, 0, free, 20]
+                    - [ap, 4, free, 15]
+                    - [us, 3, pro, 25]
+                    - [eu, 1, pro, 35]
     format-none:
       kind: Panel
       spec:
@@ -479,3 +560,17 @@ spec:
             }
           - { x: 0, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-percent" } }
           - { x: 12, y: 47, width: 12, height: 8, content: { $ref: "#/spec/panels/format-si" } }
+          - {
+              x: 0,
+              y: 55,
+              width: 12,
+              height: 7,
+              content: { $ref: "#/spec/panels/hm-category-numeric" },
+            }
+          - {
+              x: 12,
+              y: 55,
+              width: 12,
+              height: 7,
+              content: { $ref: "#/spec/panels/hm-category-text" },
+            }
