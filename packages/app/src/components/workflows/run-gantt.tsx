@@ -1,3 +1,4 @@
+import { useTimeRange } from "@everr/app-shell/shell";
 import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
@@ -12,7 +13,6 @@ import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { workflowRunTimelinesOptions } from "#app/data/workflows/options.ts";
 import type { WorkflowRunGantt } from "#app/data/workflows/schemas.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { formatCost } from "#app/lib/runner-pricing.ts";
 
 interface WorkflowJobTimelineProps {

@@ -1,5 +1,5 @@
+import { ScrollingPageContainer } from "@everr/app-shell/page";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { ScrollingPageContainer } from "#app/components/page-container.tsx";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded",

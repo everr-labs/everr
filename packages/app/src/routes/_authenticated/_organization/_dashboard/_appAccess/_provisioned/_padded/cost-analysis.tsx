@@ -1,3 +1,4 @@
+import { PageHeader } from "@everr/app-shell/page";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";
@@ -8,7 +9,6 @@ import {
   type ActionsUsageDimension,
 } from "#app/components/cost-analysis/actions-usage-chart.tsx";
 import { CostByWorkflowTable } from "#app/components/cost-analysis/cost-by-workflow-table.tsx";
-import { PageHeader } from "#app/components/page-header.tsx";
 import { TimeRangePanel } from "#app/components/time-range-panel.tsx";
 import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import {

@@ -58,7 +58,7 @@ afterEach(() => {
 async function visit(path: string) {
   const router = createRouter({
     routeTree,
-    context: { queryClient: new QueryClient() },
+    context: { queryClient: new QueryClient(), explore: fakeExploreBackend() },
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   await router.load();
@@ -112,4 +112,5 @@ test.each(["hobby", "pro"])("%s organizations leave recovery", async (appState) 
   expect(screen.queryByText("Pro subscription suspended")).not.toBeInTheDocument();
 });
 
+import { fakeExploreBackend } from "@everr/app-shell/testing";
 import { QueryClient } from "@tanstack/react-query";

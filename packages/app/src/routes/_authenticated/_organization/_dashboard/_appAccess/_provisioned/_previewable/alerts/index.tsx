@@ -1,3 +1,4 @@
+import { useTimeRange } from "@everr/app-shell/shell";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { staleClass } from "@everr/ui/lib/stale";
@@ -16,7 +17,6 @@ import { TriageList } from "#app/components/alerts/triage-list.tsx";
 import { ResourceEmptyState } from "#app/components/resource-empty-state.tsx";
 import { cancelSilenceById, ruleSilenceSeed } from "#app/data/alerting/silences/commands.ts";
 import { alertTriageOptions, ruleStateHistoryOptions } from "#app/data/alerting/triage/options.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/",

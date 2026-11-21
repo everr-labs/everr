@@ -4,6 +4,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 
+import { fakeExploreBackend } from "@everr/app-shell/testing";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -74,7 +75,7 @@ it.each([
     });
     const router = createRouter({
       routeTree,
-      context: { queryClient },
+      context: { queryClient, explore: fakeExploreBackend() },
       history: createMemoryHistory({ initialEntries: [returnUrl] }),
     });
     await router.load();
@@ -119,7 +120,7 @@ it("shows the shared setup view while payment confirmation is pending", async ()
   });
   const router = createRouter({
     routeTree,
-    context: { queryClient },
+    context: { queryClient, explore: fakeExploreBackend() },
     history: createMemoryHistory({
       initialEntries: ["/organizations/checkout/success?checkout_id=pending"],
     }),

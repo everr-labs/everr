@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { findNavSection } from "@everr/app-shell/shell";
 import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -13,7 +14,7 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { useLocation } from "@tanstack/react-router";
 import { useRef } from "react";
-import { findNavSection } from "#app/lib/navigation.ts";
+import { navGroups } from "#app/lib/navigation.ts";
 
 /**
  * Empty state for resources managed as code (alerts, dashboards, runbooks):
@@ -31,7 +32,10 @@ export function ResourceEmptyState({
   assistantPrompt: string;
   docsHref?: string;
 }) {
-  const section = findNavSection(useLocation({ select: (location) => location.pathname }));
+  const section = findNavSection(
+    navGroups,
+    useLocation({ select: (location) => location.pathname }),
+  );
   const promptRef = useRef<HTMLElement>(null);
   const { state: copyState, copy: copyPrompt } = useCopyToClipboard(assistantPrompt, {
     selectOnFailure: promptRef,

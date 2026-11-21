@@ -1,32 +1,7 @@
-import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
+import { ErrorPageRoute } from "@everr/app-shell/explore/pages";
+import { errorDetailRoute } from "@everr/app-shell/explore/routes";
 import { createFileRoute } from "@tanstack/react-router";
-import { ErrorDetailRouteContent } from "./-error-detail";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint",
-)({
-  staticData: { breadcrumb: "Detail", hideExploreBar: true },
-  validateSearch: ErrorIssueSearchSchema,
-  head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
-  component: ErrorDetailPage,
-});
-
-function ErrorDetailPage() {
-  const { fingerprint } = Route.useParams();
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-
-  return (
-    <ErrorDetailRouteContent
-      fingerprint={fingerprint}
-      search={search}
-      detailTo="/errors/$fingerprint"
-      onBack={() =>
-        void navigate({
-          to: "/errors",
-          search: { ...search, occurrence: "" },
-        })
-      }
-    />
-  );
-}
+)({ ...errorDetailRoute, component: ErrorPageRoute });

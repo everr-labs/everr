@@ -1,20 +1,9 @@
-import { parse, resolve } from "@everr/datemath";
-import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
-import {
-  createFileRoute,
-  redirect,
-  retainSearchParams,
-  stripSearchParams,
-} from "@tanstack/react-router";
+import { ShellSearchSchema, shellRouteOptions } from "@everr/app-shell/shell";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { DashboardLayout } from "#app/components/dashboard-layout.tsx";
-import { ResolvedTimeRangeSearchSchema, TimeRangeSearchSchema } from "#app/lib/time-range.ts";
 
-const DashboardSearchSchema = TimeRangeSearchSchema.extend({
-  // Explore section filters live at this level (not deeper on `_explore`) so the
-  // sidebar links — rendered in this layout — retain them on click. See the
-  // retainSearchParams note below.
-  ...ExploreSearchShape,
+const DashboardSearchSchema = ShellSearchSchema.extend({
   github_install: z.string().optional(),
   reason: z.string().optional(),
   // Active preview (a preview/branch name). App-wide context: retained across
@@ -33,53 +22,12 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
     .catch(undefined),
 });
 
-/** A bound that names a date rather than a time relative to now. */
-function isFixed(expr: string): boolean {
-  try {
-    return parse(expr).anchor !== "now";
-  } catch {
-    return false;
-  }
-}
+// Named before it is spread: router/create-route-property-order throws on a
+// spread that is not an identifier (https://github.com/TanStack/router/issues/8673).
+const shell = shellRouteOptions({ retain: ["preview"] });
 
 export const Route = createFileRoute("/_authenticated/_organization/_dashboard")({
+  ...shell,
   validateSearch: DashboardSearchSchema,
-  search: {
-    // `service`/`environment` are retained HERE (not on `_explore`) on purpose:
-    // the sidebar links live in this `_dashboard` layout, outside the `_explore`
-    // subtree, so only a retain declared at this level engages on a sidebar
-    // click. Declaring it on `_explore` makes the link's href look right but
-    // drops the params on the actual click. The explore route schemas include
-    // these keys so the destination route doesn't strip them on arrival.
-    //
-    // strip-then-retain, paired with optional (default-less) explore schemas, is
-    // what makes the filters both persistent AND clearable:
-    //   - cross-route nav: the key arrives absent (no schema default fills it),
-    //     so retain copies the live selection forward;
-    //   - explicit clear (service: []): the value is present, so strip drops it
-    //     as a default and retain — which only refills ABSENT keys — leaves it
-    //     gone, yielding a clean URL that reflects the cleared state.
-    // See ExploreSearchShape for why the schemas must stay optional.
-    middlewares: [
-      stripSearchParams({ service: [], environment: [] }),
-      retainSearchParams(["from", "to", "refresh", "service", "environment", "preview"]),
-    ],
-  },
-  beforeLoad({ search }) {
-    const { from, to } = ResolvedTimeRangeSearchSchema.parse(search);
-    // Two dates in the wrong order are a typo, so they swap. A relative range
-    // that ends before it starts only does at some times of day ("now/d" to
-    // "now-5h" before 05:00), and in the viewer's zone, not the server's: it
-    // stays, and the pages show nothing while the time picker says why.
-    if (!isFixed(from) || !isFixed(to)) return;
-    const fromDate = resolve(from, { roundUp: false });
-    const toDate = resolve(to, { roundUp: true });
-    if (fromDate >= toDate) {
-      throw redirect({
-        search: { ...search, from: to, to: from },
-        replace: true,
-      });
-    }
-  },
   component: DashboardLayout,
 });

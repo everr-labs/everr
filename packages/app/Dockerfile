@@ -12,6 +12,7 @@ COPY packages/tanstack-start-otel/package.json ./packages/tanstack-start-otel/
 COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
+COPY packages/app-shell/package.json ./packages/app-shell/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --filter @everr/app... --frozen-lockfile --ignore-scripts
 
@@ -31,6 +32,7 @@ COPY packages/tanstack-start-otel ./packages/tanstack-start-otel
 COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer
+COPY packages/app-shell ./packages/app-shell
 COPY packages/app ./packages/app
 # The MCP query tool description inlines the telemetry skill's schema at build time.
 COPY skills/everr-use-telemetry/rules/schema.md ./skills/everr-use-telemetry/rules/schema.md

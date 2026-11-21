@@ -1,9 +1,9 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
+import { ScrollingPageContainer } from "@everr/app-shell/page";
 import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
-import { ScrollingPageContainer } from "#app/components/page-container.tsx";
 import { previewMessage } from "#app/components/preview-message.ts";
 import type { PreviewStatus } from "#app/data/previews/overlay.ts";
 import { usePreview } from "#app/hooks/use-preview.ts";

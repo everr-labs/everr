@@ -1,5 +1,5 @@
+import { PageHeader } from "@everr/app-shell/page";
 import { authClient } from "@everr/app/identity/client";
-import { PageHeader } from "@everr/app/page-layout";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {

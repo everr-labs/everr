@@ -1,39 +1,19 @@
+import { exploreNavGroup } from "@everr/app-shell/explore/routes";
+import type { NavGroup as ShellNavGroup } from "@everr/app-shell/shell";
 import {
   Activity,
   BellOff,
-  Bug,
   ChartLine,
-  ChartSpline,
   Flame,
   Hash,
   House,
   LayoutDashboard,
-  type LucideIcon,
   NotebookText,
-  ScrollText,
-  Waypoints,
 } from "lucide-react";
 import type { ApplicationPath } from "#app/composition/client.ts";
 
-type NavItem = {
-  title: string;
-  url: ApplicationPath;
-  icon: LucideIcon;
-  /** Light the item up only on its own URL, not on the URLs nested under it.
-   *  A section index such as `/alerts` needs this: without it it stays active
-   *  on every sibling below it and two items light up at once. */
-  exact?: boolean;
-};
-
-export type NavGroup = {
-  label?: string;
-  /** Sets `--nav-accent`, the section colour its icons wear in the sidebar,
-   *  the command bar, the breadcrumb and empty states. One per group rather
-   *  than per item, so the colour says which section you are in. A whole
-   *  class, so Tailwind finds it here. */
-  accent: string;
-  items: NavItem[];
-};
+/** The sidebar groups, held to the paths this application's router has. */
+export type NavGroup = ShellNavGroup<ApplicationPath>;
 
 export const navGroups: NavGroup[] = [
   {
@@ -57,16 +37,7 @@ export const navGroups: NavGroup[] = [
       { title: "Notifications", url: "/alerts/notifications", icon: Hash },
     ],
   },
-  {
-    label: "Explore",
-    accent: "[--nav-accent:var(--ctp-mauve)]",
-    items: [
-      { title: "Metrics", url: "/metrics", icon: ChartSpline },
-      { title: "Logs", url: "/logs", icon: ScrollText },
-      { title: "Traces", url: "/traces", icon: Waypoints },
-      { title: "Errors", url: "/errors", icon: Bug },
-    ],
-  },
+  exploreNavGroup,
   {
     label: "CI/CD",
     accent: "[--nav-accent:var(--ctp-teal)]",
@@ -76,20 +47,3 @@ export const navGroups: NavGroup[] = [
     ],
   },
 ];
-
-/** The sidebar destination a pathname belongs to: the item with the longest
- *  URL that prefixes it, so `/alerts/silences` resolves to Silences rather
- *  than Triage. Home matches only `/` itself. */
-export function findNavSection(pathname: string): { group: NavGroup; item: NavItem } | undefined {
-  let best: { group: NavGroup; item: NavItem } | undefined;
-  for (const group of navGroups) {
-    for (const item of group.items) {
-      const matches =
-        item.url === "/"
-          ? pathname === "/"
-          : pathname === item.url || pathname.startsWith(`${item.url}/`);
-      if (matches && (!best || item.url.length > best.item.url.length)) best = { group, item };
-    }
-  }
-  return best;
-}

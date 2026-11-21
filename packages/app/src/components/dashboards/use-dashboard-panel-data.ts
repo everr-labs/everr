@@ -1,4 +1,5 @@
 /* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
+import { useTimeRange } from "@everr/app-shell/shell";
 import { toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -11,7 +12,6 @@ import { panelQueryOptions } from "#app/data/dashboards/options.ts";
 import type { Panel } from "#app/data/dashboards/schema.ts";
 import { pickByNames } from "#app/data/dashboards/variable-values.ts";
 import { useTimeAnchor } from "#app/hooks/time-anchor.tsx";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import { useRetainedPanelData } from "./use-retained-panel-data";

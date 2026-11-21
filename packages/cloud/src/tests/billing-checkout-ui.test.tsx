@@ -35,7 +35,7 @@ vi.mock("@everr/app/identity/client", () => ({
     organization: { setActive: vi.fn() },
   },
 }));
-vi.mock("@everr/app/page-layout", () => ({
+vi.mock("@everr/app-shell/page", () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 

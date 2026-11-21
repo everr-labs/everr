@@ -9,6 +9,7 @@
  * rather than a second copy on the second screen. The two had already begun to
  * drift on which reason the breakpoint exists for.
  */
+import { useTimeRange } from "@everr/app-shell/shell";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useRetained } from "@everr/ui/hooks/use-retained";
 import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
@@ -22,7 +23,6 @@ import { z } from "zod";
 import { setAlertRulePaused } from "#app/data/alerting/triage/mutations.ts";
 import { alertDetailOptions, invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 import { useSilenceControls } from "#app/hooks/use-silence-controls.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { AlertDetailPanel } from "./alert-detail-panel";
 
 /** The open rule lives in the URL, so the detail survives a reload and can be

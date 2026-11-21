@@ -18,6 +18,7 @@
   "dependencies": {
     "@clickhouse/client": "^1.18.4",
     "@everr/app": "workspace:*",
+    "@everr/app-shell": "workspace:*",
     "@everr/ui": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@polar-sh/better-auth": "2.1.0",

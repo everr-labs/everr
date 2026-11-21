@@ -1,0 +1,44 @@
+{
+  "name": "@everr/app-shell",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    "./shell": "./src/shell/index.ts",
+    "./page": "./src/page/index.tsx",
+    "./explore/routes": "./src/explore/routes.ts",
+    "./explore/pages": "./src/explore/pages/index.ts",
+    "./testing": "./src/testing/backend.ts",
+    "./shell.css": "./src/styles/shell.css"
+  },
+  "scripts": {
+    "test": "vp test run",
+    "test:watch": "vp test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@everr/datemath": "workspace:*",
+    "@everr/telemetry-explorer": "workspace:*",
+    "@everr/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "1.170.45",
+    "lucide-react": "catalog:",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "1.168.47",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "^29.1.1",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

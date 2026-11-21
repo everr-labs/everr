@@ -1,6 +1,6 @@
+import type { RouteTimeDefaults } from "@everr/ui/lib/time-range";
 import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
 import { isValidTimeRange } from "@everr/ui/lib/time-range";
-import type { RouteTimeDefaults } from "#app/lib/time-range.ts";
 import type { DashboardSpec } from "./schema";
 
 /**

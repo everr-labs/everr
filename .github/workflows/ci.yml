@@ -64,6 +64,7 @@ jobs:
               - 'tsconfig*.json'
               - '.dockerignore'
               - 'packages/app/**'
+              - 'packages/app-shell/**'
               - 'packages/cloud/**'
               - 'packages/datemath/**'
               - 'packages/otel-errors/**'

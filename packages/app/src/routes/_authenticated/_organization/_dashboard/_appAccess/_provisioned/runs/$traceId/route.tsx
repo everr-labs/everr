@@ -1,3 +1,4 @@
+import { PageContainer } from "@everr/app-shell/page";
 import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
@@ -20,7 +21,6 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { PageContainer } from "#app/components/page-container.tsx";
 import { JobTreeNav } from "#app/components/run-detail/job-tree-nav.tsx";
 import { RunHeader } from "#app/components/run-detail/run-header.tsx";
 import { allJobsStepsOptions, runDetailsOptions, runJobsOptions } from "#app/data/runs/options.ts";

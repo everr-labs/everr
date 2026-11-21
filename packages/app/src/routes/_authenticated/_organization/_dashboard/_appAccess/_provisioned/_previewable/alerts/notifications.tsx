@@ -1,3 +1,4 @@
+import { useTimeRange } from "@everr/app-shell/shell";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { staleClass } from "@everr/ui/lib/stale";
@@ -9,7 +10,6 @@ import { DeliveryDialog } from "#app/components/alerts/delivery-dialog.tsx";
 import { NotificationsPage } from "#app/components/alerts/notifications-page.tsx";
 import { alertNotificationsOptions } from "#app/data/alerting/delivery/options.ts";
 import { useNotificationControls } from "#app/hooks/use-notification-controls.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/alerts/notifications",

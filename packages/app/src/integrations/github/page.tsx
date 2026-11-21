@@ -1,3 +1,4 @@
+import { PageHeader } from "@everr/app-shell/page";
 import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -14,7 +15,6 @@ import { Link } from "@tanstack/react-router";
 import { Check, GitBranch } from "lucide-react";
 import { useCallback, useState } from "react";
 import { GithubInstall } from "#app/components/github-install.tsx";
-import { PageHeader } from "#app/components/page-header.tsx";
 import { getGithubAppInstallStatus, getInstallationRepos, importRepos } from "#app/data/github.ts";
 import { mutationStatus } from "#app/lib/mutation-status.ts";
 
