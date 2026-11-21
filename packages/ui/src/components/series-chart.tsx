@@ -1,3 +1,4 @@
+import { BrushArea, TOUCH_SCRUB, useBrush } from "@everr/ui/components/brush";
 import { CursorLine } from "@everr/ui/components/cursor-line";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import {
@@ -74,7 +75,8 @@ interface SeriesChartProps {
   showLegend?: boolean;
   /** Points to shade, inclusive, e.g. a selected step's window. */
   highlight?: { from: number; to: number } | null;
-  /** Turns on drag to select a run of points, reported inclusive. */
+  /** Turns on drag to select a run of points, reported inclusive. A click
+   *  selects nothing. */
   onSelect?: (from: number, to: number) => void;
   /** Smaller text and insets, for small multiples. */
   compact?: boolean;
@@ -102,26 +104,28 @@ interface Pointer {
 }
 
 /**
- * The cursor line through the hovered point: the middle of a bar's band, or
- * the point itself on lines. It runs from the top of the plot to the value
- * axis baseline, positioned from what ECharts already knows, so it reads no
- * layout. (The grid box also holds the axis labels, so its bottom is not the
- * plot's.)
+ * The plot's top and height in the chart element, from what ECharts already
+ * knows, so it reads no layout. (The grid box also holds the axis labels, so
+ * its bottom is not the plot's.) ECharts keeps it on its internal model only.
  */
-function PointCursor({
-  chart,
-  top,
-  index,
-}: {
-  chart: echarts.ECharts;
-  top: number;
-  index: number;
-}) {
+function plotSpan(chart: echarts.ECharts): { top: number; height: number } | null {
+  const extent: unknown = Reflect.get(chart, "getModel")
+    ?.call(chart)
+    .getComponent("yAxis", 0)
+    ?.axis?.getGlobalExtent();
+  if (!Array.isArray(extent) || !extent.every(Number.isFinite)) return null;
+  const top = Math.min(...extent);
+  const height = Math.max(...extent) - top;
+  return height > 0 ? { top, height } : null;
+}
+
+/** The cursor line through the hovered point: the middle of a bar's band, or
+ * the point itself on lines. */
+function PointCursor({ chart, index }: { chart: echarts.ECharts; index: number }) {
   const x = chart.convertToPixel({ xAxisIndex: 0 }, String(index));
-  const baseline = chart.convertToPixel({ yAxisIndex: 0 }, 0);
-  if (typeof x !== "number" || typeof baseline !== "number") return null;
-  if (!Number.isFinite(x) || !(baseline > top)) return null;
-  return <CursorLine style={{ left: x, top, height: baseline - top }} />;
+  const plot = plotSpan(chart);
+  if (typeof x !== "number" || !Number.isFinite(x) || !plot) return null;
+  return <CursorLine style={{ left: x, ...plot }} />;
 }
 
 /**
@@ -146,7 +150,6 @@ export function SeriesChart({
 }: SeriesChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [pointer, setPointer] = useState<Pointer | null>(null);
-  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
   const [hoveredMarker, setHoveredMarker] = useState<ChartMarker | null>(null);
   const clearPointer = useCallback(() => setPointer(null), []);
   const mounted = useEChart(elementRef, true, clearPointer);
@@ -172,8 +175,8 @@ export function SeriesChart({
     [compact, gridBottom, showLegend],
   );
 
-  const shadeFrom = drag ? Math.min(drag.from, drag.to) : (highlight?.from ?? null);
-  const shadeTo = drag ? Math.max(drag.from, drag.to) : (highlight?.to ?? null);
+  const shadeFrom = highlight?.from ?? null;
+  const shadeTo = highlight?.to ?? null;
 
   useEffect(() => {
     const element = elementRef.current;
@@ -345,7 +348,8 @@ export function SeriesChart({
 
   /** The point under the pointer; outside the plot, null, or with
    * `clamped` the nearest point at its edge (a drag running past it). */
-  const pointAt = (event: PointerEvent, clamped = false): Pointer | null => {
+  /** Where the pointer is along the x axis, in points, between them too. */
+  const indexAt = (event: PointerEvent, clamped = false): number | null => {
     const element = elementRef.current;
     if (!chart || !element || labels.length === 0) return null;
     const bounds = element.getBoundingClientRect();
@@ -353,8 +357,11 @@ export function SeriesChart({
     if (!clamped && !chart.containPixel({ gridIndex: 0 }, pixel)) return null;
     const raw = chart.convertFromPixel({ xAxisIndex: 0 }, pixel[0]);
     if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
-    const index = Math.max(0, Math.min(labels.length - 1, Math.round(raw)));
-    return { index, x: event.clientX, y: event.clientY };
+    return Math.max(0, Math.min(labels.length - 1, raw));
+  };
+  const pointAt = (event: PointerEvent, clamped = false): Pointer | null => {
+    const index = indexAt(event, clamped);
+    return index === null ? null : { index: Math.round(index), x: event.clientX, y: event.clientY };
   };
 
   /** The marker within reach of the pointer, nearest first. */
@@ -383,31 +390,53 @@ export function SeriesChart({
     return nearest;
   };
 
-  const handlePointerMove = (event: PointerEvent) => {
-    if (!drag) setHoveredMarker(markerAt(event));
-    if (drag) {
-      const point = pointAt(event, true);
-      if (point) setDrag({ ...drag, to: point.index });
-    }
+  const showPointer = (event: PointerEvent) =>
     setPointer(isOnLegend(event.target) ? null : pointAt(event));
-  };
+  // Positions run between points, so a press that doesn't move sideways
+  // selects nothing; the range covers the points nearest its ends.
+  const zoom = useBrush({
+    positionAt: (event, clamped) => {
+      if (
+        !onSelect ||
+        (!clamped && (isOnLegend(event.target) || (onMarkerClick && markerAt(event))))
+      )
+        return null;
+      return indexAt(event, clamped);
+    },
+    onSelect: (from, to) => onSelect?.(Math.round(from), Math.round(to)),
+    onTouch: showPointer,
+    onTouchCancel: () => setPointer(null),
+  });
+  const selected = zoom.range && zoom.range.map(Math.round);
 
-  const handlePointerDown = (event: PointerEvent) => {
-    if (onMarkerClick && markerAt(event)) return;
-    if (!onSelect || isOnLegend(event.target)) return;
-    const point = pointAt(event);
-    if (!point) return;
-    setDrag({ from: point.index, to: point.index });
-    // Keep the drag when it runs past the chart's edge.
-    event.currentTarget.setPointerCapture(event.pointerId);
+  const handlePointerMove = (event: PointerEvent) => {
+    if (!zoom.dragging) setHoveredMarker(markerAt(event));
+    zoom.handlers.onPointerMove(event);
+    showPointer(event);
   };
 
   const handlePointerUp = (event: PointerEvent) => {
-    const marker = !drag && onMarkerClick ? markerAt(event) : null;
+    const marker = !zoom.dragging && onMarkerClick ? markerAt(event) : null;
     if (marker) onMarkerClick?.(marker, { x: event.clientX, y: event.clientY });
-    if (drag && onSelect) onSelect(Math.min(drag.from, drag.to), Math.max(drag.from, drag.to));
-    setDrag(null);
+    zoom.handlers.onPointerUp();
   };
+
+  const brush = (() => {
+    if (!selected || !chart) return null;
+    // Each point stands for a bucket one step wide: a bar's is centered on
+    // it, a line point's runs to the next point. A line's last bucket would
+    // end past the plot, so the brush stops at the last point.
+    const bars = series.some((s) => s.kind === "bar");
+    const x = (index: number) => chart.convertToPixel({ xAxisIndex: 0 }, String(index));
+    const step = labels.length > 1 ? x(1) - x(0) : 0;
+    const bucketStart = (index: number) => x(index) - (bars ? step / 2 : 0);
+    const plotEnd = bucketStart(labels.length - 1) + (bars ? step : 0);
+    const start = bucketStart(selected[0]);
+    const end = Math.min(bucketStart(selected[1]) + step, plotEnd);
+    const plot = plotSpan(chart);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || !plot) return null;
+    return { start, size: end - start, ...plot };
+  })();
 
   const rows = pointer
     ? [
@@ -435,17 +464,17 @@ export function SeriesChart({
   return (
     <div
       data-slot="series-chart"
-      // The resize cursor says the chart can be dragged to pick a range.
       className={cn(
         "relative text-muted-foreground",
-        onSelect && "cursor-ew-resize select-none",
+        TOUCH_SCRUB,
+        onSelect && "select-none",
         hoveredMarker && onMarkerClick && "cursor-pointer",
         className,
       )}
       onPointerMove={handlePointerMove}
-      onPointerDown={handlePointerDown}
+      onPointerDown={zoom.handlers.onPointerDown}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => setDrag(null)}
+      onPointerCancel={zoom.handlers.onPointerCancel}
       onPointerLeave={() => {
         setPointer(null);
         setHoveredMarker(null);
@@ -460,7 +489,15 @@ export function SeriesChart({
         )}
       </p>
       <div ref={elementRef} aria-hidden className="pointer-events-none h-full w-full" />
-      {pointer && chart && <PointCursor chart={chart} top={grid.top} index={pointer.index} />}
+      {pointer && chart && <PointCursor chart={chart} index={pointer.index} />}
+      {brush && (
+        <div
+          className="pointer-events-none absolute inset-x-0"
+          style={{ top: brush.top, height: brush.height }}
+        >
+          <BrushArea start={brush.start} size={brush.size} />
+        </div>
+      )}
       {showLegend && <SeriesLegend {...legend} onToggle={toggleSeries} />}
       {pointer && rows.length > 0 && (
         <CursorTooltip x={pointer.x} y={pointer.y}>

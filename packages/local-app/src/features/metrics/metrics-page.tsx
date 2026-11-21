@@ -52,7 +52,6 @@ export function MetricsPage() {
             void navigate({
               to: "/metrics",
               search: (prev) => ({ ...prev, from: start.toISOString(), to: end.toISOString() }),
-              replace: true,
             })
           }
           renderMetricLink={({ metric, type, className, children }) => (

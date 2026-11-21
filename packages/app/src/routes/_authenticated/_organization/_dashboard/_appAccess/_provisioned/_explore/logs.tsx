@@ -61,7 +61,6 @@ function LogsExplorerPage() {
             from: from.toISOString(),
             to: to.toISOString(),
           }),
-          replace: true,
         })
       }
       resolveJobId={({ traceId, jobName }) => {
