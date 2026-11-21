@@ -17,6 +17,13 @@ export const SQL_API_TABLES = [
 
 type SqlApiTable = (typeof SQL_API_TABLES)[number];
 
+// Tables whose SQL API tenant filter is one row policy for the whole role. The
+// policy reads the tenant from the organization user's name, so it needs no
+// statement per organization and covers the ones that already exist
+// (0016-cloud-recordings-sql-api-tenant-policy.sql). Provisioning writes a
+// policy per organization for every other table.
+export const SQL_API_ROLE_SCOPED_TABLES = ["recordings"] as const satisfies readonly SqlApiTable[];
+
 // Columns the role is denied on a table it otherwise reads whole. For recordings
 // that is Body: raw rrweb, megabytes per row, with page text in it. The
 // migrations grant the table and then revoke exactly these columns

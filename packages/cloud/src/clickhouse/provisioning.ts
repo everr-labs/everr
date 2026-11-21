@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { runSqlApiQuery } from "@everr/app/lib/clickhouse";
 import { type AdminCommandOptions, adminCommand } from "@everr/app/lib/clickhouse-writer";
-import { SQL_API_TABLES } from "@everr/app/lib/sql-api-tables";
+import { SQL_API_ROLE_SCOPED_TABLES, SQL_API_TABLES } from "@everr/app/lib/sql-api-tables";
 import { sqlApiOrgPassword, sqlApiOrgUserName } from "./credentials";
 
 // Every provisioning statement interpolates the organization id into DDL: the
@@ -14,13 +14,19 @@ function assertSqlApiOrgId(organizationId: string): void {
   }
 }
 
+// The tables that need a row policy per organization. The others get their
+// tenant filter from one policy for the whole role, which reads the tenant
+// from the name sqlApiOrgUserName gives the user.
+const roleScoped: readonly string[] = SQL_API_ROLE_SCOPED_TABLES;
+const ORG_SCOPED_TABLES = SQL_API_TABLES.filter((table) => !roleScoped.includes(table));
+
 function sqlApiOrgPolicyName(organizationId: string, table: string): string {
   return `${sqlApiOrgUserName(organizationId)}_${table}`;
 }
 
 // Create the per-org ClickHouse user, set its profile + default role, grant
-// sql_api_role, and create the per-table row policies that pin the tenant id
-// in as a constant.
+// sql_api_role, and create the row policies that pin the tenant id in as a
+// constant, one per table that is not role scoped.
 export async function provisionSqlApiOrgUser(
   organizationId: string,
   abortSignal?: AbortSignal,
@@ -52,7 +58,7 @@ export async function provisionSqlApiOrgUser(
   // already granted to the user before it can be the default.
   await command(`ALTER USER \`${username}\` DEFAULT ROLE sql_api_role`);
 
-  for (const table of SQL_API_TABLES) {
+  for (const table of ORG_SCOPED_TABLES) {
     const policy = sqlApiOrgPolicyName(organizationId, table);
     await command(
       `CREATE ROW POLICY IF NOT EXISTS \`${policy}\` ON app.\`${table}\` FOR SELECT USING tenant_id = ${tenantLiteral} TO \`${username}\``,
@@ -73,6 +79,8 @@ export async function provisionSqlApiOrgUser(
 
 // Reverse of provisionSqlApiOrgUser. Order is important: drop the policies
 // before the user so DROP USER doesn't fail with "user is referenced".
+// It drops a policy for every readable table, so one that an earlier version
+// wrote for a role scoped table goes too.
 export async function deprovisionSqlApiOrgUser(
   organizationId: string,
   abortSignal?: AbortSignal,

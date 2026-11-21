@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
-import { clickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
-import { SQL_API_TABLES, SQL_API_WITHHELD_COLUMNS } from "./sql-api-tables";
+import {
+  clickHouseMigrations,
+  clickHouseMigrationsFor,
+  sqlStatements,
+} from "#app/db/clickhouse-sql.ts";
+import {
+  SQL_API_ROLE_SCOPED_TABLES,
+  SQL_API_TABLES,
+  SQL_API_WITHHELD_COLUMNS,
+} from "./sql-api-tables";
 
 const migration = (name: string) => {
   const found = clickHouseMigrations.find((file) => file.name === name);
@@ -63,4 +71,26 @@ describe("SQL API withheld columns", () => {
       expect(sql, name).not.toMatch(/GRANT SELECT\s*\(/);
     }
   });
+});
+
+describe("SQL API role scoped tables", () => {
+  it.each(SQL_API_ROLE_SCOPED_TABLES)(
+    "%s is readable and has one Cloud tenant policy for the whole role",
+    (table) => {
+      expect(SQL_API_TABLES).toContain(table);
+
+      const policies = clickHouseMigrationsFor("cloud")
+        .flatMap(({ sql }) => sqlStatements(sql))
+        .map((statement) => statement.replace(/\s+/g, " "))
+        .filter((statement) =>
+          statement.startsWith(
+            `CREATE ROW POLICY IF NOT EXISTS sql_api_tenant_${table} ON app.${table} FOR SELECT `,
+          ),
+        );
+
+      expect(policies).toHaveLength(1);
+      expect(policies[0]).toContain("tenant_id = substring(currentUser(), ");
+      expect(policies[0]).toMatch(/ TO sql_api_role$/);
+    },
+  );
 });

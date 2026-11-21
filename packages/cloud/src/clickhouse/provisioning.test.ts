@@ -1,5 +1,7 @@
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { sqlApiOrgUserName } from "./credentials";
 import { deprovisionSqlApiOrgUser, provisionSqlApiOrgUser } from "./provisioning";
 
 const { mockQuery, mockInsert, mockCommand, mockJson, MASTER_KEY } = vi.hoisted(() => ({
@@ -106,7 +108,7 @@ describe("querySqlApi", () => {
 });
 
 describe("provisionSqlApiOrgUser", () => {
-  it("creates the org user, grants sql_api_role, and creates per-table row policies", async () => {
+  it("creates the org user, grants sql_api_role, and creates the per-organization row policies", async () => {
     await provisionSqlApiOrgUser(ORG);
 
     const calls = mockCommand.mock.calls.map(([args]) => args.query);
@@ -124,7 +126,6 @@ describe("provisionSqlApiOrgUser", () => {
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_metrics_summary\` ON app.\`metrics_summary\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces_trace_id_ts\` ON app.\`traces_trace_id_ts\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
-      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_recordings\` ON app.\`recordings\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
 
     const setRoleCall = mockCommand.mock.calls[1][0];
@@ -139,6 +140,28 @@ describe("provisionSqlApiOrgUser", () => {
         auth: { username: ORG_USER, password: ORG_PASSWORD },
       }),
     );
+  });
+
+  it("writes no policy for recordings, which one policy scopes for the whole role", async () => {
+    await provisionSqlApiOrgUser(ORG);
+
+    const calls = mockCommand.mock.calls.map(([args]) => args.query);
+    expect(calls.filter((sql) => sql.includes("recordings"))).toEqual([]);
+  });
+
+  it("names the org user with the prefix the role-wide tenant policy reads", () => {
+    const policy = readFileSync(
+      new URL(
+        "../../../app/clickhouse/0016-cloud-recordings-sql-api-tenant-policy.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const prefix = sqlApiOrgUserName("");
+
+    expect(sqlApiOrgUserName(ORG)).toBe(`${prefix}${ORG}`);
+    expect(policy).toContain(`startsWith(currentUser(), '${prefix}')`);
+    expect(policy).toContain(`substring(currentUser(), length('${prefix}') + 1)`);
   });
 
   it("does not succeed if the provisioned credentials still cannot authenticate", async () => {
