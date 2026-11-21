@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vite-plus/test";
-import { entry } from "./composition/entry";
+import { getEntryRedirect } from "./entry";
 import { getInstallation } from "./installation.server";
 
 vi.mock("./installation.server", () => ({ getInstallation: vi.fn() }));
@@ -11,10 +11,10 @@ it.each([
   { installed: true, pathname: "/setup", redirect: { to: "/" } },
 ])("resolves $pathname with installed=$installed", async ({ installed, pathname, redirect }) => {
   vi.mocked(getInstallation).mockResolvedValueOnce(installed ? { id: "workspace" } : null);
-  expect(await entry.getEntryRedirect(pathname)).toEqual(redirect);
+  expect(await getEntryRedirect(pathname)).toEqual(redirect);
 });
 
 it("propagates installation lookup failures", async () => {
   vi.mocked(getInstallation).mockRejectedValueOnce(new Error("installation unavailable"));
-  await expect(entry.getEntryRedirect("/")).rejects.toThrow("installation unavailable");
+  await expect(getEntryRedirect("/")).rejects.toThrow("installation unavailable");
 });

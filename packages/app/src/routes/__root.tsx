@@ -65,10 +65,11 @@ const rootContextQuery = routeAccessQuery(rootContextKey, () => getRootContext()
 
 export type RootContext = Awaited<ReturnType<typeof getRootContext>>;
 
-// Checked on page loads only. Before setup nobody can sign in, so the only way
-// in is opening a URL, and nothing in the app links to `/setup`.
+// Checked on page loads only. Self-hosted setup is the only entry redirect:
+// before it nobody can sign in, so the only way in is opening a URL, and
+// nothing in the app links to `/setup`.
 async function redirectToEntry(pathname: string) {
-  const entryRedirect = await entry.getEntryRedirect(pathname);
+  const entryRedirect = await entry.getEntryRedirect?.(pathname);
   if (entryRedirect)
     throw "href" in entryRedirect
       ? redirect({ href: entryRedirect.href, replace: true })
