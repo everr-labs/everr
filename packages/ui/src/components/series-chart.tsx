@@ -92,6 +92,9 @@ interface SeriesChartProps {
    *  pointer's viewport position, instead of starting a range drag. */
   markers?: readonly ChartMarker[];
   onMarkerClick?: (marker: ChartMarker, at: { x: number; y: number }) => void;
+  /** A series to bring forward and dim the rest, e.g. the one hovered in a
+   *  table beside the chart. It wins over the legend's pick while set. */
+  focusedSeries?: string | null;
 }
 
 // How close the pointer must be to a marker to hover it, in pixels.
@@ -147,6 +150,7 @@ export function SeriesChart({
   smooth = true,
   markers,
   onMarkerClick,
+  focusedSeries = null,
 }: SeriesChartProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const [pointer, setPointer] = useState<Pointer | null>(null);
@@ -174,6 +178,9 @@ export function SeriesChart({
     }),
     [compact, gridBottom, showLegend],
   );
+
+  // An id no longer charted would dim every line.
+  const focused = series.some((s) => s.id === focusedSeries) ? focusedSeries : activeSeries;
 
   const shadeFrom = highlight?.from ?? null;
   const shadeTo = highlight?.to ?? null;
@@ -237,7 +244,7 @@ export function SeriesChart({
           ...series.flatMap(
             (s, index): (BarSeriesOption | LineSeriesOption | ScatterSeriesOption)[] => {
               const color = resolveCssColor(element, s.color);
-              const opacity = activeSeries !== null && activeSeries !== s.id ? 0.25 : 1;
+              const opacity = focused !== null && focused !== s.id ? 0.25 : 1;
               const markArea =
                 index === 0 && shadeFrom !== null && shadeTo !== null
                   ? {
@@ -257,6 +264,8 @@ export function SeriesChart({
                 data: [...s.values],
                 yAxisIndex: s.rightAxis && axes.right ? 1 : 0,
                 silent: true,
+                // Drawn over the dimmed lines it crosses; markers stay on top.
+                z: focused === s.id ? 3 : 2,
                 markArea,
               };
               if (s.kind === "bar") {
@@ -286,7 +295,7 @@ export function SeriesChart({
                   smooth,
                   smoothMonotone: "x",
                   showSymbol: false,
-                  lineStyle: { color, width: compact ? 1.5 : 2, opacity },
+                  lineStyle: { color, width: 1, opacity },
                   itemStyle: { color, opacity },
                   areaStyle: s.kind === "area" ? { color, opacity: 0.15 * opacity } : undefined,
                 },
@@ -331,10 +340,10 @@ export function SeriesChart({
       { notMerge: true },
     );
   }, [
-    activeSeries,
     axes,
     chart,
     compact,
+    focused,
     grid,
     labels,
     series,

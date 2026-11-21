@@ -9,7 +9,7 @@ import { valueFormatSpec } from "../value-format-spec";
 export const timeSeriesChartSpec = z.looseObject({
   valueFormat: valueFormatSpec.optional(),
   showLegend: z.boolean().default(false),
-  lineWidth: z.number().positive().default(1.5),
+  lineWidth: z.number().positive().default(1),
   curveType: z
     .enum(["monotone", "linear", "natural", "stepBefore", "stepAfter"])
     .default("monotone"),

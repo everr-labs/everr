@@ -8,7 +8,15 @@ import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Plus, X } from "lucide-react";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import { AttributeKeyPicker } from "../../attribute-filter/ui/attribute-key-picker";
 import { attributeLabel } from "../../attribute-filter/ui/attribute-meta";
@@ -449,27 +457,18 @@ function SeriesPanel({
       formatMetricValue(value, line.unit, line.aggregation ?? undefined);
     const leftLine = lines[0];
     const rightLine = lines.find((line) => scaleKey(line) === scales[1]);
-    const series = lines.map(
-      (
-        line,
-      ): ChartSeries & {
-        query?: LineQuery;
-        name: string;
-        stats: SeriesStats;
-        format: (v: number) => string;
-      } => ({
-        id: line.id,
-        label: line.label,
-        query: line.query,
-        name: line.name,
-        color: SERIES_COLORS[line.color % SERIES_COLORS.length] ?? ACCENT_COLOR,
-        kind: "line",
-        values: line.values,
-        rightAxis: scales.length > 1 && scaleKey(line) === scales[1],
-        stats: stats(line.values),
-        format: formatOf(line),
-      }),
-    );
+    const series = lines.map((line): LineSeries => ({
+      id: line.id,
+      label: line.label,
+      query: line.query,
+      name: line.name,
+      color: SERIES_COLORS[line.color % SERIES_COLORS.length] ?? ACCENT_COLOR,
+      kind: "line",
+      values: line.values,
+      rightAxis: scales.length > 1 && scaleKey(line) === scales[1],
+      stats: stats(line.values),
+      format: formatOf(line),
+    }));
     return {
       labels: axisLabels(buckets),
       titles: buckets.map(bucketTitle),
@@ -601,89 +600,26 @@ function SeriesPanel({
 
   return (
     <>
-      <div className="px-4 pt-3 pb-1">
-        <SeriesChart
-          labels={chart.labels}
-          titles={chart.titles}
-          series={chart.series}
-          axes={chart.axes}
-          sparseLabels
-          smooth={false}
-          markers={markers}
-          onMarkerClick={(marker, at) => {
-            const hit = markers.find((m) => m.id === marker.id);
-            if (hit) setPicked({ exemplar: hit.exemplar, at });
-          }}
-          className="h-[260px] w-full"
-          onSelect={(from, to) => {
-            const start = chart.buckets[from];
-            const end = chart.buckets[to];
-            if (start && end) onRangeSelect(new Date(start.timestamp), new Date(end.endTimestamp));
-          }}
-        />
-      </div>
-      {/* The values take the width they need and the series column the rest,
-          truncating a long name rather than pushing the values off-screen. */}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-muted-foreground border-b text-xs">
-            <th
-              className="w-full max-w-0 truncate px-4 py-1.5 text-left font-medium"
-              title={groupHeading}
-            >
-              {groupHeading}
-            </th>
-            <th className="w-px px-2 py-1.5 text-right font-medium">last</th>
-            <th className={`w-px px-2 py-1.5 text-right font-medium ${AVG_COLUMN}`}>avg</th>
-            <th className="w-px px-4 py-1.5 text-right font-medium">max</th>
-          </tr>
-        </thead>
-        {/* One row group per query, so each query's heading heads only its own rows. */}
-        {seriesGroups(chart.series).map(({ query, series }) => (
-          <tbody key={query?.id ?? "series"}>
-            {query ? (
-              <tr className="bg-muted/30 border-b">
-                {/* No wider than the table, so a long metric name truncates
-                    rather than widening every column. */}
-                <th
-                  scope="rowgroup"
-                  colSpan={4}
-                  className="max-w-0 px-4 py-1.5 text-left font-normal"
-                >
-                  <span className="flex min-w-0 items-center gap-2 text-xs">
-                    <QueryTag id={query.id} metric={query.metric} />
-                    {query.aggregation ? (
-                      <span className="text-muted-foreground shrink-0">{query.aggregation}</span>
-                    ) : null}
-                  </span>
-                </th>
-              </tr>
-            ) : null}
-            {series.map((s) => (
-              <tr key={s.id} className="hover:bg-muted/50 border-b">
-                <th
-                  scope="row"
-                  aria-label={s.label}
-                  className="max-w-0 px-4 py-1.5 text-left font-normal"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span
-                      className="size-2 shrink-0 rounded-[2px]"
-                      style={{ background: s.color }}
-                    />
-                    <span className="truncate font-mono text-xs" title={s.name}>
-                      {s.name}
-                    </span>
-                  </span>
-                </th>
-                <StatCell value={s.stats.last} format={s.format} />
-                <StatCell value={s.stats.avg} format={s.format} className={AVG_COLUMN} />
-                <StatCell value={s.stats.max} format={s.format} className="pr-4" />
-              </tr>
-            ))}
-          </tbody>
-        ))}
-      </table>
+      <SeriesLines
+        labels={chart.labels}
+        titles={chart.titles}
+        series={chart.series}
+        axes={chart.axes}
+        sparseLabels
+        smooth={false}
+        markers={markers}
+        onMarkerClick={(marker, at) => {
+          const hit = markers.find((m) => m.id === marker.id);
+          if (hit) setPicked({ exemplar: hit.exemplar, at });
+        }}
+        className="h-[260px] w-full"
+        onSelect={(from, to) => {
+          const start = chart.buckets[from];
+          const end = chart.buckets[to];
+          if (start && end) onRangeSelect(new Date(start.timestamp), new Date(end.endTimestamp));
+        }}
+        groupHeading={groupHeading}
+      />
       {picked && pickedMarker ? (
         <ExemplarCard
           exemplar={pickedMarker.exemplar}
@@ -729,6 +665,96 @@ function SeriesPanel({
           Filter or group by fewer attributes to see the rest.
         </p>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * The chart and its table of series. Hovering a row brings its line forward.
+ * The hover lives here so it goes when the table does: a row removed while
+ * hovered gets no pointer leave.
+ */
+function SeriesLines({
+  series,
+  groupHeading,
+  ...chartProps
+}: Omit<ComponentProps<typeof SeriesChart>, "series" | "focusedSeries"> & {
+  series: LineSeries[];
+  groupHeading: string;
+}) {
+  const [hoveredSeries, setHoveredSeries] = useState<string | null>(null);
+  return (
+    <>
+      <div className="px-4 pt-3 pb-1">
+        <SeriesChart {...chartProps} series={series} focusedSeries={hoveredSeries} />
+      </div>
+      {/* The values take the width they need and the series column the rest,
+          truncating a long name rather than pushing the values off-screen. */}
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-muted-foreground border-b text-xs">
+            <th
+              className="w-full max-w-0 truncate px-4 py-1.5 text-left font-medium"
+              title={groupHeading}
+            >
+              {groupHeading}
+            </th>
+            <th className="w-px px-2 py-1.5 text-right font-medium">last</th>
+            <th className={`w-px px-2 py-1.5 text-right font-medium ${AVG_COLUMN}`}>avg</th>
+            <th className="w-px px-4 py-1.5 text-right font-medium">max</th>
+          </tr>
+        </thead>
+        {/* One row group per query, so each query's heading heads only its own rows. */}
+        {seriesGroups(series).map(({ query, series }) => (
+          <tbody key={query?.id ?? "series"}>
+            {query ? (
+              <tr className="bg-muted/30 border-b">
+                {/* No wider than the table, so a long metric name truncates
+                    rather than widening every column. */}
+                <th
+                  scope="rowgroup"
+                  colSpan={4}
+                  className="max-w-0 px-4 py-1.5 text-left font-normal"
+                >
+                  <span className="flex min-w-0 items-center gap-2 text-xs">
+                    <QueryTag id={query.id} metric={query.metric} />
+                    {query.aggregation ? (
+                      <span className="text-muted-foreground shrink-0">{query.aggregation}</span>
+                    ) : null}
+                  </span>
+                </th>
+              </tr>
+            ) : null}
+            {series.map((s) => (
+              <tr
+                key={s.id}
+                className="hover:bg-muted/50 border-b"
+                onPointerEnter={() => setHoveredSeries(s.id)}
+                onPointerLeave={() => setHoveredSeries(null)}
+              >
+                <th
+                  scope="row"
+                  aria-label={s.label}
+                  className="max-w-0 px-4 py-1.5 text-left font-normal"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-[2px]"
+                      style={{ background: s.color }}
+                    />
+                    <span className="truncate font-mono text-xs" title={s.name}>
+                      {s.name}
+                    </span>
+                  </span>
+                </th>
+                <StatCell value={s.stats.last} format={s.format} />
+                <StatCell value={s.stats.avg} format={s.format} className={AVG_COLUMN} />
+                <StatCell value={s.stats.max} format={s.format} className="pr-4" />
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
     </>
   );
 }
@@ -801,6 +827,13 @@ function StatCell({
 }
 
 type SeriesStats = { last: number | null; avg: number | null; max: number | null };
+
+type LineSeries = ChartSeries & {
+  query?: LineQuery;
+  name: string;
+  stats: SeriesStats;
+  format: (v: number) => string;
+};
 
 function stats(values: readonly (number | null)[]): SeriesStats {
   const present = values.filter((v): v is number => v !== null);
