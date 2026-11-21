@@ -5,7 +5,7 @@ import {
   virtuosoInitialItemCount,
   virtuosoScrollAreaComponents,
 } from "@everr/ui/components/scroll-area";
-import { Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
@@ -321,9 +321,6 @@ function ResultsFooter({
   );
 }
 
-/** Ragged like real rows, but fixed so every render draws the same shape. */
-const SKELETON_NAME_WIDTHS = ["40%", "28%", "52%", "34%", "46%", "22%", "38%", "58%"];
-
 /** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 30;
 
@@ -339,10 +336,7 @@ function ResultsSkeleton({ withDay }: { withDay: boolean }) {
               <Skeleton className="h-2.5 w-7 rounded-sm" />
             </SkeletonLine>
             <SkeletonLine className="min-w-0 flex-1">
-              <Skeleton
-                className="h-3.5 rounded-sm"
-                style={{ width: SKELETON_NAME_WIDTHS[i % SKELETON_NAME_WIDTHS.length] }}
-              />
+              <Skeleton className="h-3.5 rounded-sm" style={{ width: raggedWidth(i, 22, 58) }} />
             </SkeletonLine>
           </div>
           <div className="hidden w-28 shrink-0 items-center gap-1.5 text-xs md:flex">

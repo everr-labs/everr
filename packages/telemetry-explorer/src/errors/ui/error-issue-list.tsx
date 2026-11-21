@@ -4,7 +4,7 @@ import {
   virtuosoInitialItemCount,
   virtuosoScrollAreaComponents,
 } from "@everr/ui/components/scroll-area";
-import { Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
@@ -111,10 +111,6 @@ function ListHeader() {
   );
 }
 
-/** Ragged like real rows, but fixed so every render draws the same shape. */
-const SKELETON_TYPE_WIDTHS = ["7rem", "9rem", "6rem", "8rem", "5rem"];
-const SKELETON_MESSAGE_WIDTHS = ["9rem", "6rem", "11rem", "7rem", "10rem", "8rem"];
-
 /** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 36;
 
@@ -133,13 +129,13 @@ function ListSkeleton() {
             <SkeletonLine className="shrink-0">
               <Skeleton
                 className="h-3 rounded-sm"
-                style={{ width: SKELETON_TYPE_WIDTHS[index % SKELETON_TYPE_WIDTHS.length] }}
+                style={{ width: raggedWidth(index, 5, 9, "rem") }}
               />
             </SkeletonLine>
             <SkeletonLine className="min-w-0">
               <Skeleton
                 className="h-3 max-w-full rounded-sm"
-                style={{ width: SKELETON_MESSAGE_WIDTHS[index % SKELETON_MESSAGE_WIDTHS.length] }}
+                style={{ width: raggedWidth(index + 3, 6, 11, "rem") }}
               />
             </SkeletonLine>
           </div>

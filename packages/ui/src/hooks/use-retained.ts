@@ -12,10 +12,15 @@ export function useRetained<T>(value: T | null): T | null {
   return value ?? retained;
 }
 
-/** How many times `open` has turned true. As a key, it resets a form on each
- *  opening while it stays mounted through the exit animation. */
-export function useOpenCount(open: boolean): number {
-  const [state, setState] = useState({ open, count: open ? 1 : 0 });
-  if (open !== state.open) setState({ open, count: open ? state.count + 1 : state.count });
-  return state.count;
+/**
+ * A dialog open while `target` is set. `shown` keeps the content through the
+ * exit animation; `key` changes on each opening, so a form keyed by it starts
+ * over instead of holding the last opening's text.
+ */
+export function useOverlayContent<T>(target: T | null) {
+  const open = target !== null;
+  const shown = useRetained(target);
+  const [state, setState] = useState({ open, key: open ? 1 : 0 });
+  if (open !== state.open) setState({ open, key: open ? state.key + 1 : state.key });
+  return { open, shown, key: state.key };
 }

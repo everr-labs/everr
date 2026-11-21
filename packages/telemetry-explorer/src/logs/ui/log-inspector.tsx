@@ -1,4 +1,4 @@
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleProps } from "@everr/ui/lib/stale";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -214,7 +214,7 @@ export function LogInspectorPanel({
             Failed to load log details
           </div>
         ) : detail ? (
-          <div aria-busy={isPlaceholderData} className={staleClass(isPlaceholderData)}>
+          <div {...staleProps(isPlaceholderData)}>
             <LogInspectorDetails
               detail={detail}
               renderRunLink={renderRunLink}

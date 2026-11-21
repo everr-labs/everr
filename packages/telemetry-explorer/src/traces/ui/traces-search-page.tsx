@@ -1,5 +1,4 @@
-import { cn } from "@everr/ui/lib/utils";
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleProps } from "@everr/ui/lib/stale";
 import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
@@ -97,10 +96,7 @@ export function TracesSearch({
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
-          <main
-            aria-busy={isPlaceholderData}
-            className={cn("flex min-h-0 min-w-0 flex-col", staleClass(isPlaceholderData))}
-          >
+          <main {...staleProps(isPlaceholderData, "flex min-h-0 min-w-0 flex-col")}>
             <TraceResultsList
               withDay={rangeSpansDays(timeRange)}
               rows={rows}

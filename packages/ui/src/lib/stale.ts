@@ -10,3 +10,8 @@ export function staleClass(stale: boolean) {
     stale && "opacity-50 delay-150 duration-150 motion-reduce:duration-0",
   );
 }
+
+/** `staleClass` on `className`, and tells assistive tech the region is updating. */
+export function staleProps(stale: boolean, className?: string) {
+  return { "aria-busy": stale, className: cn(className, staleClass(stale)) };
+}

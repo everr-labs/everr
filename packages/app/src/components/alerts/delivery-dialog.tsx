@@ -11,7 +11,7 @@ import { Label } from "@everr/ui/components/label";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Switch } from "@everr/ui/components/switch";
 import { cn } from "@everr/ui/lib/utils";
-import { useOpenCount } from "@everr/ui/hooks/use-retained";
+import { useOverlayContent } from "@everr/ui/hooks/use-retained";
 import { useState } from "react";
 import {
   ALERTING_SEVERITY_TIERS,
@@ -147,7 +147,7 @@ export function DeliveryDialog({
   onClose: () => void;
   onConfirm: (draft: AlertingDefaultDestination) => void;
 }) {
-  const opening = useOpenCount(open);
+  const { key } = useOverlayContent(open || null);
   return (
     <Dialog
       open={open}
@@ -158,7 +158,7 @@ export function DeliveryDialog({
       {/* Not gated on `open`, so it stays through the exit animation; keyed per
           opening, so each one re-reads the saved destination. */}
       <DeliveryForm
-        key={opening}
+        key={key}
         channels={channels}
         destination={destination}
         pending={pending}

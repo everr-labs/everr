@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vite-plus/test";
-import { useOpenCount, useRetained } from "./use-retained";
+import { useOverlayContent, useRetained } from "./use-retained";
 
 describe("useRetained", () => {
   it("keeps the last value after it is cleared, and takes the next one", () => {
@@ -18,18 +18,21 @@ describe("useRetained", () => {
   });
 });
 
-describe("useOpenCount", () => {
-  it("counts each opening, and holds through a close", () => {
-    const { result, rerender } = renderHook(({ open }) => useOpenCount(open), {
-      initialProps: { open: false },
+describe("useOverlayContent", () => {
+  it("keeps the content through a close, and gives each opening a new key", () => {
+    const { result, rerender } = renderHook(({ target }) => useOverlayContent(target), {
+      initialProps: { target: null as string | null },
     });
-    expect(result.current).toBe(0);
+    expect(result.current.open).toBe(false);
 
-    rerender({ open: true });
-    expect(result.current).toBe(1);
-    rerender({ open: false });
-    expect(result.current).toBe(1);
-    rerender({ open: true });
-    expect(result.current).toBe(2);
+    rerender({ target: "a" });
+    const first = result.current.key;
+    expect(result.current).toMatchObject({ open: true, shown: "a" });
+    rerender({ target: "a2" });
+    expect(result.current).toMatchObject({ shown: "a2", key: first });
+    rerender({ target: null });
+    expect(result.current).toMatchObject({ open: false, shown: "a2", key: first });
+    rerender({ target: "b" });
+    expect(result.current.key).not.toBe(first);
   });
 });

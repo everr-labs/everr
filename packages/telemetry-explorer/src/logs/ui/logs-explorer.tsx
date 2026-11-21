@@ -1,4 +1,4 @@
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleProps } from "@everr/ui/lib/stale";
 import { useRetained } from "@everr/ui/hooks/use-retained";
 import { Spinner } from "@everr/ui/components/spinner";
 import { Dialog, DialogContent, DialogTitle } from "@everr/ui/components/dialog";
@@ -9,7 +9,7 @@ import {
 } from "@everr/ui/components/scroll-area";
 import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { useIsMobile, useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
@@ -153,9 +153,6 @@ function LogStream({
   );
 }
 
-/** Ragged like real rows, but fixed so every render draws the same shape. */
-const SKELETON_MESSAGE_WIDTHS = ["72%", "48%", "86%", "35%", "64%", "91%", "41%", "58%"];
-
 /** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 60;
 
@@ -178,12 +175,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton({ withDay }: { withDay: bo
             <Skeleton className={cn("h-2.5 rounded-sm", withDay ? "w-[18ch]" : "w-[10ch]")} />
           </div>
           <div className="flex h-4 min-w-0 items-center px-3 md:h-5 md:pr-9">
-            <Skeleton
-              className="h-2.5 rounded-sm"
-              style={{
-                width: SKELETON_MESSAGE_WIDTHS[index % SKELETON_MESSAGE_WIDTHS.length],
-              }}
-            />
+            <Skeleton className="h-2.5 rounded-sm" style={{ width: raggedWidth(index, 35, 90) }} />
           </div>
         </div>
       ))}
@@ -362,10 +354,7 @@ export function LogsExplorer({
                 }
               />
 
-              <div
-                aria-busy={isPlaceholderData}
-                className={cn("min-h-0 flex-1", staleClass(isPlaceholderData))}
-              >
+              <div {...staleProps(isPlaceholderData, "min-h-0 flex-1")}>
                 {isPending ? (
                   <LogRowsSkeleton withDay={rangeSpansDays(timeRange)} />
                 ) : isError ? (

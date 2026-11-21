@@ -2,7 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleProps } from "@everr/ui/lib/stale";
 import { cn } from "@everr/ui/lib/utils";
 import { ExternalLink } from "lucide-react";
 import type { ReactNode } from "react";
@@ -151,10 +151,7 @@ export function ErrorTracePanel({
           No spans were found for this trace.
         </p>
       ) : (
-        <div
-          aria-busy={isStale}
-          className={cn("overflow-hidden rounded-md border", staleClass(isStale))}
-        >
+        <div {...staleProps(isStale, "overflow-hidden rounded-md border")}>
           <ol className="divide-y">
             {visibleRows.map(({ span, depth }) => {
               const isErrorSpan = span.spanId === occurrence.spanId;

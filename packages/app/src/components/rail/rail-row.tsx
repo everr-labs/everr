@@ -1,4 +1,4 @@
-import { Skeleton } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import { createLink, type LinkComponentProps, type RegisteredRouter } from "@tanstack/react-router";
@@ -81,7 +81,7 @@ export function RailRowsSkeleton({ count = 3, label }: { count?: number; label: 
             className="flex min-h-8 items-center gap-2.5 px-2 in-data-side-drawer:min-h-10"
           >
             <Skeleton className="size-4 shrink-0 rounded-sm" />
-            <Skeleton className="h-3 rounded-sm" style={{ width: `${55 + ((i * 17) % 30)}%` }} />
+            <Skeleton className="h-3 rounded-sm" style={{ width: raggedWidth(i, 55, 85) }} />
           </div>
         ))}
       </div>

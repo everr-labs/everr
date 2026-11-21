@@ -1,5 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import { useOpenCount, useRetained } from "@everr/ui/hooks/use-retained";
+import { useOverlayContent } from "@everr/ui/hooks/use-retained";
 import {
   Dialog,
   DialogContent,
@@ -77,11 +77,10 @@ export function SilenceDialog({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
-  const shown = useRetained(seed);
-  const opening = useOpenCount(seed !== null);
+  const { open, shown, key } = useOverlayContent(seed);
   return (
     <Dialog
-      open={seed !== null}
+      open={open}
       onOpenChange={(next) => {
         if (!next && !pending) onClose();
       }}
@@ -92,7 +91,7 @@ export function SilenceDialog({
         // that in one line; syncing props into state with an effect would be
         // the same fact, spelled as a bug.
         <SilenceForm
-          key={opening}
+          key={key}
           seed={shown}
           instanceCount={instanceCount}
           pending={pending}

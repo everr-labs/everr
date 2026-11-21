@@ -5,7 +5,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { type ChartMarker, type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleClass, staleProps } from "@everr/ui/lib/stale";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Plus, X } from "lucide-react";
@@ -249,7 +249,7 @@ export function MetricView({
         </div>
       )}
 
-      <div aria-busy={stale} className={cn("flex flex-1 flex-col", staleClass(stale))}>
+      <div {...staleProps(stale, "flex flex-1 flex-col")}>
         <SeriesPanel
           lines={lines}
           multi={Boolean(queryRows)}

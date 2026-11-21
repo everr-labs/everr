@@ -1,5 +1,4 @@
-import { cn } from "@everr/ui/lib/utils";
-import { staleClass } from "@everr/ui/lib/stale";
+import { staleProps } from "@everr/ui/lib/stale";
 import { Button } from "@everr/ui/components/button";
 import {
   Empty,
@@ -111,7 +110,7 @@ export function ErrorDetail({
         onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
-      <div aria-busy={stale} className={cn("flex min-h-0 flex-1 flex-col", staleClass(stale))}>
+      <div {...staleProps(stale, "flex min-h-0 flex-1 flex-col")}>
         <ErrorOccurrenceBar
           occurrences={detail.occurrences}
           selected={selected}

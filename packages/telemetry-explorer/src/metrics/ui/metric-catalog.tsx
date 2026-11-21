@@ -1,5 +1,5 @@
 import { RetryError } from "@everr/ui/components/retry-error";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import type { ReactNode } from "react";
 import type { MetricType } from "../data/schemas";
@@ -128,10 +128,7 @@ function CatalogSkeleton() {
             <tr key={i}>
               <td className="px-4 py-1.5">
                 <div className="flex h-5 items-center">
-                  <Skeleton
-                    className="h-3 rounded-sm"
-                    style={{ width: `${45 + ((i * 13) % 35)}%` }}
-                  />
+                  <Skeleton className="h-3 rounded-sm" style={{ width: raggedWidth(i, 45, 80) }} />
                 </div>
               </td>
               <td className="px-4 py-1.5">
