@@ -1,4 +1,5 @@
-import { MutationObserver } from "@tanstack/react-query";
+import { MutationObserver, QueryObserver } from "@tanstack/react-query";
+import { notFound } from "@tanstack/react-router";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createQueryClient } from "./query-client";
 import { routeAccessQuery } from "./route-access-cache";
@@ -104,4 +105,17 @@ it("leaves other failures to the page", async () => {
 
   expect(router.invalidate).not.toHaveBeenCalled();
   expect(guardData()).toEqual({ session: "cached" });
+});
+
+it("does not retry a request for something that does not exist", async () => {
+  const { queryClient } = setup();
+  const queryFn = vi.fn(() => Promise.reject(notFound()));
+  const observer = new QueryObserver(queryClient, { queryKey: ["dashboards", "missing"], queryFn });
+  const unsubscribe = observer.subscribe(() => {});
+
+  await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe("error"), {
+    timeout: 500,
+  });
+  expect(queryFn).toHaveBeenCalledTimes(1);
+  unsubscribe();
 });
