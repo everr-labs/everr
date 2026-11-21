@@ -1,5 +1,5 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
 import {
@@ -26,7 +26,15 @@ const toDashboard = (project: string, slug: string) =>
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/",
 )({
-  staticData: { breadcrumb: "Dashboards" },
+  // Never a page of its own: the loader always redirects, so this crumb only
+  // shows while it runs. It holds a place for the dashboard the redirect
+  // lands on, so the breadcrumb gains a name rather than a segment.
+  staticData: {
+    breadcrumb: () => [
+      { label: "Dashboards", link: <Link to="/dashboards" /> },
+      { label: "Dashboard", unresolved: true },
+    ],
+  },
   loaderDeps: ({ search }) => ({ preview: search.preview }),
   loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
     const last = lastViewedDashboard.read(session.session.activeOrganizationId);
