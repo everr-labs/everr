@@ -5,6 +5,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { type ChartMarker, type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
+import { staleClass } from "@everr/ui/lib/stale";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Plus, X } from "lucide-react";
@@ -275,19 +276,6 @@ export function MetricView({
 // jump when the chart's resolution comes and goes.
 const META_ROW = "flex min-h-5.5 items-center gap-1.5 text-xs";
 
-/**
- * Dims what shows data from before the last change while it reloads. Like
- * Button's loading state, it waits 150ms, so a quick reload shows nothing:
- * a transition that has not started is simply cancelled. Fresh data shows
- * at full strength at once.
- */
-function staleClass(stale: boolean) {
-  return cn(
-    "transition-opacity duration-0",
-    stale && "opacity-50 delay-150 duration-150 motion-reduce:duration-0",
-  );
-}
-
 export function QueryControls({
   aggregations,
   aggregation,
@@ -528,7 +516,9 @@ function SeriesPanel({
   }
   if (isPending) {
     return (
-      <div className="flex flex-col gap-3 p-4">
+      // The chart's own box (px-4 pt-3, 260px tall) over the start of the
+      // series table, so the chart lands where its placeholder stood.
+      <div className="flex flex-col gap-3 px-4 pt-3">
         <Skeleton className="h-[260px] w-full" />
         <Skeleton className="h-24 w-full" />
       </div>

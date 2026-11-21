@@ -1,6 +1,12 @@
+import { staleClass } from "@everr/ui/lib/stale";
+import { useRetained } from "@everr/ui/hooks/use-retained";
+import { Spinner } from "@everr/ui/components/spinner";
 import { Dialog, DialogContent, DialogTitle } from "@everr/ui/components/dialog";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
+import {
+  virtuosoInitialItemCount,
+  virtuosoScrollAreaComponents,
+} from "@everr/ui/components/scroll-area";
 import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
@@ -113,10 +119,10 @@ function LogStream({
       ...virtuosoScrollAreaComponents,
       // oxlint-disable-next-line react/no-unstable-nested-components -- Preserve the existing footer component lifetime when pagination values change.
       Footer: () => (
-        <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
+        <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
             <span className="flex items-center gap-2">
-              <Skeleton className="size-2 rounded-full" />
+              <Spinner className="size-3" />
               Loading more events
             </span>
           ) : hasNextPage ? (
@@ -136,6 +142,7 @@ function LogStream({
   return (
     <Virtuoso
       data={logs}
+      initialItemCount={virtuosoInitialItemCount(logs.length)}
       className="h-full min-h-0 bg-background"
       increaseViewportBy={isSelecting ? VIRTUOSO_OVERSCAN_SELECTING : VIRTUOSO_OVERSCAN_IDLE}
       endReached={endReached}
@@ -146,25 +153,42 @@ function LogStream({
   );
 }
 
-const LogRowsSkeleton = memo(function LogRowsSkeleton() {
+/** Message lengths for the placeholder rows: ragged like real logs, fixed so
+ *  every render draws the same shape. */
+const SKELETON_MESSAGE_WIDTHS = ["72%", "48%", "86%", "35%", "64%", "91%", "41%", "58%"];
+
+/** About 1200px of rows, a tall screen's list, clipped to what its height
+ *  shows. No more: every bar repaints its shimmer on each frame. */
+const SKELETON_ROW_COUNT = 60;
+
+/** `LogRow`'s own grid, paddings and 16px lines, with the same time column
+ *  width the rows will use, so the list keeps its density and the messages
+ *  start where they will when the rows arrive. */
+const LogRowsSkeleton = memo(function LogRowsSkeleton({ withDay }: { withDay: boolean }) {
   return (
-    <div className="flex h-full flex-col bg-background">
-      {Array.from({ length: 14 }).map((_, index) => (
+    <div aria-hidden className="h-full overflow-hidden bg-background">
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
         <div
-          // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
           key={index}
-          className="grid grid-cols-[minmax(0,1fr)_28px] gap-2 border-b px-3 py-2 md:grid-cols-[112px_minmax(0,1fr)_156px_28px]"
+          className={cn(
+            "grid grid-cols-1 py-0.5 font-mono text-[0.75rem] md:py-0",
+            withDay
+              ? "md:grid-cols-[calc(19ch+0.75rem)_minmax(0,1fr)]"
+              : "md:grid-cols-[calc(11ch+0.75rem)_minmax(0,1fr)]",
+          )}
         >
-          <div className="hidden flex-col gap-2 md:flex">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="h-5 w-14 rounded-full" />
+          <div className="flex h-4 items-center px-3 md:h-5 md:pr-0">
+            {/* As wide as a typical time: "8:46:35 PM", "Nov 21, 8:46:35 PM". */}
+            <Skeleton className={cn("h-2.5 rounded-sm", withDay ? "w-[18ch]" : "w-[10ch]")} />
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
-            <Skeleton className="h-3 w-56 max-w-full" />
-            <Skeleton className="h-4 w-full" />
+          <div className="flex h-4 min-w-0 items-center px-3 md:h-5 md:pr-9">
+            <Skeleton
+              className="h-2.5 rounded-sm"
+              style={{
+                width: SKELETON_MESSAGE_WIDTHS[index % SKELETON_MESSAGE_WIDTHS.length],
+              }}
+            />
           </div>
-          <Skeleton className="hidden h-8 w-full md:block" />
-          <Skeleton className="h-4 w-4" />
         </div>
       ))}
     </div>
@@ -241,6 +265,7 @@ export function LogsExplorer({
     hasNextPage,
     isFetchingNextPage,
     isPending,
+    isPlaceholderData,
     isError,
     error,
     refetch,
@@ -285,12 +310,16 @@ export function LogsExplorer({
     setIsInspectorExpanded(false);
   }, []);
 
+  // The overlays read the last log shown, so a closing drawer, sheet or
+  // dialog keeps its content while it animates out instead of emptying.
+  const shownLog = useRetained(selectedLogState);
+
   // The inspector in the drawer or the sheet; the column and the expanded
   // dialog render their own, with an expand button the overlays don't have.
-  const overlayInspector = selectedLogState ? (
+  const overlayInspector = shownLog ? (
     <LogInspectorPanel
       repo={repo}
-      log={selectedLogState.log}
+      log={shownLog.log}
       onClose={handleCloseInspector}
       renderRunLink={renderRunLink}
       resolveJobId={resolveJobId}
@@ -339,9 +368,13 @@ export function LogsExplorer({
                 }
               />
 
-              <div className="min-h-0 flex-1">
+              {/* Dims while it shows the previous filters' results. */}
+              <div
+                aria-busy={isPlaceholderData}
+                className={cn("min-h-0 flex-1", staleClass(isPlaceholderData))}
+              >
                 {isPending ? (
-                  <LogRowsSkeleton />
+                  <LogRowsSkeleton withDay={rangeSpansDays(timeRange)} />
                 ) : isError ? (
                   <RetryError
                     title="Failed to load logs"
@@ -442,10 +475,10 @@ export function LogsExplorer({
             className="flex h-[85vh] w-[90vw] max-w-none flex-col gap-0 overflow-hidden rounded-lg p-0 sm:max-w-4xl"
           >
             <DialogTitle className="sr-only">Log event</DialogTitle>
-            {selectedLogState ? (
+            {shownLog ? (
               <LogInspectorPanel
                 repo={repo}
-                log={selectedLogState.log}
+                log={shownLog.log}
                 onClose={() => setIsInspectorExpanded(false)}
                 renderRunLink={renderRunLink}
                 resolveJobId={resolveJobId}

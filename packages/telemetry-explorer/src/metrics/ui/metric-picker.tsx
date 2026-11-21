@@ -105,7 +105,7 @@ export function MetricPicker({
       >
         <Command className="p-0">
           <CommandInput ref={search} placeholder="Search metrics…" />
-          <CommandList>
+          <CommandList loading={!list.data && !list.error}>
             <CommandEmpty>
               {list.data ? (
                 "No metric matches."

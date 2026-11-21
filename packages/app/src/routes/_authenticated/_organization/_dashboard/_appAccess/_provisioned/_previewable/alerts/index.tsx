@@ -1,6 +1,6 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import { staleClass } from "@everr/ui/lib/stale";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -10,7 +10,6 @@ import {
   AlertDetailShell,
   useAlertDetail,
 } from "#app/components/alerts/alert-detail-shell.tsx";
-import { TRIAGE_ROW_INSET } from "#app/components/alerts/list-row.tsx";
 import { RuleInventory } from "#app/components/alerts/rule-inventory.tsx";
 import { SilenceDialog } from "#app/components/alerts/silence-dialog.tsx";
 import { TriageList } from "#app/components/alerts/triage-list.tsx";
@@ -42,16 +41,6 @@ export const Route = createFileRoute(
 
 const ASSISTANT_ALERT_PROMPT =
   "/everr-setup-resources Help me build a good first alert rule based on the telemetry we have in production";
-
-function TriageSkeleton() {
-  return (
-    <div className={cn("space-y-2", TRIAGE_ROW_INSET)}>
-      {[0, 1, 2, 3].map((i) => (
-        <Skeleton key={i} className="h-16 w-full" />
-      ))}
-    </div>
-  );
-}
 
 function AlertingTriagePage() {
   const { openPath, openAlert, silence, shellProps } = useAlertDetail();
@@ -96,44 +85,46 @@ function AlertingTriagePage() {
           viewport breakpoint cannot see that happen. */}
         <ScrollArea
           className="min-h-0 min-w-0"
-          viewportClassName="@container/list space-y-5 overscroll-y-contain pt-3 pb-6"
+          viewportClassName={cn(
+            "@container/list space-y-5 overscroll-y-contain pt-3 pb-6",
+            staleClass(triage.isPlaceholderData),
+          )}
+          viewportProps={{ "aria-busy": triage.isPlaceholderData }}
         >
-          {triage.isPending ? (
-            <TriageSkeleton />
-          ) : (
-            alerts.length > 0 && (
-              <TriageList
-                // A silence being cancelled already shows as gone.
-                alerts={
-                  silence.cancellingId === null
-                    ? alerts
-                    : alerts.map((alert) =>
-                        alert.silence?.id === silence.cancellingId
-                          ? { ...alert, silence: undefined }
-                          : alert,
-                      )
-                }
-                openPath={openPath}
-                onOpen={openAlert}
-                onSilence={(path) => silence.openSilence(ruleSilenceSeed(path))}
-                onExpireSilence={(path) => {
-                  const alert = alerts.find((a) => a.path === path);
-                  // No recreation: the row knows which silence is in force but
-                  // not how it was written, and an Undo that guessed the scope
-                  // would mute more than the reader muted.
-                  if (alert?.silence)
-                    silence.cancel(cancelSilenceById(alert.silence.id, alert.name));
-                }}
-              />
-            )
+          {/* Nothing stands in for the firing list while it loads: on most
+            visits nothing is firing, and a placeholder there would vanish and
+            pull the inventory up under the reader. */}
+          {alerts.length > 0 && (
+            <TriageList
+              // A silence being cancelled already shows as gone.
+              alerts={
+                silence.cancellingId === null
+                  ? alerts
+                  : alerts.map((alert) =>
+                      alert.silence?.id === silence.cancellingId
+                        ? { ...alert, silence: undefined }
+                        : alert,
+                    )
+              }
+              openPath={openPath}
+              onOpen={openAlert}
+              onSilence={(path) => silence.openSilence(ruleSilenceSeed(path))}
+              onExpireSilence={(path) => {
+                const alert = alerts.find((a) => a.path === path);
+                // No recreation: the row knows which silence is in force but
+                // not how it was written, and an Undo that guessed the scope
+                // would mute more than the reader muted.
+                if (alert?.silence) silence.cancel(cancelSilenceById(alert.silence.id, alert.name));
+              }}
+            />
           )}
 
           {/* Inventory sits under triage rather than behind its own destination:
             "is there a rule for this at all?" is a question you ask while
             triaging, and a click away is far enough to stop anyone asking it. */}
-          {rules.length > 0 && (
+          {(triage.isPending || rules.length > 0) && (
             <RuleInventory
-              rules={rules}
+              rules={triage.data?.rules}
               history={history.data}
               openPath={openPath}
               onOpen={openAlert}

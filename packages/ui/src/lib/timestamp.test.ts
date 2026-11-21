@@ -75,9 +75,9 @@ describe("formatRowTimestamp", () => {
 
   it("gives the time alone, or the day too when asked", () => {
     expect(formatRowTimestamp(at.toISOString(), false)).toBe(at.toLocaleTimeString());
-    const withDay = formatRowTimestamp(at.toISOString(), true);
-    expect(withDay).toContain(at.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
-    expect(withDay).toMatch(/54:11/);
+    expect(formatRowTimestamp(at.toISOString(), true)).toBe(
+      `${at.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${at.toLocaleTimeString()}`,
+    );
   });
 });
 

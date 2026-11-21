@@ -92,11 +92,16 @@ function CommandInput({
 function CommandList({
   className,
   children,
+  loading = false,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.List>) {
+}: React.ComponentProps<typeof CommandPrimitive.List> & {
+  /** Holds the list at a few rows' height, so the popover does not jump when
+   *  the items arrive. */
+  loading?: boolean;
+}) {
   return (
     <ScrollArea
-      className={cn("max-h-72", className)}
+      className={cn("max-h-72", loading && "min-h-32", className)}
       // scroll-py-1 is scroll-padding, so it only counts on the element that
       // scrolls.
       viewportClassName="scroll-py-1 outline-none"

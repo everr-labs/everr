@@ -1,3 +1,4 @@
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { type ComponentType, lazy, Suspense, useMemo } from "react";
 import type * as z from "zod";
 import type { PanelPlugin } from "#app/data/dashboards/schema.ts";
@@ -179,11 +180,9 @@ export function PanelVisualization({
   const Component = entry.component;
   return (
     <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground">
-          <p className="text-sm">Loading…</p>
-        </div>
-      }
+      // The panel's own pending look, so a lazily loaded visualization (the
+      // map) reads as the same load rather than a third state.
+      fallback={<Skeleton className="h-full w-full" />}
     >
       <Component
         spec={parsed.spec}

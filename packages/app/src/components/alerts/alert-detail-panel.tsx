@@ -3,6 +3,7 @@ import { CodeBlock } from "@everr/ui/components/code-block";
 import { HighlightedCode } from "@everr/ui/components/highlighted-code";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { staleClass } from "@everr/ui/lib/stale";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
@@ -68,21 +69,44 @@ function statePhrase(state: RuleInventoryState, since: string | null) {
 }
 
 /** The panel is mounted the moment a rule is picked, so the column has to
- *  stand up before the detail query answers. Sized like the real thing: the
- *  chart lane, the timeline, the definition table. */
+ *  stand up before the detail query answers. Built from the body's own parts
+ *  (the summary block, then the sections under their real headings), so each
+ *  part fills in where it will stay and only the section heights move. */
 function DetailSkeleton() {
   return (
-    <div className="space-y-5 p-3">
-      <div className="space-y-1.5">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/5" />
+    <div aria-hidden className="min-h-0 flex-1 overflow-hidden">
+      <div className="space-y-3 px-3 py-3.5">
+        {/* One line: most descriptions are a sentence. */}
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-4/5 rounded-sm" />
+        </div>
+        <div className="flex h-7 items-center justify-between gap-4">
+          <Skeleton className="h-3 w-48 rounded-sm" />
+          <Skeleton className="h-7 w-14" />
+        </div>
       </div>
-      <Skeleton className="h-24 w-full" />
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-20" />
-        <Skeleton className="h-3 w-3/5" />
-        <Skeleton className="h-3 w-2/5" />
-      </div>
+      <Section title="Instances">
+        <Skeleton className="h-9 w-full rounded-sm" />
+      </Section>
+      <Section title="History">
+        <div className="space-y-2.5">
+          <Skeleton className="h-3 w-3/5 rounded-sm" />
+          <Skeleton className="h-3 w-1/2 rounded-sm" />
+          <Skeleton className="h-3 w-2/5 rounded-sm" />
+        </div>
+      </Section>
+      <Section title="Silences">
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-3 w-3/5 rounded-sm" />
+        </div>
+      </Section>
+      <Section title="Definition">
+        <div className="space-y-4">
+          <Skeleton className="h-3 w-3/5 rounded-sm" />
+          <Skeleton className="h-3 w-2/5 rounded-sm" />
+          <Skeleton className="h-3 w-1/2 rounded-sm" />
+        </div>
+      </Section>
     </div>
   );
 }
@@ -107,6 +131,7 @@ export function AlertDetailPanel({
   onTogglePaused,
   pausePending,
   requestedPause,
+  stale = false,
 }: {
   /** Known before the detail loads, and the only identity the header can show
    *  while the query is in flight. */
@@ -134,6 +159,10 @@ export function AlertDetailPanel({
   /** A pause or resume in flight. The banner and the button follow it at once;
    *  the state line keeps the server's word until the refetch lands. */
   requestedPause?: boolean;
+  /** `detail` is the previous time range's read while the new one loads. The
+   *  header is the rule itself and stays; the body is scoped to the range and
+   *  dims. */
+  stale?: boolean;
 }) {
   // Off, not muted: `status` already says so, and everything below the header
   // is frozen at the moment evaluation stopped.
@@ -171,6 +200,13 @@ export function AlertDetailPanel({
             Silences section now carries Cancel on the row it belongs to, and
             a second button naming no particular silence was the vaguer of the
             two. */}
+        {/* Held at its line height while the detail loads, so the body does
+            not drop by a line when the state arrives. */}
+        {!detail && (
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3 w-56 max-w-full rounded-sm" />
+          </div>
+        )}
         {detail && (
           <p className="flex min-w-0 items-baseline gap-2 text-xs">
             <StatusIcon status={detail.status} className="size-3 self-center" />
@@ -195,7 +231,11 @@ export function AlertDetailPanel({
       {!detail ? (
         <DetailSkeleton />
       ) : (
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="overscroll-contain">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName={cn("overscroll-contain", staleClass(stale))}
+          viewportProps={{ "aria-busy": stale }}
+        >
           <div className="space-y-3 px-3 py-3.5">
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
               {detail.description}

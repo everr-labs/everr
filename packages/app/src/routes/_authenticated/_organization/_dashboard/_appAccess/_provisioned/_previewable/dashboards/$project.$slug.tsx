@@ -5,17 +5,30 @@ import gridLayoutOverridesCSS from "#app/components/dashboards/dashboard-grid.cs
 import { DashboardNotFound } from "#app/components/dashboards/dashboard-not-found.tsx";
 import { DashboardProvider } from "#app/components/dashboards/use-dashboard.tsx";
 import { lastViewedDashboard } from "#app/data/dashboards/last-viewed.ts";
-import { dashboardOptions } from "#app/data/dashboards/options.ts";
+import { cachedDashboardName, dashboardOptions } from "#app/data/dashboards/options.ts";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/$project/$slug",
 )({
   staticData: {
-    breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", link: <Link to="/dashboards" /> },
-      { label: match.loaderData?.name ?? "Dashboard" },
-    ],
+    breadcrumb: (
+      match: {
+        params: { project: string; slug: string };
+        search: { preview?: string };
+        loaderData?: { name: string };
+      },
+      { queryClient },
+    ) => {
+      const { project, slug } = match.params;
+      const name =
+        match.loaderData?.name ??
+        cachedDashboardName(queryClient, project, slug, match.search.preview);
+      return [
+        { label: "Dashboards", link: <Link to="/dashboards" /> },
+        { label: name ?? "Dashboard", unresolved: name === undefined },
+      ];
+    },
   },
   loaderDeps: ({ search: { preview } }) => ({ preview }),
 

@@ -70,7 +70,7 @@ export const LogRow = memo(function LogRow({
 
       {/* No right padding: the message's left padding is the gap. */}
       <div className="px-3 md:py-0.5 md:pr-0">
-        <span className="block select-none font-mono text-[0.75rem] leading-4 text-muted-foreground tabular-nums">
+        <span className="block select-none whitespace-nowrap font-mono text-[0.75rem] leading-4 text-muted-foreground tabular-nums">
           {formatRowTimestamp(log.timestamp, withDay)}
         </span>
       </div>

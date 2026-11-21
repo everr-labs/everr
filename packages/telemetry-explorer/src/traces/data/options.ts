@@ -3,7 +3,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
-import type { TraceSummary } from "./types";
+import type { ServiceIdentity, TraceSummary } from "./types";
 
 export type TraceSearchOptionsInput = {
   repo: TracesRepositoryLike;
@@ -76,11 +76,10 @@ export function getTraceOptions(input: GetTraceOptionsInput) {
   });
 }
 
-export function listServiceIdentitiesOptions(
-  repo: TracesRepositoryLike,
-  input: { timeRange: TimeRange },
-) {
-  return queryOptions({
+/** The read itself, outside `queryOptions`, whose result types `queryFn` as
+ *  optional: the namespace filter's options need it required. */
+function serviceIdentitiesQuery(repo: TracesRepositoryLike, input: { timeRange: TimeRange }) {
+  return {
     queryKey: ["traces", "service-identities", input.timeRange] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], (timeRange) =>
@@ -89,5 +88,33 @@ export function listServiceIdentitiesOptions(
           toTs: toClickHouseDateTime(new Date(timeRange.to)),
         }),
       ),
-  });
+  };
+}
+
+export function listServiceIdentitiesOptions(
+  repo: TracesRepositoryLike,
+  input: { timeRange: TimeRange },
+) {
+  return queryOptions(serviceIdentitiesQuery(repo, input));
+}
+
+/** The namespace filter's options: the same read (and cache entry) as
+ *  `listServiceIdentitiesOptions`, so the picker shows "Loading…" while the
+ *  page's identities load instead of an empty list. */
+export function serviceNamespaceFilterOptions(
+  repo: TracesRepositoryLike,
+  input: { timeRange: TimeRange },
+) {
+  return {
+    ...serviceIdentitiesQuery(repo, input),
+    select: namespacesOf,
+  };
+}
+
+/** Module-level, so its identity is stable: Query reruns a `select` whose
+ *  identity changes, on every render of the picker. */
+function namespacesOf(rows: ServiceIdentity[]) {
+  return Array.from(
+    new Set(rows.map((row) => row.serviceNamespace).filter((namespace) => namespace.length > 0)),
+  ).sort();
 }

@@ -2,6 +2,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
+import { staleClass } from "@everr/ui/lib/stale";
 import { cn } from "@everr/ui/lib/utils";
 import { ExternalLink } from "lucide-react";
 import type { ReactNode } from "react";
@@ -85,6 +86,7 @@ export function ErrorTracePanel({
   spans,
   isPending,
   isError,
+  isStale = false,
   onRetry,
   renderTraceLink,
 }: {
@@ -92,6 +94,9 @@ export function ErrorTracePanel({
   spans: RelatedSpan[];
   isPending: boolean;
   isError: boolean;
+  /** `spans` are the previously selected occurrence's while this one's load:
+   *  the list dims in place instead of collapsing to placeholders. */
+  isStale?: boolean;
   onRetry: () => void;
   renderTraceLink: RenderTraceLink;
 }) {
@@ -147,7 +152,10 @@ export function ErrorTracePanel({
           No spans were found for this trace.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-md border">
+        <div
+          aria-busy={isStale}
+          className={cn("overflow-hidden rounded-md border", staleClass(isStale))}
+        >
           <ol className="divide-y">
             {visibleRows.map(({ span, depth }) => {
               const isErrorSpan = span.spanId === occurrence.spanId;

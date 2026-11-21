@@ -1,3 +1,5 @@
+import { cn } from "@everr/ui/lib/utils";
+import { staleClass } from "@everr/ui/lib/stale";
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
 import { Label } from "@everr/ui/components/label";
@@ -185,7 +187,11 @@ function CatalogPage({
           />
         </div>
       </ExploreFilterRail>
-      <main className="flex min-h-0 min-w-0 flex-col">
+      {/* Dims while it shows the previous filters' results. */}
+      <main
+        aria-busy={query.isPlaceholderData}
+        className={cn("flex min-h-0 min-w-0 flex-col", staleClass(query.isPlaceholderData))}
+      >
         <MetricCatalog
           rows={query.data ?? []}
           isPending={query.isPending}

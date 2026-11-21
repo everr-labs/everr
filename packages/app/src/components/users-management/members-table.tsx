@@ -1,3 +1,4 @@
+import { useRetained } from "@everr/ui/hooks/use-retained";
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import {
   AlertDialog,
@@ -41,6 +42,8 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const updateRole = useUpdateMemberRole();
   const remove = useRemoveMember();
   const [rolePending, setRolePending] = useState<RoleChangePending | null>(null);
+  // The confirmation keeps its sentence while it fades out after a close.
+  const shownRole = useRetained(rolePending);
 
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
@@ -192,11 +195,11 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Change role</AlertDialogTitle>
             <AlertDialogDescription>
-              {rolePending && (
+              {shownRole && (
                 <>
-                  Change {rolePending.memberName}&apos;s role from{" "}
-                  <span className="capitalize">{rolePending.currentRole}</span> to{" "}
-                  <span className="capitalize">{rolePending.nextRole}</span>?
+                  Change {shownRole.memberName}&apos;s role from{" "}
+                  <span className="capitalize">{shownRole.currentRole}</span> to{" "}
+                  <span className="capitalize">{shownRole.nextRole}</span>?
                 </>
               )}
             </AlertDialogDescription>

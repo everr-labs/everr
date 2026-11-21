@@ -11,10 +11,14 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/built-in/$slug",
 )({
   staticData: {
-    breadcrumb: (match: { loaderData?: { name: string } }) => [
-      { label: "Dashboards", link: <Link to="/dashboards" /> },
-      { label: match.loaderData?.name ?? "Built-in dashboard" },
-    ],
+    // The catalog is bundled, so the name is known before the loader runs.
+    breadcrumb: (match: { params: { slug: string } }) => {
+      const name = getBuiltinDashboard(match.params.slug)?.name;
+      return [
+        { label: "Dashboards", link: <Link to="/dashboards" /> },
+        { label: name ?? "Built-in dashboard" },
+      ];
+    },
   },
   loader: ({ context: { session }, params: { slug }, preload }) => {
     const builtin = getBuiltinDashboard(slug);

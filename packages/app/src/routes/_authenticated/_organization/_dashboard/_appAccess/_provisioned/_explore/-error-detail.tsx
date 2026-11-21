@@ -7,7 +7,7 @@ import {
 } from "@everr/telemetry-explorer/errors";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 import { runSpansOptions } from "#app/data/runs/options.ts";
@@ -64,6 +64,10 @@ function WebErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
   const spansQuery = useQuery({
     ...runSpansOptions(occurrence.traceId),
     enabled: hasTrace,
+    // Switching occurrence keeps the previous trace's spans, dimmed, until
+    // this one's arrive: occurrences of one error tend to share a shape, so the
+    // list changes in place instead of collapsing and regrowing.
+    placeholderData: keepPreviousData,
   });
   const spans = (spansQuery.data ?? []).map((span) => ({
     spanId: span.spanId,
@@ -80,6 +84,7 @@ function WebErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
       spans={spans}
       isPending={spansQuery.isPending && hasTrace}
       isError={spansQuery.isError}
+      isStale={spansQuery.isPlaceholderData}
       onRetry={() => void spansQuery.refetch()}
       renderTraceLink={({ traceId, spanId, children }) => (
         <Link

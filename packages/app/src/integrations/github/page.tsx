@@ -24,7 +24,7 @@ export const githubInstallStatusOptions = queryOptions({
   staleTime: 5 * 60_000,
 });
 
-const githubReposOptions = queryOptions({
+export const githubReposOptions = queryOptions({
   queryKey: ["github", "installation-repos"],
   queryFn: () => getInstallationRepos(),
 });

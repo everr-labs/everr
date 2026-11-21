@@ -1,7 +1,7 @@
 import { AccountSettings } from "@everr/app/account-settings";
 import type { ApplicationPages, OrganizationPageProps } from "@everr/app/composition";
 import { getActiveOrgPolicy } from "@everr/app/data/product";
-import { OrganizationMembersPage } from "@everr/app/members";
+import { OrganizationMembersPage, prefetchMembersPage } from "@everr/app/members";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { AccountDeletion } from "../../components/account-deletion";
 import { MembersUnavailable } from "../../components/members-unavailable";
@@ -27,10 +27,11 @@ export const pages: ApplicationPages = {
   ),
   members: {
     async load({ queryClient, organizationId }) {
-      await queryClient.fetchQuery({
+      const policy = await queryClient.fetchQuery({
         ...membersPolicy(organizationId),
         staleTime: 0,
       });
+      if (policy.canInviteMembers) await prefetchMembersPage(queryClient);
     },
     component: MembersPage,
   },

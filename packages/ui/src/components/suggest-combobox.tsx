@@ -117,10 +117,8 @@ export function SuggestCombobox<TData>({
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList>
-            <CommandEmpty>
-              {isLoading ? "Loading..." : "No suggestions. Type a value."}
-            </CommandEmpty>
+          <CommandList loading={isLoading}>
+            <CommandEmpty>{isLoading ? "Loading…" : "No suggestions. Type a value."}</CommandEmpty>
             <CommandGroup>
               {showCustom && <CustomValueItem query={query} onSelect={() => commit(query)} />}
               {items.map((item) => (

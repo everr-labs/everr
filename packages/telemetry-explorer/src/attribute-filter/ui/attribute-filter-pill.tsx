@@ -68,6 +68,13 @@ function PillEditor({
       { domain },
     ),
     enabled: showValues,
+    // Typing keeps the last results listed until the next search answers, so
+    // the list does not collapse to "Loading…" and regrow on every
+    // keystroke. Only for this attribute: another key's values never stand in.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[3] === filter.source && previousQuery.queryKey[4] === filter.key
+        ? previous
+        : undefined,
   });
 
   const toggleValue = (value: string) => {
@@ -128,7 +135,7 @@ function PillEditor({
             placeholder="Search values..."
           />
           <CommandList>
-            <CommandEmpty>{isFetching ? "Loading..." : "No values."}</CommandEmpty>
+            <CommandEmpty>{isFetching ? "Loading…" : "No values."}</CommandEmpty>
             {canAddExact ? (
               <CommandGroup>
                 <CommandItem

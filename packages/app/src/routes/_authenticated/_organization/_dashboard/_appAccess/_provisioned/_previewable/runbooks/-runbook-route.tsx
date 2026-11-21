@@ -1,32 +1,39 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
-import { runbookOptions } from "#app/data/runbooks/options.ts";
+import { cachedRunbookNames, runbookOptions } from "#app/data/runbooks/options.ts";
 import { findPage, toDashboardDocument } from "#app/data/runbooks/pages.ts";
-import type { BreadcrumbSegment } from "#app/router-types.ts";
+import type { BreadcrumbContext, BreadcrumbSegment } from "#app/router-types.ts";
 
 /**
  * Shared route config for the runbook index and splat routes, which differ
  * only in their component. Keeping the breadcrumb, head, and loader here avoids
  * the two route files drifting apart.
  */
-export const runbookBreadcrumb = (match: {
-  params: { project: string; slug: string };
-  loaderData?: { name: string; pageTitle?: string };
-}): BreadcrumbSegment[] => {
-  const name = match.loaderData?.name ?? "Runbook";
-  const pageTitle = match.loaderData?.pageTitle;
+export const runbookBreadcrumb = (
+  match: {
+    params: { project: string; slug: string; _splat?: string };
+    search: { preview?: string };
+    loaderData?: { name: string; pageTitle?: string };
+  },
+  { queryClient }: BreadcrumbContext,
+): BreadcrumbSegment[] => {
+  const { project, slug, _splat: pagePath = "" } = match.params;
+  const loaded = match.loaderData;
+  // Before the loader answers, the names come from the cache.
+  const { name, pageTitle } =
+    loaded ?? cachedRunbookNames(queryClient, project, slug, match.search.preview, pagePath);
   const runbooks = { label: "Runbooks", link: <Link to="/runbooks" /> };
+  const runbook = { label: name ?? "Runbook", unresolved: name === undefined };
   // On the index page the runbook is where you are; on one of its pages it
-  // becomes the way back, and the page names the place.
-  if (pageTitle === undefined) return [runbooks, { label: name }];
+  // becomes the way back, and the page names the place. A page the runbook
+  // doesn't have leaves the title undefined once loaded, so the breadcrumb
+  // stops at the runbook rather than naming a page the pane cannot show.
+  if (!pagePath || (loaded && pageTitle === undefined)) return [runbooks, runbook];
   return [
     runbooks,
-    {
-      label: name,
-      link: <Link to="/runbooks/$project/$slug" params={match.params} />,
-    },
-    { label: pageTitle },
+    { ...runbook, link: <Link to="/runbooks/$project/$slug" params={{ project, slug }} /> },
+    { label: pageTitle ?? "Page", unresolved: pageTitle === undefined },
   ];
 };
 

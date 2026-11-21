@@ -1,6 +1,10 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  virtuosoInitialItemCount,
+  virtuosoScrollAreaComponents,
+} from "@everr/ui/components/scroll-area";
+import { Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
@@ -52,7 +56,7 @@ export function ErrorIssueList({
         <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
             <span className="flex items-center gap-2">
-              <Skeleton className="size-2 rounded-full" />
+              <Spinner className="size-3" />
               Loading more errors
             </span>
           ) : hasNextPage ? (
@@ -84,6 +88,7 @@ export function ErrorIssueList({
       <Virtuoso
         className="min-h-0 min-w-0 flex-1"
         data={issues}
+        initialItemCount={virtuosoInitialItemCount(issues.length)}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         components={components}
@@ -106,17 +111,56 @@ function ListHeader() {
   );
 }
 
+/** Type and message lengths for the placeholder rows: ragged like real ones,
+ *  fixed so every render draws the same shape. */
+const SKELETON_TYPE_WIDTHS = ["7rem", "9rem", "6rem", "8rem", "5rem"];
+const SKELETON_MESSAGE_WIDTHS = ["9rem", "6rem", "11rem", "7rem", "10rem", "8rem"];
+
+/** About 1200px of rows, a tall screen's list, clipped to what its height
+ *  shows. No more: every bar repaints its shimmer on each frame. */
+const SKELETON_ROW_COUNT = 36;
+
+// The list's real header over rows built from `ErrorIssueRow`'s own cells, at
+// its fonts and with the trend's 20px box that sets a row's height, so neither
+// the header nor the rows move when the issues land.
 function ListSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {Array.from({ length: 12 }).map((_, index) => (
-        // oxlint-disable-next-line react/no-array-index-key -- Fixed-length placeholder rows with no data identity; the list is static.
-        <div key={index} className="flex items-center gap-2 border-b px-3 py-1.5">
-          <Skeleton className="h-4 min-w-0 flex-1" />
-          <Skeleton className="hidden h-3 w-28 md:block" />
-          <Skeleton className="hidden h-3 w-24 lg:block" />
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="hidden h-3 w-16 lg:block" />
+    <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ListHeader />
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SkeletonLine className="shrink-0">
+              <Skeleton
+                className="h-3 rounded-sm"
+                style={{ width: SKELETON_TYPE_WIDTHS[index % SKELETON_TYPE_WIDTHS.length] }}
+              />
+            </SkeletonLine>
+            <SkeletonLine className="min-w-0">
+              <Skeleton
+                className="h-3 max-w-full rounded-sm"
+                style={{ width: SKELETON_MESSAGE_WIDTHS[index % SKELETON_MESSAGE_WIDTHS.length] }}
+              />
+            </SkeletonLine>
+          </div>
+          <div className="hidden w-28 shrink-0 items-center gap-1.5 text-xs md:flex">
+            <Skeleton className="size-2 shrink-0 rounded-full" />
+            <SkeletonLine>
+              <Skeleton className="h-3 w-20 rounded-sm" />
+            </SkeletonLine>
+          </div>
+          <div className="hidden h-5 w-24 shrink-0 items-center lg:flex">
+            <Skeleton className="h-3 w-full rounded-sm" />
+          </div>
+          <SkeletonLine className="w-24 shrink-0 justify-end">
+            <Skeleton className="h-3 w-8 rounded-sm" />
+          </SkeletonLine>
+          <SkeletonLine className="hidden w-20 shrink-0 justify-end text-xs lg:flex">
+            <Skeleton className="h-3 w-14 rounded-sm" />
+          </SkeletonLine>
         </div>
       ))}
     </div>

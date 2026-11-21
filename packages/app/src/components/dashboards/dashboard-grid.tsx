@@ -1,6 +1,6 @@
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { LayoutItem } from "react-grid-layout";
-import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
+import { GridLayout, noCompactor } from "react-grid-layout";
 import { persesToRGL, stackLayout } from "#app/data/dashboards/convert.ts";
 import { GRID_COLS } from "#app/data/dashboards/schema.ts";
 import { DashboardPanel } from "./dashboard-panel";
@@ -23,6 +23,29 @@ const ROW_HEIGHT = 30;
  */
 const STACK_BELOW_WIDTH = 640;
 
+/**
+ * The grid container's width, measured before the browser paints.
+ * react-grid-layout's own `useContainerWidth` starts at 1280px and measures in
+ * an effect, after paint, so every grid drew once at the wrong width (or
+ * unstacked on a narrow pane) and then reflowed under the reader.
+ */
+function useGridWidth() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(1280);
+  useLayoutEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    setWidth(node.offsetWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return { width, containerRef };
+}
+
 export function DashboardGrid({
   address,
   actions,
@@ -41,9 +64,7 @@ export function DashboardGrid({
 }) {
   const dashboard = useDashboard();
   const movingPanel = useMovingPanel();
-  const { width, containerRef } = useContainerWidth({
-    measureBeforeMount: true,
-  });
+  const { width, containerRef } = useGridWidth();
   useRestoredGridScroll(containerRef);
 
   const stacked = width < STACK_BELOW_WIDTH;

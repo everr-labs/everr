@@ -1,7 +1,11 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { Badge } from "@everr/ui/components/badge";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  virtuosoInitialItemCount,
+  virtuosoScrollAreaComponents,
+} from "@everr/ui/components/scroll-area";
+import { Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
@@ -92,7 +96,7 @@ export function TraceResultsList({
     [rows.length, hasMore, isLoadingMore],
   );
 
-  if (isPending) return <ResultsSkeleton />;
+  if (isPending) return <ResultsSkeleton withDay={withDay} />;
   if (isError) {
     return (
       <RetryError
@@ -112,6 +116,7 @@ export function TraceResultsList({
       <Virtuoso
         className="min-h-0 flex-1"
         data={rows}
+        initialItemCount={virtuosoInitialItemCount(rows.length)}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         computeItemKey={(_, row) => row.traceId}
@@ -304,7 +309,7 @@ function ResultsFooter({
     <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
       {isLoadingMore ? (
         <span className="flex items-center gap-2">
-          <Skeleton className="size-2 rounded-full" />
+          <Spinner className="size-3" />
           Loading more traces
         </span>
       ) : hasMore ? (
@@ -316,16 +321,55 @@ function ResultsFooter({
   );
 }
 
-function ResultsSkeleton() {
+/** Name lengths for the placeholder rows: ragged like real ones, fixed so
+ *  every render draws the same shape. */
+const SKELETON_NAME_WIDTHS = ["40%", "28%", "52%", "34%", "46%", "22%", "38%", "58%"];
+
+/** About 1200px of rows, a tall screen's list, clipped to what its height
+ *  shows. No more: every bar repaints its shimmer on each frame. */
+const SKELETON_ROW_COUNT = 30;
+
+// The list's real header over rows built from `TraceRow`'s own cells, the
+// method column and the duration's figure and bar included, so neither the
+// header nor the rows move when the traces land.
+function ResultsSkeleton({ withDay }: { withDay: boolean }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {Array.from({ length: 12 }).map((_, i) => (
-        // oxlint-disable-next-line react/no-array-index-key -- Preserve the existing row identity and duplicate-item handling; these keys are unchanged from main.
-        <div key={i} className="flex items-center gap-2 border-b px-3 py-1.5">
-          <Skeleton className="h-4 min-w-0 flex-1" />
-          <Skeleton className="hidden h-3 w-28 md:block" />
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="hidden h-3 w-16 lg:block" />
+    <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ResultsHeader withDay={withDay} />
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => (
+        <div key={i} className="flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <SkeletonLine className="w-11 shrink-0">
+              <Skeleton className="h-2.5 w-7 rounded-sm" />
+            </SkeletonLine>
+            <SkeletonLine className="min-w-0 flex-1">
+              <Skeleton
+                className="h-3.5 rounded-sm"
+                style={{ width: SKELETON_NAME_WIDTHS[i % SKELETON_NAME_WIDTHS.length] }}
+              />
+            </SkeletonLine>
+          </div>
+          <div className="hidden w-28 shrink-0 items-center gap-1.5 text-xs md:flex">
+            <Skeleton className="size-2 shrink-0 rounded-full" />
+            <SkeletonLine>
+              <Skeleton className="h-3 w-20 rounded-sm" />
+            </SkeletonLine>
+          </div>
+          <div className="flex w-24 shrink-0 flex-col items-end gap-1">
+            <SkeletonLine>
+              <Skeleton className="h-3.5 w-12 rounded-sm" />
+            </SkeletonLine>
+            <Skeleton className="h-1.5 w-full rounded" />
+          </div>
+          {/* The status badge's own height. */}
+          <span className="hidden h-5 w-16 items-center justify-end md:flex">
+            <Skeleton className="h-3 w-8 rounded-sm" />
+          </span>
+          <span className={cn("hidden justify-end text-xs lg:flex", withDay ? "w-36" : "w-20")}>
+            <SkeletonLine>
+              <Skeleton className={cn("h-3 rounded-sm", withDay ? "w-32" : "w-16")} />
+            </SkeletonLine>
+          </span>
         </div>
       ))}
     </div>

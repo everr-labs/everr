@@ -1,6 +1,6 @@
 import { REFRESH_KEYED } from "@everr/ui/lib/refresh-epoch";
 import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
-import { queryOptions } from "@tanstack/react-query";
+import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
 import type {
   QueryResultRow,
@@ -109,3 +109,29 @@ export const variableOptionsQueryOptions = (query: string, from?: string, to?: s
       }),
     enabled: query.trim().length > 0,
   });
+
+/** A dashboard's document, if it was opened before. */
+export const cachedDashboard = (
+  queryClient: QueryClient,
+  project: string,
+  slug: string,
+  preview?: string,
+) => queryClient.getQueryData(dashboardOptions(project, slug, preview).queryKey);
+
+/**
+ * A dashboard's name from whatever the cache already holds: the document if it
+ * was opened before, else its row in the list it was clicked from. Undefined
+ * when neither is cached (a cold deep link).
+ */
+export function cachedDashboardName(
+  queryClient: QueryClient,
+  project: string,
+  slug: string,
+  preview?: string,
+): string | undefined {
+  const dashboard = cachedDashboard(queryClient, project, slug, preview);
+  if (dashboard) return dashboard.document.spec.display?.name ?? slug;
+  return queryClient
+    .getQueryData(dashboardListOptions(preview).queryKey)
+    ?.find((row) => row.project === project && row.slug === slug)?.name;
+}

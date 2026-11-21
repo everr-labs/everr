@@ -10,6 +10,7 @@
  * drift on which reason the breakpoint exists for.
  */
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
+import { useRetained } from "@everr/ui/hooks/use-retained";
 import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -161,6 +162,7 @@ export function useAlertDetail() {
     <AlertDetailPanel
       path={openPath}
       detail={shownDetail}
+      stale={detail.isPlaceholderData}
       requestedPause={requestedPause}
       onClose={closePanel}
       onCancelSilence={silence.cancel}
@@ -199,6 +201,10 @@ export function AlertDetailShell({
   onClosePanel: () => void;
   children: React.ReactNode;
 }) {
+  // The sheet keeps the last panel while it slides out, instead of emptying
+  // on the frame the close starts. The column has no exit, so it reads
+  // `panel` itself.
+  const sheetPanel = useRetained(panel ?? null);
   return (
     <div
       className={cn(
@@ -226,7 +232,7 @@ export function AlertDetailShell({
             className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[30rem]"
           >
             <SheetTitle className="sr-only">Alert detail</SheetTitle>
-            {panel}
+            {sheetPanel}
           </SheetContent>
         </Sheet>
       ) : (

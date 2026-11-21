@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { useOpenCount, useRetained } from "@everr/ui/hooks/use-retained";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,9 @@ export function SilenceDialog({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
+  // The form stays on what it was opened on while the dialog animates out.
+  const shown = useRetained(seed);
+  const opening = useOpenCount(seed !== null);
   return (
     <Dialog
       open={seed !== null}
@@ -83,14 +87,14 @@ export function SilenceDialog({
         if (!next && !pending) onClose();
       }}
     >
-      {seed && (
+      {shown && (
         // Remounted per opening, so the fields start from whatever seeded
         // this one instead of holding the last opening's text. A `key` says
         // that in one line; syncing props into state with an effect would be
         // the same fact, spelled as a bug.
         <SilenceForm
-          key={JSON.stringify(seed)}
-          seed={seed}
+          key={opening}
+          seed={shown}
           instanceCount={instanceCount}
           pending={pending}
           onClose={onClose}

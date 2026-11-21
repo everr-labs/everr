@@ -45,8 +45,7 @@ export function DashboardLayout() {
 
   if (homeMatch) {
     const setupRequested = "setup" in homeMatch.search && homeMatch.search.setup === 1;
-    hideTimeRangePicker =
-      !homeStatus.data || homeView(homeStatus.data, setupRequested) !== "dashboard";
+    hideTimeRangePicker = homeView(homeStatus.data, setupRequested) !== "dashboard";
   }
 
   if (!session.session.activeOrganizationId) {
