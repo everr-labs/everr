@@ -233,6 +233,22 @@ describe("trace page", () => {
     await waitFor(() => expect(sidebarLink("Logs")).toBeInTheDocument(), { timeout: 3_000 });
     await act(async () => finishQuery());
   });
+
+  it("loads the trace when the collector is ready just after the first load failed", async () => {
+    let sqlQueries = 0;
+    renderMainApp({
+      initialEntry: "/traces/trace-1",
+      sqlQuery: () => {
+        sqlQueries += 1;
+        if (sqlQueries === 1) throw new Error("collector is not running");
+        return [];
+      },
+    });
+
+    await waitFor(() => expect(sqlQueries).toBeGreaterThan(1));
+    await waitFor(() => expect(sidebarLink("Logs")).toBeInTheDocument());
+    expect(screen.queryByText("Failed to load trace")).toBeNull();
+  });
 });
 
 describe("trace page while the collector is down", () => {

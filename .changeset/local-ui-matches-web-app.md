@@ -1,5 +1,5 @@
 ---
-"@everr/cli": patch
+"@everr/cli": minor
 ---
 
 The local UI started by `everr local start` now looks and behaves like the Everr web app.
