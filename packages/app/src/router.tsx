@@ -3,8 +3,6 @@ import { routeTree } from "@composition/routes";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { createQueryClient } from "#app/lib/query-client.ts";
-import { dehydrateRootContext, hydrateRootContext } from "#app/lib/route-access-cache.ts";
-import type { RootContext } from "#app/routes/__root.tsx";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
 import { RootErrorComponent } from "./components/root-error";
@@ -53,10 +51,6 @@ export const getRouter = () => {
     routeTree,
     routeMasks,
     context: { queryClient },
-    dehydrate: (): { rootContext: RootContext | undefined } => ({
-      rootContext: dehydrateRootContext(queryClient),
-    }),
-    hydrate: ({ rootContext }) => hydrateRootContext(queryClient, rootContext),
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
     defaultErrorComponent: RootErrorComponent,

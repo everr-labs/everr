@@ -1,5 +1,6 @@
 import type { FileRouteTypes } from "@composition/routes";
 import type { ResolveParams } from "@tanstack/react-router";
+import type { EntryRedirect, EntryState } from "./entry";
 import type {
   BuiltinManifestEntry,
   SharedBuiltinDashboardId,
@@ -15,5 +16,10 @@ export interface ProductClient<Additional extends readonly BuiltinManifestEntry[
   additionalBuiltinManifest: Additional;
   missingWorkspaceRoute: ApplicationPath;
   entryRoutes: readonly ApplicationPath[];
+  /**
+   * Runs on every navigation, before any route guard, so it must not fetch.
+   * Applications without entry decisions omit it and `ApplicationEntry.getEntryState`.
+   */
+  getEntryRedirect?(state: EntryState, pathname: string): EntryRedirect | undefined;
   telemetryEndpoint?: string;
 }

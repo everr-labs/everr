@@ -85,16 +85,3 @@ export async function revalidateRootAccess(
 }
 
 export const rootContextKey = ["root"] as const;
-
-// The root guard runs on the server for the page shell, and hydration reuses
-// its result instead of running it again in the browser. Handing over the
-// session it read keeps the first navigation after a page load from asking
-// again. The server's QueryClient belongs to this one request, so this only
-// ever carries the requesting user's own session back to them.
-export function dehydrateRootContext(queryClient: QueryClient) {
-  return queryClient.getQueryData<RootContext>([ROUTE_ACCESS_KEY, ...rootContextKey]);
-}
-
-export function hydrateRootContext(queryClient: QueryClient, rootContext: RootContext | undefined) {
-  if (rootContext) queryClient.setQueryData([ROUTE_ACCESS_KEY, ...rootContextKey], rootContext);
-}

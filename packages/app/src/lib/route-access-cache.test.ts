@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { expect, it, vi } from "vite-plus/test";
 import type { RootContext } from "#app/routes/__root.tsx";
-import { hydrateRootContext, revalidateRootAccess } from "./route-access-cache";
+import { revalidateRootAccess, rootContextKey, routeAccessQuery } from "./route-access-cache";
 
 function rootContext(organizationId: string): RootContext {
   return {
@@ -15,7 +15,11 @@ function rootContext(organizationId: string): RootContext {
 function setup(cachedOrganization: string) {
   const queryClient = new QueryClient();
   const router = { invalidate: vi.fn(() => Promise.resolve()), navigate: vi.fn() };
-  hydrateRootContext(queryClient, rootContext(cachedOrganization));
+  queryClient.setQueryData(
+    routeAccessQuery(rootContextKey, () => Promise.resolve(rootContext(cachedOrganization)))
+      .queryKey,
+    rootContext(cachedOrganization),
+  );
   queryClient.setQueryData(["logs"], ["from org-a"]);
   return { queryClient, router };
 }

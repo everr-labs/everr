@@ -1,3 +1,4 @@
+import { productClient } from "@composition/client";
 import { entry } from "@composition/entry";
 
 import { getGithubConfiguration } from "#app/integrations/github/configuration.ts";
@@ -37,17 +38,18 @@ import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
 import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
 import type { RouterContext } from "../router";
 
-// The route context is readable by any script on the page and is handed from
-// the server render to the browser, so it never carries the session token.
+// The route context is readable by any script on the page, so it never carries
+// the session token.
 function withoutToken<T extends { token: string }>({ token: _token, ...session }: T) {
   return session;
 }
 
 // Load session and consent together so auth guards see the same session.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await getSession({
-    headers: getRequestHeaders(),
-  });
+  const [session, entryState] = await Promise.all([
+    getSession({ headers: getRequestHeaders() }),
+    entry.getEntryState?.(),
+  ]);
   const consentValue = getCookie(CONSENT_COOKIE);
   return {
     emailEnabled: mailer !== null,
@@ -58,6 +60,7 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
         ? { user: session.user, session: withoutToken(session.session) }
         : null,
     consent: isConsentDecision(consentValue) ? consentValue : undefined,
+    entryState,
   };
 });
 
@@ -65,15 +68,15 @@ const rootContextQuery = routeAccessQuery(rootContextKey, () => getRootContext()
 
 export type RootContext = Awaited<ReturnType<typeof getRootContext>>;
 
-// Checked on page loads only. Self-hosted setup is the only entry redirect:
-// before it nobody can sign in, so the only way in is opening a URL, and
-// nothing in the app links to `/setup`.
-async function redirectToEntry(pathname: string) {
-  const entryRedirect = await entry.getEntryRedirect?.(pathname);
+async function loadRootContext(queryClient: QueryClient, pathname: string) {
+  const rootContext = await queryClient.ensureQueryData(rootContextQuery);
+  const entryRedirect =
+    rootContext.entryState && productClient.getEntryRedirect?.(rootContext.entryState, pathname);
   if (entryRedirect)
     throw "href" in entryRedirect
       ? redirect({ href: entryRedirect.href, replace: true })
       : redirect({ to: entryRedirect.to, replace: true });
+  return rootContext;
 }
 
 type RootBeforeLoadOptions = {
@@ -92,14 +95,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           googleSignInEnabled: false,
           githubEnabled: false,
         };
-      const [rootContext] = await Promise.all([
-        context.queryClient.ensureQueryData(rootContextQuery),
-        redirectToEntry(location.pathname),
-      ]);
-      return rootContext;
+      return loadRootContext(context.queryClient, location.pathname);
     })
-    .client(({ context }: RootBeforeLoadOptions) =>
-      context.queryClient.ensureQueryData(rootContextQuery),
+    .client(({ location, context }: RootBeforeLoadOptions) =>
+      loadRootContext(context.queryClient, location.pathname),
     ),
   head: () => ({
     meta: [
