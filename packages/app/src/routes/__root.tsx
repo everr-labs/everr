@@ -4,7 +4,6 @@ import { getGithubConfiguration } from "#app/integrations/github/configuration.t
 import { socialProviders } from "#app/lib/auth-providers.server.ts";
 import { mailer } from "#app/lib/mailer.server.ts";
 import {
-  entryRedirectKey,
   revalidateRootAccess,
   rootContextKey,
   routeAccessQuery,
@@ -62,32 +61,18 @@ const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   };
 });
 
-// Fetched apart from the root context because it depends on the path: a
-// search-only navigation reuses both, a new path asks for its own entry once.
-const getEntryRedirect = createServerFn({ method: "GET" })
-  .validator((pathname: string) => pathname)
-  .handler(async ({ data: pathname }) => (await entry.getEntryRedirect(pathname)) ?? null);
-
 const rootContextQuery = routeAccessQuery(rootContextKey, () => getRootContext());
-const entryRedirectQuery = (pathname: string) =>
-  routeAccessQuery(entryRedirectKey(pathname), () => getEntryRedirect({ data: pathname }));
 
-export type RootAccess = {
-  pathname: string;
-  context: Awaited<ReturnType<typeof getRootContext>> | undefined;
-  entryRedirect: Awaited<ReturnType<typeof getEntryRedirect>> | undefined;
-};
+export type RootContext = Awaited<ReturnType<typeof getRootContext>>;
 
-async function loadRootContext(queryClient: QueryClient, pathname: string) {
-  const [context, entryRedirect] = await Promise.all([
-    queryClient.ensureQueryData(rootContextQuery),
-    queryClient.ensureQueryData(entryRedirectQuery(pathname)),
-  ]);
+// Checked on page loads only. Before setup nobody can sign in, so the only way
+// in is opening a URL, and nothing in the app links to `/setup`.
+async function redirectToEntry(pathname: string) {
+  const entryRedirect = await entry.getEntryRedirect(pathname);
   if (entryRedirect)
     throw "href" in entryRedirect
       ? redirect({ href: entryRedirect.href, replace: true })
       : redirect({ to: entryRedirect.to, replace: true });
-  return context;
 }
 
 type RootBeforeLoadOptions = {
@@ -106,10 +91,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
           googleSignInEnabled: false,
           githubEnabled: false,
         };
-      return loadRootContext(context.queryClient, location.pathname);
+      const [rootContext] = await Promise.all([
+        context.queryClient.ensureQueryData(rootContextQuery),
+        redirectToEntry(location.pathname),
+      ]);
+      return rootContext;
     })
-    .client(({ location, context }: RootBeforeLoadOptions) =>
-      loadRootContext(context.queryClient, location.pathname),
+    .client(({ context }: RootBeforeLoadOptions) =>
+      context.queryClient.ensureQueryData(rootContextQuery),
     ),
   head: () => ({
     meta: [

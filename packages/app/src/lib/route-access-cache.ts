@@ -1,6 +1,6 @@
 import { type Query, type QueryClient, queryOptions } from "@tanstack/react-query";
 import type { AnyRouter } from "@tanstack/react-router";
-import type { RootAccess } from "#app/routes/__root.tsx";
+import type { RootContext } from "#app/routes/__root.tsx";
 
 const ROUTE_ACCESS_KEY = "route-access";
 
@@ -56,7 +56,7 @@ export async function applyAccessChange(
   await queryClient.refetchQueries({ type: "active" });
 }
 
-function identityOf(context: RootAccess["context"]) {
+function identityOf(context: RootContext | undefined) {
   const session = context?.session;
   return session
     ? `${session.user.id}:${session.session.id}:${session.session.activeOrganizationId ?? ""}`
@@ -72,11 +72,11 @@ function identityOf(context: RootAccess["context"]) {
 export async function revalidateRootAccess(
   queryClient: QueryClient,
   router: Pick<AnyRouter, "invalidate" | "navigate">,
-  fetchContext: () => Promise<RootAccess["context"]>,
+  fetchContext: () => Promise<RootContext | undefined>,
 ) {
   const current = await fetchContext();
   // Read after the request: a change made in this tab meanwhile already reset it.
-  const cached = queryClient.getQueryData<RootAccess["context"]>([
+  const cached = queryClient.getQueryData<RootContext | undefined>([
     ROUTE_ACCESS_KEY,
     ...rootContextKey,
   ]);
@@ -85,29 +85,16 @@ export async function revalidateRootAccess(
 }
 
 export const rootContextKey = ["root"] as const;
-export const entryRedirectKey = (pathname: string) => ["entry", pathname] as const;
 
 // The root guard runs on the server for the page shell, and hydration reuses
-// its result instead of running it again in the browser. Handing over what it
-// read keeps the first navigation after a page load from asking again. The
-// server's QueryClient belongs to this one request, so this only ever carries
-// the requesting user's own session back to them.
-export function dehydrateRootAccess(queryClient: QueryClient, pathname: string): RootAccess {
-  return {
-    pathname,
-    context: queryClient.getQueryData<RootAccess["context"]>([ROUTE_ACCESS_KEY, ...rootContextKey]),
-    entryRedirect: queryClient.getQueryData<RootAccess["entryRedirect"]>([
-      ROUTE_ACCESS_KEY,
-      ...entryRedirectKey(pathname),
-    ]),
-  };
+// its result instead of running it again in the browser. Handing over the
+// session it read keeps the first navigation after a page load from asking
+// again. The server's QueryClient belongs to this one request, so this only
+// ever carries the requesting user's own session back to them.
+export function dehydrateRootContext(queryClient: QueryClient) {
+  return queryClient.getQueryData<RootContext>([ROUTE_ACCESS_KEY, ...rootContextKey]);
 }
 
-export function hydrateRootAccess(
-  queryClient: QueryClient,
-  { pathname, context, entryRedirect }: RootAccess,
-) {
-  if (context) queryClient.setQueryData([ROUTE_ACCESS_KEY, ...rootContextKey], context);
-  if (entryRedirect !== undefined)
-    queryClient.setQueryData([ROUTE_ACCESS_KEY, ...entryRedirectKey(pathname)], entryRedirect);
+export function hydrateRootContext(queryClient: QueryClient, rootContext: RootContext | undefined) {
+  if (rootContext) queryClient.setQueryData([ROUTE_ACCESS_KEY, ...rootContextKey], rootContext);
 }

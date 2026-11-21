@@ -1,25 +1,21 @@
 import { QueryClient } from "@tanstack/react-query";
 import { expect, it, vi } from "vite-plus/test";
-import type { RootAccess } from "#app/routes/__root.tsx";
-import { hydrateRootAccess, revalidateRootAccess } from "./route-access-cache";
+import type { RootContext } from "#app/routes/__root.tsx";
+import { hydrateRootContext, revalidateRootAccess } from "./route-access-cache";
 
-function rootContext(organizationId: string): NonNullable<RootAccess["context"]> {
+function rootContext(organizationId: string): RootContext {
   return {
     session: {
       user: { id: "user-1" },
       session: { id: "session-1", activeOrganizationId: organizationId },
     },
-  } as NonNullable<RootAccess["context"]>;
+  } as RootContext;
 }
 
 function setup(cachedOrganization: string) {
   const queryClient = new QueryClient();
   const router = { invalidate: vi.fn(() => Promise.resolve()), navigate: vi.fn() };
-  hydrateRootAccess(queryClient, {
-    pathname: "/",
-    context: rootContext(cachedOrganization),
-    entryRedirect: null,
-  });
+  hydrateRootContext(queryClient, rootContext(cachedOrganization));
   queryClient.setQueryData(["logs"], ["from org-a"]);
   return { queryClient, router };
 }
