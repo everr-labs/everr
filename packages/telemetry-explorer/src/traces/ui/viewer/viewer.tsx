@@ -124,12 +124,8 @@ function PreparedTraceViewer({
   );
 }
 
-/**
- * The viewer before its trace is loaded and prepared: its own header row,
- * with a working Back button, over a body that fills the height the viewer
- * will. Both stages (loading the spans, preparing the model) show this one
- * shape, so the page does not change shape twice before the trace appears.
- */
+/** One shape for both stages (loading the spans, preparing the model), so the
+ *  page does not change shape twice before the trace appears. */
 function TraceViewerSkeleton({ onBack, label }: { onBack: () => void; label: string }) {
   return (
     <section

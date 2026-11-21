@@ -153,17 +153,13 @@ function LogStream({
   );
 }
 
-/** Message lengths for the placeholder rows: ragged like real logs, fixed so
- *  every render draws the same shape. */
+/** Ragged like real rows, but fixed so every render draws the same shape. */
 const SKELETON_MESSAGE_WIDTHS = ["72%", "48%", "86%", "35%", "64%", "91%", "41%", "58%"];
 
-/** About 1200px of rows, a tall screen's list, clipped to what its height
- *  shows. No more: every bar repaints its shimmer on each frame. */
+/** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 60;
 
-/** `LogRow`'s own grid, paddings and 16px lines, with the same time column
- *  width the rows will use, so the list keeps its density and the messages
- *  start where they will when the rows arrive. */
+/** On `LogRow`'s own grid and time column, so messages start where they will. */
 const LogRowsSkeleton = memo(function LogRowsSkeleton({ withDay }: { withDay: boolean }) {
   return (
     <div aria-hidden className="h-full overflow-hidden bg-background">
@@ -310,8 +306,6 @@ export function LogsExplorer({
     setIsInspectorExpanded(false);
   }, []);
 
-  // The overlays read the last log shown, so a closing drawer, sheet or
-  // dialog keeps its content while it animates out instead of emptying.
   const shownLog = useRetained(selectedLogState);
 
   // The inspector in the drawer or the sheet; the column and the expanded
@@ -368,7 +362,6 @@ export function LogsExplorer({
                 }
               />
 
-              {/* Dims while it shows the previous filters' results. */}
               <div
                 aria-busy={isPlaceholderData}
                 className={cn("min-h-0 flex-1", staleClass(isPlaceholderData))}

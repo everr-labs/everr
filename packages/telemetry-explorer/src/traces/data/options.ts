@@ -98,9 +98,8 @@ export function listServiceIdentitiesOptions(
   return queryOptions(serviceIdentitiesQuery(repo, input));
 }
 
-/** The namespace filter's options: the same read (and cache entry) as
- *  `listServiceIdentitiesOptions`, so the picker shows "Loading…" while the
- *  page's identities load instead of an empty list. */
+/** Shares `listServiceIdentitiesOptions`' cache entry, so the picker shows
+ *  "Loading…" while the page's identities load. */
 export function serviceNamespaceFilterOptions(
   repo: TracesRepositoryLike,
   input: { timeRange: TimeRange },
@@ -111,8 +110,7 @@ export function serviceNamespaceFilterOptions(
   };
 }
 
-/** Module-level, so its identity is stable: Query reruns a `select` whose
- *  identity changes, on every render of the picker. */
+/** Module-level for a stable identity: Query reruns a `select` whose identity changes. */
 function namespacesOf(rows: ServiceIdentity[]) {
   return Array.from(
     new Set(rows.map((row) => row.serviceNamespace).filter((namespace) => namespace.length > 0)),

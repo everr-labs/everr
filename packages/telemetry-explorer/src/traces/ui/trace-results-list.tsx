@@ -321,17 +321,13 @@ function ResultsFooter({
   );
 }
 
-/** Name lengths for the placeholder rows: ragged like real ones, fixed so
- *  every render draws the same shape. */
+/** Ragged like real rows, but fixed so every render draws the same shape. */
 const SKELETON_NAME_WIDTHS = ["40%", "28%", "52%", "34%", "46%", "22%", "38%", "58%"];
 
-/** About 1200px of rows, a tall screen's list, clipped to what its height
- *  shows. No more: every bar repaints its shimmer on each frame. */
+/** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 30;
 
-// The list's real header over rows built from `TraceRow`'s own cells, the
-// method column and the duration's figure and bar included, so neither the
-// header nor the rows move when the traces land.
+// Built from `TraceRow`'s own cells, so nothing moves when the traces land.
 function ResultsSkeleton({ withDay }: { withDay: boolean }) {
   return (
     <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">

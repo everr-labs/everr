@@ -516,8 +516,7 @@ function SeriesPanel({
   }
   if (isPending) {
     return (
-      // The chart's own box (px-4 pt-3, 260px tall) over the start of the
-      // series table, so the chart lands where its placeholder stood.
+      // The chart's own box, so the chart lands where its placeholder stood.
       <div className="flex flex-col gap-3 px-4 pt-3">
         <Skeleton className="h-[260px] w-full" />
         <Skeleton className="h-24 w-full" />

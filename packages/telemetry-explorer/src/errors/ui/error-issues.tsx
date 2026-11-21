@@ -75,7 +75,6 @@ export function ErrorIssues({
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
-          {/* Dims while it shows the previous filters' results. */}
           <main
             aria-busy={issuesQuery.isPlaceholderData}
             className={cn(

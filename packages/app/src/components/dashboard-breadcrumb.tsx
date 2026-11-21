@@ -18,13 +18,10 @@ export function DashboardBreadcrumb() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const presented = useMatches();
-  // While a navigation loads, the router keeps the previous page on screen but
-  // the URL and the sidebar already name the next one. The breadcrumb follows
-  // them: it resolves the location being loaded. Matches the router already
-  // holds are reused, so a crumb read from loader data (a dashboard's name)
-  // stays put across a search-only change. A new page's crumb reads what the
-  // cache already knows (the list it was clicked from), and draws a skeleton
-  // only when nothing does.
+  // Mid-navigation the router still shows the previous page, but the URL and
+  // sidebar name the next one, so the crumbs follow the pending location.
+  // Matches the router already holds are reused, so a crumb from loader data
+  // stays put across a search-only change.
   const pendingLocation = useRouterState({
     select: (state) => (state.status === "pending" ? state.location : undefined),
   });
@@ -50,8 +47,6 @@ export function DashboardBreadcrumb() {
         crumbs.push({
           label: seg.label,
           link: seg.link ?? <Link from={match.fullPath} to="." params={match.params} />,
-          // A stand-in label only shows once the page has settled without
-          // the real one (a missing resource), never mid-navigation.
           pending: Boolean(seg.unresolved && pendingLocation),
         });
       }

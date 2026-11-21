@@ -95,8 +95,7 @@ function CommandList({
   loading = false,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.List> & {
-  /** Holds the list at a few rows' height, so the popover does not jump when
-   *  the items arrive. */
+  /** Holds the list at a few rows' height, so the popover does not jump. */
   loading?: boolean;
 }) {
   return (

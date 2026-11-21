@@ -123,9 +123,8 @@ export function HomeExperience({
           </div>
         )
       )}
-      {/* Its own slot, outside the steps, so the dashboard drawn while the
-          status loads is the same one that stays after: no remount, no second
-          round of panel queries. */}
+      {/* Outside the steps, so the dashboard drawn while the status loads stays
+          mounted: no second round of panel queries. */}
       {view === "dashboard" && <div className="space-y-8">{children}</div>}
     </>
   );

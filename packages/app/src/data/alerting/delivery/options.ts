@@ -13,8 +13,6 @@ export const alertNotificationsOptions = (range: TimeRange) =>
     // old window.
     queryKey: [...notificationsQueryKey, range.from, range.to],
     queryFn: () => getAlertNotifications({ data: toViewerTimeRange(range) }),
-    // A range change keeps the previous range's answer on screen, dimmed,
-    // until the new one lands, instead of dropping the page to placeholders.
     placeholderData: keepPreviousData,
   });
 

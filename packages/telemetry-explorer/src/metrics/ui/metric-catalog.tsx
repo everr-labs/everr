@@ -37,9 +37,8 @@ export function MetricCatalog({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      {/* Borders on the cells, not collapsed onto the rows: Safari paints a
-          collapsed row border once per row it separates, so a translucent
-          line came out twice as bright as the other lists'. */}
+      {/* Borders on the cells: Safari paints a collapsed row border once per row
+          it separates, so translucent lines came out twice as bright. */}
       <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <CatalogHead />
         <tbody>
@@ -118,8 +117,7 @@ function CatalogHead() {
   );
 }
 
-/** The catalog's own table: its header, then rows on its columns at a metric
- *  name's line height (a described metric adds a second line when loaded). */
+/** Rows at a metric name's line height (a described metric adds a second line). */
 function CatalogSkeleton() {
   return (
     <div aria-hidden className="min-h-0 flex-1 overflow-hidden">

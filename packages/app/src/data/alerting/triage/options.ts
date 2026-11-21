@@ -1,6 +1,5 @@
 import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, type QueryClient, queryOptions } from "@tanstack/react-query";
-import { keepAcrossTimeRange } from "#app/lib/keep-across-time-range.ts";
 import {
   getAlertDetail,
   getAlertRuleOptions,
@@ -30,8 +29,6 @@ export const alertTriageOptions = (range: TimeRange) =>
     // range change has to refetch rather than serve the old window.
     queryKey: [...alertingQueryKey, "list", range.from, range.to],
     queryFn: () => getAlertTriage({ data: toViewerTimeRange(range) }),
-    // A range change keeps the previous range's answer on screen, dimmed,
-    // until the new one lands, instead of dropping the page to placeholders.
     placeholderData: keepPreviousData,
     // Triage is a live board: a stale firing list is the one thing it must
     // never show.
@@ -46,28 +43,22 @@ export const ruleStateHistoryOptions = (range: TimeRange) =>
     placeholderData: keepPreviousData,
   });
 
-export const alertDetailOptions = (path: string | undefined, range: TimeRange) => {
-  // The range is part of the key: the detail's silence list is scoped to it,
-  // so a range change has to refetch rather than serve the old window.
-  const queryKey = [
-    ...alertingQueryKey,
-    "detail",
-    path ?? "",
-    { from: range.from, to: range.to },
-  ] as const;
+export const alertDetailOptions = (path: string | undefined, range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
-  return queryOptions({
-    queryKey,
+  queryOptions({
+    // The range is part of the key: the detail's silence list is scoped to it,
+    // so a range change has to refetch rather than serve the old window.
+    queryKey: [...alertingQueryKey, "detail", path ?? "", range.from, range.to],
     queryFn: () =>
       getAlertDetail({
         data: { path: path ?? "", ...toViewerTimeRange(range) },
       }),
-    // Kept across a range change only. Another rule's detail standing in for
-    // the one just opened would put the wrong name over the wrong numbers.
-    placeholderData: keepAcrossTimeRange(queryKey),
+    // Kept across a range change only: another rule's detail would put the
+    // wrong name over the wrong numbers.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[3] === (path ?? "") ? previous : undefined,
     enabled: Boolean(path),
   });
-};
 
 export const alertSilencesOptions = (range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.

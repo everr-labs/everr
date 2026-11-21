@@ -187,7 +187,6 @@ function CatalogPage({
           />
         </div>
       </ExploreFilterRail>
-      {/* Dims while it shows the previous filters' results. */}
       <main
         aria-busy={query.isPlaceholderData}
         className={cn("flex min-h-0 min-w-0 flex-col", staleClass(query.isPlaceholderData))}

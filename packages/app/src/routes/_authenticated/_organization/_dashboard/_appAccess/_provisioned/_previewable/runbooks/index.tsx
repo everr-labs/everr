@@ -6,9 +6,8 @@ import { findPage } from "#app/data/runbooks/pages.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/",
 )({
-  // Never a page of its own: the loader always redirects, so this crumb only
-  // shows while it runs. It holds a place for the runbook the redirect
-  // lands on, so the breadcrumb gains a name rather than a segment.
+  // The loader always redirects, so this crumb only shows while it runs,
+  // holding a place for the runbook the redirect lands on.
   staticData: {
     breadcrumb: () => [
       { label: "Runbooks", link: <Link to="/runbooks" /> },

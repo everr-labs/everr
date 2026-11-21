@@ -180,8 +180,7 @@ export function PanelVisualization({
   const Component = entry.component;
   return (
     <Suspense
-      // The panel's own pending look, so a lazily loaded visualization (the
-      // map) reads as the same load rather than a third state.
+      // The panel's own pending look, so a lazy visualization is not a third state.
       fallback={<Skeleton className="h-full w-full" />}
     >
       <Component

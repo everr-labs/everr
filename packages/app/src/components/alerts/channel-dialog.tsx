@@ -63,7 +63,6 @@ export function ChannelDialog({
   onSave: (draft: ChannelDraft) => void;
   onDelete: (name: string) => void;
 }) {
-  // The form stays on what it was opened on while the dialog animates out.
   const shown = useRetained(target);
   const opening = useOpenCount(target !== null);
   return (

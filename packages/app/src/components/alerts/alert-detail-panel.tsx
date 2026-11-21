@@ -69,9 +69,8 @@ function statePhrase(state: RuleInventoryState, since: string | null) {
 }
 
 /** The panel is mounted the moment a rule is picked, so the column has to
- *  stand up before the detail query answers. Built from the body's own parts
- *  (the summary block, then the sections under their real headings), so each
- *  part fills in where it will stay and only the section heights move. */
+ *  stand up before the detail query answers. Built from the body's own parts,
+ *  so only the section heights move. */
 function DetailSkeleton() {
   return (
     <div aria-hidden className="min-h-0 flex-1 overflow-hidden">
@@ -159,9 +158,7 @@ export function AlertDetailPanel({
   /** A pause or resume in flight. The banner and the button follow it at once;
    *  the state line keeps the server's word until the refetch lands. */
   requestedPause?: boolean;
-  /** `detail` is the previous time range's read while the new one loads. The
-   *  header is the rule itself and stays; the body is scoped to the range and
-   *  dims. */
+  /** `detail` is the previous time range's read while the new one loads. */
   stale?: boolean;
 }) {
   // Off, not muted: `status` already says so, and everything below the header
@@ -200,8 +197,7 @@ export function AlertDetailPanel({
             Silences section now carries Cancel on the row it belongs to, and
             a second button naming no particular silence was the vaguer of the
             two. */}
-        {/* Held at its line height while the detail loads, so the body does
-            not drop by a line when the state arrives. */}
+        {/* Holds the state line's height, so the body does not drop when it arrives. */}
         {!detail && (
           <div className="flex h-5 items-center">
             <Skeleton className="h-3 w-56 max-w-full rounded-sm" />

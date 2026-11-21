@@ -22,10 +22,8 @@ function MembersSkeleton() {
   );
 }
 
-/** The page's reads, for its route to load before it renders: the members
- *  table and the pending invitations above it arrive together instead of the
- *  invitations card pushing the table down. Never throws; a failed read is
- *  the page's to show. */
+/** Loaded by the route before render, so the invitations card does not push
+ *  the table down when it lands. Never throws. */
 export function prefetchMembersPage(queryClient: QueryClient) {
   return Promise.all([
     queryClient.prefetchQuery(membersQueryOptions()),

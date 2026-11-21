@@ -20,9 +20,8 @@ export function DashboardLayout() {
   const { session } = useRouteContext({ from: "/_authenticated" });
   const search = useSearch({ strict: false });
 
-  // Only what the shell reads, structurally shared: the router updates its
-  // matches at every step of a navigation, and re-rendering the whole shell on
-  // each one was most of a navigation's cost.
+  // Structurally shared: the router updates matches at every navigation step,
+  // and re-rendering the whole shell on each was most of a navigation's cost.
   const matches = useMatches({
     select: (all) =>
       all.map((match) => ({

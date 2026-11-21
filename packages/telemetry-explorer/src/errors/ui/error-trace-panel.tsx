@@ -94,8 +94,7 @@ export function ErrorTracePanel({
   spans: RelatedSpan[];
   isPending: boolean;
   isError: boolean;
-  /** `spans` are the previously selected occurrence's while this one's load:
-   *  the list dims in place instead of collapsing to placeholders. */
+  /** `spans` belong to the previously selected occurrence while this one loads. */
   isStale?: boolean;
   onRetry: () => void;
   renderTraceLink: RenderTraceLink;

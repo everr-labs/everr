@@ -91,9 +91,8 @@ function AlertingTriagePage() {
           )}
           viewportProps={{ "aria-busy": triage.isPlaceholderData }}
         >
-          {/* Nothing stands in for the firing list while it loads: on most
-            visits nothing is firing, and a placeholder there would vanish and
-            pull the inventory up under the reader. */}
+          {/* No placeholder for the firing list: usually nothing fires, and it
+            would vanish and pull the inventory up under the reader. */}
           {alerts.length > 0 && (
             <TriageList
               // A silence being cancelled already shows as gone.
@@ -111,9 +110,8 @@ function AlertingTriagePage() {
               onSilence={(path) => silence.openSilence(ruleSilenceSeed(path))}
               onExpireSilence={(path) => {
                 const alert = alerts.find((a) => a.path === path);
-                // No recreation: the row knows which silence is in force but
-                // not how it was written, and an Undo that guessed the scope
-                // would mute more than the reader muted.
+                // No recreation: the row does not know the silence's scope, and
+                // an Undo that guessed it could mute more than the reader did.
                 if (alert?.silence) silence.cancel(cancelSilenceById(alert.silence.id, alert.name));
               }}
             />

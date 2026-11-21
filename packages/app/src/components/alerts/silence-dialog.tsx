@@ -77,7 +77,6 @@ export function SilenceDialog({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
-  // The form stays on what it was opened on while the dialog animates out.
   const shown = useRetained(seed);
   const opening = useOpenCount(seed !== null);
   return (

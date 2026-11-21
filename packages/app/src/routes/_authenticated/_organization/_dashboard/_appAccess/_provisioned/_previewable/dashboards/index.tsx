@@ -26,9 +26,8 @@ const toDashboard = (project: string, slug: string) =>
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards/",
 )({
-  // Never a page of its own: the loader always redirects, so this crumb only
-  // shows while it runs. It holds a place for the dashboard the redirect
-  // lands on, so the breadcrumb gains a name rather than a segment.
+  // The loader always redirects, so this crumb only shows while it runs,
+  // holding a place for the dashboard the redirect lands on.
   staticData: {
     breadcrumb: () => [
       { label: "Dashboards", link: <Link to="/dashboards" /> },

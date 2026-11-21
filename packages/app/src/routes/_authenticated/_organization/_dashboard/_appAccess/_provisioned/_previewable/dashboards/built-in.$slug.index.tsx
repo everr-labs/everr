@@ -63,10 +63,8 @@ function BuiltinDashboardPage() {
       <DashboardGrid
         address={{ kind: "built-in", slug }}
         notice={notice}
-        // No action until the probe answers: which one applies is exactly
-        // what it decides, and offering "Create" first only to swap it for
-        // the instrumentation prompt put a button under the pointer that
-        // changed what it did. A failed probe falls back to "Create".
+        // No action until the probe answers: showing "Create" and then swapping
+        // it for the instrumentation prompt changed the button under the pointer.
         actions={
           !readiness && capabilitiesQuery.isPending ? null : needsSetup ? (
             <InstrumentFromBuiltin name={builtin.name} missing={needsSetup.missing} />

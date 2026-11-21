@@ -26,9 +26,8 @@ export const runbookBreadcrumb = (
   const runbooks = { label: "Runbooks", link: <Link to="/runbooks" /> };
   const runbook = { label: name ?? "Runbook", unresolved: name === undefined };
   // On the index page the runbook is where you are; on one of its pages it
-  // becomes the way back, and the page names the place. A page the runbook
-  // doesn't have leaves the title undefined once loaded, so the breadcrumb
-  // stops at the runbook rather than naming a page the pane cannot show.
+  // becomes the way back, and the page names the place. Once loaded, a page the
+  // runbook lacks stops the breadcrumb at the runbook.
   if (!pagePath || (loaded && pageTitle === undefined)) return [runbooks, runbook];
   return [
     runbooks,

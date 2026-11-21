@@ -111,18 +111,15 @@ function ListHeader() {
   );
 }
 
-/** Type and message lengths for the placeholder rows: ragged like real ones,
- *  fixed so every render draws the same shape. */
+/** Ragged like real rows, but fixed so every render draws the same shape. */
 const SKELETON_TYPE_WIDTHS = ["7rem", "9rem", "6rem", "8rem", "5rem"];
 const SKELETON_MESSAGE_WIDTHS = ["9rem", "6rem", "11rem", "7rem", "10rem", "8rem"];
 
-/** About 1200px of rows, a tall screen's list, clipped to what its height
- *  shows. No more: every bar repaints its shimmer on each frame. */
+/** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
 const SKELETON_ROW_COUNT = 36;
 
-// The list's real header over rows built from `ErrorIssueRow`'s own cells, at
-// its fonts and with the trend's 20px box that sets a row's height, so neither
-// the header nor the rows move when the issues land.
+// Built from `ErrorIssueRow`'s own cells and 20px trend box, so nothing moves
+// when the issues land.
 function ListSkeleton() {
   return (
     <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">

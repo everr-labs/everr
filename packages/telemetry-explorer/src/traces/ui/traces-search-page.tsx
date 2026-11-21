@@ -49,8 +49,7 @@ export function TracesSearch({
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
-  // Warms the identities read the namespace filter shares, so the picker
-  // opens on a loaded list.
+  // Warms the read the namespace filter shares, so the picker opens loaded.
   useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
   const {
     data,
@@ -98,7 +97,6 @@ export function TracesSearch({
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
-          {/* Dims while it shows the previous filters' results. */}
           <main
             aria-busy={isPlaceholderData}
             className={cn("flex min-h-0 min-w-0 flex-col", staleClass(isPlaceholderData))}

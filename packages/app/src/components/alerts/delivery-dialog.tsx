@@ -155,8 +155,8 @@ export function DeliveryDialog({
         if (!next && !pending) onClose();
       }}
     >
-      {/* Not gated on `open`, so the form stays on screen while it animates
-          out; keyed per opening, so each one re-reads the saved destination. */}
+      {/* Not gated on `open`, so it stays through the exit animation; keyed per
+          opening, so each one re-reads the saved destination. */}
       <DeliveryForm
         key={opening}
         channels={channels}

@@ -22,9 +22,8 @@ export const panelBreadcrumb = (
   { queryClient }: BreadcrumbContext,
 ): BreadcrumbSegment[] => {
   const { project, slug, panelKey } = match.params;
-  // Before the loader answers, the name comes from the dashboard document the
-  // user is maximizing the panel from, which is already cached (own) or
-  // bundled (built-in).
+  // Before the loader answers, the name comes from the cached (own) or bundled
+  // (built-in) dashboard document.
   const document =
     project === undefined
       ? getBuiltinDashboard(slug)?.document

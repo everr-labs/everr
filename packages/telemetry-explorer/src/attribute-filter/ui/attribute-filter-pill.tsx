@@ -68,9 +68,8 @@ function PillEditor({
       { domain },
     ),
     enabled: showValues,
-    // Typing keeps the last results listed until the next search answers, so
-    // the list does not collapse to "Loading…" and regrow on every
-    // keystroke. Only for this attribute: another key's values never stand in.
+    // Keeps the last results while typing, so the list does not collapse and
+    // regrow on every keystroke. Only for the same attribute.
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[3] === filter.source && previousQuery.queryKey[4] === filter.key
         ? previous

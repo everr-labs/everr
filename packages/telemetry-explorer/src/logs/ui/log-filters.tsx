@@ -120,8 +120,7 @@ export function LogFiltersBar({
                 <span className={cn("size-2 rounded-full", levelDotClassName(level))} />
                 <span className="truncate capitalize">{level}</span>
               </span>
-              {/* Right-aligned at a fixed minimum width, so the count arriving
-                  does not reflow the row. Blank until it does. */}
+              {/* Fixed minimum width, so the arriving count does not reflow the row. */}
               <span className="text-muted-foreground min-w-[6ch] text-right font-mono tabular-nums">
                 {levelCounts?.[level].toLocaleString()}
               </span>

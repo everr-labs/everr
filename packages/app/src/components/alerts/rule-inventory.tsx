@@ -39,9 +39,7 @@ export function RuleInventory({
   openPath,
   onOpen,
 }: {
-  /** `undefined` while the triage read is in flight: the section keeps its
-   *  legend and header and fills the body with rows on the real grid, so the
-   *  page does not resettle when the rules arrive. */
+  /** `undefined` while the triage read is in flight; the body shows placeholder rows. */
   rules: RuleInventoryRow[] | undefined;
   /** States and instance values per rule, over the window the server read
    *  them for. `undefined` until that query answers: the chart column, axis
@@ -120,12 +118,9 @@ export function RuleInventory({
   );
 }
 
-/** How many rows stand in for the inventory before it answers. A guess: the
- *  real count is in the response. */
 const LOADING_ROW_COUNT = 5;
 
-/** Placeholder rows on the inventory's own grid and padding, so each is the
- *  height of a real row and the columns hide at the same widths. */
+/** On the inventory's own grid, so rows match in height and columns hide alike. */
 function LoadingRuleRows() {
   return (
     <div aria-hidden>

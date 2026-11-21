@@ -23,12 +23,8 @@ const ROW_HEIGHT = 30;
  */
 const STACK_BELOW_WIDTH = 640;
 
-/**
- * The grid container's width, measured before the browser paints.
- * react-grid-layout's own `useContainerWidth` starts at 1280px and measures in
- * an effect, after paint, so every grid drew once at the wrong width (or
- * unstacked on a narrow pane) and then reflowed under the reader.
- */
+/** Measured before paint: react-grid-layout's `useContainerWidth` starts at
+ *  1280px and measures after paint, so every grid reflowed once. */
 function useGridWidth() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(1280);

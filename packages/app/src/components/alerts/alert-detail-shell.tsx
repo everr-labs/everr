@@ -201,9 +201,7 @@ export function AlertDetailShell({
   onClosePanel: () => void;
   children: React.ReactNode;
 }) {
-  // The sheet keeps the last panel while it slides out, instead of emptying
-  // on the frame the close starts. The column has no exit, so it reads
-  // `panel` itself.
+  // Only the sheet has an exit animation, so only it retains the panel.
   const sheetPanel = useRetained(panel ?? null);
   return (
     <div

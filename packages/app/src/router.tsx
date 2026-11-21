@@ -64,9 +64,8 @@ export const getRouter = () => {
     // they just opened. Only when the destination has no hash to scroll to.
     scrollToTopSelectors: ["[data-scroll-to-top]"],
     // defaultPreloadStaleTime: 0,
-    // No default pending component: a slow navigation keeps the current page
-    // on screen until the next is ready, with `NavigationProgress` saying one is
-    // under way. Routes that know their own shape set `pendingComponent`.
+    // No default pending component: navigations keep the current page and show
+    // `NavigationProgress`. Routes that know their shape set `pendingComponent`.
   });
 
   registerRouter(router);

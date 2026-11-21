@@ -42,7 +42,6 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
   const updateRole = useUpdateMemberRole();
   const remove = useRemoveMember();
   const [rolePending, setRolePending] = useState<RoleChangePending | null>(null);
-  // The confirmation keeps its sentence while it fades out after a close.
   const shownRole = useRetained(rolePending);
 
   const ownerCount = members.filter((m) => m.role === "owner").length;

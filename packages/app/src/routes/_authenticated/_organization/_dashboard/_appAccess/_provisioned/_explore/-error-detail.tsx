@@ -64,9 +64,8 @@ function WebErrorTracePanel({ occurrence }: { occurrence: ErrorOccurrence }) {
   const spansQuery = useQuery({
     ...runSpansOptions(occurrence.traceId),
     enabled: hasTrace,
-    // Switching occurrence keeps the previous trace's spans, dimmed, until
-    // this one's arrive: occurrences of one error tend to share a shape, so the
-    // list changes in place instead of collapsing and regrowing.
+    // Occurrences of one error tend to share a shape, so the list changes in
+    // place instead of collapsing and regrowing.
     placeholderData: keepPreviousData,
   });
   const spans = (spansQuery.data ?? []).map((span) => ({

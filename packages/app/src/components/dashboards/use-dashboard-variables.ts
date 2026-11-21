@@ -60,11 +60,8 @@ export function useDashboardVariables(): DashboardVariablesState {
     queries: queryBacked.map(({ query }) => variableOptionsQueryOptions(query, from, to)),
   });
 
-  // The last options each query answered, by its SQL. A range change keeps
-  // them in the picker, under its "Loading options…" footer, instead of
-  // emptying it; `useQueries` hands a changed key a fresh observer, so
-  // `placeholderData` cannot. Updated during render, like any state derived
-  // from the previous one.
+  // The last options each query answered, kept through a range change:
+  // `useQueries` gives a changed key a fresh observer, so `placeholderData` cannot.
   const [lastOptions, setLastOptions] = useState<Record<string, string[]>>({});
   const answered = queryBacked.flatMap(({ query }, index) => {
     const options = optionQueries[index]?.data?.options;

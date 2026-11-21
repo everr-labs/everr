@@ -17,13 +17,8 @@ export interface HomeStatus {
 
 type HomeView = "onboarding" | "dashboard";
 
-/**
- * Until the status answers (`undefined`), Home assumes a returning member and
- * shows the dashboard: that is who opens Home most often, and its panels start
- * loading at once instead of after a skeleton. An organization still
- * onboarding sees the dashboard give way to the steps once. `?setup=1` always
- * means the steps, so it does not wait to find out.
- */
+/** Until the status answers, Home assumes a returning member (the common case),
+ *  so the dashboard's panels start loading at once instead of after a skeleton. */
 export function homeView(status: HomeStatus | undefined, setupRequested = false): HomeView {
   return setupRequested || status?.onboardingCompleted === false ? "onboarding" : "dashboard";
 }

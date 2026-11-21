@@ -28,9 +28,8 @@ export function formatRowTimestamp(timestamp: string, withDay: boolean): string 
   if (!parsed) return "—";
   const time = parsed.toLocaleTimeString();
   if (!withDay) return time;
-  // Joined here rather than formatted as one: Safari's combined format reads
-  // "Nov 21 at 8:46:35 PM", a character past the column the rows size for
-  // "Nov 21, 8:46:35 PM", so it wrapped there and nowhere else.
+  // Joined by hand: Safari's combined format reads "Nov 21 at 8:46:35 PM", one
+  // character too wide for the column, so it wrapped there only.
   return `${parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 

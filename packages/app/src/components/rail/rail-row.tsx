@@ -69,8 +69,7 @@ export const RailRow: <
   > & { activeProps?: never },
 ) => ReactElement = createLink(RailRowAnchor);
 
-/** Rail rows before their list arrives: the real row height (and its 40px
- *  touch-target height in a side drawer), an icon and a label. */
+/** Matches the real row height, including its 40px touch target in a drawer. */
 export function RailRowsSkeleton({ count = 3, label }: { count?: number; label: string }) {
   return (
     <div aria-busy="true">

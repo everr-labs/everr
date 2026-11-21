@@ -58,8 +58,7 @@ export function ErrorDetail({
       service,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
-    // A new time range or service filter keeps this error on screen, dimmed,
-    // until it reloads. Another error's detail never stands in for this one.
+    // Another error's detail never stands in for this one.
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[2] === fingerprint ? previous : undefined,
   });
@@ -120,9 +119,8 @@ export function ErrorDetail({
           renderOccurrenceLink={renderOccurrenceLink}
         />
         <ScrollArea render={<main />} className="min-h-0 flex-1">
-          {/* The column is centred inside a full-width scroller, so its width
-            bound belongs to a child: on the viewport it would narrow the
-            scrolling box itself and pull the scrollbar in with it. */}
+          {/* The width bound sits on a child: on the viewport it would narrow
+            the scroller and pull the scrollbar in with it. */}
           <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
             <ErrorStacktrace
               stacktrace={selected.exceptionStacktrace}

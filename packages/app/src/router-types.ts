@@ -6,16 +6,13 @@ import type { ReactElement } from "react";
 export interface BreadcrumbSegment {
   label: string;
   link?: ReactElement;
-  /** The label is a stand-in because the real one is not known yet. While a
-   *  navigation loads, the breadcrumb draws a skeleton in its place rather
-   *  than flash the stand-in; once the page settles (a missing resource) the
-   *  stand-in is what it shows. */
+  /** The real label is not known yet: mid-navigation the breadcrumb draws a
+   *  skeleton instead; once settled (a missing resource) it shows this one. */
   unresolved?: boolean;
 }
 
 export interface BreadcrumbContext {
-  /** Lets a crumb name the page from data already cached before its loader
-   *  answers, such as the list the user clicked it from. */
+  /** For naming a page from cached data before its loader answers. */
   queryClient: QueryClient;
 }
 

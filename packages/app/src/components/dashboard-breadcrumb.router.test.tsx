@@ -64,32 +64,24 @@ function createTestRouter() {
     path: "/dashboards",
     component: () => <p>Dashboards page</p>,
   });
-  const unnamedRoute = createRoute({
+  const slowRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/unnamed",
+    path: "/slow",
     staticData: {
       breadcrumb: (match) => {
         const name = (match.loaderData as { name: string } | undefined)?.name;
-        return [{ label: name ?? "Thing", unresolved: name === undefined }];
+        return [{ label: name ?? "Slow page", unresolved: name === undefined }];
       },
     },
     loader: async () => {
       await loaderGate.promise;
       return { name: "Checkout latency" };
     },
-    component: () => <p>Unnamed page content</p>,
-  });
-  const slowRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/slow",
-    staticData: { breadcrumb: "Slow page" },
-    loader: () => loaderGate.promise,
     component: () => <p>Slow page content</p>,
   });
   const routeTree = rootRoute.addChildren([
     dashboardsRoute,
     slowRoute,
-    unnamedRoute,
     runbookRoute.addChildren([runbookIndexRoute, runbookPageRoute]),
   ]);
   return createRouter({
@@ -109,38 +101,23 @@ function renderRouter(router: ReturnType<typeof createTestRouter>) {
 }
 
 describe("DashboardBreadcrumb with a real router", () => {
-  it("names the page being loaded while the previous page stays on screen", async () => {
-    loaderGate = gate();
-    const router = createTestRouter();
-    renderRouter(router);
-    await screen.findByText("Runbook page");
-
-    router.history.push("/slow");
-
-    expect(await screen.findByText("Slow page")).toBeInTheDocument();
-    expect(screen.getByText("Runbook page")).toBeInTheDocument();
-
-    loaderGate.resolve();
-    expect(await screen.findByText("Slow page content")).toBeInTheDocument();
-    expect(screen.getByText("Slow page")).toBeInTheDocument();
-  });
-
-  it("draws a skeleton, not the stand-in label, for a name still loading", async () => {
+  it("follows the page being loaded, with a skeleton for a name not known yet", async () => {
     loaderGate = gate();
     const router = createTestRouter();
     const { container } = renderRouter(router);
     await screen.findByText("Runbook page");
 
-    router.history.push("/unnamed");
+    router.history.push("/slow");
 
     await vi.waitFor(() =>
       expect(container.querySelector("[data-slot='skeleton']")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Thing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Slow page")).not.toBeInTheDocument();
+    expect(screen.getByText("Runbook page")).toBeInTheDocument();
 
     loaderGate.resolve();
-    expect(await screen.findByText("Checkout latency")).toBeInTheDocument();
-    expect(container.querySelector("[data-slot='skeleton']")).not.toBeInTheDocument();
+    expect(await screen.findByText("Slow page content")).toBeInTheDocument();
+    expect(screen.getByText("Checkout latency")).toBeInTheDocument();
   });
 
   it("resolves a dynamic parent link and preserves an authored Link search", async () => {

@@ -16,11 +16,7 @@ export const runbookListOptions = (preview?: string) =>
     queryFn: () => listRunbooks({ data: { preview } }),
   });
 
-/**
- * A runbook's name, and a page's title, from whatever the cache already holds:
- * the document if the runbook was opened before, else its row in the list
- * (which knows no page titles). Undefined where neither is cached.
- */
+/** From the cached document, else the cached list row (which has no page titles). */
 export function cachedRunbookNames(
   queryClient: QueryClient,
   project: string,
