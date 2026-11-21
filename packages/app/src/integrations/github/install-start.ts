@@ -1,5 +1,6 @@
 import { auth } from "#app/identity/server.ts";
 import { createInstallState } from "#app/lib/github-install-state.ts";
+import { isOrganizationSuspended } from "#app/lib/org-session.server.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import { getGithubConfiguration } from "./configuration";
@@ -24,6 +25,9 @@ export async function handleInstallStart(request: Request): Promise<Response> {
   });
   if (!isOrganizationAdmin(role)) {
     return new Response("not authorized", { status: 403 });
+  }
+  if (await isOrganizationSuspended(activeOrgId)) {
+    return new Response("organization suspended", { status: 403 });
   }
 
   const installURL = new URL(configuration.GITHUB_APP_INSTALL_URL);

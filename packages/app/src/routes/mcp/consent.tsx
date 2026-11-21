@@ -1,6 +1,7 @@
 import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/popover";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, Globe, Laptop, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
 import { useState } from "react";
@@ -8,6 +9,7 @@ import { setActiveMcpOrganization, submitMcpConsent } from "#app/data/mcp/oauth.
 import { authClient } from "#app/lib/auth-client.ts";
 import { describeRedirectUri, type RedirectDestination } from "#app/lib/mcp-redirect-uri.ts";
 import { MCP_SCOPE_LABELS } from "#app/lib/mcp-scopes.ts";
+import { forgetAccess } from "#app/lib/route-access-cache.ts";
 import { OAuthShell } from "./-components/oauth-shell";
 
 type ConsentSearch = Record<string, unknown> & {
@@ -48,6 +50,7 @@ function Consent() {
   const [activeId, setActiveId] = useState<string | null>(
     activeOrganizationId ?? organizations[0]?.id ?? null,
   );
+  const queryClient = useQueryClient();
   const [switchOpen, setSwitchOpen] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
@@ -65,6 +68,8 @@ function Consent() {
     setError(null);
     try {
       await setActiveMcpOrganization({ data: { organizationId } });
+      // It switches the browser session's organization too.
+      await forgetAccess(queryClient);
       setActiveId(organizationId);
       setSwitchOpen(false);
     } catch (caught) {

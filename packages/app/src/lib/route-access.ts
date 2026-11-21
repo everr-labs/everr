@@ -1,9 +1,22 @@
 import { productClient } from "@composition/client";
+import type { QueryClient } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
 import { getActiveOrganizationAccess } from "#app/data/organization-access.ts";
 import type { auth } from "#app/identity/server.ts";
+import { expectOrganization } from "#app/lib/expected-organization.ts";
+import {
+  ensureRouteAccess,
+  organizationAccessKey,
+  routeAccessQuery,
+} from "#app/lib/route-access-cache.ts";
 
-type Session = typeof auth.$Infer.Session;
+type Session = {
+  user: typeof auth.$Infer.Session.user;
+  session: Omit<typeof auth.$Infer.Session.session, "token">;
+};
+
+export const organizationAccessQuery = (session: Session) =>
+  routeAccessQuery(organizationAccessKey(session), () => getActiveOrganizationAccess());
 
 export function requireSession({
   context: { session },
@@ -25,11 +38,11 @@ export function requireSession({
 }
 
 export async function requireOrganization({
-  context: { session },
+  context: { session, queryClient },
   location,
   search,
 }: {
-  context: { session: Session };
+  context: { session: Session; queryClient: QueryClient };
   location: { href: string };
   search: { returnTo?: string };
 }) {
@@ -40,10 +53,16 @@ export async function requireOrganization({
       replace: true,
     });
   if (!session.session.activeOrganizationId) throw missingWorkspace();
-  const access = await getActiveOrganizationAccess();
+  const access = await ensureRouteAccess(
+    queryClient,
+    organizationAccessQuery(session),
+    location.href,
+  );
   if (access.status === "missing") throw missingWorkspace();
+  expectOrganization(access.organization.id);
   return {
     organization: access.organization,
+    memberRole: access.memberRole,
     entryRedirect: access.entryRedirect,
     session: {
       ...session,

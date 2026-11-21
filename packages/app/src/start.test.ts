@@ -44,7 +44,12 @@ describe("startInstance", () => {
         }),
         startMocks.requestMiddleware,
       ],
-      functionMiddleware: [startMocks.functionMiddleware],
+      functionMiddleware: [
+        expect.objectContaining({
+          options: expect.objectContaining({ type: "function", client: expect.any(Function) }),
+        }),
+        startMocks.functionMiddleware,
+      ],
     });
 
     const { getRouter } = await import("#app/router.tsx");

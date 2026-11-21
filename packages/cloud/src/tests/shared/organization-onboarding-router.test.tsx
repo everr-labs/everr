@@ -17,7 +17,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
   }),
 }));
 
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
   createMemoryHistory,
@@ -54,8 +54,8 @@ vi.mock("@tanstack/react-start", () => ({
         return chain;
       },
       handler:
-        (handler: (args: { data: unknown }) => unknown) => async (options: { data: unknown }) =>
-          handler({ data: validate(options.data) }),
+        (handler: (args: { data: unknown }) => unknown) => async (options?: { data: unknown }) =>
+          handler({ data: validate(options?.data) }),
     };
     return chain;
   },
@@ -72,8 +72,16 @@ import { useOrganizationSetupCompletion } from "../../components/use-organizatio
 
 function Signup() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   return (
-    <button type="button" onClick={() => void router.navigate({ to: "/organization-setup" })}>
+    <button
+      type="button"
+      onClick={() => {
+        // As the sign-up page does once the account exists.
+        queryClient.clear();
+        void router.navigate({ to: "/organization-setup" });
+      }}
+    >
       Complete signup
     </button>
   );

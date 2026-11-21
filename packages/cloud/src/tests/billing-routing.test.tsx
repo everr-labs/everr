@@ -12,9 +12,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 const billing = vi.hoisted(() => ({
   getSuspendedOrgRecovery: vi.fn(),
 }));
-const organizationAdmin = vi.hoisted(() => ({
-  ensure: vi.fn(),
-}));
+const organization = vi.hoisted(() => ({ memberRole: "owner" }));
 
 vi.mock("../data/billing", () => ({
   ...billing,
@@ -23,11 +21,6 @@ vi.mock("../data/billing", () => ({
   startOrgCheckout: vi.fn(),
   downgradeSuspendedOrganization: vi.fn(),
 }));
-vi.mock("@everr/app/data/organization-admin", () => ({
-  ensureOrganizationAdmin: organizationAdmin.ensure,
-  NotOrganizationAdminError: class NotOrganizationAdminError extends Error {},
-}));
-
 vi.mock("@everr/app/identity/client", () => ({
   authClient: { useActiveOrganization: () => ({ data: null }) },
 }));
@@ -43,7 +36,15 @@ for (const path of [
 ]) {
   if (path.endsWith("/_admin.tsx") || path.endsWith("/billing_.suspended.tsx")) continue;
   vi.doMock(path, () => ({
-    Route: path === sharedRouteModules.root ? createRootRoute() : createFileRoute()({}),
+    Route:
+      path === sharedRouteModules.root
+        ? createRootRoute({
+            beforeLoad: () => ({
+              memberRole: organization.memberRole,
+              session: { session: { id: "session-1", activeOrganizationId: "org-1" } },
+            }),
+          })
+        : createFileRoute()({}),
   }));
 }
 
@@ -68,9 +69,7 @@ async function visit(path: string) {
 test.each(["owner", "admin", "member"])(
   "a suspended %s can see recovery without entering the billing admin route",
   async (role) => {
-    organizationAdmin.ensure.mockRejectedValue(
-      new Error("The recovery page must not require billing admin access"),
-    );
+    organization.memberRole = role;
     billing.getSuspendedOrgRecovery.mockResolvedValue({
       entitlement: { appState: "suspended" },
       canManageBilling: role !== "member",
@@ -81,7 +80,6 @@ test.each(["owner", "admin", "member"])(
     await visit("/billing/suspended");
 
     expect(await screen.findByText("Pro subscription suspended")).toBeVisible();
-    expect(organizationAdmin.ensure).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Manage billing" }) !== null).toBe(
       role !== "member",
     );
@@ -97,11 +95,10 @@ test.each(["owner", "admin", "member"])(
 test.each(["/billing", "/api-keys", "/github", "/users-management"])(
   "%s shows unauthorized without changing the URL",
   async (path) => {
-    organizationAdmin.ensure.mockRejectedValue(new Error("Not authorized"));
+    organization.memberRole = "member";
     const router = await visit(path);
     expect(await screen.findByRole("heading", { name: "Not authorized" })).toBeVisible();
     expect(router.state.location.pathname).toBe(path);
-    expect(organizationAdmin.ensure).toHaveBeenCalledOnce();
     expect(billing.getSuspendedOrgRecovery).not.toHaveBeenCalled();
   },
 );

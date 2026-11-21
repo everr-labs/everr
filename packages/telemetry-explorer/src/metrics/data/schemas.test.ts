@@ -22,6 +22,7 @@ describe("MetricSeriesInputSchema", () => {
       metric: "cpu",
       type: "gauge",
       aggregation: "avg",
+      step: 60,
     };
     expect(MetricSeriesInputSchema.safeParse(input).success).toBe(false);
     expect(

@@ -6,6 +6,7 @@ import { type ChartMarker, type ChartSeries, SeriesChart } from "@everr/ui/compo
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
+import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
@@ -38,12 +39,14 @@ export function MetricView({
   metric,
   kind,
   entry,
+  entryStale = false,
   aggregations,
   aggregation,
   groupBy,
   result,
   exemplars,
   isPending,
+  stale = false,
   error,
   onRetry,
   attributeRepo,
@@ -68,6 +71,8 @@ export function MetricView({
   metric: string;
   kind: MetricKind | null;
   entry: MetricMetadata | undefined;
+  /** `kind` and `entry` are the last metric's, kept while another's load. */
+  entryStale?: boolean;
   aggregations: MetricAggregation[];
   aggregation: MetricAggregation | null;
   groupBy: GroupByKey[];
@@ -75,6 +80,8 @@ export function MetricView({
   /** Drawn on the chart when their values share its axis. */
   exemplars: MetricExemplar[] | undefined;
   isPending: boolean;
+  /** The chart on screen is from before the last change, and its data is reloading. */
+  stale?: boolean;
   error: Error | null;
   onRetry: () => void;
   attributeRepo: AttributeRepositoryLike;
@@ -104,6 +111,7 @@ export function MetricView({
   allHidden?: boolean;
 }) {
   const unit = entry?.unit ?? "";
+  const heldClass = staleClass(entryStale);
   const temporality = entry ? temporalityLabel(entry.temporality) : null;
   const back = backLink({
     className:
@@ -118,7 +126,7 @@ export function MetricView({
   // A range that ends before it starts has no intervals, so no resolution.
   const resolution =
     result && result.buckets.length > 0 ? (
-      <MetaItem label="Resolution">
+      <MetaItem label="Resolution" className={staleClass(stale)}>
         <span
           title={
             result.stepFromExport
@@ -142,7 +150,7 @@ export function MetricView({
         <header className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
           <h1 className="sr-only">{[...new Set(queryMetrics)].join(", ")}</h1>
           {back}
-          {resolution ? <dl className="ml-auto flex items-center text-xs">{resolution}</dl> : null}
+          <dl className={cn(META_ROW, "ml-auto")}>{resolution}</dl>
         </header>
       ) : (
         <header className="flex flex-col gap-2 border-b px-4 pt-3 pb-3">
@@ -159,22 +167,28 @@ export function MetricView({
                 </span>
               </MetricPicker>
             </h1>
-            {kind ? <MetricKindBadge kind={kind} /> : null}
+            {kind ? (
+              <span className={heldClass}>
+                <MetricKindBadge kind={kind} />
+              </span>
+            ) : null}
           </div>
           {entry?.description ? (
-            <p className="text-muted-foreground text-sm">{entry.description}</p>
+            <p className={cn("text-muted-foreground text-sm", heldClass)}>{entry.description}</p>
           ) : null}
-          {entry ? (
-            <dl className="flex flex-wrap items-center gap-1.5 text-xs">
-              {entry.unit ? (
-                <MetaItem label="Unit">
-                  <span title={`UCUM unit: ${entry.unit}`}>{unitName(entry.unit)}</span>
-                </MetaItem>
-              ) : null}
-              {temporality ? <MetaItem label="Temporality">{temporality}</MetaItem> : null}
-              {resolution}
-            </dl>
-          ) : null}
+          <dl className={cn(META_ROW, "flex-wrap")}>
+            {entry?.unit ? (
+              <MetaItem label="Unit" className={heldClass}>
+                <span title={`UCUM unit: ${entry.unit}`}>{unitName(entry.unit)}</span>
+              </MetaItem>
+            ) : null}
+            {temporality ? (
+              <MetaItem label="Temporality" className={heldClass}>
+                {temporality}
+              </MetaItem>
+            ) : null}
+            {resolution}
+          </dl>
         </header>
       )}
 
@@ -226,24 +240,43 @@ export function MetricView({
         </div>
       )}
 
-      <SeriesPanel
-        lines={lines}
-        multi={Boolean(queryRows)}
-        allHidden={allHidden}
-        heatmapUnit={unit}
-        view={view}
-        aggregation={aggregation}
-        groupBy={linesGroupBy}
-        result={result}
-        exemplars={exemplars}
-        isPending={isPending}
-        error={error}
-        onRetry={onRetry}
-        onRangeSelect={onRangeSelect}
-        renderTraceLink={renderTraceLink}
-        renderLogsLink={renderLogsLink}
-      />
+      <div aria-busy={stale} className={cn("flex flex-1 flex-col", staleClass(stale))}>
+        <SeriesPanel
+          lines={lines}
+          multi={Boolean(queryRows)}
+          allHidden={allHidden}
+          heatmapUnit={unit}
+          view={view}
+          aggregation={aggregation}
+          groupBy={linesGroupBy}
+          result={result}
+          exemplars={exemplars}
+          isPending={isPending}
+          error={error}
+          onRetry={onRetry}
+          onRangeSelect={onRangeSelect}
+          renderTraceLink={renderTraceLink}
+          renderLogsLink={renderLogsLink}
+        />
+      </div>
     </div>
+  );
+}
+
+// Kept in place while empty, as tall as a MetaItem, so the header doesn't
+// jump when the chart's resolution comes and goes.
+const META_ROW = "flex min-h-5.5 items-center gap-1.5 text-xs";
+
+/**
+ * Dims what shows data from before the last change while it reloads. Like
+ * Button's loading state, it waits 150ms, so a quick reload shows nothing:
+ * a transition that has not started is simply cancelled. Fresh data shows
+ * at full strength at once.
+ */
+function staleClass(stale: boolean) {
+  return cn(
+    "transition-opacity duration-0",
+    stale && "opacity-50 delay-150 duration-150 motion-reduce:duration-0",
   );
 }
 
@@ -494,8 +527,7 @@ function SeriesPanel({
       <RetryError title="Couldn't load this metric" message={error.message} onRetry={onRetry} />
     );
   }
-  // The lines' result carries no heatmap until the heatmap's own request returns.
-  if (isPending || (view === "heatmap" && result && !result.heatmap)) {
+  if (isPending) {
     return (
       <div className="flex flex-col gap-3 p-4">
         <Skeleton className="h-[260px] w-full" />
@@ -530,6 +562,7 @@ function SeriesPanel({
     );
   }
 
+  // Switched to the heatmap, the lines stay until the heatmap's own request returns.
   if (view === "heatmap" && result?.heatmap) {
     return (
       <>
@@ -717,9 +750,17 @@ function BucketMergeText({ merged, what }: { merged: BucketMergeNote | undefined
   );
 }
 
-function MetaItem({ label, children }: { label: string; children: ReactNode }) {
+function MetaItem({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex items-stretch overflow-hidden rounded-md border">
+    <div className={cn("flex items-stretch overflow-hidden rounded-md border", className)}>
       <dt className="bg-muted text-muted-foreground border-r px-1.5 py-0.5">{label}</dt>
       <dd className="px-1.5 py-0.5">{children}</dd>
     </div>

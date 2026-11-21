@@ -1,7 +1,8 @@
 import { Spinner } from "@everr/ui/components/spinner";
 import { routeTree } from "@composition/routes";
-import { QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
+import { createQueryClient } from "#app/lib/query-client.ts";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
 import { RootErrorComponent } from "./components/root-error";
@@ -42,16 +43,9 @@ const routeMasks = [
  * if the cache key learns about the options.
  */
 export const getRouter = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        gcTime: 5 * 60_000,
-        refetchOnWindowFocus: true,
-        retry: 3,
-      },
-    },
-  });
+  // One per call, and Start calls this once per server request, so cached
+  // session and organization data never outlives the request it was read for.
+  const queryClient = createQueryClient(() => router);
 
   const router = createRouter({
     routeTree,

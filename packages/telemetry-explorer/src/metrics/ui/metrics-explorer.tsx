@@ -1,4 +1,5 @@
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
+import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
 import { Label } from "@everr/ui/components/label";
 import { Shapes } from "lucide-react";
 import type { TimeRange } from "@everr/ui/lib/time-range";
@@ -23,6 +24,7 @@ import {
   metricSummaryQuantilesOptions,
 } from "../data/options";
 import type { MetricsRepositoryLike } from "../data/repository";
+import { chartClock } from "../data/step";
 import {
   type GroupByKey,
   type MetricAggregation,
@@ -216,6 +218,21 @@ type QuerySpec = {
 };
 
 /** The chart's queries in order: A from the page's own fields, then `queries`. */
+/**
+ * A query's values on the chart's buckets. Queries on one clock share their
+ * buckets, but a range that isn't a whole number of steps can start a query
+ * read a moment later one bucket on, so values are matched by bucket time.
+ */
+function onGrid(
+  values: (number | null)[],
+  buckets: readonly string[],
+  grid: readonly string[],
+): (number | null)[] {
+  if (buckets.length === grid.length && buckets[0] === grid[0]) return values;
+  const valueAt = new Map(buckets.map((bucket, i) => [bucket, values[i] ?? null]));
+  return grid.map((bucket) => valueAt.get(bucket) ?? null);
+}
+
 function toSpecs(search: MetricsExplorerSearch, metric: string, type: MetricType): QuerySpec[] {
   const queryA: QuerySpec = {
     id: "A",
@@ -383,38 +400,45 @@ function MetricPage({
   );
   const intervalsReady = intervalQueries.every((query) => query.isSuccess);
   const minStep = Math.max(0, ...intervalQueries.map((query) => query.data ?? 0)) || undefined;
-  // One request for every query, so changing one refetches them all and
-  // their buckets always come from the same range.
-  const seriesQuery = useQuery({
+  // Every query reads the range on one clock, so their buckets line up. The
+  // clock moves on when the chart changes or the page refreshes, and a query
+  // that didn't change keeps its data while the clock stays in one step.
+  // Hiding a query or searching the catalog changes no data, so it doesn't
+  // move the clock either.
+  const { hidden: _hidden, q: _q, types: _types, ...charted } = search;
+  const anchor = useRefreshInstant(JSON.stringify([timeRange, service, environment, charted]));
+  const clock = chartClock(timeRange, anchor.at, anchor.epoch, minStep);
+  // Once every query knows what it fetches, so none is fetched twice.
+  const seriesReady =
+    intervalsReady && !aggregated.some((q) => q.metadataPending || q.quantilesPending);
+  const seriesOptions = aggregated.map((q) => ({
     ...metricSeriesOptions(
       repo,
-      aggregated.map((q) =>
-        q.aggregation
-          ? {
-              timeRange,
-              metric: q.metric,
-              type: q.type,
-              aggregation: q.aggregation,
-              // The heatmap adds every group together and draws no lines.
-              groupBy: view === "heatmap" ? [] : q.by,
-              service,
-              attributes: q.scopedAttributes,
-              minStep,
-              heatmap: view === "heatmap",
-            }
-          : null,
-      ),
+      {
+        timeRange,
+        metric: q.metric,
+        type: q.type,
+        // A query without an aggregation yet fetches nothing.
+        aggregation: q.aggregation ?? "avg",
+        // The heatmap adds every group together and draws no lines.
+        groupBy: view === "heatmap" ? [] : q.by,
+        service,
+        attributes: q.scopedAttributes,
+        minStep,
+        heatmap: view === "heatmap",
+      },
+      clock,
     ),
-    // Once every query knows what it fetches, so none is fetched twice.
-    enabled:
-      intervalsReady &&
-      aggregated.some((q) => q.aggregation) &&
-      !aggregated.some((q) => q.metadataPending || q.quantilesPending),
-  });
+    enabled: seriesReady && q.aggregation !== null,
+  }));
+  const seriesQueries = useDistinctQueries(seriesOptions);
+  // Changes when any query's data does, for the lines drawn from them.
+  const seriesVersion = seriesQueries.map((query) => query.dataUpdatedAt).join();
   const queries = aggregated.map((q, i) => ({
     ...q,
     interval: intervalQueries[i],
-    result: seriesQuery.data?.[i] ?? undefined,
+    series: seriesQueries[i],
+    result: q.aggregation ? seriesQueries[i]?.data : undefined,
   }));
   const [queryA] = queries;
   if (!queryA) throw new Error("A chart always has query A");
@@ -429,15 +453,19 @@ function MetricPage({
     EXEMPLAR_AGGREGATIONS.has(queryA.aggregation) &&
     view === "lines";
   const exemplarsQuery = useQuery({
-    ...metricExemplarsOptions(repo, {
-      timeRange,
-      metric,
-      type: queryA.type,
-      groupBy: queryA.by,
-      service,
-      attributes: queryA.scopedAttributes,
-      minStep,
-    }),
+    ...metricExemplarsOptions(
+      repo,
+      {
+        timeRange,
+        metric,
+        type: queryA.type,
+        groupBy: queryA.by,
+        service,
+        attributes: queryA.scopedAttributes,
+        minStep,
+      },
+      clock,
+    ),
     enabled: showExemplars && intervalsReady,
   });
 
@@ -450,16 +478,28 @@ function MetricPage({
     (q) => q.result !== undefined || (!q.aggregation && !q.metadataPending && !q.quantilesPending),
   );
 
-  // What the lines are drawn from besides the series data, whose arrays stay
+  // What the chart is drawn from besides the series data, whose arrays stay
   // the same across refetches that return the same values.
-  const lineKey = JSON.stringify([
-    queries.map((q) => [q.id, q.metric, q.kind, q.aggregation, q.entry?.unit]),
+  const chartKey = JSON.stringify([
+    queries.map((q) => [q.id, q.metric, q.kind, q.aggregation, q.entry, q.by]),
     search.hidden,
+    view,
   ]);
-  const lines = useMemo(() => {
+  // The last chart drawn stays, dimmed, while anything reloads, even another
+  // metric: each line carries its own name, unit and aggregation, so it reads
+  // right until it's replaced, and the header keeps the details it was drawn
+  // with. The group-by is the one its data was read with: new lines come only
+  // once the data for a new group-by arrives.
+  const chart = useMemo(() => {
     if (!allLoaded) return undefined;
+    const drawn = {
+      frame,
+      groupBy: view === "heatmap" ? [] : queryA.by,
+      kind: queryA.kind,
+      entry: queryA.entry,
+    };
     // Settled with nothing to draw: an empty chart, which replaces the last one.
-    if (!frame) return [];
+    if (!frame) return { ...drawn, lines: [] };
     const out: ChartLine[] = [];
     let color = 0;
     for (const q of queries) {
@@ -485,30 +525,45 @@ function MetricPage({
           label: multi ? `${q.id} · ${seriesLabel(s.labels, q.metric)}` : name,
           name,
           ...(multi ? { query } : {}),
-          values: s.values,
+          values: onGrid(s.values, result.buckets, frame.buckets),
           unit,
           aggregation: q.aggregation,
           color: color++,
         });
       }
     }
-    return out;
-    // Everything else read above is captured by lineKey.
+    return { ...drawn, lines: out };
+    // Everything else read above is captured by chartKey.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [seriesQuery.data, lineKey, allLoaded]);
-  // The last chart drawn stays while the same metrics reload with another
-  // range, filter, group-by or aggregation. Each line carries its own unit and
-  // aggregation, so it reads right until it's replaced. Another metric starts over.
-  // The group-by is the one its data was read with: new lines come only once
-  // the data for a new group-by arrives.
-  const chart = useMemo(
-    () => (lines ? { lines, frame, groupBy: view === "heatmap" ? [] : queryA.by } : undefined),
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [lines, frame],
-  );
-  const chartKey = queries.map((q) => [q.id, q.metric, q.type].join("\u0000")).join("\u0001");
-  const [shown] = useLastLoaded([chart], [chartKey]);
-  const current = shown === chart;
+  }, [seriesVersion, chartKey, allLoaded]);
+  const [last] = useLastLoaded([chart], [""]);
+  const current = last === chart;
+  // A removed or hidden query's lines go at once rather than linger until the
+  // reload. Removing A renames the next query to A, so the held chart's lines
+  // are matched by the letters they were drawn under.
+  const [removal, setRemoval] = useState<{
+    chart: typeof last;
+    removed: QueryId;
+    renamed?: QueryId;
+  }>();
+  const visibleIds = queries
+    .filter((q) => !hidden.has(q.id))
+    .map((q) => q.id)
+    .join();
+  const shown = useMemo(() => {
+    if (!last || current) return last;
+    const ids = new Set(visibleIds.split(","));
+    const renames = removal?.chart === last ? removal : undefined;
+    const idNow = (id: string) =>
+      id === renames?.removed ? undefined : id === renames?.renamed ? "A" : id;
+    const lines = last.lines.filter((line) => {
+      const id = line.query && idNow(line.query.id);
+      return !line.query || (id !== undefined && ids.has(id));
+    });
+    return lines.length === last.lines.length ? last : { ...last, lines };
+  }, [last, current, visibleIds, removal]);
+
+  const held = queryA.metadataPending ? shown : undefined;
 
   const attributeRepoFor = (q: Pick<QuerySpec, "metric" | "type">): AttributeRepositoryLike => ({
     attributeKeys: ({ timeRange }) =>
@@ -574,6 +629,7 @@ function MetricPage({
     const remaining = queries.filter((q) => q.id !== id);
     // The first query left is written back as A, which renames it when A goes.
     const renamed = remaining[0]?.id;
+    setRemoval({ chart: last, removed: id, renamed });
     onSearchChange({
       ...fromSpecs(remaining),
       view: undefined,
@@ -650,7 +706,7 @@ function MetricPage({
   ) : undefined;
 
   const error =
-    seriesQuery.error ??
+    queries.find((q) => q.aggregation && q.series?.error)?.series?.error ??
     queries.find((q) => q.interval?.error)?.interval?.error ??
     queries.find((q) => q.metadata?.error)?.metadata?.error ??
     queries.find((q) => q.quantiles?.error)?.quantiles?.error ??
@@ -689,8 +745,11 @@ function MetricPage({
       <main className="flex min-h-0 min-w-0 flex-col">
         <MetricView
           metric={metric}
-          kind={queryA.kind}
-          entry={queryA.entry}
+          // Until another metric's metadata loads, the header keeps the
+          // details of the chart on screen, dimmed with it.
+          kind={held ? held.kind : queryA.kind}
+          entry={held ? held.entry : queryA.entry}
+          entryStale={Boolean(held)}
           aggregations={queryA.aggregations}
           aggregation={queryA.aggregation}
           groupBy={queryA.by}
@@ -705,6 +764,7 @@ function MetricPage({
           // Only on a chart drawn from current data: a kept one may be in
           // another aggregation's scale, or another range.
           exemplars={showExemplars && current ? exemplarsQuery.data : undefined}
+          stale={Boolean(shown) && !current && !error}
           // A chart already on screen stays while its queries reload.
           isPending={
             !shown &&
@@ -713,7 +773,7 @@ function MetricPage({
                 q.metadataPending ||
                 q.quantilesPending ||
                 q.interval?.isPending ||
-                (q.aggregation && seriesQuery.isPending),
+                (q.aggregation && q.series?.isPending),
             )
           }
           error={error}
@@ -722,9 +782,9 @@ function MetricPage({
               void q.metadata?.refetch();
               if (q.kind === "summary") void q.quantiles?.refetch();
               void q.interval?.refetch();
+              // Otherwise it starts on its own once what it waits for loads.
+              if (q.series?.error) void q.series.refetch();
             }
-            // Otherwise it starts on its own once what it waits for loads.
-            if (seriesQuery.error) void seriesQuery.refetch();
           }}
           attributeRepo={attributeRepo}
           attributeDomain={`metrics:${queryA.type}:${metric}`}

@@ -528,4 +528,97 @@ describe("MetricsExplorer", () => {
     expect(screen.getByText("memory")).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByPlaceholderText("Search metrics…"));
   });
+
+  it("keeps the last chart and description, marked as loading, while another metric loads", async () => {
+    const switching = {
+      ...repo,
+      names: async () => [{ name: "memory", type: "gauge", isMonotonic: false }],
+      metadata: ({ metric }: { metric: string }) =>
+        metric === "memory"
+          ? new Promise(() => {})
+          : repo.metadata({} as never).then((entry) => ({ ...entry, description: "CPU time" })),
+      series: (input: { metric: string }) =>
+        input.metric === "memory" ? new Promise(() => {}) : repo.series(input as never),
+    } as unknown as MetricsRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page initial={oneQuery} metrics={switching} />
+      </QueryClientProvider>,
+    );
+    await settle();
+    fireEvent.click(screen.getByLabelText("cpu: change metric"));
+    await settle();
+    fireEvent.click(screen.getByRole("option", { name: /memory/ }));
+    await settle();
+
+    const row = screen.getByRole("rowheader", { name: "cpu" });
+    expect(row.closest("[aria-busy='true']")).toBeTruthy();
+    expect(screen.getByText("Resolution")).toBeTruthy();
+    expect(screen.getByText("CPU time")).toBeTruthy();
+  });
+
+  it("drops a removed query's lines while the chart reloads", async () => {
+    let loading = false;
+    const reloading = {
+      ...repo,
+      // Exported every 5 minutes, so removing it gives the chart a finer step.
+      exportInterval: async ({ metric }: { metric: string }) => (metric === "memory" ? 300 : 60),
+      series: (input: unknown) => (loading ? new Promise(() => {}) : repo.series(input as never)),
+    } as unknown as MetricsRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page
+          initial={{ ...oneQuery, queries: [{ id: "B", metric: "memory", type: "gauge" }] }}
+          metrics={reloading}
+        />
+      </QueryClientProvider>,
+    );
+    await settle();
+    loading = true;
+    fireEvent.click(screen.getByLabelText("Remove query B"));
+    await settle();
+
+    expect(screen.getByRole("rowheader", { name: "A · cpu" })).toBeTruthy();
+    expect(screen.queryByRole("rowheader", { name: "B · memory" })).toBeNull();
+  });
+
+  it("drops the removed query's lines, not the next one's, when A is removed", async () => {
+    let loading = false;
+    const reloading = {
+      ...repo,
+      // Removing the 5-minute cpu gives the chart a finer step, so it reloads.
+      exportInterval: async ({ metric }: { metric: string }) => (metric === "cpu" ? 300 : 60),
+      series: (input: unknown) => (loading ? new Promise(() => {}) : repo.series(input as never)),
+    } as unknown as MetricsRepositoryLike;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page
+          initial={{ ...oneQuery, queries: [{ id: "B", metric: "memory", type: "gauge" }] }}
+          metrics={reloading}
+        />
+      </QueryClientProvider>,
+    );
+    await settle();
+    loading = true;
+    fireEvent.click(screen.getByLabelText("Remove query A"));
+    await settle();
+
+    expect(screen.queryByRole("rowheader", { name: "A · cpu" })).toBeNull();
+    expect(screen.getByRole("rowheader", { name: "B · memory" })).toBeTruthy();
+  });
+
+  it("charts a copy of a query without fetching its data again", async () => {
+    const series = vi.fn(repo.series);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Page initial={oneQuery} metrics={{ ...repo, series } as MetricsRepositoryLike} />
+      </QueryClientProvider>,
+    );
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Add metric query" }));
+    await settle();
+
+    expect(screen.getByRole("rowheader", { name: "B · cpu" })).toBeTruthy();
+    expect(series).toHaveBeenCalledTimes(1);
+  });
 });

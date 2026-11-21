@@ -2,7 +2,7 @@ import type { ProductClient } from "@everr/app/composition";
 
 const additionalBuiltinManifest = [{ id: "telemetry-usage", name: "Telemetry Usage" }] as const;
 
-export const productClient = {
+export const productClient: ProductClient<typeof additionalBuiltinManifest> = {
   homeDashboardId: "telemetry-usage",
   additionalBuiltinManifest,
   missingWorkspaceRoute: "/choose-organization" as const,
@@ -13,4 +13,4 @@ export const productClient = {
     "/choose-organization",
   ],
   telemetryEndpoint: "https://ingest.everr.dev",
-} satisfies ProductClient<typeof additionalBuiltinManifest>;
+};

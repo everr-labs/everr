@@ -13,6 +13,7 @@ export const getActiveOrganizationAccess = createPartiallyAuthenticatedServerFn(
     ? {
         status: "available" as const,
         organization: { id: organization.id, metadata: organization.metadata },
+        memberRole: organization.memberRole,
         entryRedirect: await entry.getOrganizationEntryRedirect({
           id: session.session.id,
           activeOrganizationId: organization.id,

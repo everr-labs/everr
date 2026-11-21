@@ -2,43 +2,38 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { metricExemplarsOptions, metricKindOptions, metricSeriesOptions } from "./options";
 import type { MetricsRepositoryLike } from "./repository";
 import type { MetricSeriesInput } from "./schemas";
+import { chartClock } from "./step";
 
 describe("metricSeriesOptions", () => {
-  it("fetches every query over the same absolute range", async () => {
-    const series = vi.fn(async (input: MetricSeriesInput) => input.timeRange);
-    const repo = { series } as unknown as MetricsRepositoryLike;
-    const query = (metric: string): MetricSeriesInput => ({
-      timeRange: { from: "now-1h", to: "now" },
-      metric,
-      type: "gauge",
-      aggregation: "avg",
-    });
-    const { queryFn } = metricSeriesOptions(repo, [query("a"), null, query("b")]);
+  const timeRange = { from: "now-1h", to: "now" };
+  // A clock from an hour ago ends at its bucket's end, whenever the test reads it.
+  const clock = chartClock(timeRange, Date.now() - 60 * 60 * 1000, 0);
 
-    const [a, skipped, b] = (await (queryFn as () => Promise<unknown[]>)()) as {
-      from: string;
-      to: string;
-    }[];
+  it("marks a step set by the metric's export interval", async () => {
+    const repo = { series: async () => ({}) } as unknown as MetricsRepositoryLike;
+    const coarse = chartClock(timeRange, Date.now(), 0, 900);
+    const input = { timeRange, metric: "a", type: "sum" as const, aggregation: "rate" as const };
 
-    expect(skipped).toBeNull();
-    expect(a).toEqual(b);
-    expect(Date.parse(a!.to) - Date.parse(a!.from)).toBe(60 * 60 * 1000);
+    const result = await (
+      metricSeriesOptions(repo, input, coarse).queryFn as () => Promise<unknown>
+    )();
+
+    expect(result).toMatchObject({ stepFromExport: true });
   });
 
-  it("resolves the range as the chart does for the page's other queries", async () => {
-    const timeRange = { from: "now/d", to: "now/d" };
-    const series = vi.fn(async (input: MetricSeriesInput) => input.timeRange);
-    const exemplars = vi.fn(async (input: MetricSeriesInput) => [input.timeRange]);
+  it("reads exemplars over the same window and step as the chart", async () => {
+    const read = ({ timeRange, step }: MetricSeriesInput) => ({ timeRange, step });
+    const series = vi.fn(async (input: MetricSeriesInput) => read(input));
+    const exemplars = vi.fn(async (input: MetricSeriesInput) => [read(input)]);
     const repo = { series, exemplars } as unknown as MetricsRepositoryLike;
     const input = { timeRange, metric: "a", type: "histogram" as const };
 
-    const [charted] = (await (
-      metricSeriesOptions(repo, [{ ...input, aggregation: "p95" }]).queryFn as () => Promise<
-        unknown[]
-      >
-    )()) as unknown[];
+    const charted = await (
+      metricSeriesOptions(repo, { ...input, aggregation: "p95" }, clock)
+        .queryFn as () => Promise<unknown>
+    )();
     const [sampled] = (await (
-      metricExemplarsOptions(repo, input).queryFn as () => Promise<unknown[]>
+      metricExemplarsOptions(repo, input, clock).queryFn as () => Promise<unknown[]>
     )()) as unknown[];
 
     expect(sampled).toEqual(charted);

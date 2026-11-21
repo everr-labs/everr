@@ -1,7 +1,13 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type MetricKind, MetricsRepository } from "@everr/telemetry-explorer/metrics";
+import {
+  chartClock,
+  type MetricExemplarsInput,
+  type MetricKind,
+  type MetricSeriesInput,
+  MetricsRepository,
+} from "@everr/telemetry-explorer/metrics";
 import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
@@ -18,7 +24,24 @@ const quote = (value: unknown) => `'${String(value).replace(/\\/g, "\\\\").repla
 // renders only these parameter types.
 const LOCAL_PARAM_TYPES = ["String", "UInt32", "UInt64", "Int32", "Int64", "Array(String)"];
 
-const repo = new MetricsRepository({
+// Asks for the step the explorer would for the range and the metric's export interval.
+function withStep<T extends { timeRange: { from: string; to: string }; minStep?: number }>(
+  input: T,
+) {
+  return { ...input, step: chartClock(input.timeRange, Date.now(), 0, input.minStep).step };
+}
+
+class ChartedRepository extends MetricsRepository {
+  override series(input: Omit<MetricSeriesInput, "step">) {
+    return super.series(withStep(input));
+  }
+
+  override exemplars(input: Omit<MetricExemplarsInput, "step">) {
+    return super.exemplars(withStep(input));
+  }
+}
+
+const repo = new ChartedRepository({
   async execute<T>(sql: string, params: Record<string, unknown> = {}) {
     for (const [, type] of sql.matchAll(/\{\w+:([^}]+)\}/g)) {
       if (!LOCAL_PARAM_TYPES.includes(type!)) throw new Error(`The local app can't send a ${type}`);
@@ -300,6 +323,31 @@ beforeAll(() => {
       IsMonotonic: true,
     })),
   );
+  // Exported every 65 minutes, one request per second: the export before 10:03
+  // is at 08:58, more than an hour earlier.
+  insert(
+    "metrics_sum",
+    [
+      ["08:58:00", 100],
+      ["10:03:00", 4000],
+    ].map(([time, value]) => ({
+      MetricName: "hourly.requests",
+      TimeUnix: `2026-01-01 ${time}`,
+      Value: value,
+      AggregationTemporality: 2,
+      IsMonotonic: true,
+    })),
+  );
+  insert("metrics_sum", [
+    {
+      MetricName: "hourly.jobs",
+      StartTimeUnix: "2026-01-01 08:58:00",
+      TimeUnix: "2026-01-01 10:03:00",
+      Value: 3900,
+      AggregationTemporality: 1,
+      IsMonotonic: true,
+    },
+  ]);
   // A delta counter exported every 10 minutes: 600 jobs since 11:55.
   insert("metrics_sum", [
     {
@@ -1148,7 +1196,6 @@ describe("metrics explorer against ClickHouse", () => {
     expect(await repo.exportInterval({ timeRange, metric: "http.requests", type: "sum" })).toBe(60);
     const result = await repo.series({ ...input, aggregation: "rate", minStep: 900 });
     expect(result.stepSeconds).toBe(900);
-    expect(result.stepFromExport).toBe(true);
     // 900 requests between the 11:50 and 12:05 exports, one point per export.
     expect(result.buckets).toEqual([
       "2026-01-01T11:00:00.000Z",
@@ -1160,6 +1207,22 @@ describe("metrics explorer against ClickHouse", () => {
     ]);
     // The bucket the range ends in has no time yet, so no rate.
     expect(result.series[0]?.values).toEqual([null, null, null, null, 1, null]);
+  });
+
+  it("finds the previous export of a counter exported less than hourly", async () => {
+    const hours = { from: "2026-01-01T10:00:00Z", to: "2026-01-01T12:00:00Z" };
+    for (const metric of ["hourly.requests", "hourly.jobs"]) {
+      const result = await repo.series({
+        timeRange: hours,
+        metric,
+        type: "sum",
+        aggregation: "increase",
+        minStep: 3900,
+      });
+      expect(result.stepSeconds).toBe(3600);
+      // 180 of the 3900 requests between 08:58 and 10:03 fall after 10:00.
+      expect(result.series[0]?.values).toEqual([180, null, null]);
+    }
   });
 
   it("counts a counter that started in range from its first point", async () => {

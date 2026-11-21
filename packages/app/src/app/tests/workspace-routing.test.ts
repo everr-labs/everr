@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 vi.mock("#app/data/organization-access.ts", () => ({
@@ -17,6 +18,13 @@ beforeEach(() => {
 const openAccessPage = () =>
   (Route.options.beforeLoad as (args: unknown) => unknown)({
     search: { returnTo: "/logs?service=api#results" },
+    context: {
+      queryClient: new QueryClient(),
+      session: {
+        user: { id: "user" },
+        session: { id: "session", activeOrganizationId: "workspace" },
+      },
+    },
   });
 
 it("keeps users without membership on the access page", async () => {
@@ -27,6 +35,7 @@ it("returns members to their destination once access is available", async () => 
   vi.mocked(getActiveOrganizationAccess).mockResolvedValue({
     status: "available",
     organization: { id: "workspace", metadata: null },
+    memberRole: "member",
     entryRedirect: undefined,
   });
   await expect(openAccessPage()).rejects.toMatchObject({

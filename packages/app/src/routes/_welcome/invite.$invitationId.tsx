@@ -1,7 +1,7 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
 import { Button } from "@everr/ui/components/button";
-import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   type InviteLoaderResult,
@@ -10,6 +10,7 @@ import {
   resolveInvitationLoader,
 } from "#app/data/invite.ts";
 import { authClient } from "#app/lib/auth-client.ts";
+import { applyAccessChange } from "#app/lib/route-access-cache.ts";
 
 export const Route = createFileRoute("/_welcome/invite/$invitationId")({
   loader: async ({ context: { session }, params: { invitationId } }) => {
@@ -214,6 +215,8 @@ function AcceptReadyContent({
   data: Extract<InviteLoaderResult, { status: "accept-ready" }>;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<"accept" | "decline" | null>(null);
 
@@ -242,7 +245,7 @@ function AcceptReadyContent({
         return;
       }
 
-      await navigate({ to: "/" });
+      await applyAccessChange(queryClient, router, "/");
     } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {
@@ -321,12 +324,14 @@ function WrongRecipientContent({
   data: Extract<InviteLoaderResult, { status: "wrong-recipient" }>;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   async function handleSwitchAccount() {
     setIsSigningOut(true);
     try {
       await authClient.signOut();
+      queryClient.clear();
       await navigate({
         to: "/auth/sign-in",
         search: {

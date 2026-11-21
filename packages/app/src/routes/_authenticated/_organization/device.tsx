@@ -8,11 +8,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
 import { getOrganizations } from "#app/data/auth.ts";
 import { approveDevice, denyDevice } from "#app/lib/device-auth.ts";
+import { forgetAccess } from "#app/lib/route-access-cache.ts";
 
 export const Route = createFileRoute("/_authenticated/_organization/device")({
   staticData: { authEntry: "/auth/sign-up" },
@@ -22,8 +24,14 @@ export const Route = createFileRoute("/_authenticated/_organization/device")({
   loaderDeps: ({ search }) => ({
     code: search.user_code,
   }),
-  loader: async ({ deps, context: { session } }) => {
-    const organizations = await getOrganizations();
+  loader: async ({ deps, context: { session, queryClient } }) => {
+    // Through the QueryClient so an ended session redirects to sign-in like
+    // any other data request, instead of showing the error page.
+    const organizations = await queryClient.query({
+      queryKey: ["device-organizations"],
+      queryFn: () => getOrganizations(),
+      staleTime: 0,
+    });
 
     const firstName = session.user.name?.split(" ")[0] ?? session.user.email.split("@")[0];
 
@@ -44,6 +52,7 @@ function formatCodeForDisplay(code: string): string {
 
 function CliDeviceApprovalPage() {
   const { deviceCode, userName, organizations, activeOrganizationId } = Route.useLoaderData();
+  const queryClient = useQueryClient();
   const [selection, setSelection] = useState<string | null>(null);
   const selectedOrganization =
     organizations.find((org) => org.id === (selection ?? activeOrganizationId)) ?? organizations[0];
@@ -78,6 +87,9 @@ function CliDeviceApprovalPage() {
       setErrorMessage(error instanceof Error ? error.message : "Could not authorize the device.");
       setStatus("error");
     } finally {
+      // Approving selects the chosen organization first, even when the approval
+      // itself then fails.
+      if (action === "approve") await forgetAccess(queryClient);
       setIsSubmitting(false);
     }
   }

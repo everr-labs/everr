@@ -34,8 +34,8 @@ vi.mock("@everr/app/db/client", () => ({ db: {} }));
 vi.mock("@everr/app/lib/serverFn", async () => {
   const { createServerFn } = await import("@tanstack/react-start");
   return {
-    requireOrgMiddleware: {},
-    createOrganizationAdminServerFn: createServerFn(),
+    requireOrgAllowingSuspendedMiddleware: {},
+    createOrganizationAdminAllowingSuspendedServerFn: createServerFn(),
   };
 });
 vi.mock("@everr/app/identity/server", () => ({ auth: { api: {} } }));

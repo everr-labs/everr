@@ -1,9 +1,9 @@
-import type { ApplicationEntry } from "#app/composition/entry.ts";
-import { db } from "#app/db/client.ts";
-import { getInstallation } from "./installation.server";
+import type { ProductClient } from "#app/composition/client.ts";
 
-export const getEntryRedirect: ApplicationEntry["getEntryRedirect"] = async (pathname) => {
-  const setupRequired = !(await getInstallation(db));
+export const getEntryRedirect: NonNullable<ProductClient["getEntryRedirect"]> = (
+  { setupRequired },
+  pathname,
+) => {
   if (setupRequired && pathname !== "/setup") return { href: "/setup" };
   if (!setupRequired && pathname === "/setup") return { to: "/" };
 };

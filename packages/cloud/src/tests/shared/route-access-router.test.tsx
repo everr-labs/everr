@@ -1,3 +1,5 @@
+import { getActiveOrgPolicy } from "@everr/app/data/product";
+import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
 import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -141,8 +143,35 @@ it("forces fast automatic creation through setup and resumes data routes after c
   expect(router.state.location.pathname).toBe("/organization-setup");
   expect(router.state.location.search.returnTo).toBe("/logs?service=api#results");
   state.createdOrganizationId = null;
+  // As finishing setup does.
+  resetRouteAccess(router.options.context.queryClient);
   await router.navigate({ href: "/logs?service=api#results" });
   expect(router.state.location.pathname).toBe("/logs");
+});
+it("reuses organization access and policy when only the search changes", async () => {
+  const router = await open("/logs?service=api");
+  await router.navigate({ href: "/logs?service=web" });
+  await router.navigate({ href: "/traces" });
+  expect(router.state.location.pathname).toBe("/traces");
+  expect(state.membershipReads).toHaveBeenCalledOnce();
+  expect(getActiveOrgPolicy).toHaveBeenCalledOnce();
+});
+it("lets an organization restored elsewhere back in without a reset", async () => {
+  state.suspended = true;
+  const router = await open("/logs");
+  expect(router.state.location.pathname).toBe("/billing/suspended");
+
+  state.suspended = false;
+  await router.navigate({ href: "/traces" });
+  expect(router.state.location.pathname).toBe("/traces");
+});
+it("reads organization access again after a reset", async () => {
+  const router = await open("/logs");
+  state.member = false;
+  resetRouteAccess(router.options.context.queryClient);
+  await router.navigate({ href: "/logs?service=web" });
+  expect(router.state.location.pathname).toBe("/choose-organization");
+  expect(router.state.location.search.returnTo).toBe("/logs?service=web");
 });
 it("allows invitations before organization selection and after signup", async () => {
   state.session = null;

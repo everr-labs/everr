@@ -1,4 +1,3 @@
-import { bucketSeconds, snapToNiceStep } from "@everr/ui/lib/bucket";
 import { resolveTimeRange, toClickHouseDateTimeSeconds } from "@everr/ui/lib/time-range";
 import type {
   AttributeFilter,
@@ -42,6 +41,7 @@ import {
   histogramHeatmap,
   histogramSeries,
 } from "./histogram";
+import { requestedStep, SERIES_MIN_STEP_SECONDS } from "./step";
 import {
   METRIC_LIST_LIMIT,
   aggregationsFor,
@@ -105,10 +105,6 @@ const ATTRIBUTE_COLUMNS: Partial<Record<AttributeSource, string>> = {
 // Stamped by ingest on every row; the row policy already filters on it.
 const HIDDEN_KEYS = ["everr.tenant.id"];
 
-const SERIES_TARGET_BUCKETS = 120;
-// SDKs export every 60s by default. A finer step leaves most buckets empty,
-// which breaks gauge lines into dots and counter rates into spikes.
-const SERIES_MIN_STEP_SECONDS = 60;
 const SERIES_TOP_N = 10;
 const SERIES_ROW_LIMIT = 200_000;
 // Enough rows to find a unit or description that some points leave empty.
@@ -325,15 +321,21 @@ const SUM_SOURCE: CounterSource = {
 // Summaries are always cumulative, and their table has no temporality column.
 const SUMMARY_SOURCE: CounterSource = { value: "Count", total: "Sum", temporality: "2" };
 
-// How far before the range a counter's or cumulative histogram's previous
-// export is looked for, so a series exported every few minutes still has a
-// point to measure the range's first change from.
 const LOOKBACK_SECONDS = 3600;
+
+/**
+ * How far before the range a counter's or cumulative histogram's previous
+ * export is looked for, so its first change has a point to be measured from:
+ * an hour, a step, or one export interval, whichever is longest.
+ */
+function lookbackSeconds(step: number, interval: number): number {
+  return Math.max(step, interval, LOOKBACK_SECONDS);
+}
 
 // A delta point covers (StartTimeUnix, TimeUnix]. A missing start, or one
 // further back than the lookback, says nothing usable about that window, so
 // the point is placed at its time.
-const DELTA_FROM_SQL = `if(deltaFrom > 0 AND toInt64(t) - toInt64(deltaFrom) BETWEEN 1 AND ${LOOKBACK_SECONDS}, deltaFrom, t)`;
+const DELTA_FROM_SQL = `if(deltaFrom > 0 AND toInt64(t) - toInt64(deltaFrom) BETWEEN 1 AND {lookback:UInt32}, deltaFrom, t)`;
 
 // A change covers (f, t], both in seconds. When that window is longer than a
 // step, as for a series exported less often than the chart's step, the change
@@ -459,19 +461,6 @@ function bucketGrid(from: Date, to: Date, step: number): number[] {
   const grid: number[] = [];
   for (let t = first; t <= last; t += step) grid.push(t);
   return grid;
-}
-
-/**
- * The chart's step: about 120 buckets over the range, never under a minute,
- * and never finer than the metric's export interval (`minStep`), which would
- * only leave empty buckets between exports. The interval is rounded up to a
- * nice step, so buckets stay on round clock times, with 10% slack so 61 s
- * of exporter jitter stays at 1 minute. `fromExport` says the interval won.
- */
-function seriesStep(from: Date, to: Date, minStep?: number): { step: number; fromExport: boolean } {
-  const byRange = Math.max(SERIES_MIN_STEP_SECONDS, bucketSeconds(from, to, SERIES_TARGET_BUCKETS));
-  const byExport = minStep ? snapToNiceStep(minStep * 0.9) : 0;
-  return { step: Math.max(byRange, byExport), fromExport: byExport > byRange };
 }
 
 /** The scan's time bounds, widened to whole seconds. */
@@ -985,9 +974,7 @@ LIMIT ${METRIC_LIST_LIMIT}`,
   async series(raw: MetricSeriesInput): Promise<MetricSeriesResult> {
     const input = MetricSeriesInputSchema.parse(raw);
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-    const { step, fromExport } = seriesStep(fromDate, toDate, input.minStep);
-    const result = await this.chart(input, fromDate, toDate, step);
-    return fromExport ? { ...result, stepFromExport: true } : result;
+    return this.chart(input, fromDate, toDate, requestedStep(fromDate, toDate, input.step));
   }
 
   /**
@@ -1061,14 +1048,12 @@ FROM (
     const isSummaryTotal =
       input.type === "summary" && (input.aggregation === "rate" || input.aggregation === "avg");
 
-    // A counter's or cumulative histogram's first bucket needs the export
-    // before it to measure a change, so the scan starts early enough to find
-    // one for a series exported every few minutes. Buckets before the range
-    // are dropped after.
-    const lookback = Math.max(step, LOOKBACK_SECONDS);
     // A level carries for one export interval, so the scan starts that much
-    // early to carry one into the first bucket.
+    // early to carry one into the first bucket. A counter's or cumulative
+    // histogram's first bucket needs the export before it to measure a
+    // change. Buckets before the range are dropped after.
     const interval = input.minStep ?? SERIES_MIN_STEP_SECONDS;
+    const lookback = lookbackSeconds(step, interval);
     const scanFrom =
       isCounter || isHistogram || isSummaryTotal
         ? new Date((grid[0] - lookback) * 1000)
@@ -1091,6 +1076,7 @@ FROM (
       gridEnd: grid[grid.length - 1],
       step,
       carry: interval,
+      lookback,
       lastRateBucket,
       end,
     };
@@ -1335,7 +1321,7 @@ GROUP BY ts, labels`;
     const input = MetricExemplarsInputSchema.parse(raw);
     if (input.type === "summary") return [];
     const { fromDate, toDate } = resolveTimeRange(input.timeRange);
-    const { step } = seriesStep(fromDate, toDate, input.minStep);
+    const step = requestedStep(fromDate, toDate, input.step);
     const where = baseWhere(input);
     const { labelsSql, groupParams } = groupLabels(input.groupBy);
     // Some SDKs attach an exemplar to every export until a new one replaces
@@ -1345,7 +1331,8 @@ GROUP BY ts, labels`;
     // kept, so a repeat there changes nothing. The scan starts early so the
     // first interval has an export before it.
     const start = Math.floor(seconds(fromDate) / step) * step;
-    const scanFrom = new Date((start - Math.max(step, LOOKBACK_SECONDS)) * 1000);
+    const lookback = lookbackSeconds(step, input.minStep ?? SERIES_MIN_STEP_SECONDS);
+    const scanFrom = new Date((start - lookback) * 1000);
     const table = this.tables[input.type];
     const params = {
       ...where.params,

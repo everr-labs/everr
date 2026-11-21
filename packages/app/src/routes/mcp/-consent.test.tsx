@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
@@ -31,7 +32,11 @@ beforeEach(() => {
 
 function renderPage() {
   const Component = Route.options.component as React.ComponentType;
-  return render(<Component />);
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <Component />
+    </QueryClientProvider>,
+  );
 }
 
 it("shows a loopback destination as an app on this computer", () => {

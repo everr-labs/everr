@@ -1,14 +1,12 @@
 import {
-  ensureOrganizationAdmin,
   NotOrganizationAdminError,
+  requireOrganizationAdmin,
 } from "@everr/app/data/organization-admin";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/_organization/_dashboard/_padded/_admin")({
-  beforeLoad: async () => {
-    await ensureOrganizationAdmin();
-  },
+  beforeLoad: requireOrganizationAdmin,
   errorComponent: ({ error }) => {
     if (
       error instanceof NotOrganizationAdminError ||

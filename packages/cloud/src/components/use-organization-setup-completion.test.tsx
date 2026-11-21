@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
@@ -20,8 +21,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 afterEach(() => vi.useRealTimers());
+function QueryProvider({ children }: { children: React.ReactNode }) {
+  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+}
+
 function show(ready: boolean) {
-  return render(<Probe ready={ready} />);
+  return render(<Probe ready={ready} />, { wrapper: QueryProvider });
 }
 it("never continues just because the minimum duration has elapsed", async () => {
   const view = show(false);
@@ -48,7 +53,7 @@ it("cancels continuation if readiness is lost before the minimum duration", asyn
 });
 
 it("resumes existing-organization recovery immediately without the creation delay", async () => {
-  render(<Probe ready minimumDurationMs={0} />);
+  render(<Probe ready minimumDurationMs={0} />, { wrapper: QueryProvider });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
   });

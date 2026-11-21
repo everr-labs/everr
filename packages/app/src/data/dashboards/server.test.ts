@@ -102,6 +102,7 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
+        alignToStep: false,
         source: {
           kind: "ClickHouseSQL",
           sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
@@ -124,6 +125,7 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
+        alignToStep: false,
         source: {
           kind: "ClickHouseSQL",
           sql: "SELECT * FROM logs WHERE env IN $env",
@@ -142,7 +144,10 @@ describe("runPanelQuery – variable interpolation", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runPanelQuery({
-      data: { source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" } },
+      data: {
+        alignToStep: false,
+        source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" },
+      },
     });
 
     expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
@@ -152,7 +157,7 @@ describe("runPanelQuery – variable interpolation", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runPanelQuery({
-      data: { source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
+      data: { alignToStep: false, source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
     });
 
     const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
@@ -169,6 +174,7 @@ describe("runPanelQuery – variable interpolation", () => {
 
     await runPanelQuery({
       data: {
+        alignToStep: false,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
         from: "2026-06-10T00:00:00.231Z",
         to: "2026-06-10T00:10:00.231Z",
@@ -185,6 +191,7 @@ describe("runPanelQuery – variable interpolation", () => {
 
     const { timeRange } = await runPanelQuery({
       data: {
+        alignToStep: false,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
         from: "2026-06-10T00:00:00.231Z",
         to: "2026-06-10T00:10:00.231Z",
@@ -194,6 +201,25 @@ describe("runPanelQuery – variable interpolation", () => {
     expect(timeRange).toEqual({
       from: "2026-06-10T00:00:00.000Z",
       to: "2026-06-10T00:10:01.000Z",
+    });
+  });
+
+  it("starts a panel drawn over time on the step's grid and keeps its real end", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    // 7 days at ~500 points is a 30-minute step.
+    const { timeRange } = await runPanelQuery({
+      data: {
+        alignToStep: true,
+        source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
+        from: "2026-06-03T00:10:00.000Z",
+        to: "2026-06-10T00:10:00.000Z",
+      },
+    });
+
+    expect(timeRange).toEqual({
+      from: "2026-06-03T00:00:00.000Z",
+      to: "2026-06-10T00:10:00.000Z",
     });
   });
 });
@@ -452,6 +478,7 @@ describe("runPanelQuery – TestData", () => {
   it("generates synthetic rows without touching ClickHouse", async () => {
     const { rows } = await runPanelQuery({
       data: {
+        alignToStep: false,
         source: {
           kind: "TestData",
           spec: { scenario: "csv", columns: ["a", "b"], rows: [["x", 1]] },
@@ -465,6 +492,7 @@ describe("runPanelQuery – TestData", () => {
   it("spans the resolved time range for a random_walk scenario", async () => {
     const { rows } = await runPanelQuery({
       data: {
+        alignToStep: false,
         source: {
           kind: "TestData",
           spec: { scenario: "random_walk", seed: 1, series: [{ name: "v" }] },

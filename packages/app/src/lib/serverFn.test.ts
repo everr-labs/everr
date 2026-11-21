@@ -24,6 +24,7 @@ const mocked = vi.hoisted(() => ({
   getActiveMemberRole: vi.fn(),
   getSession: vi.fn(),
   getOrganization: vi.fn(),
+  access: "enabled" as "enabled" | "suspended",
 }));
 
 function getHandler(): FunctionMiddlewareHandler {
@@ -65,6 +66,7 @@ beforeEach(() => {
   mocked.getRequest.mockReset();
   mocked.getActiveMemberRole.mockReset();
   mocked.getSession.mockReset();
+  mocked.access = "enabled";
   mocked.getOrganization
     .mockReset()
     .mockResolvedValue([{ id: "org_123", metadata: null, memberRole: "owner" }]);
@@ -123,6 +125,9 @@ async function loadModule() {
         }),
       }),
     },
+  }));
+  vi.doMock("@composition/product", () => ({
+    product: { forOrganization: async () => ({ access: mocked.access }) },
   }));
   return vi.importActual<typeof ServerFnTypes>("./serverFn");
 }
@@ -223,6 +228,91 @@ describe("createOrganizationAdminServerFn", () => {
   });
 });
 
+describe("suspended organizations", () => {
+  const signedIn = () =>
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org" },
+    });
+
+  it("rejects data functions", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    signedIn();
+    mocked.access = "suspended";
+    const next = vi.fn();
+
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: new Request("http://localhost/_server"),
+        next,
+      }),
+    ).rejects.toThrow("Organization suspended");
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects admin functions that do not restore access", async () => {
+    const { createOrganizationAdminServerFn } = await loadModule();
+    signedIn();
+    mocked.access = "suspended";
+
+    await expect(
+      serverFnChain(createOrganizationAdminServerFn)({
+        request: new Request("http://localhost/_server"),
+        next: vi.fn(),
+      }),
+    ).rejects.toThrow("Organization suspended");
+  });
+
+  it("keeps the functions that restore access available", async () => {
+    const { createOrganizationAdminAllowingSuspendedServerFn } = await loadModule();
+    signedIn();
+    mocked.access = "suspended";
+    const next = vi.fn().mockResolvedValue("ok");
+
+    await serverFnChain(createOrganizationAdminAllowingSuspendedServerFn)({
+      request: new Request("http://localhost/_server"),
+      next,
+    });
+    expect(next).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the organization the page shows", () => {
+  const fromPageShowing = (organizationId: string) =>
+    new Request("http://localhost/_server", {
+      headers: { "x-everr-expected-organization": organizationId },
+    });
+
+  it("refuses a page showing another organization than the session's", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org_123" },
+    });
+    const next = vi.fn();
+
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: fromPageShowing("org_previous"),
+        next,
+      }),
+    ).rejects.toThrow("Active organization changed");
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("serves a page showing the session's organization", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org_123" },
+    });
+    const next = vi.fn().mockResolvedValue("ok");
+
+    await serverFnChain(createAuthenticatedServerFn)({ request: fromPageShowing("org_123"), next });
+    expect(next).toHaveBeenCalledOnce();
+  });
+});
+
 describe("authMiddleware", () => {
   it("authenticates and populates context with the active organization", async () => {
     await loadModule();
@@ -297,7 +387,7 @@ describe("organization readiness boundary", () => {
       });
       mocked.getOrganization.mockResolvedValue([{ id: "org", metadata, memberRole: "owner" }]);
       const next = vi.fn().mockResolvedValue("ok");
-      await mocked.allDefinitions[2]?.__handler({
+      await mocked.allDefinitions[3]?.__handler({
         request: new Request("http://localhost/_server"),
         next,
       });
@@ -330,7 +420,7 @@ describe("organization readiness boundary", () => {
       request: new Request("http://localhost/_server"),
       next: vi.fn(),
     };
-    await expect(mocked.allDefinitions[2]?.__handler(args)).rejects.toMatchObject({
+    await expect(mocked.allDefinitions[3]?.__handler(args)).rejects.toMatchObject({
       name: "StorageNotReadyError",
     });
     expect(args.next).not.toHaveBeenCalled();

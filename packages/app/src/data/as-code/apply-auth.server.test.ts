@@ -38,6 +38,10 @@ const findOrganizationForMember = vi.fn();
 vi.mock("#app/lib/organization-membership.server.ts", () => ({
   findOrganizationForMember: (...a: unknown[]) => findOrganizationForMember(...a),
 }));
+let access: "enabled" | "suspended" = "enabled";
+vi.mock("@composition/product", () => ({
+  product: { forOrganization: async () => ({ access }) },
+}));
 let orgRows: unknown[] = [];
 vi.mock("#app/db/client.ts", () => ({
   db: {
@@ -60,6 +64,7 @@ function headers(map: Record<string, string>): Headers {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  access = "enabled";
   orgRows = [{ name: "Acme", metadata: null }];
   findOrganizationForMember.mockResolvedValue({
     id: "org-1",
@@ -107,6 +112,32 @@ describe("resolveApplyAuth", () => {
     expect(getSession).not.toHaveBeenCalled();
     await result.sql.queryWithMeta("SELECT 1");
     expect(querySqlApiWithMeta).toHaveBeenCalledWith("SELECT 1", "org-1");
+  });
+
+  it("rejects an apply key for a suspended organization", async () => {
+    verifyApiKey.mockResolvedValueOnce({
+      valid: true,
+      key: { id: "k1", referenceId: "org-1", permissions: { apply: ["read"] } },
+    });
+    access = "suspended";
+    const error = await resolveApplyAuth(headers({ authorization: "Bearer ek_abc" })).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toMatchObject({ message: "Organization suspended" });
+    expect(applyAuthErrorResponse(error)?.status).toBe(403);
+  });
+
+  it("rejects a signed-in session for a suspended organization", async () => {
+    getSession.mockResolvedValueOnce({
+      user: { id: "u" },
+      session: { id: "s", activeOrganizationId: "org-1" },
+    });
+    access = "suspended";
+    const error = await resolveApplyAuth(headers({ authorization: "Bearer session-token" })).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toMatchObject({ message: "Organization suspended" });
+    expect(applyAuthErrorResponse(error)?.status).toBe(403);
   });
 
   it("threads a read-only applyActions through for a read-only key", async () => {

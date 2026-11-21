@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({ listMembers: vi.fn(), listInvitations: vi.fn()
 vi.mock("#app/lib/auth-client.ts", () => ({
   authClient: { organization: mocks, useSession: () => ({ data: { user: { id: "owner-user" } } }) },
 }));
-vi.mock("@tanstack/react-router", () => ({ useRouteContext: () => ({ emailEnabled: false }) }));
+vi.mock("@tanstack/react-router", () => ({
+  useRouteContext: () => ({ emailEnabled: false }),
+  useRouter: () => ({ invalidate: vi.fn() }),
+}));
 import { OrganizationMembersPage } from "./members-page";
 
 let client: QueryClient;

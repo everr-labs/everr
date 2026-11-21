@@ -1,9 +1,10 @@
 import { product } from "@composition/product";
 import { createServerFn } from "@tanstack/react-start";
-import { requireOrgMiddleware } from "#app/lib/serverFn.ts";
+import { requireOrgAllowingSuspendedMiddleware } from "#app/lib/serverFn.ts";
 
 export const getActiveOrgPolicy = createServerFn()
-  .middleware([requireOrgMiddleware])
+  // The app reads this to learn the organization is suspended.
+  .middleware([requireOrgAllowingSuspendedMiddleware])
   .handler(({ context: { session } }) =>
     product.forOrganization(session.session.activeOrganizationId),
   );
