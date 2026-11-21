@@ -3,6 +3,13 @@ import type { AttributeOp, AttributeSource } from "../schemas";
 export const ATTRIBUTE_OP_LABELS: Record<AttributeOp, string> = {
   in: "Is",
   not_in: "Is not",
+  contains: "Contains",
+  not_contains: "Does not contain",
+  matches: "Matches regex",
+  gt: "Greater than",
+  gte: "At least",
+  lt: "Less than",
+  lte: "At most",
   exists: "Exists",
   missing: "Missing",
 };
@@ -12,13 +19,56 @@ export const ATTRIBUTE_OP_LABELS: Record<AttributeOp, string> = {
 export const ATTRIBUTE_OP_CONNECTORS: Record<AttributeOp, string> = {
   in: "is",
   not_in: "is not",
+  contains: "contains",
+  not_contains: "does not contain",
+  matches: "matches",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
   exists: "exists",
   missing: "missing",
 };
 
-// Whether an op takes a list of values (vs. presence-only checks).
+// The operators as the editor lays them out: one row each for values and
+// presence, text, and numbers.
+export const ATTRIBUTE_OP_ROWS: AttributeOp[][] = [
+  ["in", "not_in", "exists", "missing"],
+  ["contains", "not_contains", "matches"],
+  ["gt", "gte", "lt", "lte"],
+];
+
+// What an operator's button shows; the full label is its accessible name.
+export const ATTRIBUTE_OP_SHORT_LABELS: Record<AttributeOp, string> = {
+  in: "Is",
+  not_in: "Is not",
+  contains: "Contains",
+  not_contains: "Not contains",
+  matches: "Regex",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+  exists: "Exists",
+  missing: "Missing",
+};
+
+// Whether an op takes a list of values, picked from the discovered ones.
 export function opTakesValues(op: AttributeOp): boolean {
   return op === "in" || op === "not_in";
+}
+
+// Whether an op takes one typed value: a substring, a pattern or a number.
+export function opTakesOneValue(op: AttributeOp): boolean {
+  return opTakesText(op) || opIsNumeric(op);
+}
+
+export function opTakesText(op: AttributeOp): boolean {
+  return op === "contains" || op === "not_contains" || op === "matches";
+}
+
+export function opIsNumeric(op: AttributeOp): boolean {
+  return op === "gt" || op === "gte" || op === "lt" || op === "lte";
 }
 
 export const ATTRIBUTE_SOURCE_LABELS: Record<AttributeSource, string> = {
