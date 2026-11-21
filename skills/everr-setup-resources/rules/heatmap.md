@@ -74,6 +74,7 @@ plugin:
 
 - All-numeric x values sort **ascending left to right** (hours read 0 to 23); otherwise columns keep **first-seen order**, so `ORDER BY` sets them.
 - A query without the `xColumn` column renders nothing.
+- A column or row shows only if some row has its value. To keep every one on every range (all 7 weekdays × 24 hours), return the full grid with `NULL` as the value where nothing reported: those rows draw empty cells. Don't send 0 instead, which draws as a real value.
 - Keep x **cardinality low** (hours, weekdays, regions): every distinct value is a grid column, with no cap.
 - Set `valueColumn` when the query also returns a numeric helper column for sorting (`dow` above): the default picks the first numeric column other than x and y.
 - No drag-to-zoom; the tooltip title is the x label.
