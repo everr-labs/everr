@@ -4,6 +4,7 @@ import {
   type RouterLike,
 } from "@everr/tanstack-start-otel";
 import { createMiddleware, createStart } from "@tanstack/react-start";
+import { expectedOrganizationHeaders } from "#app/lib/expected-organization.ts";
 import { getRouter } from "#app/router.tsx";
 import { denyFramingMiddleware } from "#app/server/deny-framing.ts";
 import { isExpectedServerFunctionError } from "#app/telemetry/expected-errors.ts";
@@ -28,6 +29,9 @@ export const startInstance = createStart(() => ({
     }),
   ],
   functionMiddleware: [
+    createMiddleware({ type: "function" }).client(({ next }) =>
+      next({ headers: expectedOrganizationHeaders() }),
+    ),
     createServerFnTelemetryMiddleware({
       isExpectedError: isExpectedServerFunctionError,
       tracerName: "everr-app.server_fn",

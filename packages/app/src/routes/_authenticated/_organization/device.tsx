@@ -14,7 +14,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { getOrganizations } from "#app/data/auth.ts";
 import { approveDevice, denyDevice } from "#app/lib/device-auth.ts";
-import { resetRouteAccess } from "#app/lib/route-access-cache.ts";
+import { forgetAccess } from "#app/lib/route-access-cache.ts";
 
 export const Route = createFileRoute("/_authenticated/_organization/device")({
   staticData: { authEntry: "/auth/sign-up" },
@@ -82,13 +82,14 @@ function CliDeviceApprovalPage() {
         return;
       }
 
-      // Approval makes the chosen organization the active one.
-      if (action === "approve") resetRouteAccess(queryClient);
       setStatus(action === "approve" ? "approved" : "denied");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not authorize the device.");
       setStatus("error");
     } finally {
+      // Approving selects the chosen organization first, even when the approval
+      // itself then fails.
+      if (action === "approve") await forgetAccess(queryClient);
       setIsSubmitting(false);
     }
   }

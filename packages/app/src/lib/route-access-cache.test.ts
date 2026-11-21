@@ -1,7 +1,13 @@
 import { QueryClient } from "@tanstack/react-query";
-import { expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { RootContext } from "#app/routes/__root.tsx";
-import { revalidateRootAccess, rootContextKey, routeAccessQuery } from "./route-access-cache";
+import {
+  ensureRouteAccess,
+  refetchRouteAccess,
+  revalidateRootAccess,
+  rootContextKey,
+  routeAccessQuery,
+} from "./route-access-cache";
 
 function rootContext(organizationId: string): RootContext {
   return {
@@ -51,4 +57,51 @@ it("re-runs the guards when another tab signed out", async () => {
   );
 
   expect(router.invalidate).toHaveBeenCalledOnce();
+});
+
+describe("a guard whose own read is refused", () => {
+  const refused = (message: string) =>
+    routeAccessQuery(["organization", "session-1", "org-a"], () =>
+      Promise.reject(new Error(message)),
+    );
+
+  it("starts the page over with fresh access", async () => {
+    const { queryClient } = setup("org-a");
+
+    await expect(
+      ensureRouteAccess(queryClient, refused("Unauthenticated"), "/logs?level=error"),
+    ).rejects.toMatchObject({ options: { href: "/logs?level=error", replace: true } });
+    expect(queryClient.getQueryData(["route-access", "root"])).toBeUndefined();
+  });
+
+  it("shows the error when the server keeps refusing", async () => {
+    const { queryClient } = setup("org-a");
+    await ensureRouteAccess(queryClient, refused("Unauthenticated"), "/logs").catch(() => {});
+
+    await expect(
+      ensureRouteAccess(queryClient, refused("Unauthenticated"), "/logs"),
+    ).rejects.toThrow("Unauthenticated");
+  });
+
+  it("leaves other failures to the router", async () => {
+    const { queryClient } = setup("org-a");
+
+    await expect(
+      ensureRouteAccess(queryClient, refused("ClickHouse unavailable"), "/logs"),
+    ).rejects.toThrow("ClickHouse unavailable");
+    expect(queryClient.getQueryData(["route-access", "root"])).toBeDefined();
+  });
+});
+
+it("reads cached guard data from the server again", async () => {
+  const queryClient = new QueryClient();
+  const policy = vi
+    .fn()
+    .mockResolvedValueOnce({ access: "suspended" })
+    .mockResolvedValueOnce({ access: "enabled" });
+  await queryClient.ensureQueryData(routeAccessQuery(["policy", "org-a"], policy));
+
+  expect(await refetchRouteAccess(queryClient, ["policy", "org-a"])).toEqual({
+    access: "enabled",
+  });
 });

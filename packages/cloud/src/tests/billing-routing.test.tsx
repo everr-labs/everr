@@ -38,7 +38,12 @@ for (const path of [
   vi.doMock(path, () => ({
     Route:
       path === sharedRouteModules.root
-        ? createRootRoute({ beforeLoad: () => ({ memberRole: organization.memberRole }) })
+        ? createRootRoute({
+            beforeLoad: () => ({
+              memberRole: organization.memberRole,
+              session: { session: { id: "session-1", activeOrganizationId: "org-1" } },
+            }),
+          })
         : createFileRoute()({}),
   }));
 }

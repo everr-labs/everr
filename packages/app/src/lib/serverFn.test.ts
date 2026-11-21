@@ -277,6 +277,42 @@ describe("suspended organizations", () => {
   });
 });
 
+describe("the organization the page shows", () => {
+  const fromPageShowing = (organizationId: string) =>
+    new Request("http://localhost/_server", {
+      headers: { "x-everr-expected-organization": organizationId },
+    });
+
+  it("refuses a page showing another organization than the session's", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org_123" },
+    });
+    const next = vi.fn();
+
+    await expect(
+      serverFnChain(createAuthenticatedServerFn)({
+        request: fromPageShowing("org_previous"),
+        next,
+      }),
+    ).rejects.toThrow("Active organization changed");
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("serves a page showing the session's organization", async () => {
+    const { createAuthenticatedServerFn } = await loadModule();
+    mocked.getSession.mockResolvedValue({
+      user: { id: "u" },
+      session: { activeOrganizationId: "org_123" },
+    });
+    const next = vi.fn().mockResolvedValue("ok");
+
+    await serverFnChain(createAuthenticatedServerFn)({ request: fromPageShowing("org_123"), next });
+    expect(next).toHaveBeenCalledOnce();
+  });
+});
+
 describe("authMiddleware", () => {
   it("authenticates and populates context with the active organization", async () => {
     await loadModule();

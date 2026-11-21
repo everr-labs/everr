@@ -2,6 +2,7 @@ import { productClient } from "@composition/client";
 import { entry } from "@composition/entry";
 
 import { getGithubConfiguration } from "#app/integrations/github/configuration.ts";
+import { expectOrganization } from "#app/lib/expected-organization.ts";
 import { socialProviders } from "#app/lib/auth-providers.server.ts";
 import { mailer } from "#app/lib/mailer.server.ts";
 import {
@@ -69,6 +70,8 @@ const rootContextQuery = routeAccessQuery(rootContextKey, () => getRootContext()
 export type RootContext = Awaited<ReturnType<typeof getRootContext>>;
 
 async function loadRootContext(queryClient: QueryClient, pathname: string) {
+  // Until an organization guard sets it again for the page being opened.
+  expectOrganization(undefined);
   const rootContext = await queryClient.ensureQueryData(rootContextQuery);
   const entryRedirect =
     rootContext.entryState && productClient.getEntryRedirect?.(rootContext.entryState, pathname);

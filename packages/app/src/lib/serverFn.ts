@@ -1,5 +1,9 @@
 import { createMiddleware, createServerFn } from "@tanstack/react-start";
-import { resolveOrganizationAccess, resolveSession } from "#app/lib/org-session.server.ts";
+import {
+  assertExpectedOrganization,
+  resolveOrganizationAccess,
+  resolveSession,
+} from "#app/lib/org-session.server.ts";
 import { isOrganizationAdmin, NotOrganizationAdminError } from "#app/lib/organization-role.ts";
 import { createOrganizationSql } from "#app/lib/organization-sql.ts";
 import { createClickhouseQuery } from "./clickhouse";
@@ -11,8 +15,9 @@ const authMiddleware = createMiddleware().server(async ({ request, next }) =>
 function organizationMiddleware(options: { allowSuspended: boolean }) {
   return createMiddleware()
     .middleware([authMiddleware])
-    .server(async ({ next, context: { session } }) => {
+    .server(async ({ request, next, context: { session } }) => {
       const access = await resolveOrganizationAccess(session, options);
+      assertExpectedOrganization(request.headers, access.organization.id);
       return next({
         context: {
           ...access,

@@ -8,16 +8,21 @@ afterEach(() => {
 });
 
 function setup() {
-  const router = { invalidate: vi.fn(() => Promise.resolve()) };
+  const router = {
+    invalidate: vi.fn(() => Promise.resolve()),
+    navigate: vi.fn(() => Promise.resolve()),
+  };
   const queryClient = createQueryClient(() => router);
   const guard = routeAccessQuery(["root"], () => Promise.resolve({ session: "cached" }));
   queryClient.setQueryData(guard.queryKey, { session: "cached" });
   const guardData = () => queryClient.getQueryData(guard.queryKey);
-  return { router, queryClient, guardData };
+  const guardsRerun = (times: number) =>
+    vi.waitFor(() => expect(router.invalidate).toHaveBeenCalledTimes(times));
+  return { router, queryClient, guardData, guardsRerun };
 }
 
 it("re-runs the guards with fresh data once when data requests find the session gone", async () => {
-  const { router, queryClient, guardData } = setup();
+  const { queryClient, guardData, guardsRerun } = setup();
   const queryFn = vi.fn(() => Promise.reject(new Error("Unauthenticated")));
 
   await Promise.allSettled([
@@ -26,7 +31,7 @@ it("re-runs the guards with fresh data once when data requests find the session 
   ]);
 
   expect(queryFn).toHaveBeenCalledTimes(2);
-  expect(router.invalidate).toHaveBeenCalledOnce();
+  await guardsRerun(1);
   expect(guardData()).toBeUndefined();
 });
 
@@ -35,8 +40,9 @@ it.each([
   "Not a member of the active organization",
   "Organization suspended",
   "Not authorized",
+  "Active organization changed",
 ])("re-runs the guards when a change fails with %s", async (message) => {
-  const { router, queryClient, guardData } = setup();
+  const { queryClient, guardData, guardsRerun } = setup();
 
   await new MutationObserver(queryClient, {
     mutationFn: () => Promise.reject(new Error(message)),
@@ -44,13 +50,28 @@ it.each([
     .mutate()
     .catch(() => {});
 
-  expect(router.invalidate).toHaveBeenCalledOnce();
+  await guardsRerun(1);
   expect(guardData()).toBeUndefined();
 });
 
+it("drops the previous organization's cached pages when the session moved to another", async () => {
+  const { queryClient, guardsRerun } = setup();
+  queryClient.setQueryData(["dashboards"], ["from the previous organization"]);
+
+  await queryClient
+    .fetchQuery({
+      queryKey: ["logs"],
+      queryFn: () => Promise.reject(new Error("Active organization changed")),
+    })
+    .catch(() => {});
+
+  await guardsRerun(1);
+  expect(queryClient.getQueryData(["dashboards"])).toBeUndefined();
+});
+
 it("stops re-running the guards for a page that keeps failing after they let it through", async () => {
-  vi.useFakeTimers();
-  const { router, queryClient } = setup();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const { queryClient, guardsRerun } = setup();
   const fail = () =>
     queryClient
       .fetchQuery({
@@ -61,12 +82,13 @@ it("stops re-running the guards for a page that keeps failing after they let it 
       .catch(() => {});
 
   await fail();
+  await guardsRerun(1);
   await fail();
-  expect(router.invalidate).toHaveBeenCalledOnce();
+  await guardsRerun(1);
 
   vi.advanceTimersByTime(10_000);
   await fail();
-  expect(router.invalidate).toHaveBeenCalledTimes(2);
+  await guardsRerun(2);
 });
 
 it("leaves other failures to the page", async () => {

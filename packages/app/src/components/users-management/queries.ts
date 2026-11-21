@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 import { authClient } from "#app/lib/auth-client.ts";
 import { resetRouteAccess } from "#app/lib/route-access-cache.ts";
@@ -84,6 +85,7 @@ export function useRevokeInvitation() {
 
 export function useUpdateMemberRole() {
   const qc = useQueryClient();
+  const router = useRouter();
   return useMutation({
     mutationFn: async (vars: { memberId: string; role: OrgRole }) => {
       const res = await authClient.organization.updateMemberRole({
@@ -94,8 +96,10 @@ export function useUpdateMemberRole() {
       return res.data;
     },
     onSuccess: () => {
-      // The role may be the current user's own, which decides the admin pages.
+      // The role may be the current user's own, which decides the admin pages,
+      // this one included.
       resetRouteAccess(qc);
+      void router.invalidate();
       void qc.invalidateQueries({ queryKey: membersQueryKey });
     },
   });

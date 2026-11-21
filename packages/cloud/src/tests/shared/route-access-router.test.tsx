@@ -156,6 +156,15 @@ it("reuses organization access and policy when only the search changes", async (
   expect(state.membershipReads).toHaveBeenCalledOnce();
   expect(getActiveOrgPolicy).toHaveBeenCalledOnce();
 });
+it("lets an organization restored elsewhere back in without a reset", async () => {
+  state.suspended = true;
+  const router = await open("/logs");
+  expect(router.state.location.pathname).toBe("/billing/suspended");
+
+  state.suspended = false;
+  await router.navigate({ href: "/traces" });
+  expect(router.state.location.pathname).toBe("/traces");
+});
 it("reads organization access again after a reset", async () => {
   const router = await open("/logs");
   state.member = false;

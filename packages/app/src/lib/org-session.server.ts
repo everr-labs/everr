@@ -2,12 +2,16 @@ import { product } from "@composition/product";
 import { db } from "#app/db/client.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { getSession } from "#app/lib/session.server.ts";
+import {
+  EXPECTED_ORGANIZATION_HEADER,
+  ORGANIZATION_CHANGED,
+} from "#app/lib/expected-organization.ts";
 
 /** An auth failure that carries the HTTP status a route should answer with. */
 export class AuthError extends Error {
   constructor(
     message: string,
-    readonly status: 401 | 403,
+    readonly status: 401 | 403 | 409,
   ) {
     super(message);
   }
@@ -71,6 +75,12 @@ export async function resolveOrganizationAccess(
       user,
     },
   };
+}
+
+/** Refuses a request from a page that shows another organization than the session's. */
+export function assertExpectedOrganization(headers: Headers, organizationId: string) {
+  const expected = headers.get(EXPECTED_ORGANIZATION_HEADER);
+  if (expected && expected !== organizationId) throw new AuthError(ORGANIZATION_CHANGED, 409);
 }
 
 export async function resolveOrgSession(headers: Headers) {
