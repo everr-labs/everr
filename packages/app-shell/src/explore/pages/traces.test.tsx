@@ -1,4 +1,5 @@
 import type * as TelemetryTraces from "@everr/telemetry-explorer/traces";
+import type { TraceExplorerProps } from "@everr/telemetry-explorer/traces";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -10,7 +11,18 @@ vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryTraces>();
   return {
     ...actual,
-    TraceExplorer: () => <div>Trace full page route</div>,
+    TraceExplorer: ({ search, onBack, onSpanChange }: TraceExplorerProps) => (
+      <div>
+        <div>Trace full page route</div>
+        <span>Selected {search.span ?? "none"}</span>
+        <button type="button" onClick={onBack}>
+          Back to trace list
+        </button>
+        <button type="button" onClick={() => onSpanChange("child")}>
+          Select child
+        </button>
+      </div>
+    ),
     TracesSearch: ({
       renderTraceLink,
     }: {
@@ -58,6 +70,27 @@ describe("/traces route", () => {
     expect(router.state.location.search).not.toHaveProperty("start");
     expect(router.state.location.search).not.toHaveProperty("end");
     expect(router.state.location.maskedLocation).toBeUndefined();
+  });
+
+  it("selects a span in the URL and goes back to the list with the list filters", async () => {
+    const user = userEvent.setup();
+    const router = renderTracesRoute("/traces?from=now-1h&to=now&name=checkout");
+    await user.click(await screen.findByRole("link", { name: "Open trace trace-1" }));
+    expect(await screen.findByText("Selected none")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Select child" }));
+    expect(await screen.findByText("Selected child")).toBeInTheDocument();
+    expect(router.state.location.search).toMatchObject({ span: "child" });
+
+    await user.click(screen.getByRole("button", { name: "Back to trace list" }));
+    expect(await screen.findByText("Trace list page")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/traces");
+    expect(router.state.location.search).toMatchObject({
+      from: "now-1h",
+      to: "now",
+      name: "checkout",
+    });
+    expect(router.state.location.search).not.toHaveProperty("span");
   });
 
   it("shows the load error with a way back to the list", async () => {

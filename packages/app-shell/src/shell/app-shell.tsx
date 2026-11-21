@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from "@everr/ui/components/sidebar";
 import { cn } from "@everr/ui/lib/utils";
+import type { QueryFilters } from "@tanstack/react-query";
 import { Link, useMatches } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { ShellBreadcrumb } from "./breadcrumb";
@@ -33,6 +34,7 @@ export function AppShell({
   sidebarFooter,
   dataActions,
   hideTimeRangePicker: hideTimeRangePickerOverride,
+  refreshScope,
   children,
 }: {
   /** The sidebar groups, top to bottom. */
@@ -42,6 +44,12 @@ export function AppShell({
   dataActions?: ReactNode;
   /** When set, wins over what the matched routes declare in `staticData`. */
   hideTimeRangePicker?: boolean;
+  /**
+   * The queries a refresh covers and the refresh picker waits for: every query
+   * when omitted. Pass a constant, as a new object restarts the auto-refresh
+   * timer on each render.
+   */
+  refreshScope?: QueryFilters;
   /** The page panel's content. */
   children: ReactNode;
 }) {
@@ -99,7 +107,7 @@ export function AppShell({
               {showDataControls && !hideTimeRangePicker && (
                 <>
                   <TimeRangePicker />
-                  <RefreshPicker />
+                  <RefreshPicker scope={refreshScope} />
                 </>
               )}
             </div>

@@ -71,36 +71,68 @@ export function NavMain({ groups }: { groups: readonly NavGroup[] }) {
             )}
             <SidebarMenu>
               {group.items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    tooltipSection={group.label}
-                    className="[&>svg]:text-(--nav-accent)/75 [&>svg]:transition-colors [&>svg]:duration-200 [&>svg]:ease-sidebar motion-reduce:[&>svg]:transition-none hover:[&>svg]:text-(--nav-accent) data-active:bg-(--nav-accent)/12 data-active:text-white data-active:hover:bg-(--nav-accent)/16 data-active:[&>svg]:text-(--nav-accent)"
-                    render={
-                      <Link
-                        to={item.url}
-                        // `includeSearch: false`: search params such as the
-                        // `?alert=` detail panel on Triage are not a different
-                        // destination, and an exact match would treat them as
-                        // one and light nothing up.
-                        activeOptions={{
-                          exact: item.exact ?? false,
-                          includeSearch: false,
-                        }}
-                        activeProps={{ "data-active": true }}
-                      />
-                    }
-                  >
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <ShellNavLink
+                  key={item.title}
+                  title={item.title}
+                  to={item.url}
+                  icon={item.icon}
+                  exact={item.exact}
+                  section={group.label}
+                />
               ))}
             </SidebarMenu>
           </SidebarGroup>
         </Fragment>
       ))}
     </>
+  );
+}
+
+/**
+ * One sidebar destination. It is what the nav groups render, and what an app
+ * renders in its sidebar footer so a link there looks and behaves like the
+ * ones above it. It wears the `--nav-accent` of the group it sits in, so
+ * outside a group the parent sets it.
+ */
+export function ShellNavLink({
+  title,
+  to,
+  icon: Icon,
+  exact,
+  section,
+}: {
+  title: string;
+  to: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  /** The group label the collapsed rail's tooltip shows above the title. */
+  section?: string;
+}) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={title}
+        tooltipSection={section}
+        className="[&>svg]:text-(--nav-accent)/75 [&>svg]:transition-colors [&>svg]:duration-200 [&>svg]:ease-sidebar motion-reduce:[&>svg]:transition-none hover:[&>svg]:text-(--nav-accent) data-active:bg-(--nav-accent)/12 data-active:text-white data-active:hover:bg-(--nav-accent)/16 data-active:[&>svg]:text-(--nav-accent)"
+        render={
+          <Link
+            to={to}
+            // `includeSearch: false`: search params such as the
+            // `?alert=` detail panel on Triage are not a different
+            // destination, and an exact match would treat them as
+            // one and light nothing up.
+            activeOptions={{
+              exact: exact ?? false,
+              includeSearch: false,
+            }}
+            activeProps={{ "data-active": true }}
+          />
+        }
+      >
+        <Icon />
+        <span>{title}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 

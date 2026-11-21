@@ -376,5 +376,36 @@ export default {
         ],
       },
     },
+    {
+      // The frame and the Explore pages are `@everr/app-shell`'s, so the web app
+      // and the local app cannot drift. An app mounts them from a route file.
+      files: ["packages/{app,cloud,local-app}/**/*.{ts,tsx}"],
+      excludeFiles: ["**/*.test.{ts,tsx}"],
+      rules: {
+        "eslint-js/no-restricted-imports": [
+          "error",
+          {
+            paths: [
+              [
+                "@everr/ui/components/sidebar",
+                ["Sidebar", "SidebarProvider", "SidebarInset", "SidebarRail"],
+              ],
+              ["@everr/telemetry-explorer/logs", ["LogsExplorer"]],
+              ["@everr/telemetry-explorer/traces", ["TracesSearch", "TraceExplorer"]],
+              ["@everr/telemetry-explorer/metrics", ["MetricsExplorer"]],
+              [
+                "@everr/telemetry-explorer/errors",
+                ["ErrorIssues", "ErrorDetail", "DetailRouteDialog"],
+              ],
+              ["@everr/telemetry-explorer/filters", ["ExploreGlobalFilters"]],
+            ].map(([name, importNames]) => ({
+              name,
+              importNames,
+              message: "Render this through @everr/app-shell, so every app shows the same one.",
+            })),
+          },
+        ],
+      },
+    },
   ],
 } satisfies OxlintConfig;

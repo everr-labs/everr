@@ -881,6 +881,9 @@ importers:
 
   packages/local-app:
     dependencies:
+      '@everr/app-shell':
+        specifier: workspace:*
+        version: link:../app-shell
       '@everr/otel-web':
         specifier: workspace:*
         version: link:../otel-web
@@ -924,6 +927,9 @@ importers:
       '@testing-library/react':
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.2)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@testing-library/user-event':
+        specifier: ^14.6.1
+        version: 14.6.1(@testing-library/dom@10.4.2)
       '@types/node':
         specifier: ^25.6.2
         version: 25.6.2

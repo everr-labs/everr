@@ -12,6 +12,7 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@everr/app-shell": "workspace:*",
     "@everr/otel-web": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
@@ -28,6 +29,7 @@
     "@tanstack/router-plugin": "1.168.47",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.6.2",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

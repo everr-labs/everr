@@ -1,21 +1,21 @@
 import { ErrorBoundary } from "@everr/otel-web/react";
+import { Button } from "@everr/ui/components/button";
+import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import type { ReactNode } from "react";
 
 function ErrorFallback() {
   return (
-    <main className="min-h-screen bg-[var(--settings-shell)] text-[var(--settings-text)]">
-      <section className="flex min-h-screen items-center justify-center px-6 py-14">
-        <div className="grid max-w-[420px] gap-4 text-center">
-          <h1 className="m-0 text-xl font-semibold">Something went wrong.</h1>
-          <button
-            type="button"
-            className="mx-auto rounded border border-[color:var(--settings-border)] bg-[var(--settings-panel)] px-3 py-2 text-sm font-medium text-[var(--settings-text)]"
-            onClick={() => window.location.reload()}
-          >
+    <main className="bg-background text-foreground flex min-h-screen">
+      <Empty className="border-0">
+        <EmptyHeader>
+          <EmptyTitle as="h2">Something went wrong.</EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button type="button" variant="outline" onClick={() => window.location.reload()}>
             Reload
-          </button>
-        </div>
-      </section>
+          </Button>
+        </EmptyContent>
+      </Empty>
     </main>
   );
 }

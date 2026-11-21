@@ -5,6 +5,7 @@ import {
   type RouteTimeDefaults,
   type TimeRange,
 } from "@everr/ui/lib/time-range";
+import type { QueryFilters } from "@tanstack/react-query";
 import { useMatches, useSearch } from "@tanstack/react-router";
 import { useSearchPatch } from "./search-io";
 
@@ -51,7 +52,8 @@ export function useTimeRange() {
   return { timeRange: { from, to }, setTimeRange };
 }
 
-export function useAutoRefresh() {
+/** `scope` narrows the queries a refresh covers, every query when it is omitted. */
+export function useAutoRefresh(scope?: QueryFilters) {
   const { refresh } = useTimeSearch();
   const patchSearch = useSearchPatch();
 
@@ -59,7 +61,7 @@ export function useAutoRefresh() {
     patchSearch({ refresh: value }, { replace: true });
   };
 
-  const refreshNow = usePageRefresh(refresh);
+  const refreshNow = usePageRefresh(refresh, scope);
 
   return { refreshInterval: refresh, setRefreshInterval, refreshNow };
 }
