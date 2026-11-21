@@ -11,11 +11,16 @@ import { HEATMAP_COLOR_SCHEMES } from "./heatmap-colors";
  */
 export const heatmapSpec = z.looseObject({
   valueFormat: valueFormatSpec.optional(),
-  /** Y-bucket column; defaults to the first non-time column. */
+  /**
+   * Category column for the x-axis, one column per distinct value (numeric
+   * ones ascending). Unset, the x-axis is time.
+   */
+  xColumn: z.string().optional(),
+  /** Y-bucket column; defaults to the first column that is neither time nor `xColumn`. */
   yColumn: z.string().optional(),
   /**
    * Cell intensity column; defaults to the first numeric column that is
-   * neither the time column nor `yColumn`.
+   * neither the time column, `xColumn` nor `yColumn`.
    */
   valueColumn: z.string().optional(),
   /** Value formatting in cells, tooltip and legend. */

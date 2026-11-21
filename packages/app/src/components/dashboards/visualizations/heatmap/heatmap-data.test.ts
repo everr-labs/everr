@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { buildHeatmapModel } from "./heatmap-data";
+import { buildHeatmapModel, columnSpan, type HeatmapModel } from "./heatmap-data";
 import { heatmapSpec } from "./spec";
 
 const DOMAIN: [number, number] = [0, 100_000];
@@ -11,6 +11,12 @@ function specWith(overrides: Record<string, unknown> = {}) {
 // Timestamps below 1e12 are treated as epoch seconds by toTimestamp, so test
 // rows use second-precision epochs (domain ms = ts × 1000).
 const ts = (seconds: number) => seconds;
+
+/** Each cell's bounds, from its time column. */
+function spans({ cells, columns }: HeatmapModel, domain = DOMAIN) {
+  if (columns.kind !== "time") throw new Error("expected time columns");
+  return cells.map((cell) => columnSpan(columns, cell.column, domain));
+}
 
 describe("buildHeatmapModel", () => {
   it("builds a time × bucket grid from long-format rows", () => {
@@ -28,13 +34,18 @@ describe("buildHeatmapModel", () => {
     expect(model.yBuckets).toEqual(["/api", "/web"]);
     // step = 40s gap between the two distinct timestamps
     expect(model.cells).toEqual([
-      { start: 10_000, end: 50_000, bucket: 0, column: 1, value: 3, samples: 1 },
-      { start: 10_000, end: 50_000, bucket: 1, column: 1, value: 1, samples: 1 },
-      { start: 50_000, end: 90_000, bucket: 0, column: 2, value: 7, samples: 1 },
+      { bucket: 0, column: 1, value: 3, samples: 1 },
+      { bucket: 1, column: 1, value: 1, samples: 1 },
+      { bucket: 0, column: 2, value: 7, samples: 1 },
+    ]);
+    expect(spans(model)).toEqual([
+      [10_000, 50_000],
+      [10_000, 50_000],
+      [50_000, 90_000],
     ]);
     expect(model.domain).toEqual([0, 7]);
     // Columns on the samples' 40s grid, extended to cover the whole range.
-    expect(model.columns).toEqual({ start: -30_000, step: 40_000, count: 4 });
+    expect(model.columns).toEqual({ kind: "time", start: -30_000, step: 40_000, count: 4 });
   });
 
   it.each([
@@ -77,14 +88,15 @@ describe("buildHeatmapModel", () => {
       DOMAIN,
     );
     // A lone timestamp's column is the whole range.
-    expect(model.cells).toMatchObject([{ start: 0, end: 100_000, bucket: 0, value: 10 }]);
-    expect(model.columns).toEqual({ start: 0, step: 100_000, count: 1 });
+    expect(model.cells).toMatchObject([{ bucket: 0, value: 10 }]);
+    expect(spans(model)).toEqual([[0, 100_000]]);
+    expect(model.columns).toEqual({ kind: "time", start: 0, step: 100_000, count: 1 });
   });
 
   it("sizes columns on the regular interval despite a stray sample", () => {
     const rows = [0, 10, 20, 20.001, 30].map((s) => ({ ts: ts(s), route: "/api", count: 1 }));
     const model = buildHeatmapModel([rows], specWith(), DOMAIN);
-    expect(model.columns.step).toBe(10_000);
+    expect(model.columns).toMatchObject({ step: 10_000 });
     // The stray sample shares its neighbor's column, and they sum.
     expect(model.cells.map((cell) => cell.value)).toEqual([1, 1, 2, 1]);
   });
@@ -109,7 +121,7 @@ describe("buildHeatmapModel", () => {
       { ts: ts(s + 1), route: "/web", count: 1 },
     ]);
     const model = buildHeatmapModel([rows], specWith(), DOMAIN);
-    expect(model.columns.step).toBe(10_000);
+    expect(model.columns).toMatchObject({ step: 10_000 });
     expect(model.cells.map((cell) => [cell.column, cell.bucket])).toEqual([
       [0, 0],
       [0, 1],
@@ -146,7 +158,8 @@ describe("buildHeatmapModel", () => {
       DOMAIN,
     );
     // step = 30s; the 90s cell clamps to the domain end, the 120s one is out
-    expect(model.cells).toMatchObject([{ start: 90_000, end: 100_000, bucket: 0, value: 1 }]);
+    expect(model.cells).toMatchObject([{ bucket: 0, value: 1 }]);
+    expect(spans(model)).toEqual([[90_000, 100_000]]);
   });
 
   it("floors the default color domain at 0 and honors explicit min/max", () => {
@@ -155,5 +168,74 @@ describe("buildHeatmapModel", () => {
     expect(buildHeatmapModel(frames, specWith({ min: 2, max: 100 }), DOMAIN).domain).toEqual([
       2, 100,
     ]);
+  });
+
+  describe("with xColumn", () => {
+    it("puts each x value in its own column, without a time column", () => {
+      const model = buildHeatmapModel(
+        [
+          [
+            { hour: 0, weekday: "Mon", energy: 3 },
+            { hour: 1, weekday: "Mon", energy: 1 },
+            { hour: 0, weekday: "Tue", energy: 7 },
+          ],
+        ],
+        specWith({ xColumn: "hour" }),
+        DOMAIN,
+      );
+      expect(model.columns).toEqual({ kind: "category", labels: ["0", "1"], count: 2 });
+      expect(model.yBuckets).toEqual(["Mon", "Tue"]);
+      // Tue has no hour 1: that cell is left out.
+      expect(model.cells).toEqual([
+        { column: 0, bucket: 0, value: 3, samples: 1 },
+        { column: 0, bucket: 1, value: 7, samples: 1 },
+        { column: 1, bucket: 0, value: 1, samples: 1 },
+      ]);
+    });
+
+    it.each([
+      // ClickHouse quotes 64-bit integers.
+      ["numeric ones ascending", [10, "2", 1], ["1", "2", "10"]],
+      ["named ones in first-seen order", ["b", "a", "c"], ["b", "a", "c"]],
+    ])("orders columns: %s", (_, xs, expected) => {
+      const rows = xs.map((x) => ({ x, bucket: "a", count: 1 }));
+      const model = buildHeatmapModel([rows], specWith({ xColumn: "x" }), DOMAIN);
+      expect(model.columns).toMatchObject({ labels: expected });
+    });
+
+    it("sums rows landing on the same cell, within and across frames", () => {
+      const model = buildHeatmapModel(
+        [
+          [
+            { hour: 5, weekday: "Mon", energy: 3 },
+            { hour: 5, weekday: "Mon", energy: "2" },
+            { hour: null, weekday: "Mon", energy: 1 },
+          ],
+          [{ hour: 5, weekday: "Mon", energy: 5 }],
+        ],
+        specWith({ xColumn: "hour" }),
+        DOMAIN,
+      );
+      expect(model.cells).toMatchObject([{ value: 10, samples: 3 }]);
+    });
+
+    it("defaults y and value to columns other than x and time", () => {
+      const model = buildHeatmapModel(
+        [[{ ts: ts(10), hour: 3, weekday: "Mon", energy: 4 }]],
+        specWith({ xColumn: "hour" }),
+        DOMAIN,
+      );
+      expect(model.yBuckets).toEqual(["Mon"]);
+      expect(model.cells.map((cell) => cell.value)).toEqual([4]);
+    });
+
+    it("skips frames without the x column", () => {
+      const model = buildHeatmapModel(
+        [[{ ts: ts(10), weekday: "Mon", energy: 4 }]],
+        specWith({ xColumn: "hour" }),
+        DOMAIN,
+      );
+      expect(model.cells).toEqual([]);
+    });
   });
 });

@@ -28,7 +28,8 @@ import {
 } from "../time-track";
 import { createValueFormatter } from "../value-format";
 import { heatmapColor, heatmapSchemeColors } from "./heatmap-colors";
-import { buildHeatmapModel } from "./heatmap-data";
+import { CategoryAxis } from "./category-axis";
+import { buildHeatmapModel, columnSpan } from "./heatmap-data";
 import type { HeatmapSpec } from "./spec";
 
 echarts.use([HeatmapChart, VisualMapContinuousComponent]);
@@ -69,13 +70,8 @@ export function HeatmapVisualization({
   );
   const hasChart = !!model && domain[1] > domain[0] && model.cells.length > 0;
 
-  // The pointer maps onto the column grid, which can reach a little past the
-  // time range on either side.
   const columns = model?.columns;
-  const gridRange = useMemo<[number, number]>(
-    () => (columns ? [columns.start, columns.start + columns.count * columns.step] : domain),
-    [columns, domain],
-  );
+  const categories = columns?.kind === "category" ? columns.labels : null;
   const mounted = useEChart(chartElementRef, hasChart);
   const theme = mounted?.theme ?? null;
 
@@ -97,7 +93,16 @@ export function HeatmapVisualization({
   );
   const grid = yAxis?.grid ?? null;
 
-  const scale = useMemo(() => linearTimeScale(gridRange), [gridRange]);
+  // The pointer maps onto the column grid, which can reach a little past the
+  // time range on either side. Category columns have no time: without a
+  // scale the track keeps the hover but drops zoom and the shared cursor.
+  const scale = useMemo(
+    () =>
+      columns?.kind === "time"
+        ? linearTimeScale([columns.start, columns.start + columns.count * columns.step])
+        : null,
+    [columns],
+  );
   const track = useTimeTrack({
     chartElementRef,
     size: mounted,
@@ -153,7 +158,7 @@ export function HeatmapVisualization({
         data: Array.from({ length: count }, (_, k) => String(k)),
         ...plain,
         ...gap(columnWidth >= MIN_GAPPED_COLUMN * spec.cellGap),
-        // Labelled by `TimeAxis` under the scrolling rows.
+        // Labelled by `TimeAxis` or `CategoryAxis` under the scrolling rows.
         axisLabel: { show: false },
       },
       yAxis: { ...yAxis.axis, ...gap(true) },
@@ -213,7 +218,11 @@ export function HeatmapVisualization({
       <PanelEmptyState
         icon={Grid3x3}
         data={data}
-        unusable="No row has a time inside this time range, a bucket and a numeric value."
+        unusable={
+          spec.xColumn === undefined
+            ? "No row has a time inside this time range, a bucket and a numeric value."
+            : `No row has a value for ${spec.xColumn}, a bucket and a numeric value.`
+        }
       />
     );
   }
@@ -235,11 +244,14 @@ export function HeatmapVisualization({
           {/* The canvas has no text of its own: say what it shows. */}
           <p className="sr-only">{chartLabel("Heatmap", model.yBuckets)}</p>
           <div ref={chartElementRef} aria-hidden className="pointer-events-none h-full w-full" />
-          {plot && <TimeTrackOverlay scale={scale} brush={track.brush} plot={plot} />}
+          {plot && scale && <TimeTrackOverlay scale={scale} brush={track.brush} plot={plot} />}
         </div>
       </div>
-      {plot && mounted && (
+      {plot && mounted && scale && (
         <TimeAxis theme={mounted.theme} domain={domain} scale={scale} plot={plot} />
+      )}
+      {plot && mounted && categories && (
+        <CategoryAxis theme={mounted.theme} labels={categories} plot={plot} />
       )}
 
       {spec.showLegend && (
@@ -265,7 +277,13 @@ export function HeatmapVisualization({
       {hover && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
-            title={`${new Date(hover.target.cell.start).toLocaleString()} – ${new Date(hover.target.cell.end).toLocaleString()}`}
+            title={
+              model.columns.kind === "category"
+                ? model.columns.labels[hover.target.cell.column]
+                : columnSpan(model.columns, hover.target.cell.column, domain)
+                    .map((ms) => new Date(ms).toLocaleString())
+                    .join(" – ")
+            }
             rows={[
               {
                 key: hover.target.bucket,
