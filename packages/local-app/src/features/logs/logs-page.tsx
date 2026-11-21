@@ -67,7 +67,6 @@ export function LogsPage() {
                 from: from.toISOString(),
                 to: to.toISOString(),
               }),
-              replace: true,
             })
           }
         />

@@ -45,7 +45,6 @@ function MetricsExplorerPage() {
       onTimeRangeSelect={(from, to) =>
         void navigate({
           search: (prev) => ({ ...prev, from: from.toISOString(), to: to.toISOString() }),
-          replace: true,
         })
       }
       renderMetricLink={({ metric, type, className, children }) => (
