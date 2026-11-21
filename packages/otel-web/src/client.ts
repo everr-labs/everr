@@ -13,7 +13,7 @@ import {
   createSessionContext,
   persistSession,
   sessionId,
-  setPersistence,
+  setAnonymized,
   visitorId,
 } from "./state/session.js";
 import { bindTracer } from "./tracer.js";
@@ -23,7 +23,7 @@ import type { WebSDKOptions } from "./types.js";
  * The browser SDK. The constructor connects the transport, the identity, and
  * the configured instrumentations one time. There is no separate start step.
  *
- * The identity functions `identify()` and `revoke()` are package functions,
+ * The identity functions `identify()` and `setAnonymized()` are package functions,
  * not methods on the instance. The `captureError()` function and `logger` are
  * the same. Thus the structure of the instance does not change with the
  * options.
@@ -52,12 +52,12 @@ export class WebSDK {
     // automatically. This is a correct configuration.
 
     // The identity contains the visitor id and the session, and the session
-    // ends after 30 minutes without activity. The identity uses the store that
-    // the persistence option selects. The default store is localStorage, and
-    // the SDK can read it after a reload and in the other tabs. The memory
-    // store ends with the page. The event schema is the same for the two
-    // stores. The user.* keys from identify() go into the ambient set.
-    setPersistence(options.persistence);
+    // ends after 30 minutes without activity. The default mode is anonymized:
+    // the SDK uses no localStorage, and it sends no visitor id and no user.*
+    // key. The session id then ends with the page. In the other mode the SDK
+    // keeps the ids in localStorage, and it can read them after a reload and in
+    // the other tabs.
+    setAnonymized(options.anonymized ?? true);
 
     const [rotate, current] = createSessionContext(location.href, document.referrer);
 

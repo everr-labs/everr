@@ -1,6 +1,12 @@
 import { getAttributes } from "../state/attributes.js";
 import { routePattern } from "../state/route.js";
-import { type CurrentPage, type PageContext, sessionId, visitorId } from "../state/session.js";
+import {
+  type CurrentPage,
+  type PageContext,
+  sessionId,
+  userAttributes,
+  visitorId,
+} from "../state/session.js";
 import type { AttrValue } from "./emitter.js";
 
 // The context envelope. The SDK writes it on EACH record that it sends, the
@@ -29,7 +35,8 @@ export function pageAttrs(page: PageContext): Record<string, string | null | und
 
 // The code reads the current module data for each record. That data is the
 // session, the visitor, the route, the ambient set of setAttributes, and the
-// user.* keys from identify(). Thus a change applies to the next event. The
+// user.* keys from identify(). The visitor and the user.* keys are absent while
+// the mode is anonymized. Thus a change applies to the next event. The
 // page context belongs to one client. The resource attributes in client.ts now
 // carry the attribution, because it also does not change during the life of the
 // client.
@@ -41,5 +48,6 @@ export function createEnvelope(
     "everr.visitor.id": visitorId(),
     ...pageAttrs(current()),
     ...getAttributes(),
+    ...userAttributes(),
   });
 }

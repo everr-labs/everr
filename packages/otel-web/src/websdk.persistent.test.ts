@@ -1,20 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { WebSDK } from "./client.js";
-import { identify, revoke } from "./state/session.js";
+import { logger } from "./logger.js";
+import { clearIdentity, identify, setAnonymized } from "./state/session.js";
 import {
   attrs,
   type OtlpBatch,
   type OtlpRecord,
+  startClient,
   startPersistentClient,
   UNIQUE_ID,
 } from "./test-kit.js";
 
-// The localStorage store through new WebSDK(). That store is the default of the
-// SDK. The event schema is the same as the schema with the memory store. Only
-// the ids are permanent: everr.visitor.id and session.id continue after a reload
-// and in the other tabs. With the two stores, the user.* keys from identify()
-// are in the ambient set in memory. The localStorage store holds the identity.
-// Thus each test clears it at the start and at the end.
+// The `anonymized: false` mode through new WebSDK(). The event schema is the
+// same as the schema of the anonymized mode. Only the ids are permanent:
+// everr.visitor.id and session.id continue after a reload and in the other
+// tabs, and the records carry the user.* keys from identify(). The mode keeps
+// the identity in localStorage. Thus each test clears it at the end.
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
@@ -31,14 +32,14 @@ async function records(): Promise<OtlpRecord[]> {
 afterEach(async () => {
   await client?.shutdown();
   client = undefined;
-  revoke();
+  clearIdentity();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   localStorage.clear();
   history.replaceState(null, "", "/");
 });
 
-describe("init (persistence: localStorage)", () => {
+describe("init (anonymized: false)", () => {
   it("stamps the visitor id and a durable session id on every event", async () => {
     start();
     history.pushState(null, "", "/pricing");
@@ -147,14 +148,14 @@ describe("init (persistence: localStorage)", () => {
     expect(attrs(reloaded)["user.id"]).toBe("u_123");
   });
 
-  it("revoke() removes all stored ids; the next init starts fresh", async () => {
+  it("clearIdentity() removes all stored ids and the user; the next init starts fresh", async () => {
     start();
     identify("u_123", { plan: "pro" });
     const [view] = await records();
     const before = attrs(view);
     expect(localStorage.length).toBeGreaterThan(0);
 
-    revoke();
+    clearIdentity();
     expect(localStorage.length).toBe(0);
 
     await client?.shutdown();
@@ -173,12 +174,110 @@ describe("init (persistence: localStorage)", () => {
     expect(batches).toHaveLength(0);
   });
 
-  it("keeps identify()/revoke() safely inert in a keyless production build", () => {
+  it("keeps identify()/clearIdentity() safely inert in a keyless production build", () => {
     new WebSDK({ serviceName: "everr-docs-test" });
     expect(localStorage.length).toBe(0);
     expect(() => {
       identify("u_123", { plan: "pro" });
-      revoke();
+      clearIdentity();
     }).not.toThrow();
+  });
+});
+
+describe("setAnonymized on a live client", () => {
+  async function probe(): Promise<Record<string, unknown>> {
+    logger.info("probe");
+    const all = await records();
+    return attrs(all[all.length - 1]);
+  }
+
+  const noUserKeys = (a: Record<string, unknown>): string[] =>
+    Object.keys(a).filter((key) => key.startsWith("user."));
+
+  it("keeps the session and adds the visitor id and the user when it leaves the mode", async () => {
+    [client, batches] = startClient({ instrumentations: [] });
+    identify("u_123", { plan: "pro" });
+    const before = await probe();
+    expect(before).not.toHaveProperty("everr.visitor.id");
+    expect(noUserKeys(before)).toEqual([]);
+    expect(localStorage.length).toBe(0);
+
+    setAnonymized(false);
+    const after = await probe();
+    expect(after["session.id"]).toBe(before["session.id"]);
+    expect(after["everr.visitor.id"]).toMatch(UNIQUE_ID);
+    expect(localStorage.getItem("everr.visitor.id")).toBe(after["everr.visitor.id"]);
+    expect(localStorage.getItem("everr.session")).toContain(String(after["session.id"]));
+    expect(after["user.id"]).toBe("u_123");
+    expect(after["user.plan"]).toBe("pro");
+  });
+
+  it("prefers a visitor id that localStorage already holds when it leaves the mode", async () => {
+    [client, batches] = startClient({ instrumentations: [] });
+    expect(await probe()).not.toHaveProperty("everr.visitor.id");
+    localStorage.setItem("everr.visitor.id", "returning-visitor");
+
+    setAnonymized(false);
+    expect((await probe())["everr.visitor.id"]).toBe("returning-visitor");
+  });
+
+  it("removes the stored ids and starts a new session when it enters the mode", async () => {
+    start({ instrumentations: [] });
+    identify("u_123", { plan: "pro" });
+    const before = await probe();
+    expect(before["everr.visitor.id"]).toMatch(UNIQUE_ID);
+    expect(before["user.id"]).toBe("u_123");
+    expect(localStorage.length).toBe(2);
+
+    setAnonymized(true);
+    expect(localStorage.length).toBe(0);
+    const anonymized = await probe();
+    expect(anonymized).not.toHaveProperty("everr.visitor.id");
+    expect(noUserKeys(anonymized)).toEqual([]);
+    expect(anonymized["session.id"]).toMatch(UNIQUE_ID);
+    expect(anonymized["session.id"]).not.toBe(before["session.id"]);
+    expect(localStorage.length).toBe(0);
+
+    // The identified user stays in memory. Thus it comes back without a second
+    // call to identify.
+    setAnonymized(false);
+    const back = await probe();
+    expect(back["user.id"]).toBe("u_123");
+    expect(back["user.plan"]).toBe("pro");
+    expect(back["everr.visitor.id"]).toMatch(UNIQUE_ID);
+  });
+
+  it("does nothing, and touches no storage, for the value that is already set", async () => {
+    [client, batches] = startClient({ instrumentations: [] });
+    const anonymizedSession = (await probe())["session.id"];
+    const storageCalls = [
+      vi.spyOn(Storage.prototype, "getItem"),
+      vi.spyOn(Storage.prototype, "setItem"),
+      vi.spyOn(Storage.prototype, "removeItem"),
+    ];
+    setAnonymized(true);
+    expect((await probe())["session.id"]).toBe(anonymizedSession);
+    expect(storageCalls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+
+    setAnonymized(false);
+    const session = (await probe())["session.id"];
+    for (const spy of storageCalls) spy.mockClear();
+    setAnonymized(false);
+    expect(storageCalls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+    expect((await probe())["session.id"]).toBe(session);
+  });
+
+  it("clearIdentity() ends the identity in the current mode and keeps the mode", async () => {
+    start({ instrumentations: [] });
+    identify("u_123");
+    const before = await probe();
+
+    clearIdentity();
+    expect(localStorage.length).toBe(0);
+    const after = await probe();
+    expect(noUserKeys(after)).toEqual([]);
+    expect(after["session.id"]).not.toBe(before["session.id"]);
+    expect(after["everr.visitor.id"]).toMatch(UNIQUE_ID);
+    expect(after["everr.visitor.id"]).not.toBe(before["everr.visitor.id"]);
   });
 });

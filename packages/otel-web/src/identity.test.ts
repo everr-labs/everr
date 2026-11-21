@@ -4,60 +4,55 @@ import {
   clearIdentity,
   identify,
   persistSession,
-  revoke,
   sessionId,
-  setPersistence,
+  setAnonymized,
+  userAttributes,
   visitorId,
 } from "./state/session.js";
 import { UNIQUE_ID } from "./test-kit.js";
 
-// Unit tests for the identity on the current store. They examine the visitor
-// id, the sessions that end after 30 minutes without activity, a change of the
-// store during a session, and the user.* keys from identify() and revoke() in
-// the ambient set of setAttributes.
+// Unit tests for the identity. They examine the visitor id, the sessions that
+// end after 30 minutes without activity, a change of the mode during a session,
+// and the user.* keys from identify().
 //
 // The tests replace Date.now, which is the only clock that the session code
-// reads. The revoke() function also sets the initial condition before each test:
-// it removes the ids from the store, it removes the ambient user.* keys, it
-// removes the session in memory, and it installs a memory store.
+// reads. Before and after each test, the code returns to the anonymized mode,
+// it forgets the user and the ids, and it empties localStorage.
 
-beforeEach(() => {
+function reset(): void {
+  setAnonymized(true);
+  clearIdentity();
   localStorage.clear();
-  revoke();
-});
+}
+
+beforeEach(reset);
 
 afterEach(() => {
-  revoke();
-  // revoke() removes only the user.* keys. Remove the other ambient keys too.
+  reset();
+  // The test can leave other ambient keys. Remove them too.
   setAttributes(Object.fromEntries(Object.keys(getAttributes()).map((key) => [key, null])));
   vi.restoreAllMocks();
-  localStorage.clear();
 });
 
 describe("visitor id", () => {
   it("mints a random persistent id and reads it back on the next resolve", () => {
-    setPersistence("localStorage");
+    setAnonymized(false);
     const id = visitorId();
     expect(id).toMatch(UNIQUE_ID);
     expect(localStorage.getItem("everr.visitor.id")).toBe(id);
     expect(visitorId()).toBe(id);
   });
 
-  it("keeps memory-persistence ids out of localStorage", () => {
-    setPersistence("memory");
-    const id = visitorId();
+  it("has no id and keeps localStorage empty while anonymized", () => {
+    expect(visitorId()).toBeUndefined();
     expect(localStorage.length).toBe(0);
-    // The revoke() function removes all the data. Thus the next call finds
-    // nothing.
-    revoke();
-    expect(visitorId()).not.toBe(id);
   });
 });
 
 describe("durable session", () => {
   it("keeps the session id across calls and touches the activity timestamp", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    setPersistence("localStorage");
+    setAnonymized(false);
     const id = sessionId();
     expect(id).toMatch(UNIQUE_ID);
 
@@ -73,7 +68,7 @@ describe("durable session", () => {
 
   it("rotates the session after a 30-minute idle gap", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    setPersistence("localStorage");
+    setAnonymized(false);
     const id = sessionId();
 
     vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 31 * 60_000);
@@ -85,7 +80,7 @@ describe("durable session", () => {
   });
 
   it("mints a fresh session over corrupt stored state", () => {
-    setPersistence("localStorage");
+    setAnonymized(false);
     localStorage.setItem("everr.session", "not json");
     const id = sessionId();
     expect(id).toMatch(UNIQUE_ID);
@@ -93,7 +88,7 @@ describe("durable session", () => {
   });
 
   it("degrades to in-memory continuity when storage is unavailable", () => {
-    setPersistence("localStorage");
+    setAnonymized(false);
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("denied");
     });
@@ -107,30 +102,61 @@ describe("durable session", () => {
   });
 });
 
-describe("setPersistence", () => {
-  it("carries the live ids into the new store on a consent upgrade", () => {
-    setPersistence("memory");
-    const visitor = visitorId();
+describe("setAnonymized", () => {
+  it("keeps the live session and writes it with a visitor id when leaving the mode", () => {
     const session = sessionId();
     expect(localStorage.length).toBe(0);
 
-    setPersistence("localStorage");
-    expect(visitorId()).toBe(visitor);
+    setAnonymized(false);
+    const visitor = visitorId();
+    expect(visitor).toMatch(UNIQUE_ID);
     expect(sessionId()).toBe(session);
     expect(localStorage.getItem("everr.visitor.id")).toBe(visitor);
+    expect(localStorage.getItem("everr.session")).toContain(session);
   });
 
-  it("prefers an id the durable store already holds", () => {
+  it("prefers an id that localStorage already holds when leaving the mode", () => {
     localStorage.setItem("everr.visitor.id", "returning-visitor");
-    setPersistence("memory");
-    visitorId();
-    setPersistence("localStorage");
+    setAnonymized(false);
     expect(visitorId()).toBe("returning-visitor");
+    expect(localStorage.getItem("everr.visitor.id")).toBe("returning-visitor");
+  });
+
+  it("removes the stored ids and starts a new session when entering the mode", () => {
+    setAnonymized(false);
+    const session = sessionId();
+    expect(localStorage.length).toBe(2);
+
+    setAnonymized(true);
+    expect(localStorage.length).toBe(0);
+    expect(visitorId()).toBeUndefined();
+    expect(sessionId()).not.toBe(session);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("does nothing, and touches no storage, when the value does not change", () => {
+    const calls = [
+      vi.spyOn(Storage.prototype, "getItem"),
+      vi.spyOn(Storage.prototype, "setItem"),
+      vi.spyOn(Storage.prototype, "removeItem"),
+    ];
+    const anonymizedSession = sessionId();
+    setAnonymized(true);
+    expect(sessionId()).toBe(anonymizedSession);
+    expect(calls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+
+    setAnonymized(false);
+    const session = sessionId();
+    for (const spy of calls) spy.mockClear();
+    setAnonymized(false);
+    expect(calls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+    expect(sessionId()).toBe(session);
   });
 });
 
 describe("identify", () => {
-  it("writes user.id and flat traits into the ambient set, never storage", () => {
+  it("writes user.id and flat traits into the user, never storage or the ambient set", () => {
+    setAnonymized(false);
     identify("u_123", {
       plan: "pro",
       seats: 42,
@@ -138,85 +164,87 @@ describe("identify", () => {
       "company.name": "Acme",
       ref: null,
     });
-    expect(getAttributes()).toEqual({
+    expect(userAttributes()).toEqual({
       "user.id": "u_123",
       "user.plan": "pro",
       "user.seats": 42,
       "user.beta": true,
       "user.company.name": "Acme",
     });
-    expect(localStorage.length).toBe(0);
+    expect(getAttributes()).toEqual({});
+    expect(JSON.stringify(Object.entries(localStorage))).not.toContain("u_123");
   });
 
   it("never lets a trait shadow the identified user id", () => {
+    setAnonymized(false);
     identify("u_123", { id: "spoofed" });
-    expect(getAttributes()["user.id"]).toBe("u_123");
+    expect(userAttributes()?.["user.id"]).toBe("u_123");
   });
 
   it("is latest-wins: a re-identify replaces the user.* namespace wholesale", () => {
+    setAnonymized(false);
     identify("u_123", { plan: "pro" });
     identify("u_456");
-    expect(getAttributes()["user.id"]).toBe("u_456");
-    expect(getAttributes()).not.toHaveProperty("user.plan");
+    expect(userAttributes()).toEqual({ "user.id": "u_456" });
   });
-});
 
-describe("revoke", () => {
-  it("clears user.* and every stored id so the next resolve starts fresh", () => {
-    setPersistence("localStorage");
+  it("holds the user in memory while anonymized and exposes none", () => {
     identify("u_123", { plan: "pro" });
-    const visitor = visitorId();
-    const session = sessionId();
-    expect(localStorage.length).toBe(2);
+    expect(userAttributes()).toBeUndefined();
+    setAnonymized(false);
+    expect(userAttributes()).toEqual({ "user.id": "u_123", "user.plan": "pro" });
+    setAnonymized(true);
+    expect(userAttributes()).toBeUndefined();
+    setAnonymized(false);
+    expect(userAttributes()?.["user.id"]).toBe("u_123");
+  });
 
-    revoke();
-    expect(localStorage.length).toBe(0);
-    expect(getAttributes()).not.toHaveProperty("user.id");
-    // The code makes new ids in a memory store. Thus it writes nothing to a
-    // permanent store.
-    expect(visitorId()).not.toBe(visitor);
-    expect(sessionId()).not.toBe(session);
-    expect(localStorage.length).toBe(0);
+  it("leaves the other ambient attributes alone", () => {
+    setAttributes({ "everr.team": "core" });
+    identify("u1", { plan: "pro" });
+    expect(getAttributes()).toEqual({ "everr.team": "core" });
   });
 });
 
 describe("clearIdentity", () => {
-  it("with setPersistence('memory') goes ephemeral without a localStorage write", () => {
-    setPersistence("localStorage");
+  it("forgets the user and the stored ids, and keeps the mode", () => {
+    setAnonymized(false);
     identify("u_123", { plan: "pro" });
     const visitor = visitorId();
     const session = sessionId();
     expect(localStorage.length).toBe(2);
 
     clearIdentity();
-    setPersistence("memory");
     expect(localStorage.length).toBe(0);
-    expect(getAttributes()).not.toHaveProperty("user.id");
+    expect(userAttributes()).toEqual({});
+    // The mode is still not anonymized. Thus the next ids are new and the code
+    // stores them.
     expect(visitorId()).not.toBe(visitor);
     expect(sessionId()).not.toBe(session);
-    // The new ids live in the memory store only. The refused store stays empty.
-    expect(localStorage.length).toBe(0);
+    expect(localStorage.length).toBe(2);
   });
-});
 
-describe("identify scoping", () => {
-  it("replaces only the user.* namespace, keeping other ambient attributes", () => {
-    setAttributes({ "everr.team": "core" });
-    identify("u1", { plan: "pro" });
-    identify("u2");
-    const set = getAttributes();
-    expect(set["everr.team"]).toBe("core");
-    expect(set["user.id"]).toBe("u2");
-    // The second call to identify removed all the traits of the previous
-    // user.
-    expect(set).not.toHaveProperty("user.plan");
+  it("forgets the user and the session without a storage call while anonymized", () => {
+    identify("u_123");
+    const session = sessionId();
+    const calls = [
+      vi.spyOn(Storage.prototype, "getItem"),
+      vi.spyOn(Storage.prototype, "setItem"),
+      vi.spyOn(Storage.prototype, "removeItem"),
+    ];
+
+    clearIdentity();
+    expect(sessionId()).not.toBe(session);
+    expect(calls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+    setAnonymized(false);
+    expect(userAttributes()).toEqual({});
   });
 });
 
 describe("session write throttle", () => {
   it("writes the activity on a delay, not for each record", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    setPersistence("localStorage");
+    setAnonymized(false);
     const setItem = vi.spyOn(Storage.prototype, "setItem");
 
     // The first call makes the session. A new id always writes immediately,
@@ -238,7 +266,7 @@ describe("session write throttle", () => {
 
   it("keeps the timeout correct when the store is behind the activity", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    setPersistence("localStorage");
+    setAnonymized(false);
     const id = sessionId();
 
     // Activity in each minute for 40 minutes. The store keeps a value that is
@@ -252,7 +280,7 @@ describe("session write throttle", () => {
 
   it("persistSession writes the activity immediately on the exit path", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000);
-    setPersistence("localStorage");
+    setAnonymized(false);
     const id = sessionId();
 
     vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 5_000);
@@ -270,7 +298,6 @@ describe("session timeout boundary", () => {
   it("keeps the session at exactly 30 minutes of inactivity, rotates past it", () => {
     vi.useFakeTimers();
     try {
-      setPersistence("memory");
       const first = sessionId();
       vi.advanceTimersByTime(30 * 60 * 1000);
       expect(sessionId()).toBe(first); // exactly at the timeout: same session

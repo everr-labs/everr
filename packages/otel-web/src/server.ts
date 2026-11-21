@@ -55,7 +55,7 @@ import {
 import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
 import { bindEmit } from "./state/emit.js";
 import type { RouteResolvers } from "./state/route.js";
-import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
+import type { UserTraits, WebSDKOptions } from "./types.js";
 
 export type { ErrorContext } from "./errors.js";
 export type { AttrValue } from "./pipeline/emitter.js";
@@ -75,7 +75,7 @@ export function captureError(error: unknown, context?: ErrorContext): void {
 }
 export type { Instrumentation, InstrumentationContext } from "./instrumentations/runtime.js";
 export { epoch } from "./time.js";
-export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
+export type { UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
 /** Capture segments through the app's OpenTelemetry provider and context manager. */
@@ -130,15 +130,12 @@ export function identify(_userId: string, _traits?: UserTraits): void {}
 /** Does nothing on the server. The identity belongs to the browser. */
 export function clearIdentity(): void {}
 
-/** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
-export function revoke(): void {}
-
 /** Does nothing on the server. The envelope of the browser carries the ambient
  * context. */
 export function setAttributes(_attributes: Record<string, AttrValue | null>): void {}
 
-/** Does nothing on the server. The persistence belongs to the browser. */
-export function setPersistence(_persistence: Persistence | undefined): void {}
+/** Does nothing on the server. The anonymized mode belongs to the browser. */
+export function setAnonymized(_anonymized: boolean): void {}
 
 /** Does nothing on the server. The envelope of the browser carries the route
  * patterns. */

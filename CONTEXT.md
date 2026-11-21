@@ -126,7 +126,7 @@ A numerical time-series measurement, such as a gauge, counter, or histogram.
 ### Browser telemetry
 
 **WebSDK**:
-The browser SDK entry point: constructing it (`new WebSDK({...})`) wires transport, identity, and the configured Instrumentations in one step, with no separate start. `shutdown()` tears everything down; a consent upgrade constructs a new one. Inert on the server and in keyless production builds. The web counterpart to OTel's NodeSDK.
+The browser SDK entry point: constructing it (`new WebSDK({...})`) wires transport, identity, and the configured Instrumentations in one step, with no separate start. `shutdown()` tears everything down. A consent change calls `setAnonymized()` on the live client. Inert on the server and in keyless production builds. The web counterpart to OTel's NodeSDK.
 _Avoid_: init (former name), client, browser SDK instance
 
 **Instrumentation**:
@@ -138,19 +138,19 @@ A browser interaction or page lifecycle moment captured as a Log with an event n
 _Avoid_: autocapture event, tracking event
 
 **Session**:
-One continuous visit, identified by a random `session.id`. In Cookieless mode it lives only in JS memory (a page load plus its SPA navigations); in Consented mode it persists with a 30-minute inactivity timeout. The top-level analytics unit.
+One continuous visit, identified by a random `session.id`. In Anonymized mode it lives only in JS memory (a page load plus its SPA navigations); in Consented mode it persists with a 30-minute inactivity timeout. The top-level analytics unit.
 _Avoid_: visit
 
 **Visitor**:
-A browser identified across Sessions by a random stored `visitor.id`. Exists only in Consented mode; Cookieless mode has no Visitor concept at all.
+A browser identified across Sessions by a random stored `visitor.id`. Exists only in Consented mode; Anonymized mode sends no visitor id.
 _Avoid_: person, device id, anonymous user
 
-**Cookieless mode**:
-The browser SDK mode with zero cookies, zero storage, and no identity derived from IP or user agent: only an in-memory Session. What the homepage runs.
-_Avoid_: anonymous mode, bannerless mode
+**Anonymized mode**:
+The default browser SDK mode (`anonymized: true`): no cookies, no localStorage read, write or removal, no `everr.visitor.id`, no `user.*` from `identify()`, and an in-memory Session only. It does not change the resource attributes or what the host adds itself, and the host decides whether a banner is needed. What the homepage runs.
+_Avoid_: Cookieless mode (former name), anonymous mode, bannerless mode
 
 **Consented mode**:
-The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
+The browser SDK mode entered after explicit consent (`anonymized: false`): persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Reversible: `setAnonymized(true)` deletes the stored ids and starts a new Session.
 _Avoid_: identified mode, cookie mode
 
 ### CI

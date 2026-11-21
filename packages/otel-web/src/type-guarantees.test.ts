@@ -1,7 +1,7 @@
 import type * as ServerTypes from "./server.js";
 import type * as IndexTypes from "./index.js";
 import { describe, expect, it } from "vite-plus/test";
-import { identify, revoke } from "./state/session.js";
+import { clearIdentity, identify, setAnonymized } from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
 
 // The rules of the public API that the compiler applies. The important tests
@@ -9,21 +9,21 @@ import type { WebSDKOptions } from "./types.js";
 // because the typecheck includes the tests. The code below uses the values only
 // to satisfy vitest and the noUnusedLocals option.
 
-const rejectsUnknownPersistence: WebSDKOptions = {
+const rejectsNonBooleanAnonymized: WebSDKOptions = {
   serviceName: "x",
-  // @ts-expect-error - the persistence is "localStorage" or "memory" only
-  persistence: "cookies",
+  // @ts-expect-error - anonymized is a boolean only
+  anonymized: "yes",
 };
 
-const persistenceIsOptional: WebSDKOptions = {
+const anonymizedIsOptional: WebSDKOptions = {
   serviceName: "x",
 };
 
-// The identify() and revoke() functions operate in the same way as the other
+// The identify() and clearIdentity() functions operate in the same way as the other
 // parts of the public API, which are captureError and logger. They are package
 // functions, and they are not methods on the object that the constructor
 // returns.
-function identifyAndRevokeAreFreeFunctions(): void {
+function identityFunctionsAreFree(): void {
   identify("u_123");
   identify("u_123", { plan: "pro", "company.name": "Acme" });
   identify("u_123", {
@@ -34,7 +34,8 @@ function identifyAndRevokeAreFreeFunctions(): void {
     // @ts-expect-error - a trait value is a single value and never an object
     company: { name: "Acme" },
   });
-  revoke();
+  clearIdentity();
+  setAnonymized(false);
 }
 
 // The browser entry and the server entry are two files, and one module
@@ -50,9 +51,9 @@ function entriesStayInLockstep(server: typeof ServerTypes, browser: typeof Index
 
 describe("type guarantees", () => {
   it("hold at compile time", () => {
-    expect(rejectsUnknownPersistence.serviceName).toBe("x");
-    expect(persistenceIsOptional.persistence).toBeUndefined();
-    expect(identifyAndRevokeAreFreeFunctions).toBeTypeOf("function");
+    expect(rejectsNonBooleanAnonymized.serviceName).toBe("x");
+    expect(anonymizedIsOptional.anonymized).toBeUndefined();
+    expect(identityFunctionsAreFree).toBeTypeOf("function");
     expect(entriesStayInLockstep).toBeTypeOf("function");
   });
 });

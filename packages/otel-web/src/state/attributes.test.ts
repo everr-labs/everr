@@ -82,7 +82,7 @@ describe("setAttributes", () => {
     client = undefined;
   });
 
-  it("is memory-only but survives a consent re-init, like the route resolver", async () => {
+  it("is memory-only but survives a new construction, like the route resolver", async () => {
     start();
     setAttributes({ "everr.tenant.id": "acme" });
     await client?.shutdown();

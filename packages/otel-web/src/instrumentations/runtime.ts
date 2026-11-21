@@ -5,10 +5,6 @@
 // the stop functions in the opposite sequence, before the pipeline
 // disconnects.
 //
-// A new construction for the consent stops each instrumentation and starts it
-// again. Thus each instrumentation gets the new persistence mode, and it needs
-// no code for this.
-//
 // The code uses the array without a change, and it keeps a duplicate. The
 // start function and the stop function operate without a try block. If an
 // instrumentation throws an error, that is an error of the caller. This code
@@ -50,7 +46,7 @@ export interface InstrumentationContext {
    */
   tracer: Tracer;
   /** The current visitor id and session id. The code reads them at each call. */
-  ids(): { visitorId: string; sessionId: string };
+  ids(): { visitorId: string | undefined; sessionId: string };
   /** The route pattern of the current page. It is null when the code finds
    * none. */
   route(): string | null;

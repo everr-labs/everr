@@ -8,6 +8,7 @@ import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import { logger } from "./logger.js";
 import { setRouteResolver } from "./state/route.js";
+import { clearIdentity, identify } from "./state/session.js";
 import { attrs, type OtlpBatch, type OtlpRecord, startClient, UNIQUE_ID } from "./test-kit.js";
 import type { WebSDKOptions } from "./types.js";
 
@@ -36,11 +37,13 @@ afterEach(async () => {
   client = undefined;
   vi.unstubAllGlobals();
   history.replaceState(null, "", "/");
+  clearIdentity();
+  vi.restoreAllMocks();
   localStorage.clear();
   sessionStorage.clear();
 });
 
-describe("init (persistence: memory)", () => {
+describe("init (anonymized)", () => {
   it("emits an enveloped everr.browser.page_view for the initial load", async () => {
     start();
     const all = await records();
@@ -164,13 +167,36 @@ describe("init (persistence: memory)", () => {
     expect(await records()).toHaveLength(5);
   });
 
-  it("writes zero cookies and zero storage", async () => {
+  it("writes zero cookies and makes zero storage calls", async () => {
+    const storageCalls = [
+      vi.spyOn(Storage.prototype, "getItem"),
+      vi.spyOn(Storage.prototype, "setItem"),
+      vi.spyOn(Storage.prototype, "removeItem"),
+    ];
     start();
+    identify("u_123", { plan: "pro" });
     history.pushState(null, "", "/anywhere");
+    dispatchEvent(new Event("pagehide"));
     await records();
     expect(document.cookie).toBe("");
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
+    expect(storageCalls.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
+  });
+
+  it("sends a stable session id, no visitor id, and no user keys from identify", async () => {
+    start();
+    identify("u_123", { plan: "pro" });
+    history.pushState(null, "", "/anywhere");
+    const all = await records();
+    expect(all.length).toBeGreaterThan(1);
+    const first = attrs(all[0]);
+    for (const record of all) {
+      const a = attrs(record);
+      expect(a["session.id"]).toBe(first["session.id"]);
+      expect(a).not.toHaveProperty("everr.visitor.id");
+      expect(Object.keys(a).filter((key) => key.startsWith("user."))).toEqual([]);
+    }
   });
 
   it("emits nothing with no instrumentations", async () => {

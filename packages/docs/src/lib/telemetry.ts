@@ -1,10 +1,10 @@
 import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 import { env } from "@/env";
 
-// The browser telemetry of the docs site. It writes nothing to a store: it uses
-// the memory store, it sets no cookie, and its ids end with the page. The page
-// views, the clicks, and the web vitals go to Everr as OTel log
-// records. This code operates with PostHog while the two systems operate
+// The browser telemetry of the docs site. It uses the default anonymized mode:
+// it writes nothing to a store, it sets no cookie, and its session id ends with
+// the page. The page views, the clicks, and the web vitals go to Everr as OTel
+// log records. This code operates with PostHog while the two systems operate
 // together.
 //
 // The WebSDK does nothing on the server. Without a key, and not in the
@@ -13,7 +13,6 @@ import { env } from "@/env";
 // pattern with setRouteResolver, and `getRouter()` registers the router with
 // that adapter.
 new WebSDK({
-  persistence: "memory",
   serviceName: "everr-docs",
   // Without the commit, the SDK falls back to its own package version.
   serviceVersion: env.VITE_COMMIT_SHA,
