@@ -1,8 +1,10 @@
-import { inViewerTimeRange } from "@everr/ui/lib/time-range";
+import { REFRESH_KEYED } from "@everr/ui/lib/refresh-epoch";
+import { inViewerTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import type { MetricsRepositoryLike } from "./repository";
 import type { MetricSeriesResult } from "./types";
 import { MetricKindSchema } from "./schemas";
+import { type ChartClock, clockNow } from "./step";
 import type {
   MetricCatalogInput,
   MetricNamesInput,
@@ -65,42 +67,51 @@ export function metricKindOptions(
 }
 
 /**
- * Every query of one chart, fetched together over one absolute range. Each
- * request resolving `now` on its own would start its buckets at another
- * minute, so a query fetched later would be drawn shifted against the rest.
- * A `null` input is a query with nothing to fetch yet.
+ * One query of a chart, read on the chart's clock: queries with the same
+ * clock share a grid, so each can stay cached while another changes, and a
+ * copy of a query reads its source's data.
  */
+/** Reads a chart query's range at the chart clock's instant, with its step. */
+function onClock<I extends { timeRange: TimeRange }, R>(
+  input: I,
+  clock: ChartClock,
+  empty: R,
+  read: (input: I & { step: number }) => Promise<R>,
+): Promise<R> {
+  return inViewerTimeRange(
+    input.timeRange,
+    empty,
+    (timeRange) => read({ ...input, timeRange, step: clock.step }),
+    clockNow(clock),
+  );
+}
+
 export function metricSeriesOptions(
   repo: MetricsRepositoryLike,
-  inputs: readonly (MetricSeriesInput | null)[],
+  input: Omit<MetricSeriesInput, "step">,
+  clock: ChartClock,
 ) {
   return queryOptions({
-    queryKey: ["metrics", "series", inputs] as const,
-    queryFn: () => {
-      const now = new Date();
-      return Promise.all(
-        inputs.map(async (input) => {
-          return input
-            ? inViewerTimeRange(
-                input.timeRange,
-                NO_SERIES,
-                (timeRange) => repo.series({ ...input, timeRange }),
-                now,
-              )
-            : null;
-        }),
-      );
-    },
+    queryKey: ["metrics", "series", input, clock] as const,
+    queryFn: () =>
+      onClock(input, clock, NO_SERIES, async (read) => {
+        const result = await repo.series(read);
+        return clock.fromExport ? { ...result, stepFromExport: true } : result;
+      }),
+    ...REFRESH_KEYED,
   });
 }
 
-export function metricExemplarsOptions(repo: MetricsRepositoryLike, input: MetricExemplarsInput) {
+/** The exemplars of a chart's single query, on the chart's clock so they land on its buckets. */
+export function metricExemplarsOptions(
+  repo: MetricsRepositoryLike,
+  input: Omit<MetricExemplarsInput, "step">,
+  clock: ChartClock,
+) {
   return queryOptions({
-    queryKey: ["metrics", "exemplars", input] as const,
-    queryFn: () =>
-      inViewerTimeRange(input.timeRange, [], (timeRange) =>
-        repo.exemplars({ ...input, timeRange }),
-      ),
+    queryKey: ["metrics", "exemplars", input, clock] as const,
+    queryFn: () => onClock(input, clock, [], (read) => repo.exemplars(read)),
+    ...REFRESH_KEYED,
   });
 }
 

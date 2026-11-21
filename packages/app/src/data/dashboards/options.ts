@@ -1,4 +1,5 @@
-import { toViewerTimeRange } from "@everr/ui/lib/time-range";
+import { REFRESH_KEYED } from "@everr/ui/lib/refresh-epoch";
+import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
 import type {
@@ -54,27 +55,37 @@ export const telemetryCapabilitiesOptions = (from: string, to: string) =>
 
 export const panelQueryOptions = (
   source: PanelQuerySource,
-  from?: string,
-  to?: string,
+  /** The page's range, resolved at the instant every panel shares. */
+  range: TimeRange,
+  /** The page's refresh count, so a refresh refetches a range that resolves the same. */
+  epoch: number,
+  alignToStep: boolean,
   variables?: VariableValues,
   variableMeta?: VariableMeta,
 ) =>
   queryOptions({
-    queryKey: ["panel-query", source, from, to, variables ?? null, variableMeta ?? null],
+    queryKey: [
+      "panel-query",
+      source,
+      range,
+      epoch,
+      alignToStep,
+      variables ?? null,
+      variableMeta ?? null,
+    ],
     queryFn: async ({
       signal,
     }): Promise<{ rows: QueryResultRow[]; timeRange?: ResolvedTimeRange }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
-      // The key keeps the relative range (`now-1h`) so a refresh hits the same
-      // cache entry. The range resolves here once the query gets a slot; the
-      // server returns it rounded to whole seconds, which the panel's axis
-      // renders.
+      // The server returns the window rounded to whole seconds, and aligned
+      // for a panel drawn over time, which the panel's axis renders.
       const { rows, timeRange } = await panelLimiter(signal, () =>
         runPanelQuery({
           data: {
             source,
-            ...toViewerTimeRange({ from, to }),
+            ...range,
+            alignToStep,
             variables,
             variableMeta,
           },
@@ -84,11 +95,9 @@ export const panelQueryOptions = (
     },
     enabled:
       source.kind === "ClickHouseSQL" ? source.sql.trim().length > 0 : source.kind === "TestData",
-    // Data for a given (source, range, variables) key never goes stale on its
-    // own: a panel that scrolls out of view and back must not refetch. Only an
-    // explicit refresh (invalidateQueries, which overrides staleTime) or a key
-    // change (range/variables) triggers a new fetch.
-    staleTime: Number.POSITIVE_INFINITY,
+    // A panel that scrolls out of view and back must not refetch. A refresh
+    // moves the instant the range is read at, which gives it a new key.
+    ...REFRESH_KEYED,
   });
 
 export const variableOptionsQueryOptions = (query: string, from?: string, to?: string) =>

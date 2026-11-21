@@ -1,7 +1,5 @@
-import { getRefreshIntervalMs } from "@everr/ui/components/refresh-picker";
-import { useQueryClient } from "@tanstack/react-query";
+import { usePageRefresh } from "@everr/ui/lib/refresh-epoch";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
 import {
   applyRouteTimeDefaults,
   type RefreshInterval,
@@ -16,8 +14,6 @@ export function useAutoRefresh() {
   const defaults = useRouteTimeDefaults();
   const { refresh } = ResolvedTimeRangeSearchSchema.parse(applyRouteTimeDefaults(search, defaults));
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setRefreshInterval = (value: RefreshInterval) => {
     void navigate({
@@ -30,29 +26,7 @@ export function useAutoRefresh() {
     });
   };
 
-  const refreshNow = () => {
-    void queryClient.invalidateQueries();
-  };
-
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    const ms = getRefreshIntervalMs(refresh);
-    if (ms) {
-      intervalRef.current = setInterval(() => {
-        void queryClient.invalidateQueries();
-      }, ms);
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [refresh, queryClient]);
+  const refreshNow = usePageRefresh(refresh);
 
   return { refreshInterval: refresh, setRefreshInterval, refreshNow };
 }

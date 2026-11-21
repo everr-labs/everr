@@ -1,4 +1,4 @@
-import { bucketSeconds } from "@everr/ui/lib/bucket";
+import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
 import {
   resolveTimeRange,
   toClickHouseDateTimeSeconds,
@@ -36,16 +36,30 @@ const PANEL_TARGET_POINTS = 500;
  * outward to whole seconds because DateTime columns refuse fractional literals.
  * `window` is the exact range the query covers, returned to the client so the
  * panel axis renders over it.
+ *
+ * With `alignToStep`, for panels drawn over time, the start moves back to the
+ * step's grid, so the first bucket is whole and starts on the axis instead of
+ * reading low at the left edge. The end stays the real end, so the axis
+ * reaches the present. The step comes from the range as given, so aligning
+ * can't change it.
  */
-function resolveDashboardQuery(range: { from?: string; to?: string }) {
+function resolveDashboardQuery({
+  alignToStep = false,
+  ...range
+}: {
+  from?: string;
+  to?: string;
+  alignToStep?: boolean;
+}) {
   const { fromDate, toDate } = resolveTimeRange(withTimeRange(range));
-  const from = new Date(Math.floor(fromDate.getTime() / 1000) * 1000);
+  const step = bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS);
+  const from = new Date(bucketStartMs(fromDate.getTime(), alignToStep ? step : 1, 0));
   const to = new Date(Math.ceil(toDate.getTime() / 1000) * 1000);
   return {
     params: {
       from: toClickHouseDateTimeSeconds(from, "floor"),
       to: toClickHouseDateTimeSeconds(to, "ceil"),
-      step: bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS),
+      step,
     },
     window: { from: from.toISOString(), to: to.toISOString() },
   };
@@ -227,6 +241,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
       source: querySource,
       from: z.string().optional(),
       to: z.string().optional(),
+      alignToStep: z.boolean(),
       variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
       variableMeta: z
         .record(
@@ -239,8 +254,8 @@ export const runPanelQuery = createAuthenticatedServerFn({
         .optional(),
     }),
   )
-  .handler(async ({ data: { source, from, to, variables, variableMeta }, context }) => {
-    const { params, window } = resolveDashboardQuery({ from, to });
+  .handler(async ({ data: { source, variables, variableMeta, ...range }, context }) => {
+    const { params, window } = resolveDashboardQuery(range);
     // Synthetic data for the gallery / dev dashboards: deterministic, no
     // ClickHouse, no tenant data. Reuses the same range + adaptive {step}.
     if (source.kind === "TestData") {

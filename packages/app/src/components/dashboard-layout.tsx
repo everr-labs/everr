@@ -13,6 +13,7 @@ import { CommandBar } from "#app/components/command-bar.tsx";
 import { DashboardBreadcrumb } from "#app/components/dashboard-breadcrumb.tsx";
 import { PreviewIndicator } from "#app/components/preview-indicator.tsx";
 import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
+import { TimeAnchorProvider } from "#app/hooks/time-anchor.tsx";
 import { SIDEBAR_TRACKED_LEFT } from "#app/lib/sidebar-tracked-left.ts";
 
 export function DashboardLayout() {
@@ -31,6 +32,10 @@ export function DashboardLayout() {
     refetchInterval: false,
   });
   const showDataControls = matches.some((match) => match.staticData.showDataControls);
+  // The account pages share this shell but not the organization's time range.
+  const hasTimeRange = matches.some(
+    (match) => match.routeId === "/_authenticated/_organization/_dashboard",
+  );
   let hideTimeRangePicker = false;
   for (const match of matches) {
     if (match.staticData?.hideTimeRangePicker !== undefined) {
@@ -104,7 +109,13 @@ export function DashboardLayout() {
               {search.reason ? ` (${search.reason})` : ""}.
             </div>
           )}
-          <Outlet />
+          {hasTimeRange ? (
+            <TimeAnchorProvider>
+              <Outlet />
+            </TimeAnchorProvider>
+          ) : (
+            <Outlet />
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>

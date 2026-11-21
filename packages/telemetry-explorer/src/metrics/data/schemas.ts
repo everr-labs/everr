@@ -183,8 +183,10 @@ export const MetricSeriesInputSchema = z.object({
   groupBy: groupByField,
   service: z.array(z.string()).default([]),
   attributes: attributesField(METRIC_ATTRIBUTE_SOURCES),
-  /** The metric's export interval in seconds; the step won't go below it. */
+  /** The metric's export interval in seconds, how long a level carries. */
   minStep: z.number().positive().optional(),
+  /** The chart's step in seconds, shared by its queries so their buckets line up. */
+  step: z.number().int().positive(),
   /** Histograms only: also count observations per bucket over time, for the heatmap. */
   heatmap: z.boolean().optional(),
 });
@@ -194,6 +196,7 @@ export const MetricExportIntervalInputSchema = MetricSeriesInputSchema.omit({
   aggregation: true,
   groupBy: true,
   minStep: true,
+  step: true,
   heatmap: true,
 });
 export type MetricExportIntervalInput = z.input<typeof MetricExportIntervalInputSchema>;
