@@ -1,5 +1,5 @@
 import { MutationCache, type Query, QueryCache, QueryClient } from "@tanstack/react-query";
-import type { AnyRouter } from "@tanstack/react-router";
+import { type AnyRouter, isNotFound } from "@tanstack/react-router";
 import { isAuthFailure } from "#app/lib/auth-failure.ts";
 import { applyAccessChange, isRouteAccessQuery } from "#app/lib/route-access-cache.ts";
 
@@ -33,7 +33,9 @@ export function createQueryClient(router: () => Pick<AnyRouter, "invalidate" | "
         staleTime: 30_000,
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: true,
-        retry: (failureCount, error) => !isAuthFailure(error) && failureCount < 3,
+        // A missing resource stays missing; retrying only delays the not-found page.
+        retry: (failureCount, error) =>
+          !isAuthFailure(error) && !isNotFound(error) && failureCount < 3,
       },
     },
   });
