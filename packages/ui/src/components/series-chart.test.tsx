@@ -40,3 +40,30 @@ it("shows the hovered point with each series in its own axis format", () => {
   expect(screen.getByText("30 runs")).toBeInTheDocument();
   expect(screen.getByText("70%")).toBeInTheDocument();
 });
+
+it("selects the points dragged across, and nothing on a click or a vertical wobble", () => {
+  Element.prototype.setPointerCapture ??= () => {};
+  const onSelect = vi.fn();
+  const { container } = render(
+    <SeriesChart
+      labels={["Mon", "Tue", "Wed"]}
+      axes={{ left: { format: String } }}
+      series={[{ id: "a", label: "A", color: "#36c", kind: "line", values: [1, 2, 3] }]}
+      onSelect={onSelect}
+    />,
+  );
+  const chart = container.firstChild!;
+  const press = { pointerType: "mouse", button: 0, clientY: 150 };
+
+  fireEvent.pointerDown(chart, { ...press, clientX: 300 });
+  fireEvent.pointerUp(chart, { ...press, clientX: 300 });
+  fireEvent.pointerDown(chart, { ...press, clientX: 300 });
+  fireEvent.pointerMove(chart, { ...press, clientX: 300, clientY: 190 });
+  fireEvent.pointerUp(chart, { ...press, clientX: 300, clientY: 190 });
+  expect(onSelect).not.toHaveBeenCalled();
+
+  fireEvent.pointerDown(chart, { ...press, clientX: 100 });
+  fireEvent.pointerMove(chart, { ...press, clientX: 300 });
+  fireEvent.pointerUp(chart, { ...press, clientX: 300 });
+  expect(onSelect).toHaveBeenCalledWith(0, 1);
+});

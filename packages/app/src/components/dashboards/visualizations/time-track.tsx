@@ -1,19 +1,13 @@
+import { BrushArea, useBrush } from "@everr/ui/components/brush";
+
+export { TOUCH_SCRUB } from "@everr/ui/components/brush";
 import { CursorLine } from "@everr/ui/components/cursor-line";
 import type { ChartTheme } from "@everr/ui/hooks/use-echart";
 import { type RefObject, useCallback, useEffect, useState } from "react";
-import { SERIES_COLORS } from "./data-utils";
 import { TIME_AXIS_HEIGHT, timeAxisTicks } from "./echarts/axis";
 import { type GridInsets, getPlotRect, type PlotRect, ratioWithin } from "./echarts/plot-rect";
 import type { ResolvedTimeRange } from "./index";
 import { usePointTimeCursor, useTimeCursor } from "./shared-time-cursor";
-
-const BRUSH_COLOR = SERIES_COLORS[0];
-
-/**
- * For the element that takes `useTimeTrack`'s handlers: sideways drags belong
- * to the chart's readout, vertical swipes and pinches still to the page.
- */
-export const TOUCH_SCRUB = "touch-pan-y touch-pinch-zoom";
 
 /** Where instants fall along a plot's time axis, as a 0..1 share of it. */
 export interface TimeScale {
@@ -75,9 +69,6 @@ export function useTimeTrack<T>({
   /** Parts of the chart area the pointer does nothing over, e.g. a legend. */
   ignore?: (target: EventTarget) => boolean;
 }) {
-  const [drag, setDrag] = useState<{ plot: PlotRect; from: number; to: number | null } | null>(
-    null,
-  );
   const [hover, setHover] = useState<{
     target: T;
     x: number;
@@ -92,13 +83,6 @@ export function useTimeTrack<T>({
     y: (e.clientY - plot.top) / plot.height,
   });
   const inPlot = ({ x, y }: { x: number; y: number }) => x >= 0 && x <= 1 && y >= 0 && y <= 1;
-  /** The instant under the pointer, at the plot's edge once it is past it. */
-  const timeAt = (e: React.MouseEvent, plot: PlotRect) =>
-    scale?.timeAt(
-      vertical
-        ? ratioWithin(e.clientY, plot.top, plot.height)
-        : ratioWithin(e.clientX, plot.left, plot.width),
-    ) ?? 0;
   const plotRect = (e: React.MouseEvent) =>
     !ignore?.(e.target) && chartElementRef.current && grid
       ? getPlotRect(chartElementRef.current, grid)
@@ -132,44 +116,30 @@ export function useTimeTrack<T>({
 
   // A finger reads instead of zooming: a tap or a sideways drag moves the
   // readout (the chart's `TOUCH_SCRUB` class leaves vertical swipes to the
-  // page's scroll), so the brush stays a mouse gesture.
-  const handlers = {
-    onPointerDown: (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return hoverAt(e);
+  // page's scroll).
+  const zoom = useBrush({
+    positionAt: (e, clamped) => {
       const plot = plotRect(e);
-      if (!scale || !plot || e.button !== 0 || !inPlot(pointerAt(e, plot))) return;
-      setDrag({ plot, from: timeAt(e, plot), to: null });
-      e.currentTarget.setPointerCapture(e.pointerId);
+      if (!scale || !plot || (!clamped && !inPlot(pointerAt(e, plot)))) return null;
+      return scale.timeAt(
+        vertical
+          ? ratioWithin(e.clientY, plot.top, plot.height)
+          : ratioWithin(e.clientX, plot.left, plot.width),
+      );
     },
-    onPointerMove: (e: React.PointerEvent) => {
-      if (e.pointerType === "touch") return hoverAt(e);
-      if (drag) setDrag({ ...drag, to: timeAt(e, drag.plot) });
+    minSpan: 1000,
+    onSelect: (from, to) => {
+      clearHover();
+      onTimeRangeChange({ from: new Date(from), to: new Date(to) });
     },
-    onPointerUp: () => {
-      if (drag?.to != null) {
-        const from = Math.min(drag.from, drag.to);
-        const to = Math.max(drag.from, drag.to);
-        if (to - from > 1000) {
-          clearHover();
-          onTimeRangeChange({ from: new Date(from), to: new Date(to) });
-        }
-      }
-      setDrag(null);
-    },
-    onPointerCancel: (e: React.PointerEvent) => {
-      setDrag(null);
-      // The page took the swipe to scroll: drop the readout with it.
-      if (e.pointerType === "touch") clearHover();
-    },
-    onMouseMove: hoverAt,
-    onMouseLeave: clearHover,
-  };
+    onTouch: hoverAt,
+    onTouchCancel: clearHover,
+  });
+  const handlers = { ...zoom.handlers, onMouseMove: hoverAt, onMouseLeave: clearHover };
 
-  const brush: [number, number] | null =
-    drag?.to != null ? [Math.min(drag.from, drag.to), Math.max(drag.from, drag.to)] : null;
   const current =
     hover?.size?.width === size?.width && hover?.size?.height === size?.height ? hover : null;
-  return { handlers, hover: current, clearHover, brush };
+  return { handlers, hover: current, clearHover, brush: zoom.range };
 }
 
 /** The drag selection and the shared cursor, laid over `plot` (in the chart
@@ -207,17 +177,7 @@ export function TimeTrackOverlay({
         />
       )}
       {from != null && to != null && (
-        <div
-          className={vertical ? "absolute inset-x-0 border-y" : "absolute inset-y-0 border-x"}
-          style={{
-            ...(vertical
-              ? { top: pct(from), height: pct(to - from) }
-              : { left: pct(from), width: pct(to - from) }),
-            backgroundColor: BRUSH_COLOR,
-            opacity: 0.15,
-            borderColor: BRUSH_COLOR,
-          }}
-        />
+        <BrushArea vertical={vertical} start={pct(from)} size={pct(to - from)} />
       )}
     </div>
   );

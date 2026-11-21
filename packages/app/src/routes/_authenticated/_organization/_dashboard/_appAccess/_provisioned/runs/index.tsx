@@ -44,8 +44,8 @@ function RunsListPage() {
         workflowNames: search.workflowNames,
         showVolume: search.showVolume,
       }}
-      // Each filter mutation pushes a history entry so Back undoes one change at
-      // a time; the histogram brush replaces (it's a continuous adjustment).
+      // Each filter change and zoom pushes a history entry, so Back undoes one
+      // at a time.
       onSearchChange={(patch) => void navigate({ search: (prev) => ({ ...prev, ...patch }) })}
       onTimeRangeSelect={(from, to) =>
         void navigate({
@@ -54,7 +54,6 @@ function RunsListPage() {
             from: from.toISOString(),
             to: to.toISOString(),
           }),
-          replace: true,
         })
       }
       renderRunLink={({ run, className, children }) => (
