@@ -49,6 +49,8 @@ interface VisualizationEntry {
   component: ComponentType<VisualizationProps>;
   /** Charts run to the panel's edges; "default" pads the content instead. */
   inset?: "default" | "flush-content";
+  /** Drawn over the dashboard's time range, so its queries start on the step's grid. */
+  overTime?: boolean;
 }
 
 /**
@@ -60,6 +62,7 @@ function defineVisualization<S extends z.ZodType>(entry: {
   schema: S;
   component: ComponentType<VisualizationProps<z.output<S>>>;
   inset?: "default" | "flush-content";
+  overTime?: boolean;
 }): VisualizationEntry {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- intentional spec-type erasure: the registry holds heterogeneous visualizations under one entry type, and React props are contravariant so a specific-spec component isn't assignable to the erased VisualizationProps<unknown> component
   return entry as VisualizationEntry;
@@ -82,6 +85,7 @@ const registry: Record<string, VisualizationEntry> = {
   Heatmap: defineVisualization({
     schema: heatmapSpec,
     component: HeatmapVisualization,
+    overTime: true,
   }),
   NodeGraph: defineVisualization({
     schema: nodeGraphSpec,
@@ -94,10 +98,12 @@ const registry: Record<string, VisualizationEntry> = {
   StateTimeline: defineVisualization({
     schema: stateTimelineSpec,
     component: StateTimelineVisualization,
+    overTime: true,
   }),
   StatusHistory: defineVisualization({
     schema: statusHistorySpec,
     component: StatusHistoryVisualization,
+    overTime: true,
   }),
   Table: defineVisualization({
     schema: tableSpec,
@@ -106,12 +112,22 @@ const registry: Record<string, VisualizationEntry> = {
   TimeSeriesChart: defineVisualization({
     schema: timeSeriesChartSpec,
     component: TimeSeriesChartVisualization,
+    overTime: true,
   }),
   Treemap: defineVisualization({
     schema: treemapSpec,
     component: TreemapVisualization,
   }),
 };
+
+/**
+ * Whether a panel is drawn over the time range: its queries then start on the
+ * step's grid. Stats, tables and other totals keep the exact range, and a
+ * stat's sparkline fills its width whatever the range.
+ */
+export function drawsOverTime(kind: string): boolean {
+  return registry[kind]?.overTime ?? false;
+}
 
 export function getVisualizationInset(kind: string): "default" | "flush-content" {
   const entry = registry[kind];

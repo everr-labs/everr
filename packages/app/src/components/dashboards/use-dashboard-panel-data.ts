@@ -1,5 +1,5 @@
 /* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import {
@@ -10,11 +10,12 @@ import {
 import { panelQueryOptions } from "#app/data/dashboards/options.ts";
 import type { Panel } from "#app/data/dashboards/schema.ts";
 import { pickByNames } from "#app/data/dashboards/variable-values.ts";
+import { useTimeAnchor } from "#app/hooks/time-anchor.tsx";
 import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import { useRetainedPanelData } from "./use-retained-panel-data";
-import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
+import { drawsOverTime, type QueryResultRow, type ResolvedTimeRange } from "./visualizations";
 
 export interface PanelQueryRequest {
   source: PanelQuerySource;
@@ -73,9 +74,8 @@ export function buildPanelQueryRequests(
   ctx: VariableContext,
 ): PanelQueryRequest[] {
   // Every ClickHouse query in a panel is keyed and gated on the variables used
-  // by any of them, so a variable change re-runs the whole panel together.
-  // Re-running only the query that uses it would leave its siblings on an
-  // older window, and the panel would mix data from two different `now`s.
+  // by any of them, so a variable change re-runs the whole panel together and
+  // it shows the new data in one go.
   const panelNames = [...new Set(sources.flatMap((source) => usedVariableNames(source, ctx)))];
   return sources.map((source) => buildPanelQueryRequest(source, ctx, panelNames));
 }
@@ -127,23 +127,6 @@ export function combineQueryStates(states: SingleQueryState[]): CombinedPanelRes
   return { status: "success", data: active.map((s) => s.rows ?? []) };
 }
 
-/**
- * The window the newest fetch queried. Each query resolves its relative range
- * when it runs, and a multi-query panel's queries can run a few seconds apart,
- * so the latest window is used. Placeholder data belongs to the
- * previous key, so its window is ignored.
- */
-export function latestQueriedRange(
-  results: readonly { data?: { timeRange?: ResolvedTimeRange }; isPlaceholderData?: boolean }[],
-): ResolvedTimeRange | undefined {
-  let latest: ResolvedTimeRange | undefined;
-  for (const r of results) {
-    const range = r.isPlaceholderData ? undefined : r.data?.timeRange;
-    if (range && (!latest || range.to.getTime() > latest.to.getTime())) latest = range;
-  }
-  return latest;
-}
-
 export interface DashboardPanelData extends CombinedPanelResult {
   /**
    * Absolute range the visualization renders against (axis domain, brush):
@@ -168,7 +151,10 @@ export function useDashboardPanelData(
   // Effective range: explicit URL params, else the dashboard's route defaults,
   // else the global default — resolved before first render (no flash). The
   // variable-options queries read the same range internally.
-  const { timeRange } = useTimeRange();
+  const { from, to } = useTimeRange().timeRange;
+  // Every panel on the page reads the range at the same instant.
+  const at = useTimeAnchor();
+  const range = useMemo(() => toViewerTimeRange({ from, to }, new Date(at)), [from, to, at]);
 
   const { variables, values, meta, pendingAllNames, allErrors } = useDashboardVariables();
   const definedNames = useMemo(() => new Set(variables.map((v) => v.spec.name)), [variables]);
@@ -185,9 +171,10 @@ export function useDashboardPanelData(
     [sources, definedNames, values, meta, pendingAllNames, allErrors],
   );
 
+  const overTime = drawsOverTime(panel.spec.plugin.kind);
   const results = useQueries({
     queries: requests.map((r) => ({
-      ...panelQueryOptions(r.source, timeRange.from, timeRange.to, r.variables, r.variableMeta),
+      ...panelQueryOptions(r.source, range, overTime, r.variables, r.variableMeta),
       placeholderData: keepPreviousData,
       enabled:
         active &&
@@ -215,18 +202,13 @@ export function useDashboardPanelData(
     [requests, results],
   );
 
-  // Before any query has returned there is no queried window yet; resolve the
-  // range here so a loading panel still has an axis. Memoize on primitives:
-  // `timeRange` is a fresh object each render.
-  const { from, to } = timeRange;
-  const fallback = useMemo(() => {
-    const { fromDate, toDate } = resolveTimeRange({ from, to });
-    return { from: fromDate, to: toDate };
-  }, [from, to]);
+  // Before any query has returned there is no queried window yet, so a
+  // loading panel draws its axis over the range it asked for.
+  const fallback = useMemo(() => ({ from: new Date(range.from), to: new Date(range.to) }), [range]);
   // Keep the last complete batch and its axis range together while replacement
   // queries finish. A panel can have several queries that resolve separately.
-  return useRetainedPanelData(panel, {
-    ...combined,
-    timeRange: latestQueriedRange(results) ?? fallback,
-  });
+  // The panel's queries all read one range. Placeholder data belongs to the
+  // previous key, so its window is ignored.
+  const queried = results.find((r) => !r.isPlaceholderData && r.data?.timeRange)?.data?.timeRange;
+  return useRetainedPanelData(panel, { ...combined, timeRange: queried ?? fallback });
 }

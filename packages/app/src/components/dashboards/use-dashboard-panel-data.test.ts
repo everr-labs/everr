@@ -9,7 +9,6 @@ import type { PanelQuerySource } from "./query-array";
 import {
   buildPanelQueryRequests,
   combineQueryStates,
-  latestQueriedRange,
   type SingleQueryState,
 } from "./use-dashboard-panel-data";
 
@@ -144,33 +143,5 @@ describe("combineQueryStates", () => {
     const result = combineQueryStates([state({ active: false, rows: undefined })]);
     expect(result.status).toBe("success");
     expect(result.data).toBeUndefined();
-  });
-});
-
-describe("latestQueriedRange", () => {
-  const range = (from: number, to: number) => ({ from: new Date(from), to: new Date(to) });
-
-  it("picks the newest window so a refreshed relative range moves the axis", () => {
-    const newest = range(2_000, 5_000);
-    expect(
-      latestQueriedRange([
-        { data: { timeRange: range(1_000, 4_000) } },
-        { data: undefined },
-        { data: { timeRange: newest } },
-      ]),
-    ).toBe(newest);
-  });
-
-  it("ignores placeholder data kept from the previous range", () => {
-    expect(
-      latestQueriedRange([
-        { data: { timeRange: range(1_000, 4_000) }, isPlaceholderData: true },
-        { data: undefined },
-      ]),
-    ).toBeUndefined();
-  });
-
-  it("is undefined before any query has returned", () => {
-    expect(latestQueriedRange([{ data: undefined }])).toBeUndefined();
   });
 });

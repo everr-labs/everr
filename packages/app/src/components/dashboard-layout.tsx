@@ -13,6 +13,7 @@ import { CommandBar } from "#app/components/command-bar.tsx";
 import { DashboardBreadcrumb } from "#app/components/dashboard-breadcrumb.tsx";
 import { PreviewIndicator } from "#app/components/preview-indicator.tsx";
 import { homeStatusQueryOptions } from "#app/data/onboarding/options.ts";
+import { TimeAnchorProvider } from "#app/hooks/time-anchor.tsx";
 import { SIDEBAR_TRACKED_LEFT } from "#app/lib/sidebar-tracked-left.ts";
 
 export function DashboardLayout() {
@@ -104,7 +105,9 @@ export function DashboardLayout() {
               {search.reason ? ` (${search.reason})` : ""}.
             </div>
           )}
-          <Outlet />
+          <TimeAnchorProvider>
+            <Outlet />
+          </TimeAnchorProvider>
         </div>
       </SidebarInset>
     </SidebarProvider>

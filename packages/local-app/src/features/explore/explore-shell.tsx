@@ -1,8 +1,9 @@
-import { getRefreshIntervalMs, RefreshPicker } from "@everr/ui/components/refresh-picker";
+import { RefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker } from "@everr/ui/components/time-range-picker";
+import { usePageRefresh } from "@everr/ui/lib/refresh-epoch";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { type QueryFilters, useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect } from "react";
+import { type QueryFilters, useIsFetching } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { PageTitleBar } from "../app-shell/title-bar";
 
 // Every query on the page, as the cloud app refreshes, but the app's own, such
@@ -29,18 +30,8 @@ export function ExploreShell({
   onRefreshChange: (value: string) => void;
   children: ReactNode;
 }) {
-  const queryClient = useQueryClient();
   const isFetching = useIsFetching(exploreQueries) > 0;
-  const refreshMs = getRefreshIntervalMs(refresh);
-  const refreshPage = () => void queryClient.invalidateQueries(exploreQueries);
-
-  // Auto-refresh does what the Refresh button does, every query on the page at
-  // once, as the cloud app's does.
-  useEffect(() => {
-    if (!refreshMs) return;
-    const timer = setInterval(() => void queryClient.invalidateQueries(exploreQueries), refreshMs);
-    return () => clearInterval(timer);
-  }, [refreshMs, queryClient]);
+  const refreshNow = usePageRefresh(refresh, exploreQueries);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -52,7 +43,7 @@ export function ExploreShell({
             <RefreshPicker
               value={refresh}
               onChange={onRefreshChange}
-              onRefresh={refreshPage}
+              onRefresh={refreshNow}
               isFetching={isFetching}
             />
           </>
