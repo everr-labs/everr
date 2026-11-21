@@ -147,7 +147,7 @@ export function ErrorTracePanel({
           onRetry={onRetry}
         />
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground rounded-md border px-3 py-2 text-xs">
+        <p {...staleProps(isStale, "text-muted-foreground rounded-md border px-3 py-2 text-xs")}>
           No spans were found for this trace.
         </p>
       ) : (

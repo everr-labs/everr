@@ -172,6 +172,17 @@ describe("buildAllMeta", () => {
     expect(pendingAllNames).toEqual(["svc"]);
   });
 
+  it("reports pending while it shows the previous range's options", () => {
+    const v = list("svc", { allowAllValue: true });
+    const { meta, pendingAllNames } = buildAllMeta(
+      [v],
+      { svc: ALL_VALUE },
+      { svc: { options: ["a"], isPending: true } },
+    );
+    expect(meta).toEqual({});
+    expect(pendingAllNames).toEqual(["svc"]);
+  });
+
   it("ignores variables whose value is not the All sentinel", () => {
     const v = list("svc", { allowAllValue: true });
     const { meta, pendingAllNames } = buildAllMeta([v], { svc: "a" }, { svc: { options: ["a"] } });

@@ -16,6 +16,12 @@ describe("useRetained", () => {
     rerender({ value: "b" });
     expect(result.current).toBe("b");
   });
+
+  it("holds values that are functions or NaN", () => {
+    const fn = () => 42;
+    expect(renderHook(() => useRetained(fn)).result.current).toBe(fn);
+    expect(renderHook(() => useRetained(Number.NaN)).result.current).toBeNaN();
+  });
 });
 
 describe("useOverlayContent", () => {

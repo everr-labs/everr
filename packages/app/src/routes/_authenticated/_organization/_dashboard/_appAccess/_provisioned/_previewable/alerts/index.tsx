@@ -47,6 +47,7 @@ function AlertingTriagePage() {
   const { timeRange } = useTimeRange();
   const triage = useQuery(alertTriageOptions(timeRange));
   const history = useQuery(ruleStateHistoryOptions(timeRange));
+  const stale = triage.isPlaceholderData || history.isPlaceholderData;
 
   if (triage.isError) {
     return (
@@ -87,9 +88,9 @@ function AlertingTriagePage() {
           className="min-h-0 min-w-0"
           viewportClassName={cn(
             "@container/list space-y-5 overscroll-y-contain pt-3 pb-6",
-            staleClass(triage.isPlaceholderData),
+            staleClass(stale),
           )}
-          viewportProps={{ "aria-busy": triage.isPlaceholderData }}
+          viewportProps={{ "aria-busy": stale }}
         >
           {/* No placeholder for the firing list: usually nothing fires, and it
             would vanish and pull the inventory up under the reader. */}

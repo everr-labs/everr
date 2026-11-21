@@ -6,9 +6,10 @@ import { useState } from "react";
  * instead of emptying it on the first frame of the close.
  */
 export function useRetained<T>(value: T | null): T | null {
-  const [retained, setRetained] = useState(value);
+  // Wrapped so React stores a function value instead of calling it.
+  const [retained, setRetained] = useState(() => value);
   // During render, not in an effect, which would paint one stale frame.
-  if (value !== null && value !== retained) setRetained(value);
+  if (value !== null && !Object.is(value, retained)) setRetained(() => value);
   return value ?? retained;
 }
 
