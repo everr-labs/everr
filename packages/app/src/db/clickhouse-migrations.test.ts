@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { readFileSync } from "node:fs";
 import {
+  applyClickHouseMigration,
   clickHouseMigrationHash,
   clickHouseMigrationQueryId,
   pendingClickHouseMigrations,
@@ -9,6 +10,7 @@ import {
 import {
   changedClickHouseMigrationFiles,
   isClickHouseMigrationPath,
+  lateClickHouseSeedFiles,
 } from "./clickhouse-statements";
 import {
   byMigrationName,
@@ -17,6 +19,7 @@ import {
   clickHouseMigrationsFor,
   clickHouseMigrationTarget,
   sqlStatements,
+  withClickHouseSeeds,
 } from "./clickhouse-sql";
 
 const migration = (name: string, sql = `SELECT '${name}'`): ClickHouseMigration => ({ name, sql });
@@ -153,6 +156,82 @@ describe("ClickHouse migrations", () => {
     expect(isClickHouseMigrationPath(path)).toBe(true);
     expect(isClickHouseMigrationPath("packages/app/clickhouse/repeatable/01.sql")).toBe(false);
     expect(isClickHouseMigrationPath("packages/cloud/clickhouse/0020-apply-rls.sql")).toBe(false);
+  });
+
+  it("gives a migration the seed named after it", () => {
+    const seed = async () => {};
+    const joined = withClickHouseSeeds(
+      [migration("0001-setup.sql"), migration("0002-cloud-policies.sql")],
+      { "0002-cloud-policies.seed.ts": seed },
+    );
+
+    expect(joined.map((file) => file.seed)).toEqual([undefined, seed]);
+  });
+
+  it("rejects a seed without a migration, because it would never run", () => {
+    expect(() =>
+      withClickHouseSeeds([migration("0001-setup.sql")], {
+        "0001-set-up.seed.ts": async () => {},
+      }),
+    ).toThrow("ClickHouse seeds without a migration: 0001-set-up.seed.ts");
+  });
+
+  describe("applying one migration", () => {
+    function run(seed: () => Promise<void>) {
+      const calls: string[] = [];
+      const file = { ...migration("0002-cloud-policies.sql", "SELECT 1;\nSELECT 2;"), seed };
+      const done = applyClickHouseMigration(
+        { ...file, hash: clickHouseMigrationHash(file.sql) },
+        {
+          statement: async (statement) => {
+            calls.push(statement);
+          },
+          seed: {
+            query: async () => [],
+            command: async (sql) => {
+              calls.push(sql);
+            },
+          },
+          journal: async () => {
+            calls.push("journal");
+          },
+        },
+      );
+      return { calls, done };
+    }
+
+    it("runs the seed after the statements and before the journal row", async () => {
+      const { calls, done } = run(async () => {
+        calls.push("seed");
+      });
+      await done;
+
+      expect(calls).toEqual(["SELECT 1", "SELECT 2", "seed", "journal"]);
+    });
+
+    it("leaves the migration pending when its seed fails", async () => {
+      const { calls, done } = run(async () => {
+        throw new Error("no access to system.users");
+      });
+
+      await expect(done).rejects.toThrow("no access to system.users");
+      expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
+    });
+  });
+
+  it("rejects a seed added to a migration that is already committed", () => {
+    const dir = "packages/app/clickhouse";
+    const base = new Set([`${dir}/0001-setup.sql`, `${dir}/0002-old.seed.ts`]);
+
+    expect(
+      lateClickHouseSeedFiles(base, [
+        `${dir}/0001-setup.sql`,
+        `${dir}/0001-setup.seed.ts`,
+        `${dir}/0002-old.seed.ts`,
+        `${dir}/0003-new.sql`,
+        `${dir}/0003-new.seed.ts`,
+      ]),
+    ).toEqual([`${dir}/0001-setup.seed.ts`]);
   });
 
   it("binds only the parameters a statement names", () => {

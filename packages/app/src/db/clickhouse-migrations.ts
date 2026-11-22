@@ -5,6 +5,7 @@ import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 import { serverLogger } from "#app/telemetry/logger.ts";
 import {
   byMigrationName,
+  type ClickHouseSeedContext,
   type ClickHouseMigration,
   type ClickHouseMigrationTarget,
   clickHouseMigrationsFor,
@@ -82,13 +83,36 @@ export function statementParams(
   return bound;
 }
 
+/** How one migration reaches ClickHouse. */
+export interface ClickHouseMigrationSteps {
+  statement(this: void, statement: string, index: number): Promise<void>;
+  readonly seed: ClickHouseSeedContext;
+  journal(this: void): Promise<void>;
+}
+
+/**
+ * One migration: its statements, then its seed, then its journal row. The
+ * row comes last, so a migration whose seed fails is still pending and
+ * the next start runs all of it again.
+ */
+export async function applyClickHouseMigration(
+  migration: HashedClickHouseMigration,
+  steps: ClickHouseMigrationSteps,
+): Promise<void> {
+  for (const [index, statement] of sqlStatements(migration.sql).entries()) {
+    await steps.statement(statement, index);
+  }
+  await migration.seed?.(steps.seed);
+  await steps.journal();
+}
+
 /**
  * Apply the files for `target` that the journal does not list: the untagged
  * files and the ones tagged for that product. The setup file takes the base
  * users' passwords from the environment; `productParams` are the parameters
  * the product's own files name. ClickHouse DDL is not transactional, so
- * statements must be safe to repeat: a migration that fails partway runs again
- * from its first statement. Run it under the PostgreSQL migration lock so
+ * statements and seeds must be safe to repeat: a migration that fails
+ * partway runs again from its first statement. Run it under the PostgreSQL migration lock so
  * replicas apply it once.
  */
 export async function migrateClickHouse(
@@ -148,24 +172,40 @@ export async function migrateClickHouse(
       );
     });
 
-    for (const migration of pendingClickHouseMigrations(migrations, applied)) {
-      for (const [index, statement] of sqlStatements(migration.sql).entries()) {
-        await instrumented("QUERY", () =>
-          client.command({
-            query: statement,
-            query_id: clickHouseMigrationQueryId(migration.name, index),
-            clickhouse_settings: { replace_running_query: 1 },
-            query_params: statementParams(migration.name, statement, params),
-          }),
-        );
-      }
-      await instrumented("INSERT", () =>
-        client.insert({
-          table: JOURNAL,
-          values: [{ name: migration.name, hash: migration.hash }],
-          format: "JSONEachRow",
+    const seed: ClickHouseSeedContext = {
+      query: <Row>(query: string) =>
+        instrumented("SELECT", async () => {
+          const rows = await client.query({ query, format: "JSONEachRow" });
+          return rows.json<Row>();
         }),
-      );
+      command: async (query) => {
+        await instrumented("QUERY", () => client.command({ query }));
+      },
+    };
+
+    for (const migration of pendingClickHouseMigrations(migrations, applied)) {
+      await applyClickHouseMigration(migration, {
+        statement: async (statement, index) => {
+          await instrumented("QUERY", () =>
+            client.command({
+              query: statement,
+              query_id: clickHouseMigrationQueryId(migration.name, index),
+              clickhouse_settings: { replace_running_query: 1 },
+              query_params: statementParams(migration.name, statement, params),
+            }),
+          );
+        },
+        seed,
+        journal: async () => {
+          await instrumented("INSERT", () =>
+            client.insert({
+              table: JOURNAL,
+              values: [{ name: migration.name, hash: migration.hash }],
+              format: "JSONEachRow",
+            }),
+          );
+        },
+      });
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
       });

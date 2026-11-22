@@ -62,6 +62,39 @@ its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
 `OR REPLACE`). Use `OR REPLACE` for a row policy, not `DROP` then `CREATE`: the
 table has no tenant filter between the two statements.
 
+### Seeds
+
+A migration that needs more than SQL gets a seed: `NNNN-<name>.seed.ts`
+next to `NNNN-<name>.sql`, with one function as its default export. Use it for
+work that depends on what the server holds, such as one statement per existing
+organization.
+
+```ts
+import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
+
+const seed: ClickHouseSeed = async ({ query, command }) => {
+  const users = await query<{ name: string }>("SELECT name FROM system.users");
+  for (const { name } of users) await command(`GRANT some_role TO \`${name}\``);
+};
+
+export default seed;
+```
+
+The runner calls it once, after the file's statements and before the journal
+row, on the migration connection. A seed that throws leaves the migration
+pending, so the next start runs the statements and the seed again. Make it
+safe to repeat, and keep it short: startup waits for it under the migration
+lock.
+
+- The journal hashes the SQL file only. Editing a seed after its migration
+  is applied changes nothing where it already ran.
+- A seed runs with its migration or never. Adding one to a migration that
+  is already on the base branch fails the pull request check. Put it next to a
+  new migration file, which can hold only a comment.
+- A seed also runs on a new, empty server, and must do nothing wrong there.
+- A seed sees the server once. Something the previous application version
+  creates after that, during a rolling deploy, is not covered.
+
 Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
 as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10-minute request
 timeout. A timed-out statement can still be running on the server. The retry

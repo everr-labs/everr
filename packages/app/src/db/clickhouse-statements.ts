@@ -10,6 +10,25 @@ export function isClickHouseMigrationPath(path: string): boolean {
   return name.endsWith(".sql") && !name.includes("/");
 }
 
+const SEED_SUFFIX = ".seed.ts";
+
+/**
+ * Seed files among `head` that `base` lacks, for a migration `base`
+ * already has. A seed runs once, with its migration, so one added later
+ * never runs where that migration is applied.
+ */
+export function lateClickHouseSeedFiles(
+  base: ReadonlySet<string>,
+  head: Iterable<string>,
+): string[] {
+  const late: string[] = [];
+  for (const path of head) {
+    if (!path.endsWith(SEED_SUFFIX) || base.has(path)) continue;
+    if (base.has(`${path.slice(0, -SEED_SUFFIX.length)}.sql`)) late.push(path);
+  }
+  return late.sort();
+}
+
 /**
  * Paths in `base` whose text differs in `head`, including a file `head`
  * dropped. A new file is not a change. Any edit is, a comment included.
