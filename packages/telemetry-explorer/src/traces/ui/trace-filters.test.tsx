@@ -37,7 +37,6 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={defaultValue}
-        identities={[{ serviceNamespace: "", serviceName: "web" }]}
         persistentFilters={<div>persistent zone</div>}
         onChange={vi.fn()}
       />,
@@ -76,7 +75,6 @@ describe("TraceFilters rail", () => {
             },
           ],
         }}
-        identities={[]}
         onChange={onChange}
       />,
     );
@@ -104,7 +102,6 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={{ ...defaultValue, status: "error" }}
-        identities={[]}
         persistentFilterCount={2}
         onChange={onChange}
       />,
@@ -121,7 +118,6 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={defaultValue}
-        identities={[]}
         persistentFilterCount={2}
         onChange={vi.fn()}
       />,

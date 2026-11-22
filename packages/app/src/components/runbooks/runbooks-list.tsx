@@ -3,7 +3,7 @@ import { CirclePlus } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "#app/components/dashboards/dashboard-tree.tsx";
 import { RailList } from "#app/components/rail/rail-list.tsx";
-import { RailRow } from "#app/components/rail/rail-row.tsx";
+import { RailRow, RailRowsSkeleton } from "#app/components/rail/rail-row.tsx";
 import { runbookListOptions } from "#app/data/runbooks/options.ts";
 
 /** The first navigation level: every runbook in the organization. */
@@ -14,7 +14,7 @@ export function RunbooksList({ preview }: { preview?: string }) {
 
   return (
     <RailList label="runbooks" search={search} onSearchChange={setSearch}>
-      {listQuery.isLoading && <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>}
+      {listQuery.isLoading && <RailRowsSkeleton label="Loading runbooks" />}
       {listQuery.isError && (
         <p className="px-1 py-1 text-warning text-xs">Couldn&apos;t load your runbooks</p>
       )}

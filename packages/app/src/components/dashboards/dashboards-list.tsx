@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { RailList } from "#app/components/rail/rail-list.tsx";
-import { groupLabelClass, RailRow } from "#app/components/rail/rail-row.tsx";
+import { groupLabelClass, RailRow, RailRowsSkeleton } from "#app/components/rail/rail-row.tsx";
 import {
   evaluateBuiltin,
   type TelemetryCapabilities,
@@ -134,9 +134,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
     <RailList label="dashboards" search={search} onSearchChange={setSearch} className="gap-4">
       <section aria-label="Your dashboards">
         <GroupLabel label="Your dashboards" />
-        {listQuery.isLoading && (
-          <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
-        )}
+        {listQuery.isLoading && <RailRowsSkeleton label="Loading dashboards" />}
         {listQuery.isError && (
           <p className="px-1 py-1 text-warning text-xs">Couldn&apos;t load your dashboards</p>
         )}

@@ -1,5 +1,7 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
+import { staleClass } from "@everr/ui/lib/stale";
+import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChannelDialog } from "#app/components/alerts/channel-dialog.tsx";
@@ -47,7 +49,14 @@ function AlertingNotificationsPage() {
 
   return (
     <>
-      <ScrollArea className="h-full min-h-0" viewportClassName="overscroll-y-contain pb-6">
+      <ScrollArea
+        className="h-full min-h-0"
+        viewportClassName={cn(
+          "overscroll-y-contain pb-6",
+          staleClass(notifications.isPlaceholderData),
+        )}
+        viewportProps={{ "aria-busy": notifications.isPlaceholderData }}
+      >
         <NotificationsPage
           data={data}
           pending={controls.pending}

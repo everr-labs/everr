@@ -1,5 +1,5 @@
 import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, type QueryClient, queryOptions } from "@tanstack/react-query";
 import { invalidateAlertTriage } from "#app/data/alerting/triage/options.ts";
 import { getAlertNotifications } from "./server";
 
@@ -13,6 +13,7 @@ export const alertNotificationsOptions = (range: TimeRange) =>
     // old window.
     queryKey: [...notificationsQueryKey, range.from, range.to],
     queryFn: () => getAlertNotifications({ data: toViewerTimeRange(range) }),
+    placeholderData: keepPreviousData,
   });
 
 /**

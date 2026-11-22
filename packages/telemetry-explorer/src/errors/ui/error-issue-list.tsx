@@ -1,6 +1,10 @@
+import { Spinner } from "@everr/ui/components/spinner";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import {
+  virtuosoInitialItemCount,
+  virtuosoScrollAreaComponents,
+} from "@everr/ui/components/scroll-area";
+import { raggedWidth, Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
@@ -52,7 +56,7 @@ export function ErrorIssueList({
         <div className="text-muted-foreground flex h-10 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
             <span className="flex items-center gap-2">
-              <Skeleton className="size-2 rounded-full" />
+              <Spinner className="size-3" />
               Loading more errors
             </span>
           ) : hasNextPage ? (
@@ -84,6 +88,7 @@ export function ErrorIssueList({
       <Virtuoso
         className="min-h-0 min-w-0 flex-1"
         data={issues}
+        initialItemCount={virtuosoInitialItemCount(issues.length)}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
         endReached={endReached}
         components={components}
@@ -106,17 +111,49 @@ function ListHeader() {
   );
 }
 
+/** About a tall screen of rows. No more: every bar repaints its shimmer each frame. */
+const SKELETON_ROW_COUNT = 36;
+
+// Built from `ErrorIssueRow`'s own cells and 20px trend box, so nothing moves
+// when the issues land.
 function ListSkeleton() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {Array.from({ length: 12 }).map((_, index) => (
-        // oxlint-disable-next-line react/no-array-index-key -- Fixed-length placeholder rows with no data identity; the list is static.
-        <div key={index} className="flex items-center gap-2 border-b px-3 py-1.5">
-          <Skeleton className="h-4 min-w-0 flex-1" />
-          <Skeleton className="hidden h-3 w-28 md:block" />
-          <Skeleton className="hidden h-3 w-24 lg:block" />
-          <Skeleton className="h-4 w-16" />
-          <Skeleton className="hidden h-3 w-16 lg:block" />
+    <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ListHeader />
+      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SkeletonLine className="shrink-0">
+              <Skeleton
+                className="h-3 rounded-sm"
+                style={{ width: raggedWidth(index, 5, 9, "rem") }}
+              />
+            </SkeletonLine>
+            <SkeletonLine className="min-w-0">
+              <Skeleton
+                className="h-3 max-w-full rounded-sm"
+                style={{ width: raggedWidth(index + 3, 6, 11, "rem") }}
+              />
+            </SkeletonLine>
+          </div>
+          <div className="hidden w-28 shrink-0 items-center gap-1.5 text-xs md:flex">
+            <Skeleton className="size-2 shrink-0 rounded-full" />
+            <SkeletonLine>
+              <Skeleton className="h-3 w-20 rounded-sm" />
+            </SkeletonLine>
+          </div>
+          <div className="hidden h-5 w-24 shrink-0 items-center lg:flex">
+            <Skeleton className="h-3 w-full rounded-sm" />
+          </div>
+          <SkeletonLine className="w-24 shrink-0 justify-end">
+            <Skeleton className="h-3 w-8 rounded-sm" />
+          </SkeletonLine>
+          <SkeletonLine className="hidden w-20 shrink-0 justify-end text-xs lg:flex">
+            <Skeleton className="h-3 w-14 rounded-sm" />
+          </SkeletonLine>
         </div>
       ))}
     </div>

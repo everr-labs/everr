@@ -1,3 +1,4 @@
+import { staleProps } from "@everr/ui/lib/stale";
 import { rangeSpansDays, type TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
@@ -47,13 +48,15 @@ export function TracesSearch({
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
-  const identitiesQuery = useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
+  // Warms the read the namespace filter shares, so the picker opens loaded.
+  useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
   const {
     data,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isPending,
+    isPlaceholderData,
     isError,
     error,
     refetch,
@@ -89,12 +92,11 @@ export function TracesSearch({
               status: search.status,
               attributes: search.attributes,
             }}
-            identities={identitiesQuery.data ?? []}
             persistentFilters={persistentFilters}
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
-          <main className="flex min-h-0 min-w-0 flex-col">
+          <main {...staleProps(isPlaceholderData, "flex min-h-0 min-w-0 flex-col")}>
             <TraceResultsList
               withDay={rangeSpansDays(timeRange)}
               rows={rows}

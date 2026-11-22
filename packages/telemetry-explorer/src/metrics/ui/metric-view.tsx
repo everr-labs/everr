@@ -5,6 +5,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { type ChartMarker, type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { ACCENT_COLOR, SERIES_COLORS } from "@everr/ui/lib/series-colors";
+import { staleClass, staleProps } from "@everr/ui/lib/stale";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, Plus, X } from "lucide-react";
@@ -248,7 +249,7 @@ export function MetricView({
         </div>
       )}
 
-      <div aria-busy={stale} className={cn("flex flex-1 flex-col", staleClass(stale))}>
+      <div {...staleProps(stale, "flex flex-1 flex-col")}>
         <SeriesPanel
           lines={lines}
           multi={Boolean(queryRows)}
@@ -274,19 +275,6 @@ export function MetricView({
 // Kept in place while empty, as tall as a MetaItem, so the header doesn't
 // jump when the chart's resolution comes and goes.
 const META_ROW = "flex min-h-5.5 items-center gap-1.5 text-xs";
-
-/**
- * Dims what shows data from before the last change while it reloads. Like
- * Button's loading state, it waits 150ms, so a quick reload shows nothing:
- * a transition that has not started is simply cancelled. Fresh data shows
- * at full strength at once.
- */
-function staleClass(stale: boolean) {
-  return cn(
-    "transition-opacity duration-0",
-    stale && "opacity-50 delay-150 duration-150 motion-reduce:duration-0",
-  );
-}
 
 export function QueryControls({
   aggregations,
@@ -528,7 +516,8 @@ function SeriesPanel({
   }
   if (isPending) {
     return (
-      <div className="flex flex-col gap-3 p-4">
+      // The chart's own box, so the chart lands where its placeholder stood.
+      <div className="flex flex-col gap-3 px-4 pt-3">
         <Skeleton className="h-[260px] w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
@@ -690,9 +679,9 @@ function SeriesLines({
       </div>
       {/* The values take the width they need and the series column the rest,
           truncating a long name rather than pushing the values off-screen. */}
-      <table className="w-full text-sm">
+      <table className="w-full border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <thead>
-          <tr className="text-muted-foreground border-b text-xs">
+          <tr className="text-muted-foreground text-xs">
             <th
               className="w-full max-w-0 truncate px-4 py-1.5 text-left font-medium"
               title={groupHeading}
@@ -708,7 +697,7 @@ function SeriesLines({
         {seriesGroups(series).map(({ query, series }) => (
           <tbody key={query?.id ?? "series"}>
             {query ? (
-              <tr className="bg-muted/30 border-b">
+              <tr className="bg-muted/30">
                 {/* No wider than the table, so a long metric name truncates
                     rather than widening every column. */}
                 <th
@@ -728,7 +717,7 @@ function SeriesLines({
             {series.map((s) => (
               <tr
                 key={s.id}
-                className="hover:bg-muted/50 border-b"
+                className="hover:bg-muted/50"
                 onPointerEnter={() => setHoveredSeries(s.id)}
                 onPointerLeave={() => setHoveredSeries(null)}
               >

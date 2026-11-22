@@ -36,9 +36,11 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
         session: { activeOrganizationId: mocks.activeOrganizationId },
       },
     }),
-    useSearch: () => ({}),
+    useSearch: (options?: { select?: (search: object) => unknown }) =>
+      options?.select ? options.select({}) : {},
     Outlet: () => <div>Route content</div>,
-    useMatches: () => mocks.matches,
+    useMatches: (options?: { select?: (matches: typeof mocks.matches) => unknown }) =>
+      options?.select ? options.select(mocks.matches) : mocks.matches,
   };
 });
 
@@ -147,6 +149,21 @@ describe("dashboard layout", () => {
       expect(Boolean(screen.queryByText("Refresh picker"))).toBe(view === "dashboard");
     },
   );
+
+  it.each([
+    { label: "Home", search: {}, shown: true },
+    { label: "a reopened setup", search: { setup: 1 }, shown: false },
+  ])("time controls while $label loads its status: shown=$shown", ({ search, shown }) => {
+    mocks.matches = [
+      {
+        routeId: "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/",
+        staticData: { showDataControls: true },
+        search,
+      },
+    ];
+    renderLayout();
+    expect(Boolean(screen.queryByText("Time range picker"))).toBe(shown);
+  });
 });
 
 describe("dashboard time range", () => {

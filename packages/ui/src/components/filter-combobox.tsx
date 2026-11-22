@@ -157,8 +157,8 @@ export function FilterCombobox<TData>({
               value={search}
               onValueChange={setSearch}
             />
-            <CommandList>
-              <CommandEmpty>{isLoading ? "Loading..." : "No results."}</CommandEmpty>
+            <CommandList loading={isLoading}>
+              <CommandEmpty>{isLoading ? "Loading…" : "No results."}</CommandEmpty>
               <CommandGroup>
                 <CommandItem
                   value="__all__"

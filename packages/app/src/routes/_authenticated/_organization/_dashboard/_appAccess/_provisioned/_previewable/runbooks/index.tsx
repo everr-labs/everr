@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { lastViewedRunbook } from "#app/data/runbooks/last-viewed.ts";
 import { runbookListOptions, runbookOptions } from "#app/data/runbooks/options.ts";
 import { findPage } from "#app/data/runbooks/pages.ts";
@@ -6,7 +6,14 @@ import { findPage } from "#app/data/runbooks/pages.ts";
 export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks/",
 )({
-  staticData: { breadcrumb: "Runbooks" },
+  // The loader always redirects, so this crumb only shows while it runs,
+  // holding a place for the runbook the redirect lands on.
+  staticData: {
+    breadcrumb: () => [
+      { label: "Runbooks", link: <Link to="/runbooks" /> },
+      { label: "Runbook", unresolved: true },
+    ],
+  },
   loaderDeps: ({ search }) => ({ preview: search.preview }),
   loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
     const org = session.session.activeOrganizationId;

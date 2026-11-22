@@ -26,14 +26,11 @@ export function formatTimestampTimeOfDay(timestamp: string): string {
 export function formatRowTimestamp(timestamp: string, withDay: boolean): string {
   const parsed = parseTimestampAsUTC(timestamp);
   if (!parsed) return "—";
-  if (!withDay) return parsed.toLocaleTimeString();
-  return parsed.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const time = parsed.toLocaleTimeString();
+  if (!withDay) return time;
+  // Joined by hand: Safari's combined format reads "Nov 21 at 8:46:35 PM", one
+  // character too wide for the column, so it wrapped there only.
+  return `${parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
 export function formatRelativeTime(timestamp: string): string {

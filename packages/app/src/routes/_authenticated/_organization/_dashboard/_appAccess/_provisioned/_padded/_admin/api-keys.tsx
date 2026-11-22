@@ -12,6 +12,10 @@ export const Route = createFileRoute(
   "/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys",
 )({
   staticData: { breadcrumb: "API keys", hideTimeRangePicker: true },
+  // Prefetched so the key sections arrive whole. `prefetchQuery` never throws.
+  loader: async ({ context: { queryClient } }) => {
+    await queryClient.prefetchQuery(apiKeysQueryOptions());
+  },
   head: () => ({
     meta: [{ title: "Everr - API keys" }],
   }),

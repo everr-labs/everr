@@ -3,9 +3,11 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vite-plus/test";
 
 const policy = vi.hoisted(() => vi.fn());
+const prefetchMembers = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("@everr/app/data/product", () => ({ getActiveOrgPolicy: policy }));
 vi.mock("@everr/app/members", () => ({
   OrganizationMembersPage: () => <div>Member management</div>,
+  prefetchMembersPage: prefetchMembers,
 }));
 vi.mock("@everr/app/account-settings", () => ({ AccountSettings: () => null }));
 vi.mock("../../components/members-unavailable", () => ({
@@ -16,7 +18,10 @@ import { pages } from "./pages";
 
 const Members = pages.members.component;
 
-beforeEach(() => policy.mockReset());
+beforeEach(() => {
+  policy.mockReset();
+  prefetchMembers.mockClear();
+});
 
 it("refreshes policy when revisiting and isolates organizations", async () => {
   const queryClient = new QueryClient();
@@ -40,4 +45,6 @@ it("refreshes policy when revisiting and isolates organizations", async () => {
   );
   expect(screen.getByText("Upgrade plan")).toBeVisible();
   expect(policy).toHaveBeenCalledTimes(3);
+  // Only the visit whose plan allows inviting loads the member lists.
+  expect(prefetchMembers).toHaveBeenCalledTimes(1);
 });

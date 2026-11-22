@@ -37,6 +37,7 @@ import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import appCss from "#app/styles/app.css?url";
 import { CONSENT_COOKIE, isConsentDecision } from "#app/telemetry/consent.ts";
 import { ConsentGate } from "#app/telemetry/consent-gate.tsx";
+import { NavigationProgress } from "#app/components/navigation-progress.tsx";
 import type { RouterContext } from "../router";
 
 // The route context is readable by any script on the page, so it never carries
@@ -137,7 +138,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function Component() {
-  const { queryClient, consent } = Route.useRouteContext();
+  // Selected one by one: `beforeLoad` returns a new context every navigation,
+  // which re-rendered everything here (the toaster, the devtools).
+  const queryClient = Route.useRouteContext({ select: (context) => context.queryClient });
+  const consent = Route.useRouteContext({ select: (context) => context.consent });
   const router = useRouter();
 
   useEffect(() => {
@@ -160,6 +164,7 @@ function Component() {
   return (
     <TooltipProvider>
       <QueryClientProvider client={queryClient}>
+        <NavigationProgress />
         <ConsentGate initialConsent={consent}>
           <Outlet />
         </ConsentGate>

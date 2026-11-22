@@ -1,3 +1,4 @@
+import { staleProps } from "@everr/ui/lib/stale";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
@@ -73,7 +74,7 @@ export function ErrorIssues({
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={onSearchChange}
           />
-          <main className="flex min-h-0 min-w-0 flex-col">
+          <main {...staleProps(issuesQuery.isPlaceholderData, "flex min-h-0 min-w-0 flex-col")}>
             <ErrorIssueList
               issues={issues}
               isPending={issuesQuery.isPending}

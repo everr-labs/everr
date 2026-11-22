@@ -6,31 +6,48 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@everr/ui/components/breadcrumb";
-import { Link, useMatches } from "@tanstack/react-router";
+import { Skeleton } from "@everr/ui/components/skeleton";
 import { cn } from "@everr/ui/lib/utils";
-import { Fragment } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useMatches, useRouter, useRouterState } from "@tanstack/react-router";
+import { Fragment, useMemo } from "react";
 import { findNavSection } from "#app/lib/navigation.ts";
 import type { BreadcrumbSegment } from "#app/router-types.ts";
 
 export function DashboardBreadcrumb() {
-  const matches = useMatches();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const presented = useMatches();
+  // Mid-navigation the router still shows the previous page, but the URL and
+  // sidebar name the next one, so the crumbs follow the pending location.
+  // Matches the router already holds are reused, so a crumb from loader data
+  // stays put across a search-only change.
+  const pendingLocation = useRouterState({
+    select: (state) => (state.status === "pending" ? state.location : undefined),
+  });
+  const matches = useMemo(
+    () => (pendingLocation ? router.matchRoutes(pendingLocation) : presented),
+    [router, pendingLocation, presented],
+  );
 
-  const crumbs: Required<BreadcrumbSegment>[] = [];
+  const crumbs: (Required<Omit<BreadcrumbSegment, "unresolved">> & { pending: boolean })[] = [];
   for (const match of matches) {
     const bc = match.staticData?.breadcrumb;
     if (!bc) continue;
-    const result = typeof bc === "function" ? bc(match) : bc;
+    const result = typeof bc === "function" ? bc(match, { queryClient }) : bc;
     if (!result) continue;
     if (typeof result === "string") {
       crumbs.push({
         label: result,
         link: <Link from={match.fullPath} to="." params={match.params} />,
+        pending: false,
       });
     } else {
       for (const seg of result) {
         crumbs.push({
           label: seg.label,
           link: seg.link ?? <Link from={match.fullPath} to="." params={match.params} />,
+          pending: Boolean(seg.unresolved && pendingLocation),
         });
       }
     }
@@ -58,7 +75,9 @@ export function DashboardBreadcrumb() {
             <Fragment key={`${crumb.label}-${String(i)}`}>
               {i > 0 && <BreadcrumbSeparator className="hidden shrink-0 md:block" />}
               <BreadcrumbItem className={isLast ? "min-w-0" : "hidden shrink-0 md:inline-flex"}>
-                {isLast ? (
+                {crumb.pending ? (
+                  <Skeleton aria-hidden className="h-3.5 w-24 rounded-sm" />
+                ) : isLast ? (
                   <BreadcrumbPage className="truncate" title={crumb.label}>
                     {crumb.label}
                   </BreadcrumbPage>

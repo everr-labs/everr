@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
 import { Button } from "@everr/ui/components/button";
+import { useOverlayContent } from "@everr/ui/hooks/use-retained";
 import {
   Dialog,
   DialogContent,
@@ -62,19 +63,20 @@ export function ChannelDialog({
   onSave: (draft: ChannelDraft) => void;
   onDelete: (name: string) => void;
 }) {
+  const { open, shown, key } = useOverlayContent(target);
   return (
     <Dialog
-      open={target !== null}
+      open={open}
       onOpenChange={(next) => {
         if (!next && !pending) onClose();
       }}
     >
-      {target && (
+      {shown && (
         // Remounted per opening, so the fields start from whatever opened
         // this one instead of holding the last opening's text.
         <ChannelForm
-          key={target.mode === "new" ? `new:${target.name}` : target.channel.name}
-          target={target}
+          key={key}
+          target={shown}
           existingNames={channels.map((c) => c.name)}
           pending={pending}
           onSave={onSave}

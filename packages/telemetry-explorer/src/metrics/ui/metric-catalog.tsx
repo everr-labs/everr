@@ -1,5 +1,5 @@
 import { RetryError } from "@everr/ui/components/retry-error";
-import { Skeleton } from "@everr/ui/components/skeleton";
+import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import type { ReactNode } from "react";
 import type { MetricType } from "../data/schemas";
@@ -37,24 +37,14 @@ export function MetricCatalog({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <table className="w-full table-fixed text-sm">
-        <thead className="bg-background sticky top-0 z-10">
-          <tr className="text-muted-foreground border-b text-xs">
-            <th className="px-4 py-1.5 text-left font-medium">Metric</th>
-            <th className="w-36 px-4 py-1.5 text-left font-medium">Type</th>
-            <th className="hidden w-36 px-4 py-1.5 text-left font-medium xl:table-cell">Unit</th>
-            <th className="hidden w-28 px-4 py-1.5 text-right font-medium sm:table-cell">
-              Data points
-            </th>
-            <th className="hidden w-28 px-4 py-1.5 text-right font-medium lg:table-cell">
-              Last seen
-            </th>
-          </tr>
-        </thead>
+      {/* Borders on the cells: Safari paints a collapsed row border once per row
+          it separates, so translucent lines came out twice as bright. */}
+      <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
+        <CatalogHead />
         <tbody>
           {rows.map((row) => {
             return (
-              <tr key={`${row.type}:${row.name}`} className="hover:bg-muted/50 relative border-b">
+              <tr key={`${row.type}:${row.name}`} className="hover:bg-muted/50 relative">
                 <td className="px-4 py-1.5">
                   <div className="flex min-w-0 flex-col">
                     {renderMetricLink({
@@ -111,12 +101,52 @@ export function MetricCatalog({
   );
 }
 
+function CatalogHead() {
+  return (
+    <thead className="bg-background sticky top-0 z-10">
+      <tr className="text-muted-foreground text-xs">
+        <th className="px-4 py-1.5 text-left font-medium">Metric</th>
+        <th className="w-36 px-4 py-1.5 text-left font-medium">Type</th>
+        <th className="hidden w-36 px-4 py-1.5 text-left font-medium xl:table-cell">Unit</th>
+        <th className="hidden w-28 px-4 py-1.5 text-right font-medium sm:table-cell">
+          Data points
+        </th>
+        <th className="hidden w-28 px-4 py-1.5 text-right font-medium lg:table-cell">Last seen</th>
+      </tr>
+    </thead>
+  );
+}
+
+/** Rows at a metric name's line height (a described metric adds a second line). */
 function CatalogSkeleton() {
   return (
-    <div className="flex flex-col gap-2 p-3">
-      {Array.from({ length: 8 }, (_, i) => (
-        <Skeleton key={i} className="h-10 w-full" />
-      ))}
+    <div aria-hidden className="min-h-0 flex-1 overflow-hidden">
+      <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
+        <CatalogHead />
+        <tbody>
+          {Array.from({ length: 12 }, (_, i) => (
+            <tr key={i}>
+              <td className="px-4 py-1.5">
+                <div className="flex h-5 items-center">
+                  <Skeleton className="h-3 rounded-sm" style={{ width: raggedWidth(i, 45, 80) }} />
+                </div>
+              </td>
+              <td className="px-4 py-1.5">
+                <Skeleton className="h-3 w-16 rounded-sm" />
+              </td>
+              <td className="hidden px-4 py-1.5 xl:table-cell">
+                <Skeleton className="h-3 w-12 rounded-sm" />
+              </td>
+              <td className="hidden px-4 py-1.5 sm:table-cell">
+                <Skeleton className="ml-auto h-3 w-10 rounded-sm" />
+              </td>
+              <td className="hidden px-4 py-1.5 lg:table-cell">
+                <Skeleton className="ml-auto h-3 w-14 rounded-sm" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

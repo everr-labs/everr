@@ -356,9 +356,11 @@ export function NotificationsPage({
         {/* The band appears only when it has something to report. A standing
             "nothing went wrong" row is a line the reader learns to skip, and
             the band is amber whenever it is here at all, which is what makes
-            amber worth looking at. It stays through the load so the page does
-            not shift once the counts arrive. */}
-        {(data === null || gaps.length > 0) && (
+            amber worth looking at. Nothing stands in for it while the page
+            loads: most ranges have no gaps, and a placeholder would vanish and
+            pull everything below it up, after flashing a warning that was not
+            true. */}
+        {gaps.length > 0 && (
           <GroupBand
             id="gaps"
             label="Not delivered"
@@ -367,26 +369,22 @@ export function NotificationsPage({
             icon={TriangleAlert}
             tone="warning"
           >
-            {data === null ? (
-              <LoadingRows count={1} label="Loading delivery gaps" />
-            ) : (
-              <ul aria-labelledby="gaps">
-                {gaps.map((gap) => (
-                  <GapRow
-                    key={
-                      gap.kind === "tier"
-                        ? `tier:${gap.tier}`
-                        : `rule:${gap.rule.path}:${gap.channel}`
-                    }
-                    gap={gap}
-                    channelCount={channels.length}
-                    pending={pending}
-                    onEditDelivery={onEditDelivery}
-                    onNewChannel={onNewChannel}
-                  />
-                ))}
-              </ul>
-            )}
+            <ul aria-labelledby="gaps">
+              {gaps.map((gap) => (
+                <GapRow
+                  key={
+                    gap.kind === "tier"
+                      ? `tier:${gap.tier}`
+                      : `rule:${gap.rule.path}:${gap.channel}`
+                  }
+                  gap={gap}
+                  channelCount={channels.length}
+                  pending={pending}
+                  onEditDelivery={onEditDelivery}
+                  onNewChannel={onNewChannel}
+                />
+              ))}
+            </ul>
           </GroupBand>
         )}
 

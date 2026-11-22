@@ -7,9 +7,9 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { serviceNamespaceFilterOptions } from "../data/options";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
-import type { ServiceIdentity } from "../data/types";
 import {
   TRACES_ATTRIBUTE_SOURCES_UI,
   TRACES_EXCLUDED_KEYS,
@@ -31,7 +31,6 @@ type TraceFiltersProps = {
   repo: TracesRepositoryLike;
   timeRange: TimeRange;
   value: FilterValue;
-  identities: ServiceIdentity[];
   // The top zone of the rail: Service and Environment. The host app supplies it,
   // because the two values are search params that are shared between pages.
   persistentFilters?: ReactNode;
@@ -61,17 +60,11 @@ export function TraceFilters({
   repo,
   timeRange,
   value,
-  identities,
   persistentFilters,
   persistentFilterCount = 0,
   onChange,
 }: TraceFiltersProps) {
-  const namespaces = dedupe(identities.map((i) => i.serviceNamespace).filter((n) => n.length > 0));
-
-  const namespaceOptions = staticListOptions(
-    ["traces", "filter", "namespaces", namespaces] as const,
-    namespaces,
-  );
+  const namespaceOptions = serviceNamespaceFilterOptions(repo, { timeRange });
 
   // The count for the bottom zone of the rail, which includes the search text.
   const pageFilterCount = countTracePageFilters(value);
@@ -224,17 +217,4 @@ function DurationInput({
       />
     </div>
   );
-}
-
-function dedupe(items: string[]): string[] {
-  return Array.from(new Set(items)).sort();
-}
-
-function staticListOptions<K extends readonly unknown[]>(queryKey: K, items: string[]) {
-  // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
-  return {
-    queryKey,
-    queryFn: () => items,
-    select: (data: string[]) => data,
-  };
 }

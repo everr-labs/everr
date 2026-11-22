@@ -1,3 +1,4 @@
+import { staleProps } from "@everr/ui/lib/stale";
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
 import { Label } from "@everr/ui/components/label";
@@ -185,7 +186,7 @@ function CatalogPage({
           />
         </div>
       </ExploreFilterRail>
-      <main className="flex min-h-0 min-w-0 flex-col">
+      <main {...staleProps(query.isPlaceholderData, "flex min-h-0 min-w-0 flex-col")}>
         <MetricCatalog
           rows={query.data ?? []}
           isPending={query.isPending}

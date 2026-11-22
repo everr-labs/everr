@@ -17,6 +17,8 @@ export interface HomeStatus {
 
 type HomeView = "onboarding" | "dashboard";
 
-export function homeView(status: HomeStatus, setupRequested = false): HomeView {
-  return setupRequested || !status.onboardingCompleted ? "onboarding" : "dashboard";
+/** Until the status answers, Home assumes a returning member (the common case),
+ *  so the dashboard's panels start loading at once instead of after a skeleton. */
+export function homeView(status: HomeStatus | undefined, setupRequested = false): HomeView {
+  return setupRequested || status?.onboardingCompleted === false ? "onboarding" : "dashboard";
 }

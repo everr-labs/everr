@@ -84,26 +84,15 @@ export function HomeExperience({
   children: ReactNode;
 }) {
   const status = useQuery(homeStatusQueryOptions(userId, organizationId));
-  if (!status.data) {
-    if (status.isError)
-      return (
-        <RetryError
-          title="Couldn't load your setup"
-          message={status.error.message}
-          onRetry={() => void status.refetch()}
-        />
-      );
+  if (!status.data && status.isError)
     return (
-      <div
-        className="mx-auto w-full min-w-0 max-w-3xl space-y-6"
-        role="status"
-        aria-label="Loading your setup"
-      >
-        <Skeleton className="h-12 w-2/3" />
-        <Skeleton className="h-80 w-full" />
-      </div>
+      <RetryError
+        title="Couldn't load your setup"
+        message={status.error.message}
+        onRetry={() => void status.refetch()}
+      />
     );
-  }
+  const view = homeView(status.data, setupRequested);
   return (
     <>
       {status.isError && (
@@ -114,15 +103,29 @@ export function HomeExperience({
           onRetry={() => void status.refetch()}
         />
       )}
-      <HomeContent
-        key={onboardingProgressKey(userId, organizationId)}
-        userId={userId}
-        organizationId={organizationId}
-        status={status.data}
-        setupRequested={setupRequested}
-      >
-        {children}
-      </HomeContent>
+      {status.data ? (
+        <HomeContent
+          key={onboardingProgressKey(userId, organizationId)}
+          userId={userId}
+          organizationId={organizationId}
+          status={status.data}
+          setupRequested={setupRequested}
+        />
+      ) : (
+        view === "onboarding" && (
+          <div
+            className="mx-auto w-full min-w-0 max-w-3xl space-y-6"
+            role="status"
+            aria-label="Loading your setup"
+          >
+            <Skeleton className="h-12 w-2/3" />
+            <Skeleton className="h-80 w-full" />
+          </div>
+        )
+      )}
+      {/* Outside the steps, so the dashboard drawn while the status loads stays
+          mounted: no second round of panel queries. */}
+      {view === "dashboard" && <div className="space-y-8">{children}</div>}
     </>
   );
 }
@@ -132,13 +135,11 @@ function HomeContent({
   organizationId,
   status,
   setupRequested,
-  children,
 }: {
   userId: string;
   organizationId: string;
   status: HomeStatus;
   setupRequested: boolean;
-  children: ReactNode;
 }) {
   const navigate = useNavigate({ from: "/" });
   const complete = useCompleteOnboarding(userId, organizationId);
@@ -479,25 +480,22 @@ function HomeContent({
   ] satisfies MultiStepItem<OnboardingStep>[];
 
   return (
-    <>
-      <MultiStep
-        steps={steps}
-        currentStep={step}
-        furthestStep={progress.furthestStep}
-        onStepChange={progress.review}
-        disabled={busy}
-        hidden={view !== "onboarding"}
-        navigationLabel="Setup progress"
-      >
-        <div className="space-y-3">
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome to Everr</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Connect your app to see its traces, logs, and errors. We&apos;ll guide you through the
-            setup process.
-          </p>
-        </div>
-      </MultiStep>
-      {view === "dashboard" && <div className="space-y-8">{children}</div>}
-    </>
+    <MultiStep
+      steps={steps}
+      currentStep={step}
+      furthestStep={progress.furthestStep}
+      onStepChange={progress.review}
+      disabled={busy}
+      hidden={view !== "onboarding"}
+      navigationLabel="Setup progress"
+    >
+      <div className="space-y-3">
+        <h1 className="text-3xl font-semibold tracking-tight">Welcome to Everr</h1>
+        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+          Connect your app to see its traces, logs, and errors. We&apos;ll guide you through the
+          setup process.
+        </p>
+      </div>
+    </MultiStep>
   );
 }

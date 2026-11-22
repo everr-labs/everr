@@ -149,8 +149,8 @@ export function AttributeKeyPicker({
             inputGroupClassName="border-none rounded-none bg-transparent h-8"
             placeholder="Search attributes..."
           />
-          <CommandList>
-            <CommandEmpty>{isLoading ? "Loading..." : "No attributes."}</CommandEmpty>
+          <CommandList loading={isLoading}>
+            <CommandEmpty>{isLoading ? "Loading…" : "No attributes."}</CommandEmpty>
             {suggested.length > 0 && (
               <CommandGroup heading="Suggested">
                 {suggested.map((p) => renderItem(p.source, p.key))}

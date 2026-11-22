@@ -63,13 +63,7 @@ export function TraceExplorer(props: TraceExplorerProps) {
       traceId: props.traceId,
     }),
   );
-  if (isPending)
-    return (
-      <div className="p-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="mt-4 h-96 w-full" />
-      </div>
-    );
+  if (isPending) return <TraceViewerSkeleton onBack={props.onBack} label="Loading trace" />;
   if (error)
     return (
       <RetryError
@@ -124,9 +118,38 @@ function PreparedTraceViewer({
         onRetry={() => void refetch()}
       />
     );
-  if (!data) return <Skeleton className="m-4 h-96" aria-label="Preparing trace" />;
+  if (!data) return <TraceViewerSkeleton onBack={props.onBack} label="Preparing trace" />;
   return (
     <TraceViewer {...props} model={data.model} layoutKey={[...queryKey, "layout", data.version]} />
+  );
+}
+
+/** One shape for both stages (loading the spans, preparing the model), so the
+ *  page does not change shape twice before the trace appears. */
+function TraceViewerSkeleton({ onBack, label }: { onBack: () => void; label: string }) {
+  return (
+    <section
+      aria-busy="true"
+      aria-label={label}
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+        <Button variant="ghost" size="icon-sm" aria-label="Back to traces" onClick={onBack}>
+          <ArrowLeft />
+        </Button>
+        <div aria-hidden className="min-w-0 flex-1">
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3.5 w-64 max-w-full rounded-sm" />
+          </div>
+          <div className="mt-0.5 flex h-4 items-center">
+            <Skeleton className="h-3 w-96 max-w-full rounded-sm" />
+          </div>
+        </div>
+      </div>
+      <div aria-hidden className="min-h-0 flex-1 p-4">
+        <Skeleton className="h-full w-full" />
+      </div>
+    </section>
   );
 }
 

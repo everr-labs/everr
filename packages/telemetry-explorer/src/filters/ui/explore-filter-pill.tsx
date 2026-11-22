@@ -160,7 +160,7 @@ export function ExploreFilterPill<TData>({
             inputGroupClassName="border-none rounded-none bg-transparent h-9"
             placeholder={searchPlaceholder ?? "Search..."}
           />
-          <CommandList>
+          <CommandList loading={isLoading}>
             <CommandEmpty>{isLoading ? "Loading…" : "No results."}</CommandEmpty>
             <CommandGroup>
               <CommandItem

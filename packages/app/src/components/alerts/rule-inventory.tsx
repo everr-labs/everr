@@ -39,7 +39,8 @@ export function RuleInventory({
   openPath,
   onOpen,
 }: {
-  rules: RuleInventoryRow[];
+  /** `undefined` while the triage read is in flight; the body shows placeholder rows. */
+  rules: RuleInventoryRow[] | undefined;
   /** States and instance values per rule, over the window the server read
    *  them for. `undefined` until that query answers: the chart column, axis
    *  included, stands in with skeletons, because the axis is measured
@@ -50,7 +51,7 @@ export function RuleInventory({
   onOpen: (path: string) => void;
 }) {
   return (
-    <section className="pb-6">
+    <section className="pb-6" aria-busy={rules === undefined}>
       {/* The legend leads the only charts left on the page: the reader meets
           the colours before the first row, not after the last. It hides with
           the column it explains, which a narrow list column does not render
@@ -77,7 +78,9 @@ export function RuleInventory({
         <span className={cn(kickerClass, "text-right")}>Silence</span>
       </div>
 
-      {rules.map((row) => (
+      {rules === undefined && <LoadingRuleRows />}
+
+      {rules?.map((row) => (
         <SelectableRow
           key={row.path}
           selected={openPath === row.path}
@@ -112,5 +115,28 @@ export function RuleInventory({
         </SelectableRow>
       ))}
     </section>
+  );
+}
+
+const LOADING_ROW_COUNT = 5;
+
+/** On the inventory's own grid, so rows match in height and columns hide alike. */
+function LoadingRuleRows() {
+  return (
+    <div aria-hidden>
+      {Array.from({ length: LOADING_ROW_COUNT }, (_, i) => (
+        <div key={i} className={cn(COLUMNS, TRIAGE_ROW_INSET, "border-t py-2.5 text-sm")}>
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3.5 w-48 max-w-full rounded-sm" />
+          </div>
+          <div className="hidden @[44rem]/list:block">
+            <Skeleton className="h-3.5 w-full rounded-sm" />
+          </div>
+          <span className="hidden @[50rem]/list:block" />
+          <span className="hidden @[50rem]/list:block" />
+          <span />
+        </div>
+      ))}
+    </div>
   );
 }

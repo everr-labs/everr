@@ -321,8 +321,21 @@ it("does not show the previous organization's progress while the new one loads",
   const { home, rerender } = mount();
   vi.mocked(getHomeStatus).mockImplementation(() => new Promise(() => {}));
   rerender(home("two"));
-  expect(screen.getByLabelText("Loading your setup")).toBeVisible();
+  expect(screen.getByText("Telemetry Usage dashboard")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Finish onboarding" })).toBeNull();
+});
+
+it("shows the dashboard while the status loads", () => {
+  vi.mocked(getHomeStatus).mockImplementation(() => new Promise(() => {}));
+  mount({ preload: false });
+  expect(screen.getByText("Telemetry Usage dashboard")).toBeVisible();
+});
+
+it("shows the setup placeholder, not the dashboard, while a reopened setup loads", () => {
+  vi.mocked(getHomeStatus).mockImplementation(() => new Promise(() => {}));
+  mount({ preload: false, setupRequested: true });
+  expect(screen.getByLabelText("Loading your setup")).toBeVisible();
+  expect(screen.queryByText("Telemetry Usage dashboard")).toBeNull();
 });
 
 it("keeps the issued key visible when another member completes onboarding", async () => {

@@ -12,6 +12,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="dark"
+      // Otherwise sonner calls `getComputedStyle` for the direction on every
+      // render, a full style recalculation. The apps are left-to-right.
+      dir="ltr"
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

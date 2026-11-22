@@ -1,4 +1,3 @@
-import { Spinner } from "@everr/ui/components/spinner";
 import { routeTree } from "@composition/routes";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
@@ -65,11 +64,8 @@ export const getRouter = () => {
     // they just opened. Only when the destination has no hash to scroll to.
     scrollToTopSelectors: ["[data-scroll-to-top]"],
     // defaultPreloadStaleTime: 0,
-    defaultPendingComponent: () => (
-      <div className="flex items-center justify-center h-dvh font-heading text-lg">
-        <Spinner className="size-5 text-primary" />
-      </div>
-    ),
+    // No default pending component: navigations keep the current page and show
+    // `NavigationProgress`. Routes that know their shape set `pendingComponent`.
   });
 
   registerRouter(router);

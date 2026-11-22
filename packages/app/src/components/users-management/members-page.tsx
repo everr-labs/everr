@@ -1,6 +1,6 @@
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { PageHeader } from "#app/components/page-header.tsx";
 import { InvitationsTable } from "#app/components/users-management/invitations-table.tsx";
 import { InviteMemberDialog } from "#app/components/users-management/invite-member-dialog.tsx";
@@ -20,6 +20,15 @@ function MembersSkeleton() {
       ))}
     </div>
   );
+}
+
+/** Loaded by the route before render, so the invitations card does not push
+ *  the table down when it lands. Never throws. */
+export function prefetchMembersPage(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.prefetchQuery(membersQueryOptions()),
+    queryClient.prefetchQuery(invitationsQueryOptions()),
+  ]).then(() => undefined);
 }
 
 export function OrganizationMembersPage() {

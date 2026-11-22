@@ -97,7 +97,7 @@ export function buildAllMeta(
   values: VariableValues,
   optionsByName: Record<
     string,
-    { options?: string[]; error?: string; truncated?: boolean } | undefined
+    { options?: string[]; isPending?: boolean; error?: string; truncated?: boolean } | undefined
   >,
 ): {
   meta: VariableMeta;
@@ -127,7 +127,8 @@ export function buildAllMeta(
       allErrors[name] = `Variable "$${name}" has too many values to expand "All"`;
       continue;
     }
-    if (state?.options) {
+    // Options kept from the previous time range may lack values the new one has.
+    if (state?.options && !state.isPending) {
       meta[name] = { options: state.options };
     } else {
       pendingAllNames.push(name);

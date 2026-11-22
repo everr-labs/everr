@@ -1,3 +1,4 @@
+import { staleProps } from "@everr/ui/lib/stale";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -213,7 +214,7 @@ export function LogInspectorPanel({
             Failed to load log details
           </div>
         ) : detail ? (
-          <div className={cn("transition-opacity", isPlaceholderData && "opacity-50")}>
+          <div {...staleProps(isPlaceholderData)}>
             <LogInspectorDetails
               detail={detail}
               renderRunLink={renderRunLink}

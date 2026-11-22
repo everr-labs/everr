@@ -148,4 +148,10 @@ function ScrollAreaScroller({
 // keeps every list on the same stable identity, with no memoisation per list.
 const virtuosoScrollAreaComponents = { Scroller: ScrollAreaScroller };
 
-export { ScrollArea, ScrollAreaScroller, virtuosoScrollAreaComponents };
+// Virtuoso renders the footer before any items until it has measured, so the
+// first frame showed "Showing N events" at the top. Rows up front fill it.
+function virtuosoInitialItemCount(itemCount: number) {
+  return Math.min(itemCount, 60);
+}
+
+export { ScrollArea, ScrollAreaScroller, virtuosoInitialItemCount, virtuosoScrollAreaComponents };

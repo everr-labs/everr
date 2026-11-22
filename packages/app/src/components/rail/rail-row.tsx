@@ -1,3 +1,4 @@
+import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { kickerClass } from "@everr/ui/lib/typography";
 import { cn } from "@everr/ui/lib/utils";
 import { createLink, type LinkComponentProps, type RegisteredRouter } from "@tanstack/react-router";
@@ -67,3 +68,23 @@ export const RailRow: <
     TMaskTo
   > & { activeProps?: never },
 ) => ReactElement = createLink(RailRowAnchor);
+
+/** Matches the real row height, including its 40px touch target in a drawer. */
+export function RailRowsSkeleton({ count = 3, label }: { count?: number; label: string }) {
+  return (
+    <div aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden>
+        {Array.from({ length: count }, (_, i) => (
+          <div
+            key={i}
+            className="flex min-h-8 items-center gap-2.5 px-2 in-data-side-drawer:min-h-10"
+          >
+            <Skeleton className="size-4 shrink-0 rounded-sm" />
+            <Skeleton className="h-3 rounded-sm" style={{ width: raggedWidth(i, 55, 85) }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

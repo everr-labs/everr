@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { useOverlayContent } from "@everr/ui/hooks/use-retained";
 import {
   Dialog,
   DialogContent,
@@ -76,21 +77,22 @@ export function SilenceDialog({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
+  const { open, shown, key } = useOverlayContent(seed);
   return (
     <Dialog
-      open={seed !== null}
+      open={open}
       onOpenChange={(next) => {
         if (!next && !pending) onClose();
       }}
     >
-      {seed && (
+      {shown && (
         // Remounted per opening, so the fields start from whatever seeded
         // this one instead of holding the last opening's text. A `key` says
         // that in one line; syncing props into state with an effect would be
         // the same fact, spelled as a bug.
         <SilenceForm
-          key={JSON.stringify(seed)}
-          seed={seed}
+          key={key}
+          seed={shown}
           instanceCount={instanceCount}
           pending={pending}
           onClose={onClose}

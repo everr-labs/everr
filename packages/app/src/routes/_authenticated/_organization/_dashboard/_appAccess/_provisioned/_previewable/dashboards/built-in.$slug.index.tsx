@@ -30,9 +30,10 @@ function BuiltinDashboardPage() {
   // same query cache entry), so this page can never call a dashboard unready
   // while the list files it under ready, or the other way around. The
   // on-screen range only affects what the panels draw.
-  const capabilities = useQuery(
+  const capabilitiesQuery = useQuery(
     telemetryCapabilitiesOptions(DEFAULT_TIME_RANGE.from, DEFAULT_TIME_RANGE.to),
-  ).data;
+  );
+  const capabilities = capabilitiesQuery.data;
   // The loader already 404s unknown slugs; this only narrows the type.
   if (!builtin) throw notFound();
 
@@ -62,8 +63,10 @@ function BuiltinDashboardPage() {
       <DashboardGrid
         address={{ kind: "built-in", slug }}
         notice={notice}
+        // No action until the probe answers: showing "Create" and then swapping
+        // it for the instrumentation prompt changed the button under the pointer.
         actions={
-          needsSetup ? (
+          !readiness && capabilitiesQuery.isPending ? null : needsSetup ? (
             <InstrumentFromBuiltin name={builtin.name} missing={needsSetup.missing} />
           ) : (
             <CreateFromBuiltin slug={builtin.id} name={builtin.name} />

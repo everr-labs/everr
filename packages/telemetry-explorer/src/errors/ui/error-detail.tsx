@@ -1,3 +1,4 @@
+import { staleProps } from "@everr/ui/lib/stale";
 import { Button } from "@everr/ui/components/button";
 import {
   Empty,
@@ -49,14 +50,18 @@ export function ErrorDetail({
   renderOccurrenceLink,
   renderTracePanel,
 }: ErrorDetailProps) {
-  const issueQuery = useQuery(
-    errorIssueOptions(repo, {
+  const issueQuery = useQuery({
+    ...errorIssueOptions(repo, {
       fingerprint,
       timeRange,
       service,
       occurrenceLimit: OCCURRENCE_LIMIT,
     }),
-  );
+    // Another error's detail never stands in for this one.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === fingerprint ? previous : undefined,
+  });
+  const stale = issueQuery.isPlaceholderData;
 
   if (issueQuery.isPending) return <ErrorDetailSkeleton />;
 
@@ -105,27 +110,28 @@ export function ErrorDetail({
         onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
-      <ErrorOccurrenceBar
-        occurrences={detail.occurrences}
-        selected={selected}
-        totalCount={detail.summary.occurrenceCount}
-        renderOccurrenceLink={renderOccurrenceLink}
-      />
-      <ScrollArea render={<main />} className="min-h-0 flex-1">
-        {/* The column is centred inside a full-width scroller, so its width
-            bound belongs to a child: on the viewport it would narrow the
-            scrolling box itself and pull the scrollbar in with it. */}
-        <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
-          <ErrorStacktrace
-            stacktrace={selected.exceptionStacktrace}
-            message={selected.exceptionMessage}
-            emptyText="This occurrence has no stack trace."
-          />
-          <ErrorStacktrace title="Component stack" stacktrace={componentStack} />
-          {renderTracePanel?.({ occurrence: selected })}
-          <ErrorAttributes occurrence={selected} />
-        </div>
-      </ScrollArea>
+      <div {...staleProps(stale, "flex min-h-0 flex-1 flex-col")}>
+        <ErrorOccurrenceBar
+          occurrences={detail.occurrences}
+          selected={selected}
+          totalCount={detail.summary.occurrenceCount}
+          renderOccurrenceLink={renderOccurrenceLink}
+        />
+        <ScrollArea render={<main />} className="min-h-0 flex-1">
+          {/* The width bound sits on a child: on the viewport it would narrow
+            the scroller and pull the scrollbar in with it. */}
+          <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 pt-5 pb-10">
+            <ErrorStacktrace
+              stacktrace={selected.exceptionStacktrace}
+              message={selected.exceptionMessage}
+              emptyText="This occurrence has no stack trace."
+            />
+            <ErrorStacktrace title="Component stack" stacktrace={componentStack} />
+            {renderTracePanel?.({ occurrence: selected })}
+            <ErrorAttributes occurrence={selected} />
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 }

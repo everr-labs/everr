@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
+import { useState } from "react";
 import type { VariableMeta, VariableValues } from "#app/data/dashboards/interpolate.ts";
 import { variableOptionsQueryOptions } from "#app/data/dashboards/options.ts";
 import type { Variable } from "#app/data/dashboards/schema.ts";
@@ -58,6 +59,17 @@ export function useDashboardVariables(): DashboardVariablesState {
   const optionQueries = useQueries({
     queries: queryBacked.map(({ query }) => variableOptionsQueryOptions(query, from, to)),
   });
+
+  // The last options each query answered, kept through a range change:
+  // `useQueries` gives a changed key a fresh observer, so `placeholderData` cannot.
+  const [lastOptions, setLastOptions] = useState<Record<string, string[]>>({});
+  const answered = queryBacked.flatMap(({ query }, index) => {
+    const options = optionQueries[index]?.data?.options;
+    return options && lastOptions[query] !== options ? [[query, options] as const] : [];
+  });
+  if (answered.length > 0) {
+    setLastOptions((previous) => ({ ...previous, ...Object.fromEntries(answered) }));
+  }
   const queryStateByName = new Map(
     queryBacked.map(({ name }, index) => [name, optionQueries[index]]),
   );
@@ -73,10 +85,11 @@ export function useDashboardVariables(): DashboardVariablesState {
       };
     } else if (source.kind === "query") {
       const query = queryStateByName.get(variable.spec.name);
+      const options = query?.data?.options ?? lastOptions[source.query];
       optionsState[variable.spec.name] = {
-        options: query?.data?.options
-          ? sortVariableOptions(query.data.options, variable.spec.sort)
-          : query?.data?.options,
+        options: options ? sortVariableOptions(options, variable.spec.sort) : options,
+        // Still pending while it shows the previous range's options: "All" must
+        // not resolve against options the new range may not have.
         isPending: query?.isPending ?? true,
         error: query?.error
           ? query.error instanceof Error

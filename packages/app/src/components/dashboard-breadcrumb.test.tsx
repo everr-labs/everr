@@ -1,8 +1,12 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, type Mock, vi } from "vite-plus/test";
 
 vi.mock("@tanstack/react-router", () => ({
   useMatches: vi.fn(),
+  useRouter: () => ({ matchRoutes: () => [] }),
+  // No navigation in flight: the breadcrumb reads the presented matches.
+  useRouterState: () => undefined,
   Link: ({
     to,
     from,
@@ -39,6 +43,11 @@ import { DashboardBreadcrumb } from "./dashboard-breadcrumb";
 
 const mockUseMatches = useMatches as Mock;
 
+const queryClient = new QueryClient();
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+);
+
 function makeMatch(
   fullPath: string,
   breadcrumb?:
@@ -56,13 +65,13 @@ function makeMatch(
 describe("DashboardBreadcrumb", () => {
   it("returns null when no matches have breadcrumb data", () => {
     mockUseMatches.mockReturnValue([{ fullPath: "/", staticData: {} }]);
-    const { container } = render(<DashboardBreadcrumb />);
+    const { container } = render(<DashboardBreadcrumb />, { wrapper });
     expect(container.innerHTML).toBe("");
   });
 
   it("renders a single breadcrumb as a page (not a link)", () => {
     mockUseMatches.mockReturnValue([makeMatch("/", "Overview")]);
-    const { container } = render(<DashboardBreadcrumb />);
+    const { container } = render(<DashboardBreadcrumb />, { wrapper });
 
     expect(screen.getByText("Overview")).toBeInTheDocument();
     expect(
@@ -79,7 +88,7 @@ describe("DashboardBreadcrumb", () => {
         params: { traceId: "abc123" },
       }),
     ]);
-    const { container } = render(<DashboardBreadcrumb />);
+    const { container } = render(<DashboardBreadcrumb />, { wrapper });
 
     const runsLink = screen.getByText("Runs").closest("a");
     expect(runsLink).toHaveAttribute("href", "/runs");
@@ -103,7 +112,7 @@ describe("DashboardBreadcrumb", () => {
         loaderData: { runDetails: { workflowName: "CI Build" } },
       }),
     ]);
-    render(<DashboardBreadcrumb />);
+    render(<DashboardBreadcrumb />, { wrapper });
 
     expect(screen.getByText("CI Build")).toBeInTheDocument();
   });
@@ -114,7 +123,7 @@ describe("DashboardBreadcrumb", () => {
       makeMatch("/runs", "Runs"),
       { fullPath: "/runs/abc123/jobs/1", staticData: {} },
     ]);
-    render(<DashboardBreadcrumb />);
+    render(<DashboardBreadcrumb />, { wrapper });
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
@@ -127,7 +136,7 @@ describe("DashboardBreadcrumb", () => {
         params: { traceId: "abc123" },
       }),
     ]);
-    render(<DashboardBreadcrumb />);
+    render(<DashboardBreadcrumb />, { wrapper });
 
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("Runs").closest("[data-slot='breadcrumb-page']")).toBeInTheDocument();
@@ -158,7 +167,7 @@ describe("DashboardBreadcrumb", () => {
         params: { project: "my-proj", slug: "overview" },
       }),
     ]);
-    const { container } = render(<DashboardBreadcrumb />);
+    const { container } = render(<DashboardBreadcrumb />, { wrapper });
 
     // First two are links, last is a page
     const rootLink = screen.getByText("Dashboards").closest("a");
