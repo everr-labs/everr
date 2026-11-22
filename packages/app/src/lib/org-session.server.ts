@@ -3,8 +3,8 @@ import { db } from "#app/db/client.ts";
 import { findOrganizationForMember } from "#app/lib/organization-membership.server.ts";
 import { getSession } from "#app/lib/session.server.ts";
 import {
-  EXPECTED_ORGANIZATION_HEADER,
   ORGANIZATION_CHANGED,
+  pageShowsAnotherOrganization,
 } from "#app/lib/expected-organization.ts";
 
 /** An auth failure that carries the HTTP status a route should answer with. */
@@ -79,8 +79,9 @@ export async function resolveOrganizationAccess(
 
 /** Refuses a request from a page that shows another organization than the session's. */
 export function assertExpectedOrganization(headers: Headers, organizationId: string) {
-  const expected = headers.get(EXPECTED_ORGANIZATION_HEADER);
-  if (expected && expected !== organizationId) throw new AuthError(ORGANIZATION_CHANGED, 409);
+  if (pageShowsAnotherOrganization(headers, organizationId)) {
+    throw new AuthError(ORGANIZATION_CHANGED, 409);
+  }
 }
 
 export async function resolveOrgSession(headers: Headers) {
