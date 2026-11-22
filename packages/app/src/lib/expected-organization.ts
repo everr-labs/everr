@@ -1,4 +1,6 @@
-export const EXPECTED_ORGANIZATION_HEADER = "x-everr-expected-organization";
+// Private to this module, and its literal is banned elsewhere by lint: the
+// header is client input and must never select an organization.
+const EXPECTED_ORGANIZATION_HEADER = "x-everr-expected-organization";
 export const ORGANIZATION_CHANGED = "Active organization changed";
 
 // Every tab shares one session, active organization included, so it can change
@@ -16,4 +18,13 @@ export function expectedOrganizationHeaders(): Record<string, string> | undefine
   return expectedOrganizationId
     ? { [EXPECTED_ORGANIZATION_HEADER]: expectedOrganizationId }
     : undefined;
+}
+
+/**
+ * A staleness check, not authorization: the client controls this header, so it
+ * can only refuse a request, never choose the organization it acts on.
+ */
+export function pageShowsAnotherOrganization(headers: Headers, organizationId: string) {
+  const expected = headers.get(EXPECTED_ORGANIZATION_HEADER);
+  return expected !== null && expected !== "" && expected !== organizationId;
 }

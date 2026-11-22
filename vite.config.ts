@@ -245,6 +245,28 @@ export default defineConfig({
         },
       },
       {
+        // The expected-organization header is client input. Only its module may
+        // name it, so no server code can read it and scope data by it.
+        files: ["packages/app/src/**/*.{ts,tsx}"],
+        excludeFiles: [
+          "packages/app/src/lib/expected-organization.ts",
+          // Composition files configure this same rule in oxlint.boundaries.mts.
+          "packages/app/src/composition/**",
+          "**/*.test.{ts,tsx}",
+        ],
+        rules: {
+          "eslint-js/no-restricted-syntax": [
+            "error",
+            {
+              selector:
+                "Literal[value=/^x-everr-expected-organization$/i], TemplateElement[value.raw=/x-everr-expected-organization/i]",
+              message:
+                "Use pageShowsAnotherOrganization(): the expected-organization header is client input and must never select an organization.",
+            },
+          ],
+        },
+      },
+      {
         // Tests lean on assertions for mocks/fixtures where the type is known by
         // construction; only the assertion bans are relaxed here. Everything else
         // (including no-explicit-any) stays on in tests.
