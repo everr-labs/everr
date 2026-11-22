@@ -32,6 +32,10 @@ const browserTelemetry = resolveBrowserTelemetryConfig({
 new WebSDK({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
   serviceName: "everr-dev-app-web",
+  // Without it the SDK reports its own version, not the app's. Development
+  // matches the server's "local-dev".
+  serviceVersion:
+    import.meta.env.VITE_SERVICE_VERSION || (import.meta.env.DEV ? "local-dev" : undefined),
   deploymentEnvironment: import.meta.env.MODE,
   // Pass credentials only when this build has selected a destination.
   ingestKey: browserTelemetry.ingestKey,

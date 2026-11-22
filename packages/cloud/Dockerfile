@@ -22,6 +22,10 @@ FROM deps AS build
 # Vite at build time. Optional: when unset, browser error tracking stays off.
 ARG VITE_EVERR_PUBLIC_INGEST_KEY
 ENV VITE_EVERR_PUBLIC_INGEST_KEY=$VITE_EVERR_PUBLIC_INGEST_KEY
+# The build version, reported as `service.version` by the browser
+# bundle (inlined by Vite) and by the server (set in the runner stage).
+ARG SERVICE_VERSION
+ENV VITE_SERVICE_VERSION=$SERVICE_VERSION
 COPY packages/otel-errors ./packages/otel-errors
 COPY packages/otel-web ./packages/otel-web
 COPY packages/tanstack-start-otel ./packages/tanstack-start-otel
@@ -58,6 +62,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Nitro includes the runtime dependencies in its standalone output.
 COPY --from=build /app/packages/cloud/.output ./.output
+ARG SERVICE_VERSION
+ENV SERVICE_VERSION=$SERVICE_VERSION
 
 EXPOSE 3000
 CMD [".output/server/index.mjs"]

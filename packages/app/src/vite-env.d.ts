@@ -12,4 +12,6 @@ interface ImportMetaEnv {
    * development can use the local collector.
    */
   readonly VITE_EVERR_INGEST_ENDPOINT?: string;
+  /** `service.version` of the browser telemetry. The image build sets it. */
+  readonly VITE_SERVICE_VERSION?: string;
 }
