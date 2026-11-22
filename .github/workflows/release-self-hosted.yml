@@ -86,7 +86,10 @@ jobs:
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.file }}
-          build-args: ${{ matrix.image.build-args }}
+          # The collector image ignores SERVICE_VERSION.
+          build-args: |
+            ${{ matrix.image.build-args }}
+            SERVICE_VERSION=${{ steps.version.outputs.version }}
           platforms: linux/${{ matrix.platform.arch }}
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.IMAGE_PREFIX }}/${{ matrix.image.name }},push-by-digest=true,name-canonical=true,push=true
