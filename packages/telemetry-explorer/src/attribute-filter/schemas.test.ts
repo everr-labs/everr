@@ -22,7 +22,7 @@ describe("attributeValuesInputSchema", () => {
   it("accepts a supported source", () => {
     expect(
       tracesValues.parse({
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
       }).source,
@@ -32,7 +32,7 @@ describe("attributeValuesInputSchema", () => {
   it("rejects a source the domain does not support", () => {
     expect(() =>
       tracesValues.parse({
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "log",
         key: "k",
       }),

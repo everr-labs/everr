@@ -1,4 +1,4 @@
-import { resolveTimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { calculateCost } from "#app/lib/runner-pricing.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
@@ -42,7 +42,7 @@ export const getWorkflowCostSummary = createAuthenticatedServerFn({
 })
   .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { fromDate, toDate, fromISO, toISO } = parseExactTimeRange(data.timeRange);
     const periodMs = toDate.getTime() - fromDate.getTime();
     const prevFromISO = toClickHouseDateTime(new Date(fromDate.getTime() - periodMs));
 
@@ -180,7 +180,7 @@ export const getWorkflowCostByJob = createAuthenticatedServerFn({
 })
   .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(data.timeRange);
 
     const rows = await clickhouse.query<{
       job: string;
@@ -242,7 +242,7 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
 })
   .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(data.timeRange);
 
     // The most recent runs that actually recorded timing (skip queued / in
     // progress), newest first.
@@ -359,7 +359,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
 })
   .validator(WorkflowDetailInputSchema)
   .handler(async ({ data, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(data.timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(data.timeRange);
     const queryParams = {
       fromTime: fromISO,
       toTime: toISO,

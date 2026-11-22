@@ -1,5 +1,5 @@
 import {
-  TimeRangeSchema,
+  ExactTimeRangeSchema,
   LenientTimeRangeSearchSchema as TimeRangeSearchSchema,
 } from "@everr/ui/lib/time-range";
 import { z } from "zod";
@@ -68,7 +68,7 @@ export const ListErrorServicesInputSchema = z.object({
 export type ListErrorServicesInput = z.infer<typeof ListErrorServicesInputSchema>;
 
 export const ErrorAttributeKeysInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
 });
 export type ErrorAttributeKeysInput = z.infer<typeof ErrorAttributeKeysInputSchema>;
 

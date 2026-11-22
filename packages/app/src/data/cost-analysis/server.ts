@@ -1,5 +1,5 @@
 import { bucketStartMs, UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import { TimeRangeInputSchema } from "#app/data/analytics/schemas.ts";
 import { nonEmptyResourceAttribute, resourceAttribute } from "#app/data/run-query-helpers.ts";
@@ -43,7 +43,7 @@ export const getCostOverview = createAuthenticatedServerFn({
 })
   .validator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
       SELECT
@@ -119,7 +119,7 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
 })
   .validator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
       SELECT
@@ -206,7 +206,7 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
       data: { timeRange, dimension, utcOffsetMinutes },
       context: { clickhouse },
     }): Promise<CostOverTimeBreakdown> => {
-      const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(timeRange);
+      const { fromISO, toISO, fromDate, toDate } = parseExactTimeRange(timeRange);
       const granularity = getBucketGranularity(fromDate, toDate);
       const keyAttribute =
         dimension === "repo" ? RESOURCE_ATTRIBUTE_KEYS.repo : RESOURCE_ATTRIBUTE_KEYS.runnerLabels;

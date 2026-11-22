@@ -1,4 +1,4 @@
-import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { attributeKeysColumn, attributeText } from "../../sql/json-attributes";
 import { validateTableName } from "../../sql/table";
 import type { AttributeSource } from "../schemas";
@@ -36,7 +36,7 @@ export function buildAttributeValuesQuery(
   const timeBound = opts.timeBound ?? ((param) => `parseDateTimeBestEffort({${param}:String})`);
   const column = opts.columnFor(input.source);
   const value = attributeText(column, input.key);
-  const { fromISO, toISO } = resolveTimeRange(input.timeRange);
+  const { fromISO, toISO } = parseExactTimeRange(input.timeRange);
   const params: Record<string, unknown> = {
     fromTime: fromISO,
     toTime: toISO,

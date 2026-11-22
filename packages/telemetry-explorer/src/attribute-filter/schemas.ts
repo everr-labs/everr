@@ -1,4 +1,4 @@
-import { type TimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { type TimeRange, ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
 // Superset of every domain's attribute maps. Logs/errors use resource|log|scope;
@@ -66,7 +66,7 @@ export function attributeValuesInputSchema(allowed: readonly AttributeSource[]) 
   const supported = new Set<AttributeSource>(allowed);
   return z
     .object({
-      timeRange: TimeRangeSchema,
+      timeRange: ExactTimeRangeSchema,
       source: AttributeSourceSchema,
       key: z.string().min(1),
       search: z.string().optional(),

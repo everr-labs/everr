@@ -4,7 +4,7 @@ import { buildTotalsQuery, decodeTotalsRows } from "./totals";
 describe("buildTotalsQuery", () => {
   it("computes totals over a level-uncoupled subquery", () => {
     const built = buildTotalsQuery({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
       levels: ["error"],
       services: [],
       attributes: [],

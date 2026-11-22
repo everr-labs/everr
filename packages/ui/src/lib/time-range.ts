@@ -45,6 +45,12 @@ export const TimeRangeSchema = z.object({
   to: datemath.catch(DEFAULT_TIME_RANGE.to),
 });
 
+/**
+ * A range the browser already resolved in the viewer's zone, sent to a server
+ * as two exact timestamps. Read it with `parseExactTimeRange`.
+ */
+export const ExactTimeRangeSchema = z.object({ from: z.iso.datetime(), to: z.iso.datetime() });
+
 export const ResolvedTimeRangeSearchSchema = TimeRangeSchema.extend({
   from: TimeRangeSchema.shape.from.default(DEFAULT_TIME_RANGE.from),
   to: TimeRangeSchema.shape.to.default(DEFAULT_TIME_RANGE.to),
@@ -76,6 +82,18 @@ export function withTimeRange<T extends { from?: string; to?: string }>(
 export function resolveTimeRange(range: TimeRange, now = new Date()) {
   const fromDate = resolve(range.from, { now, roundUp: false });
   const toDate = resolve(range.to, { now, roundUp: true });
+  return {
+    fromDate,
+    toDate,
+    fromISO: toClickHouseDateTime(fromDate),
+    toISO: toClickHouseDateTime(toDate),
+  };
+}
+
+/** Reads an `ExactTimeRangeSchema` range in the shape `resolveTimeRange` returns. */
+export function parseExactTimeRange(range: TimeRange) {
+  const fromDate = new Date(range.from);
+  const toDate = new Date(range.to);
   return {
     fromDate,
     toDate,

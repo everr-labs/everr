@@ -58,8 +58,8 @@ describe("getRunsList", () => {
         limit: 15,
         offset: 30,
         timeRange: {
-          from: "now-7d",
-          to: "now",
+          from: "2026-06-03T00:00:00.000Z",
+          to: "2026-06-10T00:00:00.000Z",
         },
       },
     });
@@ -126,8 +126,8 @@ describe("getRunsList", () => {
     const result = await getRunsList({
       data: {
         timeRange: {
-          from: "now-7d",
-          to: "now",
+          from: "2026-06-03T00:00:00.000Z",
+          to: "2026-06-10T00:00:00.000Z",
         },
       },
     });
@@ -190,8 +190,8 @@ describe("getRunsList", () => {
     const result = await getRunsList({
       data: {
         timeRange: {
-          from: "now-7d",
-          to: "now",
+          from: "2026-06-03T00:00:00.000Z",
+          to: "2026-06-10T00:00:00.000Z",
         },
       },
     });
@@ -230,7 +230,7 @@ describe("getRunsList", () => {
       });
 
     const result = await getRunsList({
-      data: { timeRange: { from: "now-7d", to: "now" } },
+      data: { timeRange: { from: "2026-06-03T00:00:00.000Z", to: "2026-06-10T00:00:00.000Z" } },
     });
 
     expect(result.runs[0]).toMatchObject({

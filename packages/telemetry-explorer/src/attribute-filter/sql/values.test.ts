@@ -12,7 +12,7 @@ describe("buildAttributeValuesQuery", () => {
   it("selects distinct non-empty values for the key with the source column", () => {
     const { sql, params } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
       },
@@ -30,7 +30,7 @@ describe("buildAttributeValuesQuery", () => {
   it("adds a substring filter when a search term is given", () => {
     const { sql, params } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
         search: "/api",
@@ -46,7 +46,7 @@ describe("buildAttributeValuesQuery", () => {
   it("scopes the scan with an optional row predicate", () => {
     const { sql } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
       },
@@ -58,7 +58,7 @@ describe("buildAttributeValuesQuery", () => {
   it("ignores a blank search term", () => {
     const { sql, params } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
         search: "   ",
@@ -73,7 +73,7 @@ describe("buildAttributeValuesQuery", () => {
     expect(() =>
       buildAttributeValuesQuery(
         {
-          timeRange: { from: "now-1h", to: "now" },
+          timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
           source: "resource",
           key: "k",
         },
@@ -89,7 +89,7 @@ describe("buildAttributeValuesQuery", () => {
   it("uses an injected time column when provided", () => {
     const { sql } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
       },
@@ -102,7 +102,7 @@ describe("buildAttributeValuesQuery", () => {
   it("uses an injected time-bound parser for both bounds", () => {
     const { sql } = buildAttributeValuesQuery(
       {
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         source: "span",
         key: "http.route",
       },

@@ -1,4 +1,4 @@
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange } from "@everr/ui/lib/time-range";
 import type { LogLevel, LogsTotalsInput, LogsTotalsResult } from "../schemas";
 import type { BuiltQuery } from "./explorer";
 import { LOG_LEVEL_EXPR, LOG_LEVELS } from "./level-expr";
@@ -13,7 +13,7 @@ export function buildTotalsQuery(
 ): BuiltQuery {
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
-  const { fromISO, toISO } = resolveTimeRange(input.timeRange);
+  const { fromISO, toISO } = parseExactTimeRange(input.timeRange);
   const where = buildWhereClause({ ...input, includeLevels: false });
   const sql = `
       SELECT

@@ -1,4 +1,4 @@
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import type { RunListItem } from "../runs-list/schemas";
 
@@ -63,7 +63,7 @@ export interface WorkflowRunListItem extends RunListItem {
 // ── Input Schemas ───────────────────────────────────────────────────────
 
 export const WorkflowDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   workflowName: z.string(),
   repo: z.string(),
 });
