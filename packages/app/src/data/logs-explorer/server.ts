@@ -8,7 +8,7 @@ import {
   LogsTotalsInputSchema,
   type SqlClient,
 } from "@everr/telemetry-explorer/logs";
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
@@ -40,7 +40,7 @@ export const getLogsHistogram = createAuthenticatedServerFn({ method: "GET" })
 export const getLogFilterOptions = createAuthenticatedServerFn({
   method: "GET",
 })
-  .validator(z.object({ timeRange: TimeRangeSchema }))
+  .validator(z.object({ timeRange: ExactTimeRangeSchema }))
   .handler(({ data, context: { clickhouse } }) => repoFromContext(clickhouse).filterOptions(data));
 
 export const getLogAttributeKeys = createAuthenticatedServerFn({

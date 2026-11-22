@@ -1,8 +1,8 @@
 import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
 import {
-  resolveTimeRange,
+  ExactTimeRangeSchema,
+  parseExactTimeRange,
   toClickHouseDateTimeSeconds,
-  withTimeRange,
 } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -30,10 +30,9 @@ import { testDataSpec } from "./testdata/spec";
 const PANEL_TARGET_POINTS = 500;
 
 /**
- * Shared panel and variable parameters, including the adaptive `{step}`. The
- * app sends the range already resolved in the viewer's zone; a relative range
- * from an older client still resolves here. Bounds are rounded
- * outward to whole seconds because DateTime columns refuse fractional literals.
+ * Shared panel and variable parameters, including the adaptive `{step}`.
+ * Bounds are rounded outward to whole seconds because DateTime columns refuse
+ * fractional literals.
  * `window` is the exact range the query covers, returned to the client so the
  * panel axis renders over it.
  *
@@ -47,11 +46,11 @@ function resolveDashboardQuery({
   alignToStep = false,
   ...range
 }: {
-  from?: string;
-  to?: string;
+  from: string;
+  to: string;
   alignToStep?: boolean;
 }) {
-  const { fromDate, toDate } = resolveTimeRange(withTimeRange(range));
+  const { fromDate, toDate } = parseExactTimeRange(range);
   const step = bucketSeconds(fromDate, toDate, PANEL_TARGET_POINTS);
   const from = new Date(bucketStartMs(fromDate.getTime(), alignToStep ? step : 1, 0));
   const to = new Date(Math.ceil(toDate.getTime() / 1000) * 1000);
@@ -213,9 +212,9 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
 export const getTelemetryCapabilities = createAuthenticatedServerFn({
   method: "GET",
 })
-  .validator(z.object({ from: z.string(), to: z.string() }))
-  .handler(async ({ data: { from, to }, context }) => {
-    const { fromISO, toISO } = resolveTimeRange({ from, to });
+  .validator(ExactTimeRangeSchema)
+  .handler(async ({ data, context }) => {
+    const { fromISO, toISO } = parseExactTimeRange(data);
     const rows = await context.sql.query<CapabilityRow>(buildCapabilitiesQuery(), {
       from: fromISO,
       to: toISO,
@@ -239,8 +238,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
   .validator(
     z.object({
       source: querySource,
-      from: z.string().optional(),
-      to: z.string().optional(),
+      ...ExactTimeRangeSchema.shape,
       alignToStep: z.boolean(),
       variables: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
       variableMeta: z
@@ -299,8 +297,7 @@ export const runVariableOptionsQuery = createAuthenticatedServerFn({
   .validator(
     z.object({
       query: z.string().min(1),
-      from: z.string().optional(),
-      to: z.string().optional(),
+      ...ExactTimeRangeSchema.shape,
     }),
   )
   .handler(async ({ data: { query, from, to }, context }) => {

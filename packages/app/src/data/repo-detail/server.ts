@@ -1,4 +1,4 @@
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange } from "@everr/ui/lib/time-range";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 import {
   type ActiveBranch,
@@ -15,7 +15,7 @@ export const getRepoStats = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -63,7 +63,7 @@ export const getRepoSuccessRateTrend = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -110,7 +110,7 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -144,7 +144,7 @@ export const getRepoRecentRuns = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -192,7 +192,7 @@ export const getTopFailingJobs = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT
@@ -238,7 +238,7 @@ export const getActiveBranches = createAuthenticatedServerFn({
 })
   .validator(RepoDetailInputSchema)
   .handler(async ({ data: { timeRange, repo }, context: { clickhouse } }) => {
-    const { fromISO, toISO } = resolveTimeRange(timeRange);
+    const { fromISO, toISO } = parseExactTimeRange(timeRange);
 
     const sql = `
 			SELECT

@@ -1,4 +1,4 @@
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange } from "@everr/ui/lib/time-range";
 import type { LogExplorerRow, LogLevel, LogsExplorerInput } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import { LOG_LEVEL_EXPR } from "./level-expr";
@@ -26,7 +26,7 @@ export function buildExplorerQuery(
 ): BuiltQuery {
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
-  const { fromISO, toISO } = resolveTimeRange(input.timeRange);
+  const { fromISO, toISO } = parseExactTimeRange(input.timeRange);
   const where = buildWhereClause(input);
   const sql = `
       SELECT

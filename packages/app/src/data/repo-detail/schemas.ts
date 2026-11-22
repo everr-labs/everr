@@ -1,8 +1,8 @@
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
 const RepoDetailInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   repo: z.string(),
 });
 

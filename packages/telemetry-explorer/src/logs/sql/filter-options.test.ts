@@ -4,7 +4,7 @@ import { buildFilterOptionsQuery, decodeFilterOptionsRows } from "./filter-optio
 describe("buildFilterOptionsQuery", () => {
   it("queries distinct services within range", () => {
     const built = buildFilterOptionsQuery({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
     });
     expect(built.sql).toContain("DISTINCT ServiceName");
     expect(typeof built.params.fromTime).toBe("string");

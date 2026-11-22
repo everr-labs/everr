@@ -1,4 +1,4 @@
-import { resolveTimeRange, toClickHouseDateTimeSeconds } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange, toClickHouseDateTimeSeconds } from "@everr/ui/lib/time-range";
 import type {
   AttributeFilter,
   AttributeKey,
@@ -826,7 +826,7 @@ export class MetricsRepository implements MetricsRepositoryLike {
 
   async catalog(raw: MetricCatalogInput): Promise<MetricCatalogEntry[]> {
     const input = MetricCatalogInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const where = baseWhere(input);
 
     const parts = kindScope(input.kinds).map(
@@ -877,7 +877,7 @@ LIMIT ${METRIC_LIST_LIMIT}`;
    */
   async metadata(raw: MetricMetadataInput): Promise<MetricMetadata | null> {
     const input = MetricMetadataInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const where = baseWhere(input);
     const type = input.type;
     const rows = await this.client.execute<
@@ -914,7 +914,7 @@ HAVING sampled > 0`,
 
   async names(raw: MetricNamesInput): Promise<MetricNameEntry[]> {
     const input = MetricNamesInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const where = baseWhere(input);
     // DISTINCT over the sort key's columns, without the catalog's counts:
     // a few hundred milliseconds over 30 days where the catalog takes seconds.
@@ -951,7 +951,7 @@ LIMIT ${METRIC_LIST_LIMIT}`,
   /** Every kind in range, where `names` stops at its first metrics by name. */
   async kinds(raw: MetricNamesInput): Promise<MetricKind[]> {
     const input = MetricNamesInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const where = baseWhere(input);
     const parts = MetricTypeSchema.options.map(
       (type) => `
@@ -973,7 +973,7 @@ LIMIT ${METRIC_LIST_LIMIT}`,
 
   async series(raw: MetricSeriesInput): Promise<MetricSeriesResult> {
     const input = MetricSeriesInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     return this.chart(input, fromDate, toDate, requestedStep(fromDate, toDate, input.step));
   }
 
@@ -985,7 +985,7 @@ LIMIT ${METRIC_LIST_LIMIT}`,
    */
   async exportInterval(raw: MetricExportIntervalInput): Promise<number | null> {
     const input = MetricExportIntervalInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const span = toDate.getTime() - fromDate.getTime();
     const scanFrom = new Date(
       toDate.getTime() - Math.min(span, Math.max(EXPORT_INTERVAL_MIN_SCAN_MS, span / 10)),
@@ -1320,7 +1320,7 @@ GROUP BY ts, labels`;
   async exemplars(raw: MetricExemplarsInput): Promise<MetricExemplar[]> {
     const input = MetricExemplarsInputSchema.parse(raw);
     if (input.type === "summary") return [];
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const step = requestedStep(fromDate, toDate, input.step);
     const where = baseWhere(input);
     const { labelsSql, groupParams } = groupLabels(input.groupBy);
@@ -1422,7 +1422,7 @@ SETTINGS query_plan_join_swap_table = 'false'`;
    * mapKeys() to them, and reading the whole map decompresses every value.
    */
   async attributeKeys(input: MetricAttributeKeysInput): Promise<AttributeKey[]> {
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const selects = (["metric", "resource"] as const).map(
       (source) => `
   SELECT key, source FROM (
@@ -1445,7 +1445,7 @@ ORDER BY source, key`,
   }
 
   async attributeValues(input: MetricAttributeValuesInput): Promise<string[]> {
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const column = attributeColumn(input.source);
     const search = input.search
       ? `\n    AND positionCaseInsensitive(${column}[{key:String}], {search:String}) > 0`
@@ -1482,7 +1482,7 @@ LIMIT ${ATTRIBUTE_VALUES_LIMIT}`;
     input: MetricFilterOptionsInput,
     column: string,
   ): Promise<string[]> {
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const parts = MetricTypeSchema.options.map(
       (type) =>
         `SELECT DISTINCT ${column} AS value FROM ${this.tables[type]} WHERE ${TIME_WINDOW_SQL}`,
@@ -1502,7 +1502,7 @@ LIMIT ${ATTRIBUTE_VALUES_LIMIT}`;
   /** The quantiles a summary reports, so the explorer offers only those. */
   async summaryQuantiles(raw: MetricSummaryQuantilesInput): Promise<number[]> {
     const input = MetricSummaryQuantilesInputSchema.parse(raw);
-    const { fromDate, toDate } = resolveTimeRange(input.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(input.timeRange);
     const where = baseWhere(input);
     const rows = await this.client.execute<{ quantile: number | string }>(
       `

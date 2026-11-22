@@ -1,6 +1,6 @@
 import { RUN_STATUS_FILTERS } from "@everr/telemetry-explorer/runs";
 import { UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
-import { TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 
 export interface RunListItem {
@@ -34,7 +34,7 @@ export interface RunsListResult {
 // Shared across the list, infinite-scroll and histogram queries so they always
 // filter on exactly the same fields.
 const RunsFilterShape = {
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   repos: z.array(z.string()).optional(),
   branches: z.array(z.string()).optional(),
   conclusions: z.array(z.enum(RUN_STATUS_FILTERS)).optional(),

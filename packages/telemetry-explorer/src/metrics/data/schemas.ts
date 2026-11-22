@@ -1,8 +1,4 @@
-import {
-  isValidTimeRange,
-  StrictTimeRangeSearchSchema,
-  TimeRangeSchema,
-} from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema, StrictTimeRangeSearchSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   AttributeSourceSchema,
@@ -142,9 +138,12 @@ export const MetricsSearchSchema = StrictTimeRangeSearchSchema.extend({
 export type MetricsSearch = z.infer<typeof MetricsSearchSchema>;
 
 // A range that ends before it starts has no buckets to chart.
-const QueryTimeRangeSchema = TimeRangeSchema.refine((range) => isValidTimeRange(range), {
-  message: "The time range must end after it starts.",
-});
+const QueryTimeRangeSchema = ExactTimeRangeSchema.refine(
+  (range) => Date.parse(range.from) < Date.parse(range.to),
+  {
+    message: "The time range must end after it starts.",
+  },
+);
 
 export const MetricCatalogInputSchema = z.object({
   timeRange: QueryTimeRangeSchema,

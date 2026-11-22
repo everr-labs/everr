@@ -5,7 +5,7 @@
  * modules beside this one own, and hands the rows to `assemble.ts`, which owns
  * what they mean.
  */
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema, parseExactTimeRange } from "@everr/ui/lib/time-range";
 import * as z from "zod";
 import {
   type AlertRuleOption,
@@ -51,11 +51,11 @@ export const getAlertTriage = createAuthenticatedServerFn({
   // The row sparkline reads the same window as the two charts beside it. A
   // fixed hour here meant the row and the lane under it disagreed about what
   // the rule measured the moment the reader moved the picker.
-  .validator(z.object({ from: z.string(), to: z.string() }))
+  .validator(ExactTimeRangeSchema)
   .handler(async ({ data, context }): Promise<AlertTriageData> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
-    const { fromDate, toDate } = resolveTimeRange(data);
+    const { fromDate, toDate } = parseExactTimeRange(data);
 
     const definitions = await loadRules(organizationId);
     const ids = definitions.map((d) => d.id);
@@ -94,10 +94,10 @@ export const getAlertTriage = createAuthenticatedServerFn({
 export const getRuleStateHistory = createAuthenticatedServerFn({
   method: "GET",
 })
-  .validator(z.object({ from: z.string(), to: z.string() }))
+  .validator(ExactTimeRangeSchema)
   .handler(async ({ data, context }): Promise<RuleStateHistoryData> => {
     const organizationId = context.session.session.activeOrganizationId;
-    const { fromDate, toDate, fromISO, toISO } = resolveTimeRange(data);
+    const { fromDate, toDate, fromISO, toISO } = parseExactTimeRange(data);
 
     const [definitions, silences, events, prior] = await Promise.all([
       loadRules(organizationId),
@@ -127,11 +127,11 @@ export const getRuleStateHistory = createAuthenticatedServerFn({
   });
 
 export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
-  .validator(z.object({ path: z.string(), from: z.string(), to: z.string() }))
+  .validator(ExactTimeRangeSchema.extend({ path: z.string() }))
   .handler(async ({ data, context }): Promise<AlertDetail> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
-    const { fromDate, toDate } = resolveTimeRange(data);
+    const { fromDate, toDate } = parseExactTimeRange(data);
 
     const definition = await loadRule(organizationId, data.path);
     const path = rulePath(definition);
@@ -210,11 +210,11 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
   });
 
 export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
-  .validator(z.object({ from: z.string(), to: z.string() }))
+  .validator(ExactTimeRangeSchema)
   .handler(async ({ data, context }): Promise<AlertSilencePage> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
-    const { fromDate, toDate } = resolveTimeRange(data);
+    const { fromDate, toDate } = parseExactTimeRange(data);
 
     const { rows, cut } = await loadSilencesForPage(organizationId, fromDate, toDate);
     // The page spans every rule, so a row's stored id means nothing until it

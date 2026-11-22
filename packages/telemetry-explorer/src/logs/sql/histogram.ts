@@ -1,5 +1,5 @@
 import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange } from "@everr/ui/lib/time-range";
 import type { LogHistogramBucket, LogHistogramInput } from "../schemas";
 import { normalizeTimestampToUtc } from "../util/timestamp";
 import type { BuiltQuery } from "./explorer";
@@ -30,7 +30,7 @@ export function buildHistogramQuery(
 ): HistogramBuilt {
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
-  const { fromISO, toISO, fromDate, toDate } = resolveTimeRange(input.timeRange);
+  const { fromISO, toISO, fromDate, toDate } = parseExactTimeRange(input.timeRange);
   const where = buildWhereClause(input);
   const intervalSeconds = bucketSeconds(fromDate, toDate, input.histogramBuckets);
   const sql = `

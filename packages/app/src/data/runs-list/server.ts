@@ -1,5 +1,5 @@
 import { bucketSeconds, bucketStartMs } from "@everr/ui/lib/bucket";
-import { resolveTimeRange, TimeRangeSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema, parseExactTimeRange } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import { pool } from "#app/db/client.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
@@ -22,7 +22,7 @@ type RunsFilter = Omit<RunsListInput, "limit" | "offset" | "includeTotalCount">;
  * their own trailing params (limit/offset, bucket interval).
  */
 function buildRunsFilterClause(data: RunsFilter, organizationId: string) {
-  const { fromDate, toDate } = resolveTimeRange(data.timeRange);
+  const { fromDate, toDate } = parseExactTimeRange(data.timeRange);
   const clauses = ["organization_id = $1", "last_event_at >= $2", "last_event_at <= $3"];
   const params: unknown[] = [organizationId, fromDate, toDate];
 
@@ -232,7 +232,7 @@ function fillRunHistogramBuckets(
 }
 
 const RunFilterOptionsInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
 });
 
 export const getRunFilterOptions = createAuthenticatedServerFn({
@@ -240,7 +240,7 @@ export const getRunFilterOptions = createAuthenticatedServerFn({
 })
   .validator(RunFilterOptionsInputSchema)
   .handler(async ({ data, context: { session } }) => {
-    const { fromDate, toDate } = resolveTimeRange(data.timeRange);
+    const { fromDate, toDate } = parseExactTimeRange(data.timeRange);
     const result = await pool.query<{
       repos: string[];
       branches: string[];

@@ -21,7 +21,7 @@ describe("LogsRepository.explorer", () => {
     ]);
     const repo = new LogsRepository(client);
     const result = await repo.explorer({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
       levels: [],
       services: [],
       attributes: [],
@@ -38,7 +38,7 @@ describe("LogsRepository.totals", () => {
     const client = fakeClient([{ error: 1, warning: 0, info: 0, debug: 0, trace: 0, unknown: 0 }]);
     const repo = new LogsRepository(client);
     const result = await repo.totals({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
       levels: ["error"],
       services: [],
       attributes: [],
@@ -54,7 +54,7 @@ describe("LogsRepository with custom tableName", () => {
     const repo = new LogsRepository(client, { tableName: "otel_logs" });
     await repo
       .explorer({
-        timeRange: { from: "now-1h", to: "now" },
+        timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
         levels: [],
         services: [],
         attributes: [],
@@ -90,7 +90,7 @@ describe("LogsRepository attribute discovery", () => {
     ]);
     const repo = new LogsRepository(client);
     const keys = await repo.attributeKeys({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
     });
     expect(keys).toEqual([
       { key: "host.name", source: "resource" },
@@ -105,7 +105,7 @@ describe("LogsRepository attribute discovery", () => {
     const client = fakeClient([{ v: "GET" }, { v: "POST" }]);
     const repo = new LogsRepository(client);
     const values = await repo.attributeValues({
-      timeRange: { from: "now-1h", to: "now" },
+      timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" },
       source: "log",
       key: "http.method",
     });

@@ -79,9 +79,17 @@ vi.mock("#app/db/schema/index.ts", () => ({
   },
 }));
 
-import { getDashboard, listDashboards, runPanelQuery, runVariableOptionsQuery } from "./server";
+import {
+  getDashboard,
+  getTelemetryCapabilities,
+  listDashboards,
+  runPanelQuery,
+  runVariableOptionsQuery,
+} from "./server";
 
 const mockedDb = vi.mocked(db);
+// 7 days at ~500 points is a 30-minute step.
+const SEVEN_DAYS = { from: "2026-06-03T00:00:00.000Z", to: "2026-06-10T00:00:00.000Z" };
 const mockedClickhouse = vi.mocked(querySqlApi);
 
 beforeEach(() => {
@@ -103,6 +111,7 @@ describe("runPanelQuery – variable interpolation", () => {
     await runPanelQuery({
       data: {
         alignToStep: false,
+        ...SEVEN_DAYS,
         source: {
           kind: "ClickHouseSQL",
           sql: "SELECT * FROM logs WHERE service = $service AND env IN $env",
@@ -126,6 +135,7 @@ describe("runPanelQuery – variable interpolation", () => {
     await runPanelQuery({
       data: {
         alignToStep: false,
+        ...SEVEN_DAYS,
         source: {
           kind: "ClickHouseSQL",
           sql: "SELECT * FROM logs WHERE env IN $env",
@@ -146,6 +156,7 @@ describe("runPanelQuery – variable interpolation", () => {
     await runPanelQuery({
       data: {
         alignToStep: false,
+        ...SEVEN_DAYS,
         source: { kind: "ClickHouseSQL", sql: "SELECT $notavar FROM logs" },
       },
     });
@@ -157,13 +168,17 @@ describe("runPanelQuery – variable interpolation", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runPanelQuery({
-      data: { alignToStep: false, source: { kind: "ClickHouseSQL", sql: "SELECT 1" } },
+      data: {
+        alignToStep: false,
+        ...SEVEN_DAYS,
+        source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
+      },
     });
 
     const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
-    expect(typeof params.from).toBe("string");
-    expect(typeof params.to).toBe("string");
-    // Default range is now-7d..now → 604800s / 500 = 1209.6 → snapped to 30m.
+    expect(params.from).toBe("2026-06-03 00:00:00");
+    expect(params.to).toBe("2026-06-10 00:00:00");
+    // 604800s / 500 = 1209.6 → snapped to 30m.
     expect(params.step).toBe(1800);
   });
 
@@ -207,7 +222,6 @@ describe("runPanelQuery – variable interpolation", () => {
   it("starts a panel drawn over time on the step's grid and keeps its real end", async () => {
     mockedClickhouse.mockResolvedValue([]);
 
-    // 7 days at ~500 points is a 30-minute step.
     const { timeRange } = await runPanelQuery({
       data: {
         alignToStep: true,
@@ -220,6 +234,19 @@ describe("runPanelQuery – variable interpolation", () => {
     expect(timeRange).toEqual({
       from: "2026-06-03T00:00:00.000Z",
       to: "2026-06-10T00:10:00.000Z",
+    });
+  });
+});
+
+describe("getTelemetryCapabilities", () => {
+  it("binds the range it is sent as query params", async () => {
+    mockedClickhouse.mockResolvedValue([]);
+
+    await getTelemetryCapabilities({ data: SEVEN_DAYS });
+
+    expect(mockedClickhouse.mock.calls[0]![2]).toEqual({
+      from: "2026-06-03 00:00:00.000",
+      to: "2026-06-10 00:00:00.000",
     });
   });
 });
@@ -238,7 +265,7 @@ describe("runVariableOptionsQuery", () => {
     ]);
 
     const result = await runVariableOptionsQuery({
-      data: { query: "SELECT service FROM logs GROUP BY service" },
+      data: { query: "SELECT service FROM logs GROUP BY service", ...SEVEN_DAYS },
     });
 
     expect(result).toEqual({ options: ["api", "web", "42"], truncated: false });
@@ -250,13 +277,15 @@ describe("runVariableOptionsQuery", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runVariableOptionsQuery({
-      data: { query: "SELECT DISTINCT ServiceName FROM traces" },
+      data: { query: "SELECT DISTINCT ServiceName FROM traces", ...SEVEN_DAYS },
     });
 
     const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
-    expect(typeof params.from).toBe("string");
-    expect(typeof params.to).toBe("string");
-    expect(params.step).toBe(1800); // default now-7d..now → 30m
+    expect(params).toEqual({
+      from: "2026-06-03 00:00:00",
+      to: "2026-06-10 00:00:00",
+      step: 1800,
+    });
   });
 
   it("injects a LIMIT so the SQL API profile never throws on overflow", async () => {
@@ -265,7 +294,7 @@ describe("runVariableOptionsQuery", () => {
     mockedClickhouse.mockResolvedValue([]);
 
     await runVariableOptionsQuery({
-      data: { query: "SELECT DISTINCT ServiceName FROM traces ORDER BY 1;" },
+      data: { query: "SELECT DISTINCT ServiceName FROM traces ORDER BY 1;", ...SEVEN_DAYS },
     });
 
     const sql = mockedClickhouse.mock.calls[0]![0] as string;
@@ -280,7 +309,7 @@ describe("runVariableOptionsQuery", () => {
       Array.from({ length: 1000 }, (_, i) => ({ v: `service-${i}` })),
     );
 
-    const result = await runVariableOptionsQuery({ data: { query: "q" } });
+    const result = await runVariableOptionsQuery({ data: { query: "q", ...SEVEN_DAYS } });
 
     expect(result.options).toHaveLength(1000);
     expect(result.options[0]).toBe("service-0");
@@ -291,7 +320,7 @@ describe("runVariableOptionsQuery", () => {
   it("skips rows with no columns and stringifies null values", async () => {
     mockedClickhouse.mockResolvedValue([{}, { v: null }, { v: "a" }]);
 
-    const result = await runVariableOptionsQuery({ data: { query: "q" } });
+    const result = await runVariableOptionsQuery({ data: { query: "q", ...SEVEN_DAYS } });
 
     expect(result).toEqual({ options: ["null", "a"], truncated: false });
   });
@@ -479,6 +508,7 @@ describe("runPanelQuery – TestData", () => {
     const { rows } = await runPanelQuery({
       data: {
         alignToStep: false,
+        ...SEVEN_DAYS,
         source: {
           kind: "TestData",
           spec: { scenario: "csv", columns: ["a", "b"], rows: [["x", 1]] },
@@ -497,8 +527,8 @@ describe("runPanelQuery – TestData", () => {
           kind: "TestData",
           spec: { scenario: "random_walk", seed: 1, series: [{ name: "v" }] },
         },
-        from: "2026-06-10 00:00:00",
-        to: "2026-06-10 00:10:00",
+        from: "2026-06-10T00:00:00.000Z",
+        to: "2026-06-10T00:10:00.000Z",
       },
     });
     expect(rows.length).toBeGreaterThan(0);

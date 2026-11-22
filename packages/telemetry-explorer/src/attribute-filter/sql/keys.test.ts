@@ -11,7 +11,7 @@ const columnFor = (s: AttributeSource) => COLUMNS[s] ?? "";
 describe("buildAttributeKeysQuery", () => {
   it("unions a SELECT per requested source and binds the time range", () => {
     const { sql, params } = buildAttributeKeysQuery(
-      { timeRange: { from: "now-1h", to: "now" } },
+      { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
       { tableName: "traces", sources: ["resource", "span"], columnFor },
     );
     expect(sql).toContain("arrayJoin(ResourceAttributesKeys)");
@@ -26,7 +26,7 @@ describe("buildAttributeKeysQuery", () => {
 
   it("scopes each source scan with an optional row predicate", () => {
     const { sql } = buildAttributeKeysQuery(
-      { timeRange: { from: "now-1h", to: "now" } },
+      { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
       {
         tableName: "logs",
         sources: ["resource", "span"],
@@ -40,7 +40,7 @@ describe("buildAttributeKeysQuery", () => {
 
   it("caps each source independently (no single global limit)", () => {
     const { sql } = buildAttributeKeysQuery(
-      { timeRange: { from: "now-1h", to: "now" } },
+      { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
       { tableName: "traces", sources: ["resource", "span"], columnFor },
     );
     // One LIMIT per source subquery, not one global cap after the union.
@@ -51,7 +51,7 @@ describe("buildAttributeKeysQuery", () => {
   it("rejects an invalid table name", () => {
     expect(() =>
       buildAttributeKeysQuery(
-        { timeRange: { from: "now-1h", to: "now" } },
+        { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
         { tableName: "bad; DROP", sources: ["resource"], columnFor },
       ),
     ).toThrow();
@@ -65,7 +65,7 @@ describe("buildAttributeKeysQuery", () => {
 
   it("uses an injected time column when provided", () => {
     const { sql } = buildAttributeKeysQuery(
-      { timeRange: { from: "now-1h", to: "now" } },
+      { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
       {
         tableName: "metrics_gauge",
         sources: ["resource"],
@@ -79,7 +79,7 @@ describe("buildAttributeKeysQuery", () => {
 
   it("uses an injected time-bound parser for both bounds", () => {
     const { sql } = buildAttributeKeysQuery(
-      { timeRange: { from: "now-1h", to: "now" } },
+      { timeRange: { from: "2026-06-10T00:00:00.000Z", to: "2026-06-10T01:00:00.000Z" } },
       {
         tableName: "traces",
         sources: ["resource"],

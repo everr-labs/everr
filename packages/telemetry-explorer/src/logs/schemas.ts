@@ -1,5 +1,5 @@
 import { UtcOffsetMinutesSchema } from "@everr/ui/lib/bucket";
-import { TimeRangeSchema, TimeRangeSearchSchema } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema, TimeRangeSearchSchema } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import {
   type AttributeKey,
@@ -27,7 +27,7 @@ export type LogAttributeKeysInput = AttributeKeysInput;
 export type LogAttributeValuesInput = AttributeValuesInput;
 
 export const LogAttributeKeysInputSchema = z.object({
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
 });
 
 export const LogAttributeValuesInputSchema = attributeValuesInputSchema([
@@ -54,7 +54,7 @@ export const LogsSearchSchema = TimeRangeSearchSchema.extend({
 export type LogsSearch = z.infer<typeof LogsSearchSchema>;
 
 const LogsFilterShape = {
-  timeRange: TimeRangeSchema,
+  timeRange: ExactTimeRangeSchema,
   query: z.string().trim().optional(),
   ...LogsSearchFiltersShape,
   traceId: z.string().trim().optional(),

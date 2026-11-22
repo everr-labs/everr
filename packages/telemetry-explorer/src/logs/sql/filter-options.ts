@@ -1,4 +1,4 @@
-import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
+import { parseExactTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import type { LogFilterOptions } from "../schemas";
 import type { BuiltQuery } from "./explorer";
 import { validateTableName } from "./table";
@@ -13,7 +13,7 @@ export function buildFilterOptionsQuery(
 ): BuiltQuery {
   const tableName = opts.tableName ?? "logs";
   validateTableName(tableName);
-  const { fromISO, toISO } = resolveTimeRange(input.timeRange);
+  const { fromISO, toISO } = parseExactTimeRange(input.timeRange);
   const sql = `
       SELECT
         (SELECT groupArray(v) FROM (

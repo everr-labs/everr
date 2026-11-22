@@ -2,7 +2,7 @@
  * The Notifications page's server functions: one read that builds the whole
  * page, and the writes that change channels and the default destination.
  */
-import { resolveTimeRange } from "@everr/ui/lib/time-range";
+import { ExactTimeRangeSchema, parseExactTimeRange } from "@everr/ui/lib/time-range";
 import { z } from "zod";
 import { loadRules } from "#app/data/alerting/rules/read.ts";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
@@ -22,10 +22,10 @@ import type { AlertNotificationsData } from "./view";
 export const getAlertNotifications = createAuthenticatedServerFn({
   method: "GET",
 })
-  .validator(z.object({ from: z.string(), to: z.string() }))
+  .validator(ExactTimeRangeSchema)
   .handler(async ({ data, context }): Promise<AlertNotificationsData> => {
     const organizationId = context.session.session.activeOrganizationId;
-    const window = resolveTimeRange(data);
+    const window = parseExactTimeRange(data);
     const [channels, destination, rules, undelivered] = await Promise.all([
       delivery.listChannels(organizationId),
       delivery.listDefaultDestination(organizationId),
