@@ -394,6 +394,28 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
     expect(json).toContain("image-set('/b.png' 1x, url('http://localhost:3000/c.png') 2x)");
   });
 
+  it("strips the query of a cross-origin iframe, which rrweb records as rr_src", async () => {
+    const json = await recordPage("<div>x</div>", {}, () => {
+      const iframe = document.createElement("iframe");
+      // What a cross-origin frame shows the page: no document to read.
+      Object.defineProperty(iframe, "contentDocument", { get: () => null });
+      Object.defineProperty(iframe, "contentWindow", { get: () => null });
+      iframe.setAttribute("src", "https://embed.example/v?token=iframe-secret#frame-frag");
+      document.body.append(iframe);
+    });
+    expect(json).toContain('"rr_src":"https://embed.example/v"');
+    expect(json).not.toContain("iframe-secret");
+    expect(json).not.toContain("frame-frag");
+  });
+
+  it("strips a query that CSS escapes as \\3F, \\23 or \\?", async () => {
+    const json = await recordPage(
+      String.raw`<div style="background-image: url(/a\3F token=hex-secret), url(/b\00023 frag-secret), url('/c\?escaped-secret')">x</div>`,
+    );
+    for (const secret of ["hex-secret", "frag-secret", "escaped-secret"])
+      expect(json, secret).not.toContain(secret);
+  });
+
   it("keeps references to elements of the page", async () => {
     const json = await recordPage(
       `<div id="box">x</div><svg><use href="#icon"></use></svg>`,

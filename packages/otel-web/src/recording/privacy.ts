@@ -37,11 +37,14 @@ const UI_STATE = /^data-(state|side|align|orientation|slot|variant|size|motion|s
 // url(#clip) that rrweb keeps relative. It holds an id, not data.
 const LOCAL_REF = /^\s*#[\w:.-]*\s*$/;
 const URL_ATTRIBUTES =
-  /^(href|xlink:href|src|srcset|imagesrcset|data|action|formaction|poster|cite|background|ping)$/;
+  /^(href|xlink:href|src|rr_src|srcset|imagesrcset|data|action|formaction|poster|cite|background|ping)$/;
 const URL_LISTS = /^(srcset|imagesrcset)$/;
 // The url() shapes rrweb 2.1.7 copies unchanged from a style attribute, a
 // stylesheet's _cssText, the text of a style element, and the CSSOM events.
 const CSS_URL = /url\((?:(')([^']*)'|(")(.*?)"|([^)]*))\)/gi;
+// Where the query or the fragment of a URL in CSS starts: a ? or a #, also
+// escaped, as \? or as the hex escapes \3f and \23.
+const CSS_CUT = /\\?[?#].*|\\0{0,4}(?:3f|23)(?![\da-f]).*/is;
 // image-set() also takes a URL as a plain string, as in image-set("a.png" 1x).
 // Its arguments can hold one level of url().
 const IMAGE_SET = /image-set\((?:[^()]|\([^()]*\))*\)/gi;
@@ -87,7 +90,7 @@ const stripUrlFunctions = (css: string) =>
       const raw = p1 ?? p2 ?? p3 ?? "";
       if (/^\s*data:/i.test(raw) || LOCAL_REF.test(raw)) return match;
       const quote = q1 ?? q2 ?? "";
-      const kept = raw.replace(/[?#].*/s, (cut) => cut.replace(/[^'"]/g, ""));
+      const kept = raw.replace(CSS_CUT, (cut) => cut.replace(/[^'"]/g, ""));
       return `url(${quote}${kept}${quote})`;
     },
   );
@@ -98,7 +101,7 @@ const stripImageSets = (css: string) =>
     set.replace(/(['"])(.*?)\1/gs, (match, quote: string, raw: string) =>
       /^\s*data:/i.test(raw) || LOCAL_REF.test(raw)
         ? match
-        : `${quote}${raw.replace(/[?#].*/s, "")}${quote}`,
+        : `${quote}${raw.replace(CSS_CUT, "")}${quote}`,
     ),
   );
 
