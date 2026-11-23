@@ -254,13 +254,13 @@ document:
                              round(avgIf(seconds, left), 1) AS avg_seconds
                       FROM (
                         SELECT coalesce(nullIf(toString(LogAttributes.`everr.route.pattern`), ''), toString(LogAttributes.`url.path`)) AS route,
-                               coalesce(nullIf(toString(LogAttributes.`everr.visitor.id`), ''), toString(LogAttributes.`session.id`)) AS visitor,
+                               coalesce(nullIf(max(toString(LogAttributes.`everr.visitor.id`)), ''), max(toString(LogAttributes.`session.id`))) AS visitor,
                                countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
                                countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
                                maxIf(toFloat64OrZero(toString(LogAttributes.`everr.page_view.duration`)), EventName = 'everr.browser.page_leave') / 1000 AS seconds
                         FROM logs
                         WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(toString(ResourceAttributes.`service.namespace`), ''), '(none)') IN $namespace AND toString(ResourceAttributes.`telemetry.distro.name`) = '@everr/otel-web' AND toString(LogAttributes.`everr.page_view.id`) != ''
-                        GROUP BY toString(LogAttributes.`everr.page_view.id`), route, visitor
+                        GROUP BY toString(LogAttributes.`everr.page_view.id`), route
                       )
                       GROUP BY route
                       ORDER BY views DESC
