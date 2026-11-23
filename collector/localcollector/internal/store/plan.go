@@ -11,6 +11,7 @@ const (
 	dirEmpty dirKind = iota
 	dirMarked
 	dirUnmarkedStore
+	dirResetStopped
 	dirForeign
 )
 
@@ -30,6 +31,7 @@ type resetReason string
 const (
 	noReset          resetReason = ""
 	unmarkedStore    resetReason = "store has no marker"
+	resetStopped     resetReason = "a reset stopped before it finished"
 	corruptMarker    resetReason = "marker unreadable"
 	versionChanged   resetReason = "store version changed"
 	unknownMigration resetReason = "store has a migration this binary lacks"
@@ -52,6 +54,8 @@ func decide(seen observed, local []migration) (plan, error) {
 		return plan{}, errForeignDirectory
 	case dirUnmarkedStore:
 		return resetPlan(unmarkedStore, local), nil
+	case dirResetStopped:
+		return resetPlan(resetStopped, local), nil
 	}
 	if seen.markerErr != nil {
 		return resetPlan(corruptMarker, local), nil

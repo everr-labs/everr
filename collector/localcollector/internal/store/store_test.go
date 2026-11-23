@@ -155,6 +155,38 @@ func TestOpenResetsAStoreWhoseVersionDiffers(t *testing.T) {
 	require.Equal(t, Version, seen.marker.Version)
 }
 
+func TestOpenFinishesAResetThatStopped(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+	for name, locked := range map[string]string{
+		"at the first entry":           "data",
+		"while deleting the catalog":   filepath.Join("metadata", "zz"),
+		"after the catalog is deleted": filepath.Join("store", "abc"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "chdb")
+			require.NoError(t, writeMarker(dir, marker{Version: Version + 1, Applied: map[string]string{"0001-setup.sql": "x"}}))
+			catalog(t, dir, "app")
+			write(t, filepath.Join(dir, "metadata", "app.sql"), "old")
+			write(t, filepath.Join(dir, "data", "part"), "old")
+			write(t, filepath.Join(dir, locked, "part"), "old")
+			require.NoError(t, os.Chmod(filepath.Join(dir, locked), 0o500))
+			t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, locked), 0o700) })
+			_, err := start(t, dir, migrationFiles(), "")
+			require.Error(t, err, "the locked directory stops the reset")
+			require.NoError(t, os.Chmod(filepath.Join(dir, locked), 0o700))
+
+			session, err := start(t, dir, migrationFiles(), "")
+
+			require.NoError(t, err)
+			require.Len(t, session.statements(), 4, "every file runs again")
+			require.NoDirExists(t, filepath.Join(dir, "data"))
+			require.Equal(t, []string{"0001-setup.sql", "0003-tables.sql"}, appliedNames(t, dir))
+		})
+	}
+}
+
 func TestOpenResetsAStoreFromBeforeTheMarker(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chdb")
 	catalog(t, dir, "default")

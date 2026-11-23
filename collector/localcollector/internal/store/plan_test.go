@@ -71,6 +71,7 @@ func TestDecideResetsWhenTheStoreCannotBeTrusted(t *testing.T) {
 		"a file whose hash differs":   {marked(Version, map[string]string{"0001-setup.sql": "edited"}), changedMigration},
 		"an unreadable marker":        {observed{kind: dirMarked, markerErr: errors.New("marker is not JSON")}, corruptMarker},
 		"a chDB layout and no marker": {observed{kind: dirUnmarkedStore}, unmarkedStore},
+		"a reset that stopped":        {observed{kind: dirResetStopped}, resetStopped},
 	} {
 		t.Run(name, func(t *testing.T) {
 			p, err := decide(tc.seen, localFiles)

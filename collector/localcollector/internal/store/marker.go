@@ -12,6 +12,10 @@ import (
 // chDB leaves unknown files at its root alone.
 const markerName = ".everr-store.json"
 
+// A reset writes the tombstone before it deletes anything and removes it
+// last, so a reset that stopped anywhere reads as one to finish.
+const tombstoneName = ".everr-store-reset"
+
 const metadataDir = "metadata"
 
 func observe(path string) (observed, error) {
@@ -20,6 +24,12 @@ func observe(path string) (observed, error) {
 		return observed{kind: dirEmpty}, nil
 	}
 	if err != nil {
+		return observed{}, fmt.Errorf("read chDB directory %s: %w", path, err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(path, tombstoneName)); err == nil {
+		return observed{kind: dirResetStopped}, nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return observed{}, fmt.Errorf("read chDB directory %s: %w", path, err)
 	}
 
@@ -60,25 +70,25 @@ func hasCatalog(path string) bool {
 	return false
 }
 
-// reset deletes the metadata directory last. While it exists, a reset that
-// stopped halfway still reads as a store, and the next start resets again.
 func reset(path string) error {
-	if err := os.Remove(filepath.Join(path, markerName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("delete store marker: %w", err)
+	tombstone := filepath.Join(path, tombstoneName)
+	if err := os.WriteFile(tombstone, nil, 0o600); err != nil {
+		return fmt.Errorf("mark the store reset: %w", err)
 	}
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return fmt.Errorf("read chDB directory %s: %w", path, err)
 	}
 	for _, entry := range entries {
-		if entry.Name() != metadataDir {
-			if err := os.RemoveAll(filepath.Join(path, entry.Name())); err != nil {
-				return fmt.Errorf("delete %s: %w", entry.Name(), err)
-			}
+		if entry.Name() == tombstoneName {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(path, entry.Name())); err != nil {
+			return fmt.Errorf("delete %s: %w", entry.Name(), err)
 		}
 	}
-	if err := os.RemoveAll(filepath.Join(path, metadataDir)); err != nil {
-		return fmt.Errorf("delete %s: %w", metadataDir, err)
+	if err := os.Remove(tombstone); err != nil {
+		return fmt.Errorf("finish the store reset: %w", err)
 	}
 	return nil
 }

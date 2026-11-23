@@ -124,25 +124,29 @@ func TestResetEmptiesTheDirectoryAndKeepsIt(t *testing.T) {
 	require.Empty(t, entryNames(t, dir))
 }
 
-func TestResetOfAStoppedResetLeavesAStateTheNextStartResets(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores file permissions")
+func TestObserveReadsAStoppedResetWhereverItStopped(t *testing.T) {
+	for name, build := range map[string]func(t *testing.T, dir string){
+		"before anything was deleted": func(t *testing.T, dir string) {
+			require.NoError(t, writeMarker(dir, marker{Version: Version, Applied: map[string]string{"a.sql": "1"}}))
+			catalog(t, dir, "app")
+		},
+		"with only leftovers that are not a catalog": func(t *testing.T, dir string) {
+			write(t, filepath.Join(dir, "metadata", "app.sql"), "x")
+			write(t, filepath.Join(dir, "data", "part"), "x")
+		},
+		"with only the tombstone left": func(t *testing.T, dir string) {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			build(t, dir)
+			write(t, filepath.Join(dir, tombstoneName), "")
+
+			seen, err := observe(dir)
+
+			require.NoError(t, err)
+			require.Equal(t, dirResetStopped, seen.kind)
+			require.NoError(t, reset(dir))
+			require.Empty(t, entryNames(t, dir))
+		})
 	}
-	dir := t.TempDir()
-	require.NoError(t, writeMarker(dir, marker{Version: Version, Applied: map[string]string{"a.sql": "1"}}))
-	catalog(t, dir, "app")
-	write(t, filepath.Join(dir, "data", "part"), "x")
-	locked := filepath.Join(dir, "store", "abc")
-	write(t, filepath.Join(locked, "part"), "x")
-	require.NoError(t, os.Chmod(locked, 0o500))
-	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
-
-	require.Error(t, reset(dir), "the locked directory stops the reset")
-
-	seen, err := observe(dir)
-	require.NoError(t, err)
-	require.Equal(t, dirUnmarkedStore, seen.kind, "the marker is gone and the catalog is still there")
-	p, err := decide(seen, nil)
-	require.NoError(t, err)
-	require.Equal(t, unmarkedStore, p.reset)
 }
