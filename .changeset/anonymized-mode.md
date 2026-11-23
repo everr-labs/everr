@@ -1,5 +1,5 @@
 ---
-"@everr/otel-web": minor
+"@everr/otel-web": patch
 ---
 
 Replace the `persistence` option with `anonymized`, which is `true` by default.
