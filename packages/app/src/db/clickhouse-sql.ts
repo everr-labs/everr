@@ -1,7 +1,13 @@
-/** What a seed works with: the connection its migration runs on. */
+/** The values for the `{name:Type}` placeholders of one seed query. */
+export type ClickHouseSeedParams = Readonly<Record<string, unknown>>;
+
+/**
+ * What a seed works with: the connection its migration runs on. Pass a value
+ * that comes from the server as a parameter, not as part of `sql`.
+ */
 export interface ClickHouseSeedContext {
-  query<Row>(this: void, sql: string): Promise<Row[]>;
-  command(this: void, sql: string): Promise<void>;
+  query<Row>(this: void, sql: string, params?: ClickHouseSeedParams): Promise<Row[]>;
+  command(this: void, sql: string, params?: ClickHouseSeedParams): Promise<void>;
 }
 
 /**

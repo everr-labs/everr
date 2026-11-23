@@ -192,6 +192,7 @@ describe("ClickHouse migrations", () => {
       readonly query: string;
       readonly query_id?: string;
       readonly clickhouse_settings?: Record<string, unknown>;
+      readonly query_params?: Record<string, unknown>;
     }
 
     function start() {
@@ -231,6 +232,18 @@ describe("ClickHouse migrations", () => {
       expect(ids).not.toContain(undefined);
       expect(new Set(ids).size).toBe(ids.length);
       expect(second.map(({ query_id }) => query_id)).toEqual(ids);
+    });
+
+    it("binds a seed query's parameters instead of putting them in the SQL", async () => {
+      const { sent, steps } = start();
+      const sql = "ALTER USER {name:Identifier} DEFAULT ROLE NONE";
+      await steps.seed.command(sql, { name: "odd`name" });
+      await steps.seed.query("SELECT {id:String} AS id", { id: "it's" });
+
+      expect(sent.map(({ query, query_params }) => ({ query, query_params }))).toEqual([
+        { query: sql, query_params: { name: "odd`name" } },
+        { query: "SELECT {id:String} AS id", query_params: { id: "it's" } },
+      ]);
     });
 
     it("cancels a seed query the previous start left running", async () => {

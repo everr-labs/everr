@@ -6,6 +6,7 @@ import { serverLogger } from "#app/telemetry/logger.ts";
 import {
   byMigrationName,
   type ClickHouseSeedContext,
+  type ClickHouseSeedParams,
   type ClickHouseMigration,
   type ClickHouseMigrationTarget,
   clickHouseMigrationsFor,
@@ -122,10 +123,11 @@ export function clickHouseMigrationSteps(
   // A seed query's id is its place in the seed's call order. The next start
   // makes the same calls in the same order, so it repeats the ids.
   let seedQueries = 0;
-  const seedQuery = (query: string) => ({
+  const seedQuery = (query: string, queryParams?: ClickHouseSeedParams) => ({
     query,
     query_id: clickHouseMigrationQueryId(migration.name, `seed-${seedQueries++}`),
     clickhouse_settings: REPLACE_PREVIOUS_RUN,
+    ...(queryParams && { query_params: queryParams }),
   });
   return {
     statement: async (statement, index) => {
@@ -139,13 +141,16 @@ export function clickHouseMigrationSteps(
       );
     },
     seed: {
-      query: <Row>(query: string) =>
+      query: <Row>(query: string, queryParams?: ClickHouseSeedParams) =>
         instrumented("SELECT", async () => {
-          const rows = await client.query({ ...seedQuery(query), format: "JSONEachRow" });
+          const rows = await client.query({
+            ...seedQuery(query, queryParams),
+            format: "JSONEachRow",
+          });
           return rows.json<Row>();
         }),
-      command: async (query) => {
-        await instrumented("QUERY", () => client.command(seedQuery(query)));
+      command: async (query, queryParams) => {
+        await instrumented("QUERY", () => client.command(seedQuery(query, queryParams)));
       },
     },
     journal: async () => {
