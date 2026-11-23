@@ -106,6 +106,50 @@ export async function applyClickHouseMigration(
   await steps.journal();
 }
 
+type MigrationClient = Pick<ReturnType<typeof createClient>, "command" | "query" | "insert">;
+
+const instrumented = <T>(operation: string, call: () => Promise<T>) =>
+  instrumentClickhouseOperation({ client: "migration", operation }, call);
+
+/** The steps of `migration` on `client`. `params` are the values its statements bind. */
+export function clickHouseMigrationSteps(
+  client: MigrationClient,
+  migration: HashedClickHouseMigration,
+  params: Params,
+): ClickHouseMigrationSteps {
+  return {
+    statement: async (statement, index) => {
+      await instrumented("QUERY", () =>
+        client.command({
+          query: statement,
+          query_id: clickHouseMigrationQueryId(migration.name, index),
+          clickhouse_settings: { replace_running_query: 1 },
+          query_params: statementParams(migration.name, statement, params),
+        }),
+      );
+    },
+    seed: {
+      query: <Row>(query: string) =>
+        instrumented("SELECT", async () => {
+          const rows = await client.query({ query, format: "JSONEachRow" });
+          return rows.json<Row>();
+        }),
+      command: async (query) => {
+        await instrumented("QUERY", () => client.command({ query }));
+      },
+    },
+    journal: async () => {
+      await instrumented("INSERT", () =>
+        client.insert({
+          table: JOURNAL,
+          values: [{ name: migration.name, hash: migration.hash }],
+          format: "JSONEachRow",
+        }),
+      );
+    },
+  };
+}
+
 /**
  * Apply the files for `target` that the journal does not list: the untagged
  * files and the ones tagged for that product. The setup file takes the base
@@ -150,8 +194,6 @@ export async function migrateClickHouse(
       http_headers_progress_interval_ms: "30000",
     },
   });
-  const instrumented = <T>(operation: string, call: () => Promise<T>) =>
-    instrumentClickhouseOperation({ client: "migration", operation }, call);
   try {
     await instrumented("CREATE", () =>
       client.command({
@@ -172,40 +214,11 @@ export async function migrateClickHouse(
       );
     });
 
-    const seed: ClickHouseSeedContext = {
-      query: <Row>(query: string) =>
-        instrumented("SELECT", async () => {
-          const rows = await client.query({ query, format: "JSONEachRow" });
-          return rows.json<Row>();
-        }),
-      command: async (query) => {
-        await instrumented("QUERY", () => client.command({ query }));
-      },
-    };
-
     for (const migration of pendingClickHouseMigrations(migrations, applied)) {
-      await applyClickHouseMigration(migration, {
-        statement: async (statement, index) => {
-          await instrumented("QUERY", () =>
-            client.command({
-              query: statement,
-              query_id: clickHouseMigrationQueryId(migration.name, index),
-              clickhouse_settings: { replace_running_query: 1 },
-              query_params: statementParams(migration.name, statement, params),
-            }),
-          );
-        },
-        seed,
-        journal: async () => {
-          await instrumented("INSERT", () =>
-            client.insert({
-              table: JOURNAL,
-              values: [{ name: migration.name, hash: migration.hash }],
-              format: "JSONEachRow",
-            }),
-          );
-        },
-      });
+      await applyClickHouseMigration(
+        migration,
+        clickHouseMigrationSteps(client, migration, params),
+      );
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,
       });
