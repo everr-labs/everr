@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	localTTL       = 7 * 24 * time.Hour
-	collectorReady = 10 * time.Second
+	localRetentionDays = 7
+	collectorReady     = 10 * time.Second
 	// The Rust CLI sent its collector SIGTERM and SIGKILL after 3s. A
 	// pipeline that misses this is abandoned and the process exits.
 	pipelineStopTimeout = 3 * time.Second
@@ -211,7 +211,7 @@ func openGateway(library, telemetryDir, instanceID string) (*localcollector.Gate
 		SQLEndpoint:     build.SQLHTTPOrigin(),
 		ChDBPath:        chdbPath,
 		ChDBLibraryPath: library,
-		TTL:             localTTL,
+		RetentionDays:   localRetentionDays,
 		Version:         build.Version(),
 		InstanceID:      instanceID,
 		Logger:          logger,

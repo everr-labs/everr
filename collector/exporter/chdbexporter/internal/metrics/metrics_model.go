@@ -7,48 +7,35 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
-	"sync"
+	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/column/orderedmap"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	conventions "go.opentelemetry.io/otel/semconv/v1.43.0"
-	"go.uber.org/zap"
 
-	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/landing"
+	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-var supportedMetricTypes = map[pmetric.MetricType]string{
-	pmetric.MetricTypeGauge:                sqltemplates.MetricsGaugeCreateTable,
-	pmetric.MetricTypeSum:                  sqltemplates.MetricsSumCreateTable,
-	pmetric.MetricTypeHistogram:            sqltemplates.MetricsHistogramCreateTable,
-	pmetric.MetricTypeExponentialHistogram: sqltemplates.MetricsExpHistogramCreateTable,
-	pmetric.MetricTypeSummary:              sqltemplates.MetricsSummaryCreateTable,
+// Rows holds the rows of one push, one batch per metric kind.
+type Rows struct {
+	gauge                *landing.Batch
+	sum                  *landing.Batch
+	histogram            *landing.Batch
+	exponentialHistogram *landing.Batch
+	summary              *landing.Batch
 }
 
-var logger *zap.Logger
-
-type MetricTablesConfigMapper map[pmetric.MetricType]MetricTypeConfig
-
-type MetricTypeConfig struct {
-	Name string `mapstructure:"name"`
+func NewRows() *Rows {
+	return &Rows{
+		gauge:                landing.NewBatch(landing.MetricsGauge),
+		sum:                  landing.NewBatch(landing.MetricsSum),
+		histogram:            landing.NewBatch(landing.MetricsHistogram),
+		exponentialHistogram: landing.NewBatch(landing.MetricsExponentialHistogram),
+		summary:              landing.NewBatch(landing.MetricsSummary),
+	}
 }
 
-// MetricsModel is used to group metric data and insert into clickhouse
-// any type of metrics need implement it.
-type MetricsModel interface {
-	// Add used to bind MetricsMetaData to a specific metric then put them into a slice
-	Add(resAttr pcommon.Map, resURL string, scopeInstr pcommon.InstrumentationScope, scopeURL string, metrics pmetric.Metric)
-
-	// insert is used to insert metric data to clickhouse
-	insert(ctx context.Context, db driver.Conn) error
-}
-
-// MetricsMetaData contain specific metric data
+// MetricsMetaData is what every data point of a metric shares.
 type MetricsMetaData struct {
 	ResAttr    pcommon.Map
 	ResURL     string
@@ -56,73 +43,45 @@ type MetricsMetaData struct {
 	ScopeInstr pcommon.InstrumentationScope
 }
 
-// SetLogger set a logger instance
-func SetLogger(l *zap.Logger) {
-	logger = l
-}
-
-// NewMetricsTable create metric tables with an expiry time to storage metric telemetry data
-func NewMetricsTable(ctx context.Context, tablesConfig MetricTablesConfigMapper, database, cluster, engine, ttlExpr string, db driver.Conn) error {
-	for key, ddlTemplate := range supportedMetricTypes {
-		query := fmt.Sprintf(ddlTemplate, database, tablesConfig[key].Name, cluster, engine, ttlExpr)
-		if err := db.Exec(ctx, query); err != nil {
-			return fmt.Errorf("exec create metrics table sql: %w", err)
-		}
-	}
-	return nil
-}
-
-// NewMetricsModel create a model for contain different metric data
-func NewMetricsModel(tablesConfig MetricTablesConfigMapper, database string) map[pmetric.MetricType]MetricsModel {
-	return map[pmetric.MetricType]MetricsModel{
-		pmetric.MetricTypeGauge: &gaugeMetrics{
-			insertSQL: fmt.Sprintf(sqltemplates.MetricsGaugeInsert, database, tablesConfig[pmetric.MetricTypeGauge].Name),
-		},
-		pmetric.MetricTypeSum: &sumMetrics{
-			insertSQL: fmt.Sprintf(sqltemplates.MetricsSumInsert, database, tablesConfig[pmetric.MetricTypeSum].Name),
-		},
-		pmetric.MetricTypeHistogram: &histogramMetrics{
-			insertSQL: fmt.Sprintf(sqltemplates.MetricsHistogramInsert, database, tablesConfig[pmetric.MetricTypeHistogram].Name),
-		},
-		pmetric.MetricTypeExponentialHistogram: &expHistogramMetrics{
-			insertSQL: fmt.Sprintf(sqltemplates.MetricsExpHistogramInsert, database, tablesConfig[pmetric.MetricTypeExponentialHistogram].Name),
-		},
-		pmetric.MetricTypeSummary: &summaryMetrics{
-			insertSQL: fmt.Sprintf(sqltemplates.MetricsSummaryInsert, database, tablesConfig[pmetric.MetricTypeSummary].Name),
-		},
+// Add appends one row for each data point of the metric.
+func (r *Rows) Add(metadata MetricsMetaData, metric pmetric.Metric) error {
+	switch metric.Type() {
+	case pmetric.MetricTypeGauge:
+		return appendGauge(r.gauge, metadata, metric)
+	case pmetric.MetricTypeSum:
+		return appendSum(r.sum, metadata, metric)
+	case pmetric.MetricTypeHistogram:
+		return appendHistogram(r.histogram, metadata, metric)
+	case pmetric.MetricTypeExponentialHistogram:
+		return appendExponentialHistogram(r.exponentialHistogram, metadata, metric)
+	case pmetric.MetricTypeSummary:
+		return appendSummary(r.summary, metadata, metric)
+	case pmetric.MetricTypeEmpty:
+		return errors.New("metrics type is unset")
+	default:
+		return errors.New("unsupported metrics type")
 	}
 }
 
-// InsertMetrics insert metric data into clickhouse concurrently
-func InsertMetrics(ctx context.Context, db driver.Conn, metricsMap map[pmetric.MetricType]MetricsModel) error {
-	errsChan := make(chan error, len(supportedMetricTypes))
-	wg := &sync.WaitGroup{}
-	for _, m := range metricsMap {
-		wg.Add(1)
-		go func(m MetricsModel, wg *sync.WaitGroup) {
-			errsChan <- m.insert(ctx, db)
-			wg.Done()
-		}(m, wg)
-	}
-	wg.Wait()
-	close(errsChan)
+// Send inserts every kind. A kind that fails does not stop the others.
+func (r *Rows) Send(ctx context.Context, handle *chdb.Handle) error {
 	var errs error
-	for err := range errsChan {
-		errs = errors.Join(errs, err)
+	for _, batch := range []*landing.Batch{r.gauge, r.sum, r.histogram, r.exponentialHistogram, r.summary} {
+		errs = errors.Join(errs, batch.Send(ctx, handle))
 	}
 	return errs
 }
 
-func convertExemplars(exemplars pmetric.ExemplarSlice) (clickhouse.ArraySet, clickhouse.ArraySet, clickhouse.ArraySet, clickhouse.ArraySet, clickhouse.ArraySet) {
+func convertExemplars(exemplars pmetric.ExemplarSlice) (attrs []map[string]string, times []time.Time, values []float64, traceIDs, spanIDs []string) {
 	n := exemplars.Len()
 	if n == 0 {
 		return nil, nil, nil, nil, nil
 	}
-	attrs := make(clickhouse.ArraySet, 0, n)
-	times := make(clickhouse.ArraySet, 0, n)
-	values := make(clickhouse.ArraySet, 0, n)
-	traceIDs := make(clickhouse.ArraySet, 0, n)
-	spanIDs := make(clickhouse.ArraySet, 0, n)
+	attrs = make([]map[string]string, 0, n)
+	times = make([]time.Time, 0, n)
+	values = make([]float64, 0, n)
+	traceIDs = make([]string, 0, n)
+	spanIDs = make([]string, 0, n)
 	for i := range n {
 		exemplar := exemplars.At(i)
 		attrs = append(attrs, AttributesToMap(exemplar.FilteredAttributes()))
@@ -139,68 +98,32 @@ func convertExemplars(exemplars pmetric.ExemplarSlice) (clickhouse.ArraySet, cli
 // https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto#L358
 // define two types for one datapoint value, clickhouse only use one value of float64 to store them
 func getValue(intValue int64, floatValue float64, dataType any) float64 {
-	switch t := dataType.(type) {
-	case pmetric.ExemplarValueType:
-		switch t {
-		case pmetric.ExemplarValueTypeDouble:
-			return floatValue
-		case pmetric.ExemplarValueTypeInt:
-			return float64(intValue)
-		case pmetric.ExemplarValueTypeEmpty:
-			return 0.0
-		default:
-			logger.Warn("Can't find a suitable value for ExemplarValueType, use 0.0 as default")
-			return 0.0
-		}
-	case pmetric.NumberDataPointValueType:
-		switch t {
-		case pmetric.NumberDataPointValueTypeDouble:
-			return floatValue
-		case pmetric.NumberDataPointValueTypeInt:
-			return float64(intValue)
-		case pmetric.NumberDataPointValueTypeEmpty:
-			return 0.0
-		default:
-			logger.Warn("Can't find a suitable value for NumberDataPointValueType, use 0.0 as default")
-			return 0.0
-		}
+	switch dataType {
+	case pmetric.ExemplarValueTypeDouble, pmetric.NumberDataPointValueTypeDouble:
+		return floatValue
+	case pmetric.ExemplarValueTypeInt, pmetric.NumberDataPointValueTypeInt:
+		return float64(intValue)
 	default:
-		logger.Warn("unsupported ValueType, current support: ExemplarValueType, NumberDataPointValueType, ues 0.0 as default")
 		return 0.0
 	}
 }
 
-func AttributesToMap(attributes pcommon.Map) column.IterableOrderedMap {
-	return orderedmap.CollectN(func(yield func(string, string) bool) {
-		attributes.Range(func(k string, v pcommon.Value) bool {
-			return yield(k, v.AsString())
-		})
-	}, attributes.Len())
+func AttributesToMap(attributes pcommon.Map) map[string]string {
+	out := make(map[string]string, attributes.Len())
+	attributes.Range(func(k string, v pcommon.Value) bool {
+		out[k] = v.AsString()
+		return true
+	})
+	return out
 }
 
-func GetServiceName(resAttr pcommon.Map) string {
-	if v, ok := resAttr.Get(string(conventions.ServiceNameKey)); ok {
-		return v.AsString()
-	}
-
-	return ""
-}
-
-func convertSliceToArraySet[T any](slice []T) clickhouse.ArraySet {
-	set := make(clickhouse.ArraySet, 0, len(slice))
-	for _, item := range slice {
-		set = append(set, item)
-	}
-	return set
-}
-
-func convertValueAtQuantile(valueAtQuantile pmetric.SummaryDataPointValueAtQuantileSlice) (clickhouse.ArraySet, clickhouse.ArraySet) {
+func convertValueAtQuantile(valueAtQuantile pmetric.SummaryDataPointValueAtQuantileSlice) (quantiles, values []float64) {
 	n := valueAtQuantile.Len()
 	if n == 0 {
 		return nil, nil
 	}
-	quantiles := make(clickhouse.ArraySet, 0, n)
-	values := make(clickhouse.ArraySet, 0, n)
+	quantiles = make([]float64, 0, n)
+	values = make([]float64, 0, n)
 	for i := range n {
 		value := valueAtQuantile.At(i)
 		quantiles = append(quantiles, value.Quantile())

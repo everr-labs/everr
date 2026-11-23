@@ -4,120 +4,55 @@
 package metrics // import "github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metrics"
 
 import (
-	"context"
 	"fmt"
-	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.uber.org/zap"
+
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/landing"
 )
 
-type histogramModel struct {
-	metricName        string
-	metricDescription string
-	metricUnit        string
-	metadata          *MetricsMetaData
-	histogram         pmetric.Histogram
-}
+func appendHistogram(batch *landing.Batch, metadata MetricsMetaData, metric pmetric.Metric) error {
+	resAttr := AttributesToMap(metadata.ResAttr)
+	scopeAttr := AttributesToMap(metadata.ScopeInstr.Attributes())
+	serviceName := internal.GetServiceName(metadata.ResAttr)
+	histogram := metric.Histogram()
 
-type histogramMetrics struct {
-	histogramModel []*histogramModel
-	insertSQL      string
-	count          int
-}
-
-func (h *histogramMetrics) insert(ctx context.Context, db driver.Conn) error {
-	if h.count == 0 {
-		return nil
-	}
-
-	processStart := time.Now()
-
-	batch, err := db.PrepareBatch(ctx, h.insertSQL)
-	if err != nil {
-		return err
-	}
-	defer func(batch driver.Batch) {
-		if closeErr := batch.Close(); closeErr != nil {
-			logger.Warn("failed to close histogram metrics batch", zap.Error(closeErr))
-		}
-	}(batch)
-
-	for _, model := range h.histogramModel {
-		resAttr := AttributesToMap(model.metadata.ResAttr)
-		scopeAttr := AttributesToMap(model.metadata.ScopeInstr.Attributes())
-		serviceName := GetServiceName(model.metadata.ResAttr)
-
-		for i := 0; i < model.histogram.DataPoints().Len(); i++ {
-			dp := model.histogram.DataPoints().At(i)
-			attrs, times, values, traceIDs, spanIDs := convertExemplars(dp.Exemplars())
-			err := batch.Append(
-				resAttr,
-				model.metadata.ResURL,
-				model.metadata.ScopeInstr.Name(),
-				model.metadata.ScopeInstr.Version(),
-				scopeAttr,
-				model.metadata.ScopeInstr.DroppedAttributesCount(),
-				model.metadata.ScopeURL,
-				serviceName,
-				model.metricName,
-				model.metricDescription,
-				model.metricUnit,
-				AttributesToMap(dp.Attributes()),
-				dp.StartTimestamp().AsTime(),
-				dp.Timestamp().AsTime(),
-				dp.Count(),
-				dp.Sum(),
-				convertSliceToArraySet(dp.BucketCounts().AsRaw()),
-				convertSliceToArraySet(dp.ExplicitBounds().AsRaw()),
-				attrs,
-				times,
-				values,
-				spanIDs,
-				traceIDs,
-				uint32(dp.Flags()),
-				dp.Min(),
-				dp.Max(),
-				int32(model.histogram.AggregationTemporality()),
-			)
-			if err != nil {
-				return fmt.Errorf("failed to append histogram metric: %w", err)
-			}
+	for i := 0; i < histogram.DataPoints().Len(); i++ {
+		dp := histogram.DataPoints().At(i)
+		attrs, times, values, traceIDs, spanIDs := convertExemplars(dp.Exemplars())
+		appendErr := batch.Append(
+			resAttr,
+			metadata.ResURL,
+			metadata.ScopeInstr.Name(),
+			metadata.ScopeInstr.Version(),
+			scopeAttr,
+			metadata.ScopeInstr.DroppedAttributesCount(),
+			metadata.ScopeURL,
+			serviceName,
+			metric.Name(),
+			metric.Description(),
+			metric.Unit(),
+			AttributesToMap(dp.Attributes()),
+			dp.StartTimestamp().AsTime(),
+			dp.Timestamp().AsTime(),
+			dp.Count(),
+			dp.Sum(),
+			dp.BucketCounts().AsRaw(),
+			dp.ExplicitBounds().AsRaw(),
+			attrs,
+			times,
+			values,
+			spanIDs,
+			traceIDs,
+			uint32(dp.Flags()),
+			dp.Min(),
+			dp.Max(),
+			int32(histogram.AggregationTemporality()),
+		)
+		if appendErr != nil {
+			return fmt.Errorf("failed to append histogram metric: %w", appendErr)
 		}
 	}
-
-	processDuration := time.Since(processStart)
-	networkStart := time.Now()
-	if err := batch.Send(); err != nil {
-		return fmt.Errorf("histogram metric insert failed: %w", err)
-	}
-
-	networkDuration := time.Since(networkStart)
-	totalDuration := time.Since(processStart)
-	logger.Debug("insert histogram metrics",
-		zap.Int("records", h.count),
-		zap.String("process_cost", processDuration.String()),
-		zap.String("network_cost", networkDuration.String()),
-		zap.String("total_cost", totalDuration.String()))
-
 	return nil
-}
-
-func (h *histogramMetrics) Add(resAttr pcommon.Map, resURL string, scopeInstr pcommon.InstrumentationScope, scopeURL string, metrics pmetric.Metric) {
-	histogram := metrics.Histogram()
-	h.count += histogram.DataPoints().Len()
-	h.histogramModel = append(h.histogramModel, &histogramModel{
-		metricName:        metrics.Name(),
-		metricDescription: metrics.Description(),
-		metricUnit:        metrics.Unit(),
-		metadata: &MetricsMetaData{
-			ResAttr:    resAttr,
-			ResURL:     resURL,
-			ScopeURL:   scopeURL,
-			ScopeInstr: scopeInstr,
-		},
-		histogram: histogram,
-	})
 }

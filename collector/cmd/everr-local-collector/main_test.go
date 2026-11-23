@@ -2,14 +2,21 @@ package main
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseOptionsAcceptsDayTTL(t *testing.T) {
-	opts, err := parseOptions([]string{"--ttl", "7d"})
-
+func TestParseOptionsReadsRetentionDays(t *testing.T) {
+	opts, err := parseOptions(nil)
 	require.NoError(t, err)
-	require.Equal(t, 7*24*time.Hour, opts.TTL)
+	require.EqualValues(t, 7, opts.RetentionDays)
+
+	opts, err = parseOptions([]string{"--retention-days", "30"})
+	require.NoError(t, err)
+	require.EqualValues(t, 30, opts.RetentionDays)
+
+	for _, invalid := range []string{"0", "65536"} {
+		_, err = parseOptions([]string{"--retention-days", invalid})
+		require.ErrorContains(t, err, "--retention-days")
+	}
 }

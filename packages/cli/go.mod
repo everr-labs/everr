@@ -30,10 +30,7 @@ require (
 require (
 	charm.land/bubbles/v2 v2.0.0 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
-	github.com/ClickHouse/ch-go v0.71.0 // indirect
-	github.com/ClickHouse/clickhouse-go/v2 v2.46.0 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
-	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.47.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.33.6 // indirect
@@ -72,11 +69,10 @@ require (
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000 // indirect
+	github.com/everr-labs/everr/packages/app/clickhouse v0.0.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20260902202739-8c9c2d1005f4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
-	github.com/go-faster/city v1.0.1 // indirect
-	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -103,7 +99,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
@@ -113,9 +108,7 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/cors v1.11.1 // indirect
-	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.10 // indirect
-	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
@@ -241,4 +234,5 @@ replace (
 	github.com/everr-labs/everr/collector/internal/localgateway/config => ../../collector/internal/localgateway/config
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../../collector/internal/localgateway/sqlhttp
 	github.com/everr-labs/everr/collector/localcollector => ../../collector/localcollector
+	github.com/everr-labs/everr/packages/app/clickhouse => ../app/clickhouse
 )

@@ -175,3 +175,24 @@ func BenchmarkUniqueFlattenedAttributes(b *testing.B) {
 		_ = UniqueFlattenedAttributes(m)
 	}
 }
+
+func TestGetServiceName(t *testing.T) {
+	t.Run("should return empty string on unset service.name", func(t *testing.T) {
+		require.Empty(t, GetServiceName(pcommon.NewMap()))
+	})
+	t.Run("should return correct string from service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutStr("service.name", "test-service")
+		require.Equal(t, "test-service", GetServiceName(resAttr))
+	})
+	t.Run("should return empty string on empty service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutEmpty("service.name")
+		require.Empty(t, GetServiceName(resAttr))
+	})
+	t.Run("should return string from non-string service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutBool("service.name", true)
+		require.Equal(t, "true", GetServiceName(resAttr))
+	})
+}

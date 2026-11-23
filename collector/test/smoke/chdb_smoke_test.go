@@ -206,7 +206,7 @@ func gatewayArgs(chdbDir string, otlpPort, sqlPort int) []string {
 		"--otlp-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", otlpPort),
 		"--sql-http-endpoint", fmt.Sprintf("http://127.0.0.1:%d", sqlPort),
 		"--chdb-path", chdbDir,
-		"--ttl", "7d",
+		"--retention-days", "7",
 	}
 }
 

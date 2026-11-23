@@ -1,5 +1,6 @@
-// Package localcollector runs the local diagnostic collector: chDB storage,
-// the SQL HTTP endpoint, and an OTLP pipeline that writes into chDB.
+// Package localcollector runs the local diagnostic collector: the chDB store
+// built from the ClickHouse migrations, the SQL HTTP endpoint, and an OTLP
+// pipeline that writes into the store.
 package localcollector
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 	localconfig "github.com/everr-labs/everr/collector/internal/localgateway/config"
 	"github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp"
+	"github.com/everr-labs/everr/collector/localcollector/internal/store"
 )
 
 type Options struct {
@@ -28,10 +30,13 @@ type Options struct {
 	// http://127.0.0.1:4318.
 	OTLPEndpoint string
 	SQLEndpoint  string
-	ChDBPath     string
+	// ChDBPath is the store's directory. Open deletes what is in it when the
+	// store was built by another format version or by other migrations.
+	ChDBPath string
 	// ChDBLibraryPath is the libchdb shared library; empty uses $CHDB_LIB_PATH.
 	ChDBLibraryPath string
-	TTL             time.Duration
+	// RetentionDays is how long the store keeps a row.
+	RetentionDays uint16
 	// Version and InstanceID identify this instance on the SQL /health endpoint.
 	Version    string
 	InstanceID string
@@ -42,14 +47,15 @@ type Options struct {
 // OTLP pipeline runs separately so it can be restarted without reopening
 // chDB, which a process can only open once.
 type Gateway struct {
-	otlp   string
-	ttl    time.Duration
-	handle *chdb.Handle
-	sql    *sqlhttp.Server
+	otlp          string
+	retentionDays uint16
+	handle        *chdb.Handle
+	sql           *sqlhttp.Server
 }
 
-// Open loads chDB and starts the SQL endpoint. Its /health reports
-// "starting" until Run brings the OTLP pipeline up.
+// Open loads chDB, brings the store's schema up to date and starts the SQL
+// endpoint. Its /health reports "starting" until Run brings the OTLP pipeline
+// up.
 func Open(opts Options) (*Gateway, error) {
 	otlp, err := localconfig.ParseEndpoint(opts.OTLPEndpoint)
 	if err != nil {
@@ -62,17 +68,21 @@ func Open(opts Options) (*Gateway, error) {
 	if opts.ChDBPath == "" {
 		return nil, errors.New("chdb path must be specified")
 	}
-	if opts.TTL <= 0 {
-		return nil, errors.New("ttl must be greater than zero")
+	if opts.RetentionDays == 0 {
+		return nil, errors.New("retention days must be greater than zero")
 	}
 	logger := opts.Logger
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 
-	handle, err := chdb.Open(opts.ChDBPath, chdb.WithLibraryPath(opts.ChDBLibraryPath))
+	handle, err := store.Open(context.Background(), store.Options{
+		Path:        opts.ChDBPath,
+		LibraryPath: opts.ChDBLibraryPath,
+		Logger:      logger,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("open chdb: %w", err)
+		return nil, fmt.Errorf("open local store: %w", err)
 	}
 	server := sqlhttp.NewServer(
 		sql,
@@ -84,7 +94,7 @@ func Open(opts Options) (*Gateway, error) {
 		_ = handle.Close()
 		return nil, fmt.Errorf("start sql http server: %w", err)
 	}
-	return &Gateway{otlp: otlp, ttl: opts.TTL, handle: handle, sql: server}, nil
+	return &Gateway{otlp: otlp, retentionDays: opts.RetentionDays, handle: handle, sql: server}, nil
 }
 
 // Run runs the OTLP pipeline until ctx is canceled or the pipeline fails.
@@ -140,7 +150,7 @@ func (g *Gateway) Close(ctx context.Context) error {
 func (g *Gateway) collectorSettings() otelcol.CollectorSettings {
 	rawConfig := localconfig.BuildCollectorConfigMap(localconfig.CollectorConfig{
 		OTLPListenAddress: g.otlp,
-		TTL:               g.ttl,
+		RetentionDays:     g.retentionDays,
 	})
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
@@ -181,7 +191,7 @@ func collectorFactories(handle *chdb.Handle) func() (otelcol.Factories, error) {
 		}
 
 		factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
-			chdbexporter.NewFactoryWithHandle(handle),
+			chdbexporter.NewFactory(handle),
 		)
 		if err != nil {
 			return otelcol.Factories{}, err
