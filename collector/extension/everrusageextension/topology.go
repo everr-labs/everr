@@ -55,6 +55,14 @@ type topologyConfig struct {
 	} `mapstructure:"exporters"`
 }
 
+// Processors allowed between the usage processor and the exporter. They add
+// data Everr computes, which customers are not billed for. Each one hands
+// every batch on synchronously, drops nothing, and returns the exporter's
+// error, so the meter still records only admitted data. A batching,
+// filtering, or asynchronous processor would break that, so this names
+// components rather than describing a behavior.
+var unmeteredEnrichers = map[string]bool{"everr_fingerprint": true}
+
 func validateTopology(conf *confmap.Conf) error {
 	var cfg topologyConfig
 	if err := conf.Unmarshal(&cfg, confmap.WithIgnoreUnused()); err != nil {
@@ -128,8 +136,12 @@ func validateTopology(conf *confmap.Conf) error {
 				return fmt.Errorf("pipeline %s: must attach the usage connector publishing its extension", name)
 			}
 		}
-		if meters != 1 || componentType(p.Processors[len(p.Processors)-1]) != Type {
-			return fmt.Errorf("pipeline %s: one usage processor must directly precede the exporter", name)
+		last := len(p.Processors) - 1
+		for last >= 0 && unmeteredEnrichers[componentType(p.Processors[last])] {
+			last--
+		}
+		if meters != 1 || last < 0 || componentType(p.Processors[last]) != Type {
+			return fmt.Errorf("pipeline %s: one usage processor must precede the exporter, with only unmetered Everr enrichers between them", name)
 		}
 		if err := cfg.validateQueue(storageExporters[0]); err != nil {
 			return fmt.Errorf("pipeline %s: %w", name, err)

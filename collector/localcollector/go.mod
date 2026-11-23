@@ -7,11 +7,13 @@ require (
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/collector/processor/everrfingerprintprocessor v0.0.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.71.0
 	go.opentelemetry.io/collector/confmap v1.71.0
 	go.opentelemetry.io/collector/exporter v1.71.0
 	go.opentelemetry.io/collector/otelcol v0.165.0
+	go.opentelemetry.io/collector/processor v1.71.0
 	go.opentelemetry.io/collector/receiver v1.71.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.165.0
 	go.opentelemetry.io/collector/service v0.165.0
@@ -137,7 +139,7 @@ require (
 	go.opentelemetry.io/collector/pdata/xpdata v0.165.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.71.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0 // indirect
-	go.opentelemetry.io/collector/processor v1.71.0 // indirect
+	go.opentelemetry.io/collector/processor/processorhelper v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor/processortest v0.165.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.165.0 // indirect
 	go.opentelemetry.io/collector/receiver/receiverhelper v0.165.0 // indirect
@@ -213,3 +215,5 @@ replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../i
 replace github.com/everr-labs/everr/collector/internal/localgateway/config => ../internal/localgateway/config
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../internal/localgateway/sqlhttp
+
+replace github.com/everr-labs/everr/collector/processor/everrfingerprintprocessor => ../processor/everrfingerprintprocessor

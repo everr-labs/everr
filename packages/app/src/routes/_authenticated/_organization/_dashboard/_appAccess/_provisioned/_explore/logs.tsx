@@ -7,7 +7,7 @@ import { Button } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
-import { FileSearch } from "lucide-react";
+import { Bug, FileSearch } from "lucide-react";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
 import { runJobsOptions } from "#app/data/runs/options.ts";
@@ -82,6 +82,24 @@ function LogsExplorerPage() {
         >
           <FileSearch data-icon="inline-start" />
           Open in CI View
+        </Button>
+      )}
+      renderErrorLink={({ fingerprint }) => (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-1 w-fit"
+          nativeButton={false}
+          render={
+            <Link
+              to="/errors/$fingerprint"
+              params={{ fingerprint }}
+              search={{ from: search.from, to: search.to, q: "", fingerprint: "", occurrence: "" }}
+            />
+          }
+        >
+          <Bug data-icon="inline-start" />
+          Open Error
         </Button>
       )}
     />

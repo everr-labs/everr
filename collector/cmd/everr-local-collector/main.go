@@ -90,7 +90,13 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("create logger: %w", err)
 	}
-	defer func() { _ = logger.Sync() }()
+	defer func() {
+		// Syncing stderr fails with EINVAL or ENOTTY when it is a terminal or
+		// a pipe; nothing was lost then.
+		if err := logger.Sync(); err != nil && !errors.Is(err, syscall.EINVAL) && !errors.Is(err, syscall.ENOTTY) {
+			fmt.Fprintf(os.Stderr, "everr-local-collector: flush logs: %v\n", err)
+		}
+	}()
 
 	opts.Version = os.Getenv("EVERR_LOCAL_VERSION")
 	opts.InstanceID = os.Getenv("EVERR_LOCAL_INSTANCE_ID")
@@ -102,7 +108,9 @@ func run(ctx context.Context, args []string) error {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = gateway.Close(shutdownCtx)
+		if err := gateway.Close(shutdownCtx); err != nil {
+			logger.Warn("close local collector", zap.Error(err))
+		}
 	}()
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

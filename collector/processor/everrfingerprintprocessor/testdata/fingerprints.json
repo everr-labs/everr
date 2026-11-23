@@ -1,0 +1,121 @@
+[
+  {
+    "exceptionMessage": "Cannot read properties of undefined (reading 'id')",
+    "exceptionType": "TypeError",
+    "expected": "7384709629825244683",
+    "fingerprint": "",
+    "serviceName": "checkout"
+  },
+  {
+    "exceptionMessage": "",
+    "exceptionType": "TypeError",
+    "expected": "7031306993290543400",
+    "fingerprint": "",
+    "serviceName": "checkout"
+  },
+  {
+    "exceptionMessage": "something broke",
+    "exceptionType": "",
+    "expected": "4769296914300775713",
+    "fingerprint": "",
+    "serviceName": "checkout"
+  },
+  {
+    "exceptionMessage": "no service name",
+    "exceptionType": "Error",
+    "expected": "17615098142343594514",
+    "fingerprint": "",
+    "serviceName": ""
+  },
+  {
+    "exceptionMessage": "ignored when a fingerprint is set",
+    "exceptionType": "Error",
+    "expected": "custom-group-1",
+    "fingerprint": "custom-group-1",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "user 3fa85f64-5717-4562-b3fc-2c963f66afa6 not found",
+    "exceptionType": "NotFound",
+    "expected": "1882780622097825092",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "user 3FA85F64-5717-4562-B3FC-2C963F66AFA6 not found",
+    "exceptionType": "NotFound",
+    "expected": "1882780622097825092",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "row 1234567 locked, 12345 rows scanned, ptr 0xDEADbeef",
+    "exceptionType": "DbError",
+    "expected": "429653535481295896",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "order1234567 is not a word-bounded id",
+    "exceptionType": "DbError",
+    "expected": "16632050121784960548",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "bad value 'abcdefghijklmnopq' and 'short' and \"0123456789abcdefXYZ\"",
+    "exceptionType": "Error",
+    "expected": "11880832537401906872",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "   padded with spaces   ",
+    "exceptionType": "Error",
+    "expected": "14715971009817241154",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "\ttabs are not trimmed\n",
+    "exceptionType": "Error",
+    "expected": "10722136330410675978",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries TimeoutError: request to upstream failed after retries ",
+    "exceptionType": "Error",
+    "expected": "15774217844927624073",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+    "exceptionType": "Error",
+    "expected": "11751738200302260143",
+    "fingerprint": "",
+    "serviceName": "api"
+  },
+  {
+    "exceptionMessage": "Loading chunk 9876543 failed: 'https://cdn.example.com/static/js/app.js'",
+    "exceptionType": "ChunkLoadError",
+    "expected": "11849524844684175287",
+    "fingerprint": "",
+    "serviceName": "web"
+  },
+  {
+    "exceptionMessage": "ünïcödé — ✓ 测试 3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "exceptionType": "Error",
+    "expected": "9072235801140595071",
+    "fingerprint": "",
+    "serviceName": "web"
+  },
+  {
+    "exceptionMessage": "aéééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+    "exceptionType": "Error",
+    "expected": "18393554260286090975",
+    "fingerprint": "",
+    "serviceName": "api"
+  }
+]

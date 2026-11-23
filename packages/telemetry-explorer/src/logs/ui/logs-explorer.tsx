@@ -54,6 +54,7 @@ export interface LogsExplorerProps {
   onTimeRangeSelect?: (from: Date, to: Date) => void;
   renderRunLink?: (ctx: { traceId: string; jobId: string; stepNumber: string }) => ReactNode;
   resolveJobId?: (input: { traceId: string; jobName: string }) => string | undefined;
+  renderErrorLink?: (ctx: { fingerprint: string }) => ReactNode;
 }
 
 const VIRTUOSO_OVERSCAN_IDLE = { top: 400, bottom: 400 };
@@ -193,6 +194,7 @@ export function LogsExplorer({
   onTimeRangeSelect,
   renderRunLink,
   resolveJobId,
+  renderErrorLink,
 }: LogsExplorerProps) {
   // Default `attributes` to [] so a consumer that hand-builds the search object
   // without it (e.g. an external embedder) can't crash the filter UI on `.map`.
@@ -309,6 +311,7 @@ export function LogsExplorer({
       onClose={handleCloseInspector}
       renderRunLink={renderRunLink}
       resolveJobId={resolveJobId}
+      renderErrorLink={renderErrorLink}
     />
   ) : null;
 
@@ -413,6 +416,7 @@ export function LogsExplorer({
                 onExpand={() => setIsInspectorExpanded(true)}
                 renderRunLink={renderRunLink}
                 resolveJobId={resolveJobId}
+                renderErrorLink={renderErrorLink}
               />
             </aside>
           ) : null}
@@ -464,6 +468,7 @@ export function LogsExplorer({
                 onClose={() => setIsInspectorExpanded(false)}
                 renderRunLink={renderRunLink}
                 resolveJobId={resolveJobId}
+                renderErrorLink={renderErrorLink}
               />
             ) : null}
           </DialogContent>

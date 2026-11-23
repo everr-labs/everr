@@ -116,7 +116,15 @@ LIMIT 200
 
 ## Group Errors By Fingerprint
 
-Everr groups error logs into Errors by a _fingerprint_: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. The ClickHouse function `errorFingerprint` computes it, so you get the same identity the app groups by. The "Copy agent prompt" button in the web UI hands you a Fingerprint. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message.
+Everr groups error logs into Errors by a _fingerprint_: the `error.fingerprint` log attribute when present, else a hash of the service, exception type, and a normalized exception message. An error log has a `service.name` resource attribute, `SeverityNumber >= 17`, and an exception type or message. The "Copy agent prompt" button in the web UI hands you a Fingerprint.
+
+The collector stores the fingerprint on each error log as the `everr.error.fingerprint` attribute. Logs ingested before the collector did this have no such attribute; the ClickHouse function `errorFingerprint` computes the same value for them. Read the attribute and fall back to the function, as the app does, so you get the same identity it groups by:
+
+```sql
+if(toString(LogAttributes.`everr.error.fingerprint`) != '',
+   toString(LogAttributes.`everr.error.fingerprint`),
+   errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)))
+```
 
 Occurrences of one Fingerprint (widen the window if the Error is older):
 
@@ -127,7 +135,9 @@ FROM logs
 WHERE Timestamp > now() - INTERVAL 7 DAY
   AND has(ResourceAttributesKeys, 'service.name')
   AND SeverityNumber >= 17
-  AND errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`)) = '<fingerprint>'
+  AND if(toString(LogAttributes.`everr.error.fingerprint`) != '',
+         toString(LogAttributes.`everr.error.fingerprint`),
+         errorFingerprint(ServiceName, toString(LogAttributes.`error.fingerprint`), toString(LogAttributes.`exception.type`), toString(LogAttributes.`exception.message`))) = '<fingerprint>'
 ORDER BY Timestamp DESC
 LIMIT 50
 ```

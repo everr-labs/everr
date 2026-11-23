@@ -1,13 +1,17 @@
 import { attributeExists, attributeText } from "../../sql/json-attributes";
 
-// Everr's stable identity for an Error. The expression lives in the
-// `errorFingerprint` ClickHouse UDF
-// (packages/app/clickhouse/0004-create-error-fingerprint-function.sql and the local
-// collector's copy), so the web app, local collector, agents, and skills all
-// group Errors identically instead of each carrying a copy of the SQL. Callers
-// pass ServiceName and the three attributes the UDF reads, each as text, so
-// the query reads three subcolumns and never the whole LogAttributes column.
-export const ERROR_FINGERPRINT_SQL = `errorFingerprint(ServiceName, ${attributeText("LogAttributes", "error.fingerprint")}, ${attributeText("LogAttributes", "exception.type")}, ${attributeText("LogAttributes", "exception.message")})`;
+// Everr's stable identity for an Error. The collector's everr_fingerprint
+// processor stamps it on each exception log as ERROR_FINGERPRINT_ATTRIBUTE.
+// Logs stored before the processor ran have no stamp, so those fall back to
+// the `errorFingerprint` ClickHouse UDF, which computes the same value
+// (collector/processor/everrfingerprintprocessor/testdata/fingerprints.json
+// pins both). `if` short-circuits, so stamped rows skip the UDF. Every value
+// is read as text, so the query reads subcolumns and never the whole
+// LogAttributes column.
+const UDF_FINGERPRINT_SQL = `errorFingerprint(ServiceName, ${attributeText("LogAttributes", "error.fingerprint")}, ${attributeText("LogAttributes", "exception.type")}, ${attributeText("LogAttributes", "exception.message")})`;
+export const ERROR_FINGERPRINT_ATTRIBUTE = "everr.error.fingerprint";
+const STAMPED_FINGERPRINT_SQL = attributeText("LogAttributes", ERROR_FINGERPRINT_ATTRIBUTE);
+export const ERROR_FINGERPRINT_SQL = `if(${STAMPED_FINGERPRINT_SQL} != '', ${STAMPED_FINGERPRINT_SQL}, ${UDF_FINGERPRINT_SQL})`;
 
 export const EXCEPTION_LOG_FILTER_SQL = `
   ${attributeExists("ResourceAttributes", "service.name")}
