@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-	"go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper"
 	"go.opentelemetry.io/collector/exporter/xexporter"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metadata"
@@ -37,9 +36,6 @@ func NewFactoryWithHandle(handle *chdb.Handle) exporter.Factory {
 		xexporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
 			return createMetricExporter(ctx, set, cfg, handle)
 		}, metadata.MetricsStability),
-		xexporter.WithProfiles(func(ctx context.Context, set exporter.Settings, cfg component.Config) (xexporter.Profiles, error) {
-			return createProfilesExporter(ctx, set, cfg, handle)
-		}, metadata.ProfilesStability),
 	)
 }
 
@@ -93,30 +89,6 @@ func createTracesExporter(
 		set,
 		cfg,
 		exp.pushTraceData,
-		exporterhelper.WithStart(exp.start),
-		exporterhelper.WithShutdown(exp.shutdown),
-		exporterhelper.WithTimeout(c.TimeoutSettings),
-		exporterhelper.WithQueue(c.QueueSettings),
-		exporterhelper.WithRetry(c.BackOffConfig),
-	)
-}
-
-func createProfilesExporter(
-	ctx context.Context,
-	set exporter.Settings,
-	cfg component.Config,
-	handle *chdb.Handle,
-) (xexporter.Profiles, error) {
-	c := cfg.(*Config)
-	c.collectorVersion = set.BuildInfo.Version
-
-	exp := newProfilesExporter(set.Logger, c, handle)
-
-	return xexporterhelper.NewProfiles(
-		ctx,
-		set,
-		cfg,
-		exp.pushProfilesData,
 		exporterhelper.WithStart(exp.start),
 		exporterhelper.WithShutdown(exp.shutdown),
 		exporterhelper.WithTimeout(c.TimeoutSettings),
