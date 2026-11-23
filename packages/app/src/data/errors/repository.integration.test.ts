@@ -1,42 +1,20 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { ErrorsRepository } from "@everr/telemetry-explorer/errors";
-import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-let session: Session;
-let dataDir: string;
+import { type MigratedChdbStore, openMigratedChdbStore } from "#app/testing/chdb-migrated-store.ts";
+
+let store: MigratedChdbStore;
 
 function run(sql: string) {
-  return String(session.query(sql, "JSONEachRow") ?? "").trim();
-}
-
-function template(file: string) {
-  return readFileSync(
-    new URL(
-      `../../../../../collector/exporter/chdbexporter/internal/sqltemplates/${file}`,
-      import.meta.url,
-    ),
-    "utf8",
-  );
+  return store.run(sql);
 }
 
 beforeAll(() => {
-  dataDir = mkdtempSync(join(tmpdir(), "everr-error-trend-"));
-  session = new Session(dataDir);
-  run(template("create_error_fingerprint_function.sql"));
-  run(
-    template("logs_json_table.sql")
-      .replace("{{ident .Database}}", '"default"')
-      .replace("{{ident .TableName}}", '"logs"')
-      .replace(/\{\{[^}]*\}\}/g, (tag) => (tag === "{{.Engine}}" ? "MergeTree()" : "")),
-  );
+  store = openMigratedChdbStore("everr-error-trend-");
 });
 
 afterAll(() => {
-  session?.cleanup();
-  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  store?.close();
 });
 
 const repo = new ErrorsRepository({
