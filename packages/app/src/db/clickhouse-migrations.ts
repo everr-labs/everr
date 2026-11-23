@@ -28,12 +28,12 @@ export interface HashedClickHouseMigration extends ClickHouseMigration {
 }
 
 /**
- * Stable id for one statement. A retry sends it again with
+ * Stable id for one statement or one seed query. A retry sends it again with
  * `replace_running_query`, which cancels the previous attempt if ClickHouse
  * is still running it after the client timed out.
  */
-export function clickHouseMigrationQueryId(name: string, index: number): string {
-  return `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-${index}`;
+export function clickHouseMigrationQueryId(name: string, step: number | `seed-${number}`): string {
+  return `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-${step}`;
 }
 
 /**
@@ -111,19 +111,29 @@ type MigrationClient = Pick<ReturnType<typeof createClient>, "command" | "query"
 const instrumented = <T>(operation: string, call: () => Promise<T>) =>
   instrumentClickhouseOperation({ client: "migration", operation }, call);
 
+const REPLACE_PREVIOUS_RUN = { replace_running_query: 1 } as const;
+
 /** The steps of `migration` on `client`. `params` are the values its statements bind. */
 export function clickHouseMigrationSteps(
   client: MigrationClient,
   migration: HashedClickHouseMigration,
   params: Params,
 ): ClickHouseMigrationSteps {
+  // A seed query's id is its place in the seed's call order. The next start
+  // makes the same calls in the same order, so it repeats the ids.
+  let seedQueries = 0;
+  const seedQuery = (query: string) => ({
+    query,
+    query_id: clickHouseMigrationQueryId(migration.name, `seed-${seedQueries++}`),
+    clickhouse_settings: REPLACE_PREVIOUS_RUN,
+  });
   return {
     statement: async (statement, index) => {
       await instrumented("QUERY", () =>
         client.command({
           query: statement,
           query_id: clickHouseMigrationQueryId(migration.name, index),
-          clickhouse_settings: { replace_running_query: 1 },
+          clickhouse_settings: REPLACE_PREVIOUS_RUN,
           query_params: statementParams(migration.name, statement, params),
         }),
       );
@@ -131,11 +141,11 @@ export function clickHouseMigrationSteps(
     seed: {
       query: <Row>(query: string) =>
         instrumented("SELECT", async () => {
-          const rows = await client.query({ query, format: "JSONEachRow" });
+          const rows = await client.query({ ...seedQuery(query), format: "JSONEachRow" });
           return rows.json<Row>();
         }),
       command: async (query) => {
-        await instrumented("QUERY", () => client.command({ query }));
+        await instrumented("QUERY", () => client.command(seedQuery(query)));
       },
     },
     journal: async () => {
@@ -181,8 +191,9 @@ export async function migrateClickHouse(
 
   // A statement can outlast the client's 30 s default. A `request_timeout` in
   // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps
-  // running a statement after the client gives up, so each statement repeats
-  // its query id and the next start cancels that run before trying again.
+  // running a statement or a seed query after the client gives up, so each
+  // one repeats its query id and the next start cancels that run before
+  // trying again.
   const client = createClient({
     url: env.CLICKHOUSE_URL,
     username,
