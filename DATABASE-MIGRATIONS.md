@@ -147,9 +147,10 @@ with the same statement split, and each file once. It differs in three ways.
   that work as a repeatable SQL statement in the local file.
 - It records the applied files in `.everr-store.json` in the chDB directory,
   not in `default.everr_clickhouse_migrations`.
-- If an applied file changed, the local store deletes its data and applies
-  every file again. It does not stop startup, because local telemetry is a
-  cache.
+- If a statement of an applied file changed, the local store deletes its data
+  and applies every file again. It does not stop startup, because local
+  telemetry is a cache. A change to a comment does nothing: the recorded hash
+  covers the statements only.
 
 A new file applies on the next `everr local start`, and the local data stays.
 To make every local store start empty, raise `Version` in

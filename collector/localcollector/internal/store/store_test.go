@@ -156,6 +156,21 @@ func TestOpenRunsAFailedFileAgainFromItsFirstStatement(t *testing.T) {
 	require.Equal(t, []string{"0001-setup.sql", "0003-tables.sql"}, appliedNames(t, dir))
 }
 
+func TestOpenKeepsAStoreWhenOnlyACommentOfAnAppliedFileChanged(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "chdb")
+	files := migrationFiles()
+	_, err := start(t, dir, files, "")
+	require.NoError(t, err)
+	write(t, filepath.Join(dir, "data", "part"), "telemetry")
+	files["0003-tables.sql"] = &fstest.MapFile{Data: append([]byte("-- reworded\n"), files["0003-tables.sql"].Data...)}
+
+	session, err := start(t, dir, files, "")
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"USE app"}, session.statements())
+	require.FileExists(t, filepath.Join(dir, "data", "part"))
+}
+
 func TestOpenResetsAStoreWhoseVersionDiffers(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chdb")
 	require.NoError(t, writeMarker(dir, marker{Version: Version + 1, Applied: map[string]string{"0001-setup.sql": "x"}}))

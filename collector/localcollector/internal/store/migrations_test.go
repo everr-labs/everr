@@ -1,8 +1,6 @@
 package store
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"testing"
 	"testing/fstest"
 
@@ -33,13 +31,20 @@ func TestLocalMigrationsReadsTheSQLFilesInNameOrder(t *testing.T) {
 	}, names)
 }
 
-func TestLocalMigrationsHashTheFileTextAsWritten(t *testing.T) {
-	text := "-- a comment\nSELECT 1;\n"
-	local, err := localMigrations(fstest.MapFS{"0001-setup.sql": {Data: []byte(text)}})
+func TestLocalMigrationsHashTheStatementsAndNotTheComments(t *testing.T) {
+	sum := func(text string) string {
+		local, err := localMigrations(fstest.MapFS{"0001-setup.sql": {Data: []byte(text)}})
+		require.NoError(t, err)
+		require.Len(t, local, 1)
+		return local[0].sum
+	}
 
-	require.NoError(t, err)
-	sum := sha256.Sum256([]byte(text))
-	require.Equal(t, []migration{{name: "0001-setup.sql", sql: text, sum: hex.EncodeToString(sum[:])}}, local)
+	written := sum("-- a comment\nSELECT 1;\nSELECT 2;\n")
+
+	require.Equal(t, written, sum("-- another comment\n\nSELECT 1; -- inline\nSELECT 2;"))
+	require.NotEqual(t, written, sum("SELECT 1;\nSELECT 3;\n"))
+	require.NotEqual(t, written, sum("SELECT 2;\nSELECT 1;\n"))
+	require.NotEqual(t, written, sum("SELECT 1;\n"))
 }
 
 func TestStatementsSplitLikeTheWebApp(t *testing.T) {

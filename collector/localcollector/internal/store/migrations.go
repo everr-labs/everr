@@ -30,7 +30,9 @@ func localMigrations(fsys fs.FS) ([]migration, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read migration %s: %w", name, err)
 		}
-		sum := sha256.Sum256(text)
+		// The hash covers what runs. A changed hash deletes the store's data,
+		// and a reworded comment must not do that.
+		sum := sha256.Sum256([]byte(strings.Join(statements(string(text)), ";")))
 		local = append(local, migration{name: name, sql: string(text), sum: hex.EncodeToString(sum[:])})
 	}
 	return local, nil
