@@ -6,25 +6,13 @@ import { Session } from "chdb";
 import { clickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
 import { retentionForDays } from "#app/product/retention.test-fixtures.ts";
 
+import { isAccessControl, withoutTtl } from "./chdb-migrated-store.ts";
+
 const HISTORY_TABLE = "app.alert_events";
 
 const alertEventsSql = clickHouseMigrations.find(
   ({ name }) => name === "0007-create-alert-events.sql",
 )?.sql;
-
-// Embedded chDB has no access management. Skip grants and policies;
-// these tests do not verify tenant isolation.
-function isAccessControl(statement: string): boolean {
-  return /^\s*(GRANT|REVOKE|CREATE\s+ROLE|DROP\s+ROLE|CREATE\s+ROW\s+POLICY|DROP\s+ROW\s+POLICY|CREATE\s+USER|ALTER\s+USER|SET\s+ROLE)\b/i.test(
-    statement,
-  );
-}
-
-// Fixtures use fixed timestamps, so omit TTL to keep them independent of the
-// machine clock. Expiry is outside this suite; the remaining DDL stays intact.
-function withoutTtl(statement: string): string {
-  return statement.replace(/\nTTL [\s\S]*?(?=\nSETTINGS )/, "\n");
-}
 
 /** One value as the text ClickHouse parses against the placeholder's type. */
 function paramText(name: string, value: unknown): string {
