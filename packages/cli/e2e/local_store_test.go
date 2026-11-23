@@ -69,21 +69,34 @@ func TestTheLocalStoreKeepsTelemetryAcrossRestartsAndStartsEmptyOnAnotherVersion
 
 func TestAStoreFromBeforeTheMigrationsIsReplacedByAnEmptyOne(t *testing.T) {
 	i := newInstance(t)
-	for _, dir := range []string{"metadata", "store", "data"} {
+	// The layout chDB 26.7 writes for a table in the default database, which
+	// is where the CLI before the migrations kept its tables.
+	database := filepath.Join("store", "3cf", "3cfec65e-7563-48c2-8606-42e12443c558")
+	table := filepath.Join("store", "70d", "70d94429-672b-4847-82c4-8cce0efdd3c4")
+	for _, dir := range []string{database, filepath.Join(table, "all_1_1_0"), filepath.Join("data", "default"), "metadata"} {
 		if err := os.MkdirAll(filepath.Join(i.storeDir(), dir), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	leftovers := []string{
-		filepath.Join(i.storeDir(), "metadata", "default.sql"),
-		filepath.Join(i.storeDir(), "store", "old-part"),
-		filepath.Join(i.storeDir(), ".last_flush"),
-	}
-	for _, file := range leftovers {
-		if err := os.WriteFile(file, []byte("ATTACH DATABASE default ENGINE = Atomic"), 0o644); err != nil {
+	for link, target := range map[string]string{
+		filepath.Join("metadata", "default"):          filepath.Join("..", database),
+		filepath.Join("data", "default", "otel_logs"): filepath.Join("..", "..", table),
+	} {
+		if err := os.Symlink(target, filepath.Join(i.storeDir(), link)); err != nil {
 			t.Fatal(err)
 		}
 	}
+	leftovers := []string{
+		filepath.Join(i.storeDir(), database, "otel_logs.sql"),
+		filepath.Join(i.storeDir(), table, "all_1_1_0", "data.bin"),
+		filepath.Join(i.storeDir(), ".last_flush"),
+	}
+	for _, file := range leftovers {
+		if err := os.WriteFile(file, []byte("old"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	leftovers = append(leftovers, filepath.Join(i.storeDir(), "metadata", "default"))
 
 	i.Run("local", "start", "-d", "--no-open").Success(t)
 
@@ -91,7 +104,7 @@ func TestAStoreFromBeforeTheMigrationsIsReplacedByAnEmptyOne(t *testing.T) {
 		t.Fatalf("log count on the replaced store = %s", got)
 	}
 	for _, file := range leftovers {
-		if _, err := os.Stat(file); !os.IsNotExist(err) {
+		if _, err := os.Lstat(file); !os.IsNotExist(err) {
 			t.Fatalf("%s survived the reset", file)
 		}
 	}
