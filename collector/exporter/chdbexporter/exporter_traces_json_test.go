@@ -22,7 +22,7 @@ func TestRenderInsertTracesJSONSQLMatchesColumnsAndPlaceholders(t *testing.T) {
 			cfg := withDefaultConfig(func(c *Config) {
 				c.TracesTableName = "otel_traces_json"
 			})
-			exporter := newTracesJSONExporter(zap.NewNop(), cfg)
+			exporter := newTracesJSONExporter(zap.NewNop(), cfg, nil)
 			exporter.schemaFeatures.AttributeKeys = attributeKeys
 
 			exporter.renderInsertTracesJSONSQL()

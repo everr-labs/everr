@@ -26,12 +26,8 @@ type metricsExporter struct {
 	tablesConfig metrics.MetricTablesConfigMapper
 }
 
-func newMetricsExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *metricsExporter {
+func newMetricsExporter(logger *zap.Logger, cfg *Config, handle *chdb.Handle) *metricsExporter {
 	tablesConfig := generateMetricTablesConfigMapper(cfg)
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
 
 	return &metricsExporter{
 		logger:       logger,
