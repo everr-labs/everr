@@ -156,7 +156,7 @@ function TraceRow({
   // tooltips stay as siblings (lifted above the overlay with z-10) instead of
   // nested interactive elements inside the anchor.
   return (
-    <div className="hover:bg-muted/50 relative flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight">
+    <div className="hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 leading-tight">
         {renderTraceLink({
           traceId: row.traceId,
@@ -330,7 +330,10 @@ function ResultsSkeleton({ withDay }: { withDay: boolean }) {
     <div aria-hidden className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ResultsHeader withDay={withDay} />
       {Array.from({ length: SKELETON_ROW_COUNT }, (_, i) => (
-        <div key={i} className="flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight">
+        <div
+          key={i}
+          className="flex h-10 shrink-0 items-center gap-2 border-b px-3 text-sm leading-tight"
+        >
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <SkeletonLine className="w-11 shrink-0">
               <Skeleton className="h-2.5 w-7 rounded-sm" />

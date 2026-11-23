@@ -10,6 +10,7 @@ import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
 import { showingAll } from "../../filters/ui/no-results";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
+import { errorTrendPeak } from "./error-trend";
 
 const VIRTUOSO_OVERSCAN = 600;
 
@@ -41,11 +42,15 @@ export function ErrorIssueList({
     if (hasNextPage && !isFetchingNextPage) onLoadMore();
   }, [hasNextPage, isFetchingNextPage, onLoadMore]);
 
+  // One scale for every trend in the list, so a shade means the same count in
+  // each row. It grows as more pages load.
+  const trendPeak = useMemo(() => errorTrendPeak(issues.map((issue) => issue.trend)), [issues]);
+
   const itemContent = useCallback(
     (_index: number, issue: ErrorIssueSummary) => (
-      <ErrorIssueRow issue={issue} renderIssueLink={renderIssueLink} />
+      <ErrorIssueRow issue={issue} trendPeak={trendPeak} renderIssueLink={renderIssueLink} />
     ),
-    [renderIssueLink],
+    [renderIssueLink, trendPeak],
   );
 
   const components = useMemo(
@@ -123,7 +128,7 @@ function ListSkeleton() {
       {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
         <div
           key={index}
-          className="flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight"
+          className="flex h-10 shrink-0 items-center gap-2 border-b px-3 text-sm leading-tight"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <SkeletonLine className="shrink-0">

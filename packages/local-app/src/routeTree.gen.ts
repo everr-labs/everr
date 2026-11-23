@@ -17,7 +17,7 @@ import { Route as ShellLogsRouteImport } from './routes/_shell.logs'
 import { Route as ShellMetricsRouteImport } from './routes/_shell.metrics'
 import { Route as ShellSettingsRouteImport } from './routes/_shell.settings'
 import { Route as ShellTracesRouteImport } from './routes/_shell.traces'
-import { Route as ShellErrorsFingerprintRouteImport } from './routes/_shell.errors.$fingerprint'
+import { Route as ShellErrorsFingerprintRouteImport } from './routes/_shell.errors_.$fingerprint'
 import { Route as ShellTracesTraceIdRouteImport } from './routes/_shell.traces_.$traceId'
 
 const ShellRoute = ShellRouteImport.update({
@@ -60,9 +60,9 @@ const ShellTracesRoute = ShellTracesRouteImport.update({
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellErrorsFingerprintRoute = ShellErrorsFingerprintRouteImport.update({
-  id: '/$fingerprint',
-  path: '/$fingerprint',
-  getParentRoute: () => ShellErrorsRoute,
+  id: '/errors_/$fingerprint',
+  path: '/errors/$fingerprint',
+  getParentRoute: () => ShellRoute,
 } as any)
 const ShellTracesTraceIdRoute = ShellTracesTraceIdRouteImport.update({
   id: '/traces_/$traceId',
@@ -73,7 +73,7 @@ const ShellTracesTraceIdRoute = ShellTracesTraceIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
   '/developer': typeof ShellDeveloperRoute
-  '/errors': typeof ShellErrorsRouteWithChildren
+  '/errors': typeof ShellErrorsRoute
   '/logs': typeof ShellLogsRoute
   '/metrics': typeof ShellMetricsRoute
   '/settings': typeof ShellSettingsRoute
@@ -83,7 +83,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/developer': typeof ShellDeveloperRoute
-  '/errors': typeof ShellErrorsRouteWithChildren
+  '/errors': typeof ShellErrorsRoute
   '/logs': typeof ShellLogsRoute
   '/metrics': typeof ShellMetricsRoute
   '/settings': typeof ShellSettingsRoute
@@ -96,13 +96,13 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
   '/_shell/developer': typeof ShellDeveloperRoute
-  '/_shell/errors': typeof ShellErrorsRouteWithChildren
+  '/_shell/errors': typeof ShellErrorsRoute
   '/_shell/logs': typeof ShellLogsRoute
   '/_shell/metrics': typeof ShellMetricsRoute
   '/_shell/settings': typeof ShellSettingsRoute
   '/_shell/traces': typeof ShellTracesRoute
   '/_shell/': typeof ShellIndexRoute
-  '/_shell/errors/$fingerprint': typeof ShellErrorsFingerprintRoute
+  '/_shell/errors_/$fingerprint': typeof ShellErrorsFingerprintRoute
   '/_shell/traces_/$traceId': typeof ShellTracesTraceIdRoute
 }
 export interface FileRouteTypes {
@@ -138,7 +138,7 @@ export interface FileRouteTypes {
     | '/_shell/settings'
     | '/_shell/traces'
     | '/_shell/'
-    | '/_shell/errors/$fingerprint'
+    | '/_shell/errors_/$fingerprint'
     | '/_shell/traces_/$traceId'
   fileRoutesById: FileRoutesById
 }
@@ -204,12 +204,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellTracesRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/errors/$fingerprint': {
-      id: '/_shell/errors/$fingerprint'
-      path: '/$fingerprint'
+    '/_shell/errors_/$fingerprint': {
+      id: '/_shell/errors_/$fingerprint'
+      path: '/errors/$fingerprint'
       fullPath: '/errors/$fingerprint'
       preLoaderRoute: typeof ShellErrorsFingerprintRouteImport
-      parentRoute: typeof ShellErrorsRoute
+      parentRoute: typeof ShellRoute
     }
     '/_shell/traces_/$traceId': {
       id: '/_shell/traces_/$traceId'
@@ -221,37 +221,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ShellErrorsRouteChildren {
-  ShellErrorsFingerprintRoute: typeof ShellErrorsFingerprintRoute
-}
-
-const ShellErrorsRouteChildren: ShellErrorsRouteChildren = {
-  ShellErrorsFingerprintRoute: ShellErrorsFingerprintRoute,
-}
-
-const ShellErrorsRouteWithChildren = ShellErrorsRoute._addFileChildren(
-  ShellErrorsRouteChildren,
-)
-
 interface ShellRouteChildren {
   ShellDeveloperRoute: typeof ShellDeveloperRoute
-  ShellErrorsRoute: typeof ShellErrorsRouteWithChildren
+  ShellErrorsRoute: typeof ShellErrorsRoute
   ShellLogsRoute: typeof ShellLogsRoute
   ShellMetricsRoute: typeof ShellMetricsRoute
   ShellSettingsRoute: typeof ShellSettingsRoute
   ShellTracesRoute: typeof ShellTracesRoute
   ShellIndexRoute: typeof ShellIndexRoute
+  ShellErrorsFingerprintRoute: typeof ShellErrorsFingerprintRoute
   ShellTracesTraceIdRoute: typeof ShellTracesTraceIdRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
   ShellDeveloperRoute: ShellDeveloperRoute,
-  ShellErrorsRoute: ShellErrorsRouteWithChildren,
+  ShellErrorsRoute: ShellErrorsRoute,
   ShellLogsRoute: ShellLogsRoute,
   ShellMetricsRoute: ShellMetricsRoute,
   ShellSettingsRoute: ShellSettingsRoute,
   ShellTracesRoute: ShellTracesRoute,
   ShellIndexRoute: ShellIndexRoute,
+  ShellErrorsFingerprintRoute: ShellErrorsFingerprintRoute,
   ShellTracesTraceIdRoute: ShellTracesTraceIdRoute,
 }
 

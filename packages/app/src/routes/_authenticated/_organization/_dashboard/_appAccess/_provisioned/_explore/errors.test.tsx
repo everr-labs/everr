@@ -5,7 +5,6 @@ import {
   createMemoryHistory,
   createRootRoute,
   createRoute,
-  createRouteMask,
   createRouter,
   Outlet,
   RouterProvider,
@@ -16,27 +15,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { z } from "zod";
-import { ErrorDetailRouteContent } from "./-error-detail";
 import { Route as ErrorsFileRoute } from "./errors";
 
 vi.mock("#app/data/errors/remote-repo.ts", () => ({
   remoteErrorsRepo: {},
 }));
 
-vi.mock("#app/data/runs/options.ts", () => ({
-  runSpansOptions: vi.fn(() => ({
-    queryKey: ["runs", "spans", "test"],
-    queryFn: vi.fn(),
-  })),
-}));
-
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryErrors>();
   return {
     ...actual,
-    ErrorDetail: ({ fingerprint }: { fingerprint: string }) => (
-      <div>Error detail page {fingerprint}</div>
-    ),
     ErrorIssues: ({
       renderIssueLink,
       search,
@@ -55,7 +43,7 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
 });
 
 describe("/errors route", () => {
-  function renderErrorsRoute(initialEntries: string[], initialState?: Record<string, unknown>) {
+  function renderErrorsRoute(initialEntries: string[]) {
     const rootRoute = createRootRoute({
       component: Outlet,
     });
@@ -95,56 +83,20 @@ describe("/errors route", () => {
       },
       component: ErrorsFileRoute.options.component,
     });
-    const errorFullPageRoute = createRoute({
+    const errorDetailRoute = createRoute({
       getParentRoute: () => exploreRoute,
       path: "errors/$fingerprint",
-      component: () => <div>Error full page route</div>,
+      validateSearch: ErrorIssueSearchSchema,
+      component: () => <div>Error detail page</div>,
     });
-    const errorModalRoute = createRoute({
-      getParentRoute: () => errorsRoute,
-      path: "$fingerprint/modal",
-      component: ErrorModalChildRoute,
-    });
-    function ErrorModalChildRoute() {
-      const { fingerprint } = errorModalRoute.useParams();
-      const search = errorModalRoute.useSearch();
-
-      return (
-        <ErrorDetailRouteContent
-          fingerprint={fingerprint}
-          search={search}
-          detailTo="/errors/$fingerprint/modal"
-          onClose={() => undefined}
-        />
-      );
-    }
     const routeTree = rootRoute.addChildren([
       authenticatedRoute.addChildren([
-        dashboardRoute.addChildren([
-          exploreRoute.addChildren([
-            errorFullPageRoute,
-            errorsRoute.addChildren([errorModalRoute]),
-          ]),
-        ]),
+        dashboardRoute.addChildren([exploreRoute.addChildren([errorsRoute, errorDetailRoute])]),
       ]),
     ]);
     const history = createMemoryHistory({ initialEntries });
-    if (initialState) history.replace(initialEntries[0] ?? "/", initialState);
 
-    const router = createRouter({
-      routeTree,
-      routeMasks: [
-        createRouteMask({
-          routeTree,
-          from: "/errors/$fingerprint/modal",
-          to: "/errors/$fingerprint",
-          params: (params) => ({ fingerprint: params.fingerprint as string }),
-          search: true,
-          unmaskOnReload: true,
-        }),
-      ],
-      history,
-    });
+    const router = createRouter({ routeTree, history });
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -158,27 +110,16 @@ describe("/errors route", () => {
     return router;
   }
 
-  it.each([
-    "/errors/fp-1",
-    "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
-  ])("renders the detail child route as a page for a direct or reloaded URL %s", async (url) => {
-    renderErrorsRoute([url]);
-
-    expect(await screen.findByText("Error full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
-  });
-
-  it("renders the detail child route in a modal from the list", async () => {
+  it("opens an error from the list as its own page, keeping the list filters", async () => {
     const user = userEvent.setup();
-    const router = renderErrorsRoute(["/errors"]);
+    const router = renderErrorsRoute(["/errors?q=timeout"]);
 
     await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
 
-    expect(screen.getByText("Error list page")).toBeInTheDocument();
-    expect(screen.getByText("Error detail page fp-1")).toBeInTheDocument();
-    expect(router.state.location.href).toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).toContain("/errors/fp-1");
+    expect(await screen.findByText("Error detail page")).toBeInTheDocument();
+    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/errors/fp-1");
+    expect(router.state.location.search).toMatchObject({ q: "timeout" });
   });
 
   it("renders the list page after dropping invalid empty query params", async () => {

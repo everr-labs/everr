@@ -5,7 +5,7 @@ import { beforeEach, expect, test, vi } from "vite-plus/test";
 
 // Stub the generated tree: the real one pulls every route module (and the
 // server env, ClickHouse, and server functions with it) into the test. The
-// subject stays the real `getRouter`, with its real masks and mode branch.
+// subject stays the real `getRouter`, with its real options and mode branch.
 
 import { getRouter } from "./router";
 
@@ -13,8 +13,8 @@ vi.mock("@composition/routes", () => {
   const rootRoute = createRootRoute();
   return {
     routeTree: rootRoute.addChildren(
-      ["/traces", "/traces/$traceId", "/errors/$fingerprint", "/errors/$fingerprint/modal"].map(
-        (path) => createRoute({ getParentRoute: () => rootRoute, path }),
+      ["/traces", "/traces/$traceId", "/errors/$fingerprint"].map((path) =>
+        createRoute({ getParentRoute: () => rootRoute, path }),
       ),
     ),
   };

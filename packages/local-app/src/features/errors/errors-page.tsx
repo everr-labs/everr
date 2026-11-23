@@ -1,5 +1,4 @@
 import {
-  DetailRouteDialog,
   ErrorDetail,
   type ErrorIssueSearch,
   ErrorIssueSearchSchema,
@@ -14,7 +13,8 @@ import { getTraceOptions, type Span, TracesRepository } from "@everr/telemetry-e
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { Link, Outlet, useMatch, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { PageTitleBar } from "../app-shell/title-bar";
 import { ExploreShell } from "../explore/explore-shell";
 import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { useExploreControls } from "../explore/use-explore-controls";
@@ -31,32 +31,6 @@ const localErrorsRepo = new ErrorsRepository(localSqlClient);
 const localTracesRepo = new TracesRepository(localSqlClient);
 
 export function ErrorsPage() {
-  const errorDetailMatch = useMatch({
-    from: "/_shell/errors/$fingerprint",
-    shouldThrow: false,
-  });
-  const search: ErrorIssueSearch = useSearch({ strict: false });
-  const navigate = useNavigate();
-
-  // Always keep the list mounted in the same position so opening/closing the
-  // modal never remounts it (a remount resets the virtualized list and re-runs
-  // queries, which shows up as a flash on close).
-  return (
-    <>
-      <ErrorsListView />
-      {errorDetailMatch && (
-        <DetailRouteDialog
-          title="Error detail"
-          onClose={() => navigate({ to: "/errors", search: { ...search, occurrence: "" } })}
-        >
-          <Outlet />
-        </DetailRouteDialog>
-      )}
-    </>
-  );
-}
-
-function ErrorsListView() {
   const controls = useExploreControls("/errors");
   const search: ErrorIssueSearch & {
     environment?: string[];
@@ -123,41 +97,38 @@ export function ErrorDetailPage() {
   const { timeRange, service } = withTimeRange(search);
 
   return (
-    <LocalTelemetryGate>
-      <ErrorDetail
-        repo={localErrorsRepo}
-        fingerprint={fingerprint}
-        timeRange={timeRange}
-        service={service ?? []}
-        occurrence={search.occurrence}
-        onClose={() => {
-          // oxlint-disable-next-line typescript/no-floating-promises -- Preserve the original callback execution and return contract without adding a runtime wrapper.
-          navigate({
-            to: "/errors",
-            search: { ...search, occurrence: "" },
-          });
-        }}
-        renderOccurrenceLink={({ occurrence: linkedOccurrence, label, className, children }) => (
-          <Link
-            to="/errors/$fingerprint"
-            params={{ fingerprint }}
-            search={{
-              ...search,
-              occurrence: getErrorOccurrenceKey(linkedOccurrence),
-            }}
-            // A step of the pager replaces the history entry, so that Back
-            // leaves the Error and does not go through each occurrence again.
-            replace
-            aria-label={label}
-            title={label}
-            className={className}
-          >
-            {children}
-          </Link>
-        )}
-        renderTracePanel={({ occurrence }) => <LocalErrorTracePanel occurrence={occurrence} />}
-      />
-    </LocalTelemetryGate>
+    <>
+      <PageTitleBar title="Error" />
+      <LocalTelemetryGate>
+        <ErrorDetail
+          repo={localErrorsRepo}
+          fingerprint={fingerprint}
+          timeRange={timeRange}
+          service={service ?? []}
+          occurrence={search.occurrence}
+          onBack={() => void navigate({ to: "/errors", search: { ...search, occurrence: "" } })}
+          renderOccurrenceLink={({ occurrence: linkedOccurrence, label, className, children }) => (
+            <Link
+              to="/errors/$fingerprint"
+              params={{ fingerprint }}
+              search={{
+                ...search,
+                occurrence: getErrorOccurrenceKey(linkedOccurrence),
+              }}
+              // A step of the pager replaces the history entry, so that Back
+              // leaves the Error and does not go through each occurrence again.
+              replace
+              aria-label={label}
+              title={label}
+              className={className}
+            >
+              {children}
+            </Link>
+          )}
+          renderTracePanel={({ occurrence }) => <LocalErrorTracePanel occurrence={occurrence} />}
+        />
+      </LocalTelemetryGate>
+    </>
   );
 }
 

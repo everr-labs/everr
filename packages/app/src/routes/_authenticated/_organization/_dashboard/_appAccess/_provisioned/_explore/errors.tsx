@@ -1,13 +1,7 @@
 import { ErrorIssueSearchSchema, ErrorIssues } from "@everr/telemetry-explorer/errors";
 import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import {
-  createFileRoute,
-  Link,
-  Outlet,
-  stripSearchParams,
-  useSearch,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, stripSearchParams, useSearch } from "@tanstack/react-router";
 import { ExplorePersistentFilters } from "#app/components/explore-persistent-filters.tsx";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 
@@ -21,20 +15,8 @@ export const Route = createFileRoute(
   validateSearch: RouteSearchSchema,
   search: { middlewares: [stripSearchParams(defaultSearch)] },
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
-  component: ErrorsRoute,
+  component: ErrorsPage,
 });
-
-function ErrorsRoute() {
-  // Always keep the list mounted in the same position so opening/closing the
-  // modal never remounts it (a remount resets the virtualized list and re-runs
-  // queries, which shows up as a flash on close).
-  return (
-    <>
-      <ErrorsPage />
-      <Outlet />
-    </>
-  );
-}
 
 function ErrorsPage() {
   const search = Route.useSearch();
@@ -61,7 +43,7 @@ function ErrorsPage() {
       }
       renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
         <Link
-          to="/errors/$fingerprint/modal"
+          to="/errors/$fingerprint"
           params={{ fingerprint: issueFingerprint }}
           search={{ ...search, occurrence: "" }}
           className={className}

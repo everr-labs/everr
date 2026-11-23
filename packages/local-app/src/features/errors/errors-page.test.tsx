@@ -9,7 +9,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { ErrorDetailPage, ErrorIssueSearchSchema, ErrorsPage } from "./errors-page";
@@ -22,14 +22,6 @@ vi.mock("@/features/logs/local-sql-client", () => ({
   localSqlClient: {},
 }));
 
-vi.mock("@everr/ui/components/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <dialog open>{children}</dialog>,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
-}));
-
 vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryErrors>();
 
@@ -37,11 +29,11 @@ vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
     ...actual,
     ErrorsRepository: class ErrorsRepository {},
     ErrorIssues: () => <div>Error list page</div>,
-    ErrorDetail: ({ onClose }: { onClose: () => void }) => (
+    ErrorDetail: ({ onBack }: { onBack: () => void }) => (
       <div>
         Error detail page
-        <button type="button" onClick={onClose}>
-          Close detail
+        <button type="button" onClick={onBack}>
+          Back to errors
         </button>
       </div>
     ),
@@ -72,13 +64,13 @@ describe("local errors routes", () => {
       component: ErrorsPage,
     });
     const errorDetailRoute = createRoute({
-      getParentRoute: () => errorsRoute,
-      path: "$fingerprint",
+      getParentRoute: () => shellRoute,
+      path: "/errors/$fingerprint",
       validateSearch: ErrorIssueSearchSchema,
       component: ErrorDetailPage,
     });
     const routeTree = rootRoute.addChildren([
-      shellRoute.addChildren([errorsRoute.addChildren([errorDetailRoute])]),
+      shellRoute.addChildren([errorsRoute, errorDetailRoute]),
     ]);
     const router = createRouter({
       routeTree,
@@ -96,16 +88,14 @@ describe("local errors routes", () => {
     return router;
   }
 
-  it("renders direct error detail routes through the dialog route", async () => {
+  it("renders error detail as its own page and goes back to the filtered list", async () => {
     const router = renderErrorsRoute(["/errors/fp-1?q=timeout&occurrence=old-occurrence"]);
 
-    expect(await screen.findByText("Error list page")).toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Error detail page")).toBeInTheDocument();
+    expect(await screen.findByText("Error detail page")).toBeInTheDocument();
+    expect(screen.queryByText("Error list page")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Close detail" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(screen.getByText("Error list page")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to errors" }));
+    expect(await screen.findByText("Error list page")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/errors");
     expect(router.state.location.search).toMatchObject({
       q: "timeout",

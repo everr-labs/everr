@@ -1,6 +1,6 @@
 import { routeTree } from "@composition/routes";
 import type { QueryClient } from "@tanstack/react-query";
-import { createRouteMask, createRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
 import { createQueryClient } from "#app/lib/query-client.ts";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
@@ -9,19 +9,6 @@ import { RootErrorComponent } from "./components/root-error";
 export interface RouterContext {
   queryClient: QueryClient;
 }
-
-// Declared outside `createRouter` so the mask types resolve against the route
-// tree rather than the router being built from them.
-const routeMasks = [
-  createRouteMask({
-    routeTree,
-    from: "/errors/$fingerprint/modal",
-    to: "/errors/$fingerprint",
-    params: true,
-    search: true,
-    unmaskOnReload: true,
-  }),
-];
 
 /**
  * The app's router, and deliberately the only `createRouter` call in it.
@@ -48,7 +35,6 @@ export const getRouter = () => {
 
   const router = createRouter({
     routeTree,
-    routeMasks,
     context: { queryClient },
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
