@@ -321,3 +321,16 @@ func TestARetryResendsOnlyTheMetricKindsThatFailed(t *testing.T) {
 		}
 	})
 }
+
+func TestAQueryCannotChangeTheDatabaseTheNextQueryReads(t *testing.T) {
+	g := startGateway(t)
+	g.sendLogs(t, oneLog("bare-names", "before USE"))
+	g.waitRows(t, "SELECT Body FROM logs WHERE Body = 'before USE'", 1)
+
+	g.query(t, "USE system")
+
+	require.Equal(t, "1", g.query(t, "SELECT toString(count()) AS n FROM logs")[0]["n"])
+	require.Equal(t, "app", g.query(t, "SELECT currentDatabase() AS db")[0]["db"])
+	g.sendLogs(t, oneLog("bare-names", "after USE"))
+	g.waitRows(t, "SELECT Body FROM logs WHERE ServiceName = 'bare-names'", 2)
+}

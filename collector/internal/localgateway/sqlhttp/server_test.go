@@ -11,7 +11,7 @@ import (
 )
 
 func TestServerStartsAndRoutesSQL(t *testing.T) {
-	server := NewServer("127.0.0.1:0", nil, zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
+	server := NewServer("127.0.0.1:0", nil, "analytics", zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
 	if err := server.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -35,7 +35,7 @@ func TestServerStartsAndRoutesSQL(t *testing.T) {
 }
 
 func TestServerReportsReadinessOnSQLListener(t *testing.T) {
-	server := NewServer("127.0.0.1:0", nil, zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
+	server := NewServer("127.0.0.1:0", nil, "analytics", zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
 	if err := server.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -68,7 +68,7 @@ func TestServerReportsReadinessOnSQLListener(t *testing.T) {
 }
 
 func TestSQLRejectsRequestsAWebPageCouldSend(t *testing.T) {
-	server := NewServer("127.0.0.1:0", nil, zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
+	server := NewServer("127.0.0.1:0", nil, "analytics", zap.NewNop(), Identity{Version: "0.8.2", InstanceID: "test-instance"})
 	if err := server.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}

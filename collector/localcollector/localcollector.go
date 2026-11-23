@@ -86,6 +86,7 @@ func Open(opts Options) (*Gateway, error) {
 	server := sqlhttp.NewServer(
 		sql,
 		handle,
+		store.QueryDatabase,
 		logger,
 		sqlhttp.Identity{Version: opts.Version, InstanceID: opts.InstanceID},
 	)

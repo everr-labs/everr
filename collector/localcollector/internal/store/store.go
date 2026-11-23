@@ -18,7 +18,8 @@ import (
 	"github.com/everr-labs/everr/packages/app/clickhouse"
 )
 
-const queryDatabase = "app"
+// QueryDatabase is the database bare table names such as logs resolve in.
+const QueryDatabase = "app"
 
 type Options struct {
 	// Path is the chDB directory. A reset deletes everything in it.
@@ -83,8 +84,8 @@ func open(ctx context.Context, opts Options, fsys fs.FS, chdbOpts ...chdb.Option
 			return nil, err
 		}
 	}
-	if err := run(ctx, handle, "USE "+queryDatabase); err != nil {
-		return nil, fmt.Errorf("use database %s: %w", queryDatabase, err)
+	if err := run(ctx, handle, "USE "+QueryDatabase); err != nil {
+		return nil, fmt.Errorf("use database %s: %w", QueryDatabase, err)
 	}
 	return handle, nil
 }

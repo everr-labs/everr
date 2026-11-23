@@ -33,6 +33,7 @@ type Server struct {
 	identity Identity
 	endpoint string
 	handle   *chdb.Handle
+	database string
 	logger   *zap.Logger
 
 	server       *http.Server
@@ -41,11 +42,14 @@ type Server struct {
 	status       atomic.Value
 }
 
-func NewServer(endpoint string, handle *chdb.Handle, logger *zap.Logger, identity Identity) *Server {
+// NewServer serves SQL on the handle's one session. Each request's statement
+// runs in database, whatever an earlier request selected with USE.
+func NewServer(endpoint string, handle *chdb.Handle, database string, logger *zap.Logger, identity Identity) *Server {
 	s := &Server{
 		identity: identity,
 		endpoint: endpoint,
 		handle:   handle,
+		database: database,
 		logger:   logger,
 	}
 	s.status.Store(StatusStarting)
@@ -55,6 +59,7 @@ func NewServer(endpoint string, handle *chdb.Handle, logger *zap.Logger, identit
 func (s *Server) Start() error {
 	handler := &handler{
 		handle:         s.handle,
+		database:       s.database,
 		queryTimeout:   DefaultQueryTimeout,
 		enqueueTimeout: DefaultEnqueueTimeout,
 		maxBytes:       DefaultMaxResultBytes,
