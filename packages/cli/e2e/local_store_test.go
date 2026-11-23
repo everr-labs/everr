@@ -69,8 +69,6 @@ func TestTheLocalStoreKeepsTelemetryAcrossRestartsAndStartsEmptyOnAnotherVersion
 
 func TestAStoreFromBeforeTheMigrationsIsReplacedByAnEmptyOne(t *testing.T) {
 	i := newInstance(t)
-	// What the exporter's own tables left on disk: chDB's catalog and data,
-	// and no marker.
 	for _, dir := range []string{"metadata", "store", "data"} {
 		if err := os.MkdirAll(filepath.Join(i.storeDir(), dir), 0o755); err != nil {
 			t.Fatal(err)

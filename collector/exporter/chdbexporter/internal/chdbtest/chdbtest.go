@@ -1,4 +1,3 @@
-// Package chdbtest gives tests a chDB handle that records what it is sent.
 package chdbtest
 
 import (
@@ -10,7 +9,6 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// Session records every statement, or fails each one when Fail is set.
 type Session struct {
 	Fail bool
 

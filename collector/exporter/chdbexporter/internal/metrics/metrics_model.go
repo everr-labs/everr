@@ -16,7 +16,6 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// Rows holds the rows of one push, one batch per metric kind.
 type Rows struct {
 	gauge                *landing.Batch
 	sum                  *landing.Batch
@@ -35,7 +34,6 @@ func NewRows() *Rows {
 	}
 }
 
-// MetricsMetaData is what every data point of a metric shares.
 type MetricsMetaData struct {
 	ResAttr    pcommon.Map
 	ResURL     string
@@ -43,7 +41,6 @@ type MetricsMetaData struct {
 	ScopeInstr pcommon.InstrumentationScope
 }
 
-// Add appends one row for each data point of the metric.
 func (r *Rows) Add(metadata MetricsMetaData, metric pmetric.Metric) error {
 	switch metric.Type() {
 	case pmetric.MetricTypeGauge:

@@ -12,8 +12,6 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
-// retentionAttribute is the resource attribute the store's views read to set
-// retention_days. They reject a row where it is missing or zero.
 const retentionAttribute = "everr.retention.days"
 
 type Config struct {

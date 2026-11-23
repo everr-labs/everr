@@ -312,8 +312,6 @@ func waitForHTTP(t *testing.T, url string, timeout time.Duration) {
 	t.Fatalf("timed out waiting for %s", url)
 }
 
-// postSQL sends SQL the way a local client does. The endpoint answers 403
-// without the header.
 func postSQL(client *http.Client, url, sql string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(sql))
 	if err != nil {

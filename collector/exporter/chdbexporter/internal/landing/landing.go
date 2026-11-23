@@ -1,10 +1,3 @@
-// Package landing owns what the exporter writes: the seven otel.* landing
-// tables and the rows sent to them.
-//
-// The tables come from packages/app/clickhouse (ENGINE = Null, with
-// materialized views that copy each row into app.*). This package never
-// creates, alters or describes a table. A test in collector/localcollector
-// compares every column list here with the migrated table.
 package landing
 
 import (
@@ -17,10 +10,8 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// Table is one landing table. Columns are in the order the converters append
-// values. A dotted name such as Events.Name is a Nested sub-column.
+// A dotted column name such as Events.Name is a Nested sub-column.
 type Table struct {
-	// Name is qualified, so a write never depends on the session's database.
 	Name    string
 	Columns []string
 }
@@ -142,12 +133,10 @@ var (
 	)}
 )
 
-// Tables lists every landing table.
 func Tables() []Table {
 	return []Table{Logs, Traces, MetricsGauge, MetricsSum, MetricsHistogram, MetricsExponentialHistogram, MetricsSummary}
 }
 
-// metricColumns prefixes the columns every metric kind starts with.
 func metricColumns(kind ...string) []string {
 	return append([]string{
 		"ResourceAttributes",
@@ -167,7 +156,6 @@ func metricColumns(kind ...string) []string {
 	}, kind...)
 }
 
-// Batch collects the rows of one push for one table.
 type Batch struct {
 	table Table
 	rows  bytes.Buffer

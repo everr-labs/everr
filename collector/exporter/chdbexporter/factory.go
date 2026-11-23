@@ -55,7 +55,6 @@ func retentionDays(cfg *Config) string {
 
 func options(cfg *Config) []exporterhelper.Option {
 	return []exporterhelper.Option{
-		// Every push writes the retention stamp into the resource it was given.
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
 		exporterhelper.WithQueue(cfg.QueueSettings),

@@ -8,8 +8,7 @@ import (
 
 type CollectorConfig struct {
 	OTLPListenAddress string
-	// RetentionDays is how long the store keeps a row.
-	RetentionDays uint16
+	RetentionDays     uint16
 }
 
 // ParseEndpoint validates a loopback HTTP origin and returns its host:port.

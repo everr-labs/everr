@@ -29,8 +29,6 @@ const (
 	startedAtText = `"2026-01-02T03:02:35.123456789Z"`
 )
 
-// newExporters returns a factory on a recording chDB session and a config
-// that keeps rows for 7 days and sends each push once, before it returns.
 func newExporters(t *testing.T) (exporter.Factory, *Config, *chdbtest.Session) {
 	t.Helper()
 	handle, session := chdbtest.Open(t)
@@ -66,7 +64,6 @@ func TestLogsAreWrittenToTheLandingTableWithTheRetentionStamp(t *testing.T) {
 	resourceLogs := ld.ResourceLogs().AppendEmpty()
 	resourceLogs.SetSchemaUrl("resource-url")
 	resourceLogs.Resource().Attributes().PutStr("service.name", "checkout")
-	// A client value must not reach the views: they reject zero.
 	resourceLogs.Resource().Attributes().PutInt("everr.retention.days", 0)
 	scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
 	scopeLogs.SetSchemaUrl("scope-url")
@@ -186,8 +183,6 @@ func TestEveryMetricKindIsWrittenToItsLandingTable(t *testing.T) {
 		e.FilteredAttributes().PutInt("worker", 9)
 	}
 
-	// The sum comes first to show that the insert order does not follow the
-	// order of the metrics.
 	sum := scopeMetrics.Metrics().AppendEmpty()
 	sum.SetName("orders")
 	sum.SetDescription("placed orders")

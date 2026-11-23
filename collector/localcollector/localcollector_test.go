@@ -27,8 +27,6 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// The store drops a row older than its retention days, so every test sends
-// current timestamps. The odd nanoseconds show that no precision is lost.
 var (
 	sentAt     = time.Now().UTC().Add(-time.Hour).Truncate(time.Second).Add(123456789 * time.Nanosecond)
 	startedAt  = sentAt.Add(-90 * time.Second)
@@ -77,7 +75,6 @@ func openGateway(t *testing.T) *gateway {
 	return g
 }
 
-// startGateway opens a gateway and runs its pipeline until the test ends.
 func startGateway(t *testing.T) *gateway {
 	t.Helper()
 	g := openGateway(t)
@@ -139,8 +136,7 @@ func (g *gateway) sendMetrics(t *testing.T, md pmetric.Metrics) {
 	g.send(t, "metrics", proto, err)
 }
 
-// query runs SQL through the endpoint `everr local query` and the local UI
-// use. Numbers that do not fit a float come back as strings.
+// Numbers that do not fit a float come back as strings.
 func (g *gateway) query(t *testing.T, sql string) []map[string]any {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, g.sql+"/sql", bytes.NewBufferString(sql))
@@ -163,8 +159,6 @@ func (g *gateway) query(t *testing.T, sql string) []map[string]any {
 	return rows
 }
 
-// waitRows polls until the query returns want rows: the pipeline batches for
-// up to two seconds before it inserts.
 func (g *gateway) waitRows(t *testing.T, sql string, want int) []map[string]any {
 	t.Helper()
 	var rows []map[string]any
@@ -194,7 +188,6 @@ func TestGatewayRestartsPipelineOnTheSameChDB(t *testing.T) {
 	require.Equal(t, "test-instance", identity["instance_id"])
 	// The local UI reads timestamps as UTC, whatever the machine's zone.
 	require.Equal(t, "UTC", g.query(t, "SELECT timezone() AS tz")[0]["tz"])
-	// Bare names resolve the way they do in App and Cloud.
 	require.Equal(t, "app", g.query(t, "SELECT currentDatabase() AS db")[0]["db"])
 	require.NotEmpty(t, g.query(t, "SELECT errorFingerprint('checkout', '', 'E', 'boom') AS fingerprint")[0]["fingerprint"])
 
@@ -219,7 +212,6 @@ func TestLogsKeepNanosecondsTypedAttributesAndTheConfiguredRetention(t *testing.
 	g := startGateway(t)
 
 	ld := oneLog("logs-round-trip", "typed attributes")
-	// The views reject a zero. The store decides retention, not the client.
 	ld.ResourceLogs().At(0).Resource().Attributes().PutInt("everr.retention.days", 0)
 	record := ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 	record.Attributes().PutInt("everr.github.workflow_job_step.number", 3)
@@ -358,7 +350,6 @@ func oneMetricOfEachKind() pmetric.Metrics {
 	md := pmetric.NewMetrics()
 	rm := md.ResourceMetrics().AppendEmpty()
 	rm.Resource().Attributes().PutStr("service.name", "round-trip")
-	// The views reject a zero. The store decides retention, not the client.
 	rm.Resource().Attributes().PutStr("everr.retention.days", "0")
 	sm := rm.ScopeMetrics().AppendEmpty()
 	sm.Scope().SetName("round-trip")
@@ -447,9 +438,6 @@ func TestEveryMetricKindStoresItsTimestampsAndTheConfiguredRetention(t *testing.
 	}
 }
 
-// The exporter names its columns in Go and the migrations create them in
-// SQL. This fails when a migration renames, drops or adds a landing column
-// and the exporter does not follow.
 func TestTheExporterWritesExactlyTheColumnsOfTheMigratedLandingTables(t *testing.T) {
 	g := openGateway(t)
 

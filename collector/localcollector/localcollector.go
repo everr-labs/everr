@@ -35,8 +35,7 @@ type Options struct {
 	ChDBPath string
 	// ChDBLibraryPath is the libchdb shared library; empty uses $CHDB_LIB_PATH.
 	ChDBLibraryPath string
-	// RetentionDays is how long the store keeps a row.
-	RetentionDays uint16
+	RetentionDays   uint16
 	// Version and InstanceID identify this instance on the SQL /health endpoint.
 	Version    string
 	InstanceID string
