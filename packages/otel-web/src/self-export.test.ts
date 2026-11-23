@@ -37,7 +37,6 @@ it.each(["/api/telemetry", "http://127.0.0.1:54318"])(
         new WebSDK({
           serviceName: `self-export-${i}`,
           endpoint,
-          persistence: "memory",
           instrumentations: [network()],
         }),
       );

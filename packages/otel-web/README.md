@@ -122,9 +122,29 @@ Before initialization, after shutdown, or with only a keyless production SDK, th
 
 ## Identity
 
-`persistence: "localStorage"` (the default) keeps a random visitor id and 30-minute-inactivity sessions across reloads and tabs. `persistence: "memory"` uses zero cookies and zero storage: the same ids exist only in JS memory and die with the page.
+`anonymized` is `true` by default. While it is `true` the SDK:
 
-The event schema is identical either way. A consent-gated app boots with `"memory"` and constructs a new WebSDK with `"localStorage"` once consent is granted.
+- reads, writes and removes nothing in localStorage, and sets no cookie
+- sends no `everr.visitor.id`
+- sends no `user.*` key from `identify()`
+- sends a random `session.id` that lives in JS memory only and ends with the page
+
+It does not change the resource attributes (user agent, screen size, time zone, language, landing URL). It does not remove what you add through `setAttributes()`, per-record attributes or `beforeSend`. Whether your data needs a consent banner is your decision. The SDK only states what it stores and sends.
+
+`anonymized: false` keeps a random visitor id and 30-minute-inactivity sessions in localStorage across reloads and tabs, and sends the `user.*` keys from `identify()`.
+
+`setAnonymized(next)` changes the mode on the live client, with no reload. A consent-gated app boots anonymized and calls `setAnonymized(false)` once consent is granted:
+
+```ts
+import { setAnonymized } from "@everr/otel-web";
+
+setAnonymized(false); // consent granted
+setAnonymized(true); // consent withdrawn
+```
+
+Leaving the mode keeps the current `session.id`, adds a visitor id (an id already in localStorage wins) and sends the user from an earlier `identify()`. Entering the mode first sends the queued records, which carry the ids of their capture. It then removes the two stored keys, drops the visitor id and starts a new `session.id`. With the built-in transport, no request that starts after the call carries an identity. A custom `send` receives the queued payload during the call. If your `send` defers its request, it can deliver that payload after the call. Calling it with the current value does nothing.
+
+`clearIdentity()` forgets the identified user, the visitor id and the session, and removes the stored keys when not anonymized. It never changes the mode. Call it on logout.
 
 ## Sensitive data
 

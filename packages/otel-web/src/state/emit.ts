@@ -10,19 +10,24 @@
 import type { Emit } from "../pipeline/emitter.js";
 
 let emit: Emit | undefined;
+let flush: (() => unknown) | undefined;
 let started = false;
+
+/** Sends the records that wait in the batch queue of the current pipeline. */
+export const flushCurrent = (): unknown => flush?.();
 
 export function currentEmit(): Emit | undefined {
   if (!emit && !started) console.warn("[everr] SDK not initialized");
   return emit;
 }
 
-export function bindEmit(next: Emit): () => void {
+export function bindEmit(next: Emit, nextFlush?: () => unknown): () => void {
   started = true;
   emit = next;
+  flush = nextFlush;
   return () => {
     // Only the current binding disconnects. A stale disposer, for example from
     // a client that a new client replaced, must not silence the new one.
-    if (emit === next) emit = undefined;
+    if (emit === next) emit = flush = undefined;
   };
 }

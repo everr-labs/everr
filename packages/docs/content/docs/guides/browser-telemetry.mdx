@@ -23,9 +23,78 @@ Everr ships the `everr-setup-telemetry` skill. Ask your Agent to instrument the 
 /everr-setup-telemetry Instrument this web app with the OpenTelemetry web SDK and send traces, logs, and metrics to Everr's browser ingest using my public key
 ```
 
-The Agent installs the web SDK, points the exporters at `ingest.everr.dev`, reads the key from an env var, and registers the provider at startup.
+The Agent installs `@everr/otel-web`, reads the key from an env var, and constructs the SDK at startup.
 
 ## Alternative: wire it up by hand
+
+Install `@everr/otel-web` and construct it once, before the app renders:
+
+```bash
+npm install @everr/otel-web
+```
+
+```ts
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
+
+new WebSDK({
+  serviceName: "acme-web",
+  ingestKey: "<your-public-key>",
+  instrumentations: [errors(), pageviews(), interactions(), performance(), network()],
+});
+```
+
+Capture is opt-in. The SDK records only what the listed `instrumentations` produce.
+
+## Anonymized by default
+
+`@everr/otel-web` keeps nothing in the browser and sends no visitor or user identifier, unless you turn that on.
+
+|                            | `anonymized: true` (default)        | `anonymized: false`                    |
+| -------------------------- | ----------------------------------- | -------------------------------------- |
+| Cookies                    | none                                | none                                   |
+| localStorage               | never read or written               | `everr.visitor.id` and `everr.session` |
+| `everr.visitor.id`         | not sent                            | random id, stable across visits        |
+| `session.id`               | random, in memory, ends with a page | stored, ends after 30 idle minutes     |
+| `user.*` from `identify()` | not sent                            | sent                                   |
+
+Both modes send the same device attributes with every batch: the user agent, the screen size, the time zone, the browser language, and the landing URL. The SDK computes no identifier from them. Both modes also send whatever you add with `setAttributes()` or `beforeSend`.
+
+Everr states what the SDK stores and sends. Whether your site needs a consent banner is your decision.
+
+### Ask for consent first
+
+Start anonymized, and change the mode when the visitor decides. The change applies to the running SDK, with no reload:
+
+```ts
+import { setAnonymized, WebSDK } from "@everr/otel-web";
+
+new WebSDK({
+  serviceName: "acme-web",
+  ingestKey: "<your-public-key>",
+  anonymized: !hasConsent(),
+  instrumentations: [pageviews()],
+});
+
+onConsentGranted(() => setAnonymized(false));
+onConsentWithdrawn(() => setAnonymized(true));
+```
+
+`setAnonymized(false)` keeps the current `session.id` and adds the visitor id. `setAnonymized(true)` sends the queued records, then deletes the two stored keys and starts a new `session.id`, so the later records do not join the earlier ones.
+
+### Identify a signed-in user
+
+Call `identify()` when the user signs in, in either mode. While the SDK is anonymized it keeps the user in memory and sends nothing. The `user.*` attributes go out from the next record after `setAnonymized(false)`.
+
+```ts
+import { clearIdentity, identify } from "@everr/otel-web";
+
+identify("u_123", { plan: "pro" });
+
+// On sign-out: forget the user, the visitor id, and the session.
+clearIdentity();
+```
+
+## Use another OpenTelemetry SDK
 
 Point any OpenTelemetry web SDK at Everr with the key as a bearer token:
 

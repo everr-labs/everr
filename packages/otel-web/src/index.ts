@@ -1,8 +1,9 @@
 // The captureError function reports an error manually. After the code
 // constructs a WebSDK, the emitter of the SDK sends the report. Before that,
-// captureError gives a warning and causes no error. The identify() and revoke()
-// functions operate in the same way, and they become active when a browser
-// WebSDK exists. The `persistence` option controls the life of their ids.
+// captureError gives a warning and causes no error. The identify() and
+// setAnonymized() functions operate in the same way, and they become active
+// when a browser WebSDK exists. The `anonymized` option controls which ids and
+// which user keys the SDK sends.
 //
 // The WebSDK operates in the two module graphs of a full-stack framework. The
 // browser gets all the signals. The server gets the logger and captureError on
@@ -42,7 +43,7 @@ export {
   type RouteTemplateResolver,
   setRouteResolver,
 } from "./state/route.js";
-export { clearIdentity, identify, revoke, setPersistence } from "./state/session.js";
+export { clearIdentity, identify, setAnonymized } from "./state/session.js";
 export { epoch } from "./time.js";
 export { tracer } from "./tracer.js";
-export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
+export type { UserTraits, WebSDKOptions } from "./types.js";

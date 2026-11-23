@@ -93,27 +93,25 @@ export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
 
 /**
  * The standard start for a test. It replaces fetch and constructs a development
- * client with the memory store. Thus a test writes nothing to the store, but a
- * test can select a different store.
+ * client in the default anonymized mode. Thus a test writes nothing to
+ * localStorage, but a test can select a different mode.
  */
 export function startClient(
   options?: Partial<WebSDKOptions>,
 ): [client: WebSDK, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  return [new WebSDK({ persistence: "memory", ...DEFAULTS, ...options }), batches];
+  return [new WebSDK({ ...DEFAULTS, ...options }), batches];
 }
 
 /**
- * The start with the localStorage store. This function does not set the
- * persistence option, and this is correct: thus it also examines the default of
- * the SDK. A test must clear localStorage before the next test, because this
- * store keeps the identity.
+ * The start with `anonymized: false`. A test must clear localStorage before the
+ * next test, because this mode keeps the identity there.
  */
 export function startPersistentClient(
   options?: Partial<WebSDKOptions>,
 ): [client: WebSDK, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  return [new WebSDK({ ...DEFAULTS, ...options }), batches];
+  return [new WebSDK({ anonymized: false, ...DEFAULTS, ...options }), batches];
 }
 
 const DEFAULTS = {

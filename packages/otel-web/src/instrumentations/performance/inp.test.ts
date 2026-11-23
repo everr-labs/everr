@@ -705,7 +705,6 @@ describe("page attribution", () => {
     const records: SendEvent[] = [];
     const sdk = new WebSDK({
       serviceName: "inp-page-test",
-      persistence: "memory",
       send: () => {},
       beforeSend: (record) => {
         records.push(record);

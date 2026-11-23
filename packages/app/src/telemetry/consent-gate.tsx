@@ -1,4 +1,4 @@
-import { clearIdentity, setPersistence } from "@everr/otel-web";
+import { setAnonymized } from "@everr/otel-web";
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
 import { createContext, type ReactNode, useContext, useState } from "react";
@@ -34,13 +34,11 @@ function storeConsent(decision: ConsentDecision): void {
  * and the banner does not change after the hydration.
  *
  * A decision changes the current WebSDK, and the page does not reload. When the
- * user gives consent, the code calls `setPersistence("localStorage")` of the
- * SDK. Then the current client uses permanent ids, and the current session
- * continues. When the user removes the consent, the code calls
- * `clearIdentity()`, which deletes the visitor id, the session id, and the user
- * id from the store, and then `setPersistence("memory")`, so the client uses
- * the memory store again. The code in `telemetry/client.ts` only selects the
- * initial store from the cookie.
+ * user gives consent, the code calls `setAnonymized(false)` of the SDK. Then
+ * the current client uses permanent ids, and the current session continues.
+ * When the user removes the consent, the code calls `setAnonymized(true)`,
+ * which deletes the stored ids and starts a new session. The code in
+ * `telemetry/client.ts` only selects the initial mode from the cookie.
  */
 export function ConsentGate({
   initialConsent,
@@ -63,20 +61,8 @@ export function ConsentGate({
     setSettingsOpen(false);
     setDismissed(true);
     setAnalyticsEnabled(next === "granted");
-    // The user can select the current condition again. Then the SDK does
-    // nothing. The memory store, when the user made no decision, is the same as
-    // a refusal.
-    if (next === (consent ?? "denied")) return;
     setConsent(next);
-    if (next === "granted") {
-      setPersistence("localStorage");
-    } else {
-      // The order matters: clearIdentity() deletes the stored ids while the
-      // localStorage store is still current, then setPersistence("memory")
-      // switches without a write to the refused store.
-      clearIdentity();
-      setPersistence("memory");
-    }
+    setAnonymized(next !== "granted");
   };
 
   return (

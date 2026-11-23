@@ -13,10 +13,10 @@ import { resolveBrowserTelemetryConfig } from "./config";
 // router reports through `captureError`. Each error record carries the same
 // analytics envelope.
 //
-// The consent cookie in the store gives the initial persistence. Until the user
-// gives consent, the SDK uses the memory store, which writes nothing and whose
-// ids end with the page. A change of the consent changes the current client with
-// setPersistence() or revoke(). Refer to telemetry/consent-gate.tsx. This module
+// The consent cookie gives the initial mode. Until the user gives consent, the
+// SDK is anonymized: it uses no localStorage, it sends no visitor id, and its
+// session id ends with the page. A change of the consent changes the current
+// client with setAnonymized(). Refer to telemetry/consent-gate.tsx. This module
 // only selects the initial mode.
 //
 // The WebSDK does nothing on the server. Without a key, and not in the
@@ -30,7 +30,7 @@ const browserTelemetry = resolveBrowserTelemetryConfig({
 });
 
 new WebSDK({
-  persistence: readConsent() === "granted" ? "localStorage" : "memory",
+  anonymized: readConsent() !== "granted",
   serviceName: "everr-dev-app-web",
   // Without it the SDK reports its own version, not the app's. Development
   // matches the server's "local-dev".

@@ -2,29 +2,6 @@ import type { Instrumentation } from "./instrumentations/runtime.js";
 import type { BeforeSend } from "./pipeline/emitter.js";
 import type { HostSend } from "./pipeline/transport.js";
 
-/**
- * The location of the identity: the visitor id, the session, and the
- * identified user.
- *
- * - `"localStorage"` is the default. It keeps a random visitor id
- *   (`everr.visitor.id`), which is an id for the device. The code never
- *   calculates it from a fingerprint. The sessions end after 30 minutes
- *   without activity. The ids and the sessions continue after a reload, and
- *   all the tabs use them. The data from `identify()` stays until a call to
- *   `revoke()`.
- * - `"memory"` uses no cookies and no store. The same ids stay in JS memory
- *   only. They continue during an SPA navigation. They end at a reload or when
- *   the user closes the tab. The data from `identify()` stays for the life of
- *   the page.
- *
- * The host controls the consent, and the SDK does not. An app with a CMP starts
- * with `"memory"` until the user gives consent. Then it calls
- * `setPersistence("localStorage")` on the current client. The `revoke()`
- * function goes back to `"memory"`. The event schema is the same for the two
- * values. The persistence only changes the life of the ids.
- */
-export type Persistence = "localStorage" | "memory";
-
 export type WebSDKOptions = {
   /** The `service.name` resource attribute on the events. */
   serviceName: string;
@@ -77,9 +54,27 @@ export type WebSDKOptions = {
    * production build then makes no structure and no network request.
    */
   dev?: boolean;
-  /** The life of the identity ids. Refer to {@link Persistence}. You can change
-   * it later with `setPersistence()`. */
-  persistence?: Persistence;
+  /**
+   * The default is `true`. You can change it later with `setAnonymized()`.
+   *
+   * While the SDK is anonymized, it reads, writes, and removes nothing in
+   * localStorage, and it sets no cookie. It sends no `everr.visitor.id`, and it
+   * sends no `user.*` key from `identify()`. It sends a random `session.id`
+   * that lives in JS memory only and ends with the page.
+   *
+   * The mode does not change the resource attributes (the user agent, the
+   * screen size, the time zone, the language, and the landing URL). It does not
+   * remove what the app adds through `setAttributes()`, the attributes of a
+   * record, or `beforeSend`. The app decides if its data needs a consent
+   * banner.
+   *
+   * With `false`, the SDK keeps a random visitor id (`everr.visitor.id`) and
+   * the session in localStorage. They continue after a reload and in the other
+   * tabs, and the session ends after 30 minutes without activity. The records
+   * carry the `user.*` keys from `identify()`. The ids are random, and the code
+   * never calculates them from a fingerprint.
+   */
+  anonymized?: boolean;
   /**
    * The sources of the capture. The constructor starts them in the sequence of
    * the array, after it finds the identity. The `shutdown()` function stops
