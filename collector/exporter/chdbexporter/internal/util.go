@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/column/orderedmap"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/otel/semconv/v1.43.0"
 )
@@ -19,14 +17,6 @@ func GetServiceName(resAttr pcommon.Map) string {
 	}
 
 	return ""
-}
-
-func AttributesToMap(attributes pcommon.Map) column.IterableOrderedMap {
-	return orderedmap.CollectN(func(yield func(string, string) bool) {
-		attributes.Range(func(k string, v pcommon.Value) bool {
-			return yield(k, v.AsString())
-		})
-	}, attributes.Len())
 }
 
 // UniqueFlattenedAttributes converts a pcommon.Map into a slice of attributes. Paths are flattened and sorted.

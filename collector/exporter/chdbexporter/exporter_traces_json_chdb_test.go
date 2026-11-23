@@ -19,7 +19,6 @@ func TestTracesJSONChDBSpanEventsAndLinks(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			handle := openRealChDB(t)
 			cfg := withDefaultConfig(func(c *Config) {
-				c.JSON = true
 				c.TracesTableName = "traces"
 			})
 			exporter := newTracesJSONExporter(zap.NewNop(), cfg, handle)

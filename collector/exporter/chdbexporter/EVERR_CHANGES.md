@@ -96,7 +96,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   it was removed again: the local collector has no profiles pipeline.
 - Dropped the local `useJSON` helper and the `clickhouse.json` feature gate.
   Upstream registered that gate `WithRegisterToVersion("v0.149.0")` and removed
-  it in `v0.160.0`; the call sites now read `c.JSON` as upstream does.
+  it in `v0.160.0`.
 - Dropped the local `Delta(4)` codec on the metrics time columns. Upstream
   narrowed those columns to `DateTime` itself and writes `Delta`, which resolves
   to the same 4 bytes, so the local override bought nothing.
@@ -140,14 +140,13 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 - The local store runs the exporter's `json` mode, the cloud's choice: typed
   values, one `*Keys Array(LowCardinality(String))` per attribute column, and
-  a `bloom_filter` index on each keys array. The Map templates stay in the
-  tree for a `json: false` config but nothing in Everr uses them.
+  a `bloom_filter` index on each keys array. The Map variants of logs and
+  traces, and the `json` switch that selected them, are gone.
 - Every JSON column is `JSON(max_dynamic_paths = 256)`, the same guard as the
   shared tables in `packages/app/clickhouse`. Upstream's default of 1024 let every
   mixed-tenant part carry a thousand path columns and made merges fail.
 - `logs_json` and `traces_json` carry `idx_trace_id` and `logs_json` carries
-  `idx_lower_body`, as the Map templates do; upstream's JSON templates have
-  neither.
+  `idx_lower_body`; upstream's JSON templates have neither.
 - `errorFingerprint` takes the three attributes as text arguments instead of
   the map, so a query reads three subcolumns and not the whole column.
 - `localSchemaVersion` is 2. A store built at version 1 holds Map `logs` and
@@ -162,10 +161,10 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   local store does.
 - Did not take upstream's template changes: `ZSTD(3)` as the column codec on
   every table (the templates keep `ZSTD(1)`) and the `EventName` bloom filter
-  index on the Map logs template. Either one changes the DDL and would make
+  index on the Map logs template, which no longer exists here. Either one
+  changes the DDL and would make
   every local store drop its telemetry and rebuild, for no change in what the
-  local store can query. The local store uses the JSON logs template, which
-  upstream left without the index.
+  local store can query.
 - The metrics exporter does not scale a connection pool on start: it writes
   through the chDB handle, which has no pool. Upstream's
   `TestMetricsExporterConnectionPoolSize` starts a network client, so it is not

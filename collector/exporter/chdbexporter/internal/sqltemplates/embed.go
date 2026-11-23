@@ -33,12 +33,6 @@ var CreateErrorFingerprintFunction string
 
 // LOGS
 
-//go:embed logs_table.sql
-var LogsCreateTable string
-
-//go:embed logs_insert.sql
-var LogsInsert string
-
 //go:embed logs_json_table.sql
 var LogsJSONCreateTable string
 
@@ -47,8 +41,6 @@ var LogsJSONInsert string
 
 // Parsed templates for logs (text/template).
 var (
-	LogsCreateTableTmpl     = newTemplate("logs_table", LogsCreateTable)
-	LogsInsertTmpl          = newTemplate("logs_insert", LogsInsert)
 	LogsJSONCreateTableTmpl = newTemplate("logs_json_table", LogsJSONCreateTable)
 	LogsJSONInsertTmpl      = newTemplate("logs_json_insert", LogsJSONInsert)
 )
@@ -72,9 +64,6 @@ type InsertData struct {
 
 // TRACES
 
-//go:embed traces_table.sql
-var TracesCreateTable string
-
 //go:embed traces_json_table.sql
 var TracesJSONCreateTable string
 
@@ -83,9 +72,6 @@ var TracesCreateTsTable string
 
 //go:embed traces_id_ts_lookup_mv.sql
 var TracesCreateTsView string
-
-//go:embed traces_insert.sql
-var TracesInsert string
 
 //go:embed traces_json_insert.sql
 var TracesJSONInsert string
