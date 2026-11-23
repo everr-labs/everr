@@ -31,11 +31,7 @@ type tracesJSONExporter struct {
 	}
 }
 
-func newTracesJSONExporter(logger *zap.Logger, cfg *Config, handles ...*chdb.Handle) *tracesJSONExporter {
-	var handle *chdb.Handle
-	if len(handles) > 0 {
-		handle = handles[0]
-	}
+func newTracesJSONExporter(logger *zap.Logger, cfg *Config, handle *chdb.Handle) *tracesJSONExporter {
 	return &tracesJSONExporter{
 		cfg:    cfg,
 		logger: logger,
