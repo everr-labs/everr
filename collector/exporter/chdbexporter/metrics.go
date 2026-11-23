@@ -5,7 +5,9 @@ package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/c
 
 import (
 	"context"
+	"slices"
 
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metrics"
@@ -40,5 +42,24 @@ func (e *metricsExporter) pushMetricsData(ctx context.Context, md pmetric.Metric
 		}
 	}
 
-	return rows.Send(ctx, e.handle)
+	failed, err := rows.Send(ctx, e.handle)
+	if err != nil {
+		return consumererror.NewMetrics(err, keepKinds(md, failed))
+	}
+	return nil
+}
+
+// keepKinds removes from md every metric of a kind that landed. Each kind is
+// one insert, so the retry that resends what is left inserts no row twice.
+func keepKinds(md pmetric.Metrics, kinds []pmetric.MetricType) pmetric.Metrics {
+	md.ResourceMetrics().RemoveIf(func(resource pmetric.ResourceMetrics) bool {
+		resource.ScopeMetrics().RemoveIf(func(scope pmetric.ScopeMetrics) bool {
+			scope.Metrics().RemoveIf(func(metric pmetric.Metric) bool {
+				return !slices.Contains(kinds, metric.Type())
+			})
+			return scope.Metrics().Len() == 0
+		})
+		return resource.ScopeMetrics().Len() == 0
+	})
+	return md
 }

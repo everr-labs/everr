@@ -60,13 +60,25 @@ func (r *Rows) Add(metadata MetricsMetaData, metric pmetric.Metric) error {
 	}
 }
 
-// Send inserts every kind. A kind that fails does not stop the others.
-func (r *Rows) Send(ctx context.Context, handle *chdb.Handle) error {
-	var errs error
-	for _, batch := range []*landing.Batch{r.gauge, r.sum, r.histogram, r.exponentialHistogram, r.summary} {
-		errs = errors.Join(errs, batch.Send(ctx, handle))
+// Send inserts every kind and returns the kinds whose insert failed. A kind
+// that fails does not stop the others.
+func (r *Rows) Send(ctx context.Context, handle *chdb.Handle) (failed []pmetric.MetricType, err error) {
+	for _, kind := range []struct {
+		metricType pmetric.MetricType
+		batch      *landing.Batch
+	}{
+		{pmetric.MetricTypeGauge, r.gauge},
+		{pmetric.MetricTypeSum, r.sum},
+		{pmetric.MetricTypeHistogram, r.histogram},
+		{pmetric.MetricTypeExponentialHistogram, r.exponentialHistogram},
+		{pmetric.MetricTypeSummary, r.summary},
+	} {
+		if sendErr := kind.batch.Send(ctx, handle); sendErr != nil {
+			failed = append(failed, kind.metricType)
+			err = errors.Join(err, sendErr)
+		}
 	}
-	return errs
+	return failed, err
 }
 
 func convertExemplars(exemplars pmetric.ExemplarSlice) (attrs []map[string]string, times []time.Time, values []float64, traceIDs, spanIDs []string) {

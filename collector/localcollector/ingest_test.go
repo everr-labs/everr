@@ -1,16 +1,22 @@
 package localcollector
 
 import (
+	"errors"
 	"math"
+	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	chdbexporter "github.com/everr-labs/everr/collector/exporter/chdbexporter"
@@ -230,6 +236,88 @@ func TestAnAttributePathCollisionKeepsItsBatchAndTheRetentionStampWins(t *testin
 			rows := g.query(t, "SELECT retention_days FROM "+table)
 			require.Len(t, rows, 1, table)
 			require.EqualValues(t, retentionDays, rows[0]["retention_days"], table)
+		}
+	})
+}
+
+// A kind whose insert fails is retried. The kinds that landed must not be
+// inserted again. The histogram landing table is renamed so its insert fails
+// after the gauge insert has committed.
+func TestARetryResendsOnlyTheMetricKindsThatFailed(t *testing.T) {
+	g := openGateway(t)
+	g.query(t, "RENAME TABLE otel.otel_metrics_histogram TO otel.otel_metrics_histogram_away")
+	md := pmetric.NewMetrics()
+	oneMetricOfEachKind().ResourceMetrics().MoveAndAppendTo(md.ResourceMetrics())
+
+	t.Run("the failed data holds only the kind that failed", func(t *testing.T) {
+		err := g.metricsExporter(t, nil).ConsumeMetrics(t.Context(), oneMetricOfEachKind())
+
+		var failed consumererror.Metrics
+		require.True(t, errors.As(err, &failed), "a partial failure: %v", err)
+		var names []string
+		data := failed.Data()
+		for i := range data.ResourceMetrics().Len() {
+			for j := range data.ResourceMetrics().At(i).ScopeMetrics().Len() {
+				metrics := data.ResourceMetrics().At(i).ScopeMetrics().At(j).Metrics()
+				for k := range metrics.Len() {
+					names = append(names, metrics.At(k).Name())
+				}
+			}
+		}
+		require.Equal(t, []string{"histogram"}, names)
+	})
+
+	landed := []string{"metrics_gauge", "metrics_sum", "metrics_exponential_histogram", "metrics_summary"}
+	for _, table := range landed {
+		g.query(t, "TRUNCATE TABLE "+table)
+	}
+	t.Run("retries leave one row per data point", func(t *testing.T) {
+		retrying := g.metricsExporter(t, func(cfg *chdbexporter.Config) {
+			cfg.BackOffConfig.Enabled = true
+			cfg.BackOffConfig.InitialInterval = time.Millisecond
+			cfg.BackOffConfig.MaxInterval = time.Millisecond
+			cfg.BackOffConfig.MaxElapsedTime = 200 * time.Millisecond
+			cfg.BackOffConfig.RandomizationFactor = 0
+		})
+
+		require.Error(t, retrying.ConsumeMetrics(t.Context(), md), "the histogram never lands")
+
+		for _, table := range landed {
+			require.Equal(t, "1", g.query(t, "SELECT toString(count()) AS n FROM "+table)[0]["n"], table)
+		}
+	})
+
+	for _, table := range landed {
+		g.query(t, "TRUNCATE TABLE "+table)
+	}
+	t.Run("the failed kind lands once its table is back", func(t *testing.T) {
+		retrying := g.metricsExporter(t, func(cfg *chdbexporter.Config) {
+			cfg.BackOffConfig.Enabled = true
+			cfg.BackOffConfig.InitialInterval = 5 * time.Millisecond
+			cfg.BackOffConfig.MaxInterval = 5 * time.Millisecond
+			cfg.BackOffConfig.MaxElapsedTime = 10 * time.Second
+			cfg.BackOffConfig.RandomizationFactor = 0
+		})
+		restored := make(chan error, 1)
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			req, _ := http.NewRequest(http.MethodPost, g.sql+"/sql", strings.NewReader("RENAME TABLE otel.otel_metrics_histogram_away TO otel.otel_metrics_histogram"))
+			req.Header.Set("X-Everr-Local", "1")
+			resp, err := http.DefaultClient.Do(req)
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					err = errors.New(resp.Status)
+				}
+			}
+			restored <- err
+		}()
+
+		require.NoError(t, retrying.ConsumeMetrics(t.Context(), oneMetricOfEachKind()))
+		require.NoError(t, <-restored)
+
+		for _, table := range append(landed, "metrics_histogram") {
+			require.Equal(t, "1", g.query(t, "SELECT toString(count()) AS n FROM "+table)[0]["n"], table)
 		}
 	})
 }
