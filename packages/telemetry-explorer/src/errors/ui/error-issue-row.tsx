@@ -14,9 +14,12 @@ export type RenderErrorIssueLink = (input: {
 
 export function ErrorIssueRow({
   issue,
+  trendPeak,
   renderIssueLink,
 }: {
   issue: ErrorIssueSummary;
+  /** The busiest trend bucket in the list, so every row shades on one scale. */
+  trendPeak?: number;
   renderIssueLink: RenderErrorIssueLink;
 }) {
   const type = issue.exceptionType || "Unknown exception";
@@ -63,7 +66,11 @@ export function ErrorIssueRow({
         className="hidden w-28 shrink-0 md:flex"
       />
 
-      <ErrorTrend buckets={issue.trend} className="hidden h-5 w-24 shrink-0 lg:block" />
+      <ErrorTrend
+        buckets={issue.trend}
+        scaleMax={trendPeak}
+        className="hidden h-5 w-24 shrink-0 lg:block"
+      />
 
       <span className="w-24 shrink-0 text-right tabular-nums">
         {issue.occurrenceCount.toLocaleString()}
