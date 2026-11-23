@@ -1,4 +1,3 @@
-/** The values for the `{name:Type}` placeholders of one seed query. */
 export type ClickHouseSeedParams = Readonly<Record<string, unknown>>;
 
 /**
@@ -49,15 +48,14 @@ const isClickHouseSeed = (exported: unknown): exported is ClickHouseSeed =>
   typeof exported === "function";
 
 /**
- * Give each migration the seed named after it. `seeds` holds the default
- * export of each seed file. Throws for a seed without a migration, which
- * would never run, and for a seed file whose default export is not a function.
+ * Give each migration the seed named after it. Throws for a seed
+ * without a migration, which would never run.
  */
 export function withClickHouseSeeds(
   migrations: readonly ClickHouseMigration[],
-  seeds: Readonly<Record<string, unknown>>,
+  seedExports: Readonly<Record<string, unknown>>,
 ): ClickHouseMigration[] {
-  const unmatched = new Map(Object.entries(seeds));
+  const unmatched = new Map(Object.entries(seedExports));
   const joined = migrations.map((migration) => {
     const name = migration.name.replace(/\.sql$/, ".seed.ts");
     if (!unmatched.has(name)) return migration;

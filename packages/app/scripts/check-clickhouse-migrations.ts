@@ -13,10 +13,7 @@ import {
 // the base branch changes or disappears. A comment edit is a change. New
 // files pass. Startup repeats the check against the journal. It also fails
 // when a seed is added to a migration the base branch already has: the
-// seed would never run where that migration is applied. It fails when a seed
-// on the base branch is deleted: a new server would apply that migration
-// without it. An edited seed passes, because a seed is code that a refactor
-// or the formatter can touch.
+// seed would never run where that migration is applied.
 const ref = process.argv[2];
 if (!ref) {
   console.error("Usage: check-clickhouse-migrations.ts <git-ref>");

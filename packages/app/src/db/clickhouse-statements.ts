@@ -29,10 +29,6 @@ export function lateClickHouseSeedFiles(
   return late.sort();
 }
 
-/**
- * Seed files in `base` that `head` lacks. Their migrations are already
- * committed, so a new server would apply them without the seed.
- */
 export function droppedClickHouseSeedFiles(
   base: ReadonlySet<string>,
   head: ReadonlySet<string>,

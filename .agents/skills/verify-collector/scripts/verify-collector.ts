@@ -22,6 +22,7 @@ import http from "node:http";
 import { connect } from "node:http2";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import type { ClickHouseSeed } from "../../../../packages/app/src/db/clickhouse-sql.ts";
 import {
   REPO,
   SCRATCH_ROOT,
@@ -329,7 +330,7 @@ async function chPost(r: Run, sql: string, params: Record<string, string> = {}, 
   }
 }
 
-/** Apply packages/app/clickhouse the way the app's startup runner does: tag filter, file order, its own splitter, bound params, then the file's seed. */
+/** Apply packages/app/clickhouse the way the app's startup runner does: tag filter, file order, its own splitter, bound params. */
 async function applySchema(r: Run, target: Target): Promise<void> {
   const { sqlStatements } = (await import(pathToFileURL(STATEMENTS_TS).href)) as { sqlStatements: (sql: string) => string[] };
   const params: Record<string, string> = {
@@ -369,7 +370,7 @@ async function applySchema(r: Run, target: Target): Promise<void> {
         }
         return res.text;
       };
-      const { default: seed } = (await import(pathToFileURL(seedFile).href)) as { default: (context: SeedContext) => Promise<void> };
+      const { default: seed } = (await import(pathToFileURL(seedFile).href)) as { default: ClickHouseSeed };
       await seed({
         query: async (query, bound) => (await sql(query, bound)).split("\n").filter(Boolean).map((row) => JSON.parse(row)),
         command: async (query, bound) => void (await sql(query, bound)),
@@ -379,11 +380,6 @@ async function applySchema(r: Run, target: Target): Promise<void> {
   }
 }
 
-/** What the helper passes to a seed, the shape of the application's ClickHouseSeedContext. */
-interface SeedContext {
-  query(sql: string, params?: Record<string, unknown>): Promise<unknown[]>;
-  command(sql: string, params?: Record<string, unknown>): Promise<void>;
-}
 
 async function waitFor(what: string, seconds: number, ok: () => Promise<boolean>, alive?: () => boolean, log?: string): Promise<void> {
   const deadline = Date.now() + seconds * 1000;

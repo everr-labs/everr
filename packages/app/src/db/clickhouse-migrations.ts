@@ -121,18 +121,15 @@ const instrumented = <T>(operation: string, call: () => Promise<T>) =>
 
 const REPLACE_PREVIOUS_RUN = { replace_running_query: 1 } as const;
 
-/** The steps of `migration` on `client`. `params` are the values its statements bind. */
 export function clickHouseMigrationSteps(
   client: MigrationClient,
   migration: HashedClickHouseMigration,
   params: Params,
 ): ClickHouseMigrationSteps {
-  // A seed query's id is its place in the seed's call order. The next start
-  // makes the same calls in the same order, so it repeats the ids.
-  let seedQueries = 0;
+  let seedCall = 0;
   const seedQuery = (query: string, queryParams?: ClickHouseSeedParams) => ({
     query,
-    query_id: clickHouseMigrationQueryId(migration.name, `seed-${seedQueries++}`),
+    query_id: clickHouseMigrationQueryId(migration.name, `seed-${seedCall++}`),
     clickhouse_settings: REPLACE_PREVIOUS_RUN,
     ...(queryParams && { query_params: queryParams }),
   });
