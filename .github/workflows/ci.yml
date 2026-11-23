@@ -99,6 +99,7 @@ jobs:
               - 'vitest*.ts'
               - 'tsconfig*.json'
               - '.dockerignore'
+              - 'packages/app/clickhouse/**'
               - 'packages/cli/**'
               - 'packages/local-app/**'
               - 'packages/datemath/**'
@@ -115,6 +116,7 @@ jobs:
               - '.github/**'
               - '.dockerignore'
               - 'collector/**'
+              - 'packages/app/clickhouse/**'
             bundle:
               - '.github/**'
               - '.node-version'
