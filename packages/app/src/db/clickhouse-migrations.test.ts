@@ -181,7 +181,7 @@ describe("ClickHouse migrations", () => {
     for (const exported of [undefined, { run: async () => {} }]) {
       expect(() =>
         withClickHouseSeeds([migration("0001-setup.sql")], {
-          "0001-setup.seed.ts": exported as never,
+          "0001-setup.seed.ts": exported,
         }),
       ).toThrow("0001-setup.seed.ts");
     }

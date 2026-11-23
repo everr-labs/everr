@@ -39,20 +39,28 @@ export function clickHouseMigrationTarget(name: string): ClickHouseMigrationTarg
 
 const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
+const isClickHouseSeed = (exported: unknown): exported is ClickHouseSeed =>
+  typeof exported === "function";
+
 /**
- * Give each migration the seed named after it. Throws for a seed
- * without a migration, which would never run.
+ * Give each migration the seed named after it. `seeds` holds the default
+ * export of each seed file. Throws for a seed without a migration, which
+ * would never run, and for a seed file whose default export is not a function.
  */
 export function withClickHouseSeeds(
   migrations: readonly ClickHouseMigration[],
-  seeds: Readonly<Record<string, ClickHouseSeed>>,
+  seeds: Readonly<Record<string, unknown>>,
 ): ClickHouseMigration[] {
   const unmatched = new Map(Object.entries(seeds));
   const joined = migrations.map((migration) => {
     const name = migration.name.replace(/\.sql$/, ".seed.ts");
+    if (!unmatched.has(name)) return migration;
     const seed = unmatched.get(name);
     unmatched.delete(name);
-    return seed ? { ...migration, seed } : migration;
+    if (!isClickHouseSeed(seed)) {
+      throw new Error(`ClickHouse seed ${name} needs a function as its default export`);
+    }
+    return { ...migration, seed };
   });
   if (unmatched.size > 0) {
     throw new Error(
@@ -73,7 +81,7 @@ export const clickHouseMigrations: readonly ClickHouseMigration[] = withClickHou
   ).map(([path, sql]) => ({ name: fileName(path), sql })),
   Object.fromEntries(
     Object.entries(
-      import.meta.glob<ClickHouseSeed>("../../clickhouse/*.seed.ts", {
+      import.meta.glob("../../clickhouse/*.seed.ts", {
         import: "default",
         eager: true,
       }),
