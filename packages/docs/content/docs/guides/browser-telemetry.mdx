@@ -79,7 +79,7 @@ onConsentGranted(() => setAnonymized(false));
 onConsentWithdrawn(() => setAnonymized(true));
 ```
 
-`setAnonymized(false)` keeps the current `session.id` and adds the visitor id. `setAnonymized(true)` deletes the two stored keys and starts a new `session.id`, so the later records do not join the earlier ones.
+`setAnonymized(false)` keeps the current `session.id` and adds the visitor id. `setAnonymized(true)` sends the queued records, then deletes the two stored keys and starts a new `session.id`, so the later records do not join the earlier ones.
 
 ### Identify a signed-in user
 

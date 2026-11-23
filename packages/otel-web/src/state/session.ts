@@ -20,6 +20,7 @@
 
 import type { AttrValue } from "../pipeline/emitter.js";
 import type { UserTraits } from "../types.js";
+import { flushCurrent } from "./emit.js";
 import {
   readSession,
   readVisitor,
@@ -155,15 +156,20 @@ function forgetIds(): void {
  * because the code keeps it in memory, and the code writes it now. The user
  * from an earlier identify() goes on the next record.
  *
- * To enter the mode, the code removes the stored ids and forgets the visitor
- * id. It also drops the session. The old session id would join the new records
- * to the visitor and the user on the earlier records. The next record gets a
- * new session id. The code keeps the identified user in memory, but it does not
- * send it.
+ * To enter the mode, the code first sends the records that wait in the batch
+ * queue. Those records carry the ids of the time of their capture, and thus no
+ * request that starts after this call carries an identity. Then the code
+ * removes the stored ids and forgets the visitor id. It also drops the session.
+ * The old session id would join the new records to the visitor and the user on
+ * the earlier records. The next record gets a new session id. The code keeps
+ * the identified user in memory, but it does not send it.
  */
 export function setAnonymized(next: boolean): void {
   if (next === anonymized) return;
-  if (next) forgetIds();
+  if (next) {
+    flushCurrent();
+    forgetIds();
+  }
   anonymized = next;
   if (!next) {
     visitorId();

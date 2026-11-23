@@ -247,6 +247,27 @@ describe("setAnonymized on a live client", () => {
     expect(back["everr.visitor.id"]).toMatch(UNIQUE_ID);
   });
 
+  it("sends the queued records before it enters the mode, and no identity after", async () => {
+    start({ instrumentations: [] });
+    identify("u_123");
+    logger.info("captured with consent");
+
+    setAnonymized(true);
+    const sent = () => batches.flatMap((b) => b.records).map(attrs);
+    const atSwitch = sent();
+    logger.info("captured anonymized");
+    await client?.flush();
+    const afterSwitch = sent().slice(atSwitch.length);
+
+    expect(atSwitch).toHaveLength(1);
+    expect(atSwitch[0]["everr.visitor.id"]).toMatch(UNIQUE_ID);
+    expect(atSwitch[0]["user.id"]).toBe("u_123");
+    expect(afterSwitch).toHaveLength(1);
+    expect(afterSwitch[0]).not.toHaveProperty("everr.visitor.id");
+    expect(noUserKeys(afterSwitch[0])).toEqual([]);
+    expect(afterSwitch[0]["session.id"]).not.toBe(atSwitch[0]["session.id"]);
+  });
+
   it("does nothing, and touches no storage, for the value that is already set", async () => {
     [client, batches] = startClient({ instrumentations: [] });
     const anonymizedSession = (await probe())["session.id"];

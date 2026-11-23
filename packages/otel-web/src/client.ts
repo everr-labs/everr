@@ -95,10 +95,10 @@ export class WebSDK {
       options.beforeSend,
       (time) => activeSpan(time),
     );
-    // This is the only connection of the package functions, logger and
-    // captureError, to this pipeline. Each call reads the pipeline from
-    // current.ts.
-    const unbindEmit = bindEmit(emit);
+    // This is the only connection of the package functions to this pipeline.
+    // logger and captureError read the emit function at each call, and
+    // setAnonymized() reads the flush function.
+    const unbindEmit = bindEmit(emit, flush);
     const sdkTracer = createTracer(emitSpan);
     activeSpan = (time) => sdkTracer.activeSpanContext(time);
     const unbindTracer = bindTracer(sdkTracer);
