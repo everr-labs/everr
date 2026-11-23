@@ -33,19 +33,31 @@ func observe(path string) (observed, error) {
 		return observed{kind: dirMarked, markerErr: err}, nil
 	}
 
-	foreign := false
-	for _, entry := range entries {
-		if entry.Name() == metadataDir && entry.IsDir() {
-			return observed{kind: dirUnmarkedStore}, nil
-		}
-		if entry.Name()[0] != '.' {
-			foreign = true
-		}
+	if hasCatalog(path) {
+		return observed{kind: dirUnmarkedStore}, nil
 	}
-	if foreign {
-		return observed{kind: dirForeign}, nil
+	for _, entry := range entries {
+		if entry.Name()[0] != '.' {
+			return observed{kind: dirForeign}, nil
+		}
 	}
 	return observed{kind: dirEmpty}, nil
+}
+
+// hasCatalog reports whether chDB has written its catalog here. chDB links
+// each database's name in metadata to its directory under store, a layout
+// that a folder that merely happens to be called metadata does not have.
+func hasCatalog(path string) bool {
+	entries, err := os.ReadDir(filepath.Join(path, metadataDir))
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.Type()&fs.ModeSymlink != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // reset deletes the metadata directory last. While it exists, a reset that

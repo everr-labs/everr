@@ -157,26 +157,38 @@ func TestOpenResetsAStoreWhoseVersionDiffers(t *testing.T) {
 
 func TestOpenResetsAStoreFromBeforeTheMarker(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chdb")
-	write(t, filepath.Join(dir, "metadata", "default.sql"), "old")
+	catalog(t, dir, "default")
+	write(t, filepath.Join(dir, "store", "abc", "default", "t.sql"), "old")
 	write(t, filepath.Join(dir, ".last_flush"), "1")
 
 	session, err := start(t, dir, migrationFiles(), "")
 
 	require.NoError(t, err)
-	require.NoFileExists(t, filepath.Join(dir, "metadata", "default.sql"))
+	require.NoDirExists(t, filepath.Join(dir, "store"))
 	require.Len(t, session.statements(), 4)
 }
 
 func TestOpenRefusesADirectoryThatIsNotAStore(t *testing.T) {
-	dir := t.TempDir()
-	write(t, filepath.Join(dir, "notes.txt"), "mine")
+	for name, files := range map[string]map[string]string{
+		"a file":                             {"notes.txt": "mine"},
+		"a metadata folder that is not chDB": {"notes.txt": "mine", "metadata/readme.txt": "also mine"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			for file, text := range files {
+				write(t, filepath.Join(dir, file), text)
+			}
 
-	session, err := start(t, dir, migrationFiles(), "")
+			session, err := start(t, dir, migrationFiles(), "")
 
-	require.ErrorIs(t, err, errForeignDirectory)
-	require.ErrorContains(t, err, dir)
-	require.Empty(t, session.statements())
-	content, readErr := os.ReadFile(filepath.Join(dir, "notes.txt"))
-	require.NoError(t, readErr)
-	require.Equal(t, "mine", string(content))
+			require.ErrorIs(t, err, errForeignDirectory)
+			require.ErrorContains(t, err, dir)
+			require.Empty(t, session.statements())
+			for file, text := range files {
+				content, readErr := os.ReadFile(filepath.Join(dir, file))
+				require.NoError(t, readErr)
+				require.Equal(t, text, string(content))
+			}
+		})
+	}
 }

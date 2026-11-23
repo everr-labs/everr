@@ -14,6 +14,16 @@ func write(t *testing.T, path, text string) {
 	require.NoError(t, os.WriteFile(path, []byte(text), 0o644))
 }
 
+// catalog lays out what chDB writes for a database: a symlink in metadata
+// that points into store.
+func catalog(t *testing.T, dir, database string) {
+	t.Helper()
+	target := filepath.Join("store", "abc", database)
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, target), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, metadataDir), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join("..", target), filepath.Join(dir, metadataDir, database)))
+}
+
 func entryNames(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -27,21 +37,28 @@ func entryNames(t *testing.T, dir string) []string {
 
 func TestObserveReadsTheDirectoryWithoutChDB(t *testing.T) {
 	for name, tc := range map[string]struct {
-		files map[string]string
-		kind  dirKind
+		files    map[string]string
+		database string
+		kind     dirKind
 	}{
-		"an empty directory":               {nil, dirEmpty},
-		"only dotfiles":                    {map[string]string{".last_flush": "1", ".DS_Store": ""}, dirEmpty},
-		"a chDB layout and no marker":      {map[string]string{"metadata/default.sql": "x", "data/a": "1"}, dirUnmarkedStore},
-		"a chDB layout and dotfiles":       {map[string]string{"metadata/default.sql": "x", ".last_flush": "1"}, dirUnmarkedStore},
-		"files that are not a chDB store":  {map[string]string{"notes.txt": "mine"}, dirForeign},
-		"a metadata file, not a directory": {map[string]string{"metadata": "mine"}, dirForeign},
-		"a marker":                         {map[string]string{markerName: `{"version":1,"applied":{}}`, "metadata/x": "x"}, dirMarked},
+		"an empty directory":                      {nil, "", dirEmpty},
+		"only dotfiles":                           {map[string]string{".last_flush": "1", ".DS_Store": ""}, "", dirEmpty},
+		"a catalog from an older build":           {map[string]string{"data/a": "1"}, "default", dirUnmarkedStore},
+		"a catalog and dotfiles":                  {map[string]string{".last_flush": "1"}, "default", dirUnmarkedStore},
+		"a catalog from this build":               {map[string]string{"metadata/app.sql": "x"}, "app", dirUnmarkedStore},
+		"files that are not a chDB store":         {map[string]string{"notes.txt": "mine"}, "", dirForeign},
+		"a metadata file, not a directory":        {map[string]string{"metadata": "mine"}, "", dirForeign},
+		"a metadata directory without a catalog":  {map[string]string{"metadata/readme.txt": "mine"}, "", dirForeign},
+		"a metadata directory of .sql files only": {map[string]string{"metadata/default.sql": "x"}, "", dirForeign},
+		"a marker": {map[string]string{markerName: `{"version":1,"applied":{}}`, "metadata/x": "x"}, "", dirMarked},
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
 			for file, text := range tc.files {
 				write(t, filepath.Join(dir, file), text)
+			}
+			if tc.database != "" {
+				catalog(t, dir, tc.database)
 			}
 
 			seen, err := observe(dir)
@@ -98,8 +115,8 @@ func TestWriteMarkerReplacesTheWholeMarker(t *testing.T) {
 func TestResetEmptiesTheDirectoryAndKeepsIt(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, writeMarker(dir, marker{Version: 1, Applied: map[string]string{"a.sql": "1"}}))
+	catalog(t, dir, "app")
 	write(t, filepath.Join(dir, "metadata", "app.sql"), "x")
-	write(t, filepath.Join(dir, "store", "abc", "part"), "x")
 	write(t, filepath.Join(dir, ".last_flush"), "1")
 
 	require.NoError(t, reset(dir))
@@ -113,9 +130,9 @@ func TestResetOfAStoppedResetLeavesAStateTheNextStartResets(t *testing.T) {
 	}
 	dir := t.TempDir()
 	require.NoError(t, writeMarker(dir, marker{Version: Version, Applied: map[string]string{"a.sql": "1"}}))
-	write(t, filepath.Join(dir, "metadata", "app.sql"), "x")
+	catalog(t, dir, "app")
 	write(t, filepath.Join(dir, "data", "part"), "x")
-	locked := filepath.Join(dir, "store")
+	locked := filepath.Join(dir, "store", "abc")
 	write(t, filepath.Join(locked, "part"), "x")
 	require.NoError(t, os.Chmod(locked, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
