@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
+	"github.com/everr-labs/everr/packages/cli/internal/homebrew"
 	"github.com/everr-labs/everr/packages/cli/internal/local"
 	"github.com/everr-labs/everr/packages/cli/internal/session"
 	"github.com/everr-labs/everr/packages/cli/internal/skills"
@@ -57,6 +58,10 @@ func run(out io.Writer, in io.Reader) error {
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "To remove the CLI binary, run:")
-	fmt.Fprintf(out, "  rm \"%s\"\n", cliPath)
+	if homebrew.InCellar(cliPath) {
+		fmt.Fprintf(out, "  %s\n", homebrew.UninstallCommand)
+	} else {
+		fmt.Fprintf(out, "  rm \"%s\"\n", cliPath)
+	}
 	return nil
 }

@@ -12,6 +12,16 @@ const allowedCliReleasePaths = new Set([
   "release-metadata.json",
 ]);
 
+// Each release is also published under its version, so Homebrew formulas can
+// pin a URL whose checksum never changes.
+const versionedPathPrefix = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\//;
+
+function isCliReleasePath(artifactPath: string) {
+  const versioned = versionedPathPrefix.exec(artifactPath);
+  const name = versioned ? artifactPath.slice(versioned[0].length) : artifactPath;
+  return allowedCliReleasePaths.has(name);
+}
+
 export function resolveCliReleaseRedirectUrl({
   pathname,
   publicBaseUrl = process.env.DESKTOP_RELEASE_PUBLIC_BASE_URL ??
@@ -33,7 +43,7 @@ export function resolveCliReleaseRedirectUrl({
     return null;
   }
 
-  if (!allowedCliReleasePaths.has(artifactPath)) {
+  if (!isCliReleasePath(artifactPath)) {
     return null;
   }
 

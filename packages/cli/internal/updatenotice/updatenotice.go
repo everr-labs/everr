@@ -14,13 +14,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
+	"github.com/everr-labs/everr/packages/cli/internal/homebrew"
 )
 
 const (
 	checkInterval         = 24 * time.Hour
 	fetchTimeout          = 750 * time.Millisecond
 	releaseMetadataPath   = "/everr-app/release-metadata.json"
-	upgradeCommand        = "everr upgrade"
 	releaseMetadataURLEnv = "EVERR_RELEASE_METADATA_URL_FOR_TESTS"
 	// chrono's to_rfc3339 layout, which the previous CLI wrote.
 	timestampLayout = "2006-01-02T15:04:05.999999999-07:00"
@@ -46,7 +46,14 @@ func MaybePrint(ctx context.Context, cmd *cobra.Command) {
 	}
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "A new version is available: %s\n", status.LatestVersion)
-	fmt.Fprintf(out, "Run: %s\n", upgradeCommand)
+	fmt.Fprintf(out, "Run: %s\n", upgradeCommand())
+}
+
+func upgradeCommand() string {
+	if homebrew.Installed() {
+		return homebrew.UpgradeCommand
+	}
+	return "everr upgrade"
 }
 
 func check(ctx context.Context) (cacheFile, error) {

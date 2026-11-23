@@ -20,6 +20,7 @@ import (
 
 	"github.com/everr-labs/everr/packages/cli/internal/build"
 	"github.com/everr-labs/everr/packages/cli/internal/cmdutil"
+	"github.com/everr-labs/everr/packages/cli/internal/homebrew"
 	"github.com/everr-labs/everr/packages/cli/internal/updatenotice"
 )
 
@@ -46,6 +47,9 @@ func NewCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, out io.Writer) error {
+	if homebrew.Installed() {
+		return fmt.Errorf("everr was installed with Homebrew. Run: %s", homebrew.UpgradeCommand)
+	}
 	metadata, err := updatenotice.FetchReleaseMetadata(ctx, metadataTimeout)
 	if err != nil {
 		return err
