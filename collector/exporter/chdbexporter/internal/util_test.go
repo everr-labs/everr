@@ -203,7 +203,9 @@ func TestAttributesJSONStoresNonFiniteDoublesAsStrings(t *testing.T) {
 	m.PutDouble("nan", math.NaN())
 	m.PutDouble("finite", 1.5)
 	m.PutEmptyMap("nested").PutDouble("inf", math.Inf(1))
-	m.PutEmptySlice("list").FromRaw([]any{math.Inf(-1), int64(2)})
+	list := m.PutEmptySlice("list")
+	list.AppendEmpty().SetDouble(math.Inf(-1))
+	list.AppendEmpty().SetInt(2)
 
 	doc, err := AttributesJSON(m)
 

@@ -70,7 +70,9 @@ func (g *gateway) metricsExporter(t *testing.T, configure func(*chdbexporter.Con
 func putNonFinite(m pcommon.Map) {
 	m.PutDouble("ratio.nan", math.NaN())
 	m.PutDouble("ratio.inf", math.Inf(1))
-	m.PutEmptySlice("ratios").FromRaw([]any{1.5, math.Inf(-1)})
+	ratios := m.PutEmptySlice("ratios")
+	ratios.AppendEmpty().SetDouble(1.5)
+	ratios.AppendEmpty().SetDouble(math.Inf(-1))
 }
 
 func TestNonFiniteFloatsAreStoredWithTheRestOfTheirPush(t *testing.T) {
