@@ -62,39 +62,6 @@ its first statement, so every statement must be safe to repeat (`IF NOT EXISTS`,
 `OR REPLACE`). Use `OR REPLACE` for a row policy, not `DROP` then `CREATE`: the
 table has no tenant filter between the two statements.
 
-### Seeds
-
-A migration that needs more than SQL gets a seed: `NNNN-<name>.seed.ts`
-next to `NNNN-<name>.sql`, with one function as its default export. Use it for
-work that depends on what the server holds, such as one statement per existing
-organization.
-
-```ts
-import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
-
-const seed: ClickHouseSeed = async ({ query, command }) => {
-  const users = await query<{ name: string }>("SELECT name FROM system.users");
-  for (const { name } of users) await command(`GRANT some_role TO \`${name}\``);
-};
-
-export default seed;
-```
-
-The runner calls it once, after the file's statements and before the journal
-row, on the migration connection. A seed that throws leaves the migration
-pending, so the next start runs the statements and the seed again. Make it
-safe to repeat, and keep it short: startup waits for it under the migration
-lock.
-
-- The journal hashes the SQL file only. Editing a seed after its migration
-  is applied changes nothing where it already ran.
-- A seed runs with its migration or never. Adding one to a migration that
-  is already on the base branch fails the pull request check. Put it next to a
-  new migration file, which can hold only a comment.
-- A seed also runs on a new, empty server, and must do nothing wrong there.
-- A seed sees the server once. Something the previous application version
-  creates after that, during a rolling deploy, is not covered.
-
 Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connecting
 as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10-minute request
 timeout. A timed-out statement can still be running on the server. The retry
@@ -103,6 +70,55 @@ that run before starting it again. Statements bind the other users' passwords
 as `{name:String}` parameters. `GRANT` does not accept parameters, so a
 parameterized user gets its role through `DEFAULT ROLE`.
 `pnpm db:migrate` applies only the PostgreSQL histories.
+
+### Seeds
+
+A migration that needs more than SQL gets a seed: `NNNN-<name>.seed.ts`
+next to `NNNN-<name>.sql`, with one function as its default export. Use it for
+work that depends on what the server holds, such as one statement per existing
+organization. Startup fails when the default export is not a function.
+
+```ts
+import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
+
+const seed: ClickHouseSeed = async ({ query, command }) => {
+  const users = await query<{ name: string }>(
+    "SELECT name FROM system.users WHERE startsWith(name, {prefix:String})",
+    { prefix: "sql_api_" },
+  );
+  for (const { name } of users) {
+    await command("ALTER USER {name:Identifier} SETTINGS PROFILE 'sql_api_profile'", { name });
+  }
+};
+
+export default seed;
+```
+
+`query` and `command` take the values for the `{name:Type}` placeholders as
+their second argument. Pass every value that comes from the server this way.
+Do not put it in the SQL string: a name can hold a backtick or a quote. `GRANT`
+does not accept parameters, so check a name against a strict pattern before it
+goes into a `GRANT`.
+
+The runner calls the seed once, after the file's statements and before the
+journal row, on the migration connection. A seed that throws leaves the
+migration pending, so the next start runs the statements and the seed again.
+Make it safe to repeat, and keep it short: startup waits for it under the
+migration lock. A seed query gets a query id from its place in the seed's
+call order, so the retry cancels a run of it that is still on the server, as
+it does for a statement.
+
+- The journal hashes the SQL file only. Editing a seed after its migration
+  is applied changes nothing where it already ran. A new server runs the
+  edited seed.
+- A seed runs with its migration or never. Adding one to a migration that
+  is already on the base branch fails the pull request check. Put it next to a
+  new migration file, which can hold only a comment.
+- Deleting a seed that is on the base branch fails the pull request check. A
+  new server would apply the migration without it.
+- A seed also runs on a new, empty server, and must do nothing wrong there.
+- A seed sees the server once. Something the previous application version
+  creates after that, during a rolling deploy, is not covered.
 
 ## Verification
 
