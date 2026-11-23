@@ -1,7 +1,7 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { getRouter } from "./router";
 import { mockCommands } from "./test-commands";
 
@@ -26,6 +26,19 @@ const failed = {
   reason: "collector exited",
   ...endpoints,
 } satisfies CollectorStatus;
+
+const renderedRouters: ReturnType<typeof getRouter>[] = [];
+
+// A load still in flight when the file ends (a collector status change
+// invalidates the router) commits after jsdom is torn down and throws
+// "window is not defined". Let each router settle before it is unmounted.
+afterEach(async () => {
+  for (const router of renderedRouters.splice(0)) {
+    await waitFor(() => {
+      if (router.state.status !== "idle") throw new Error("The router is still loading");
+    });
+  }
+});
 
 function renderMainApp(
   options: {
@@ -62,6 +75,7 @@ function renderMainApp(
     context: router.options.context,
   });
   render(<RouterProvider router={router} />);
+  renderedRouters.push(router);
 
   return {
     router,
