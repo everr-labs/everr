@@ -1,6 +1,5 @@
 import { exploreNavGroup } from "@everr/telemetry-explorer/explore/routes";
 import { AppShell, shellRouteOptions } from "@everr/telemetry-explorer/shell";
-import type { QueryFilters } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LocalSidebarFooter } from "../features/app-shell/sidebar-footer";
 
@@ -8,22 +7,11 @@ import { LocalSidebarFooter } from "../features/app-shell/sidebar-footer";
 // spread that is not an identifier (https://github.com/TanStack/router/issues/8673).
 const shell = shellRouteOptions();
 
-// Every query on the page, but not the app's own, such as the collector status
-// it polls by itself.
-const refreshScope = {
-  type: "active",
-  predicate: ({ queryKey }) => queryKey[0] !== "local-app",
-} satisfies QueryFilters;
-
 export const Route = createFileRoute("/_shell")({ ...shell, component: LocalShell });
 
 function LocalShell() {
   return (
-    <AppShell
-      nav={[exploreNavGroup]}
-      sidebarFooter={<LocalSidebarFooter />}
-      refreshScope={refreshScope}
-    >
+    <AppShell nav={[exploreNavGroup]} sidebarFooter={<LocalSidebarFooter />}>
       <Outlet />
     </AppShell>
   );

@@ -1,9 +1,9 @@
-import { queryOptions } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
 import { listMcpConnections } from "#app/data/mcp/connections.ts";
 import { authClient } from "#app/lib/auth-client.ts";
 
 export function linkedAccountsQueryOptions(userId: string) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["account-settings", userId, "linked-accounts"],
     enabled: Boolean(userId),
     queryFn: async () => {
@@ -16,7 +16,7 @@ export function linkedAccountsQueryOptions(userId: string) {
 }
 
 export function accountSessionsQueryOptions(userId: string) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["account-settings", userId, "sessions"],
     queryFn: async () => {
       const result = await authClient.listSessions();
@@ -27,7 +27,7 @@ export function accountSessionsQueryOptions(userId: string) {
 }
 
 export function mcpConnectionsQueryOptions(userId: string) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["account-settings", userId, "mcp-connections"],
     queryFn: () => listMcpConnections(),
   });

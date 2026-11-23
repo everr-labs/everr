@@ -1,4 +1,5 @@
-import { type Query, type QueryClient, queryOptions } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
+import type { Query, QueryClient } from "@tanstack/react-query";
 import { type AnyRouter, redirect } from "@tanstack/react-router";
 import { isAuthFailure } from "#app/lib/auth-failure.ts";
 import type { RootContext } from "#app/routes/__root.tsx";
@@ -19,7 +20,7 @@ const ROUTE_ACCESS_KEY = "route-access";
  * these guards only decide where to route.
  */
 export function routeAccessQuery<T>(key: readonly unknown[], queryFn: () => Promise<T>) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: [ROUTE_ACCESS_KEY, ...key],
     queryFn,
     staleTime: "static",

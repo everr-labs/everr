@@ -1,6 +1,6 @@
 import { RefreshPicker as BaseRefreshPicker } from "@everr/ui/components/refresh-picker";
 import { TimeRangePicker as BaseTimeRangePicker } from "@everr/ui/components/time-range-picker";
-import { type QueryFilters, useIsFetching } from "@tanstack/react-query";
+import { useIsFetchingData } from "@everr/ui/lib/query-options";
 import { useAutoRefresh, useTimeRange } from "./time-range";
 
 export function TimeRangePicker() {
@@ -8,16 +8,16 @@ export function TimeRangePicker() {
   return <BaseTimeRangePicker value={timeRange} onChange={setTimeRange} />;
 }
 
-export function RefreshPicker({ scope }: { scope?: QueryFilters }) {
-  const { refreshInterval, setRefreshInterval, refreshNow } = useAutoRefresh(scope);
-  const isFetching = useIsFetching(scope);
+export function RefreshPicker() {
+  const { refreshInterval, setRefreshInterval, refreshNow } = useAutoRefresh();
+  const isFetching = useIsFetchingData();
 
   return (
     <BaseRefreshPicker
       value={refreshInterval}
       onChange={setRefreshInterval}
       onRefresh={refreshNow}
-      isFetching={isFetching > 0}
+      isFetching={isFetching}
     />
   );
 }

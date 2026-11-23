@@ -1,9 +1,10 @@
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { HomeStatus } from "#app/common/onboarding.ts";
 import { completeOnboarding, getHomeStatus } from "./server";
 
 export function homeStatusQueryOptions(userId: string, organizationId: string) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["home-status", userId, organizationId],
     queryFn: () => getHomeStatus({ data: { organizationId } }),
     staleTime: 15_000,

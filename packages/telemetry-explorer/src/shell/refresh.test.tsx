@@ -1,11 +1,6 @@
 import type * as RefreshPickerModule from "@everr/ui/components/refresh-picker";
-import {
-  QueryClient,
-  QueryClientProvider,
-  type QueryFilters,
-  type QueryKey,
-  useQuery,
-} from "@tanstack/react-query";
+import { appQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
+import { QueryClient, QueryClientProvider, type QueryKey, useQuery } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -36,21 +31,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const appOwnScope = {
-  type: "active",
-  predicate: ({ queryKey }) => queryKey[0] !== "app-own",
-} satisfies QueryFilters;
+type Probe = { queryKey: QueryKey; queryFn: () => Promise<string>; data: boolean };
 
-function QueryProbe({ queryKey, queryFn }: { queryKey: QueryKey; queryFn: () => Promise<string> }) {
-  useQuery({ queryKey, queryFn });
+function QueryProbe({ queryKey, queryFn, data }: Probe) {
+  useQuery(data ? dataQueryOptions({ queryKey, queryFn }) : appQueryOptions({ queryKey, queryFn }));
   return null;
 }
 
-function renderShell(
-  initialEntry: string,
-  probes: { queryKey: QueryKey; queryFn: () => Promise<string> }[],
-  refreshScope?: QueryFilters,
-) {
+function renderShell(initialEntry: string, probes: Probe[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const rootRoute = createRootRoute();
   const shellRoute = createRoute({
@@ -58,7 +46,7 @@ function renderShell(
     id: "_shell",
     ...shellRouteOptions(),
     component: () => (
-      <AppShell nav={[]} sidebarFooter={null} refreshScope={refreshScope}>
+      <AppShell nav={[]} sidebarFooter={null}>
         <Outlet />
       </AppShell>
     ),
@@ -87,8 +75,8 @@ function renderShell(
   return client;
 }
 
-describe("AppShell refreshScope", () => {
-  it("refreshes the page without the queries outside the scope", async () => {
+describe("AppShell refresh", () => {
+  it("refreshes the page's data, not the app's own queries", async () => {
     let finishStatus = () => {};
     const status = vi.fn(
       () =>
@@ -97,14 +85,10 @@ describe("AppShell refreshScope", () => {
         }),
     );
     const telemetry = vi.fn().mockResolvedValue("fresh telemetry");
-    const client = renderShell(
-      "/page",
-      [
-        { queryKey: ["logs", "explorer"], queryFn: telemetry },
-        { queryKey: ["app-own", "status"], queryFn: status },
-      ],
-      appOwnScope,
-    );
+    const client = renderShell("/page", [
+      { queryKey: ["logs", "explorer"], queryFn: telemetry, data: true },
+      { queryKey: ["app-own", "status"], queryFn: status, data: false },
+    ]);
 
     const refresh = await screen.findByRole("button", { name: "Refresh" });
     await waitFor(() => expect(status).toHaveBeenCalledTimes(1));
@@ -118,38 +102,20 @@ describe("AppShell refreshScope", () => {
     client.clear();
   });
 
-  it("covers every query when the app sets no scope", async () => {
-    const telemetry = vi.fn().mockResolvedValue("fresh telemetry");
-    const status = vi.fn().mockResolvedValue("running");
-    const client = renderShell("/page", [
-      { queryKey: ["logs", "explorer"], queryFn: telemetry },
-      { queryKey: ["app-own", "status"], queryFn: status },
-    ]);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(telemetry).toHaveBeenCalledTimes(2));
-    expect(status).toHaveBeenCalledTimes(2);
-    client.clear();
-  });
-
-  it("refreshes the queries in scope at the auto-refresh interval", async () => {
+  it("refreshes the page's data at the auto-refresh interval", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     // Neither has a refetch interval of its own.
-    const metadata = vi.fn().mockResolvedValue("metadata");
+    const series = vi.fn().mockResolvedValue("series");
     const status = vi.fn().mockResolvedValue("running");
-    const client = renderShell(
-      "/page?refresh=10s",
-      [
-        { queryKey: ["metrics", "metadata"], queryFn: metadata },
-        { queryKey: ["app-own", "status"], queryFn: status },
-      ],
-      appOwnScope,
-    );
+    const client = renderShell("/page?refresh=10s", [
+      { queryKey: ["metrics", "series"], queryFn: series, data: true },
+      { queryKey: ["app-own", "status"], queryFn: status, data: false },
+    ]);
     try {
       await screen.findByRole("button", { name: "Refresh" });
-      await waitFor(() => expect(metadata).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(series).toHaveBeenCalledTimes(1));
       await act(() => vi.advanceTimersByTimeAsync(10_000));
-      await waitFor(() => expect(metadata).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(series).toHaveBeenCalledTimes(2));
       expect(status).toHaveBeenCalledTimes(1);
     } finally {
       client.clear();

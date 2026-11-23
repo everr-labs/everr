@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { dataInfiniteQueryOptions } from "@everr/ui/lib/query-options";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -12,8 +13,6 @@ import { getStepLogs } from "#app/data/runs/server.ts";
 const LOG_PAGE_SIZE = 1000;
 
 type PageParam = { tail: number; offset: number; limit: number };
-type StepLogsPage = { logs: unknown[]; totalCount: number; offset: number };
-
 function getAnchorLine(): number | null {
   if (typeof window === "undefined") return null;
   const match = window.location.hash.match(/^#L(\d+)$/);
@@ -34,7 +33,7 @@ function stepLogsQueryKey(traceId: string, jobName: string, stepNumber: string) 
 }
 
 export function stepLogsInfiniteOptions(traceId: string, jobName: string, stepNumber: string) {
-  return {
+  return dataInfiniteQueryOptions({
     queryKey: stepLogsQueryKey(traceId, jobName, stepNumber),
     queryFn: ({ pageParam }: { pageParam: PageParam }) => {
       if (pageParam.tail) {
@@ -53,21 +52,21 @@ export function stepLogsInfiniteOptions(traceId: string, jobName: string, stepNu
       });
     },
     initialPageParam: getInitialPageParam(),
-    getPreviousPageParam: (firstPage: StepLogsPage | undefined) => {
+    getPreviousPageParam: (firstPage) => {
       if (!firstPage) return undefined;
       const firstOffset = firstPage.offset;
       if (firstOffset <= 0) return undefined;
       const limit = Math.min(LOG_PAGE_SIZE, firstOffset);
       return { tail: 0, offset: firstOffset - limit, limit };
     },
-    getNextPageParam: (lastPage: StepLogsPage | undefined) => {
+    getNextPageParam: (lastPage) => {
       if (!lastPage) return undefined;
       const endOffset = lastPage.offset + lastPage.logs.length;
       if (endOffset >= lastPage.totalCount) return undefined;
       const limit = Math.min(LOG_PAGE_SIZE, lastPage.totalCount - endOffset);
       return { tail: 0, offset: endOffset, limit };
     },
-  };
+  });
 }
 
 export const Route = createFileRoute(

@@ -1,11 +1,7 @@
-import {
-  type Query,
-  type QueryClient,
-  type QueryFilters,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { type Query, type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
 import { getRefreshIntervalMs } from "../components/refresh-picker";
+import { isDataQuery } from "./query-options";
 
 let epoch = 0;
 const listeners = new Set<() => void>();
@@ -56,32 +52,31 @@ export const REFRESH_KEYED = {
 } as const;
 
 /**
- * Refreshes the page: moves its charts to a new instant, then refetches every
- * other query matching `filters`. Charts refetch through their new key, so
+ * Refreshes the page's data: moves its charts to a new instant, then refetches
+ * the other data queries. App state, such as the session or a dashboard's
+ * definition, is left alone. Charts refetch through their new key, so
  * invalidating them too would fetch them twice.
  */
-export function refreshPage(queryClient: QueryClient, filters: QueryFilters = {}): void {
+export function refreshPage(queryClient: QueryClient): void {
   epoch += 1;
   for (const listener of listeners) listener();
   void queryClient.invalidateQueries({
-    ...filters,
-    predicate: (query) => !isRefreshKeyed(query) && (filters.predicate?.(query) ?? true),
+    predicate: (query) => isDataQuery(query) && !isRefreshKeyed(query),
   });
 }
 
 /**
- * Refreshes the page's queries matching `filters` every `refresh` interval
- * while one is picked. Returns what the Refresh button does, the same refresh
- * once.
+ * Refreshes the page's data every `refresh` interval while one is picked.
+ * Returns what the Refresh button does, the same refresh once.
  */
-export function usePageRefresh(refresh: string, filters?: QueryFilters): () => void {
+export function usePageRefresh(refresh: string): () => void {
   const queryClient = useQueryClient();
   const ms = getRefreshIntervalMs(refresh);
-  const refreshNow = useEffectEvent(() => refreshPage(queryClient, filters));
+  const refreshNow = useEffectEvent(() => refreshPage(queryClient));
   useEffect(() => {
     if (!ms) return;
     const timer = setInterval(refreshNow, ms);
     return () => clearInterval(timer);
   }, [ms]);
-  return () => refreshPage(queryClient, filters);
+  return () => refreshPage(queryClient);
 }

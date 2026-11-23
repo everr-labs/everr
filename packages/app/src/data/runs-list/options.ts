@@ -1,8 +1,8 @@
-import { queryOptions } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
 import { searchRuns } from "./server";
 
 export const searchRunsOptions = (searchQuery: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: ["runs", "search", searchQuery],
     queryFn: () => searchRuns({ data: { query: searchQuery } }),
   });

@@ -9,8 +9,9 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
 import { cn } from "@everr/ui/lib/utils";
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Check, GitBranch } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -18,13 +19,13 @@ import { GithubInstall } from "#app/components/github-install.tsx";
 import { getGithubAppInstallStatus, getInstallationRepos, importRepos } from "#app/data/github.ts";
 import { mutationStatus } from "#app/lib/mutation-status.ts";
 
-export const githubInstallStatusOptions = queryOptions({
+export const githubInstallStatusOptions = appQueryOptions({
   queryKey: ["github", "install-status"],
   queryFn: () => getGithubAppInstallStatus(),
   staleTime: 5 * 60_000,
 });
 
-export const githubReposOptions = queryOptions({
+export const githubReposOptions = appQueryOptions({
   queryKey: ["github", "installation-repos"],
   queryFn: () => getInstallationRepos(),
 });

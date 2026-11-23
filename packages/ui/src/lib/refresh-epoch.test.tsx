@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("usePageRefresh", () => {
-  it("keeps its interval when a render passes a new filters object", () => {
+  it("keeps its interval across renders", () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries").mockResolvedValue();
@@ -17,7 +17,7 @@ describe("usePageRefresh", () => {
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
 
-    const { rerender } = renderHook(() => usePageRefresh("10s", { type: "active" }), { wrapper });
+    const { rerender } = renderHook(() => usePageRefresh("10s"), { wrapper });
     vi.advanceTimersByTime(6_000);
     rerender();
     vi.advanceTimersByTime(4_000);
