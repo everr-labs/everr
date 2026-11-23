@@ -35,7 +35,7 @@ func observe(path string) (observed, error) {
 
 	raw, err := os.ReadFile(filepath.Join(path, markerName))
 	if err == nil {
-		seen := observed{kind: dirMarked, catalog: hasCatalog(path)}
+		seen := observed{kind: dirMarked, queryDatabase: hasDatabase(path, QueryDatabase)}
 		seen.markerErr = json.Unmarshal(raw, &seen.marker)
 		return seen, nil
 	}
@@ -68,6 +68,12 @@ func hasCatalog(path string) bool {
 		}
 	}
 	return false
+}
+
+// hasDatabase reports whether chDB's catalog lists the database.
+func hasDatabase(path, name string) bool {
+	info, err := os.Lstat(filepath.Join(path, metadataDir, name))
+	return err == nil && info.Mode()&fs.ModeSymlink != 0
 }
 
 func reset(path string) error {

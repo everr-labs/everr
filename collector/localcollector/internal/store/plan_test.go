@@ -14,7 +14,7 @@ var localFiles = []migration{
 }
 
 func marked(version int, applied map[string]string) observed {
-	return observed{kind: dirMarked, marker: marker{Version: version, Applied: applied}, catalog: true}
+	return observed{kind: dirMarked, marker: marker{Version: version, Applied: applied}, queryDatabase: true}
 }
 
 func names(migrations []migration) []string {
@@ -73,15 +73,15 @@ func TestDecideResetsWhenTheStoreCannotBeTrusted(t *testing.T) {
 		seen observed
 		want resetReason
 	}{
-		"a higher version":             {marked(Version+1, good), versionChanged},
-		"a lower version":              {marked(Version-1, good), versionChanged},
-		"a marker without a version":   {marked(0, good), versionChanged},
-		"a file this binary lacks":     {marked(Version, map[string]string{"0001-setup.sql": "sum1", "0002-gone.sql": "x"}), unknownMigration},
-		"a file whose hash differs":    {marked(Version, map[string]string{"0001-setup.sql": "edited"}), changedMigration},
-		"an unreadable marker":         {observed{kind: dirMarked, markerErr: errors.New("marker is not JSON")}, corruptMarker},
-		"a chDB layout and no marker":  {observed{kind: dirUnmarkedStore}, unmarkedStore},
-		"a reset that stopped":         {observed{kind: dirResetStopped}, resetStopped},
-		"applied files and no catalog": {observed{kind: dirMarked, marker: marker{Version: Version, Applied: good}}, catalogMissing},
+		"a higher version":                    {marked(Version+1, good), versionChanged},
+		"a lower version":                     {marked(Version-1, good), versionChanged},
+		"a marker without a version":          {marked(0, good), versionChanged},
+		"a file this binary lacks":            {marked(Version, map[string]string{"0001-setup.sql": "sum1", "0002-gone.sql": "x"}), unknownMigration},
+		"a file whose hash differs":           {marked(Version, map[string]string{"0001-setup.sql": "edited"}), changedMigration},
+		"an unreadable marker":                {observed{kind: dirMarked, markerErr: errors.New("marker is not JSON")}, corruptMarker},
+		"a chDB layout and no marker":         {observed{kind: dirUnmarkedStore}, unmarkedStore},
+		"a reset that stopped":                {observed{kind: dirResetStopped}, resetStopped},
+		"applied files and no query database": {observed{kind: dirMarked, marker: marker{Version: Version, Applied: good}}, queryDatabaseMissing},
 	} {
 		t.Run(name, func(t *testing.T) {
 			p, err := decide(tc.seen, localFiles)

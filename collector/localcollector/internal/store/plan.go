@@ -24,20 +24,22 @@ type observed struct {
 	kind      dirKind
 	marker    marker
 	markerErr error
-	catalog   bool
+	// queryDatabase is whether a marked store still has the database that
+	// every start ends on. Without it no start can succeed.
+	queryDatabase bool
 }
 
 type resetReason string
 
 const (
-	noReset          resetReason = ""
-	unmarkedStore    resetReason = "store has no marker"
-	resetStopped     resetReason = "a reset stopped before it finished"
-	corruptMarker    resetReason = "marker unreadable"
-	versionChanged   resetReason = "store version changed"
-	unknownMigration resetReason = "store has a migration this binary lacks"
-	changedMigration resetReason = "an applied migration changed"
-	catalogMissing   resetReason = "store data is gone but its marker is not"
+	noReset              resetReason = ""
+	unmarkedStore        resetReason = "store has no marker"
+	resetStopped         resetReason = "a reset stopped before it finished"
+	corruptMarker        resetReason = "marker unreadable"
+	versionChanged       resetReason = "store version changed"
+	unknownMigration     resetReason = "store has a migration this binary lacks"
+	changedMigration     resetReason = "an applied migration changed"
+	queryDatabaseMissing resetReason = "store data is gone but its marker is not"
 )
 
 type plan struct {
@@ -78,8 +80,8 @@ func decide(seen observed, local []migration) (plan, error) {
 			return resetPlan(changedMigration, local), nil
 		}
 	}
-	if len(seen.marker.Applied) > 0 && !seen.catalog {
-		return resetPlan(catalogMissing, local), nil
+	if len(seen.marker.Applied) > 0 && !seen.queryDatabase {
+		return resetPlan(queryDatabaseMissing, local), nil
 	}
 	var pending []migration
 	for _, m := range local {

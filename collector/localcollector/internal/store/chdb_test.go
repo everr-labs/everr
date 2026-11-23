@@ -169,3 +169,14 @@ func TestOpenRebuildsAStoreWhoseDataWasDeletedAroundTheMarker(t *testing.T) {
 	require.NoError(t, exec(handle, "INSERT INTO otel.otel_logs FORMAT JSONEachRow "+logRow(`{"everr.retention.days":"7"}`)))
 	require.Equal(t, []string{"1"}, column(t, handle, "SELECT count() AS n FROM logs", "n"))
 }
+
+func TestOpenRebuildsAStoreWhoseQueryDatabaseWasDropped(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "chdb")
+	handle := openReal(t, dir)
+	require.NoError(t, exec(handle, "DROP DATABASE app"))
+
+	handle = openReal(t, dir)
+
+	require.NoError(t, exec(handle, "INSERT INTO otel.otel_logs FORMAT JSONEachRow "+logRow(`{"everr.retention.days":"7"}`)))
+	require.Equal(t, []string{"1"}, column(t, handle, "SELECT count() AS n FROM logs", "n"))
+}
