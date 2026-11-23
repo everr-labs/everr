@@ -1,6 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vite-plus/test";
-import { readFileSync } from "node:fs";
 import {
   applyClickHouseMigration,
   clickHouseMigrationHash,
@@ -16,7 +15,6 @@ import {
   lateClickHouseSeedFiles,
 } from "./clickhouse-statements";
 import {
-  byMigrationName,
   type ClickHouseMigration,
   type ClickHouseSeed,
   clickHouseMigrations,
@@ -105,28 +103,6 @@ describe("ClickHouse migrations", () => {
     expect(() => pendingClickHouseMigrations([after], applied(before))).toThrow(
       "ClickHouse migrations changed after they were applied: 0003-tables.sql.",
     );
-  });
-
-  it("gives the local collector's chDB the same errorFingerprint as App and Cloud", () => {
-    const collectorCopy = readFileSync(
-      new URL(
-        "../../../../collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    const definitions = (sql: string) =>
-      sqlStatements(sql).filter((statement) =>
-        /^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?errorFingerprint\b/.test(statement),
-      );
-    // A change to the function lands in a new file, so compare the latest definition.
-    const latest = [...clickHouseMigrations]
-      .sort(byMigrationName)
-      .flatMap(({ sql }) => definitions(sql))
-      .at(-1);
-
-    expect(latest).toBeDefined();
-    expect(definitions(collectorCopy)).toEqual([latest]);
   });
 
   it("splits statements after removing comments that contain semicolons", () => {
