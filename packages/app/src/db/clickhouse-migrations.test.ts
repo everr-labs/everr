@@ -10,6 +10,7 @@ import {
 } from "./clickhouse-migrations";
 import {
   changedClickHouseMigrationFiles,
+  droppedClickHouseSeedFiles,
   isClickHouseMigrationPath,
   lateClickHouseSeedFiles,
 } from "./clickhouse-statements";
@@ -313,6 +314,24 @@ describe("ClickHouse migrations", () => {
         `${dir}/0003-new.seed.ts`,
       ]),
     ).toEqual([`${dir}/0001-setup.seed.ts`]);
+  });
+
+  it("rejects a deleted seed, because a new server would apply its migration without it", () => {
+    const dir = "packages/app/clickhouse";
+    const base = new Set([
+      `${dir}/0001-setup.sql`,
+      `${dir}/0001-setup.seed.ts`,
+      `${dir}/0002-next.sql`,
+      `${dir}/0002-next.seed.ts`,
+    ]);
+    const head = new Set([
+      `${dir}/0001-setup.sql`,
+      `${dir}/0002-next.sql`,
+      `${dir}/0002-next.seed.ts`,
+    ]);
+
+    expect(droppedClickHouseSeedFiles(base, head)).toEqual([`${dir}/0001-setup.seed.ts`]);
+    expect(droppedClickHouseSeedFiles(base, base)).toEqual([]);
   });
 
   it("binds only the parameters a statement names", () => {

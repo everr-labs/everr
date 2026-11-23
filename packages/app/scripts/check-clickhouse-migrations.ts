@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   changedClickHouseMigrationFiles,
   CLICKHOUSE_MIGRATION_DIR,
+  droppedClickHouseSeedFiles,
   isClickHouseMigrationPath,
   lateClickHouseSeedFiles,
 } from "../src/db/clickhouse-statements.ts";
@@ -12,7 +13,10 @@ import {
 // the base branch changes or disappears. A comment edit is a change. New
 // files pass. Startup repeats the check against the journal. It also fails
 // when a seed is added to a migration the base branch already has: the
-// seed would never run where that migration is applied.
+// seed would never run where that migration is applied. It fails when a seed
+// on the base branch is deleted: a new server would apply that migration
+// without it. An edited seed passes, because a seed is code that a refactor
+// or the formatter can touch.
 const ref = process.argv[2];
 if (!ref) {
   console.error("Usage: check-clickhouse-migrations.ts <git-ref>");
@@ -50,16 +54,26 @@ if (changed.length > 0) {
   );
 }
 
-const late = lateClickHouseSeedFiles(
-  new Set(listed.split("\n")),
-  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR)).map(
+const basePaths = new Set(listed.split("\n"));
+const headPaths = new Set(
+  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR), { recursive: true, encoding: "utf8" }).map(
     (name) => `${CLICKHOUSE_MIGRATION_DIR}/${name}`,
   ),
 );
+
+const late = lateClickHouseSeedFiles(basePaths, headPaths);
 if (late.length > 0) {
   failed = true;
   console.error(
     `ClickHouse seeds added to migrations that are already committed:\n${indented(late)}\nA seed runs once, with its migration: put it next to a new migration file.`,
+  );
+}
+
+const dropped = droppedClickHouseSeedFiles(basePaths, headPaths);
+if (dropped.length > 0) {
+  failed = true;
+  console.error(
+    `ClickHouse seeds deleted from migrations that are already committed:\n${indented(dropped)}\nA new server applies the migration and needs its seed: restore the file.`,
   );
 }
 

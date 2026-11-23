@@ -30,6 +30,17 @@ export function lateClickHouseSeedFiles(
 }
 
 /**
+ * Seed files in `base` that `head` lacks. Their migrations are already
+ * committed, so a new server would apply them without the seed.
+ */
+export function droppedClickHouseSeedFiles(
+  base: ReadonlySet<string>,
+  head: ReadonlySet<string>,
+): string[] {
+  return [...base].filter((path) => path.endsWith(SEED_SUFFIX) && !head.has(path)).sort();
+}
+
+/**
  * Paths in `base` whose text differs in `head`, including a file `head`
  * dropped. A new file is not a change. Any edit is, a comment included.
  */
