@@ -61,7 +61,6 @@
     "./account-settings/dialog": "./src/components/account-settings/delete-account-dialog.tsx",
     "./account-settings/actions": "./src/data/account-settings.ts",
     "./composition": "./src/composition/index.ts",
-    "./page-layout": "./src/components/page-layout.ts",
     "./testing/alerting-storage": "./src/testing/chdb-database.ts",
     "./db/database": "./src/db/database.ts",
     "./identity/testing/database": "./src/identity/testing/database.ts",

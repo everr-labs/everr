@@ -162,23 +162,20 @@
       "exports": ["FileRouteTypes", "RootRouteChildren"],
     },
     {
+      // TanStack generated route types of the shell's contract route tree.
+      "file": "packages/telemetry-explorer/src/contract/routeTree.gen.ts",
+      "exports": ["RootRouteChildren"],
+    },
+    {
       "file": "packages/{app/src/app,cloud/src}/routes/**",
       "exports": ["Route"],
     },
     {
-      // Intentional namespace-barrel API: the app exposes a zero-prop
-      // `<RefreshPicker />` / `<TimeRangePicker />` bound to app hooks; @everr/ui
+      // Intentional namespace-barrel API: the shell exposes a zero-prop
+      // `<RefreshPicker />` / `<TimeRangePicker />` bound to its hooks; @everr/ui
       // exports the parameterized primitive of the same name. Same export name
       // on purpose, parallel implementations.
-      "file": "packages/app/src/components/analytics/refresh-picker.tsx",
-      "exports": ["*"],
-    },
-    {
       "file": "packages/ui/src/components/refresh-picker.tsx",
-      "exports": ["*"],
-    },
-    {
-      "file": "packages/app/src/components/analytics/time-range-picker.tsx",
       "exports": ["*"],
     },
     {

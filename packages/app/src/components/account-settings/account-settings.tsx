@@ -1,3 +1,4 @@
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import { ProfileSettings } from "#app/components/account-settings/profile-settin
 import { McpConnectionsSettings } from "#app/components/account-settings/mcp-connections-settings.tsx";
 import { linkedAccountsQueryOptions } from "#app/components/account-settings/queries.ts";
 import { SessionsSettings } from "#app/components/account-settings/sessions-settings.tsx";
-import { PageHeader } from "#app/components/page-header.tsx";
 import { authClient } from "#app/lib/auth-client.ts";
 
 export interface AccountSettingsProps {

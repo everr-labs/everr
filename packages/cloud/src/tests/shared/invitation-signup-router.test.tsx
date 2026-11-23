@@ -2,6 +2,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
   getActiveOrganizationAccess: vi.fn(),
 }));
 
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -132,7 +133,7 @@ function invitationSignupRouter() {
     history: createMemoryHistory({
       initialEntries: ["/invite/invitation-123"],
     }),
-    context: { queryClient },
+    context: { queryClient, explore: fakeExploreBackend() },
   });
 }
 

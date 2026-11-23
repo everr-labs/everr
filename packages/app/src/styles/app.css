@@ -1,36 +1,12 @@
 @import "@everr/ui/src/styles/global.css";
 @import "@everr/ui/styles/highlight.css";
+@import "@everr/telemetry-explorer/shell.css";
 
 @plugin "@tailwindcss/typography";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 @source "../../../telemetry-explorer/src/**/*.{ts,tsx}";
 @source not "../../.output";
-
-/* The page panel's edge (dashboard-layout). The border is painted as a
-   gradient so hovering the sidebar rail can light the left edge alone: a plain
-   left border colour would meet the top and bottom colours at a diagonal seam
-   inside the rounded corners. Registering the property lets it fade. */
-@property --panel-edge {
-  syntax: "<color>";
-  inherits: false;
-  initial-value: transparent;
-}
-
-@media (width >= 48rem) {
-  [data-page-panel] {
-    --panel-edge: var(--border);
-    border-color: transparent;
-    background:
-      linear-gradient(var(--background), var(--background)) padding-box,
-      linear-gradient(to right, var(--panel-edge) 12px, var(--border) 32px) border-box;
-    transition: --panel-edge 150ms ease-out;
-  }
-
-  [data-slot="sidebar-wrapper"]:has([data-slot="sidebar-rail"]:hover) [data-page-panel] {
-    --panel-edge: oklch(1 0 0 / 16%);
-  }
-}
 
 @keyframes setup-dot {
   0%,

@@ -1,5 +1,6 @@
 import path from "node:path";
-import { configDefaults, defineConfig } from "vite-plus";
+import { tanstackRouterGenerator } from "@tanstack/router-plugin/vite";
+import { configDefaults, defineConfig, lazyPlugins } from "vite-plus";
 
 export default defineConfig({
   resolve: {
@@ -7,6 +8,15 @@ export default defineConfig({
       "@everr/ui": path.resolve(__dirname, "../ui/src"),
     },
   },
+  // Writes src/contract/routeTree.gen.ts from src/contract/routes, so a test
+  // run is what regenerates the tree after a contract route changes.
+  plugins: lazyPlugins(() => [
+    tanstackRouterGenerator({
+      target: "react",
+      routesDirectory: "./src/contract/routes",
+      generatedRouteTree: "./src/contract/routeTree.gen.ts",
+    }),
+  ]),
   test: {
     // Vitest v4 compatibility: preserve mock call history.
     // Remove after tests no longer rely on calls from setup or earlier tests.

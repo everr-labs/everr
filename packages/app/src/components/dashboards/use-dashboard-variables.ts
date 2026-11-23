@@ -1,3 +1,4 @@
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";
@@ -10,7 +11,6 @@ import {
   getListVariableSource,
   sortVariableOptions,
 } from "#app/data/dashboards/variable-values.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { useDashboard } from "./use-dashboard";
 
 export interface VariableOptionsState {

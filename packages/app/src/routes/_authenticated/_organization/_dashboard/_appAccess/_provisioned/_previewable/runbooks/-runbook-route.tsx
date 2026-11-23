@@ -1,9 +1,9 @@
+import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/telemetry-explorer/shell";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";
 import { cachedRunbookNames, runbookOptions } from "#app/data/runbooks/options.ts";
 import { findPage, toDashboardDocument } from "#app/data/runbooks/pages.ts";
-import type { BreadcrumbContext, BreadcrumbSegment } from "#app/router-types.ts";
 
 /**
  * Shared route config for the runbook index and splat routes, which differ

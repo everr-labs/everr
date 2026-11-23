@@ -8,7 +8,9 @@ Use `pnpm dev:local --no-open` to suppress browser launch. Vite proxies `/api` t
 
 To check the embedded UI, run `pnpm dev:cli`, then `./target/go/debug/everr-dev local start`. The embedded UI on port `54321` updates when rebuilt.
 
-The local UI explores logs, traces, and errors stored by the local collector. Settings show collector status and local endpoints and allow collector restarts. Remote account login and agent skill installation are managed through the CLI, independently of the local UI.
+The local UI explores metrics, logs, traces, and errors stored by the local collector. It runs the same shell and Explore pages as the web app, from `@everr/telemetry-explorer`: the sidebar, header, time range and refresh controls, and every Explore route component. This package keeps only what is local: the router and one thin file per route in `src/routes/`, the local `ExploreBackend` (`src/lib/explore-backend.ts`, repositories over the collector's SQL command, and the gate shown while the collector is not running), the Settings page, the dev-only Developer page, and the sidebar footer that links to them. Settings show collector status and local endpoints and allow collector restarts. Remote account login and agent skill installation are managed through the CLI, independently of the local UI.
+
+A page that exists in the web app's Explore section is added to `@everr/telemetry-explorer` and then mounted by a route file here and in `packages/app`. Both apps fail their type-check while an Explore route is missing.
 
 ## Telemetry
 
@@ -20,4 +22,4 @@ In release builds, the backend sends events only to `https://ingest.everr.dev` u
 
 Release SQL error events use `Local telemetry query failed`, with a new stack that contains no query or response text. The original detailed error remains available to the UI. Query strings and fragments are stripped from telemetry URL attributes, including the SDK's landing URL and interaction link URLs, so Explore filters stay local. All `everr.utm.*` attribution attributes are omitted from release exports because they copy query parameter values. DOM selectors are omitted from interaction and performance telemetry because labels, titles, and ids can contain customer span contents. Interaction events retain safe metadata such as element tags and click coordinates. Debug builds retain detailed error, interaction, and UTM telemetry.
 
-Official activation, key rotation, and cloud/local ingestion checks are described in the [CLI Telemetry documentation](../cli/README.md#telemetry). Use the developer settings' error buttons to produce a uniquely timestamped event, then verify it with `everr cloud query` for a release or `everr-dev local query` for a debug build.
+Official activation, key rotation, and cloud/local ingestion checks are described in the [CLI Telemetry documentation](../cli/README.md#telemetry). Use the Developer page's error buttons to produce a uniquely timestamped event, then verify it with `everr cloud query` for a release or `everr-dev local query` for a debug build.

@@ -17,6 +17,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
   }),
 }));
 
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -135,7 +136,7 @@ it("preserves the welcome mascot from signup through setup and refreshes auth on
   const router = createRouter({
     routeTree,
     history: createMemoryHistory({ initialEntries: ["/auth/sign-up"] }),
-    context: { queryClient: new QueryClient() },
+    context: { queryClient: new QueryClient(), explore: fakeExploreBackend() },
   });
   Object.assign(router, { isShell: () => false });
   await act(async () => {

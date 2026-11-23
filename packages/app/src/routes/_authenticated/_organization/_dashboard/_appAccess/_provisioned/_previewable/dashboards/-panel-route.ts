@@ -1,8 +1,8 @@
+import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/telemetry-explorer/shell";
 import { notFound } from "@tanstack/react-router";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
 import { cachedDashboard } from "#app/data/dashboards/options.ts";
 import type { Panel } from "#app/data/dashboards/schema.ts";
-import type { BreadcrumbContext, BreadcrumbSegment } from "#app/router-types.ts";
 
 /**
  * Shared route config for the two maximized-panel routes (own and built-in

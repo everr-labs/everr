@@ -1,4 +1,5 @@
 @import "@everr/ui/src/styles/global.css";
+@import "@everr/telemetry-explorer/shell.css";
 
 @source "../../../ui/src/**/*.{ts,tsx}";
 @source "../../../telemetry-explorer/src/**/*.{ts,tsx}";
@@ -7,8 +8,5 @@
   html,
   body {
     overscroll-behavior: none;
-  }
-  :root {
-    --titlebar-inset: 1rem;
   }
 }

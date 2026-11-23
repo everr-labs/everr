@@ -1,3 +1,4 @@
+import { useOnNavigate } from "@everr/telemetry-explorer/shell";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
@@ -13,7 +14,6 @@ import {
   useState,
 } from "react";
 import * as z from "zod";
-import { useOnNavigate } from "#app/hooks/use-on-navigate.ts";
 
 /**
  * What the pane's `FrameToggle` does: on a phone, where the rail is a drawer,

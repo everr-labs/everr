@@ -1,6 +1,7 @@
 import { getActiveOrgPolicy } from "@everr/app/data/product";
 import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
 import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,
@@ -97,7 +98,7 @@ beforeEach(() => {
 async function open(href: string) {
   const router = createRouter({
     routeTree,
-    context: { queryClient: new QueryClient() },
+    context: { queryClient: new QueryClient(), explore: fakeExploreBackend() },
     history: createMemoryHistory({ initialEntries: [href] }),
   });
   await router.load();

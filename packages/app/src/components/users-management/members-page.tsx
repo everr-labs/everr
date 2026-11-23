@@ -1,7 +1,7 @@
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
-import { PageHeader } from "#app/components/page-header.tsx";
 import { InvitationsTable } from "#app/components/users-management/invitations-table.tsx";
 import { InviteMemberDialog } from "#app/components/users-management/invite-member-dialog.tsx";
 import { MembersTable } from "#app/components/users-management/members-table.tsx";

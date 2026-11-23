@@ -1,14 +1,17 @@
+import type {
+  AssertExploreMounted,
+  ShellRouterContext,
+} from "@everr/telemetry-explorer/explore/routes";
 import { routeTree } from "@composition/routes";
-import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { createExploreBackend } from "#app/lib/explore-backend.tsx";
 import { createQueryClient } from "#app/lib/query-client.ts";
+import "#app/router-types.ts";
 import { registerRouter } from "#app/telemetry/route-pattern.ts";
 import { panelHistoryViewTransition } from "./components/dashboards/panel-links";
 import { RootErrorComponent } from "./components/root-error";
 
-export interface RouterContext {
-  queryClient: QueryClient;
-}
+export type RouterContext = ShellRouterContext;
 
 /**
  * The app's router, and deliberately the only `createRouter` call in it.
@@ -35,7 +38,7 @@ export const getRouter = () => {
 
   const router = createRouter({
     routeTree,
-    context: { queryClient },
+    context: { queryClient, explore: createExploreBackend(queryClient) },
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
     defaultErrorComponent: RootErrorComponent,
@@ -57,3 +60,6 @@ export const getRouter = () => {
   registerRouter(router);
   return router;
 };
+
+// A missing Explore route file fails the type-check here, naming the path.
+true satisfies AssertExploreMounted<ReturnType<typeof getRouter>>;

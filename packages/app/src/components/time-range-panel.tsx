@@ -1,6 +1,6 @@
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import type { ReactNode } from "react";
 import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
-import { useTimeRange } from "#app/hooks/use-time-range.ts";
 import { DataPanel } from "./data-panel";
 import type { InferFactoriesData, PanelChromeProps } from "./panel-types";
 

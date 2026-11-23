@@ -3,6 +3,18 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "**/*.css",
+    "./src/attribute-filter/**",
+    "./src/errors/**",
+    "./src/filters/**",
+    "./src/histogram/**",
+    "./src/logs/**",
+    "./src/metrics/**",
+    "./src/runs/**",
+    "./src/sql/**",
+    "./src/traces/**"
+  ],
   "exports": {
     "./errors": "./src/errors/index.ts",
     "./filters": "./src/filters/index.ts",
@@ -11,7 +23,12 @@
     "./runs": "./src/runs/index.ts",
     "./sql": "./src/sql/index.ts",
     "./traces": "./src/traces/index.ts",
-    "./traces/service-color": "./src/traces/ui/shared/service-color.ts"
+    "./traces/service-color": "./src/traces/ui/shared/service-color.ts",
+    "./shell": "./src/shell/index.ts",
+    "./explore/routes": "./src/explore/routes.ts",
+    "./explore/pages": "./src/explore/pages/index.ts",
+    "./testing": "./src/testing/backend.ts",
+    "./shell.css": "./src/styles/shell.css"
   },
   "scripts": {
     "test": "vp test run",
@@ -19,6 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@everr/datemath": "workspace:*",
     "@everr/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "1.170.45",
@@ -32,6 +50,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@tanstack/router-plugin": "1.168.47",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -39,6 +58,7 @@
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vite-plus": "catalog:"
   }
 }

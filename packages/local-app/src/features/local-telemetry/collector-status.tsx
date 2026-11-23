@@ -7,6 +7,7 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { RotateCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { invokeCommand } from "@/lib/local-api";
@@ -24,20 +25,44 @@ type CollectorStatusResponse = {
 
 const collectorStatusQueryKey = ["local-app", "collector-status"] as const;
 
+/**
+ * Route loaders run outside the gate, so one that ran while the collector was
+ * down has failed. When the collector comes up they run again, so the page
+ * recovers without a reload. The first status counts as coming up: a loader
+ * can fail just before the collector is ready and the status is first read.
+ */
+function useRerunFailedLoadersWhenRunning() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  return (next: CollectorStatusResponse) => {
+    const previous = queryClient.getQueryData<CollectorStatusResponse>(collectorStatusQueryKey);
+    if (next.status === "running" && previous?.status !== "running") {
+      void router.invalidate({ filter: (match) => match.status === "error" });
+    }
+  };
+}
+
 export function useCollectorStatusQuery() {
+  const rerunFailedLoaders = useRerunFailedLoadersWhenRunning();
   return useQuery({
     queryKey: collectorStatusQueryKey,
     refetchInterval: 10_000,
-    queryFn: () => invokeCommand<CollectorStatusResponse>("get_collector_status"),
+    queryFn: async () => {
+      const status = await invokeCommand<CollectorStatusResponse>("get_collector_status");
+      rerunFailedLoaders(status);
+      return status;
+    },
   });
 }
 
 export function useRestartCollectorMutation() {
   const queryClient = useQueryClient();
+  const rerunFailedLoaders = useRerunFailedLoadersWhenRunning();
 
   return useMutation({
     mutationFn: () => invokeCommand<CollectorStatusResponse>("restart_collector"),
     onSuccess: (status) => {
+      rerunFailedLoaders(status);
       queryClient.setQueryData(collectorStatusQueryKey, status);
       if (status.status === "running") {
         void queryClient.invalidateQueries();
