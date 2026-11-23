@@ -58,7 +58,7 @@ Read-only. Run first, and whenever anything looks off:
 $V doctor
 ```
 
-Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/cmd`, `packages/cli/internal`, `packages/cli/go.mod`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`, `packages/app/clickhouse`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
+Checks: debug build and git HEAD, warns if a source the binary embeds changed after it was built (`packages/cli/cmd`, `packages/cli/internal`, `packages/cli/go.mod`, `packages/local-app/src`, `packages/telemetry-explorer/src`, `packages/ui/src`, `collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`, `skills`) (then rebuild), `everr local status` exits 0, collector `/health` and UI `/health` report the same `instance_id`, each port is still owned by the PIDs recorded at launch, `agent-browser` is on PATH, and SQL answers. Ends with `DOCTOR OK` or `DOCTOR FAILED`. On failure: `$V cleanup`, then `$V launch` again; read `/tmp/verify-everr/<RUN_ID>/logs/local.log` before cleanup if the cause is unclear.
 
 ## Drive
 
