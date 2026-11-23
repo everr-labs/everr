@@ -81,9 +81,8 @@ func start(t *testing.T, dir string, fsys fstest.MapFS, failOn string) (*recordi
 
 func migrationFiles() fstest.MapFS {
 	return fstest.MapFS{
-		"0001-setup.sql":     {Data: []byte("CREATE DATABASE app;\nCREATE USER u;\nGRANT SELECT ON app.* TO u;")},
-		"0002-cloud-rls.sql": {Data: []byte("CREATE ROW POLICY p ON app.t;")},
-		"0003-tables.sql":    {Data: []byte("-- the table\nCREATE TABLE app.t (\n  a UInt8\n) ENGINE = Null;\nCREATE TABLE app.u (a UInt8) ENGINE = Null;")},
+		"0001-setup.sql":  {Data: []byte("CREATE DATABASE app;")},
+		"0003-tables.sql": {Data: []byte("-- the table\nCREATE TABLE app.t (\n  a UInt8\n) ENGINE = Null;\nCREATE TABLE app.u (a UInt8) ENGINE = Null;")},
 	}
 }
 
@@ -95,7 +94,7 @@ func appliedNames(t *testing.T, dir string) []string {
 	return sortedKeys(seen.marker.Applied)
 }
 
-func TestOpenAppliesEveryUntaggedFileInOrderAndEndsOnTheQueryDatabase(t *testing.T) {
+func TestOpenAppliesEveryFileInOrderAndEndsOnTheQueryDatabase(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chdb")
 
 	session, err := start(t, dir, migrationFiles(), "")
@@ -106,7 +105,7 @@ func TestOpenAppliesEveryUntaggedFileInOrderAndEndsOnTheQueryDatabase(t *testing
 		"CREATE TABLE app.t (\n  a UInt8\n) ENGINE = Null",
 		"CREATE TABLE app.u (a UInt8) ENGINE = Null",
 		"USE app",
-	}, session.statements(), "access control statements and the cloud-only file are skipped")
+	}, session.statements())
 	require.Equal(t, []string{"0001-setup.sql", "0003-tables.sql"}, appliedNames(t, dir))
 }
 

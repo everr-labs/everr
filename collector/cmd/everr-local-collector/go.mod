@@ -36,7 +36,6 @@ require (
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000 // indirect
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000 // indirect
-	github.com/everr-labs/everr/packages/app/clickhouse v0.0.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20260902202739-8c9c2d1005f4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect
@@ -207,5 +206,3 @@ replace github.com/everr-labs/everr/collector/internal/localgateway/config => ..
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../../internal/localgateway/sqlhttp
 
 replace github.com/everr-labs/everr/collector/localcollector => ../../localcollector
-
-replace github.com/everr-labs/everr/packages/app/clickhouse => ../../../packages/app/clickhouse

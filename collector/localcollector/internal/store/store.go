@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
-	"github.com/everr-labs/everr/packages/app/clickhouse"
+	"github.com/everr-labs/everr/collector/localcollector/migrations"
 )
 
 // QueryDatabase is the database bare table names such as logs resolve in.
@@ -29,13 +29,13 @@ type Options struct {
 }
 
 // Open returns the process's chDB handle on a store at Version with every
-// untagged migration applied and `app` as the session's database.
+// migration applied and `app` as the session's database.
 //
 // A statement that fails stops Open with an error that names the file, the
 // statement's number and its first line. It never resets the store: the file
 // stays pending and runs again from its first statement on the next start.
 func Open(ctx context.Context, opts Options) (*chdb.Handle, error) {
-	return open(ctx, opts, clickhouse.Files)
+	return open(ctx, opts, migrations.Files)
 }
 
 func open(ctx context.Context, opts Options, fsys fs.FS, chdbOpts ...chdb.Option) (*chdb.Handle, error) {
@@ -76,7 +76,7 @@ func open(ctx context.Context, opts Options, fsys fs.FS, chdbOpts ...chdb.Option
 		return nil, err
 	}
 	for _, m := range p.pending {
-		if err := apply(ctx, handle, m, logger); err != nil {
+		if err := apply(ctx, handle, m); err != nil {
 			return nil, err
 		}
 		applied[m.name] = m.sum
@@ -90,12 +90,8 @@ func open(ctx context.Context, opts Options, fsys fs.FS, chdbOpts ...chdb.Option
 	return handle, nil
 }
 
-func apply(ctx context.Context, handle *chdb.Handle, m migration, logger *zap.Logger) error {
+func apply(ctx context.Context, handle *chdb.Handle, m migration) error {
 	for i, statement := range statements(m.sql) {
-		if classify(statement) == accessControl {
-			logger.Debug("Skipping an access control statement", zap.String("migration", m.name), zap.Int("statement", i+1))
-			continue
-		}
 		if err := run(ctx, handle, statement); err != nil {
 			first, _, _ := strings.Cut(statement, "\n")
 			return fmt.Errorf("migration %s statement %d (%s): %w", m.name, i+1, first, err)

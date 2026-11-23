@@ -2,7 +2,7 @@
 
 Writes OTLP logs, traces and metrics into the local Everr store, the chDB that `everr local start` embeds. It has no other use.
 
-The exporter creates no table. `collector/localcollector` builds the store from the migrations in `packages/app/clickhouse` and hands the exporter its chDB handle through `NewFactory`. Each push is one `INSERT ... FORMAT JSONEachRow` per landing table: `otel.otel_logs`, `otel.otel_traces` and the five `otel.otel_metrics_*` tables. The views from the migrations copy the rows into `app.*`, where queries read them.
+The exporter creates no table. `collector/localcollector` builds the store from the migrations in `collector/localcollector/migrations` and hands the exporter its chDB handle through `NewFactory`. Each push is one `INSERT ... FORMAT JSONEachRow` per landing table: `otel.otel_logs`, `otel.otel_traces` and the five `otel.otel_metrics_*` tables. The views from the migrations copy the rows into `app.*`, where queries read them.
 
 The table names and their columns live in `internal/landing`. A test in `collector/localcollector` compares them with the migrated tables.
 

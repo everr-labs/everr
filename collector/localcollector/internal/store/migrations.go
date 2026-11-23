@@ -16,8 +16,6 @@ type migration struct {
 	sum  string
 }
 
-var taggedFile = regexp.MustCompile(`^\d+-(cloud|self-hosted)-`)
-
 var lineComment = regexp.MustCompile(`(?m)--.*$`)
 
 func localMigrations(fsys fs.FS) ([]migration, error) {
@@ -28,9 +26,6 @@ func localMigrations(fsys fs.FS) ([]migration, error) {
 	slices.Sort(names)
 	var local []migration
 	for _, name := range names {
-		if taggedFile.MatchString(name) {
-			continue
-		}
 		text, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			return nil, fmt.Errorf("read migration %s: %w", name, err)

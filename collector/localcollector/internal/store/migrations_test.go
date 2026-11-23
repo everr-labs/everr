@@ -9,13 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLocalMigrationsKeepsUntaggedFilesInNameOrder(t *testing.T) {
+func TestLocalMigrationsReadsTheSQLFilesInNameOrder(t *testing.T) {
 	fsys := fstest.MapFS{
 		"0003-create-tables.sql":                {Data: []byte("SELECT 3;")},
 		"0001-setup.sql":                        {Data: []byte("SELECT 1;")},
-		"0002-cloud-grants.sql":                 {Data: []byte("GRANT 2;")},
-		"0004-self-hosted-user.sql":             {Data: []byte("CREATE USER 4;")},
-		"0005-cloudy-name.sql":                  {Data: []byte("SELECT 5;")},
 		"0006-create-views.seed.ts":             {Data: []byte("export default () => {}")},
 		"README.md":                             {Data: []byte("not sql")},
 		"nested/0007-anything.sql":              {Data: []byte("SELECT 7;")},
@@ -32,7 +29,6 @@ func TestLocalMigrationsKeepsUntaggedFilesInNameOrder(t *testing.T) {
 	require.Equal(t, []string{
 		"0001-setup.sql",
 		"0003-create-tables.sql",
-		"0005-cloudy-name.sql",
 		"0012-create-the-last-one-in-order.sql",
 	}, names)
 }

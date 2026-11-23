@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
-	"github.com/everr-labs/everr/packages/app/clickhouse"
+	"github.com/everr-labs/everr/collector/localcollector/migrations"
 )
 
 func libraryPath(t *testing.T) string {
@@ -104,7 +103,7 @@ func TestOpenBuildsTheSchemaFromTheEmbeddedMigrations(t *testing.T) {
 		require.Contains(t, functions, want)
 	}
 
-	local, err := localMigrations(clickhouse.Files)
+	local, err := localMigrations(migrations.Files)
 	require.NoError(t, err)
 	var wantApplied []string
 	for _, m := range local {
@@ -112,7 +111,6 @@ func TestOpenBuildsTheSchemaFromTheEmbeddedMigrations(t *testing.T) {
 	}
 	require.Equal(t, wantApplied, appliedNames(t, dir))
 	require.Contains(t, wantApplied, "0006-create-mvs.sql")
-	require.False(t, slices.ContainsFunc(wantApplied, taggedFile.MatchString), "no tagged file applies")
 }
 
 func TestOpenStoresAStampedInsertUnderBareNames(t *testing.T) {
