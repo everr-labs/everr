@@ -106,7 +106,6 @@ func staleTableNames(cfg *Config) []string {
 		"otel_traces_trace_id_ts",
 		cfg.LogsTableName,
 		cfg.TracesTableName,
-		cfg.ProfilesTableName,
 		cfg.MetricsTables.Gauge.Name,
 		cfg.MetricsTables.Sum.Name,
 		cfg.MetricsTables.Histogram.Name,

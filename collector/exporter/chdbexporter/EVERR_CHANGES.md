@@ -58,7 +58,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   carries the numbers), both types read the same rows for the two predicates
   the app emits, `mapContains(map, key)` and `map[key] IN (...)`, and the text
   indexes cost 500 times the storage. The gate and its server-version check are
-  gone. The profiles table still uses text indexes, as upstream does.
+  gone.
 
 - The chDB adapter writes every timestamp as an RFC 3339 string in UTC with
   nanoseconds. ClickHouse reads a bare JSON number as the column's own unit,
@@ -92,10 +92,8 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 ## Merge to v0.160.0
 
-- Adopted upstream's `xexporter` factory and the new **profiles** signal
-  (`exporter_profiles.go` and its templates). Profiles are wired to the chDB
-  handle like the other signals, so the component matches upstream, but nothing
-  creates the profiles table until a pipeline uses it.
+- Adopted upstream's `xexporter` factory. The profiles signal that came with
+  it was removed again: the local collector has no profiles pipeline.
 - Dropped the local `useJSON` helper and the `clickhouse.json` feature gate.
   Upstream registered that gate `WithRegisterToVersion("v0.149.0")` and removed
   it in `v0.160.0`; the call sites now read `c.JSON` as upstream does.

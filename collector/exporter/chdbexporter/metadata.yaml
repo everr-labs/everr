@@ -4,7 +4,6 @@ display_name: chDB Exporter
 status:
   class: exporter
   stability:
-    development: [profiles]
     alpha: [metrics]
     beta: [traces, logs]
   distributions: [contrib]
