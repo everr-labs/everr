@@ -50,8 +50,6 @@ func (s *fakeChDBSession) Path() string { return s.path }
 func TestDefaultConfigIsLocalChDBConfig(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 
-	require.NoError(t, cfg.Validate())
-	require.Empty(t, cfg.Endpoint)
 	require.Equal(t, 7*24*time.Hour, cfg.TTL)
 }
 
@@ -65,9 +63,7 @@ func TestFactoryWithHandleStartsLogsExporter(t *testing.T) {
 	require.NoError(t, err)
 
 	factory := NewFactoryWithHandle(handle)
-	cfg := withDefaultConfig(func(cfg *Config) {
-		cfg.CreateSchema = false
-	})
+	cfg := withDefaultConfig()
 	params := exportertest.NewNopSettings(metadata.Type)
 
 	exp, err := factory.CreateLogs(t.Context(), params, cfg)
@@ -191,9 +187,7 @@ func withCloudTableNamesConfig() *Config {
 
 func TestFactoryWithoutHandleFailsOnStart(t *testing.T) {
 	factory := NewFactory()
-	cfg := withDefaultConfig(func(cfg *Config) {
-		cfg.CreateSchema = false
-	})
+	cfg := withDefaultConfig()
 	params := exportertest.NewNopSettings(metadata.Type)
 
 	exp, err := factory.CreateLogs(t.Context(), params, cfg)

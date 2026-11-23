@@ -20,7 +20,7 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - The adapter runs DDL and queries through the shared chDB handle, and converts upstream prepared-batch inserts into `JSONEachRow` inserts for chDB.
 - Insert sends update the local `.last_flush` sentinel.
 - Default TTL is now `7d`.
-- Validation no longer requires a ClickHouse endpoint; endpoint/DSN helpers remain only for compatibility with upstream config tests and table-name/database helpers.
+- Removed every remote ClickHouse option: endpoint, credentials, `database`, `database_engine`, `tls`, `connection_params`, `cluster_name`, `table_engine`, `compress`, `async_insert`, `create_schema` and the deprecated `metrics_table_name`, with the DSN and client-options code behind them. The exporter always writes to the `default` database on `MergeTree()`, and creates its tables on start.
 - The test Makefile now prepares `libchdb.so` before running tests.
 
 ## Local additions and fixes
@@ -109,7 +109,6 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 ## Planned local changes
 
-- Remove remote ClickHouse runtime options that do not apply to local chDB.
 - Keep upstream table schema and OTLP row conversion behavior where chDB supports it.
 - Keep the upstream `v0.160.0` table schemas unless chDB rejects a specific DDL feature.
 
@@ -154,11 +153,11 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 
 ## Merge to v0.165.1
 
-- Took upstream's `database_engine` option, the `tableClusterString` split
-  (no `ON CLUSTER` on table DDL inside a `Replicated` database), the
-  connection pool sizing in `buildClickHouseOptions`, the semconv `v1.43.0`
-  import and the generated `documentation.md`. None of it changes what the
-  local store does.
+- Took upstream's semconv `v1.43.0` import and the generated
+  `documentation.md`. Upstream's `database_engine` option, the
+  `tableClusterString` split and the connection pool sizing were taken too and
+  have since been removed with the rest of the remote options. None of it
+  changed what the local store does.
 - Did not take upstream's template changes: `ZSTD(3)` as the column codec on
   every table (the templates keep `ZSTD(1)`) and the `EventName` bloom filter
   index on the Map logs template, which no longer exists here. Either one
@@ -166,13 +165,8 @@ This file records the meaningful differences from upstream `open-telemetry/opent
   every local store drop its telemetry and rebuild, for no change in what the
   local store can query.
 - The metrics exporter does not scale a connection pool on start: it writes
-  through the chDB handle, which has no pool. Upstream's
-  `TestMetricsExporterConnectionPoolSize` starts a network client, so it is not
-  carried; `TestBuildClickHouseOptions_ConnectionPoolSize` still covers the
-  shared config code.
+  through the chDB handle, which has no pool.
 - Upstream's full text search variant of the logs test is not carried, as the
   logs table keeps bloom filter indexes on every version (see above).
 - `traces_trace_id_ts` still has no `TraceId` skip index.
-- The `database_engine` test configs are named `chdb/...` like the rest of
-  `testdata/config.yaml`.
 - `localSchemaVersion` stays 2: the table DDL is unchanged.

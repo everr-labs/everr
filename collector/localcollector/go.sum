@@ -278,8 +278,6 @@ go.opentelemetry.io/collector/consumer v1.71.0 h1:egnXLH6m256ttDvvL0NTviwlMEQhrH
 go.opentelemetry.io/collector/consumer v1.71.0/go.mod h1:odOdcBSswj/1fidBYmnftcqn8WuF6Sfz943u8Ty7F2U=
 go.opentelemetry.io/collector/consumer/consumererror v0.165.0 h1:mtgzNRuS3/MHirMpsG/19M7MFGidoaieFDY6ZPgWE4c=
 go.opentelemetry.io/collector/consumer/consumererror v0.165.0/go.mod h1:B2tgc2qPA5EZV9nX+RjizqV5KtjYQSp2YtL8ewsq8jA=
-go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.165.0 h1:Ku4EZVuKM5tM7041MZ97n03G8zp9mkqebC3nm0ZCxAE=
-go.opentelemetry.io/collector/consumer/consumererror/xconsumererror v0.165.0/go.mod h1:oTyLjAie2/DLjXoT4IGV1hB3fyZFCVTNm3F1PhYlxFM=
 go.opentelemetry.io/collector/consumer/consumertest v0.165.0 h1:cTARsTiioRMMdeaHuJxGbzoJQULOSLe+qEWO+jMeYnQ=
 go.opentelemetry.io/collector/consumer/consumertest v0.165.0/go.mod h1:TJxLd/kIWQKfCgkETfNNqCr8GA7o69mNrL1f9DG7e8s=
 go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 h1:ym0CBlY20cZUPYMCmG/APQdTdwwrGjpIR5ymFDBbXEI=
@@ -288,8 +286,6 @@ go.opentelemetry.io/collector/exporter v1.71.0 h1:pDZTHU7HDxR627EeHG980kgKLR9pLG
 go.opentelemetry.io/collector/exporter v1.71.0/go.mod h1:mPMYCUJu3wuklJxFxvTKzz9kuSCF+fXjIRUapnuzPEY=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.165.0 h1:MDULG3NJ0geYpqRKPjy/kYyEGv55MzOOWoI4Mo7HW+w=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.165.0/go.mod h1:cnDYqTNnaKRGC5wSpKncSjCgg8rVgySvyAvvCQwPVIo=
-go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.165.0 h1:c7jXef3BKe9ywKXLO+RHruj37+5G3nDGvoH2X50Y7Xs=
-go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.165.0/go.mod h1:pUAWwa6XDa9jtRSKsfI5KI+bEs6Dx7KeWGBAZ1IYrqs=
 go.opentelemetry.io/collector/exporter/exportertest v0.165.0 h1:bTdP3gjQK1Z5ab0WoYdjOQjFEqebELrSCqM4uWxfXiI=
 go.opentelemetry.io/collector/exporter/exportertest v0.165.0/go.mod h1:wbGDCmXcGlHgfCDm9zOYCZVAh8oJgm8rmSrn54je9Kw=
 go.opentelemetry.io/collector/exporter/xexporter v0.165.0 h1:LpArvQh8tSQyCibguXRzZPZJQeWXpGOsMdTQRhgDudU=

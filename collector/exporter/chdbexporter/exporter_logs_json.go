@@ -52,21 +52,15 @@ func (e *logsJSONExporter) start(ctx context.Context, _ component.Host) error {
 	}
 	e.db = db
 
-	if e.cfg.shouldCreateSchema() {
-		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString(), e.cfg.databaseEngineString()); createDBErr != nil {
-			return createDBErr
-		}
+	if fnErr := internal.CreateErrorFingerprintFunction(ctx, e.db); fnErr != nil {
+		return fnErr
+	}
 
-		if fnErr := internal.CreateErrorFingerprintFunction(ctx, e.db); fnErr != nil {
-			return fnErr
-		}
-
-		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
-			return schemaErr
-		}
-		if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {
-			return createTableErr
-		}
+	if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+		return schemaErr
+	}
+	if createTableErr := createLogsJSONTable(ctx, e.cfg, e.db); createTableErr != nil {
+		return createTableErr
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -89,7 +83,7 @@ const (
 )
 
 func (e *logsJSONExporter) detectSchemaFeatures(ctx context.Context) error {
-	columnNames, err := internal.GetTableColumns(ctx, e.db, e.cfg.database(), e.cfg.LogsTableName)
+	columnNames, err := internal.GetTableColumns(ctx, e.db, internal.DefaultDatabase, e.cfg.LogsTableName)
 	if err != nil {
 		return err
 	}
@@ -265,7 +259,7 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 	}
 
 	data := sqltemplates.InsertData{
-		Database:               e.cfg.database(),
+		Database:               internal.DefaultDatabase,
 		TableName:              e.cfg.LogsTableName,
 		FeatureColumnNames:     featureColumnNames.String(),
 		FeatureColumnPositions: featureColumnPositions.String(),
@@ -283,11 +277,10 @@ func (e *logsJSONExporter) renderInsertLogsJSONSQL() error {
 func renderCreateLogsJSONTableSQL(cfg *Config) (string, error) {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
-		Database:      cfg.database(),
-		TableName:     cfg.LogsTableName,
-		ClusterString: cfg.tableClusterString(),
-		Engine:        cfg.tableEngineString(),
-		TTL:           ttlExpr,
+		Database:  internal.DefaultDatabase,
+		TableName: cfg.LogsTableName,
+		Engine:    internal.TableEngine,
+		TTL:       ttlExpr,
 	}
 
 	var buf bytes.Buffer

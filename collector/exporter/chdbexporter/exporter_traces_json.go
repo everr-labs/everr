@@ -50,18 +50,12 @@ func (e *tracesJSONExporter) start(ctx context.Context, _ component.Host) error 
 	}
 	e.db = db
 
-	if e.cfg.shouldCreateSchema() {
-		if createDBErr := internal.CreateDatabase(ctx, e.db, e.cfg.database(), e.cfg.clusterString(), e.cfg.databaseEngineString()); createDBErr != nil {
-			return createDBErr
-		}
+	if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
+		return schemaErr
+	}
 
-		if schemaErr := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); schemaErr != nil {
-			return schemaErr
-		}
-
-		if createTableErr := createTraceJSONTables(ctx, e.cfg, e.db); createTableErr != nil {
-			return createTableErr
-		}
+	if createTableErr := createTraceJSONTables(ctx, e.cfg, e.db); createTableErr != nil {
+		return createTableErr
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -80,7 +74,7 @@ const (
 )
 
 func (e *tracesJSONExporter) detectSchemaFeatures(ctx context.Context) error {
-	columnNames, err := internal.GetTableColumns(ctx, e.db, e.cfg.database(), e.cfg.TracesTableName)
+	columnNames, err := internal.GetTableColumns(ctx, e.db, internal.DefaultDatabase, e.cfg.TracesTableName)
 	if err != nil {
 		return err
 	}
@@ -286,14 +280,14 @@ func (e *tracesJSONExporter) renderInsertTracesJSONSQL() {
 		featureColumnPositions.WriteString(", ?, ?")
 	}
 
-	e.insertSQL = fmt.Sprintf(sqltemplates.TracesJSONInsert, e.cfg.database(), e.cfg.TracesTableName, featureColumnNames.String(), featureColumnPositions.String())
+	e.insertSQL = fmt.Sprintf(sqltemplates.TracesJSONInsert, internal.DefaultDatabase, e.cfg.TracesTableName, featureColumnNames.String(), featureColumnPositions.String())
 }
 
 func renderCreateTracesJSONTableSQL(cfg *Config) string {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	return fmt.Sprintf(sqltemplates.TracesJSONCreateTable,
-		cfg.database(), cfg.TracesTableName, cfg.tableClusterString(),
-		cfg.tableEngineString(),
+		internal.DefaultDatabase, cfg.TracesTableName, internal.NoCluster,
+		internal.TableEngine,
 		ttlExpr,
 	)
 }
@@ -301,16 +295,16 @@ func renderCreateTracesJSONTableSQL(cfg *Config) string {
 func renderCreateTraceIDTsTableSQL(cfg *Config) string {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Start)")
 	return fmt.Sprintf(sqltemplates.TracesCreateTsTable,
-		cfg.database(), cfg.TracesTableName, cfg.tableClusterString(),
-		cfg.tableEngineString(),
+		internal.DefaultDatabase, cfg.TracesTableName, internal.NoCluster,
+		internal.TableEngine,
 		ttlExpr,
 	)
 }
 
 func renderTraceIDTsMaterializedViewSQL(cfg *Config) string {
-	database := cfg.database()
+	database := internal.DefaultDatabase
 	return fmt.Sprintf(sqltemplates.TracesCreateTsView,
-		database, cfg.TracesTableName, cfg.tableClusterString(),
+		database, cfg.TracesTableName, internal.NoCluster,
 		database, cfg.TracesTableName,
 		database, cfg.TracesTableName,
 	)

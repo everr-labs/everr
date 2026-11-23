@@ -46,7 +46,6 @@ func createLogsExporter(
 	handle *chdb.Handle,
 ) (exporter.Logs, error) {
 	c := cfg.(*Config)
-	c.collectorVersion = set.BuildInfo.Version
 
 	exp := newLogsJSONExporter(set.Logger, c, handle)
 
@@ -70,7 +69,6 @@ func createTracesExporter(
 	handle *chdb.Handle,
 ) (exporter.Traces, error) {
 	c := cfg.(*Config)
-	c.collectorVersion = set.BuildInfo.Version
 
 	exp := newTracesJSONExporter(set.Logger, c, handle)
 
@@ -94,7 +92,6 @@ func createMetricExporter(
 	handle *chdb.Handle,
 ) (exporter.Metrics, error) {
 	c := cfg.(*Config)
-	c.collectorVersion = set.BuildInfo.Version
 	exp := newMetricsExporter(set.Logger, c, handle)
 
 	return exporterhelper.NewMetrics(

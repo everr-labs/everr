@@ -20,7 +20,6 @@ func TestRenderInsertTracesJSONSQLMatchesColumnsAndPlaceholders(t *testing.T) {
 	for name, attributeKeys := range tests {
 		t.Run(name, func(t *testing.T) {
 			cfg := withDefaultConfig(func(c *Config) {
-				c.Database = "test_db"
 				c.TracesTableName = "otel_traces_json"
 			})
 			exporter := newTracesJSONExporter(zap.NewNop(), cfg)
