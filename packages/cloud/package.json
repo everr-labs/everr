@@ -18,7 +18,6 @@
   "dependencies": {
     "@clickhouse/client": "^1.18.4",
     "@everr/app": "workspace:*",
-    "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@polar-sh/better-auth": "2.1.0",
@@ -38,6 +37,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
+    "@everr/telemetry-explorer": "workspace:*",
     "@tanstack/react-devtools": "^0.10.13",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

@@ -1,4 +1,4 @@
-import { PageContainer } from "@everr/telemetry-explorer/page";
+import { PageContainer } from "@everr/ui/components/page-layout";
 import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,

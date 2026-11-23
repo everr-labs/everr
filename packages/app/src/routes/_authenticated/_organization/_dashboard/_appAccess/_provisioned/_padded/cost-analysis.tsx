@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/telemetry-explorer/page";
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { ToggleGroup, ToggleGroupItem } from "@everr/ui/components/toggle-group";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { createFileRoute } from "@tanstack/react-router";

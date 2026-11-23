@@ -1,4 +1,4 @@
-import { ScrollingPageContainer } from "@everr/telemetry-explorer/page";
+import { ScrollingPageContainer } from "@everr/ui/components/page-layout";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/_organization/_dashboard/_padded")({

@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/telemetry-explorer/page";
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { Spinner } from "@everr/ui/components/spinner";
 import { Button } from "@everr/ui/components/button";
 import {

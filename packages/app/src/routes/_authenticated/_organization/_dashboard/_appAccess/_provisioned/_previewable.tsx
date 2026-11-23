@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import { ScrollingPageContainer } from "@everr/telemetry-explorer/page";
+import { ScrollingPageContainer } from "@everr/ui/components/page-layout";
 import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";

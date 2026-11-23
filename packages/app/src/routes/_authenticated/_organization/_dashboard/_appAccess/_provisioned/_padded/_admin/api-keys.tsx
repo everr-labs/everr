@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/telemetry-explorer/page";
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";

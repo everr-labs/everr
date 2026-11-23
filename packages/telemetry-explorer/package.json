@@ -25,7 +25,6 @@
     "./traces": "./src/traces/index.ts",
     "./traces/service-color": "./src/traces/ui/shared/service-color.ts",
     "./shell": "./src/shell/index.ts",
-    "./page": "./src/page/index.tsx",
     "./explore/routes": "./src/explore/routes.ts",
     "./explore/pages": "./src/explore/pages/index.ts",
     "./testing": "./src/testing/backend.ts",

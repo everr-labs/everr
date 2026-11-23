@@ -1,4 +1,4 @@
-import { PageHeader, ScrollingPageContainer } from "@everr/telemetry-explorer/page";
+import { PageHeader, ScrollingPageContainer } from "@everr/ui/components/page-layout";
 import { ErrorTrackingCard } from "./error-tracking-card";
 
 export function DeveloperPage() {

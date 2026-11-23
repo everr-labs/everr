@@ -590,9 +590,6 @@ importers:
       '@everr/app':
         specifier: workspace:*
         version: link:../app
-      '@everr/telemetry-explorer':
-        specifier: workspace:*
-        version: link:../telemetry-explorer
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
@@ -645,6 +642,9 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.5.4
         version: 0.5.5
+      '@everr/telemetry-explorer':
+        specifier: workspace:*
+        version: link:../telemetry-explorer
       '@tanstack/react-devtools':
         specifier: ^0.10.13
         version: 0.10.13(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(solid-js@1.9.17)

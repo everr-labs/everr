@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/telemetry-explorer/page";
+import { PageHeader } from "@everr/ui/components/page-layout";
 import { authClient } from "@everr/app/identity/client";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";

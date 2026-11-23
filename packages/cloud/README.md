@@ -151,7 +151,7 @@ welcome actions, signup links, account-deletion UI, and CLI recovery copy.
 Adapter types come from the type-only `@everr/app/composition` entry. Shared
 features use `@everr/app/members`, `@everr/app/account-settings/dialog`, and
 `@everr/app/account-settings/actions`. Page layout parts (`PageHeader`,
-`PageContainer`) come from `@everr/telemetry-explorer/page`.
+`PageContainer`) come from `@everr/ui/components/page-layout`.
 `src/app/composition/identity.ts` selects business policy and Better Auth
 integration together. `src/app/identity-policy.server.ts` owns application rules;
 the provider adapter owns persistence wrappers, provider hooks, and request locks.
