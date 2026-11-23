@@ -4,6 +4,7 @@ import {
   applyClickHouseMigration,
   clickHouseMigrationHash,
   clickHouseMigrationQueryId,
+  clickHouseMigrationSteps,
   pendingClickHouseMigrations,
   statementParams,
 } from "./clickhouse-migrations";
@@ -174,6 +175,71 @@ describe("ClickHouse migrations", () => {
         "0001-set-up.seed.ts": async () => {},
       }),
     ).toThrow("ClickHouse seeds without a migration: 0001-set-up.seed.ts");
+  });
+
+  it("rejects a seed file whose default export is not a function", () => {
+    for (const exported of [undefined, { run: async () => {} }]) {
+      expect(() =>
+        withClickHouseSeeds([migration("0001-setup.sql")], {
+          "0001-setup.seed.ts": exported as never,
+        }),
+      ).toThrow("0001-setup.seed.ts");
+    }
+  });
+
+  describe("what a migration sends to ClickHouse", () => {
+    interface Sent {
+      readonly query: string;
+      readonly query_id?: string;
+      readonly clickhouse_settings?: Record<string, unknown>;
+    }
+
+    function start() {
+      const sent: Sent[] = [];
+      const client = {
+        command: async (request: Sent) => {
+          sent.push(request);
+        },
+        query: async (request: Sent) => {
+          sent.push(request);
+          return { json: async () => [] };
+        },
+      } as unknown as Parameters<typeof clickHouseMigrationSteps>[0];
+      const file = migration("0002-cloud-policies.sql");
+      const steps = clickHouseMigrationSteps(
+        client,
+        { ...file, hash: clickHouseMigrationHash(file.sql) },
+        {},
+      );
+      return { sent, steps };
+    }
+
+    async function seedRun() {
+      const { sent, steps } = start();
+      await steps.statement("SELECT 1", 0);
+      await steps.seed.query("SELECT name FROM system.users");
+      await steps.seed.command("ALTER USER a DEFAULT ROLE NONE");
+      await steps.seed.command("ALTER USER b DEFAULT ROLE NONE");
+      return sent;
+    }
+
+    it("gives each seed query an id of its own that the next start repeats", async () => {
+      const first = await seedRun();
+      const second = await seedRun();
+
+      const ids = first.map(({ query_id }) => query_id);
+      expect(ids).not.toContain(undefined);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(second.map(({ query_id }) => query_id)).toEqual(ids);
+    });
+
+    it("cancels a seed query the previous start left running", async () => {
+      const [, ...seedQueries] = await seedRun();
+
+      for (const { clickhouse_settings } of seedQueries) {
+        expect(clickhouse_settings).toMatchObject({ replace_running_query: 1 });
+      }
+    });
   });
 
   describe("applying one migration", () => {
