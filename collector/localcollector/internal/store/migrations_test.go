@@ -67,6 +67,10 @@ func TestStatementsSplitLikeTheWebApp(t *testing.T) {
 		"drops empty statements":                        {sql: ";;\n;  ;SELECT 1;;", want: []string{"SELECT 1"}},
 		"reads a file that does not end in a semicolon": {sql: "SELECT 1;\nSELECT 2", want: []string{"SELECT 1", "SELECT 2"}},
 		"gives nothing for a file of comments":          {sql: "-- nothing here\n", want: nil},
+		"reads Windows line endings":                    {sql: "SELECT 1; -- c\r\nSELECT 2;\r\n", want: []string{"SELECT 1", "SELECT 2"}},
+		"keeps a carriage return inside a statement":    {sql: "SELECT 1 -- c\r\n+ 2;\r\n", want: []string{"SELECT 1 \r\n+ 2"}},
+		"ends a comment at a bare carriage return":      {sql: "-- comment\rSELECT 1;", want: []string{"SELECT 1"}},
+		"drops a byte order mark":                       {sql: "\uFEFFSELECT 1;", want: []string{"SELECT 1"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, tc.want, statements(tc.sql))

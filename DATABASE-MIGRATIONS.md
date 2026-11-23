@@ -149,8 +149,14 @@ with the same statement split, and each file once. It differs in three ways.
   not in `default.everr_clickhouse_migrations`.
 - If a statement of an applied file changed, the local store deletes its data
   and applies every file again. It does not stop startup, because local
-  telemetry is a cache. A change to a comment does nothing: the recorded hash
-  covers the statements only.
+  telemetry is a cache. The recorded hash covers the statements as the split
+  gives them, so a reworded comment does nothing. A comment line added or
+  removed inside a statement changes that statement.
+
+The parity test compares the same statements with the hosted file, and a hosted
+file never changes. A change to an existing local file that passes the test
+therefore cannot delete local data. Only a raised `Version` does that on
+purpose.
 
 A new file applies on the next `everr local start`, and the local data stays.
 To make every local store start empty, raise `Version` in

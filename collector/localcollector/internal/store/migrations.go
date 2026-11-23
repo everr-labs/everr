@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 type migration struct {
@@ -16,7 +17,13 @@ type migration struct {
 	sum  string
 }
 
-var lineComment = regexp.MustCompile(`(?m)--.*$`)
+// A comment ends at any line terminator the web app's splitter knows, and a
+// statement is trimmed of the same characters, so the two splitters agree on
+// every file. The hash below and the parity test with the hosted files then
+// mean the same thing by "the same statements".
+var lineComment = regexp.MustCompile(`--[^\n\r\x{2028}\x{2029}]*`)
+
+func isSpace(r rune) bool { return unicode.IsSpace(r) || r == '\uFEFF' }
 
 func localMigrations(fsys fs.FS) ([]migration, error) {
 	names, err := fs.Glob(fsys, "*.sql")
@@ -41,7 +48,7 @@ func localMigrations(fsys fs.FS) ([]migration, error) {
 func statements(sql string) []string {
 	var out []string
 	for _, part := range strings.Split(lineComment.ReplaceAllString(sql, ""), ";") {
-		if part = strings.TrimSpace(part); part != "" {
+		if part = strings.TrimFunc(part, isSpace); part != "" {
 			out = append(out, part)
 		}
 	}
