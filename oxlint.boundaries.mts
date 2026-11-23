@@ -394,10 +394,7 @@ export default {
               ["@everr/telemetry-explorer/logs", ["LogsExplorer"]],
               ["@everr/telemetry-explorer/traces", ["TracesSearch", "TraceExplorer"]],
               ["@everr/telemetry-explorer/metrics", ["MetricsExplorer"]],
-              [
-                "@everr/telemetry-explorer/errors",
-                ["ErrorIssues", "ErrorDetail", "DetailRouteDialog"],
-              ],
+              ["@everr/telemetry-explorer/errors", ["ErrorIssues", "ErrorDetail"]],
               ["@everr/telemetry-explorer/filters", ["ExploreGlobalFilters"]],
             ].map(([name, importNames]) => ({
               name,

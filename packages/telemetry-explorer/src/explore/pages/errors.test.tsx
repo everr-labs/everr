@@ -1,6 +1,6 @@
 import type * as TelemetryErrors from "../../errors";
 import type { ErrorDetailProps, ErrorIssuesProps } from "../../errors";
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { renderExplore } from "../../testing/explore";
@@ -9,17 +9,12 @@ vi.mock("../../errors", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryErrors>();
   return {
     ...actual,
-    ErrorDetail: ({ fingerprint, onBack, onClose }: ErrorDetailProps) => (
+    ErrorDetail: ({ fingerprint, onBack }: ErrorDetailProps) => (
       <div>
         <div>Error detail page {fingerprint}</div>
         {onBack && (
           <button type="button" onClick={onBack}>
             Back to errors
-          </button>
-        )}
-        {onClose && (
-          <button type="button" onClick={onClose}>
-            Close detail
           </button>
         )}
       </div>
@@ -49,34 +44,18 @@ describe("/errors route", () => {
     renderExplore(url);
 
     expect(await screen.findByText("Error detail page fp-1")).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
-  it("renders the detail in a modal from the list, under the full page's URL", async () => {
-    const user = userEvent.setup();
-    const { router } = renderExplore("/errors");
-
-    await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
-
-    const dialog = await screen.findByRole("dialog", { name: "Error detail" });
-    expect(within(dialog).getByText("Error detail page fp-1")).toBeInTheDocument();
-    expect(screen.getByText("Error list page")).toBeInTheDocument();
-    expect(router.state.location.href).toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).not.toContain("/modal");
-    expect(router.state.location.maskedLocation?.href).toContain("/errors/fp-1");
-  });
-
-  it("closes the modal back to the list", async () => {
+  it("opens an error from the list as its own page, keeping the list filters", async () => {
     const user = userEvent.setup();
     const { router } = renderExplore("/errors?q=timeout");
+
     await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
 
-    await user.click(await screen.findByRole("button", { name: "Close detail" }));
-
-    await screen.findByText("Error list page");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/errors");
+    expect(await screen.findByText("Error detail page fp-1")).toBeInTheDocument();
+    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/errors/fp-1");
     expect(router.state.location.search).toEqual({ q: "timeout" });
   });
 

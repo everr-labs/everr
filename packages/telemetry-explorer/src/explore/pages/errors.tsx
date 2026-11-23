@@ -1,7 +1,5 @@
 import {
-  DetailRouteDialog,
   ErrorDetail,
-  type ErrorIssueSearch,
   ErrorIssueSearchSchema,
   ErrorIssues,
   type ErrorOccurrence,
@@ -10,25 +8,13 @@ import {
 } from "../../errors";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useRouteParam, useRouteSearch, useSearchPatch } from "../../shell/search-io";
 import { useExploreBackend } from "../backend";
 import { errorsRoute } from "../routes";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
 export function ErrorsRoute() {
-  // Always keep the list mounted in the same position so opening/closing the
-  // modal never remounts it (a remount resets the virtualized list and re-runs
-  // queries, which shows up as a flash on close).
-  return (
-    <>
-      <ErrorsPage />
-      <Outlet />
-    </>
-  );
-}
-
-function ErrorsPage() {
   const { repos } = useExploreBackend();
   const search = useRouteSearch(errorsRoute.validateSearch);
   const patchSearch = useSearchPatch();
@@ -50,7 +36,7 @@ function ErrorsPage() {
       }
       renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
         <Link
-          to="/errors/$fingerprint/modal"
+          to="/errors/$fingerprint"
           params={{ fingerprint: issueFingerprint }}
           search={{ ...search, occurrence: "" }}
           className={className}
@@ -62,62 +48,11 @@ function ErrorsPage() {
   );
 }
 
-export function ErrorModalRoute() {
-  const fingerprint = useRouteParam("fingerprint");
-  const search = useRouteSearch(ErrorIssueSearchSchema);
-  const navigate = useNavigate();
-  const close = () =>
-    navigate({
-      to: "/errors",
-      search: { ...search, occurrence: "" },
-    });
-
-  return (
-    <DetailRouteDialog title="Error detail" onClose={close}>
-      <ErrorDetailRouteContent
-        fingerprint={fingerprint}
-        search={search}
-        detailTo="/errors/$fingerprint/modal"
-        onClose={() => void close()}
-      />
-    </DetailRouteDialog>
-  );
-}
-
 export function ErrorPageRoute() {
+  const { repos } = useExploreBackend();
   const fingerprint = useRouteParam("fingerprint");
   const search = useRouteSearch(ErrorIssueSearchSchema);
   const navigate = useNavigate();
-
-  return (
-    <ErrorDetailRouteContent
-      fingerprint={fingerprint}
-      search={search}
-      detailTo="/errors/$fingerprint"
-      onBack={() =>
-        void navigate({
-          to: "/errors",
-          search: { ...search, occurrence: "" },
-        })
-      }
-    />
-  );
-}
-
-function ErrorDetailRouteContent({
-  fingerprint,
-  search,
-  detailTo,
-  onBack,
-  onClose,
-}: {
-  fingerprint: string;
-  search: ErrorIssueSearch;
-  detailTo: "/errors/$fingerprint" | "/errors/$fingerprint/modal";
-  onBack?: () => void;
-  onClose?: () => void;
-}) {
-  const { repos } = useExploreBackend();
   const { timeRange, service } = withTimeRange(search);
 
   return (
@@ -127,11 +62,15 @@ function ErrorDetailRouteContent({
       timeRange={timeRange}
       service={service}
       occurrence={search.occurrence}
-      onBack={onBack}
-      onClose={onClose}
+      onBack={() =>
+        void navigate({
+          to: "/errors",
+          search: { ...search, occurrence: "" },
+        })
+      }
       renderOccurrenceLink={({ occurrence: linkedOccurrence, label, className, children }) => (
         <Link
-          to={detailTo}
+          to="/errors/$fingerprint"
           params={{ fingerprint }}
           search={{
             ...search,

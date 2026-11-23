@@ -30,11 +30,7 @@ export const exploreNavGroup: NavGroup<ExploreSectionPath> = {
 };
 
 /** Every path the Explore pages mount or link to. */
-type ExploreFullPath =
-  | ExploreSectionPath
-  | "/traces/$traceId"
-  | "/errors/$fingerprint"
-  | "/errors/$fingerprint/modal";
+type ExploreFullPath = ExploreSectionPath | "/traces/$traceId" | "/errors/$fingerprint";
 
 /**
  * `true` when the router mounts every Explore path, and `{ missing }` naming
@@ -46,18 +42,6 @@ export type AssertExploreMounted<TRouter extends AnyRouter> =
   Exclude<ExploreFullPath, keyof TRouter["routesByPath"]> extends never
     ? true
     : { missing: Exclude<ExploreFullPath, keyof TRouter["routesByPath"]> };
-
-/**
- * Spread into `createRouteMask({ routeTree, ...errorDetailMask })`: an Error
- * opened from the list shows the full page's URL, and a reload opens that page.
- */
-export const errorDetailMask = {
-  from: "/errors/$fingerprint/modal",
-  to: "/errors/$fingerprint",
-  params: true,
-  search: true,
-  unmaskOnReload: true,
-} as const;
 
 // service/environment retain + strip is handled on the shell layout route, not
 // here. Search middlewares run leaf to root, so the shell layout's retain runs
@@ -130,9 +114,9 @@ export const errorsRoute = {
   head: () => ({ meta: [{ title: "Everr - Errors" }] }),
 };
 
-/** One Error, for both of its routes: the dialog over the list and the full page. */
 export const errorDetailRoute = {
   validateSearch: ErrorIssueSearchSchema,
+  search: { middlewares: [stripDefaults(ErrorIssueSearchSchema.parse({}))] },
   staticData: { breadcrumb: "Detail" },
   head: () => ({ meta: [{ title: "Everr - Error detail" }] }),
 };

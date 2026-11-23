@@ -14,7 +14,7 @@ The local UI served by `everr local start` (page title `Everr Local`) has the we
 ## How to get to it (user POV)
 
 - Open the `ui:` URL printed by `everr local start` (or run `everr local ui`), choose `Logs` in the sidebar, type in `Search`.
-- Routes: `/metrics`, `/logs`, `/traces`, `/traces/<traceId>`, `/errors`, `/errors/<fingerprint>` (full page), `/errors/<fingerprint>/modal` (the dialog over the list), `/settings`, `/developer`.
+- Routes: `/metrics`, `/logs`, `/traces`, `/traces/<traceId>`, `/errors`, `/errors/<fingerprint>`, `/settings`, `/developer`.
 
 ## Driving it with verify-cli
 

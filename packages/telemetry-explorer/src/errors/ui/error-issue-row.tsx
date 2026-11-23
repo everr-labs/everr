@@ -14,9 +14,12 @@ export type RenderErrorIssueLink = (input: {
 
 export function ErrorIssueRow({
   issue,
+  trendPeak,
   renderIssueLink,
 }: {
   issue: ErrorIssueSummary;
+  /** The busiest trend bucket in the list, so every row shades on one scale. */
+  trendPeak?: number;
   renderIssueLink: RenderErrorIssueLink;
 }) {
   const type = issue.exceptionType || "Unknown exception";
@@ -31,7 +34,7 @@ export function ErrorIssueRow({
   // of the anchor (lifted above the overlay with z-10) and not interactive
   // elements nested in it.
   return (
-    <div className="hover:bg-muted/50 relative flex items-center gap-2 border-b px-3 py-1.5 text-sm leading-tight">
+    <div className="hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight">
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {renderIssueLink({
           fingerprint: issue.fingerprint,
@@ -63,7 +66,11 @@ export function ErrorIssueRow({
         className="hidden w-28 shrink-0 md:flex"
       />
 
-      <ErrorTrend buckets={issue.trend} className="hidden h-5 w-24 shrink-0 lg:block" />
+      <ErrorTrend
+        buckets={issue.trend}
+        scaleMax={trendPeak}
+        className="hidden h-5 w-24 shrink-0 lg:block"
+      />
 
       <span className="w-24 shrink-0 text-right tabular-nums">
         {issue.occurrenceCount.toLocaleString()}

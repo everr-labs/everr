@@ -1,12 +1,6 @@
-import { createMemoryHistory, createRouteMask, createRouter } from "@tanstack/react-router";
-import {
-  type AssertExploreMounted,
-  errorDetailMask,
-  type ShellRouterContext,
-} from "../explore/routes";
+import { createMemoryHistory, createRouter } from "@tanstack/react-router";
+import type { AssertExploreMounted, ShellRouterContext } from "../explore/routes";
 import { routeTree } from "./routeTree.gen";
-
-const routeMasks = [createRouteMask({ routeTree, ...errorDetailMask })];
 
 /**
  * The package's own router, over the routes the shared code links to and reads
@@ -18,7 +12,6 @@ const routeMasks = [createRouteMask({ routeTree, ...errorDetailMask })];
 export function createContractRouter(initialEntry: string, context: ShellRouterContext) {
   return createRouter({
     routeTree,
-    routeMasks,
     context,
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });

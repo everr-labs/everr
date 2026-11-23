@@ -1,10 +1,9 @@
-import {
-  type AssertExploreMounted,
-  errorDetailMask,
-  type ShellRouterContext,
+import type {
+  AssertExploreMounted,
+  ShellRouterContext,
 } from "@everr/telemetry-explorer/explore/routes";
 import { routeTree } from "@composition/routes";
-import { createRouteMask, createRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
 import { createExploreBackend } from "#app/lib/explore-backend.tsx";
 import { createQueryClient } from "#app/lib/query-client.ts";
 import "#app/router-types.ts";
@@ -13,10 +12,6 @@ import { panelHistoryViewTransition } from "./components/dashboards/panel-links"
 import { RootErrorComponent } from "./components/root-error";
 
 export type RouterContext = ShellRouterContext;
-
-// Declared outside `createRouter` so the mask types resolve against the route
-// tree rather than the router being built from them.
-const routeMasks = [createRouteMask({ routeTree, ...errorDetailMask })];
 
 /**
  * The app's router, and deliberately the only `createRouter` call in it.
@@ -43,7 +38,6 @@ export const getRouter = () => {
 
   const router = createRouter({
     routeTree,
-    routeMasks,
     context: { queryClient, explore: createExploreBackend(queryClient) },
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).

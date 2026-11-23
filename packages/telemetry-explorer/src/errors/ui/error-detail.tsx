@@ -33,7 +33,6 @@ export type ErrorDetailProps = {
   /** Selected occurrence key (timestamp|rank), or "" for the latest. */
   occurrence: string;
   onBack?: () => void;
-  onClose?: () => void;
   renderOccurrenceLink: RenderOccurrenceLink;
   /** App supplies the related-trace panel (it owns the spans source). */
   renderTracePanel?: (input: { occurrence: ErrorOccurrence }) => ReactNode;
@@ -46,7 +45,6 @@ export function ErrorDetail({
   service,
   occurrence,
   onBack,
-  onClose,
   renderOccurrenceLink,
   renderTracePanel,
 }: ErrorDetailProps) {
@@ -107,7 +105,6 @@ export function ErrorDetail({
         issue={detail.summary}
         message={message}
         onBack={onBack}
-        onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
       <div {...staleProps(stale, "flex min-h-0 flex-1 flex-col")}>
