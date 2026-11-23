@@ -7,6 +7,7 @@ require (
 	github.com/everr-labs/everr/collector/internal/localgateway/chdb v0.0.0
 	github.com/everr-labs/everr/collector/internal/localgateway/config v0.0.0-00010101000000-000000000000
 	github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp v0.0.0-00010101000000-000000000000
+	github.com/everr-labs/everr/packages/app/clickhouse v0.0.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/collector/component v1.71.0
 	go.opentelemetry.io/collector/confmap v1.71.0
@@ -211,3 +212,5 @@ replace github.com/everr-labs/everr/collector/internal/localgateway/chdb => ../i
 replace github.com/everr-labs/everr/collector/internal/localgateway/config => ../internal/localgateway/config
 
 replace github.com/everr-labs/everr/collector/internal/localgateway/sqlhttp => ../internal/localgateway/sqlhttp
+
+replace github.com/everr-labs/everr/packages/app/clickhouse => ../../packages/app/clickhouse
