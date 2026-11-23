@@ -16,10 +16,9 @@ import (
 )
 
 type recordingSession struct {
-	path string
-	mu   sync.Mutex
-	sent []string
-	// failOn makes a statement that contains the text fail.
+	path   string
+	mu     sync.Mutex
+	sent   []string
 	failOn string
 }
 

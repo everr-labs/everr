@@ -77,15 +77,10 @@ func exec(handle *chdb.Handle, sql string) error {
 	})
 }
 
-// logRow is stamped with the current time, because the retention TTL drops a
-// row older than its retention_days.
 func logRow(resource string) string {
 	return fmt.Sprintf(`{"Timestamp":"%[2]s","TraceId":"","SpanId":"","TraceFlags":0,"SeverityText":"INFO","SeverityNumber":9,"ServiceName":"svc","Body":"hello","ResourceSchemaUrl":"","ResourceAttributes":%[1]s,"ResourceAttributesKeys":[],"ScopeSchemaUrl":"","ScopeName":"","ScopeVersion":"","ScopeAttributes":{},"ScopeAttributesKeys":[],"LogAttributes":{},"LogAttributesKeys":[],"EventName":""}`, resource, time.Now().UTC().Format("2006-01-02 15:04:05.000000000"))
 }
 
-// A migration chDB cannot run fails this test, and the error names the file
-// and the statement. It is the gate that keeps a new migration from breaking
-// the local store.
 func TestOpenBuildsTheSchemaFromTheEmbeddedMigrations(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "chdb")
 

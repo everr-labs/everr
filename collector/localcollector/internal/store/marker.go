@@ -9,12 +9,9 @@ import (
 	"path/filepath"
 )
 
-// markerName lives inside the chDB directory, so deleting the store deletes
-// it. chDB leaves unknown files at its root alone.
+// chDB leaves unknown files at its root alone.
 const markerName = ".everr-store.json"
 
-// metadataDir is chDB's catalog. A reset deletes it last: while it exists,
-// the next start recognizes the leftovers as a store and resets again.
 const metadataDir = "metadata"
 
 func observe(path string) (observed, error) {
@@ -39,7 +36,7 @@ func observe(path string) (observed, error) {
 	foreign := false
 	for _, entry := range entries {
 		if entry.Name() == metadataDir && entry.IsDir() {
-			return observed{kind: dirChDB}, nil
+			return observed{kind: dirUnmarkedStore}, nil
 		}
 		if entry.Name()[0] != '.' {
 			foreign = true
@@ -51,9 +48,8 @@ func observe(path string) (observed, error) {
 	return observed{kind: dirEmpty}, nil
 }
 
-// reset empties the directory and keeps the directory itself. The marker
-// goes first and the metadata directory last, so a crash at any point leaves
-// a state decide resets or builds again.
+// reset deletes the metadata directory last. While it exists, a reset that
+// stopped halfway still reads as a store, and the next start resets again.
 func reset(path string) error {
 	if err := os.Remove(filepath.Join(path, markerName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("delete store marker: %w", err)
@@ -75,8 +71,6 @@ func reset(path string) error {
 	return nil
 }
 
-// writeMarker writes the whole marker through a temp file and a rename, so a
-// reader sees the old marker or the new one.
 func writeMarker(path string, mk marker) error {
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		return fmt.Errorf("create chDB directory %s: %w", path, err)

@@ -18,14 +18,11 @@ export function isAccessControl(statement: string): boolean {
   );
 }
 
-// Fixtures use fixed timestamps, so omit TTL to keep them independent of the
-// machine clock. Expiry is outside this suite; the remaining DDL stays intact.
 export function withoutTtl(statement: string): string {
   return statement.replace(/\nTTL [\s\S]*?(?=\nSETTINGS )/, "\n");
 }
 
 export interface MigratedChdbStore {
-  /** Runs SQL and returns the trimmed JSONEachRow text, one object per line. */
   run(sql: string): string;
   close(): void;
 }

@@ -5,31 +5,22 @@ import (
 	"slices"
 )
 
-// dirKind is what the chDB directory holds, read without opening chDB.
 type dirKind int
 
 const (
-	// dirEmpty is a directory that is absent, empty, or holds only dotfiles
-	// and no marker.
 	dirEmpty dirKind = iota
 	dirMarked
-	// dirChDB holds a chDB layout (a metadata directory) and no marker: a
-	// store from before this package, or a reset that crashed.
-	dirChDB
-	// dirForeign holds files that are not ours.
+	dirUnmarkedStore
 	dirForeign
 )
 
-// marker records what built the store. Applied maps a migration file name to
-// the SHA-256 of its text.
 type marker struct {
 	Version int               `json:"version"`
 	Applied map[string]string `json:"applied"`
 }
 
 type observed struct {
-	kind dirKind
-	// marker is valid when kind is dirMarked and markerErr is nil.
+	kind      dirKind
 	marker    marker
 	markerErr error
 }
@@ -46,25 +37,20 @@ const (
 )
 
 type plan struct {
-	reset resetReason
-	// freshMarker is true when the directory needs a marker with nothing
-	// applied before chDB opens: a new directory, or after a reset.
+	reset       resetReason
 	freshMarker bool
-	// pending is what to apply, in file-name order.
-	pending []migration
+	pending     []migration
 }
 
 var errForeignDirectory = errors.New("the chDB path holds files that are not a chDB store, so it is not deleted")
 
-// decide maps what the disk holds to what this start does. local is in
-// file-name order.
 func decide(seen observed, local []migration) (plan, error) {
 	switch seen.kind {
 	case dirEmpty:
 		return plan{freshMarker: true, pending: local}, nil
 	case dirForeign:
 		return plan{}, errForeignDirectory
-	case dirChDB:
+	case dirUnmarkedStore:
 		return resetPlan(unmarkedStore, local), nil
 	}
 	if seen.markerErr != nil {

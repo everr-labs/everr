@@ -32,8 +32,8 @@ func TestObserveReadsTheDirectoryWithoutChDB(t *testing.T) {
 	}{
 		"an empty directory":               {nil, dirEmpty},
 		"only dotfiles":                    {map[string]string{".last_flush": "1", ".DS_Store": ""}, dirEmpty},
-		"a chDB layout and no marker":      {map[string]string{"metadata/default.sql": "x", "data/a": "1"}, dirChDB},
-		"a chDB layout and dotfiles":       {map[string]string{"metadata/default.sql": "x", ".last_flush": "1"}, dirChDB},
+		"a chDB layout and no marker":      {map[string]string{"metadata/default.sql": "x", "data/a": "1"}, dirUnmarkedStore},
+		"a chDB layout and dotfiles":       {map[string]string{"metadata/default.sql": "x", ".last_flush": "1"}, dirUnmarkedStore},
 		"files that are not a chDB store":  {map[string]string{"notes.txt": "mine"}, dirForeign},
 		"a metadata file, not a directory": {map[string]string{"metadata": "mine"}, dirForeign},
 		"a marker":                         {map[string]string{markerName: `{"version":1,"applied":{}}`, "metadata/x": "x"}, dirMarked},
@@ -124,7 +124,7 @@ func TestResetOfAStoppedResetLeavesAStateTheNextStartResets(t *testing.T) {
 
 	seen, err := observe(dir)
 	require.NoError(t, err)
-	require.Equal(t, dirChDB, seen.kind, "the marker is gone and the catalog is still there")
+	require.Equal(t, dirUnmarkedStore, seen.kind, "the marker is gone and the catalog is still there")
 	p, err := decide(seen, nil)
 	require.NoError(t, err)
 	require.Equal(t, unmarkedStore, p.reset)
