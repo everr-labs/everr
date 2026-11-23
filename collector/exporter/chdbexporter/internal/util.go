@@ -4,7 +4,10 @@
 package internal // import "github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 
 import (
+	"encoding/json"
+	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -17,6 +20,31 @@ func GetServiceName(resAttr pcommon.Map) string {
 	}
 
 	return ""
+}
+
+// AttributesJSON is the document a JSON attribute column stores. A NaN or
+// infinite double becomes the string "NaN", "+Inf" or "-Inf": encoding/json
+// refuses those values and a JSON column cannot hold them as numbers.
+func AttributesJSON(m pcommon.Map) (json.RawMessage, error) {
+	return json.Marshal(quoteNonFinite(m.AsRaw()))
+}
+
+func quoteNonFinite(value any) any {
+	switch v := value.(type) {
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return strconv.FormatFloat(v, 'g', -1, 64)
+		}
+	case map[string]any:
+		for key, item := range v {
+			v[key] = quoteNonFinite(item)
+		}
+	case []any:
+		for i, item := range v {
+			v[i] = quoteNonFinite(item)
+		}
+	}
+	return value
 }
 
 // UniqueFlattenedAttributes converts a pcommon.Map into a slice of attributes. Paths are flattened and sorted.

@@ -4,6 +4,7 @@
 package internal
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -195,4 +196,17 @@ func TestGetServiceName(t *testing.T) {
 		resAttr.PutBool("service.name", true)
 		require.Equal(t, "true", GetServiceName(resAttr))
 	})
+}
+
+func TestAttributesJSONStoresNonFiniteDoublesAsStrings(t *testing.T) {
+	m := pcommon.NewMap()
+	m.PutDouble("nan", math.NaN())
+	m.PutDouble("finite", 1.5)
+	m.PutEmptyMap("nested").PutDouble("inf", math.Inf(1))
+	m.PutEmptySlice("list").FromRaw([]any{math.Inf(-1), int64(2)})
+
+	doc, err := AttributesJSON(m)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"nan":"NaN","finite":1.5,"nested":{"inf":"+Inf"},"list":["-Inf",2]}`, string(doc))
 }

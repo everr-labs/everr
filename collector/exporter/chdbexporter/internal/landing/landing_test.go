@@ -2,6 +2,7 @@ package landing
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -36,6 +37,17 @@ func TestSendWritesOneInsertWithEachValueEncodedByItsGoType(t *testing.T) {
 			`{"At":"2026-01-02T08:04:05.123456789Z","Document":{"n":3,"s":"x"},"Documents":[{"a":true},{}],"Map":{"a":"1","b":"2"},"Text":"{\"not\":\"a document\"}","Times":["2026-01-02T08:04:05.123456789Z"],"Empty":null,"Count":18446744073709551615,"Flag":true}` + "\n" +
 			`{"At":"1970-01-01T00:00:00Z","Document":{},"Documents":[],"Map":{},"Text":"","Times":[],"Empty":[],"Count":0,"Flag":false}` + "\n",
 	}, session.Statements())
+}
+
+func TestSendWritesNonFiniteFloatsInTheSpellingFloat64ColumnsRead(t *testing.T) {
+	handle, session := chdbtest.Open(t)
+	batch := NewBatch(Table{Name: "otel.example", Columns: []string{"NaN", "Inf", "Bounds", "Finite"}})
+
+	require.NoError(t, batch.Append(math.NaN(), math.Inf(1), []float64{1.5, math.Inf(-1)}, []float64{0.5}))
+	require.NoError(t, batch.Send(t.Context(), handle))
+
+	require.Equal(t, []string{"INSERT INTO otel.example FORMAT JSONEachRow\n" +
+		`{"NaN":"nan","Inf":"inf","Bounds":[1.5,"-inf"],"Finite":[0.5]}` + "\n"}, session.Statements())
 }
 
 func TestAppendRejectsARowThatDoesNotMatchTheColumns(t *testing.T) {

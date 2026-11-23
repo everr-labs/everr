@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
+	"slices"
 	"time"
 
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
@@ -173,6 +175,9 @@ func NewBatch(table Table) *Batch {
 //     number would be read as the column's own ticks.
 //   - json.RawMessage is written as it is. A JSON column needs one: a string
 //     would be stored as text.
+//   - A float64 that is NaN or infinite, alone or in a []float64, is the
+//     quoted "nan", "inf" or "-inf" that Float64 columns read. encoding/json
+//     refuses those values.
 //   - Anything else goes through encoding/json. A nil slice is written as
 //     null, which ClickHouse reads as an empty array.
 func (b *Batch) Append(values ...any) error {
@@ -206,8 +211,34 @@ func encode(value any) ([]byte, error) {
 		return json.Marshal(value.UTC().Format(time.RFC3339Nano))
 	case json.RawMessage:
 		return value, nil
+	case float64:
+		return json.Marshal(jsonFloat(value))
+	case []float64:
+		if slices.ContainsFunc(value, nonFinite) {
+			floats := make([]any, len(value))
+			for i, v := range value {
+				floats[i] = jsonFloat(v)
+			}
+			return json.Marshal(floats)
+		}
 	}
 	return json.Marshal(value)
+}
+
+func nonFinite(v float64) bool {
+	return math.IsNaN(v) || math.IsInf(v, 0)
+}
+
+func jsonFloat(v float64) any {
+	switch {
+	case math.IsNaN(v):
+		return "nan"
+	case math.IsInf(v, 1):
+		return "inf"
+	case math.IsInf(v, -1):
+		return "-inf"
+	}
+	return v
 }
 
 // Send writes the rows in one INSERT. A batch without rows sends nothing.

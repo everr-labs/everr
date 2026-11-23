@@ -32,7 +32,7 @@ func (e *tracesExporter) pushTraceData(ctx context.Context, td ptrace.Traces) er
 		resAttr := res.Attributes()
 		resAttr.PutStr(retentionAttribute, e.retentionDays)
 		serviceName := internal.GetServiceName(resAttr)
-		resAttrBytes, resAttrErr := json.Marshal(resAttr.AsRaw())
+		resAttrBytes, resAttrErr := internal.AttributesJSON(resAttr)
 		if resAttrErr != nil {
 			return fmt.Errorf("failed to marshal json trace resource attributes: %w", resAttrErr)
 		}
@@ -53,7 +53,7 @@ func (e *tracesExporter) pushTraceData(ctx context.Context, td ptrace.Traces) er
 				spanStatus := span.Status()
 				spanDurationNanos := span.EndTimestamp() - span.StartTimestamp()
 				spanAttr := span.Attributes()
-				spanAttrBytes, spanAttrErr := json.Marshal(spanAttr.AsRaw())
+				spanAttrBytes, spanAttrErr := internal.AttributesJSON(spanAttr)
 				if spanAttrErr != nil {
 					return fmt.Errorf("failed to marshal json trace span attributes: %w", spanAttrErr)
 				}
@@ -76,10 +76,10 @@ func (e *tracesExporter) pushTraceData(ctx context.Context, td ptrace.Traces) er
 					span.Name(),
 					span.Kind().String(),
 					serviceName,
-					json.RawMessage(resAttrBytes),
+					resAttrBytes,
 					scopeName,
 					scopeVersion,
-					json.RawMessage(spanAttrBytes),
+					spanAttrBytes,
 					spanDurationNanos,
 					spanStatus.Code().String(),
 					spanStatus.Message(),
@@ -120,7 +120,7 @@ func convertEventsJSON(events ptrace.SpanEventSlice) (times []time.Time, names [
 		times = append(times, event.Timestamp().AsTime())
 		names = append(names, event.Name())
 
-		eventAttrBytes, eventAttrErr := json.Marshal(event.Attributes().AsRaw())
+		eventAttrBytes, eventAttrErr := internal.AttributesJSON(event.Attributes())
 		if eventAttrErr != nil {
 			return nil, nil, nil, fmt.Errorf("failed to marshal json trace event attributes: %w", eventAttrErr)
 		}
@@ -145,7 +145,7 @@ func convertLinksJSON(links ptrace.SpanLinkSlice) (traceIDs, spanIDs, states []s
 		spanIDs = append(spanIDs, link.SpanID().String())
 		states = append(states, link.TraceState().AsRaw())
 
-		linkAttrBytes, linkAttrErr := json.Marshal(link.Attributes().AsRaw())
+		linkAttrBytes, linkAttrErr := internal.AttributesJSON(link.Attributes())
 		if linkAttrErr != nil {
 			return nil, nil, nil, nil, fmt.Errorf("failed to marshal json trace link attributes: %w", linkAttrErr)
 		}

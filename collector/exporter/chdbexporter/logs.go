@@ -5,7 +5,6 @@ package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/c
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -32,7 +31,7 @@ func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
 		resAttr := res.Attributes()
 		resAttr.PutStr(retentionAttribute, e.retentionDays)
 		serviceName := internal.GetServiceName(resAttr)
-		resAttrBytes, resAttrErr := json.Marshal(resAttr.AsRaw())
+		resAttrBytes, resAttrErr := internal.AttributesJSON(resAttr)
 		if resAttrErr != nil {
 			return fmt.Errorf("failed to marshal json log resource attributes: %w", resAttrErr)
 		}
@@ -48,7 +47,7 @@ func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
 			scopeVersion := scopeLogScope.Version()
 			scopeLogRecords := scopeLog.LogRecords()
 			scopeAttr := scopeLogScope.Attributes()
-			scopeAttrBytes, scopeAttrErr := json.Marshal(scopeAttr.AsRaw())
+			scopeAttrBytes, scopeAttrErr := internal.AttributesJSON(scopeAttr)
 			if scopeAttrErr != nil {
 				return fmt.Errorf("failed to marshal json log scope attributes: %w", scopeAttrErr)
 			}
@@ -59,7 +58,7 @@ func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
 			for k := range slrLen {
 				r := scopeLogRecords.At(k)
 				logAttr := r.Attributes()
-				logAttrBytes, logAttrErr := json.Marshal(logAttr.AsRaw())
+				logAttrBytes, logAttrErr := internal.AttributesJSON(logAttr)
 				if logAttrErr != nil {
 					return fmt.Errorf("failed to marshal json log attributes: %w", logAttrErr)
 				}
@@ -79,12 +78,12 @@ func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
 					serviceName,
 					r.Body().AsString(),
 					resURL,
-					json.RawMessage(resAttrBytes),
+					resAttrBytes,
 					scopeURL,
 					scopeName,
 					scopeVersion,
-					json.RawMessage(scopeAttrBytes),
-					json.RawMessage(logAttrBytes),
+					scopeAttrBytes,
+					logAttrBytes,
 					resAttrKeys,
 					scopeAttrKeys,
 					internal.UniqueFlattenedAttributes(logAttr),
