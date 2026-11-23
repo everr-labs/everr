@@ -22,7 +22,7 @@ func (e *metricsExporter) pushMetricsData(ctx context.Context, md pmetric.Metric
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		resourceMetrics := md.ResourceMetrics().At(i)
 		resAttr := resourceMetrics.Resource().Attributes()
-		resAttr.PutStr(retentionAttribute, e.retentionDays)
+		stampRetention(resAttr, e.retentionDays)
 		for j := 0; j < resourceMetrics.ScopeMetrics().Len(); j++ {
 			scopeMetrics := resourceMetrics.ScopeMetrics().At(j)
 			metadata := metrics.MetricsMetaData{

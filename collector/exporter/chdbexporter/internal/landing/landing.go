@@ -242,11 +242,15 @@ func jsonFloat(v float64) any {
 }
 
 // Send writes the rows in one INSERT. A batch without rows sends nothing.
+//
+// Attributes may spell one path twice, as http.method next to
+// http: {method: ...}. A JSON column fails the whole insert on that unless
+// type_json_skip_duplicated_paths keeps the first value.
 func (b *Batch) Send(ctx context.Context, handle *chdb.Handle) error {
 	if b.rows.Len() == 0 {
 		return nil
 	}
-	statement := "INSERT INTO " + b.table.Name + " FORMAT JSONEachRow\n" + b.rows.String()
+	statement := "INSERT INTO " + b.table.Name + " SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" + b.rows.String()
 	return handle.Do(ctx, func(_ context.Context, session chdb.Session) error {
 		result, err := session.Query(statement, "")
 		if result != nil {

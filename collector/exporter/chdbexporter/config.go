@@ -5,14 +5,37 @@ package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/c
 
 import (
 	"errors"
+	"strings"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 const retentionAttribute = "everr.retention.days"
+
+// stampRetention sets the resource's everr.retention.days to the configured
+// days. A JSON column keeps the first of two values for one path, and a
+// client's nested spelling of the path sorts before the flat key, so every
+// spelling is removed before the stamp is written.
+func stampRetention(resource pcommon.Map, days string) {
+	removePath(resource, retentionAttribute)
+	resource.PutStr(retentionAttribute, days)
+}
+
+func removePath(attrs pcommon.Map, path string) {
+	attrs.RemoveIf(func(key string, value pcommon.Value) bool {
+		if key == path {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(path, key+"."); ok && value.Type() == pcommon.ValueTypeMap {
+			removePath(value.Map(), rest)
+		}
+		return false
+	})
+}
 
 type Config struct {
 	TimeoutSettings exporterhelper.TimeoutConfig                             `mapstructure:",squash"`

@@ -157,3 +157,79 @@ func TestNonFiniteFloatsAreStoredWithTheRestOfTheirPush(t *testing.T) {
 		require.Equal(t, map[string]any{"SpanName": "non-finite", "inf": "+Inf", "event": "NaN", "link": "+Inf"}, rows[1])
 	})
 }
+
+// clientRetentionSpellings are resource attributes that spell the retention
+// path the exporter stamps without using its flat key.
+var clientRetentionSpellings = map[string]func(pcommon.Map){
+	"nested":        func(m pcommon.Map) { m.PutEmptyMap("everr").PutEmptyMap("retention").PutStr("days", "0") },
+	"dotted parent": func(m pcommon.Map) { m.PutEmptyMap("everr.retention").PutStr("days", "0") },
+	"dotted child":  func(m pcommon.Map) { m.PutEmptyMap("everr").PutStr("retention.days", "0") },
+	"flat and nested": func(m pcommon.Map) {
+		m.PutStr("everr.retention.days", "0")
+		m.PutEmptyMap("everr").PutEmptyMap("retention").PutStr("days", "0")
+	},
+}
+
+func collidingAttributes(m pcommon.Map) {
+	m.PutStr("http.method", "GET")
+	m.PutEmptyMap("http").PutStr("method", "POST")
+}
+
+func TestAnAttributePathCollisionKeepsItsBatchAndTheRetentionStampWins(t *testing.T) {
+	g := openGateway(t)
+
+	t.Run("logs", func(t *testing.T) {
+		ld := oneLog("collision-logs", "colliding")
+		collidingAttributes(ld.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).Attributes())
+		for spelling, spell := range clientRetentionSpellings {
+			resourceLogs := oneLog("retention-logs "+spelling, spelling).ResourceLogs()
+			spell(resourceLogs.At(0).Resource().Attributes())
+			resourceLogs.MoveAndAppendTo(ld.ResourceLogs())
+		}
+		require.NoError(t, g.logsExporter(t).ConsumeLogs(t.Context(), ld))
+
+		rows := g.query(t, "SELECT ServiceName, retention_days FROM logs ORDER BY ServiceName")
+		require.Len(t, rows, 1+len(clientRetentionSpellings))
+		for _, row := range rows {
+			require.EqualValues(t, retentionDays, row["retention_days"], row["ServiceName"])
+		}
+	})
+
+	t.Run("traces", func(t *testing.T) {
+		td := ptrace.NewTraces()
+		addSpan := func(service string) ptrace.ResourceSpans {
+			resourceSpans := td.ResourceSpans().AppendEmpty()
+			resourceSpans.Resource().Attributes().PutStr("service.name", service)
+			span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			span.SetName(service)
+			span.SetStartTimestamp(pcommon.NewTimestampFromTime(sentAt))
+			span.SetEndTimestamp(pcommon.NewTimestampFromTime(sentAt))
+			return resourceSpans
+		}
+		collidingAttributes(addSpan("collision-traces").ScopeSpans().At(0).Spans().At(0).Attributes())
+		for spelling, spell := range clientRetentionSpellings {
+			spell(addSpan("retention-traces " + spelling).Resource().Attributes())
+		}
+		require.NoError(t, g.tracesExporter(t).ConsumeTraces(t.Context(), td))
+
+		rows := g.query(t, "SELECT ServiceName, retention_days FROM traces ORDER BY ServiceName")
+		require.Len(t, rows, 1+len(clientRetentionSpellings))
+		for _, row := range rows {
+			require.EqualValues(t, retentionDays, row["retention_days"], row["ServiceName"])
+		}
+	})
+
+	t.Run("metrics", func(t *testing.T) {
+		md := oneMetricOfEachKind()
+		for _, spell := range clientRetentionSpellings {
+			spell(md.ResourceMetrics().At(0).Resource().Attributes())
+		}
+		require.NoError(t, g.metricsExporter(t, nil).ConsumeMetrics(t.Context(), md))
+
+		for _, table := range []string{"metrics_gauge", "metrics_sum", "metrics_histogram", "metrics_exponential_histogram", "metrics_summary"} {
+			rows := g.query(t, "SELECT retention_days FROM "+table)
+			require.Len(t, rows, 1, table)
+			require.EqualValues(t, retentionDays, rows[0]["retention_days"], table)
+		}
+	})
+}

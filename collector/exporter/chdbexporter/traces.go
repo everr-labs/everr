@@ -30,7 +30,7 @@ func (e *tracesExporter) pushTraceData(ctx context.Context, td ptrace.Traces) er
 		spans := rsSpans.At(i)
 		res := spans.Resource()
 		resAttr := res.Attributes()
-		resAttr.PutStr(retentionAttribute, e.retentionDays)
+		stampRetention(resAttr, e.retentionDays)
 		serviceName := internal.GetServiceName(resAttr)
 		resAttrBytes, resAttrErr := internal.AttributesJSON(resAttr)
 		if resAttrErr != nil {

@@ -88,7 +88,7 @@ func TestLogsAreWrittenToTheLandingTableWithTheRetentionStamp(t *testing.T) {
 	require.NoError(t, exp.ConsumeLogs(t.Context(), ld))
 
 	require.Equal(t, []string{
-		"INSERT INTO otel.otel_logs FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_logs SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			`{"Timestamp":` + sentAtText + `,"TraceId":"01000000000000000000000000000000","SpanId":"0200000000000000","TraceFlags":1,"SeverityText":"INFO","SeverityNumber":9,"ServiceName":"checkout","Body":"hello","ResourceSchemaUrl":"resource-url","ResourceAttributes":{"everr.retention.days":"7","service.name":"checkout"},"ScopeSchemaUrl":"scope-url","ScopeName":"scope","ScopeVersion":"1.2.3","ScopeAttributes":{"scope.flag":true},"LogAttributes":{"attempt":3,"http.route":"/x"},"ResourceAttributesKeys":["everr.retention.days","service.name"],"ScopeAttributesKeys":["scope.flag"],"LogAttributesKeys":["attempt","http.route"],"EventName":"order.placed"}` + "\n" +
 			`{"Timestamp":` + startedAtText + `,"TraceId":"","SpanId":"","TraceFlags":0,"SeverityText":"","SeverityNumber":0,"ServiceName":"checkout","Body":"no event time","ResourceSchemaUrl":"resource-url","ResourceAttributes":{"everr.retention.days":"7","service.name":"checkout"},"ScopeSchemaUrl":"scope-url","ScopeName":"scope","ScopeVersion":"1.2.3","ScopeAttributes":{"scope.flag":true},"LogAttributes":{},"ResourceAttributesKeys":["everr.retention.days","service.name"],"ScopeAttributesKeys":["scope.flag"],"LogAttributesKeys":null,"EventName":""}` + "\n",
 	}, session.Statements())
@@ -139,7 +139,7 @@ func TestTracesAreWrittenToTheLandingTableWithEventsAndLinks(t *testing.T) {
 	require.NoError(t, exp.ConsumeTraces(t.Context(), td))
 
 	require.Equal(t, []string{
-		"INSERT INTO otel.otel_traces FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_traces SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			`{"Timestamp":` + startedAtText + `,"TraceId":"01000000000000000000000000000000","SpanId":"0200000000000000","ParentSpanId":"0300000000000000","TraceState":"vendor=1","SpanName":"POST /orders","SpanKind":"Server","ServiceName":"checkout","ResourceAttributes":{"everr.retention.days":"7","service.name":"checkout"},"ScopeName":"scope","ScopeVersion":"1.2.3","SpanAttributes":{"http.response.status_code":500},"Duration":90000000000,"StatusCode":"Error","StatusMessage":"boom","Events.Timestamp":[` + sentAtText + `,"1970-01-01T00:00:00Z"],"Events.Name":["exception","empty"],"Events.Attributes":[{"everr.test.attempt":42,"exception.type":"E"},{}],"Links.TraceId":["04000000000000000000000000000000"],"Links.SpanId":["0500000000000000"],"Links.TraceState":["vendor=2"],"Links.Attributes":[{"everr.test.link":true}],"ResourceAttributesKeys":["everr.retention.days","service.name"],"SpanAttributesKeys":["http.response.status_code"]}` + "\n" +
 			`{"Timestamp":` + sentAtText + `,"TraceId":"","SpanId":"","ParentSpanId":"","TraceState":"","SpanName":"bare","SpanKind":"Unspecified","ServiceName":"checkout","ResourceAttributes":{"everr.retention.days":"7","service.name":"checkout"},"ScopeName":"scope","ScopeVersion":"1.2.3","SpanAttributes":{},"Duration":0,"StatusCode":"Unset","StatusMessage":"","Events.Timestamp":null,"Events.Name":null,"Events.Attributes":null,"Links.TraceId":null,"Links.SpanId":null,"Links.TraceState":null,"Links.Attributes":null,"ResourceAttributesKeys":["everr.retention.days","service.name"],"SpanAttributesKeys":null}` + "\n",
 	}, session.Statements())
@@ -242,15 +242,15 @@ func TestEveryMetricKindIsWrittenToItsLandingTable(t *testing.T) {
 	}
 	const noExemplars = `"Exemplars.FilteredAttributes":null,"Exemplars.TimeUnix":null,"Exemplars.Value":null,"Exemplars.SpanId":null,"Exemplars.TraceId":null`
 	require.Equal(t, []string{
-		"INSERT INTO otel.otel_metrics_gauge FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_metrics_gauge SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			series("queue.depth", "", "") + `"Value":1.5,"Flags":0,` + noExemplars + "}\n",
-		"INSERT INTO otel.otel_metrics_sum FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_metrics_sum SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			series("orders", "placed orders", "{order}") + `"Value":12,"Flags":0,"Exemplars.FilteredAttributes":[{"worker":"9"}],"Exemplars.TimeUnix":[` + sentAtText + `],"Exemplars.Value":[4],"Exemplars.SpanId":["0200000000000000"],"Exemplars.TraceId":["01000000000000000000000000000000"],"AggregationTemporality":2,"IsMonotonic":true}` + "\n",
-		"INSERT INTO otel.otel_metrics_histogram FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_metrics_histogram SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			series("latency", "", "") + `"Count":3,"Sum":6.5,"BucketCounts":[1,2],"ExplicitBounds":[2.5],` + noExemplars + `,"Flags":0,"Min":1,"Max":4,"AggregationTemporality":1}` + "\n",
-		"INSERT INTO otel.otel_metrics_exponential_histogram FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_metrics_exponential_histogram SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			series("latency.exp", "", "") + `"Count":3,"Sum":6.5,"Scale":2,"ZeroCount":1,"PositiveOffset":-1,"PositiveBucketCounts":[2],"NegativeOffset":3,"NegativeBucketCounts":null,` + noExemplars + `,"Flags":0,"Min":0,"Max":0,"AggregationTemporality":1}` + "\n",
-		"INSERT INTO otel.otel_metrics_summary FORMAT JSONEachRow\n" +
+		"INSERT INTO otel.otel_metrics_summary SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
 			series("latency.summary", "", "") + `"Count":3,"Sum":6.5,"ValueAtQuantiles.Quantile":[0.5],"ValueAtQuantiles.Value":[2],"Flags":0}` + "\n",
 	}, session.Statements())
 }

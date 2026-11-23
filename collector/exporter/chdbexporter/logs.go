@@ -29,7 +29,7 @@ func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
 		res := logs.Resource()
 		resURL := logs.SchemaUrl()
 		resAttr := res.Attributes()
-		resAttr.PutStr(retentionAttribute, e.retentionDays)
+		stampRetention(resAttr, e.retentionDays)
 		serviceName := internal.GetServiceName(resAttr)
 		resAttrBytes, resAttrErr := internal.AttributesJSON(resAttr)
 		if resAttrErr != nil {
