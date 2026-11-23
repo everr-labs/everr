@@ -142,7 +142,7 @@ setAnonymized(false); // consent granted
 setAnonymized(true); // consent withdrawn
 ```
 
-Leaving the mode keeps the current `session.id`, adds a visitor id (an id already in localStorage wins) and sends the user from an earlier `identify()`. Entering the mode first sends the queued records, which carry the ids of their capture. It then removes the two stored keys, drops the visitor id and starts a new `session.id`, so no request that starts after the call carries an identity. Calling it with the current value does nothing.
+Leaving the mode keeps the current `session.id`, adds a visitor id (an id already in localStorage wins) and sends the user from an earlier `identify()`. Entering the mode first sends the queued records, which carry the ids of their capture. It then removes the two stored keys, drops the visitor id and starts a new `session.id`. With the built-in transport, no request that starts after the call carries an identity. A custom `send` receives the queued payload during the call. If your `send` defers its request, it can deliver that payload after the call. Calling it with the current value does nothing.
 
 `clearIdentity()` forgets the identified user, the visitor id and the session, and removes the stored keys when not anonymized. It never changes the mode. Call it on logout.
 

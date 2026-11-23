@@ -157,9 +157,12 @@ function forgetIds(): void {
  * from an earlier identify() goes on the next record.
  *
  * To enter the mode, the code first sends the records that wait in the batch
- * queue. Those records carry the ids of the time of their capture, and thus no
- * request that starts after this call carries an identity. Then the code
- * removes the stored ids and forgets the visitor id. It also drops the session.
+ * queue. Those records carry the ids of the time of their capture. The fetch
+ * transport starts their request during this call, and thus no request that
+ * starts later carries an identity. A `send` function from the host gets the
+ * payload during this call, and the host decides when the payload goes. Then
+ * the code removes the stored ids and forgets the visitor id. It also drops the
+ * session.
  * The old session id would join the new records to the visitor and the user on
  * the earlier records. The next record gets a new session id. The code keeps
  * the identified user in memory, but it does not send it.
