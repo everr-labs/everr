@@ -178,5 +178,4 @@ This file records the meaningful differences from upstream `open-telemetry/opent
 - `traces_trace_id_ts` still has no `TraceId` skip index.
 - The `database_engine` test configs are named `chdb/...` like the rest of
   `testdata/config.yaml`.
-- `example/docker-compose.yml` keeps its ClickHouse image pin.
 - `localSchemaVersion` stays 2: the table DDL is unchanged.
