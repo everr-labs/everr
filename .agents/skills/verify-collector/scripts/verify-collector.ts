@@ -329,7 +329,7 @@ async function chPost(r: Run, sql: string, params: Record<string, string> = {}, 
   }
 }
 
-/** Apply packages/app/clickhouse the way the app's startup runner does: tag filter, file order, its own splitter, bound params. */
+/** Apply packages/app/clickhouse the way the app's startup runner does: tag filter, file order, its own splitter, bound params, then the file's seed. */
 async function applySchema(r: Run, target: Target): Promise<void> {
   const { sqlStatements } = (await import(pathToFileURL(STATEMENTS_TS).href)) as { sqlStatements: (sql: string) => string[] };
   const params: Record<string, string> = {
@@ -358,8 +358,31 @@ async function applySchema(r: Run, target: Target): Promise<void> {
         die(`schema ${f} statement ${i} failed; see ${out}; run 'verify-collector cleanup'`);
       }
     }
-    teeAppend(out, `applied ${f} (${statements.length} statements)`);
+    const seedFile = path.join(SCHEMA_DIR, f.replace(/\.sql$/, ".seed.ts"));
+    const seeded = existsSync(seedFile);
+    if (seeded) {
+      const sql = async (query: string, bound: Record<string, unknown> = {}): Promise<string> => {
+        const res = await chPost(r, query, Object.fromEntries(Object.entries(bound).map(([name, value]) => [name, String(value)])));
+        if (!res.ok) {
+          teeAppend(out, `FAILED ${f} seed: HTTP ${res.status} ${res.text.trim()}`);
+          die(`schema ${f} seed failed; see ${out}; run 'verify-collector cleanup'`);
+        }
+        return res.text;
+      };
+      const { default: seed } = (await import(pathToFileURL(seedFile).href)) as { default: (context: SeedContext) => Promise<void> };
+      await seed({
+        query: async (query, bound) => (await sql(query, bound)).split("\n").filter(Boolean).map((row) => JSON.parse(row)),
+        command: async (query, bound) => void (await sql(query, bound)),
+      });
+    }
+    teeAppend(out, `applied ${f} (${statements.length} statements${seeded ? ", seed" : ""})`);
   }
+}
+
+/** What the helper passes to a seed, the shape of the application's ClickHouseSeedContext. */
+interface SeedContext {
+  query(sql: string, params?: Record<string, unknown>): Promise<unknown[]>;
+  command(sql: string, params?: Record<string, unknown>): Promise<void>;
 }
 
 async function waitFor(what: string, seconds: number, ok: () => Promise<boolean>, alive?: () => boolean, log?: string): Promise<void> {
