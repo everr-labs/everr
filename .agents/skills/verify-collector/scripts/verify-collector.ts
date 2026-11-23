@@ -253,7 +253,7 @@ function keysFor(id: string): Record<string, Key> {
 }
 
 type VerifyResult = { status: number; body?: Record<string, unknown>; name: string };
-type OriginPolicy = (metadata: unknown, origin: string | null) => boolean;
+type OriginPolicy = (key: { metadata: unknown }, origin: string | null) => boolean;
 
 /** Mirrors packages/app/src/routes/api/internal/verify-key.ts. The origin decision is the application's own originPolicyAllows. */
 function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: string, sent: string | undefined, raw: string, originAllowed: OriginPolicy): VerifyResult {
@@ -271,7 +271,7 @@ function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: stri
   const [name, k] = found;
   if (!k.scopes.includes("ingest")) return { status: 403, name };
   const metadata = k.allowedOrigins ? { public: true, allowedOrigins: k.allowedOrigins } : undefined;
-  if (!originAllowed(metadata, typeof b.origin === "string" ? b.origin : null)) return { status: 403, name };
+  if (!originAllowed({ metadata }, typeof b.origin === "string" ? b.origin : null)) return { status: 403, name };
   return {
     status: 200,
     name,
