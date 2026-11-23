@@ -1,6 +1,6 @@
 ---
 name: verify-cli
-description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, the collector packages it builds in (`collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`), `packages/local-app`, `packages/telemetry-explorer` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
+description: Drive the `everr` CLI and its local stack (embedded collector, chDB, local browser UI) the way a user does, in an isolated throwaway instance, and capture proof. Use when a change touches `packages/cli`, the collector packages it builds in (`collector/localcollector`, `collector/internal/localgateway`, `collector/exporter/chdbexporter`), `packages/local-app` or `packages/telemetry-explorer`, or when you must prove `everr local start/status/stop/query`, `everr wrap`, `everr skills`, or the local Logs UI actually work.
 user-invocable: true
 metadata:
   internal: true
