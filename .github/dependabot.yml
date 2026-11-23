@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Workflows pin actions to commit SHAs. Waiting a week before proposing a
+    # new release leaves time for a compromised one to be caught and pulled.
+    cooldown:
+      default-days: 7
+    ignore:
+      # changesets/action v2 requires @changesets/cli v3. Bump both together.
+      - dependency-name: changesets/action
+        update-types: ["version-update:semver-major"]
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"

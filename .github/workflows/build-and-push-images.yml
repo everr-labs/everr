@@ -31,7 +31,7 @@ jobs:
     if: inputs.app
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
@@ -40,7 +40,7 @@ jobs:
 
       - name: Load Scaleway registry credentials
         id: scw-creds
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
         with:
           export-env: false
         env:
@@ -48,19 +48,19 @@ jobs:
           SCW_SECRET_KEY: op://Everr/Infra/secret_key
 
       - name: Login to Scaleway Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.SCW_REGISTRY_HOST }}
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@v2
+        uses: useblacksmith/setup-docker-builder@9657a6e02ca6445e6d6ce5ffaf370f4828dea50d # v2.4.0
         with:
           cache-key: build-and-push-images/app
 
       - name: Build and push Everr Cloud image
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
         with:
           context: .
           file: packages/cloud/Dockerfile
@@ -78,7 +78,7 @@ jobs:
     if: inputs.collector
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
@@ -87,7 +87,7 @@ jobs:
 
       - name: Load Scaleway registry credentials
         id: scw-creds
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
         with:
           export-env: false
         env:
@@ -95,19 +95,19 @@ jobs:
           SCW_SECRET_KEY: op://Everr/Infra/secret_key
 
       - name: Login to Scaleway Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.SCW_REGISTRY_HOST }}
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@v2
+        uses: useblacksmith/setup-docker-builder@9657a6e02ca6445e6d6ce5ffaf370f4828dea50d # v2.4.0
         with:
           cache-key: build-and-push-images/collector
 
       - name: Build and push collector image
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
         with:
           context: ./collector
           file: collector/Dockerfile
@@ -124,7 +124,7 @@ jobs:
     if: inputs.docs
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
@@ -133,7 +133,7 @@ jobs:
 
       - name: Load Scaleway registry credentials
         id: scw-creds
-        uses: 1password/load-secrets-action@v2
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
         with:
           export-env: false
         env:
@@ -141,19 +141,19 @@ jobs:
           SCW_SECRET_KEY: op://Everr/Infra/secret_key
 
       - name: Login to Scaleway Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.SCW_REGISTRY_HOST }}
           username: nologin
           password: ${{ steps.scw-creds.outputs.SCW_SECRET_KEY }}
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@v2
+        uses: useblacksmith/setup-docker-builder@9657a6e02ca6445e6d6ce5ffaf370f4828dea50d # v2.4.0
         with:
           cache-key: build-and-push-images/docs
 
       - name: Build and push docs image
-        uses: useblacksmith/build-push-action@v2
+        uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
         with:
           context: .
           file: packages/docs/Dockerfile
@@ -181,7 +181,7 @@ jobs:
       !contains(needs.*.result, 'cancelled')
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Collect resource usage
         uses: ./.github/actions/everr-action
@@ -190,7 +190,7 @@ jobs:
 
       - name: Generate GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           app-id: ${{ secrets.EVERR_DEPLOY_BOT_APP_ID }}
           private-key: ${{ secrets.EVERR_DEPLOY_BOT_PRIVATE_KEY }}
@@ -198,7 +198,7 @@ jobs:
           repositories: everr-deploy
 
       - name: Dispatch image update event
-        uses: peter-evans/repository-dispatch@v4
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ steps.app-token.outputs.token }}
           repository: everr-labs/everr-deploy
