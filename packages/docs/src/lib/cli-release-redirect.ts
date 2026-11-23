@@ -13,8 +13,9 @@ const allowedCliReleasePaths = new Set([
 ]);
 
 // Each release is also published under its version, so Homebrew formulas can
-// pin a URL whose checksum never changes.
-const versionedPathPrefix = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?\//;
+// pin a URL whose checksum never changes. Matches the versions the
+// everr-deploy CLI release workflow accepts.
+const versionedPathPrefix = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\//;
 
 function isCliReleasePath(artifactPath: string) {
   const versioned = versionedPathPrefix.exec(artifactPath);
