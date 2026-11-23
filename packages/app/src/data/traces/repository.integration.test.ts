@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AttributeOp } from "@everr/telemetry-explorer/filters";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
 import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
@@ -47,12 +48,19 @@ afterAll(() => {
   if (dataDir) rmSync(dataDir, { recursive: true, force: true });
 });
 
+// A query parameter as ClickHouse reads it from text: arrays as ['a','b'].
+function paramText(value: unknown): string {
+  if (!Array.isArray(value)) return String(value);
+  const quote = (item: unknown) => `'${String(item).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+  return `[${value.map(quote).join(",")}]`;
+}
+
 function repo(tableName = "traces") {
   return new TracesRepository(
     {
       async execute<T>(sql: string, params: Record<string, unknown> = {}) {
         for (const [key, value] of Object.entries(params)) {
-          const text = String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          const text = paramText(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
           run(`SET param_${key} = '${text}'`);
         }
         const rows = run(sql);
@@ -114,5 +122,63 @@ describe("trace ID lookup against ClickHouse", () => {
       traceId: "local",
     });
     expect(spans.map((span) => span.spanId)).toEqual(["local-span"]);
+  });
+});
+
+describe("attribute operators against ClickHouse", () => {
+  function span(traceId: string, attributes: Record<string, string | number>) {
+    run(
+      `INSERT INTO traces FORMAT JSONEachRow\n${JSON.stringify({
+        TraceId: traceId,
+        SpanId: `${traceId}-span`,
+        Timestamp: "2026-02-01 12:00:00",
+        SpanName: "GET",
+        ServiceName: "shop",
+        Duration: 1000000,
+        SpanAttributes: attributes,
+        // The collector fills the keys array on insert; the filters test it.
+        SpanAttributesKeys: Object.keys(attributes),
+        ResourceAttributes: { "service.name": "shop" },
+      })}`,
+    );
+  }
+
+  beforeAll(() => {
+    span("checkout-failed", { "url.path": "/checkout/pay", "http.response.status_code": 503 });
+    span("home-ok", { "url.path": "/home", "http.response.status_code": 200 });
+  });
+
+  async function tracesWhere(op: AttributeOp, key: string, value: string) {
+    const traces = await repo().search({
+      fromTs: "2026-02-01 00:00:00",
+      toTs: "2026-02-02 00:00:00",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      attributes: [{ source: "span", key, op, values: [value] }],
+      limit: 50,
+    });
+    return traces.map((trace) => trace.traceId).sort();
+  }
+
+  it("compares numbers", async () => {
+    expect(await tracesWhere("gt", "http.response.status_code", "499")).toEqual([
+      "checkout-failed",
+    ]);
+    expect(await tracesWhere("lte", "http.response.status_code", "200")).toEqual(["home-ok"]);
+  });
+
+  it("matches text by substring, its absence and a regular expression", async () => {
+    expect(await tracesWhere("contains", "url.path", "CHECKOUT")).toEqual(["checkout-failed"]);
+    expect(await tracesWhere("not_contains", "url.path", "checkout")).toEqual(["home-ok"]);
+    expect(await tracesWhere("matches", "url.path", "^/h")).toEqual(["home-ok"]);
+  });
+
+  it("ignores a comparison whose value is not a number", async () => {
+    expect(await tracesWhere("gt", "http.response.status_code", "fast")).toEqual([
+      "checkout-failed",
+      "home-ok",
+    ]);
   });
 });
