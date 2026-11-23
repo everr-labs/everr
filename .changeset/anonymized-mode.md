@@ -15,5 +15,6 @@ Migration:
 - `setPersistence("localStorage")` becomes `setAnonymized(false)`, and `setPersistence("memory")` becomes `setAnonymized(true)`.
 - `revoke()` becomes `setAnonymized(true)`, which removes the stored ids and stops sending the user. It no longer needs `clearIdentity()` before it. Call `clearIdentity()` on logout to forget the user.
 - The `Persistence` type is removed.
+- In a custom instrumentation, `ctx.ids().visitorId` is `undefined` while the SDK is anonymized.
 
 The built-in Product analytics dashboard counts a session without a visitor id as one visitor.
