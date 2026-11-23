@@ -1,5 +1,5 @@
 import type { ClipSubject, CoveringClip } from "@everr/telemetry-explorer/recordings";
-import { type Query, queryOptions } from "@tanstack/react-query";
+import { appQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { getClipEvents, getCoveringClips } from "./server";
 import type { ClipEvents } from "./session.ts";
 
@@ -20,31 +20,22 @@ const EMPTY_STALE_MS = 30_000;
 // Keys hold the record's identity only. A time resolved against now in a key
 // refetches on every render.
 export const coveringClipsOptions = (subject: ClipSubject) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["recordings", "covering", subject],
     queryFn: () => getCoveringClips({ data: subject }),
     staleTime: (query) => (query.state.data?.length ? Number.POSITIVE_INFINITY : EMPTY_STALE_MS),
   });
 
-const isClipEventsKey = (key: readonly unknown[]) => key[0] === "recordings" && key[1] === "events";
-
 // Events with no gap are the whole Clip. Without events, or with gaps, Segments may still arrive.
 const isSettled = (data: ClipEvents | undefined) =>
   data !== undefined && data.events.length > 0 && data.gaps.length === 0;
 
-/**
- * A refresh asks again only for a Clip's events that came back empty: nothing
- * to download twice, and the Segments may have landed. Whole, partial, loading
- * or failed, megabytes are left be: a reopen or Retry asks again.
- */
-export const refreshSkips = (query: Query) =>
-  isClipEventsKey(query.queryKey) &&
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- the key says this query holds a ClipEvents
-  !(query.state.status === "success" && !(query.state.data as ClipEvents).events.length);
-
+// A refresh leaves the events alone. A settled Clip never changes, and a refetch
+// downloads megabytes again. An empty answer is asked again once stale, or by
+// Retry.
 export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
   // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names
-  queryOptions({
+  appQueryOptions({
     queryKey: ["recordings", "events", clip.clipId],
     queryFn: async (): Promise<ClipEvents> => {
       const response = await getClipEvents({
