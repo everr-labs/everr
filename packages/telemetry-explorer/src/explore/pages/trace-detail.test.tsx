@@ -1,5 +1,5 @@
-import type * as TracesTypes from "@everr/telemetry-explorer/traces";
-import type { TraceExplorerProps } from "@everr/telemetry-explorer/traces";
+import type * as TracesTypes from "../../traces";
+import type { TraceExplorerProps } from "../../traces";
 import { QueryClient } from "@tanstack/react-query";
 import {
   createMemoryHistory,
@@ -15,7 +15,7 @@ import { fakeExploreBackend } from "../../testing/backend";
 import type { ShellRouterContext } from "../backend";
 import { TraceDetailRoute } from "./traces";
 
-vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => ({
+vi.mock("../../traces", async (importOriginal) => ({
   ...(await importOriginal<typeof TracesTypes>()),
   TraceExplorer: ({ search, onSpanChange }: TraceExplorerProps) => {
     const viewport = useRef<HTMLDivElement>(null);

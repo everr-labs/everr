@@ -1,6 +1,6 @@
 import "../static-data";
 import { parse, resolve } from "@everr/datemath";
-import { ExploreSearchShape } from "@everr/telemetry-explorer/filters";
+import { ExploreSearchShape } from "../filters";
 import { ResolvedTimeRangeSearchSchema, TimeRangeSearchSchema } from "@everr/ui/lib/time-range";
 import { redirect } from "@tanstack/react-router";
 import { retain, stripDefaults } from "./search-middleware";

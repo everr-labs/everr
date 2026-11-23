@@ -1,4 +1,4 @@
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import type { ReactNode } from "react";
 import type { TimeRangeInput } from "#app/data/analytics/schemas.ts";
 import { DataPanel } from "./data-panel";

@@ -9,7 +9,7 @@
  * rather than a second copy on the second screen. The two had already begun to
  * drift on which reason the breakpoint exists for.
  */
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useRetained } from "@everr/ui/hooks/use-retained";
 import { useIsNarrow } from "@everr/ui/hooks/use-mobile";

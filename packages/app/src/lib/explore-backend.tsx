@@ -1,4 +1,4 @@
-import type { ExploreBackend } from "@everr/app-shell/explore/routes";
+import type { ExploreBackend } from "@everr/telemetry-explorer/explore/routes";
 import { Button } from "@everr/ui/components/button";
 import { keepPreviousData, type QueryClient, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -34,7 +34,7 @@ function useCiRunSpans(traceId: string, enabled: boolean) {
 }
 
 /**
- * What the Explore pages of `@everr/app-shell` read in this app. It goes into
+ * What the Explore pages of `@everr/telemetry-explorer` read in this app. It goes into
  * the router context, so it is built once per router: per request on the
  * server, with that request's query client.
  */

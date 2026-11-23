@@ -1,7 +1,7 @@
 import "@tanstack/react-router";
 
 // The shell's own keys (`breadcrumb`, `showDataControls`, `hideTimeRangePicker`)
-// are declared by @everr/app-shell.
+// are declared by @everr/telemetry-explorer.
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     authEntry?: "/auth/sign-up";

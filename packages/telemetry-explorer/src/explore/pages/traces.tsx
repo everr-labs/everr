@@ -3,7 +3,7 @@ import {
   TraceExplorer,
   TracesSearch,
   toTraceListSearch,
-} from "@everr/telemetry-explorer/traces";
+} from "../../traces";
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { withTimeRange } from "@everr/ui/lib/time-range";

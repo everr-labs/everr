@@ -1,4 +1,4 @@
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { useQueries } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { useState } from "react";

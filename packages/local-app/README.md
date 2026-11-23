@@ -8,9 +8,9 @@ Use `pnpm dev:local --no-open` to suppress browser launch. Vite proxies `/api` t
 
 To check the embedded UI, run `pnpm dev:cli`, then `./target/go/debug/everr-dev local start`. The embedded UI on port `54321` updates when rebuilt.
 
-The local UI explores metrics, logs, traces, and errors stored by the local collector. It runs the same shell and Explore pages as the web app, from `@everr/app-shell`: the sidebar, header, time range and refresh controls, and every Explore route component. This package keeps only what is local: the router and one thin file per route in `src/routes/`, the local `ExploreBackend` (`src/lib/explore-backend.ts`, repositories over the collector's SQL command, and the gate shown while the collector is not running), the Settings page, the dev-only Developer page, and the sidebar footer that links to them. Settings show collector status and local endpoints and allow collector restarts. Remote account login and agent skill installation are managed through the CLI, independently of the local UI.
+The local UI explores metrics, logs, traces, and errors stored by the local collector. It runs the same shell and Explore pages as the web app, from `@everr/telemetry-explorer`: the sidebar, header, time range and refresh controls, and every Explore route component. This package keeps only what is local: the router and one thin file per route in `src/routes/`, the local `ExploreBackend` (`src/lib/explore-backend.ts`, repositories over the collector's SQL command, and the gate shown while the collector is not running), the Settings page, the dev-only Developer page, and the sidebar footer that links to them. Settings show collector status and local endpoints and allow collector restarts. Remote account login and agent skill installation are managed through the CLI, independently of the local UI.
 
-A page that exists in the web app's Explore section is added to `@everr/app-shell` and then mounted by a route file here and in `packages/app`. Both apps fail their type-check while an Explore route is missing.
+A page that exists in the web app's Explore section is added to `@everr/telemetry-explorer` and then mounted by a route file here and in `packages/app`. Both apps fail their type-check while an Explore route is missing.
 
 ## Telemetry
 

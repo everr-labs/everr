@@ -2,15 +2,11 @@
 // and names its component from `./pages` itself, which is the shape the router
 // plugin splits into a lazy chunk.
 import "../static-data";
-import { ErrorIssueSearchSchema } from "@everr/telemetry-explorer/errors";
-import { ExploreSearchSchema, ExploreSearchShape } from "@everr/telemetry-explorer/filters";
-import { LogsSearchSchema } from "@everr/telemetry-explorer/logs";
-import { MetricsSearchSchema } from "@everr/telemetry-explorer/metrics";
-import {
-  getTraceOptions,
-  TraceDetailParamsSchema,
-  TraceSearchParamsSchema,
-} from "@everr/telemetry-explorer/traces";
+import { ErrorIssueSearchSchema } from "../errors";
+import { ExploreSearchSchema, ExploreSearchShape } from "../filters";
+import { LogsSearchSchema } from "../logs";
+import { MetricsSearchSchema } from "../metrics";
+import { getTraceOptions, TraceDetailParamsSchema, TraceSearchParamsSchema } from "../traces";
 import type { AnyRouter } from "@tanstack/react-router";
 import { Bug, ChartSpline, ScrollText, Waypoints } from "lucide-react";
 import type { NavGroup } from "../shell/nav";

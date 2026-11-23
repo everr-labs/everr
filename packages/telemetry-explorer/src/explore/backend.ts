@@ -1,7 +1,7 @@
-import type { ErrorsRepositoryLike, RelatedSpan } from "@everr/telemetry-explorer/errors";
-import type { LogsExplorerProps, LogsRepositoryLike } from "@everr/telemetry-explorer/logs";
-import type { MetricsRepositoryLike } from "@everr/telemetry-explorer/metrics";
-import type { TracesRepositoryLike } from "@everr/telemetry-explorer/traces";
+import type { ErrorsRepositoryLike, RelatedSpan } from "../errors";
+import type { LogsExplorerProps, LogsRepositoryLike } from "../logs";
+import type { MetricsRepositoryLike } from "../metrics";
+import type { TracesRepositoryLike } from "../traces";
 import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { ComponentType, ReactNode } from "react";

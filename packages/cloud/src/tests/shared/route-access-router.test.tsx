@@ -1,7 +1,7 @@
 import { getActiveOrgPolicy } from "@everr/app/data/product";
 import { resetRouteAccess } from "@everr/app/lib/route-access-cache";
 import { productRouteFiles, sharedRouteModules } from "@everr/app/testing/routes";
-import { fakeExploreBackend } from "@everr/app-shell/testing";
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,

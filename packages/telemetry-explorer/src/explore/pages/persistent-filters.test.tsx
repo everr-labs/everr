@@ -1,6 +1,6 @@
-import type * as FiltersTypes from "@everr/telemetry-explorer/filters";
-import type * as LogsTypes from "@everr/telemetry-explorer/logs";
-import type { LogsExplorerProps } from "@everr/telemetry-explorer/logs";
+import type * as FiltersTypes from "../../filters";
+import type * as LogsTypes from "../../logs";
+import type { LogsExplorerProps } from "../../logs";
 /**
  * Regression test for: selecting a Service/Environment filter redirects to "/".
  *
@@ -17,7 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vite-plus/test";
 import { renderExplore } from "../../testing/explore";
 
-vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
+vi.mock("../../filters", async (importOriginal) => ({
   ...(await importOriginal<typeof FiltersTypes>()),
   ExploreGlobalFilters: ({ onServiceChange }: { onServiceChange: (v: string[]) => void }) => (
     <button type="button" onClick={() => onServiceChange(["api"])}>
@@ -26,7 +26,7 @@ vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
   ),
 }));
 
-vi.mock("@everr/telemetry-explorer/logs", async (importOriginal) => ({
+vi.mock("../../logs", async (importOriginal) => ({
   ...(await importOriginal<typeof LogsTypes>()),
   LogsExplorer: ({ persistentFilters }: LogsExplorerProps) => <div>{persistentFilters}</div>,
 }));

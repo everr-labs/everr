@@ -1,4 +1,4 @@
-import type { ExploreBackend } from "@everr/app-shell/explore/routes";
+import type { ExploreBackend } from "@everr/telemetry-explorer/explore/routes";
 import { ErrorsRepository } from "@everr/telemetry-explorer/errors";
 import { LogsRepository } from "@everr/telemetry-explorer/logs";
 import { MetricsRepository } from "@everr/telemetry-explorer/metrics";

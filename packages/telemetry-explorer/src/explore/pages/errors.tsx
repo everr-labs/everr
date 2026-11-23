@@ -7,7 +7,7 @@ import {
   type ErrorOccurrence,
   ErrorTracePanel,
   getErrorOccurrenceKey,
-} from "@everr/telemetry-explorer/errors";
+} from "../../errors";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";

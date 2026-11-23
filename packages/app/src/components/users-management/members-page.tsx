@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/app-shell/page";
+import { PageHeader } from "@everr/telemetry-explorer/page";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { type QueryClient, useQuery } from "@tanstack/react-query";

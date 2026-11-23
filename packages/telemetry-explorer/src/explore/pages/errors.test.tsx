@@ -1,11 +1,11 @@
-import type * as TelemetryErrors from "@everr/telemetry-explorer/errors";
-import type { ErrorDetailProps, ErrorIssuesProps } from "@everr/telemetry-explorer/errors";
+import type * as TelemetryErrors from "../../errors";
+import type { ErrorDetailProps, ErrorIssuesProps } from "../../errors";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { renderExplore } from "../../testing/explore";
 
-vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => {
+vi.mock("../../errors", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryErrors>();
   return {
     ...actual,

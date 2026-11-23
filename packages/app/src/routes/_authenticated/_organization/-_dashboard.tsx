@@ -1,4 +1,4 @@
-import { ShellSearchSchema, shellRouteOptions } from "@everr/app-shell/shell";
+import { ShellSearchSchema, shellRouteOptions } from "@everr/telemetry-explorer/shell";
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { DashboardLayout } from "#app/components/dashboard-layout.tsx";

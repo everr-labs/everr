@@ -1,5 +1,8 @@
-import { type AssertExploreMounted, errorDetailMask } from "@everr/app-shell/explore/routes";
-import { RoutePending } from "@everr/app-shell/shell";
+import {
+  type AssertExploreMounted,
+  errorDetailMask,
+} from "@everr/telemetry-explorer/explore/routes";
+import { RoutePending } from "@everr/telemetry-explorer/shell";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { localExploreBackend } from "./lib/explore-backend";
 import { createQueryClient } from "./lib/query-client";

@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/app-shell/page";
+import { PageHeader } from "@everr/telemetry-explorer/page";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";

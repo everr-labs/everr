@@ -1,8 +1,4 @@
-import {
-  CLEAR_METRIC,
-  MetricsExplorer,
-  MetricsSearchSchema,
-} from "@everr/telemetry-explorer/metrics";
+import { CLEAR_METRIC, MetricsExplorer, MetricsSearchSchema } from "../../metrics";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link } from "@tanstack/react-router";
 import { useRouteSearch, useSearchPatch } from "../../shell/search-io";

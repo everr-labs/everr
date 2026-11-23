@@ -1,4 +1,4 @@
-import { AppShell } from "@everr/app-shell/shell";
+import { AppShell } from "@everr/telemetry-explorer/shell";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,

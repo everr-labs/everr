@@ -1,4 +1,4 @@
-import type { ShellRouterContext } from "@everr/app-shell/explore/routes";
+import type { ShellRouterContext } from "@everr/telemetry-explorer/explore/routes";
 import favicon from "@everr/ui/assets/favicon.svg?url";
 import { TooltipProvider } from "@everr/ui/components/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";

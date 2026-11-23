@@ -1,15 +1,15 @@
-import type * as ErrorsTypes from "@everr/telemetry-explorer/errors";
-import type { ErrorIssuesProps } from "@everr/telemetry-explorer/errors";
-import type * as FiltersTypes from "@everr/telemetry-explorer/filters";
-import type * as LogsTypes from "@everr/telemetry-explorer/logs";
-import type { LogsExplorerProps } from "@everr/telemetry-explorer/logs";
+import type * as ErrorsTypes from "../errors";
+import type { ErrorIssuesProps } from "../errors";
+import type * as FiltersTypes from "../filters";
+import type * as LogsTypes from "../logs";
+import type { LogsExplorerProps } from "../logs";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { renderExplore } from "../testing/explore";
 import { errorsRoute, exploreLayoutRoute, logsRoute, metricsRoute, tracesRoute } from "./routes";
 
-vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
+vi.mock("../filters", async (importOriginal) => ({
   ...(await importOriginal<typeof FiltersTypes>()),
   ExploreGlobalFilters: ({
     service,
@@ -27,7 +27,7 @@ vi.mock("@everr/telemetry-explorer/filters", async (importOriginal) => ({
   ),
 }));
 
-vi.mock("@everr/telemetry-explorer/logs", async (importOriginal) => ({
+vi.mock("../logs", async (importOriginal) => ({
   ...(await importOriginal<typeof LogsTypes>()),
   LogsExplorer: ({ persistentFilters }: LogsExplorerProps) => (
     <div>
@@ -37,7 +37,7 @@ vi.mock("@everr/telemetry-explorer/logs", async (importOriginal) => ({
   ),
 }));
 
-vi.mock("@everr/telemetry-explorer/errors", async (importOriginal) => ({
+vi.mock("../errors", async (importOriginal) => ({
   ...(await importOriginal<typeof ErrorsTypes>()),
   ErrorIssues: ({ persistentFilters }: ErrorIssuesProps) => (
     <div>

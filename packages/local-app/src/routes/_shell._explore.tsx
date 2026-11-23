@@ -1,5 +1,5 @@
-import { ExploreLayout } from "@everr/app-shell/explore/pages";
-import { exploreLayoutRoute } from "@everr/app-shell/explore/routes";
+import { ExploreLayout } from "@everr/telemetry-explorer/explore/pages";
+import { exploreLayoutRoute } from "@everr/telemetry-explorer/explore/routes";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_shell/_explore")({

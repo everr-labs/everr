@@ -1,5 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
-import { findNavSection } from "@everr/app-shell/shell";
+import { findNavSection } from "@everr/telemetry-explorer/shell";
 import { CopyStateContent } from "@everr/ui/components/copy-state-icon";
 import { Button } from "@everr/ui/components/button";
 import {

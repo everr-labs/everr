@@ -9,6 +9,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "noEmit": true,
+    // The apps compile this source with these flags, so the package does too.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": false,
     "resolveJsonModule": true,
     "ignoreDeprecations": "6.0",

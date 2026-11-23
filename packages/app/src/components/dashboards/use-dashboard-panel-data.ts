@@ -1,5 +1,5 @@
 /* oxlint-disable query/no-unstable-deps -- Preserve the existing per-render panel result identity during the linter migration. */
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { toViewerTimeRange } from "@everr/ui/lib/time-range";
 import { keepPreviousData, useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";

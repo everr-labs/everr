@@ -1,4 +1,4 @@
-import { useOnNavigate } from "@everr/app-shell/shell";
+import { useOnNavigate } from "@everr/telemetry-explorer/shell";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { SideDrawer } from "@everr/ui/components/side-drawer";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";

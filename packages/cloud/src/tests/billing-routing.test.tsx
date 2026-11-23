@@ -112,5 +112,5 @@ test.each(["hobby", "pro"])("%s organizations leave recovery", async (appState) 
   expect(screen.queryByText("Pro subscription suspended")).not.toBeInTheDocument();
 });
 
-import { fakeExploreBackend } from "@everr/app-shell/testing";
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient } from "@tanstack/react-query";

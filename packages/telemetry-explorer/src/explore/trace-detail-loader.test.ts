@@ -1,4 +1,6 @@
-import { getTraceOptions } from "@everr/telemetry-explorer/traces";
+// @vitest-environment jsdom
+// The router runs its loaders as a browser does only when there is a document.
+import { getTraceOptions } from "../traces";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { createContractRouter } from "../contract/router";

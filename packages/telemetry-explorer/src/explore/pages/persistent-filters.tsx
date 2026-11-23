@@ -1,4 +1,4 @@
-import { ExploreGlobalFilters } from "@everr/telemetry-explorer/filters";
+import { ExploreGlobalFilters } from "../../filters";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { ShellSearchSchema } from "../../shell/route";
 import { useRouteSearch, useSearchPatch } from "../../shell/search-io";

@@ -1,11 +1,11 @@
-import type * as LogsTypes from "@everr/telemetry-explorer/logs";
-import type { LogsExplorerProps } from "@everr/telemetry-explorer/logs";
+import type * as LogsTypes from "../../logs";
+import type { LogsExplorerProps } from "../../logs";
 import { screen } from "@testing-library/react";
 import { expect, it, vi } from "vite-plus/test";
 import { fakeExploreBackend } from "../../testing/backend";
 import { renderExplore } from "../../testing/explore";
 
-vi.mock("@everr/telemetry-explorer/logs", async (importOriginal) => ({
+vi.mock("../../logs", async (importOriginal) => ({
   ...(await importOriginal<typeof LogsTypes>()),
   LogsExplorer: ({ renderRunLink }: LogsExplorerProps) => (
     <div>

@@ -1,5 +1,5 @@
-import { ErrorPageRoute } from "@everr/app-shell/explore/pages";
-import { errorDetailRoute } from "@everr/app-shell/explore/routes";
+import { ErrorPageRoute } from "@everr/telemetry-explorer/explore/pages";
+import { errorDetailRoute } from "@everr/telemetry-explorer/explore/routes";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(

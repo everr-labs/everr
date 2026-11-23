@@ -1,4 +1,4 @@
-import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/app-shell/shell";
+import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/telemetry-explorer/shell";
 import type { QueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { dashboardTimeDefaults } from "#app/data/dashboards/time-defaults.ts";

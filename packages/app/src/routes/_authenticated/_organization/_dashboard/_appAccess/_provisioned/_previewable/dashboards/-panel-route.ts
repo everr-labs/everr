@@ -1,4 +1,4 @@
-import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/app-shell/shell";
+import type { BreadcrumbContext, BreadcrumbSegment } from "@everr/telemetry-explorer/shell";
 import { notFound } from "@tanstack/react-router";
 import { getBuiltinDashboard } from "#app/data/dashboards/built-in/catalog/index.ts";
 import { cachedDashboard } from "#app/data/dashboards/options.ts";

@@ -163,7 +163,7 @@
     },
     {
       // TanStack generated route types of the shell's contract route tree.
-      "file": "packages/app-shell/src/contract/routeTree.gen.ts",
+      "file": "packages/telemetry-explorer/src/contract/routeTree.gen.ts",
       "exports": ["RootRouteChildren"],
     },
     {

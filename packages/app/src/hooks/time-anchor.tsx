@@ -1,4 +1,4 @@
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
 import { useMatches } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext, useMemo } from "react";

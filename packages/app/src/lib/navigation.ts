@@ -1,5 +1,5 @@
-import { exploreNavGroup } from "@everr/app-shell/explore/routes";
-import type { NavGroup as ShellNavGroup } from "@everr/app-shell/shell";
+import { exploreNavGroup } from "@everr/telemetry-explorer/explore/routes";
+import type { NavGroup as ShellNavGroup } from "@everr/telemetry-explorer/shell";
 import {
   Activity,
   BellOff,

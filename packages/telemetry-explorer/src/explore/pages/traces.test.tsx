@@ -1,5 +1,5 @@
-import type * as TelemetryTraces from "@everr/telemetry-explorer/traces";
-import type { TraceExplorerProps } from "@everr/telemetry-explorer/traces";
+import type * as TelemetryTraces from "../../traces";
+import type { TraceExplorerProps } from "../../traces";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { fakeExploreBackend } from "../../testing/backend";
 import { renderExplore } from "../../testing/explore";
 
-vi.mock("@everr/telemetry-explorer/traces", async (importOriginal) => {
+vi.mock("../../traces", async (importOriginal) => {
   const actual = await importOriginal<typeof TelemetryTraces>();
   return {
     ...actual,

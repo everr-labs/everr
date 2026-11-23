@@ -17,7 +17,7 @@ vi.mock("@everr/app/data/organization-access", () => ({
   }),
 }));
 
-import { fakeExploreBackend } from "@everr/app-shell/testing";
+import { fakeExploreBackend } from "@everr/telemetry-explorer/testing";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import {
   createFileRoute,

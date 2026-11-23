@@ -1,4 +1,4 @@
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { staleClass } from "@everr/ui/lib/stale";

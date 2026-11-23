@@ -2,7 +2,7 @@ import {
   type AssertExploreMounted,
   errorDetailMask,
   type ShellRouterContext,
-} from "@everr/app-shell/explore/routes";
+} from "@everr/telemetry-explorer/explore/routes";
 import { routeTree } from "@composition/routes";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { createExploreBackend } from "#app/lib/explore-backend.tsx";

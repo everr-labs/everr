@@ -377,8 +377,9 @@ export default {
       },
     },
     {
-      // The frame and the Explore pages are `@everr/app-shell`'s, so the web app
-      // and the local app cannot drift. An app mounts them from a route file.
+      // The frame (`/shell`) and the Explore pages (`/explore/pages`) of
+      // `@everr/telemetry-explorer` are the only place these render, so the web
+      // app and the local app cannot drift. An app mounts them from a route file.
       files: ["packages/{app,cloud,local-app}/**/*.{ts,tsx}"],
       excludeFiles: ["**/*.test.{ts,tsx}"],
       rules: {
@@ -401,7 +402,8 @@ export default {
             ].map(([name, importNames]) => ({
               name,
               importNames,
-              message: "Render this through @everr/app-shell, so every app shows the same one.",
+              message:
+                "Render this through the shell and the Explore pages of @everr/telemetry-explorer, so every app shows the same one.",
             })),
           },
         ],

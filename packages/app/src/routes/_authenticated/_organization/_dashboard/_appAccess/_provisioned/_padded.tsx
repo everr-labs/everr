@@ -1,4 +1,4 @@
-import { ScrollingPageContainer } from "@everr/app-shell/page";
+import { ScrollingPageContainer } from "@everr/telemetry-explorer/page";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute(

@@ -12,7 +12,6 @@
     "test": "vp test run"
   },
   "dependencies": {
-    "@everr/app-shell": "workspace:*",
     "@everr/otel-web": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",

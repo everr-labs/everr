@@ -1,4 +1,4 @@
-import { useTimeRange } from "@everr/app-shell/shell";
+import { useTimeRange } from "@everr/telemetry-explorer/shell";
 import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";

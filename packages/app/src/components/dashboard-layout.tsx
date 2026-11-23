@@ -1,7 +1,7 @@
 /* oxlint-disable typescript/no-base-to-string -- Preserve how existing URL search values are displayed, including JavaScript coercion. */
 /* oxlint-disable typescript/restrict-template-expressions -- Preserve how existing URL search values are displayed, including JavaScript coercion. */
 import { layouts } from "@composition/layouts";
-import { AppShell } from "@everr/app-shell/shell";
+import { AppShell } from "@everr/telemetry-explorer/shell";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useMatches, useRouteContext, useSearch } from "@tanstack/react-router";
 import { homeView } from "#app/common/onboarding.ts";

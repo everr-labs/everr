@@ -48,5 +48,5 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | Changed path | Run |
 | --- | --- |
 | `packages/cli/**`, `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | `local-lifecycle.md`, `wrap.md`, `local-query.md` |
-| `packages/local-app/**`, `packages/app-shell/**`, `packages/telemetry-explorer/**`, `packages/ui/**` | `local-ui-logs.md` (+ `local-query.md`) |
+| `packages/local-app/**`, `packages/telemetry-explorer/**`, `packages/ui/**` | `local-ui-logs.md` (+ `local-query.md`) |
 | `skills/**`, skills commands | `skills.md` |

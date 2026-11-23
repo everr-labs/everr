@@ -1,4 +1,4 @@
-import { ShellNavLink } from "@everr/app-shell/shell";
+import { ShellNavLink } from "@everr/telemetry-explorer/shell";
 import { SidebarMenu } from "@everr/ui/components/sidebar";
 import { Code, Settings } from "lucide-react";
 

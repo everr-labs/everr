@@ -1,8 +1,4 @@
-import {
-  LogsExplorer,
-  type LogsExplorerSearch,
-  LogsSearchSchema,
-} from "@everr/telemetry-explorer/logs";
+import { LogsExplorer, type LogsExplorerSearch, LogsSearchSchema } from "../../logs";
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { useRouteSearch, useSearchPatch } from "../../shell/search-io";
 import { useExploreBackend } from "../backend";

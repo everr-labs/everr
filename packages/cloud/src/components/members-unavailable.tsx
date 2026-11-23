@@ -1,4 +1,4 @@
-import { PageHeader } from "@everr/app-shell/page";
+import { PageHeader } from "@everr/telemetry-explorer/page";
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@everr/ui/components/card";
 import { Link } from "@tanstack/react-router";

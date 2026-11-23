@@ -1,5 +1,5 @@
-import { exploreNavGroup } from "@everr/app-shell/explore/routes";
-import { AppShell, shellRouteOptions } from "@everr/app-shell/shell";
+import { exploreNavGroup } from "@everr/telemetry-explorer/explore/routes";
+import { AppShell, shellRouteOptions } from "@everr/telemetry-explorer/shell";
 import type { QueryFilters } from "@tanstack/react-query";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { LocalSidebarFooter } from "../features/app-shell/sidebar-footer";
