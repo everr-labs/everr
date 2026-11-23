@@ -1,6 +1,3 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   chartClock,
   type MetricExemplarsInput,
@@ -8,14 +5,14 @@ import {
   type MetricSeriesInput,
   MetricsRepository,
 } from "@everr/telemetry-explorer/metrics";
-import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-let session: Session;
-let dataDir: string;
+import { type MigratedChdbStore, openMigratedChdbStore } from "#app/testing/chdb-migrated-store.ts";
+
+let store: MigratedChdbStore;
 
 function run(sql: string) {
-  return String(session.query(sql, "JSONEachRow") ?? "").trim();
+  return store.run(sql);
 }
 
 const quote = (value: unknown) => `'${String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
@@ -56,26 +53,7 @@ const repo = new ChartedRepository({
 });
 
 beforeAll(() => {
-  dataDir = mkdtempSync(join(tmpdir(), "everr-metrics-"));
-  session = new Session(dataDir);
-  for (const [file, table] of [
-    ["metrics_gauge_table.sql", "metrics_gauge"],
-    ["metrics_sum_table.sql", "metrics_sum"],
-    ["metrics_histogram_table.sql", "metrics_histogram"],
-    ["metrics_exp_histogram_table.sql", "metrics_exponential_histogram"],
-    ["metrics_summary_table.sql", "metrics_summary"],
-  ]) {
-    const values = ["default", table, "", "MergeTree()", ""];
-    run(
-      readFileSync(
-        new URL(
-          `../../../../../collector/exporter/chdbexporter/internal/sqltemplates/${file}`,
-          import.meta.url,
-        ),
-        "utf8",
-      ).replace(/%[qs]/g, () => values.shift() ?? ""),
-    );
-  }
+  store = openMigratedChdbStore("everr-metrics-");
 
   const point = (fields: Record<string, unknown>) => ({
     ServiceName: "api",
@@ -767,8 +745,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  session?.cleanup();
-  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  store?.close();
 });
 
 const timeRange = { from: "2026-01-01T12:00:00Z", to: "2026-01-01T12:05:00Z" };
