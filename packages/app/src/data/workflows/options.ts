@@ -1,5 +1,5 @@
+import { dataQueryOptions } from "@everr/ui/lib/query-options";
 import { withViewerTimeRange } from "@everr/ui/lib/time-range";
-import { queryOptions } from "@tanstack/react-query";
 import type { WorkflowDetailInput } from "./schemas";
 import {
   getWorkflowCostByJob,
@@ -9,25 +9,25 @@ import {
 } from "./server";
 
 export const workflowCostSummaryOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["workflows", "costSummary", input],
     queryFn: () => getWorkflowCostSummary({ data: withViewerTimeRange(input) }),
   });
 
 export const workflowCostByJobOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["workflows", "costByJob", input],
     queryFn: () => getWorkflowCostByJob({ data: withViewerTimeRange(input) }),
   });
 
 export const workflowRunTimelinesOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["workflows", "runTimelines", input],
     queryFn: () => getWorkflowRunTimelines({ data: withViewerTimeRange(input) }),
   });
 
 export const workflowRecentRunsOptions = (input: WorkflowDetailInput) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["workflows", "recentRuns", input],
     queryFn: () => getWorkflowRecentRuns({ data: withViewerTimeRange(input) }),
   });

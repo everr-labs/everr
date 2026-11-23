@@ -1,6 +1,7 @@
+import { appQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { REFRESH_KEYED } from "@everr/ui/lib/refresh-epoch";
 import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import type { PanelQuerySource } from "#app/components/dashboards/query-array.ts";
 import type {
   QueryResultRow,
@@ -25,17 +26,17 @@ const MAX_CONCURRENT_PANEL_QUERIES = 4;
 const panelLimiter = createLimiter(MAX_CONCURRENT_PANEL_QUERIES);
 
 export const dashboardOptions = (project: string, slug: string, preview?: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...dashboardsQueryKey, project, slug, preview ?? ""],
     queryFn: () => getDashboard({ data: { project, slug, preview } }),
     // The dashboard document is immutable (gitops); never auto-refetch it (e.g.
-    // when a card preview re-enters the viewport). A manual refresh still
-    // invalidates it.
+    // when a card preview re-enters the viewport). Refresh leaves it alone too,
+    // as it reloads only data; a reload picks up an applied change.
     staleTime: Number.POSITIVE_INFINITY,
   });
 
 export const dashboardListOptions = (preview?: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...dashboardsQueryKey, "list", preview ?? ""],
     queryFn: () => listDashboards({ data: { preview } }),
   });
@@ -47,7 +48,7 @@ export const dashboardListOptions = (preview?: string) =>
  * signal table, so it stays fresh for five minutes rather than one.
  */
 export const telemetryCapabilitiesOptions = (from: string, to: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...dashboardsQueryKey, "capabilities", from, to],
     queryFn: () => getTelemetryCapabilities({ data: toViewerTimeRange({ from, to }) }),
     staleTime: 5 * 60_000,
@@ -63,7 +64,7 @@ export const panelQueryOptions = (
   variables?: VariableValues,
   variableMeta?: VariableMeta,
 ) =>
-  queryOptions({
+  dataQueryOptions({
     queryKey: [
       "panel-query",
       source,
@@ -101,7 +102,7 @@ export const panelQueryOptions = (
   });
 
 export const variableOptionsQueryOptions = (query: string, from?: string, to?: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: ["variable-options", query, from, to],
     queryFn: () =>
       runVariableOptionsQuery({

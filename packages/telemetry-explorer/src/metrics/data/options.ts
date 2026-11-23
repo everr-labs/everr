@@ -1,6 +1,7 @@
+import { appQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { REFRESH_KEYED } from "@everr/ui/lib/refresh-epoch";
 import { inViewerTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
-import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import type { MetricsRepositoryLike } from "./repository";
 import type { MetricSeriesResult } from "./types";
 import { MetricKindSchema } from "./schemas";
@@ -18,7 +19,7 @@ import type {
 const NO_SERIES: MetricSeriesResult = { stepSeconds: 60, buckets: [], series: [], totalSeries: 0 };
 
 export function metricCatalogOptions(repo: MetricsRepositoryLike, input: MetricCatalogInput) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["metrics", "catalog", input] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], (timeRange) => repo.catalog({ ...input, timeRange })),
@@ -27,7 +28,7 @@ export function metricCatalogOptions(repo: MetricsRepositoryLike, input: MetricC
 }
 
 export function metricMetadataOptions(repo: MetricsRepositoryLike, input: MetricMetadataInput) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["metrics", "metadata", input] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, null, (timeRange) =>
@@ -37,7 +38,7 @@ export function metricMetadataOptions(repo: MetricsRepositoryLike, input: Metric
 }
 
 export function metricNamesOptions(repo: MetricsRepositoryLike, input: MetricNamesInput) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["metrics", "names", input] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], (timeRange) => repo.names({ ...input, timeRange })),
@@ -91,7 +92,7 @@ export function metricSeriesOptions(
   input: Omit<MetricSeriesInput, "step">,
   clock: ChartClock,
 ) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["metrics", "series", input, clock] as const,
     queryFn: () =>
       onClock(input, clock, NO_SERIES, async (read) => {
@@ -108,7 +109,7 @@ export function metricExemplarsOptions(
   input: Omit<MetricExemplarsInput, "step">,
   clock: ChartClock,
 ) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["metrics", "exemplars", input, clock] as const,
     queryFn: () => onClock(input, clock, [], (read) => repo.exemplars(read)),
     ...REFRESH_KEYED,
@@ -119,7 +120,7 @@ export function metricSummaryQuantilesOptions(
   repo: MetricsRepositoryLike,
   input: MetricSummaryQuantilesInput,
 ) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["metrics", "summary-quantiles", input] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], (timeRange) =>
@@ -132,7 +133,7 @@ export function metricExportIntervalOptions(
   repo: MetricsRepositoryLike,
   input: MetricExportIntervalInput,
 ) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["metrics", "export-interval", input] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, null, (timeRange) =>

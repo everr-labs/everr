@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/consistent-type-assertions -- These erased assertions describe existing trusted data and library contracts; runtime validation would change behavior. */
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { INVITATION_EMAIL_HEADER } from "#app/common/invitation.ts";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -24,7 +25,7 @@ const membersQueryKey = ["org", "members"] as const;
 const invitationsQueryKey = ["org", "invitations"] as const;
 
 export function membersQueryOptions() {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: membersQueryKey,
     queryFn: async () => {
       const res = await authClient.organization.listMembers();
@@ -35,7 +36,7 @@ export function membersQueryOptions() {
 }
 
 export function invitationsQueryOptions() {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: invitationsQueryKey,
     queryFn: async () => {
       const res = await authClient.organization.listInvitations();

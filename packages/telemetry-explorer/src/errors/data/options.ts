@@ -1,5 +1,9 @@
+import {
+  appQueryOptions,
+  dataInfiniteQueryOptions,
+  dataQueryOptions,
+} from "@everr/ui/lib/query-options";
 import { inViewerTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { ErrorsRepositoryLike } from "./repository";
 import type { ErrorIssueDetail, ErrorIssuesResult, ErrorSort } from "./types";
@@ -18,7 +22,7 @@ export function errorIssuesInfiniteOptions(
   repo: ErrorsRepositoryLike,
   input: ErrorIssuesInfiniteInput,
 ) {
-  return infiniteQueryOptions({
+  return dataInfiniteQueryOptions({
     queryKey: [
       "errors",
       "issues",
@@ -67,7 +71,7 @@ export type ErrorIssueOptionsInput = {
 };
 
 export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueOptionsInput) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: [
       "errors",
       "issue",
@@ -98,7 +102,7 @@ export function errorServicesOptions(
     attributes: AttributeFilter[];
   },
 ) {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: ["errors", "services", input.timeRange, input.attributes] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], (timeRange) =>

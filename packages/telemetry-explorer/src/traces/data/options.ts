@@ -1,5 +1,9 @@
+import {
+  appQueryOptions,
+  dataInfiniteQueryOptions,
+  dataQueryOptions,
+} from "@everr/ui/lib/query-options";
 import { inViewerTimeRange, type TimeRange, toClickHouseDateTime } from "@everr/ui/lib/time-range";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import type { TracesRepositoryLike } from "./repository";
 import type { SpanStatusFilter } from "./schemas";
@@ -29,7 +33,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
   const { repo, ...key } = input;
   const queryKey = ["traces", "search", "infinite", key] as const;
   // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
-  return infiniteQueryOptions({
+  return dataInfiniteQueryOptions({
     queryKey,
     queryFn: ({ pageParam }: { pageParam: TraceSearchCursor | null }) =>
       inViewerTimeRange(input.timeRange, [], (timeRange) =>
@@ -66,7 +70,7 @@ export type GetTraceOptionsInput = {
 };
 
 export function getTraceOptions(input: GetTraceOptionsInput) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["traces", "get", input.traceId] as const,
     queryFn: () =>
       input.repo.getTrace({
@@ -95,7 +99,7 @@ export function listServiceIdentitiesOptions(
   repo: TracesRepositoryLike,
   input: { timeRange: TimeRange },
 ) {
-  return queryOptions(serviceIdentitiesQuery(repo, input));
+  return appQueryOptions(serviceIdentitiesQuery(repo, input));
 }
 
 /** Shares `listServiceIdentitiesOptions`' cache entry, so the picker shows

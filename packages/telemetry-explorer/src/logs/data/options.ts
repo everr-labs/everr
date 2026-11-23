@@ -1,5 +1,5 @@
+import { dataInfiniteQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { inViewerTimeRange, viewerBucketWindow } from "@everr/ui/lib/time-range";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   LogHistogramInput,
   LogIdentity,
@@ -20,17 +20,14 @@ export function logsExplorerInfiniteOptions(
   repo: LogsRepositoryLike,
   input: LogsExplorerInfiniteInput,
 ) {
-  return infiniteQueryOptions({
+  return dataInfiniteQueryOptions({
     queryKey: ["logs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
       inViewerTimeRange(input.timeRange, { logs: [] }, (timeRange) =>
         repo.explorer({ ...input, timeRange, offset: pageParam }),
       ),
     initialPageParam: 0,
-    getNextPageParam: (
-      lastPage: { logs: unknown[] } | undefined,
-      allPages: { logs: unknown[] }[],
-    ) => {
+    getNextPageParam: (lastPage, allPages) => {
       if (!lastPage) return undefined;
       if (lastPage.logs.length < input.limit) return undefined;
       return allPages.reduce((count, page) => count + page.logs.length, 0);
@@ -39,7 +36,7 @@ export function logsExplorerInfiniteOptions(
 }
 
 export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInput) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["logs", "totals", input],
     queryFn: () =>
       inViewerTimeRange(input.timeRange, NO_LOGS_TOTALS, (timeRange) =>
@@ -49,7 +46,7 @@ export function logsTotalsOptions(repo: LogsRepositoryLike, input: LogsTotalsInp
 }
 
 export function logDetailOptions(repo: LogsRepositoryLike, identity: LogIdentity) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["logs", "detail", identity],
     queryFn: () => repo.detail(identity),
   });
@@ -59,7 +56,7 @@ export function logsHistogramOptions(
   repo: LogsRepositoryLike,
   input: Omit<LogHistogramInput, "utcOffsetMinutes">,
 ) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["logs", "histogram", input],
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], () =>

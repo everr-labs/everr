@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { dataQueryOptions } from "@everr/ui/lib/query-options";
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "#app/lib/serverFn.ts";
 
@@ -288,7 +288,7 @@ const getJobResourceUsage = createAuthenticatedServerFn({
 
 export const jobResourceUsageOptions = (input: { traceId: string; jobId: string }) =>
   // oxlint-disable-next-line query/exhaustive-deps -- DI repo / input already in key; not a real missing dep
-  queryOptions({
+  dataQueryOptions({
     queryKey: ["runs", "jobResourceUsage", input.traceId, input.jobId],
     queryFn: () => getJobResourceUsage({ data: input }),
   });

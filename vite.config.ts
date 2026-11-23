@@ -124,6 +124,21 @@ export default defineConfig({
       "import/no-cycle": "error",
       "import/no-duplicates": "error",
       "import/no-self-import": "error",
+      // Every query says whether it reads the data the page shows, which the
+      // Refresh button spins for, so a new one cannot leave it out by accident.
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tanstack/react-query",
+              importNames: ["queryOptions", "infiniteQueryOptions"],
+              message:
+                "Use dataQueryOptions for the data the page shows (telemetry, CI, alerts) or appQueryOptions for app state, from @everr/ui/lib/query-options. The infinite forms are dataInfiniteQueryOptions and appInfiniteQueryOptions.",
+            },
+          ],
+        },
+      ],
       "import/default": "off",
       "import/named": "off",
       "import/namespace": "off",
@@ -218,6 +233,11 @@ export default defineConfig({
       "vitest",
     ],
     overrides: [
+      {
+        // The module that wraps TanStack's query options.
+        files: ["packages/ui/src/lib/query-options.ts"],
+        rules: { "no-restricted-imports": "off" },
+      },
       {
         // Validate external auth and telemetry data with Zod before using it.
         files: [

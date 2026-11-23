@@ -1,17 +1,18 @@
-import { type QueryClient, queryOptions } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
+import type { QueryClient } from "@tanstack/react-query";
 import { findPage } from "./pages";
 import { getRunbook, listRunbooks } from "./server";
 
 const runbooksQueryKey = ["runbooks"] as const;
 
 export const runbookOptions = (project: string, slug: string, preview?: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...runbooksQueryKey, project, slug, preview ?? ""],
     queryFn: () => getRunbook({ data: { project, slug, preview } }),
   });
 
 export const runbookListOptions = (preview?: string) =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...runbooksQueryKey, "list", preview ?? ""],
     queryFn: () => listRunbooks({ data: { preview } }),
   });

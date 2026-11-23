@@ -1,5 +1,5 @@
+import { dataInfiniteQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { inViewerTimeRange, viewerBucketWindow } from "@everr/ui/lib/time-range";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { RunsExplorerInput, RunsFilter, RunsHistogramInput } from "../schemas";
 import type { RunsRepositoryLike } from "./repository";
 
@@ -10,7 +10,7 @@ export function runsExplorerInfiniteOptions(
   repo: RunsRepositoryLike,
   input: Omit<RunsExplorerInput, "offset" | "includeTotalCount">,
 ) {
-  return infiniteQueryOptions({
+  return dataInfiniteQueryOptions({
     queryKey: ["runs", "explorer", "infinite", input] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
       inViewerTimeRange(input.timeRange, { runs: [], totalCount: 0 }, (timeRange) =>
@@ -33,7 +33,7 @@ export function runsHistogramOptions(
   repo: RunsRepositoryLike,
   input: Omit<RunsHistogramInput, "utcOffsetMinutes">,
 ) {
-  return queryOptions({
+  return dataQueryOptions({
     queryKey: ["runs", "histogram", input] as const,
     queryFn: () => {
       // One "now" for the check and the window, so both read the same range.

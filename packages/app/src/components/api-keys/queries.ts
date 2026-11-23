@@ -1,4 +1,5 @@
-import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
+import { appQueryOptions } from "@everr/ui/lib/query-options";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiKey, listApiKeys } from "#app/data/api-keys.ts";
 import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { authClient } from "#app/lib/auth-client.ts";
@@ -8,7 +9,7 @@ export type { ApiKey } from "#app/data/api-keys.ts";
 const apiKeysQueryKey = ["api-keys"] as const;
 
 export function apiKeysQueryOptions() {
-  return queryOptions({
+  return appQueryOptions({
     queryKey: apiKeysQueryKey,
     // The server fn resolves the active org from its authenticated context, so
     // there's no separate client round-trip to fetch the session.

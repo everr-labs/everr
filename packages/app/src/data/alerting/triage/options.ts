@@ -1,5 +1,6 @@
+import { appQueryOptions, dataQueryOptions } from "@everr/ui/lib/query-options";
 import { type TimeRange, toViewerTimeRange } from "@everr/ui/lib/time-range";
-import { keepPreviousData, type QueryClient, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, type QueryClient } from "@tanstack/react-query";
 import {
   getAlertDetail,
   getAlertRuleOptions,
@@ -24,7 +25,7 @@ export const invalidateAlertTriage = (queryClient: QueryClient) =>
 
 export const alertTriageOptions = (range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
-  queryOptions({
+  dataQueryOptions({
     // The range is part of the key: the row sparklines are scoped to it, so a
     // range change has to refetch rather than serve the old window.
     queryKey: [...alertingQueryKey, "list", range.from, range.to],
@@ -37,7 +38,7 @@ export const alertTriageOptions = (range: TimeRange) =>
 
 export const ruleStateHistoryOptions = (range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
-  queryOptions({
+  dataQueryOptions({
     queryKey: [...alertingQueryKey, "history", range.from, range.to],
     queryFn: () => getRuleStateHistory({ data: toViewerTimeRange(range) }),
     placeholderData: keepPreviousData,
@@ -45,7 +46,7 @@ export const ruleStateHistoryOptions = (range: TimeRange) =>
 
 export const alertDetailOptions = (path: string | undefined, range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
-  queryOptions({
+  dataQueryOptions({
     // The range is part of the key: the detail's silence list is scoped to it,
     // so a range change has to refetch rather than serve the old window.
     queryKey: [...alertingQueryKey, "detail", path ?? "", range.from, range.to],
@@ -62,7 +63,7 @@ export const alertDetailOptions = (path: string | undefined, range: TimeRange) =
 
 export const alertSilencesOptions = (range: TimeRange) =>
   // oxlint-disable-next-line query/exhaustive-deps -- The key already includes each from/to field of the range object.
-  queryOptions({
+  dataQueryOptions({
     // Under the triage key on purpose: silencing and cancelling from either
     // screen change what both list, and one invalidation has to reach both.
     queryKey: [...alertingQueryKey, "silences", range.from, range.to],
@@ -77,7 +78,7 @@ export const alertSilencesOptions = (range: TimeRange) =>
  *  one reader left: a listed silence carries its rule's name from the read that
  *  fetched it, so no screen loads this list only to print a row. */
 export const alertRuleOptionsOptions = () =>
-  queryOptions({
+  appQueryOptions({
     queryKey: [...alertRulesQueryKey, "options"],
     queryFn: () => getAlertRuleOptions(),
     // Rules change by an apply, not by the minute.
