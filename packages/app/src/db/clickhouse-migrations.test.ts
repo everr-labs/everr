@@ -202,12 +202,13 @@ describe("ClickHouse migrations", () => {
 
     // Keeps every query running until the KILL above names a prefix of its
     // id. Like ClickHouse 26.11, it fails a KILL that matches no query.
-    function server() {
+    function server(killError?: Error) {
       const sent: Sent[] = [];
       const running = new Set<string>();
       const receive = (request: Sent) => {
         sent.push(request);
         if (request.query === KILL) {
+          if (killError) throw killError;
           const prefix = String(request.query_params?.prefix);
           const matched = [...running].filter((id) => id.startsWith(prefix));
           if (matched.length === 0) {
@@ -288,6 +289,25 @@ describe("ClickHouse migrations", () => {
 
       expect(left).toHaveLength(3);
       expect(stillRunning).toEqual([]);
+    });
+
+    it("stops startup when it cannot stop the earlier seed queries", async () => {
+      const { sent, start } = server(
+        new ClickHouseError({
+          message: "Not enough privileges.",
+          code: "497",
+          type: "ACCESS_DENIED",
+        }),
+      );
+      let seeded = false;
+
+      await expect(
+        start(async () => {
+          seeded = true;
+        }),
+      ).rejects.toThrow(/0002-cloud-policies\.sql.*Not enough privileges/);
+      expect(sent.map(({ query }) => query)).toEqual([KILL]);
+      expect(seeded).toBe(false);
     });
 
     it("stops the earlier seed queries before it sends the statements again", async () => {

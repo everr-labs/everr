@@ -97,27 +97,36 @@ export interface ClickHouseMigrationSteps {
   journal(this: void): Promise<void>;
 }
 
+function migrationError(summary: string, cause: unknown): Error {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  return new Error(`${summary}: ${reason}`, { cause });
+}
+
 /**
- * One migration: its statements, then its seed, then its journal row. The
- * row comes last, so a migration whose seed fails is still pending and
- * the next start runs all of it again.
+ * One migration: the stop of its seed's earlier queries, its statements, its
+ * seed, then its journal row. The row comes last, so a migration whose seed
+ * fails is still pending and the next start runs all of it again.
  */
 export async function applyClickHouseMigration(
   migration: HashedClickHouseMigration,
   steps: ClickHouseMigrationSteps,
 ): Promise<void> {
   // A seed query from an earlier start can hold a lock that a statement needs.
-  if (migration.seed) await steps.stopSeedQueries();
+  if (migration.seed) {
+    await steps.stopSeedQueries().catch((cause: unknown) => {
+      throw migrationError(
+        `ClickHouse migration ${migration.name} could not stop its earlier seed queries`,
+        cause,
+      );
+    });
+  }
   for (const [index, statement] of sqlStatements(migration.sql).entries()) {
     await steps.statement(statement, index);
   }
   try {
     await migration.seed?.(steps.seed);
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
-      cause,
-    });
+    throw migrationError(`The seed of ClickHouse migration ${migration.name} failed`, cause);
   }
   await steps.journal();
 }
@@ -223,7 +232,8 @@ export async function migrateClickHouse(
   // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps
   // running a statement after the client gives up, so each statement repeats
   // its query id and the next start cancels that run before trying again.
-  // The next start stops a seed's earlier queries before it runs the seed.
+  // The next start stops a seed's earlier queries before it sends that
+  // migration's statements again.
   const client = createClient({
     url: env.CLICKHOUSE_URL,
     username,
