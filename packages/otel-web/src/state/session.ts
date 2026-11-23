@@ -86,11 +86,14 @@ let session: SessionState | null = null;
 // sends many records in each minute, and without this delay each one is a
 // read-modify-write on the main thread.
 //
+// The code measures the delay from the activity that the store holds, and not
+// from the time of the last write. persistSession() can write an activity that
+// is older than its write, and the next record must then write again.
+//
 // The effect of the delay is a value in the store that is a maximum of
 // STORAGE_WRITE_DELAY_MS behind the true activity. Thus a session limit can
 // occur a maximum of 30 seconds early, in a window of 30 minutes.
 const STORAGE_WRITE_DELAY_MS = 30_000;
-let lastWrite = 0;
 
 /**
  * Finds the session id for the record that the SDK sends, and records the
@@ -109,8 +112,7 @@ export function sessionId(): string {
       ? { id: base.id, t: now }
       : { id: uniqueId(), t: now };
   session = next;
-  if (!anonymized && (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS)) {
-    lastWrite = now;
+  if (!anonymized && (next.id !== base?.id || now - base.t >= STORAGE_WRITE_DELAY_MS)) {
     writeSession(next);
   }
   return next.id;
@@ -124,7 +126,6 @@ export function sessionId(): string {
  */
 export function persistSession(): void {
   if (!session || anonymized) return;
-  lastWrite = Date.now();
   writeSession(session);
 }
 

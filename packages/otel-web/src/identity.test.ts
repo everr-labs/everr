@@ -292,6 +292,34 @@ describe("session write throttle", () => {
       JSON.stringify({ id, t: 1_000_000 + 5_000 }),
     );
   });
+
+  it("keeps an active session after a consent that stored an old activity", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const id = sessionId();
+
+    // The consent comes 20 minutes after the last record. The store then holds
+    // the activity of minute 0.
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 20 * 60_000);
+    setAnonymized(false);
+    expect(sessionId()).toBe(id);
+
+    // 11 minutes without activity is inside the timeout.
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 31 * 60_000);
+    expect(sessionId()).toBe(id);
+  });
+
+  it("keeps an active session after an exit path that stored an old activity", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    setAnonymized(false);
+    const id = sessionId();
+
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 20 * 60_000);
+    persistSession();
+    expect(sessionId()).toBe(id);
+
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 31 * 60_000);
+    expect(sessionId()).toBe(id);
+  });
 });
 
 describe("session timeout boundary", () => {
