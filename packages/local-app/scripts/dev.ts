@@ -191,6 +191,8 @@ async function main() {
     path.join(repoDir, "collector/localcollector"),
     path.join(repoDir, "collector/internal/localgateway"),
     path.join(repoDir, "collector/exporter/chdbexporter"),
+    // The CLI embeds the migrations and applies them to the local store.
+    path.join(repoDir, "packages/app/clickhouse"),
   ]) {
     watchers.push(watch(directory, { recursive: true }, scheduleRebuild));
   }
