@@ -14,6 +14,7 @@ Migration:
 - `persistence: "localStorage"`, or no `persistence` option, becomes `anonymized: false`. The default changed: with no option, the SDK is now anonymized.
 - `setPersistence("localStorage")` becomes `setAnonymized(false)`, and `setPersistence("memory")` becomes `setAnonymized(true)`.
 - `revoke()` becomes `setAnonymized(true)`, which removes the stored ids and stops sending the user. It no longer needs `clearIdentity()` before it. Call `clearIdentity()` on logout to forget the user.
+- The ids that an earlier version stored stay in localStorage while the SDK is anonymized. The SDK does not read them or send them, and `setAnonymized(true)` on a client that is already anonymized does not remove them. A later `setAnonymized(false)` uses the stored visitor id again. To remove the ids, delete the `everr.visitor.id` and `everr.session` keys.
 - The `Persistence` type is removed.
 - In a custom instrumentation, `ctx.ids().visitorId` is `undefined` while the SDK is anonymized.
 
