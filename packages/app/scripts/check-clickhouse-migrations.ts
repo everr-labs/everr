@@ -42,7 +42,7 @@ for (const path of base.keys()) {
 
 const basePaths = new Set(listed.split("\n"));
 const headPaths = new Set(
-  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR), { recursive: true, encoding: "utf8" }).map(
+  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR)).map(
     (name) => `${CLICKHOUSE_MIGRATION_DIR}/${name}`,
   ),
 );

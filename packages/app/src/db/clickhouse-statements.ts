@@ -3,14 +3,18 @@ import { createHash } from "node:crypto";
 /** The one directory whose top-level `*.sql` files are ClickHouse migrations. */
 export const CLICKHOUSE_MIGRATION_DIR = "packages/app/clickhouse";
 
-/** A path the migration runner loads. Nested files are not. */
-export function isClickHouseMigrationPath(path: string): boolean {
+const SEED_SUFFIX = ".seed.ts";
+
+function isTopLevel(path: string, suffix: string): boolean {
   if (!path.startsWith(`${CLICKHOUSE_MIGRATION_DIR}/`)) return false;
   const name = path.slice(CLICKHOUSE_MIGRATION_DIR.length + 1);
-  return name.endsWith(".sql") && !name.includes("/");
+  return name.endsWith(suffix) && !name.includes("/");
 }
 
-const SEED_SUFFIX = ".seed.ts";
+/** A path the migration runner loads. Nested files are not. */
+export function isClickHouseMigrationPath(path: string): boolean {
+  return isTopLevel(path, ".sql");
+}
 
 /**
  * Seed files among `head` that `base` lacks, for a migration `base`
@@ -23,7 +27,7 @@ export function lateClickHouseSeedFiles(
 ): string[] {
   const late: string[] = [];
   for (const path of head) {
-    if (!path.endsWith(SEED_SUFFIX) || base.has(path)) continue;
+    if (!isTopLevel(path, SEED_SUFFIX) || base.has(path)) continue;
     if (base.has(`${path.slice(0, -SEED_SUFFIX.length)}.sql`)) late.push(path);
   }
   return late.sort();
@@ -33,7 +37,7 @@ export function droppedClickHouseSeedFiles(
   base: ReadonlySet<string>,
   head: ReadonlySet<string>,
 ): string[] {
-  return [...base].filter((path) => path.endsWith(SEED_SUFFIX) && !head.has(path)).sort();
+  return [...base].filter((path) => isTopLevel(path, SEED_SUFFIX) && !head.has(path)).sort();
 }
 
 /**

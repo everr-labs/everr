@@ -399,6 +399,14 @@ describe("ClickHouse migrations", () => {
     expect(droppedClickHouseSeedFiles(base, base)).toEqual([]);
   });
 
+  it("leaves a nested seed file out of the seed rules, because the runner does not load it", () => {
+    const dir = "packages/app/clickhouse";
+    const nested = [`${dir}/notes/0001-setup.sql`, `${dir}/notes/0001-setup.seed.ts`];
+
+    expect(droppedClickHouseSeedFiles(new Set(nested), new Set())).toEqual([]);
+    expect(lateClickHouseSeedFiles(new Set([`${dir}/notes/0001-setup.sql`]), nested)).toEqual([]);
+  });
+
   it("binds only the parameters a statement names", () => {
     expect(
       statementParams("0001-setup.sql", "CREATE USER {name:Identifier} BY {password:String}", {
