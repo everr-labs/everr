@@ -71,6 +71,61 @@ as `{name:String}` parameters. `GRANT` does not accept parameters, so a
 parameterized user gets its role through `DEFAULT ROLE`.
 `pnpm db:migrate` applies only the PostgreSQL histories.
 
+### Seeds
+
+A migration that needs more than SQL gets a seed: `NNNN-<name>.seed.ts`
+next to `NNNN-<name>.sql`, with one function as its default export. Use it for
+work that depends on what the server holds, such as one statement per existing
+ClickHouse user. Startup fails when the default export is not a function.
+
+```ts
+import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
+
+const seed: ClickHouseSeed = async ({ query, command }) => {
+  const users = await query<{ name: string }>(
+    "SELECT name FROM system.users WHERE startsWith(name, {prefix:String})",
+    { prefix: "sql_api_" },
+  );
+  for (const { name } of users) {
+    await command("ALTER USER {name:Identifier} SETTINGS PROFILE 'sql_api_profile'", { name });
+  }
+};
+
+export default seed;
+```
+
+`query` and `command` take the values for the `{name:Type}` placeholders as
+their second argument. A value is a string or a number. Pass every value that
+comes from the server this way.
+Do not put it in the SQL string: a name can hold a backtick or a quote. `GRANT`
+does not accept parameters, so check a name against a strict pattern before it
+goes into a `GRANT`.
+
+The runner calls the seed once, after the file's statements and before the
+journal row, on the migration connection. A seed that throws leaves the
+migration pending, so the next start runs the statements and the seed again.
+Make it safe to repeat, and keep it short: startup waits for it under the
+migration lock. Before the runner sends the statements of a migration that has
+a seed, it stops the queries that an earlier run of that seed left on the
+server it connects to.
+
+A seed imports only types, and reaches the server only through `query` and
+`command`. A server that upgrades across several versions runs an old seed with
+the current code, so a constant that the seed imported could have changed since
+the migration was written.
+
+- The journal hashes the SQL file only. Editing a seed after its migration
+  is applied changes nothing where it already ran. A new server runs the
+  edited seed.
+- A seed runs with its migration or never. Adding one to a migration that
+  is already on the base branch fails the pull request check. Put it next to a
+  new migration file, which can hold only a comment.
+- Deleting a seed that is on the base branch fails the pull request check. A
+  new server would apply the migration without it.
+- A seed also runs on a new, empty server, and must do nothing wrong there.
+- A seed sees the server once. Something the previous application version
+  creates after that, during a rolling deploy, is not covered.
+
 ## Verification
 
 Use separate disposable PostgreSQL databases before changing an existing

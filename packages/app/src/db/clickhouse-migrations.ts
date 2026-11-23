@@ -1,10 +1,13 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
-import { serverLogger } from "#app/telemetry/logger.ts";
+import { errorMessage, serverLogger } from "#app/telemetry/logger.ts";
 import {
   byMigrationName,
+  type ClickHouseSeedContext,
+  type ClickHouseSeedParams,
   type ClickHouseMigration,
   type ClickHouseMigrationTarget,
   clickHouseMigrationsFor,
@@ -20,11 +23,15 @@ const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
 const MIGRATION_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
 const QUERY_ID_SAFE = /[^0-9A-Za-z_-]/g;
+const NOTHING_TO_KILL = "785";
 
 /** A migration as this build bundles it, with the hash the journal records. */
 export interface HashedClickHouseMigration extends ClickHouseMigration {
   readonly hash: string;
 }
+
+const queryIdPrefix = (name: string) => `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-`;
+const seedQueryIdPrefix = (name: string) => `${queryIdPrefix(name)}seed-`;
 
 /**
  * Stable id for one statement. A retry sends it again with
@@ -32,7 +39,7 @@ export interface HashedClickHouseMigration extends ClickHouseMigration {
  * is still running it after the client timed out.
  */
 export function clickHouseMigrationQueryId(name: string, index: number): string {
-  return `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-${index}`;
+  return `${queryIdPrefix(name)}${index}`;
 }
 
 /**
@@ -82,13 +89,121 @@ export function statementParams(
   return bound;
 }
 
+/** How one migration reaches ClickHouse. */
+export interface ClickHouseMigrationSteps {
+  statement(this: void, statement: string, index: number): Promise<void>;
+  stopSeedQueries(this: void): Promise<void>;
+  readonly seed: ClickHouseSeedContext;
+  journal(this: void): Promise<void>;
+}
+
+/**
+ * One migration: the stop of its seed's earlier queries, its statements, its
+ * seed, then its journal row. The row comes last, so a migration whose seed
+ * fails is still pending and the next start runs all of it again.
+ */
+export async function applyClickHouseMigration(
+  migration: HashedClickHouseMigration,
+  steps: ClickHouseMigrationSteps,
+): Promise<void> {
+  // A seed query from an earlier start can hold a lock that a statement needs.
+  if (migration.seed) {
+    await steps.stopSeedQueries().catch((cause: unknown) => {
+      throw new Error(
+        `ClickHouse migration ${migration.name} could not stop its earlier seed queries: ${errorMessage(cause)}`,
+        { cause },
+      );
+    });
+  }
+  for (const [index, statement] of sqlStatements(migration.sql).entries()) {
+    await steps.statement(statement, index);
+  }
+  try {
+    await migration.seed?.(steps.seed);
+  } catch (cause) {
+    throw new Error(
+      `The seed of ClickHouse migration ${migration.name} failed: ${errorMessage(cause)}`,
+      { cause },
+    );
+  }
+  await steps.journal();
+}
+
+type MigrationClient = Pick<ReturnType<typeof createClient>, "command" | "query" | "insert">;
+
+const instrumented = <T>(operation: string, call: () => Promise<T>) =>
+  instrumentClickhouseOperation({ client: "migration", operation }, call);
+
+export function clickHouseMigrationSteps(
+  client: MigrationClient,
+  migration: HashedClickHouseMigration,
+  params: Params,
+): ClickHouseMigrationSteps {
+  let seedCall = 0;
+  const seedQuery = (query: string, queryParams?: ClickHouseSeedParams) => ({
+    query,
+    query_id: `${seedQueryIdPrefix(migration.name)}${seedCall++}`,
+    query_params: queryParams,
+  });
+  return {
+    statement: async (statement, index) => {
+      await instrumented("QUERY", () =>
+        client.command({
+          query: statement,
+          query_id: clickHouseMigrationQueryId(migration.name, index),
+          clickhouse_settings: { replace_running_query: 1 },
+          query_params: statementParams(migration.name, statement, params),
+        }),
+      );
+    },
+    // A seed can make other calls on a retry, so a repeated query id does not
+    // find its earlier queries the way it does for a statement.
+    stopSeedQueries: async () => {
+      await instrumented("QUERY", async () => {
+        try {
+          await client.command({
+            query:
+              "KILL QUERY WHERE startsWith(query_id, {prefix:String}) AND user = currentUser() SYNC",
+            query_params: { prefix: seedQueryIdPrefix(migration.name) },
+          });
+        } catch (error) {
+          // ClickHouse 26.11 and later fail a KILL QUERY that matches no query.
+          if (!(error instanceof ClickHouseError && error.code === NOTHING_TO_KILL)) throw error;
+        }
+      });
+    },
+    seed: {
+      query: <Row>(query: string, queryParams?: ClickHouseSeedParams) =>
+        instrumented("SELECT", async () => {
+          const rows = await client.query({
+            ...seedQuery(query, queryParams),
+            format: "JSONEachRow",
+          });
+          return rows.json<Row>();
+        }),
+      command: async (query, queryParams) => {
+        await instrumented("QUERY", () => client.command(seedQuery(query, queryParams)));
+      },
+    },
+    journal: async () => {
+      await instrumented("INSERT", () =>
+        client.insert({
+          table: JOURNAL,
+          values: [{ name: migration.name, hash: migration.hash }],
+          format: "JSONEachRow",
+        }),
+      );
+    },
+  };
+}
+
 /**
  * Apply the files for `target` that the journal does not list: the untagged
  * files and the ones tagged for that product. The setup file takes the base
  * users' passwords from the environment; `productParams` are the parameters
  * the product's own files name. ClickHouse DDL is not transactional, so
- * statements must be safe to repeat: a migration that fails partway runs again
- * from its first statement. Run it under the PostgreSQL migration lock so
+ * statements and seeds must be safe to repeat: a migration that fails
+ * partway runs again from its first statement. Run it under the PostgreSQL migration lock so
  * replicas apply it once.
  */
 export async function migrateClickHouse(
@@ -126,8 +241,6 @@ export async function migrateClickHouse(
       http_headers_progress_interval_ms: "30000",
     },
   });
-  const instrumented = <T>(operation: string, call: () => Promise<T>) =>
-    instrumentClickhouseOperation({ client: "migration", operation }, call);
   try {
     await instrumented("CREATE", () =>
       client.command({
@@ -149,22 +262,9 @@ export async function migrateClickHouse(
     });
 
     for (const migration of pendingClickHouseMigrations(migrations, applied)) {
-      for (const [index, statement] of sqlStatements(migration.sql).entries()) {
-        await instrumented("QUERY", () =>
-          client.command({
-            query: statement,
-            query_id: clickHouseMigrationQueryId(migration.name, index),
-            clickhouse_settings: { replace_running_query: 1 },
-            query_params: statementParams(migration.name, statement, params),
-          }),
-        );
-      }
-      await instrumented("INSERT", () =>
-        client.insert({
-          table: JOURNAL,
-          values: [{ name: migration.name, hash: migration.hash }],
-          format: "JSONEachRow",
-        }),
+      await applyClickHouseMigration(
+        migration,
+        clickHouseMigrationSteps(client, migration, params),
       );
       serverLogger.info("clickhouse.migration.applied", {
         "everr.clickhouse.migration.name": migration.name,

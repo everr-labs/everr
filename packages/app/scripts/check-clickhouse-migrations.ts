@@ -1,15 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   changedClickHouseMigrationFiles,
   CLICKHOUSE_MIGRATION_DIR,
+  droppedClickHouseSeedFiles,
   isClickHouseMigrationPath,
+  lateClickHouseSeedFiles,
 } from "../src/db/clickhouse-statements.ts";
 
 // Fails the pull request when a ClickHouse migration that already exists on
 // the base branch changes or disappears. A comment edit is a change. New
-// files pass. Startup repeats the check against the journal.
+// files pass. Startup repeats the check against the journal. It also fails
+// when a seed is added to a migration the base branch already has: the
+// seed would never run where that migration is applied.
 const ref = process.argv[2];
 if (!ref) {
   console.error("Usage: check-clickhouse-migrations.ts <git-ref>");
@@ -36,12 +40,33 @@ for (const path of base.keys()) {
   head.set(path, readFileSync(full, "utf8"));
 }
 
-const changed = changedClickHouseMigrationFiles(base, head);
-if (changed.length === 0) process.exit(0);
-
-console.error(
-  `ClickHouse migrations changed after they were committed:\n${changed
-    .map((path) => `  ${path}`)
-    .join("\n")}\nApplied migrations are immutable: restore them and put the change in a new file.`,
+const basePaths = new Set(listed.split("\n"));
+const headPaths = new Set(
+  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR)).map(
+    (name) => `${CLICKHOUSE_MIGRATION_DIR}/${name}`,
+  ),
 );
-process.exit(1);
+
+const failures = [
+  {
+    paths: changedClickHouseMigrationFiles(base, head),
+    title: "ClickHouse migrations changed after they were committed:",
+    fix: "Applied migrations are immutable: restore them and put the change in a new file.",
+  },
+  {
+    paths: lateClickHouseSeedFiles(basePaths, headPaths),
+    title: "ClickHouse seeds added to migrations that are already committed:",
+    fix: "A seed runs once, with its migration: put it next to a new migration file.",
+  },
+  {
+    paths: droppedClickHouseSeedFiles(basePaths, headPaths),
+    title: "ClickHouse seeds deleted from migrations that are already committed:",
+    fix: "A new server applies the migration and needs its seed: restore the file.",
+  },
+].filter(({ paths }) => paths.length > 0);
+
+for (const { paths, title, fix } of failures) {
+  console.error(`${title}\n${paths.map((path) => `  ${path}`).join("\n")}\n${fix}`);
+}
+
+process.exit(failures.length > 0 ? 1 : 0);
