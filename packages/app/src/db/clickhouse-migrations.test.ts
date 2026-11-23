@@ -17,6 +17,7 @@ import {
 import {
   byMigrationName,
   type ClickHouseMigration,
+  type ClickHouseSeed,
   clickHouseMigrations,
   clickHouseMigrationsFor,
   clickHouseMigrationTarget,
@@ -192,67 +193,90 @@ describe("ClickHouse migrations", () => {
     interface Sent {
       readonly query: string;
       readonly query_id?: string;
-      readonly clickhouse_settings?: Record<string, unknown>;
       readonly query_params?: Record<string, unknown>;
     }
 
-    function start() {
+    // Keeps every query running until a KILL QUERY binds a prefix of its id.
+    function server() {
       const sent: Sent[] = [];
+      const running = new Set<string>();
+      const receive = (request: Sent) => {
+        sent.push(request);
+        if (request.query.startsWith("KILL QUERY")) {
+          const prefixes = Object.values(request.query_params ?? {}).map(String);
+          for (const id of running) {
+            if (prefixes.some((prefix) => id.startsWith(prefix))) running.delete(id);
+          }
+        } else if (request.query_id !== undefined) {
+          running.add(request.query_id);
+        }
+      };
       const client = {
-        command: async (request: Sent) => {
-          sent.push(request);
-        },
+        command: async (request: Sent) => receive(request),
         query: async (request: Sent) => {
-          sent.push(request);
+          receive(request);
           return { json: async () => [] };
         },
+        insert: async () => {},
       } as unknown as Parameters<typeof clickHouseMigrationSteps>[0];
-      const file = migration("0002-cloud-policies.sql");
-      const steps = clickHouseMigrationSteps(
-        client,
-        { ...file, hash: clickHouseMigrationHash(file.sql) },
-        {},
-      );
-      return { sent, steps };
+      const start = (seed: ClickHouseSeed) => {
+        const file = { ...migration("0002-cloud-policies.sql", "SELECT 1"), seed };
+        const hashed = { ...file, hash: clickHouseMigrationHash(file.sql) };
+        return applyClickHouseMigration(hashed, clickHouseMigrationSteps(client, hashed, {}));
+      };
+      const idsOf = (sql: string) =>
+        sent.filter(({ query }) => query.startsWith(sql)).map(({ query_id }) => query_id);
+      return { sent, running, start, idsOf };
     }
 
-    async function seedRun() {
-      const { sent, steps } = start();
-      await steps.statement("SELECT 1", 0);
-      await steps.seed.query("SELECT name FROM system.users");
-      await steps.seed.command("ALTER USER a DEFAULT ROLE NONE");
-      await steps.seed.command("ALTER USER b DEFAULT ROLE NONE");
-      return sent;
-    }
+    it("gives each seed query an id of its own", async () => {
+      const { start, idsOf } = server();
+      await start(async ({ query, command }) => {
+        await query("ALTER USER a DEFAULT ROLE NONE");
+        await command("ALTER USER b DEFAULT ROLE NONE");
+        await command("ALTER USER c DEFAULT ROLE NONE");
+      });
 
-    it("gives each seed query an id of its own that the next start repeats", async () => {
-      const first = await seedRun();
-      const second = await seedRun();
-
-      const ids = first.map(({ query_id }) => query_id);
+      const ids = [...idsOf("SELECT 1"), ...idsOf("ALTER USER")];
+      expect(ids).toHaveLength(4);
       expect(ids).not.toContain(undefined);
-      expect(new Set(ids).size).toBe(ids.length);
-      expect(second.map(({ query_id }) => query_id)).toEqual(ids);
+      expect(new Set(ids).size).toBe(4);
     });
 
     it("binds a seed query's parameters instead of putting them in the SQL", async () => {
-      const { sent, steps } = start();
+      const { sent, start } = server();
       const sql = "ALTER USER {name:Identifier} DEFAULT ROLE NONE";
-      await steps.seed.command(sql, { name: "odd`name" });
-      await steps.seed.query("SELECT {id:String} AS id", { id: "it's" });
+      await start(async ({ query, command }) => {
+        await command(sql, { name: "odd`name" });
+        await query("ALTER USER {id:String}", { id: "it's" });
+      });
 
-      expect(sent.map(({ query, query_params }) => ({ query, query_params }))).toEqual([
+      expect(
+        sent
+          .filter(({ query }) => query.startsWith("ALTER USER"))
+          .map(({ query, query_params }) => ({ query, query_params })),
+      ).toEqual([
         { query: sql, query_params: { name: "odd`name" } },
-        { query: "SELECT {id:String} AS id", query_params: { id: "it's" } },
+        { query: "ALTER USER {id:String}", query_params: { id: "it's" } },
       ]);
     });
 
-    it("cancels a seed query the previous start left running", async () => {
-      const [, ...seedQueries] = await seedRun();
+    it("stops the seed queries of the previous start, even when the retry makes fewer calls", async () => {
+      const { running, start, idsOf } = server();
+      await start(async ({ command }) => {
+        await command("ALTER USER a DEFAULT ROLE NONE");
+        await command("ALTER USER b DEFAULT ROLE NONE");
+        await command("ALTER USER c DEFAULT ROLE NONE");
+      });
+      const left = idsOf("ALTER USER");
+      let stillRunning: unknown[] = ["the retry did not reach the seed"];
+      await start(async ({ command }) => {
+        stillRunning = left.filter((id) => id !== undefined && running.has(id));
+        await command("ALTER USER a DEFAULT ROLE NONE");
+      });
 
-      for (const { clickhouse_settings } of seedQueries) {
-        expect(clickhouse_settings).toMatchObject({ replace_running_query: 1 });
-      }
+      expect(left).toHaveLength(3);
+      expect(stillRunning).toEqual([]);
     });
   });
 
