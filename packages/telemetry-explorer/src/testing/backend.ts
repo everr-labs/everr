@@ -14,7 +14,13 @@ export function fakeExploreBackend(
 ): ExploreBackend {
   const { repos, ...rest } = overrides;
   return {
-    useErrorTraceSpans: () => ({ spans: [], isPending: false, isError: false, refetch: () => {} }),
+    useErrorTraceSpans: () => ({
+      spans: [],
+      isPending: false,
+      isError: false,
+      isStale: false,
+      refetch: () => {},
+    }),
     ...rest,
     repos: {
       logs: { ...repos?.logs } as Repos["logs"],

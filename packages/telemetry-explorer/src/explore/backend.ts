@@ -12,7 +12,7 @@ interface ErrorTraceSpans {
   isPending: boolean;
   isError: boolean;
   /** The spans belong to the occurrence shown before, while this one loads. */
-  isStale?: boolean;
+  isStale: boolean;
   refetch: () => void;
 }
 
