@@ -3,7 +3,7 @@ import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
-import { serverLogger } from "#app/telemetry/logger.ts";
+import { errorMessage, serverLogger } from "#app/telemetry/logger.ts";
 import {
   byMigrationName,
   type ClickHouseSeedContext,
@@ -97,11 +97,6 @@ export interface ClickHouseMigrationSteps {
   journal(this: void): Promise<void>;
 }
 
-function migrationError(summary: string, cause: unknown): Error {
-  const reason = cause instanceof Error ? cause.message : String(cause);
-  return new Error(`${summary}: ${reason}`, { cause });
-}
-
 /**
  * One migration: the stop of its seed's earlier queries, its statements, its
  * seed, then its journal row. The row comes last, so a migration whose seed
@@ -114,9 +109,9 @@ export async function applyClickHouseMigration(
   // A seed query from an earlier start can hold a lock that a statement needs.
   if (migration.seed) {
     await steps.stopSeedQueries().catch((cause: unknown) => {
-      throw migrationError(
-        `ClickHouse migration ${migration.name} could not stop its earlier seed queries`,
-        cause,
+      throw new Error(
+        `ClickHouse migration ${migration.name} could not stop its earlier seed queries: ${errorMessage(cause)}`,
+        { cause },
       );
     });
   }
@@ -126,7 +121,10 @@ export async function applyClickHouseMigration(
   try {
     await migration.seed?.(steps.seed);
   } catch (cause) {
-    throw migrationError(`The seed of ClickHouse migration ${migration.name} failed`, cause);
+    throw new Error(
+      `The seed of ClickHouse migration ${migration.name} failed: ${errorMessage(cause)}`,
+      { cause },
+    );
   }
   await steps.journal();
 }
@@ -145,7 +143,7 @@ export function clickHouseMigrationSteps(
   const seedQuery = (query: string, queryParams?: ClickHouseSeedParams) => ({
     query,
     query_id: `${seedQueryIdPrefix(migration.name)}${seedCall++}`,
-    ...(queryParams && { query_params: queryParams }),
+    query_params: queryParams,
   });
   return {
     statement: async (statement, index) => {
@@ -232,8 +230,6 @@ export async function migrateClickHouse(
   // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps
   // running a statement after the client gives up, so each statement repeats
   // its query id and the next start cancels that run before trying again.
-  // The next start stops a seed's earlier queries before it sends that
-  // migration's statements again.
   const client = createClient({
     url: env.CLICKHOUSE_URL,
     username,

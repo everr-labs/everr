@@ -40,17 +40,6 @@ for (const path of base.keys()) {
   head.set(path, readFileSync(full, "utf8"));
 }
 
-const indented = (paths: readonly string[]) => paths.map((path) => `  ${path}`).join("\n");
-let failed = false;
-
-const changed = changedClickHouseMigrationFiles(base, head);
-if (changed.length > 0) {
-  failed = true;
-  console.error(
-    `ClickHouse migrations changed after they were committed:\n${indented(changed)}\nApplied migrations are immutable: restore them and put the change in a new file.`,
-  );
-}
-
 const basePaths = new Set(listed.split("\n"));
 const headPaths = new Set(
   readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR), { recursive: true, encoding: "utf8" }).map(
@@ -58,20 +47,26 @@ const headPaths = new Set(
   ),
 );
 
-const late = lateClickHouseSeedFiles(basePaths, headPaths);
-if (late.length > 0) {
-  failed = true;
-  console.error(
-    `ClickHouse seeds added to migrations that are already committed:\n${indented(late)}\nA seed runs once, with its migration: put it next to a new migration file.`,
-  );
+const failures = [
+  {
+    paths: changedClickHouseMigrationFiles(base, head),
+    title: "ClickHouse migrations changed after they were committed:",
+    fix: "Applied migrations are immutable: restore them and put the change in a new file.",
+  },
+  {
+    paths: lateClickHouseSeedFiles(basePaths, headPaths),
+    title: "ClickHouse seeds added to migrations that are already committed:",
+    fix: "A seed runs once, with its migration: put it next to a new migration file.",
+  },
+  {
+    paths: droppedClickHouseSeedFiles(basePaths, headPaths),
+    title: "ClickHouse seeds deleted from migrations that are already committed:",
+    fix: "A new server applies the migration and needs its seed: restore the file.",
+  },
+].filter(({ paths }) => paths.length > 0);
+
+for (const { paths, title, fix } of failures) {
+  console.error(`${title}\n${paths.map((path) => `  ${path}`).join("\n")}\n${fix}`);
 }
 
-const dropped = droppedClickHouseSeedFiles(basePaths, headPaths);
-if (dropped.length > 0) {
-  failed = true;
-  console.error(
-    `ClickHouse seeds deleted from migrations that are already committed:\n${indented(dropped)}\nA new server applies the migration and needs its seed: restore the file.`,
-  );
-}
-
-process.exit(failed ? 1 : 0);
+process.exit(failures.length > 0 ? 1 : 0);
