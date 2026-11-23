@@ -93,10 +93,10 @@ func TestSQLHTTPRoundTrip(t *testing.T) {
 		func(body string) bool { return strings.Contains(body, `"c":1`) },
 	)
 
-	resp, err := http.Post(
+	resp, err := postSQL(
+		http.DefaultClient,
 		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
-		"text/plain",
-		strings.NewReader("INSERT INTO otel_logs FORMAT JSONEachRow\n{}"),
+		"INSERT INTO otel_logs FORMAT JSONEachRow\n{}",
 	)
 	if err != nil {
 		t.Fatalf("sql insert request: %v", err)
@@ -155,12 +155,10 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 		"http://127.0.0.1:%d/sql?param_body=%%22hello%%22&param_levels=%%5B%%22INFO%%22%%5D",
 		sqlPort,
 	)
-	resp, err := http.Post(
+	resp, err := postSQL(
+		http.DefaultClient,
 		sqlURL,
-		"text/plain",
-		strings.NewReader(
-			`SELECT count() AS c FROM logs WHERE Body = {body:String} AND SeverityText IN {levels:Array(String)}`,
-		),
+		`SELECT count() AS c FROM logs WHERE Body = {body:String} AND SeverityText IN {levels:Array(String)}`,
 	)
 	if err != nil {
 		t.Fatalf("parameterized request: %v", err)
@@ -175,10 +173,10 @@ func TestSQLHTTPParameterizedRoundTrip(t *testing.T) {
 	}
 
 	// Missing param surfaces as 400.
-	respMissing, err := http.Post(
+	respMissing, err := postSQL(
+		http.DefaultClient,
 		fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort),
-		"text/plain",
-		strings.NewReader(`SELECT {missing:String}`),
+		`SELECT {missing:String}`,
 	)
 	if err != nil {
 		t.Fatalf("missing-param request: %v", err)
@@ -314,6 +312,18 @@ func waitForHTTP(t *testing.T, url string, timeout time.Duration) {
 	t.Fatalf("timed out waiting for %s", url)
 }
 
+// postSQL sends SQL the way a local client does. The endpoint answers 403
+// without the header.
+func postSQL(client *http.Client, url, sql string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(sql))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+	req.Header.Set("X-Everr-Local", "1")
+	return client.Do(req)
+}
+
 func waitForSQLResponse(
 	t *testing.T,
 	url, sql string,
@@ -325,7 +335,7 @@ func waitForSQLResponse(
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		resp, err := client.Post(url, "text/plain", strings.NewReader(sql))
+		resp, err := postSQL(client, url, sql)
 		if err == nil {
 			body, _ := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
