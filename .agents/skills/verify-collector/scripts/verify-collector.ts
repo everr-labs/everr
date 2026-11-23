@@ -362,24 +362,28 @@ async function applySchema(r: Run, target: Target): Promise<void> {
     const seedFile = path.join(SCHEMA_DIR, f.replace(/\.sql$/, ".seed.ts"));
     const seeded = existsSync(seedFile);
     if (seeded) {
-      const sql = async (query: string, bound: Record<string, unknown> = {}): Promise<string> => {
-        const res = await chPost(r, query, Object.fromEntries(Object.entries(bound).map(([name, value]) => [name, String(value)])));
-        if (!res.ok) {
-          teeAppend(out, `FAILED ${f} seed: HTTP ${res.status} ${res.text.trim()}`);
-          die(`schema ${f} seed failed; see ${out}; run 'verify-collector cleanup'`);
-        }
+      // A string parameter with the escapes @clickhouse/client gives it.
+      const param = (value: string | number) =>
+        String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+      const sql = async (query: string, bound: Record<string, string | number> = {}): Promise<string> => {
+        const res = await chPost(r, query, Object.fromEntries(Object.entries(bound).map(([name, value]) => [name, param(value)])));
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.text.trim()}`);
         return res.text;
       };
-      const { default: seed } = (await import(pathToFileURL(seedFile).href)) as { default: ClickHouseSeed };
-      await seed({
-        query: async (query, bound) => (await sql(query, bound)).split("\n").filter(Boolean).map((row) => JSON.parse(row)),
-        command: async (query, bound) => void (await sql(query, bound)),
-      });
+      try {
+        const { default: seed } = (await import(pathToFileURL(seedFile).href)) as { default: ClickHouseSeed };
+        await seed({
+          query: async (query, bound) => (await sql(query, bound)).split("\n").filter(Boolean).map((row) => JSON.parse(row)),
+          command: async (query, bound) => void (await sql(query, bound)),
+        });
+      } catch (e) {
+        teeAppend(out, `FAILED ${f} seed: ${e instanceof Error ? e.message : String(e)}`);
+        die(`schema ${f} seed failed; see ${out}; run 'verify-collector cleanup'`);
+      }
     }
     teeAppend(out, `applied ${f} (${statements.length} statements${seeded ? ", seed" : ""})`);
   }
 }
-
 
 async function waitFor(what: string, seconds: number, ok: () => Promise<boolean>, alive?: () => boolean, log?: string): Promise<void> {
   const deadline = Date.now() + seconds * 1000;
