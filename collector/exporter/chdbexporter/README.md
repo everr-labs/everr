@@ -584,11 +584,3 @@ ClickHouse v25+ is recommended for reliable JSON support.
 ## Contributing
 
 Before contributing, review the contribution guidelines in [CONTRIBUTING.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/CONTRIBUTING.md).
-
-#### Integration tests
-
-Integration tests can be run with the following command (includes unit tests):
-```sh
-go test -tags integration
-```
-*Note: Make sure integration tests pass after making changes to SQL.*
