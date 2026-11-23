@@ -1,3 +1,4 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vite-plus/test";
 import { readFileSync } from "node:fs";
 import {
@@ -196,17 +197,27 @@ describe("ClickHouse migrations", () => {
       readonly query_params?: Record<string, unknown>;
     }
 
-    // Keeps every query running until a KILL QUERY binds a prefix of its id.
+    const KILL =
+      "KILL QUERY WHERE startsWith(query_id, {prefix:String}) AND user = currentUser() SYNC";
+
+    // Keeps every query running until the KILL above names a prefix of its
+    // id. Like ClickHouse 26.11, it fails a KILL that matches no query.
     function server() {
       const sent: Sent[] = [];
       const running = new Set<string>();
       const receive = (request: Sent) => {
         sent.push(request);
-        if (request.query.startsWith("KILL QUERY")) {
-          const prefixes = Object.values(request.query_params ?? {}).map(String);
-          for (const id of running) {
-            if (prefixes.some((prefix) => id.startsWith(prefix))) running.delete(id);
+        if (request.query === KILL) {
+          const prefix = String(request.query_params?.prefix);
+          const matched = [...running].filter((id) => id.startsWith(prefix));
+          if (matched.length === 0) {
+            throw new ClickHouseError({
+              message: "No query to kill.",
+              code: "785",
+              type: "NOTHING_TO_KILL",
+            });
           }
+          for (const id of matched) running.delete(id);
         } else if (request.query_id !== undefined) {
           running.add(request.query_id);
         }
@@ -278,6 +289,18 @@ describe("ClickHouse migrations", () => {
       expect(left).toHaveLength(3);
       expect(stillRunning).toEqual([]);
     });
+
+    it("stops the earlier seed queries before it sends the statements again", async () => {
+      const { sent, running, start, idsOf } = server();
+      await start(async ({ command }) => {
+        await command("ALTER USER a DEFAULT ROLE NONE");
+      });
+      const retry = sent.length;
+      await start(async () => {});
+
+      expect(sent.slice(retry).map(({ query }) => query)).toEqual([KILL, "SELECT 1"]);
+      expect([...running]).toEqual([...new Set(idsOf("SELECT 1"))]);
+    });
   });
 
   describe("applying one migration", () => {
@@ -290,7 +313,9 @@ describe("ClickHouse migrations", () => {
           statement: async (statement) => {
             calls.push(statement);
           },
-          stopSeedQueries: async () => {},
+          stopSeedQueries: async () => {
+            calls.push("stop seed queries");
+          },
           seed: { query: async () => [], command: async () => {} },
           journal: async () => {
             calls.push("journal");
@@ -306,7 +331,7 @@ describe("ClickHouse migrations", () => {
       });
       await done;
 
-      expect(calls).toEqual(["SELECT 1", "SELECT 2", "seed", "journal"]);
+      expect(calls).toEqual(["stop seed queries", "SELECT 1", "SELECT 2", "seed", "journal"]);
     });
 
     it("leaves the migration pending when its seed fails", async () => {
@@ -317,7 +342,7 @@ describe("ClickHouse migrations", () => {
       await expect(done).rejects.toThrow(
         /seed of ClickHouse migration 0002-cloud-policies\.sql.*no access to system\.users/,
       );
-      expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
+      expect(calls).toEqual(["stop seed queries", "SELECT 1", "SELECT 2"]);
     });
   });
 
