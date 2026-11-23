@@ -1,5 +1,6 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vite-plus/test";
+import { readdirSync, readFileSync } from "node:fs";
 import {
   applyClickHouseMigration,
   clickHouseMigrationHash,
@@ -23,6 +24,7 @@ import {
   sqlStatements,
   withClickHouseSeeds,
 } from "./clickhouse-sql";
+import { isAccessControl } from "#app/testing/chdb-migrated-store.ts";
 
 const migration = (name: string, sql = `SELECT '${name}'`): ClickHouseMigration => ({ name, sql });
 const applied = (...migrations: ClickHouseMigration[]) =>
@@ -103,6 +105,28 @@ describe("ClickHouse migrations", () => {
     expect(() => pendingClickHouseMigrations([after], applied(before))).toThrow(
       "ClickHouse migrations changed after they were applied: 0003-tables.sql.",
     );
+  });
+
+  it("keeps the local store's files equal to these, without access control", () => {
+    const localDir = new URL("../../../../collector/localcollector/migrations/", import.meta.url);
+    const local = Object.fromEntries(
+      readdirSync(localDir)
+        .filter((name) => name.endsWith(".sql"))
+        .map((name) => [name, sqlStatements(readFileSync(new URL(name, localDir), "utf8"))]),
+    );
+    // chDB has one implicit user, so the local store has no copy of a tagged
+    // file or of a file that holds only access control.
+    const expected = Object.fromEntries(
+      clickHouseMigrations
+        .filter(({ name }) => clickHouseMigrationTarget(name) === undefined)
+        .map(({ name, sql }) => [
+          name,
+          sqlStatements(sql).filter((statement) => !isAccessControl(statement)),
+        ])
+        .filter(([, statements]) => statements.length > 0),
+    );
+
+    expect(local).toEqual(expected);
   });
 
   it("splits statements after removing comments that contain semicolons", () => {

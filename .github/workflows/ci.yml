@@ -72,6 +72,7 @@ jobs:
               - 'packages/telemetry-explorer/**'
               - 'packages/ui/**'
               - 'skills/everr-use-telemetry/rules/schema.md'
+              - 'collector/localcollector/migrations/**'
             docs:
               - '.github/**'
               - '.node-version'
@@ -99,7 +100,6 @@ jobs:
               - 'vitest*.ts'
               - 'tsconfig*.json'
               - '.dockerignore'
-              - 'packages/app/clickhouse/**'
               - 'packages/cli/**'
               - 'packages/local-app/**'
               - 'packages/datemath/**'
@@ -116,7 +116,6 @@ jobs:
               - '.github/**'
               - '.dockerignore'
               - 'collector/**'
-              - 'packages/app/clickhouse/**'
             bundle:
               - '.github/**'
               - '.node-version'
