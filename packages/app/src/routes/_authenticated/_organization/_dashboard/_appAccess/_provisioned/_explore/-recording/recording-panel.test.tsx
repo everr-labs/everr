@@ -4,6 +4,7 @@ import type {
   PlayerPlacement,
 } from "@everr/telemetry-explorer/recordings";
 import { ResizablePanel, ResizablePanelGroup } from "@everr/ui/components/resizable";
+import { refreshPage } from "@everr/ui/lib/refresh-epoch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -419,6 +420,37 @@ describe("session recording panel", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("loads a Clip again when a refresh shows it ended later than its events", async () => {
+    vi.mocked(getCoveringClips)
+      .mockResolvedValueOnce([coveringClip({ endMs: T + 30_000 })])
+      .mockResolvedValue([coveringClip({ endMs: T + 70_000 })]);
+    const later = { type: 3, timestamp: T + 69_000, data: { source: 2 } };
+    vi.mocked(getClipEvents)
+      .mockResolvedValueOnce(eventsResponse(playableEvents))
+      .mockResolvedValue(eventsResponse([...playableEvents, later]));
+    const { queryClient } = renderPlayer({ kind: "trace", traceId: "t1" });
+    await toggle(false);
+    await openedPlayer();
+
+    act(() => refreshPage(queryClient));
+
+    await waitFor(() => expect(replayers.created.at(-1)?.events).toContainEqual(later));
+    expect(getClipEvents).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not load a Clip's events again on a refresh that finds the same Clip", async () => {
+    vi.mocked(getCoveringClips).mockResolvedValue([coveringClip()]);
+    vi.mocked(getClipEvents).mockResolvedValue(eventsResponse(playableEvents));
+    const { queryClient } = renderPlayer({ kind: "trace", traceId: "t1" });
+    await toggle(false);
+    await openedPlayer();
+
+    act(() => refreshPage(queryClient));
+    await waitFor(() => expect(getCoveringClips).toHaveBeenCalledTimes(2));
+
+    expect(getClipEvents).toHaveBeenCalledTimes(1);
   });
 
   it("explains a Clip too large to play", async () => {

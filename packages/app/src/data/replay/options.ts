@@ -30,13 +30,13 @@ export const coveringClipsOptions = (subject: ClipSubject) =>
 const isSettled = (data: ClipEvents | undefined) =>
   data !== undefined && data.events.length > 0 && data.gaps.length === 0;
 
-// A refresh leaves the events alone. A settled Clip never changes, and a refetch
-// downloads megabytes again. An empty answer is asked again once stale, or by
-// Retry.
-export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs">) =>
+// A refresh leaves the events alone: a refetch downloads megabytes again. The
+// end is in the key, so a Clip that a refresh shows longer is fetched again. An
+// empty answer is asked again once stale, or by Retry.
+export const clipEventsOptions = (clip: Pick<CoveringClip, "clipId" | "startMs" | "endMs">) =>
   // oxlint-disable-next-line query/exhaustive-deps -- startMs belongs to the Clip the id names
   appQueryOptions({
-    queryKey: ["recordings", "events", clip.clipId],
+    queryKey: ["recordings", "events", clip.clipId, clip.endMs],
     queryFn: async (): Promise<ClipEvents> => {
       const response = await getClipEvents({
         data: { clipId: clip.clipId, startMs: clip.startMs },
