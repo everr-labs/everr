@@ -374,6 +374,26 @@ describe("values that rrweb 2.1.7 leaves in the clear", () => {
       expect(json, path).toContain(path);
   });
 
+  it("strips the query of imagesrcset, xlink:href, object data, and image-set() strings", async () => {
+    const json = await recordPage(
+      `<link rel="preload" as="image" imagesrcset="/hero.png?token=set-secret 1x, /hero2.png?token=set2-secret 2x">
+       <svg><image xlink:href="/a.png?token=xlink-secret"></image></svg>
+       <object data="/doc.pdf?token=data-secret"></object>
+       <div style="background-image: image-set('/b.png?token=quoted-secret' 1x, url('/c.png?token=url-secret') 2x)">x</div>`,
+      { blockAllMedia: false },
+    );
+    for (const secret of [
+      "set-secret",
+      "set2-secret",
+      "xlink-secret",
+      "data-secret",
+      "quoted-secret",
+      "url-secret",
+    ])
+      expect(json, secret).not.toContain(secret);
+    expect(json).toContain("image-set('/b.png' 1x, url('http://localhost:3000/c.png') 2x)");
+  });
+
   it("keeps references to elements of the page", async () => {
     const json = await recordPage(
       `<div id="box">x</div><svg><use href="#icon"></use></svg>`,
@@ -477,6 +497,13 @@ describe("the options", () => {
     const none = await recordPage(html, { maskAttributes: [] });
     expect(none).toContain("kept-data");
     expect(none).toContain("alt-secret");
+  });
+
+  it("masks a URL attribute that maskAttributes lists, path and all", async () => {
+    const json = await recordPage(`<a href="/reset/path-secret">x</a>`, {
+      maskAttributes: ["href"],
+    });
+    expect(json).not.toContain("path-secret");
   });
 
   it("records media with blockAllMedia: false, and blocks what block lists", async () => {

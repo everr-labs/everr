@@ -36,10 +36,15 @@ const UI_STATE = /^data-(state|side|align|orientation|slot|variant|size|motion|s
 // A reference to an element of the page, as in <use href="#icon"> or a
 // url(#clip) that rrweb keeps relative. It holds an id, not data.
 const LOCAL_REF = /^\s*#[\w:.-]*\s*$/;
-const URL_ATTRIBUTES = /^(href|src|srcset|action|formaction|poster|cite|background|ping)$/;
+const URL_ATTRIBUTES =
+  /^(href|xlink:href|src|srcset|imagesrcset|data|action|formaction|poster|cite|background|ping)$/;
+const URL_LISTS = /^(srcset|imagesrcset)$/;
 // The url() shapes rrweb 2.1.7 copies unchanged from a style attribute, a
 // stylesheet's _cssText, the text of a style element, and the CSSOM events.
 const CSS_URL = /url\((?:(')([^']*)'|(")(.*?)"|([^)]*))\)/gi;
+// image-set() also takes a URL as a plain string, as in image-set("a.png" 1x).
+// Its arguments can hold one level of url().
+const IMAGE_SET = /image-set\((?:[^()]|\([^()]*\))*\)/gi;
 // The input types whose value rrweb hands to maskInputFn when maskAllInputs is
 // true. rrweb copies every other value as is: hidden, checkbox, radio, button,
 // and the options of a select.
@@ -66,7 +71,9 @@ const stripUrl = (url: string, srcset?: boolean) =>
 // A data: URL stays whole: its payload can contain ? and #, and it is the image.
 // An unquoted capture can hold quotes, as `url( 'a?b' )` does after rrweb makes
 // it absolute. The cut keeps those quotes, so the CSS after it still parses.
-const stripCssUrls = (css: string) =>
+const stripCssUrls = (css: string) => stripImageSets(stripUrlFunctions(css));
+
+const stripUrlFunctions = (css: string) =>
   css.replace(
     CSS_URL,
     (
@@ -83,6 +90,16 @@ const stripCssUrls = (css: string) =>
       const kept = raw.replace(/[?#].*/s, (cut) => cut.replace(/[^'"]/g, ""));
       return `url(${quote}${kept}${quote})`;
     },
+  );
+
+// A string inside a url() was cut already, and a second cut changes nothing.
+const stripImageSets = (css: string) =>
+  css.replace(IMAGE_SET, (set) =>
+    set.replace(/(['"])(.*?)\1/gs, (match, quote: string, raw: string) =>
+      /^\s*data:/i.test(raw) || LOCAL_REF.test(raw)
+        ? match
+        : `${quote}${raw.replace(/[?#].*/s, "")}${quote}`,
+    ),
   );
 
 // A style mutation may be the whole attribute, or rrweb's per-property diff:
@@ -146,10 +163,10 @@ export function privacy(options: RecordingOptions, nodeOf: (id: number) => Node 
       if (typeof value === "string" && name === "value" && rawValue(el)) {
         if (typeOf(el) === "file") delete out.value;
         else out.value = maskInput(value, el);
-      } else if (typeof value === "string" && URL_ATTRIBUTES.test(name))
-        out[name] = stripUrl(value, name === "srcset");
-      else if (typeof value === "string" && maskAttribute(name) && !unmasked(el))
+      } else if (typeof value === "string" && maskAttribute(name) && !unmasked(el))
         out[name] = mask(value);
+      else if (typeof value === "string" && URL_ATTRIBUTES.test(name))
+        out[name] = stripUrl(value, URL_LISTS.test(name));
       else if (name === "style" || name === "_cssText") out[name] = stripStyle(value);
     }
     return out;
