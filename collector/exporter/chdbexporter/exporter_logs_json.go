@@ -21,13 +21,6 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// anyLogsExporter is an interface that satisfies both the default map logsExporter and the logsJSONExporter
-type anyLogsExporter interface {
-	start(context.Context, component.Host) error
-	shutdown(context.Context) error
-	pushLogsData(context.Context, plog.Logs) error
-}
-
 type logsJSONExporter struct {
 	cfg            *Config
 	logger         *zap.Logger

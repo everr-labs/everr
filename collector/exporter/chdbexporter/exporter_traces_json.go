@@ -20,13 +20,6 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
-// anyTracesExporter is an interface that satisfies both the default map tracesExporter and the tracesJSONExporter
-type anyTracesExporter interface {
-	start(context.Context, component.Host) error
-	shutdown(context.Context) error
-	pushTraceData(ctx context.Context, td ptrace.Traces) error
-}
-
 type tracesJSONExporter struct {
 	cfg            *Config
 	logger         *zap.Logger
@@ -302,6 +295,24 @@ func renderCreateTracesJSONTableSQL(cfg *Config) string {
 		cfg.database(), cfg.TracesTableName, cfg.tableClusterString(),
 		cfg.tableEngineString(),
 		ttlExpr,
+	)
+}
+
+func renderCreateTraceIDTsTableSQL(cfg *Config) string {
+	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Start)")
+	return fmt.Sprintf(sqltemplates.TracesCreateTsTable,
+		cfg.database(), cfg.TracesTableName, cfg.tableClusterString(),
+		cfg.tableEngineString(),
+		ttlExpr,
+	)
+}
+
+func renderTraceIDTsMaterializedViewSQL(cfg *Config) string {
+	database := cfg.database()
+	return fmt.Sprintf(sqltemplates.TracesCreateTsView,
+		database, cfg.TracesTableName, cfg.tableClusterString(),
+		database, cfg.TracesTableName,
+		database, cfg.TracesTableName,
 	)
 }
 

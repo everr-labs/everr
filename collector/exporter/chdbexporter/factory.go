@@ -48,12 +48,7 @@ func createLogsExporter(
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
-	var exp anyLogsExporter
-	if c.JSON {
-		exp = newLogsJSONExporter(set.Logger, c, handle)
-	} else {
-		exp = newLogsExporter(set.Logger, c, handle)
-	}
+	exp := newLogsJSONExporter(set.Logger, c, handle)
 
 	return exporterhelper.NewLogs(
 		ctx,
@@ -77,12 +72,7 @@ func createTracesExporter(
 	c := cfg.(*Config)
 	c.collectorVersion = set.BuildInfo.Version
 
-	var exp anyTracesExporter
-	if c.JSON {
-		exp = newTracesJSONExporter(set.Logger, c, handle)
-	} else {
-		exp = newTracesExporter(set.Logger, c, handle)
-	}
+	exp := newTracesJSONExporter(set.Logger, c, handle)
 
 	return exporterhelper.NewTraces(
 		ctx,

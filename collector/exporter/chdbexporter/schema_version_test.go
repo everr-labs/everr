@@ -25,14 +25,12 @@ import (
 // shapedTemplatesDigest pins the DDL that decides the shape of the local
 // store. localSchemaVersion has to change with it, because a store built by an
 // older binary is only dropped and rebuilt when the version differs.
-const shapedTemplatesDigest = "7179a729ecb12bbb7a8f8bf9df20a521e2316b9841c1c8caf0c0c825698dd363"
+const shapedTemplatesDigest = "158862b4b0b213318b203ffbac8dda6da4b489c9ea6be443bee621938d0b38ec"
 
 func TestSchemaTemplatesMatchVersion(t *testing.T) {
 	digest := sha256.New()
 	for _, template := range []string{
-		sqltemplates.LogsCreateTable,
 		sqltemplates.LogsJSONCreateTable,
-		sqltemplates.TracesCreateTable,
 		sqltemplates.TracesJSONCreateTable,
 		sqltemplates.TracesCreateTsTable,
 		sqltemplates.TracesCreateTsView,
@@ -115,7 +113,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 
 	// A store filled by an earlier run.
 	first := withDefaultConfig()
-	filled := newLogsExporter(zaptest.NewLogger(t), first, handle)
+	filled := newLogsJSONExporter(zaptest.NewLogger(t), first, handle)
 	require.NoError(t, filled.start(t.Context(), nil))
 	ld := plog.NewLogs()
 	record := ld.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
@@ -135,7 +133,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	require.NoError(t, writeSchemaVersion(t.Context(), conn, first.database(), localSchemaVersion-1))
 
 	second := withDefaultConfig()
-	rebuilt := newLogsExporter(zaptest.NewLogger(t), second, handle)
+	rebuilt := newLogsJSONExporter(zaptest.NewLogger(t), second, handle)
 	require.NoError(t, rebuilt.start(t.Context(), nil))
 	t.Cleanup(func() { _ = rebuilt.shutdown(context.Background()) })
 

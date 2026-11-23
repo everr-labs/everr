@@ -38,9 +38,6 @@ chdb/batch:
       min_size: 5000
       max_size: 10000
       flush_timeout: 5s
-chdb/json:
-  endpoint: clickhouse://127.0.0.1:9000
-  json: true
 chdb/invalid-endpoint:
   endpoint: 127.0.0.1:9000
 
