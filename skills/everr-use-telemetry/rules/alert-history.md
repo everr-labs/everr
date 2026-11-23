@@ -1,7 +1,7 @@
 # Alert History (`alert_events`)
 
-Alert history is available on remote installations. `everr cloud query` reads it; `everr local query`
-has no such table, because alerting does not run locally.
+Alert history is available on remote installations. `everr cloud query` reads it. For `everr local query`
+the table is always empty, because alerting does not run locally.
 
 One row per thing that happened to an alert: an evaluation, a state
 transition, a withheld notification, a delivery attempt. All event types live

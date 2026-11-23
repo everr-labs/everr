@@ -126,6 +126,41 @@ the migration was written.
 - A seed sees the server once. Something the previous application version
   creates after that, during a rolling deploy, is not covered.
 
+### Local store
+
+The CLI's local store (`everr local start`) applies the same files to its
+embedded chDB. `packages/app/clickhouse` is also a Go module that embeds its
+`*.sql` files, so the CLI binary carries the files that App and Cloud apply.
+There is no second copy.
+
+The local store differs from a server in four ways.
+
+- It applies the files without a tag. A file tagged `cloud-` or
+  `self-hosted-` does not apply.
+- It skips access control statements, because chDB has one implicit user:
+  `GRANT`, `REVOKE`, `SET ROLE`, `SET DEFAULT ROLE`, and `CREATE`, `ALTER` or
+  `DROP` of a `USER`, `ROLE`, `ROW POLICY`, `SETTINGS PROFILE` or `QUOTA`.
+  `classify` in `collector/localcollector/internal/store/classify.go` holds the
+  list. chDB must run every other statement.
+- It never runs a seed. If the local store needs the result of a seed, write
+  that work as a repeatable SQL statement in the migration file.
+- It records the applied files in `.everr-store.json` in the chDB directory,
+  not in `default.everr_clickhouse_migrations`. If an applied file changed, the
+  local store deletes its data and applies every file again. It does not stop
+  startup, because local telemetry is a cache.
+
+A new file applies on the next `everr local start`, and the local data stays.
+To make every local store start empty, raise `Version` in
+`collector/localcollector/internal/store/version.go`. Do that when a store that
+an older CLI built must not be reused and no migration file shows why, for
+example after a chDB upgrade that cannot read the old files.
+
+A pull request that changes a file in `packages/app/clickhouse` runs the
+collector and CLI checks. `TestOpenBuildsTheSchemaFromTheEmbeddedMigrations`
+applies every file to a real chDB. When chDB cannot run a statement, the test
+fails with the file name and the statement. If the statement is access control
+of a kind that `classify` does not list, add it there.
+
 ## Verification
 
 Use separate disposable PostgreSQL databases before changing an existing

@@ -47,7 +47,7 @@ If an Everr command fails, investigate why: collector stopped, stale app, wrong 
 
 ## Schema And Queries
 
-**Read `rules/schema.md` before your first query.** It lists the tables, columns, units, value spellings (`SpanKind`, `StatusCode`), how to read JSON attributes, the query rules, and starter queries: freshness, span names, errors, a full trace by id, and error fingerprints. The same tables exist on remote installations and the local collector, except `alert_events`, which is available on remote installations (read `rules/alert-history.md` before querying it).
+**Read `rules/schema.md` before your first query.** It lists the tables, columns, units, value spellings (`SpanKind`, `StatusCode`), how to read JSON attributes, the query rules, and starter queries: freshness, span names, errors, a full trace by id, and error fingerprints. The same tables exist on remote installations and the local collector. `alert_events` holds rows only on remote installations (read `rules/alert-history.md` before querying it).
 
 Remote queries time out after 30 seconds and fail past 25,000 result rows or 4 MB of result. They fail; they do not truncate.
 
