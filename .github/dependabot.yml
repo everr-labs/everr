@@ -8,6 +8,10 @@ updates:
     # new release leaves time for a compromised one to be caught and pulled.
     cooldown:
       default-days: 7
+    ignore:
+      # changesets/action v2 requires @changesets/cli v3. Bump both together.
+      - dependency-name: changesets/action
+        update-types: ["version-update:semver-major"]
     groups:
       github-actions:
         patterns: ["*"]

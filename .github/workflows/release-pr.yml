@@ -54,10 +54,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Open/update Version Packages PR or publish packages
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # v2 of the action requires @changesets/cli v3 and fails on v2.
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          version-script: pnpm run changeset:version
-          publish-script: pnpm run changeset:publish
-          pr-title: "chore: version packages"
-          commit-message: "chore: version packages"
+          version: pnpm run changeset:version
+          publish: pnpm run changeset:publish
+          title: "chore: version packages"
+          commit: "chore: version packages"
