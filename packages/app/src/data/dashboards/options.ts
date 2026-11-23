@@ -45,10 +45,11 @@ export const dashboardListOptions = (preview?: string) =>
  * Keyed by the exact range the dashboards render, so changing the time range
  * re-grades the built-in list from the same window. Readiness moves when
  * ingestion starts or stops, which is minutes-scale, and the probe scans every
- * signal table, so it stays fresh for five minutes rather than one.
+ * signal table, so it stays fresh for five minutes rather than one. It reads
+ * telemetry, so a refresh re-grades the list too.
  */
 export const telemetryCapabilitiesOptions = (from: string, to: string) =>
-  appQueryOptions({
+  dataQueryOptions({
     queryKey: [...dashboardsQueryKey, "capabilities", from, to],
     queryFn: () => getTelemetryCapabilities({ data: toViewerTimeRange({ from, to }) }),
     staleTime: 5 * 60_000,
