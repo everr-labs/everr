@@ -1,3 +1,4 @@
+import { ClickHouseError } from "@clickhouse/client";
 import { env } from "#app/env/index.ts";
 import { clickhouseMigrationEnv } from "#app/env/clickhouse-migration.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
@@ -22,6 +23,7 @@ const JOURNAL = "default.everr_clickhouse_migrations";
 const PARAMETER = /\{(\w+):\w+\}/g;
 const MIGRATION_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
 const QUERY_ID_SAFE = /[^0-9A-Za-z_-]/g;
+const NOTHING_TO_KILL = "785";
 
 /** A migration as this build bundles it, with the hash the journal records. */
 export interface HashedClickHouseMigration extends ClickHouseMigration {
@@ -104,19 +106,18 @@ export async function applyClickHouseMigration(
   migration: HashedClickHouseMigration,
   steps: ClickHouseMigrationSteps,
 ): Promise<void> {
+  // A seed query from an earlier start can hold a lock that a statement needs.
+  if (migration.seed) await steps.stopSeedQueries();
   for (const [index, statement] of sqlStatements(migration.sql).entries()) {
     await steps.statement(statement, index);
   }
-  if (migration.seed) {
-    try {
-      await steps.stopSeedQueries();
-      await migration.seed(steps.seed);
-    } catch (cause) {
-      const reason = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
-        cause,
-      });
-    }
+  try {
+    await migration.seed?.(steps.seed);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
+      cause,
+    });
   }
   await steps.journal();
 }
@@ -151,13 +152,18 @@ export function clickHouseMigrationSteps(
     // A seed can make other calls on a retry, so a repeated query id does not
     // find its earlier queries the way it does for a statement.
     stopSeedQueries: async () => {
-      await instrumented("QUERY", () =>
-        client.command({
-          query:
-            "KILL QUERY WHERE startsWith(query_id, {prefix:String}) AND user = currentUser() SYNC",
-          query_params: { prefix: seedQueryIdPrefix(migration.name) },
-        }),
-      );
+      await instrumented("QUERY", async () => {
+        try {
+          await client.command({
+            query:
+              "KILL QUERY WHERE startsWith(query_id, {prefix:String}) AND user = currentUser() SYNC",
+            query_params: { prefix: seedQueryIdPrefix(migration.name) },
+          });
+        } catch (error) {
+          // ClickHouse 26.11 and later fail a KILL QUERY that matches no query.
+          if (!(error instanceof ClickHouseError && error.code === NOTHING_TO_KILL)) throw error;
+        }
+      });
     },
     seed: {
       query: <Row>(query: string, queryParams?: ClickHouseSeedParams) =>
