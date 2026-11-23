@@ -10,6 +10,15 @@ import { toast } from "sonner";
 import { SpanName } from "../span-name";
 import type { TraceNode } from "./model";
 
+async function copySpanLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href);
+    toast.success("Span link copied");
+  } catch {
+    toast.error("Could not copy span link");
+  }
+}
+
 export function SpanDetails({
   node,
   durationMs,
@@ -51,15 +60,7 @@ export function SpanDetails({
           variant="ghost"
           size="icon-sm"
           aria-label="Copy span link"
-          // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(window.location.href);
-              toast.success("Span link copied");
-            } catch {
-              toast.error("Could not copy span link");
-            }
-          }}
+          onClick={() => void copySpanLink()}
         >
           <Copy />
         </Button>

@@ -80,12 +80,10 @@ export function ErrorIssues({
               isPending={issuesQuery.isPending}
               isError={issuesQuery.isError}
               error={issuesQuery.error}
-              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-              onRetry={() => issuesQuery.refetch()}
+              onRetry={() => void issuesQuery.refetch()}
               hasNextPage={issuesQuery.hasNextPage}
               isFetchingNextPage={issuesQuery.isFetchingNextPage}
-              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-              onLoadMore={() => issuesQuery.fetchNextPage()}
+              onLoadMore={() => void issuesQuery.fetchNextPage()}
               empty={
                 <NoResults
                   noun="errors"

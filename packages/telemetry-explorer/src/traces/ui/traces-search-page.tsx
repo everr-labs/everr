@@ -103,13 +103,11 @@ export function TracesSearch({
               isPending={isPending}
               isError={isError}
               error={error}
-              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-              refetch={refetch}
+              refetch={() => void refetch()}
               hasMore={hasNextPage}
               isLoadingMore={isFetchingNextPage}
               renderTraceLink={renderTraceLink}
-              // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
-              onLoadMore={() => fetchNextPage()}
+              onLoadMore={() => void fetchNextPage()}
               empty={
                 <NoResults
                   noun="traces"

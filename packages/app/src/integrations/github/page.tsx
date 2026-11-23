@@ -34,8 +34,8 @@ export function GithubPage() {
   const { data: installations } = useQuery(githubInstallStatusOptions);
   const installed = installations?.some((installation) => installation.installed) ?? false;
 
-  const handleInstalled = useCallback(async () => {
-    await Promise.all([
+  const handleInstalled = useCallback(() => {
+    void Promise.all([
       queryClient.invalidateQueries({
         queryKey: githubInstallStatusOptions.queryKey,
       }),
@@ -59,7 +59,6 @@ export function GithubPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* oxlint-disable-next-line typescript/no-misused-promises -- Preserve the installed callback promise and identity. */}
           <GithubInstall installed={installed} onInstalled={handleInstalled} />
         </CardContent>
       </Card>
