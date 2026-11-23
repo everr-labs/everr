@@ -1,4 +1,4 @@
-export type ClickHouseSeedParams = Readonly<Record<string, unknown>>;
+export type ClickHouseSeedParams = Readonly<Record<string, string | number>>;
 
 /**
  * What a seed works with: the connection its migration runs on. Pass a value

@@ -28,13 +28,16 @@ export interface HashedClickHouseMigration extends ClickHouseMigration {
   readonly hash: string;
 }
 
+const queryIdPrefix = (name: string) => `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-`;
+const seedQueryIdPrefix = (name: string) => `${queryIdPrefix(name)}seed-`;
+
 /**
- * Stable id for one statement or one seed query. A retry sends it again with
+ * Stable id for one statement. A retry sends it again with
  * `replace_running_query`, which cancels the previous attempt if ClickHouse
  * is still running it after the client timed out.
  */
-export function clickHouseMigrationQueryId(name: string, step: number | `seed-${number}`): string {
-  return `everr-ch-${name.replace(QUERY_ID_SAFE, "_")}-${step}`;
+export function clickHouseMigrationQueryId(name: string, index: number): string {
+  return `${queryIdPrefix(name)}${index}`;
 }
 
 /**
@@ -87,6 +90,7 @@ export function statementParams(
 /** How one migration reaches ClickHouse. */
 export interface ClickHouseMigrationSteps {
   statement(this: void, statement: string, index: number): Promise<void>;
+  stopSeedQueries(this: void): Promise<void>;
   readonly seed: ClickHouseSeedContext;
   journal(this: void): Promise<void>;
 }
@@ -103,13 +107,16 @@ export async function applyClickHouseMigration(
   for (const [index, statement] of sqlStatements(migration.sql).entries()) {
     await steps.statement(statement, index);
   }
-  try {
-    await migration.seed?.(steps.seed);
-  } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
-      cause,
-    });
+  if (migration.seed) {
+    try {
+      await steps.stopSeedQueries();
+      await migration.seed(steps.seed);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
+        cause,
+      });
+    }
   }
   await steps.journal();
 }
@@ -119,8 +126,6 @@ type MigrationClient = Pick<ReturnType<typeof createClient>, "command" | "query"
 const instrumented = <T>(operation: string, call: () => Promise<T>) =>
   instrumentClickhouseOperation({ client: "migration", operation }, call);
 
-const REPLACE_PREVIOUS_RUN = { replace_running_query: 1 } as const;
-
 export function clickHouseMigrationSteps(
   client: MigrationClient,
   migration: HashedClickHouseMigration,
@@ -129,8 +134,7 @@ export function clickHouseMigrationSteps(
   let seedCall = 0;
   const seedQuery = (query: string, queryParams?: ClickHouseSeedParams) => ({
     query,
-    query_id: clickHouseMigrationQueryId(migration.name, `seed-${seedCall++}`),
-    clickhouse_settings: REPLACE_PREVIOUS_RUN,
+    query_id: `${seedQueryIdPrefix(migration.name)}${seedCall++}`,
     ...(queryParams && { query_params: queryParams }),
   });
   return {
@@ -139,8 +143,19 @@ export function clickHouseMigrationSteps(
         client.command({
           query: statement,
           query_id: clickHouseMigrationQueryId(migration.name, index),
-          clickhouse_settings: REPLACE_PREVIOUS_RUN,
+          clickhouse_settings: { replace_running_query: 1 },
           query_params: statementParams(migration.name, statement, params),
+        }),
+      );
+    },
+    // A seed can make other calls on a retry, so a repeated query id does not
+    // find its earlier queries the way it does for a statement.
+    stopSeedQueries: async () => {
+      await instrumented("QUERY", () =>
+        client.command({
+          query:
+            "KILL QUERY WHERE startsWith(query_id, {prefix:String}) AND user = currentUser() SYNC",
+          query_params: { prefix: seedQueryIdPrefix(migration.name) },
         }),
       );
     },
@@ -200,9 +215,9 @@ export async function migrateClickHouse(
 
   // A statement can outlast the client's 30 s default. A `request_timeout` in
   // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps
-  // running a statement or a seed query after the client gives up, so each
-  // one repeats its query id and the next start cancels that run before
-  // trying again.
+  // running a statement after the client gives up, so each statement repeats
+  // its query id and the next start cancels that run before trying again.
+  // The next start stops a seed's earlier queries before it runs the seed.
   const client = createClient({
     url: env.CLICKHOUSE_URL,
     username,

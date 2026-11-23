@@ -290,12 +290,8 @@ describe("ClickHouse migrations", () => {
           statement: async (statement) => {
             calls.push(statement);
           },
-          seed: {
-            query: async () => [],
-            command: async (sql) => {
-              calls.push(sql);
-            },
-          },
+          stopSeedQueries: async () => {},
+          seed: { query: async () => [], command: async () => {} },
           journal: async () => {
             calls.push("journal");
           },
