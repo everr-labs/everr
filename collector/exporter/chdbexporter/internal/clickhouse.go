@@ -8,13 +8,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/sqltemplates"
 )
 
 const DefaultDatabase = "default"
+
+// The templates take an ON CLUSTER clause and an engine as parameters. The
+// local store is one node on the default engine.
+const (
+	NoCluster   = ""
+	TableEngine = "MergeTree()"
+)
 
 // CreateErrorFingerprintFunction registers the errorFingerprint UDF (idempotent)
 // so `everr local query` and the local browser UI group Errors the same way the cloud
@@ -30,33 +36,6 @@ func CreateErrorFingerprintFunction(ctx context.Context, db driver.Conn) error {
 		_ = rows.Close()
 	}
 	return nil
-}
-
-// DatabaseFromDSN returns the database specified in the DSN. Empty if unset.
-func DatabaseFromDSN(dsn string) (string, error) {
-	opt, err := clickhouse.ParseDSN(dsn)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse DSN: %w", err)
-	}
-
-	return opt.Auth.Database, nil
-}
-
-// NewClickhouseClientFromOptions creates a new ClickHouse client from a clickhouse.Options struct.
-// When createSchema is true, connects to the default database since the configured database may
-// not exist yet (it will be created by the schema DDL). When false, connects directly to the
-// configured database.
-func NewClickhouseClientFromOptions(opt *clickhouse.Options, createSchema bool) (driver.Conn, error) {
-	if createSchema {
-		opt.Auth.Database = DefaultDatabase
-	}
-
-	conn, err := clickhouse.Open(opt)
-	if err != nil {
-		return nil, err
-	}
-
-	return conn, nil
 }
 
 // GenerateTTLExpr generates a TTL expression for a ClickHouse table.
@@ -75,24 +54,6 @@ func GenerateTTLExpr(ttl time.Duration, timeField string) string {
 	}
 
 	return ""
-}
-
-// CreateDatabase runs the DDL for creating a database, with optional cluster and engine strings
-func CreateDatabase(ctx context.Context, db driver.Conn, database, clusterStr, engineStr string) error {
-	if database == DefaultDatabase {
-		return nil
-	}
-
-	err := db.Exec(ctx, createDatabaseDDL(database, clusterStr, engineStr))
-	if err != nil {
-		return fmt.Errorf("create database: %w", err)
-	}
-
-	return nil
-}
-
-func createDatabaseDDL(database, clusterStr, engineStr string) string {
-	return fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %q %s %s", database, clusterStr, engineStr)
 }
 
 // GetTableColumns returns the column names on a table for schema detection

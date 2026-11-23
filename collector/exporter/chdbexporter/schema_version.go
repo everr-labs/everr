@@ -11,6 +11,8 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.uber.org/zap"
+
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 )
 
 // Bump localSchemaVersion when a table shape changes, alongside the template
@@ -63,7 +65,7 @@ func ensureLocalSchema(ctx context.Context, db driver.Conn, cfg *Config, logger 
 }
 
 func rebuildStaleStore(ctx context.Context, db driver.Conn, cfg *Config, logger *zap.Logger) error {
-	database := cfg.database()
+	database := internal.DefaultDatabase
 
 	found, err := readSchemaVersion(ctx, db, database)
 	if err != nil {

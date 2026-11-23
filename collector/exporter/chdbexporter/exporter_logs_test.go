@@ -12,8 +12,6 @@ import (
 
 func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 	cfg := withDefaultConfig(func(c *Config) {
-		c.Endpoint = defaultEndpoint
-		c.Database = "test_db"
 		c.LogsTableName = "otel_logs_json"
 		c.TTL = 72 * time.Hour
 	})
@@ -28,7 +26,7 @@ func TestRenderCreateLogsJSONTableSQL(t *testing.T) {
 
 	require.Contains(t, sql, "ORDER BY (ServiceName, Timestamp)")
 	require.NotContains(t, sql, "toStartOfFiveMinutes")
-	require.Contains(t, sql, "`test_db`.`otel_logs_json`")
+	require.Contains(t, sql, "`default`.`otel_logs_json`")
 
 	require.Contains(t, sql, "TYPE bloom_filter")
 	require.NotContains(t, sql, "TYPE text(")

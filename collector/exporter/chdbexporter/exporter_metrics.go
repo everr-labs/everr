@@ -50,24 +50,12 @@ func (e *metricsExporter) start(ctx context.Context, _ component.Host) error {
 	}
 	e.db = db
 
-	if e.cfg.shouldCreateSchema() {
-		database := e.cfg.database()
-		if err := internal.CreateDatabase(ctx, e.db, database, e.cfg.clusterString(), e.cfg.databaseEngineString()); err != nil {
-			return err
-		}
-
-		if err := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); err != nil {
-			return err
-		}
-
-		ttlExpr := internal.GenerateTTLExpr(e.cfg.TTL, "toDateTime(TimeUnix)")
-		err := metrics.NewMetricsTable(ctx, e.tablesConfig, database, e.cfg.tableClusterString(), e.cfg.tableEngineString(), ttlExpr, e.db)
-		if err != nil {
-			return err
-		}
+	if err := ensureLocalSchema(ctx, e.db, e.cfg, e.logger); err != nil {
+		return err
 	}
 
-	return nil
+	ttlExpr := internal.GenerateTTLExpr(e.cfg.TTL, "toDateTime(TimeUnix)")
+	return metrics.NewMetricsTable(ctx, e.tablesConfig, internal.DefaultDatabase, internal.NoCluster, internal.TableEngine, ttlExpr, e.db)
 }
 
 func generateMetricTablesConfigMapper(cfg *Config) metrics.MetricTablesConfigMapper {
@@ -90,7 +78,7 @@ func (e *metricsExporter) shutdown(_ context.Context) error {
 }
 
 func (e *metricsExporter) pushMetricsData(ctx context.Context, md pmetric.Metrics) error {
-	metricsMap := metrics.NewMetricsModel(e.tablesConfig, e.cfg.database())
+	metricsMap := metrics.NewMetricsModel(e.tablesConfig, internal.DefaultDatabase)
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		metrics := md.ResourceMetrics().At(i)
 		resAttr := metrics.Resource().Attributes()

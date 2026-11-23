@@ -102,7 +102,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	countLogs := func(cfg *Config) string {
 		// `AS name` and a string, for the same reason readSchemaVersion needs them.
 		rows, queryErr := conn.Query(t.Context(), `SELECT toString(count()) AS name FROM "`+
-			cfg.database()+`"."`+cfg.LogsTableName+`"`)
+			internal.DefaultDatabase+`"."`+cfg.LogsTableName+`"`)
 		require.NoError(t, queryErr)
 		defer func() { _ = rows.Close() }()
 		require.True(t, rows.Next())
@@ -124,13 +124,13 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 
 	// Apply TTL deletion synchronously so this test cannot pass with an
 	// already-expired fixture while background merges happen to be idle.
-	require.NoError(t, conn.Exec(t.Context(), `ALTER TABLE "`+first.database()+`"."`+
+	require.NoError(t, conn.Exec(t.Context(), `ALTER TABLE "`+internal.DefaultDatabase+`"."`+
 		first.LogsTableName+`" MATERIALIZE TTL`))
 	require.Equal(t, "1", countLogs(first))
 	require.NoError(t, filled.shutdown(context.Background()))
 
 	// Roll the marker back to what a binary before this change left behind.
-	require.NoError(t, writeSchemaVersion(t.Context(), conn, first.database(), localSchemaVersion-1))
+	require.NoError(t, writeSchemaVersion(t.Context(), conn, internal.DefaultDatabase, localSchemaVersion-1))
 
 	second := withDefaultConfig()
 	rebuilt := newLogsJSONExporter(zaptest.NewLogger(t), second, handle)
@@ -138,7 +138,7 @@ func TestRebuildEmptiesAStoreBuiltAtAnOlderVersion(t *testing.T) {
 	t.Cleanup(func() { _ = rebuilt.shutdown(context.Background()) })
 
 	require.Equal(t, "0", countLogs(second), "the old rows survived the rebuild")
-	version, err := readSchemaVersion(t.Context(), conn, second.database())
+	version, err := readSchemaVersion(t.Context(), conn, internal.DefaultDatabase)
 	require.NoError(t, err)
 	require.Equal(t, localSchemaVersion, version)
 }

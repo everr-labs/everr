@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
@@ -96,7 +97,7 @@ func TestChDBRoundTripStoresMetricTimestamps(t *testing.T) {
 	}
 	for _, table := range tables {
 		t.Run(table.name, func(t *testing.T) {
-			from := ` FROM "` + cfg.database() + `"."` + table.name + `"`
+			from := ` FROM "` + internal.DefaultDatabase + `"."` + table.name + `"`
 			rows := queryJSONRows(t, handle,
 				`SELECT toString(toDateTime(TimeUnix), 'UTC') AS time, toString(toDateTime(StartTimeUnix), 'UTC') AS start`+from)
 			require.Len(t, rows, 1)
@@ -128,7 +129,7 @@ func TestChDBRoundTripKeepsLogTimestampNanoseconds(t *testing.T) {
 	require.NoError(t, exp.pushLogsData(t.Context(), ld))
 
 	rows := queryJSONRows(t, handle,
-		`SELECT toString(toUnixTimestamp64Nano(Timestamp)) AS nanos FROM "`+cfg.database()+`"."`+cfg.LogsTableName+`"`)
+		`SELECT toString(toUnixTimestamp64Nano(Timestamp)) AS nanos FROM "`+internal.DefaultDatabase+`"."`+cfg.LogsTableName+`"`)
 	require.Len(t, rows, 1)
 	require.Equal(t, strconv.FormatInt(roundTripTime.UnixNano(), 10), rows[0]["nanos"])
 }
@@ -153,7 +154,7 @@ func TestChDBRoundTripStoresTypedJSONAttributes(t *testing.T) {
 			" dynamicType(LogAttributes.`everr.github.workflow_job_step.number`) AS stepType,"+
 			" toString(LogAttributes.`http.route`) AS route,"+
 			" has(LogAttributesKeys, 'http.route') AS hasRoute"+
-			` FROM "`+cfg.database()+`"."`+cfg.LogsTableName+`"`)
+			` FROM "`+internal.DefaultDatabase+`"."`+cfg.LogsTableName+`"`)
 	require.Len(t, rows, 1)
 	require.Equal(t, "3", rows[0]["step"])
 	require.Equal(t, "Int64", rows[0]["stepType"], "an integer attribute is stored as a number, not as text")
@@ -178,7 +179,7 @@ func TestChDBRoundTripKeepsSpanTimestampNanoseconds(t *testing.T) {
 	require.NoError(t, exp.pushTraceData(t.Context(), td))
 
 	rows := queryJSONRows(t, handle,
-		`SELECT toString(toUnixTimestamp64Nano(Timestamp)) AS nanos FROM "`+cfg.database()+`"."`+cfg.TracesTableName+`"`)
+		`SELECT toString(toUnixTimestamp64Nano(Timestamp)) AS nanos FROM "`+internal.DefaultDatabase+`"."`+cfg.TracesTableName+`"`)
 	require.Len(t, rows, 1)
 	require.Equal(t, strconv.FormatInt(roundTripTime.UnixNano(), 10), rows[0]["nanos"])
 }

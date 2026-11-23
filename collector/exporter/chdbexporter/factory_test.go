@@ -23,9 +23,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 func TestFactory_CreateLogs(t *testing.T) {
 	factory := NewFactory()
-	cfg := withDefaultConfig(func(cfg *Config) {
-		cfg.Endpoint = defaultEndpoint
-	})
+	cfg := withDefaultConfig()
 	params := exportertest.NewNopSettings(metadata.Type)
 	exporter, err := factory.CreateLogs(t.Context(), params, cfg)
 	require.NoError(t, err)
@@ -36,9 +34,7 @@ func TestFactory_CreateLogs(t *testing.T) {
 
 func TestFactory_CreateTraces(t *testing.T) {
 	factory := NewFactory()
-	cfg := withDefaultConfig(func(cfg *Config) {
-		cfg.Endpoint = defaultEndpoint
-	})
+	cfg := withDefaultConfig()
 	params := exportertest.NewNopSettings(metadata.Type)
 	exporter, err := factory.CreateTraces(t.Context(), params, cfg)
 	require.NoError(t, err)
@@ -49,9 +45,7 @@ func TestFactory_CreateTraces(t *testing.T) {
 
 func TestFactory_CreateMetrics(t *testing.T) {
 	factory := NewFactory()
-	cfg := withDefaultConfig(func(cfg *Config) {
-		cfg.Endpoint = defaultEndpoint
-	})
+	cfg := withDefaultConfig()
 	params := exportertest.NewNopSettings(metadata.Type)
 	exporter, err := factory.CreateMetrics(t.Context(), params, cfg)
 	require.NoError(t, err)
