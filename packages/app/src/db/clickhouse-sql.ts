@@ -11,7 +11,7 @@ export interface ClickHouseSeedContext {
 
 /**
  * Work a migration needs that SQL alone cannot express, such as one statement
- * per existing organization. It is the default export of
+ * per existing ClickHouse user. It is the default export of
  * `NNNN-<name>.seed.ts`, next to `NNNN-<name>.sql`, and runs once with
  * that file, after its statements. A migration that fails runs again from its
  * first statement, so a seed must be safe to repeat.

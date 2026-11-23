@@ -76,7 +76,7 @@ parameterized user gets its role through `DEFAULT ROLE`.
 A migration that needs more than SQL gets a seed: `NNNN-<name>.seed.ts`
 next to `NNNN-<name>.sql`, with one function as its default export. Use it for
 work that depends on what the server holds, such as one statement per existing
-organization. Startup fails when the default export is not a function.
+ClickHouse user. Startup fails when the default export is not a function.
 
 ```ts
 import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
@@ -95,7 +95,8 @@ export default seed;
 ```
 
 `query` and `command` take the values for the `{name:Type}` placeholders as
-their second argument. Pass every value that comes from the server this way.
+their second argument. A value is a string or a number. Pass every value that
+comes from the server this way.
 Do not put it in the SQL string: a name can hold a backtick or a quote. `GRANT`
 does not accept parameters, so check a name against a strict pattern before it
 goes into a `GRANT`.
@@ -104,9 +105,13 @@ The runner calls the seed once, after the file's statements and before the
 journal row, on the migration connection. A seed that throws leaves the
 migration pending, so the next start runs the statements and the seed again.
 Make it safe to repeat, and keep it short: startup waits for it under the
-migration lock. A seed query gets a query id from its place in the seed's
-call order, so the retry cancels a run of it that is still on the server, as
-it does for a statement.
+migration lock. Before the runner calls a seed, it stops the queries that an
+earlier run of that seed left on the server.
+
+A seed imports only types, and reaches the server only through `query` and
+`command`. A server that upgrades across several versions runs an old seed with
+the current code, so a constant that the seed imported could have changed since
+the migration was written.
 
 - The journal hashes the SQL file only. Editing a seed after its migration
   is applied changes nothing where it already ran. A new server runs the
