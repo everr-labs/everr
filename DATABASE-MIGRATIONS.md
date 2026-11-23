@@ -105,8 +105,9 @@ The runner calls the seed once, after the file's statements and before the
 journal row, on the migration connection. A seed that throws leaves the
 migration pending, so the next start runs the statements and the seed again.
 Make it safe to repeat, and keep it short: startup waits for it under the
-migration lock. Before the runner calls a seed, it stops the queries that an
-earlier run of that seed left on the server.
+migration lock. Before the runner sends the statements of a migration that has
+a seed, it stops the queries that an earlier run of that seed left on the
+server it connects to.
 
 A seed imports only types, and reaches the server only through `query` and
 `command`. A server that upgrades across several versions runs an old seed with
