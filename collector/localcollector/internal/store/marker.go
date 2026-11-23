@@ -35,7 +35,7 @@ func observe(path string) (observed, error) {
 
 	raw, err := os.ReadFile(filepath.Join(path, markerName))
 	if err == nil {
-		seen := observed{kind: dirMarked}
+		seen := observed{kind: dirMarked, catalog: hasCatalog(path)}
 		seen.markerErr = json.Unmarshal(raw, &seen.marker)
 		return seen, nil
 	}

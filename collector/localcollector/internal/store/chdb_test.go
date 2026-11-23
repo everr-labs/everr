@@ -148,3 +148,24 @@ func TestOpenKeepsDataAcrossAStartAndDropsItWhenTheVersionChanges(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, Version, seen.marker.Version)
 }
+
+func TestOpenRebuildsAStoreWhoseDataWasDeletedAroundTheMarker(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "chdb")
+	handle := openReal(t, dir)
+	require.NoError(t, exec(handle, "INSERT INTO otel.otel_logs FORMAT JSONEachRow "+logRow(`{"everr.retention.days":"7"}`)))
+	chdb.ResetForTesting()
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		if entry.Name()[0] != '.' {
+			require.NoError(t, os.RemoveAll(filepath.Join(dir, entry.Name())))
+		}
+	}
+	require.FileExists(t, filepath.Join(dir, markerName), "a shell glob keeps the marker")
+
+	handle = openReal(t, dir)
+
+	require.Equal(t, []string{"0"}, column(t, handle, "SELECT count() AS n FROM logs", "n"))
+	require.NoError(t, exec(handle, "INSERT INTO otel.otel_logs FORMAT JSONEachRow "+logRow(`{"everr.retention.days":"7"}`)))
+	require.Equal(t, []string{"1"}, column(t, handle, "SELECT count() AS n FROM logs", "n"))
+}

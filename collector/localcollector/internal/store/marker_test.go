@@ -70,6 +70,21 @@ func TestObserveReadsTheDirectoryWithoutChDB(t *testing.T) {
 	}
 }
 
+func TestObserveSeesWhetherAMarkedStoreHasItsCatalog(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, writeMarker(dir, marker{Version: Version, Applied: map[string]string{"a.sql": "1"}}))
+	write(t, filepath.Join(dir, "metadata", "app.sql"), "x")
+
+	seen, err := observe(dir)
+	require.NoError(t, err)
+	require.False(t, seen.catalog)
+
+	catalog(t, dir, "app")
+	seen, err = observe(dir)
+	require.NoError(t, err)
+	require.True(t, seen.catalog)
+}
+
 func TestObserveTreatsAMissingDirectoryAsEmpty(t *testing.T) {
 	seen, err := observe(filepath.Join(t.TempDir(), "absent"))
 

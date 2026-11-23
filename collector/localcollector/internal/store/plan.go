@@ -24,6 +24,7 @@ type observed struct {
 	kind      dirKind
 	marker    marker
 	markerErr error
+	catalog   bool
 }
 
 type resetReason string
@@ -36,6 +37,7 @@ const (
 	versionChanged   resetReason = "store version changed"
 	unknownMigration resetReason = "store has a migration this binary lacks"
 	changedMigration resetReason = "an applied migration changed"
+	catalogMissing   resetReason = "store data is gone but its marker is not"
 )
 
 type plan struct {
@@ -75,6 +77,9 @@ func decide(seen observed, local []migration) (plan, error) {
 		if sum != seen.marker.Applied[name] {
 			return resetPlan(changedMigration, local), nil
 		}
+	}
+	if len(seen.marker.Applied) > 0 && !seen.catalog {
+		return resetPlan(catalogMissing, local), nil
 	}
 	var pending []migration
 	for _, m := range local {

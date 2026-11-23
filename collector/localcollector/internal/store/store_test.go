@@ -34,7 +34,26 @@ func (s *recordingSession) Query(query string, _ ...string) (chdb.Result, error)
 		return nil, errors.New("chDB says no")
 	}
 	s.sent = append(s.sent, query)
+	if database, ok := strings.CutPrefix(query, "CREATE DATABASE "); ok {
+		return emptyResult{}, s.linkCatalog(database)
+	}
 	return emptyResult{}, nil
+}
+
+// linkCatalog writes what chDB writes for a new database.
+func (s *recordingSession) linkCatalog(database string) error {
+	target := filepath.Join("store", "abc", database)
+	if err := os.MkdirAll(filepath.Join(s.path, target), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(s.path, metadataDir), 0o755); err != nil {
+		return err
+	}
+	err := os.Symlink(filepath.Join("..", target), filepath.Join(s.path, metadataDir, database))
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	return err
 }
 
 func (s *recordingSession) Close()       {}
@@ -196,7 +215,8 @@ func TestOpenResetsAStoreFromBeforeTheMarker(t *testing.T) {
 	session, err := start(t, dir, migrationFiles(), "")
 
 	require.NoError(t, err)
-	require.NoDirExists(t, filepath.Join(dir, "store"))
+	require.NoDirExists(t, filepath.Join(dir, "store", "abc", "default"))
+	require.NoFileExists(t, filepath.Join(dir, metadataDir, "default"))
 	require.Len(t, session.statements(), 4)
 }
 
