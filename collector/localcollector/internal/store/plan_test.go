@@ -70,7 +70,7 @@ func TestDecideResetsWhenTheStoreCannotBeTrusted(t *testing.T) {
 		"a file this binary lacks":    {marked(Version, map[string]string{"0001-setup.sql": "sum1", "0002-gone.sql": "x"}), unknownMigration},
 		"a file whose hash differs":   {marked(Version, map[string]string{"0001-setup.sql": "edited"}), changedMigration},
 		"an unreadable marker":        {observed{kind: dirMarked, markerErr: errors.New("marker is not JSON")}, corruptMarker},
-		"a chDB layout and no marker": {observed{kind: dirChDB}, unmarkedStore},
+		"a chDB layout and no marker": {observed{kind: dirUnmarkedStore}, unmarkedStore},
 	} {
 		t.Run(name, func(t *testing.T) {
 			p, err := decide(tc.seen, localFiles)

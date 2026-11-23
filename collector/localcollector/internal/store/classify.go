@@ -9,10 +9,6 @@ const (
 	accessControl
 )
 
-// classify decides from a statement's leading keywords alone. It never reads
-// the error chDB returns: an access-denied code can also come from a
-// statement that should have run, and skipping on it would hide that.
-//
 // Access control, which embedded chDB has no users or roles for, is GRANT,
 // REVOKE, SET ROLE, SET DEFAULT ROLE, and CREATE, ALTER or DROP applied to
 // USER, ROLE, ROW POLICY, POLICY, SETTINGS PROFILE, PROFILE or QUOTA.

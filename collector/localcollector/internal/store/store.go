@@ -18,8 +18,6 @@ import (
 	"github.com/everr-labs/everr/packages/app/clickhouse"
 )
 
-// queryDatabase is the database App and Cloud read, so bare names such as
-// `logs` resolve the same way locally.
 const queryDatabase = "app"
 
 type Options struct {

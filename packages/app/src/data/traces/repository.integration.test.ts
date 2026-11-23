@@ -11,8 +11,6 @@ function run(sql: string) {
 
 beforeAll(() => {
   store = openMigratedChdbStore("everr-trace-lookup-");
-  // A second table set under another name, with its own lookup table, for the
-  // test that a configured table name picks its matching lookup table.
   run("CREATE TABLE app.traces_local AS app.traces");
   run("CREATE TABLE app.traces_local_trace_id_ts AS app.traces_trace_id_ts");
 });
@@ -37,8 +35,6 @@ function repo(tableName = "traces") {
   );
 }
 
-// Spans land in the landing table and the views fill app.traces and the
-// trace ID lookup, the way the collector writes them.
 function insert(traceId: string, spanId: string, timestamp: string) {
   run(
     `INSERT INTO otel.otel_traces FORMAT JSONEachRow\n${JSON.stringify({

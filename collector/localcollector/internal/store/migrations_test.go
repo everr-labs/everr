@@ -46,8 +46,6 @@ func TestLocalMigrationsHashTheFileTextAsWritten(t *testing.T) {
 	require.Equal(t, []migration{{name: "0001-setup.sql", sql: text, sum: hex.EncodeToString(sum[:])}}, local)
 }
 
-// The cases mirror the TypeScript rule in
-// packages/app/src/db/clickhouse-statements.ts and its test.
 func TestStatementsSplitLikeTheWebApp(t *testing.T) {
 	for name, tc := range map[string]struct {
 		sql  string
