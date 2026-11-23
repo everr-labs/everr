@@ -128,7 +128,7 @@ function ListSkeleton() {
       {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
         <div
           key={index}
-          className="flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight"
+          className="flex h-10 shrink-0 items-center gap-2 border-b px-3 text-sm leading-tight"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <SkeletonLine className="shrink-0">
