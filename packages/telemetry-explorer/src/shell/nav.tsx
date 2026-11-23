@@ -7,7 +7,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@everr/ui/components/sidebar";
-import { Link } from "@tanstack/react-router";
+import { Link, type RegisteredRouter } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { Fragment } from "react";
 
@@ -71,7 +71,7 @@ export function NavMain({ groups }: { groups: readonly NavGroup[] }) {
             )}
             <SidebarMenu>
               {group.items.map((item) => (
-                <ShellNavLink
+                <NavLink
                   key={item.title}
                   title={item.title}
                   to={item.url}
@@ -94,20 +94,22 @@ export function NavMain({ groups }: { groups: readonly NavGroup[] }) {
  * ones above it. It wears the `--nav-accent` of the group it sits in, so
  * outside a group the parent sets it.
  */
-export function ShellNavLink({
-  title,
-  to,
-  icon: Icon,
-  exact,
-  section,
-}: {
+export function ShellNavLink(
+  props: Omit<NavLinkProps, "to"> & { to: keyof RegisteredRouter["routesByPath"] },
+) {
+  return <NavLink {...props} />;
+}
+
+type NavLinkProps = {
   title: string;
   to: string;
   icon: LucideIcon;
   exact?: boolean;
   /** The group label the collapsed rail's tooltip shows above the title. */
   section?: string;
-}) {
+};
+
+function NavLink({ title, to, icon: Icon, exact, section }: NavLinkProps) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
