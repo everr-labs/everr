@@ -1,6 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 import { CopyId } from "./copy-id";
@@ -11,14 +11,12 @@ export function ErrorDetailHeader({
   issue,
   message,
   onBack,
-  onClose,
   actions,
 }: {
   issue: ErrorIssueSummary;
   /** The message of the occurrence on screen. */
   message: string;
   onBack?: () => void;
-  onClose?: () => void;
   /** Right-aligned header actions (e.g. the agent-handoff button). */
   actions?: ReactNode;
 }) {
@@ -27,19 +25,7 @@ export function ErrorDetailHeader({
 
   return (
     <header className="flex shrink-0 items-start gap-3 border-b px-4 py-3">
-      {onClose ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Close"
-          title="Close"
-          onClick={onClose}
-          className="shrink-0"
-        >
-          <X />
-        </Button>
-      ) : onBack ? (
+      {onBack ? (
         <Button
           type="button"
           variant="ghost"

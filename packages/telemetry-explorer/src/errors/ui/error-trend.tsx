@@ -34,7 +34,7 @@ export function ErrorTrend({ buckets, className }: { buckets: number[]; classNam
             y={HEIGHT - height}
             width={0.8}
             height={height}
-            className={count > 0 ? "fill-muted-foreground" : "fill-border"}
+            className={count > 0 ? "fill-ctp-lavender" : "fill-border"}
           />
         );
       })}
