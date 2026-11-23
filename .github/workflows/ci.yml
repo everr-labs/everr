@@ -52,6 +52,7 @@ jobs:
               - '.dockerignore'
               - 'packages/**'
               - 'skills/**'
+              - 'collector/localcollector/migrations/**'
             app:
               - '.github/**'
               - '.node-version'
@@ -72,7 +73,6 @@ jobs:
               - 'packages/telemetry-explorer/**'
               - 'packages/ui/**'
               - 'skills/everr-use-telemetry/rules/schema.md'
-              - 'collector/localcollector/migrations/**'
             docs:
               - '.github/**'
               - '.node-version'
