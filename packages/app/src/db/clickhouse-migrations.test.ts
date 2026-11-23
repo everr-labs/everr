@@ -293,7 +293,9 @@ describe("ClickHouse migrations", () => {
         throw new Error("no access to system.users");
       });
 
-      await expect(done).rejects.toThrow("no access to system.users");
+      await expect(done).rejects.toThrow(
+        /seed of ClickHouse migration 0002-cloud-policies\.sql.*no access to system\.users/,
+      );
       expect(calls).toEqual(["SELECT 1", "SELECT 2"]);
     });
   });

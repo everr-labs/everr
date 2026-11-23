@@ -103,7 +103,14 @@ export async function applyClickHouseMigration(
   for (const [index, statement] of sqlStatements(migration.sql).entries()) {
     await steps.statement(statement, index);
   }
-  await migration.seed?.(steps.seed);
+  try {
+    await migration.seed?.(steps.seed);
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`The seed of ClickHouse migration ${migration.name} failed: ${reason}`, {
+      cause,
+    });
+  }
   await steps.journal();
 }
 
