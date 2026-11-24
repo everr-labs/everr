@@ -115,9 +115,13 @@ export function TimeSeriesChartVisualization({
   const plot = mounted && grid ? plotWithin(mounted, grid) : null;
   // Thinned to the plot's pixels here, so a resize draws again from the rows
   // the panel already holds: its query never sees the width.
+  const plotLeft = plot?.left ?? 0;
   const plotWidth = plot?.width ?? 0;
   const pixelRatio = chart?.getDevicePixelRatio() ?? 1;
-  const drawn = useMemo(() => lines.forPlot(plotWidth, pixelRatio), [lines, plotWidth, pixelRatio]);
+  const drawn = useMemo(
+    () => lines.forPlot({ left: plotLeft, width: plotWidth }, pixelRatio),
+    [lines, plotLeft, plotWidth, pixelRatio],
+  );
 
   useEffect(() => {
     if (!mounted || !grid) return;

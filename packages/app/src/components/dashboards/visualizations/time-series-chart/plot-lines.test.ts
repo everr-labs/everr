@@ -43,16 +43,18 @@ interface ColumnEnvelope {
 }
 
 /** What a line shows in each pixel column: where it enters and leaves, and
- * how low and high it goes. Worked out the slow way, as the reference. */
+ * how low and high it goes. Worked out the slow way, as the reference. The
+ * domain spans `pixels` device pixels, starting `left` pixels into the canvas. */
 function envelopes(
   points: readonly SeriesPoint[],
   [from, to]: readonly [number, number],
-  columns: number,
+  pixels: number,
+  left = 0,
 ): Map<number, ColumnEnvelope> {
   const byColumn = new Map<number, ColumnEnvelope>();
   for (const [time, value] of points) {
     if (value === null) continue;
-    const column = Math.floor(((time - from) * columns) / (to - from));
+    const column = Math.floor(left + (time - from) * (pixels / (to - from)));
     const seen = byColumn.get(column);
     if (!seen) {
       byColumn.set(column, { first: time, last: time, low: value, high: value, points: 1 });
@@ -70,10 +72,11 @@ function envelopes(
 function shapes(
   points: readonly SeriesPoint[],
   domain: readonly [number, number],
-  columns: number,
+  pixels: number,
+  left = 0,
 ) {
   return new Map(
-    [...envelopes(points, domain, columns)].map(([column, { first, last, low, high }]) => [
+    [...envelopes(points, domain, pixels, left)].map(([column, { first, last, low, high }]) => [
       column,
       { first, last, low, high },
     ]),
@@ -83,7 +86,7 @@ function shapes(
 describe("plotLines", () => {
   it("hands back a line with few points per pixel as it is", () => {
     const model = buildChartModel([wanderingRows(300, 1)], [FROM, FROM + 300 * SECOND]);
-    const [line] = plotLines(model, false).forPlot(100, 1);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 100 }, 1);
     expect(line?.points).toEqual(allPoints(model.series[0]));
   });
 
@@ -92,7 +95,7 @@ describe("plotLines", () => {
     const model = buildChartModel([wanderingRows(20_000, 2)], domain);
     const full = allPoints(model.series[0]);
 
-    const [line] = plotLines(model, false).forPlot(250, 1);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 250 }, 1);
     const drawn = line?.points ?? [];
 
     expect(shapes(drawn, domain, 250)).toEqual(shapes(full, domain, 250));
@@ -114,7 +117,7 @@ describe("plotLines", () => {
     }));
     // The range ends on the last sample, which must stay too.
     const model = buildChartModel([rows], [FROM, FROM + 9_999 * SECOND]);
-    const [line] = plotLines(model, false).forPlot(100, 1);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 100 }, 1);
     expect(line?.points.length).toBeLessThan(500);
     expect(line?.points).toContainEqual([FROM + 4_321 * SECOND, 999]);
     expect(line?.points.at(-1)).toEqual([FROM + 9_999 * SECOND, 1]);
@@ -124,19 +127,33 @@ describe("plotLines", () => {
     const domain: [number, number] = [FROM, FROM + 20_000 * SECOND];
     const model = buildChartModel([wanderingRows(20_000, 11)], domain);
     const full = allPoints(model.series[0]);
-    const [line] = plotLines(model, false).forPlot(125, 2);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 125 }, 2);
     expect(shapes(line?.points ?? [], domain, 250)).toEqual(shapes(full, domain, 250));
     expect(line?.points.length).toBeLessThanOrEqual(4 * 250);
+  });
+
+  it("thins to the canvas's own pixels when the plot starts partway into one", () => {
+    // At 150% zoom a plot 45 CSS px from the canvas's left edge starts 67.5
+    // device pixels in, and its 125 CSS px span 187.5 of them.
+    const domain: [number, number] = [FROM, FROM + 20_000 * SECOND];
+    const model = buildChartModel([wanderingRows(20_000, 12)], domain);
+    const full = allPoints(model.series[0]);
+    const [line] = plotLines(model, false).forPlot({ left: 45, width: 125 }, 1.5);
+    expect(shapes(line?.points ?? [], domain, 187.5, 67.5)).toEqual(
+      shapes(full, domain, 187.5, 67.5),
+    );
   });
 
   it("thins to the width asked for, so a wider plot shows more", () => {
     const model = buildChartModel([wanderingRows(20_000, 3)], [FROM, FROM + 20_000 * SECOND]);
     const lines = plotLines(model, false);
-    const narrow = lines.forPlot(100, 1)[0]?.points.length ?? 0;
-    const wide = lines.forPlot(400, 1)[0]?.points.length ?? 0;
+    const narrow = lines.forPlot({ left: 0, width: 100 }, 1)[0]?.points.length ?? 0;
+    const wide = lines.forPlot({ left: 0, width: 400 }, 1)[0]?.points.length ?? 0;
     expect(narrow).toBeLessThanOrEqual(400);
     expect(wide).toBeGreaterThan(narrow);
-    expect(lines.forPlot(100, 1)).toEqual(lines.forPlot(100, 1));
+    expect(lines.forPlot({ left: 0, width: 100 }, 1)).toEqual(
+      lines.forPlot({ left: 0, width: 100 }, 1),
+    );
   });
 
   it("keeps a gap in a dense line, and the points on each side of it", () => {
@@ -149,7 +166,7 @@ describe("plotLines", () => {
     expect(gap).toBeGreaterThan(0);
 
     // Two pixel columns: the whole outage and both its edges share one.
-    const [line] = plotLines(model, false).forPlot(2, 1);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 2 }, 1);
     const drawn = line?.points ?? [];
     const drawnGap = drawn.findIndex(([, value]) => value === null);
 
@@ -165,7 +182,7 @@ describe("plotLines", () => {
     const full = allPoints(model.series[0]);
     expect(full[0]?.[0]).toBeLessThan(domain[0]);
 
-    const [line] = plotLines(model, false).forPlot(50, 1);
+    const [line] = plotLines(model, false).forPlot({ left: 0, width: 50 }, 1);
     expect(line?.points.length).toBeLessThan(full.length);
     expect(line?.points[0]).toEqual(full[0]);
   });
@@ -174,7 +191,7 @@ describe("plotLines", () => {
     "draws every point while the plot is %s wide",
     (plotWidth) => {
       const model = buildChartModel([wanderingRows(5_000, 6)], [FROM, FROM + 5_000 * SECOND]);
-      const [line] = plotLines(model, false).forPlot(plotWidth, 1);
+      const [line] = plotLines(model, false).forPlot({ left: 0, width: plotWidth }, 1);
       expect(line?.points).toEqual(allPoints(model.series[0]));
     },
   );
@@ -187,7 +204,8 @@ describe("plotLines", () => {
 
     expect(lines.extent).toEqual([Math.min(...values), Math.max(...values)]);
     for (const width of [10, 137, 800]) {
-      const drawn = lines.forPlot(width, 1)[0]?.points.flatMap(([, value]) => value ?? []) ?? [];
+      const drawn =
+        lines.forPlot({ left: 0, width }, 1)[0]?.points.flatMap(([, value]) => value ?? []) ?? [];
       expect([Math.min(...drawn), Math.max(...drawn)]).toEqual(lines.extent);
     }
   });
@@ -195,13 +213,13 @@ describe("plotLines", () => {
   it("has no extent when there is nothing to draw", () => {
     const lines = plotLines(buildChartModel([], [FROM, FROM + SECOND]), false);
     expect(lines.extent).toEqual([Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]);
-    expect(lines.forPlot(800, 1)).toEqual([]);
+    expect(lines.forPlot({ left: 0, width: 800 }, 1)).toEqual([]);
   });
 
   it("draws one line per series, in the model's order", () => {
     const rows = wanderingRows(100, 8).map((row, i) => ({ ...row, other: i }));
     const model = buildChartModel([rows], [FROM, FROM + 100 * SECOND]);
-    expect(plotLines(model, false).forPlot(800, 1)).toEqual(
+    expect(plotLines(model, false).forPlot({ left: 0, width: 800 }, 1)).toEqual(
       model.series.map((series) => ({
         id: series.id,
         color: series.color,
@@ -223,7 +241,7 @@ describe("plotLines, stacked", () => {
       ],
       [FROM, FROM + 120 * SECOND],
     );
-    const lines = plotLines(model, true).forPlot(800, 1);
+    const lines = plotLines(model, true).forPlot({ left: 0, width: 800 }, 1);
     expect(lines.map(({ points }) => points)).toEqual([
       [
         [FROM, 1],
@@ -266,8 +284,8 @@ describe("plotLines, stacked", () => {
       domain,
     );
     const lines = plotLines(model, true);
-    const full = lines.forPlot(100_000, 1).map(({ points }) => points);
-    const drawn = lines.forPlot(50, 1).map(({ points }) => points);
+    const full = lines.forPlot({ left: 0, width: 100_000 }, 1).map(({ points }) => points);
+    const drawn = lines.forPlot({ left: 0, width: 50 }, 1).map(({ points }) => points);
 
     expect(full[0]).toHaveLength(count);
     expect(drawn[0]?.length).toBeLessThan(count / 4);
