@@ -51,9 +51,14 @@ export function seoHead({
 
 // Head of a translated page: the canonical URL is the page in the current language,
 // with an alternate for every language
-export function pageHead(path: TranslatedPath, title: string, description: string) {
+export function pageHead(
+  path: TranslatedPath,
+  title: string,
+  description: string,
+  options: Pick<HeadOptions, "type" | "image"> = {},
+) {
   const localized = (locale: (typeof locales)[number]) => localizeHref(path, { locale });
-  const head = seoHead({ path: localized(getLocale()), title, description });
+  const head = seoHead({ path: localized(getLocale()), title, description, ...options });
   return {
     meta: head.meta,
     links: [

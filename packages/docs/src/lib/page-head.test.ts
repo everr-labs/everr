@@ -32,4 +32,26 @@ describe("page head", () => {
       ]),
     );
   });
+
+  it("links a blog post to its Italian version under /it, with its type and image", () => {
+    const head = pageHead("/blog/tracing", "Tracing", "Why.", {
+      type: "article",
+      image: "https://everr.dev/api/og/blog/tracing",
+    });
+
+    expect(head.links).toEqual(
+      expect.arrayContaining([
+        { rel: "canonical", href: "https://everr.dev/blog/tracing" },
+        { rel: "alternate", hrefLang: "en", href: "https://everr.dev/blog/tracing" },
+        { rel: "alternate", hrefLang: "it", href: "https://everr.dev/it/blog/tracing" },
+        { rel: "alternate", hrefLang: "x-default", href: "https://everr.dev/blog/tracing" },
+      ]),
+    );
+    expect(head.meta).toEqual(
+      expect.arrayContaining([
+        { property: "og:type", content: "article" },
+        { property: "og:image", content: "https://everr.dev/api/og/blog/tracing" },
+      ]),
+    );
+  });
 });

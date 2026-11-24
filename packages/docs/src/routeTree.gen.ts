@@ -13,10 +13,13 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PageRouteImport } from './routes/$page'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as BlogIndexRouteImport } from './routes/blog/index'
+import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
+import { Route as ApiOgBlogSlugRouteImport } from './routes/api/og/blog.$slug'
 import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -39,6 +42,16 @@ const ApiSearchRoute = ApiSearchRouteImport.update({
   path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DevlogIndexRoute = DevlogIndexRouteImport.update({
   id: '/devlog/',
   path: '/devlog/',
@@ -59,6 +72,11 @@ const EverrAppSplatRoute = EverrAppSplatRouteImport.update({
   path: '/everr-app/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgBlogSlugRoute = ApiOgBlogSlugRouteImport.update({
+  id: '/api/og/blog/$slug',
+  path: '/api/og/blog/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
   id: '/api/og/devlog/$slug',
   path: '/api/og/devlog/$slug',
@@ -70,10 +88,13 @@ export interface FileRoutesByFullPath {
   '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
+  '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/blog/$slug': typeof ApiOgBlogSlugRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesByTo {
@@ -81,10 +102,13 @@ export interface FileRoutesByTo {
   '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
+  '/blog': typeof BlogIndexRoute
   '/devlog': typeof DevlogIndexRoute
+  '/api/og/blog/$slug': typeof ApiOgBlogSlugRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesById {
@@ -93,10 +117,13 @@ export interface FileRoutesById {
   '/$page': typeof PageRoute
   '/pricing': typeof PricingRoute
   '/api/search': typeof ApiSearchRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
   '/docs/$': typeof DocsSplatRoute
   '/everr-app/$': typeof EverrAppSplatRoute
+  '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/blog/$slug': typeof ApiOgBlogSlugRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRouteTypes {
@@ -106,10 +133,13 @@ export interface FileRouteTypes {
     | '/$page'
     | '/pricing'
     | '/api/search'
+    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
+    | '/blog/'
     | '/devlog/'
+    | '/api/og/blog/$slug'
     | '/api/og/devlog/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -117,10 +147,13 @@ export interface FileRouteTypes {
     | '/$page'
     | '/pricing'
     | '/api/search'
+    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
+    | '/blog'
     | '/devlog'
+    | '/api/og/blog/$slug'
     | '/api/og/devlog/$slug'
   id:
     | '__root__'
@@ -128,10 +161,13 @@ export interface FileRouteTypes {
     | '/$page'
     | '/pricing'
     | '/api/search'
+    | '/blog/$slug'
     | '/devlog/$slug'
     | '/docs/$'
     | '/everr-app/$'
+    | '/blog/'
     | '/devlog/'
+    | '/api/og/blog/$slug'
     | '/api/og/devlog/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -140,10 +176,13 @@ export interface RootRouteChildren {
   PageRoute: typeof PageRoute
   PricingRoute: typeof PricingRoute
   ApiSearchRoute: typeof ApiSearchRoute
+  BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
   DocsSplatRoute: typeof DocsSplatRoute
   EverrAppSplatRoute: typeof EverrAppSplatRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   DevlogIndexRoute: typeof DevlogIndexRoute
+  ApiOgBlogSlugRoute: typeof ApiOgBlogSlugRoute
   ApiOgDevlogSlugRoute: typeof ApiOgDevlogSlugRoute
 }
 
@@ -177,6 +216,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/devlog/': {
       id: '/devlog/'
       path: '/devlog'
@@ -205,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EverrAppSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/blog/$slug': {
+      id: '/api/og/blog/$slug'
+      path: '/api/og/blog/$slug'
+      fullPath: '/api/og/blog/$slug'
+      preLoaderRoute: typeof ApiOgBlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/og/devlog/$slug': {
       id: '/api/og/devlog/$slug'
       path: '/api/og/devlog/$slug'
@@ -220,10 +280,13 @@ const rootRouteChildren: RootRouteChildren = {
   PageRoute: PageRoute,
   PricingRoute: PricingRoute,
   ApiSearchRoute: ApiSearchRoute,
+  BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
   DocsSplatRoute: DocsSplatRoute,
   EverrAppSplatRoute: EverrAppSplatRoute,
+  BlogIndexRoute: BlogIndexRoute,
   DevlogIndexRoute: DevlogIndexRoute,
+  ApiOgBlogSlugRoute: ApiOgBlogSlugRoute,
   ApiOgDevlogSlugRoute: ApiOgDevlogSlugRoute,
 }
 export const routeTree = rootRouteImport

@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { text: m.nav_docs, url: "/docs" },
   { text: m.nav_pricing, url: "/pricing" },
   { text: m.nav_devlog, url: "/devlog" },
+  { text: m.nav_blog, url: "/blog" },
 ] as const;
 
 const focusRing =
