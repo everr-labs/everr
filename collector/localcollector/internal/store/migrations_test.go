@@ -71,6 +71,7 @@ func TestStatementsSplitLikeTheWebApp(t *testing.T) {
 		"keeps a carriage return inside a statement":    {sql: "SELECT 1 -- c\r\n+ 2;\r\n", want: []string{"SELECT 1 \r\n+ 2"}},
 		"ends a comment at a bare carriage return":      {sql: "-- comment\rSELECT 1;", want: []string{"SELECT 1"}},
 		"drops a byte order mark":                       {sql: "\uFEFFSELECT 1;", want: []string{"SELECT 1"}},
+		"keeps a next-line character":                   {sql: "SELECT 1\u0085;", want: []string{"SELECT 1\u0085"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, tc.want, statements(tc.sql))

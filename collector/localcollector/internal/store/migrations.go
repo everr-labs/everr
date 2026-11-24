@@ -23,7 +23,7 @@ type migration struct {
 // mean the same thing by "the same statements".
 var lineComment = regexp.MustCompile(`--[^\n\r\x{2028}\x{2029}]*`)
 
-func isSpace(r rune) bool { return unicode.IsSpace(r) || r == '\uFEFF' }
+func isSpace(r rune) bool { return r != '\u0085' && (unicode.IsSpace(r) || r == '\uFEFF') }
 
 func localMigrations(fsys fs.FS) ([]migration, error) {
 	names, err := fs.Glob(fsys, "*.sql")
