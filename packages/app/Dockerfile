@@ -48,13 +48,15 @@ RUN set -eu; \
       test -s "packages/app/.output/drizzle/${file#packages/app/drizzle/}"; \
     done
 
-# The server bundle embeds the ClickHouse migrations. Require the shared and
-# self-hosted ones, and none of Cloud's.
+# The server bundle embeds the ClickHouse migrations, keyed by directory and
+# file name (`clickhouse/0003-....sql`). Match that key: SQL comments also
+# mention bare file names. Require the shared and self-hosted ones, and none of Cloud's.
 RUN set -eu; \
     for file in packages/app/clickhouse/*.sql packages/app/clickhouse/*.seed.ts \
       packages/app/clickhouse/self-hosted/*.sql packages/app/clickhouse/self-hosted/*.seed.ts; do \
       [ -e "$file" ] || continue; \
-      grep -rqF "${file##*/}" packages/app/.output/server || { echo "missing ClickHouse migration ${file}" >&2; exit 1; }; \
+      dir=${file%/*}; \
+      grep -rqF "${dir##*/}/${file##*/}" packages/app/.output/server || { echo "missing ClickHouse migration ${file}" >&2; exit 1; }; \
     done; \
     ! grep -rqF "tenant_filter_" packages/app/.output/server || { echo "Cloud ClickHouse migrations in the self-hosted image" >&2; exit 1; }
 

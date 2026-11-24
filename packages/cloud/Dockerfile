@@ -55,13 +55,15 @@ RUN set -eu; \
       done; \
     done
 
-# The server bundle embeds the ClickHouse migrations. Require the shared and
-# Cloud ones, and none of the self-hosted directory's.
+# The server bundle embeds the ClickHouse migrations, keyed by directory and
+# file name (`clickhouse/0003-....sql`). Match that key: SQL comments also
+# mention bare file names. Require the shared and Cloud ones, and none of the self-hosted directory's.
 RUN set -eu; \
     for file in packages/app/clickhouse/*.sql packages/app/clickhouse/*.seed.ts \
       packages/cloud/clickhouse/*.sql packages/cloud/clickhouse/*.seed.ts; do \
       [ -e "$file" ] || continue; \
-      grep -rqF "${file##*/}" packages/cloud/.output/server || { echo "missing ClickHouse migration ${file}" >&2; exit 1; }; \
+      dir=${file%/*}; \
+      grep -rqF "${dir##*/}/${file##*/}" packages/cloud/.output/server || { echo "missing ClickHouse migration ${file}" >&2; exit 1; }; \
     done; \
     for file in packages/app/clickhouse/self-hosted/*.sql; do \
       [ -e "$file" ] || continue; \
