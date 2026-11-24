@@ -1,8 +1,5 @@
 // @vitest-environment node
 
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { type ErrorOccurrence, ErrorsRepository } from "@everr/telemetry-explorer/errors";
 import {
   type ClipSubject,
@@ -11,42 +8,14 @@ import {
   type SqlClient,
 } from "@everr/telemetry-explorer/recordings";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
-import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-let session: Session;
-let dataDir: string;
+import { type MigratedChdbStore, openMigratedChdbStore } from "#app/testing/chdb-migrated-store.ts";
+
+let store: MigratedChdbStore;
 
 function run(sql: string) {
-  return String(session.query(sql, "JSONEachRow") ?? "").trim();
-}
-
-function migration(file: string) {
-  return readFileSync(new URL(`../../../clickhouse/${file}`, import.meta.url), "utf8");
-}
-
-// The statements of a migration: its comments and the grants on Cloud's users
-// are not part of what these tests need.
-function statements(sql: string) {
-  return sql
-    .replace(/--.*$/gm, "")
-    .split(";")
-    .map((statement) => statement.trim())
-    .filter((statement) => statement !== "" && !statement.startsWith("GRANT"));
-}
-
-function template(file: string) {
-  return readFileSync(
-    new URL(
-      `../../../../../collector/exporter/chdbexporter/internal/sqltemplates/${file}`,
-      import.meta.url,
-    ),
-    "utf8",
-  );
-}
-
-function fill(text: string, values: string[]) {
-  return text.replace(/%[qs]/g, () => values.shift() ?? "");
+  return store.run(sql);
 }
 
 const client: SqlClient = {
@@ -98,7 +67,13 @@ function span(row: Record<string, unknown>) {
     },
     ["SpanAttributes", "ResourceAttributes"],
   );
-  run(`INSERT INTO traces FORMAT JSONEachRow\n${JSON.stringify(full)}`);
+  // The landing table, so the views fill traces and traces_trace_id_ts. Every
+  // span carries the retention stamp the collector writes, which the view needs.
+  full.ResourceAttributes = {
+    ...(full.ResourceAttributes as Record<string, unknown>),
+    "everr.retention.days": "3650",
+  };
+  run(`INSERT INTO otel.otel_traces FORMAT JSONEachRow\n${JSON.stringify(full)}`);
 }
 
 // A Segment row, as the collector stores it: the materialized columns of the
@@ -193,45 +168,8 @@ function exceptionLog(row: {
 }
 
 beforeAll(() => {
-  dataDir = mkdtempSync(join(tmpdir(), "everr-recording-coverage-"));
-  session = new Session(dataDir);
+  store = openMigratedChdbStore("everr-recording-coverage-");
   run("SET session_timezone = 'UTC'");
-  run(fill(template("traces_json_table.sql"), ['"default"', '"traces"', "", "MergeTree()", ""]));
-  run(
-    fill(template("traces_id_ts_lookup_table.sql"), ["default", "traces", "", "MergeTree()", ""]),
-  );
-  run(
-    fill(template("traces_id_ts_lookup_mv.sql"), [
-      "default",
-      "traces",
-      "",
-      "default",
-      "traces",
-      "default",
-      "traces",
-    ]),
-  );
-  run(template("create_error_fingerprint_function.sql"));
-  run(
-    template("logs_json_table.sql")
-      .replace("{{ident .Database}}", '"default"')
-      .replace("{{ident .TableName}}", '"logs"')
-      .replace(/\{\{[^}]*\}\}/g, (tag) => (tag === "{{.Engine}}" ? "MergeTree()" : "")),
-  );
-
-  // The real recordings table, as the migrations create it (the collector's
-  // retention function comes first).
-  const retention = migration("0005-create-retention-functions.sql").match(
-    /CREATE OR REPLACE FUNCTION everrRetentionDaysJson[^;]*/,
-  )?.[0];
-  for (const statement of [
-    retention ?? "",
-    ...statements(migration("0013-create-recordings.sql")).map((statement) =>
-      statement.replace("app.recordings", "recordings"),
-    ),
-  ]) {
-    run(statement);
-  }
 
   // The Clip [10:00:00, 10:01:10] on STREAM, with every Segment delivered twice.
   for (let i = 0; i < 2; i++) {
@@ -484,8 +422,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  session?.cleanup();
-  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  store?.close();
 });
 
 const window = { fromTs: FROM_TS, toTs: TO_TS };
