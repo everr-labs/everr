@@ -1,6 +1,7 @@
 import { llms } from "fumadocs-core/source";
 import { getLLMText, markdownDocsLinks } from "./llms";
 import {
+  blogIndexMarkdown,
   type DevlogEntry,
   devlogIndexMarkdown,
   llmsTxt,
@@ -8,6 +9,7 @@ import {
   pricingMarkdown,
 } from "./site-markdown";
 import { baseLocale, type Locale, localizeHref } from "@/paraglide/runtime";
+import { blogPost, blogPosts } from "./blog";
 import { devlogposts, getSitePage, source } from "./source";
 
 export function publishedDevlog(): DevlogEntry[] {
@@ -24,12 +26,12 @@ export function publishedDevlog(): DevlogEntry[] {
 }
 
 export function buildLlmsTxt() {
-  return llmsTxt(markdownDocsLinks(llms(source).index()), publishedDevlog());
+  return llmsTxt(markdownDocsLinks(llms(source).index()), publishedDevlog(), blogPosts(baseLocale));
 }
 
 /**
  * The Markdown representation of a page, by its path without the locale prefix.
- * Pricing and the site pages answer in `locale`; the docs, the devlog and the home
+ * Pricing, the site pages and the blog answer in `locale`; the docs, the devlog and the home
  * page (the llms.txt index) are in English only.
  */
 export async function markdownForPath(
@@ -46,6 +48,7 @@ export async function markdownForPath(
   if (slugs.length === 0) return buildLlmsTxt();
   if (path === "/pricing") return pricingMarkdown(locale);
   if (path === "/devlog") return devlogIndexMarkdown(publishedDevlog());
+  if (path === "/blog") return blogIndexMarkdown(blogPosts(locale), locale);
 
   if (slugs[0] === "docs") {
     const page = source.getPage(slugs.slice(1));
@@ -58,6 +61,17 @@ export async function markdownForPath(
     return pageMarkdown(
       post.data.title,
       post.url,
+      await post.data.getText("processed"),
+      `${post.data.date}. ${post.data.description}`,
+    );
+  }
+
+  if (slugs[0] === "blog" && slugs.length === 2) {
+    const post = blogPost(slugs[1], locale);
+    if (!post) return undefined;
+    return pageMarkdown(
+      post.data.title,
+      localizeHref(path, { locale }),
       await post.data.getText("processed"),
       `${post.data.date}. ${post.data.description}`,
     );

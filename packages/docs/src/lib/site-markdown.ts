@@ -1,13 +1,14 @@
 import { PRICING_PLANS } from "@/components/pricing-cards";
 import { BOOK_CALL_URL, GITHUB_URL, SIGN_UP_URL, SITE_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
-import type { Locale } from "@/paraglide/runtime";
+import { type Locale, localizeHref } from "@/paraglide/runtime";
 import { stripHeadingIds } from "./heading-ids";
 
 export const SITE_SUMMARY =
   "Everr is an open source observability platform built on OpenTelemetry. It stores traces, logs, and metrics, and gives coding agents a CLI, skills, and an MCP server to instrument apps, investigate production issues, debug GitHub Actions CI, and manage dashboards, alerts, and runbooks as code.";
 
 export type DevlogEntry = { slug: string; title: string; description: string; date: string };
+export type BlogEntry = DevlogEntry;
 
 const LINK_ITEM = /^\s*- (\[[^\]]+\]\([^)]+\).*)$/;
 const GROUP_ITEM = /^- (.+)$/;
@@ -39,10 +40,14 @@ export function docsSections(docsIndex: string) {
  * no headings, then H2 sections that hold only lists of links. `docsIndex` is the Fumadocs index with Markdown links.
  * It is also the Markdown representation of the home page.
  */
-export function llmsTxt(docsIndex: string, devlog: DevlogEntry[]) {
+export function llmsTxt(docsIndex: string, devlog: DevlogEntry[], blog: BlogEntry[]) {
   const docsLinks = docsSections(docsIndex);
   const devlogLinks = devlog.map(
     (post) => `- [${post.title}](/devlog/${post.slug}): ${post.description}`,
+  );
+
+  const blogLinks = blog.map(
+    (post) => `- [${post.title}](/blog/${post.slug}): ${post.description}`,
   );
 
   return `# Everr
@@ -95,6 +100,8 @@ ${docsLinks}
 
 - [Devlog](/devlog): weekly updates from the Everr team
 ${devlogLinks.join("\n")}
+- [Blog](/blog): articles on observability, OpenTelemetry, and AI in the development loop
+${blogLinks.join("\n")}
 `;
 }
 
@@ -174,6 +181,20 @@ export function devlogIndexMarkdown(devlog: DevlogEntry[]) {
   return `# Everr Devlog
 
 Weekly updates on what we're building, success stories, and use cases from the Everr team.
+
+${posts.join("\n")}
+`;
+}
+
+export function blogIndexMarkdown(blog: BlogEntry[], locale: Locale) {
+  const options = { locale };
+  const posts = blog.map(
+    (post) =>
+      `- ${post.date}: [${post.title}](${localizeHref(`/blog/${post.slug}`, options)}): ${post.description}`,
+  );
+  return `# ${m.blog_title_suffix({}, options)}
+
+${m.blog_lead({}, options)}
 
 ${posts.join("\n")}
 `;

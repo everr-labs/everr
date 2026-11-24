@@ -91,6 +91,7 @@ describe("docs LLM helpers", () => {
           "- [Docs](/docs): Home",
           "- [Install](/docs/getting-started/install): Install Everr.",
           "- [Devlog](/devlog): Updates",
+          "- [Blog](/blog): Articles",
         ].join("\n"),
       ),
     ).toBe(
@@ -98,6 +99,7 @@ describe("docs LLM helpers", () => {
         "- [Docs](/docs.md): Home",
         "- [Install](/docs/getting-started/install.md): Install Everr.",
         "- [Devlog](/devlog): Updates",
+        "- [Blog](/blog): Articles",
       ].join("\n"),
     );
   });
