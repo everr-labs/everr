@@ -76,6 +76,7 @@ const SELF = fileURLToPath(import.meta.url);
 const CURRENT = path.join(STATE_DIR, "current-collector");
 const COMPOSE_FILE = path.join(REPO, "scripts/dev/compose.yaml");
 const SCHEMA_DIR = path.join(REPO, "packages/app/clickhouse");
+const CLOUD_SCHEMA_DIR = path.join(REPO, "packages/cloud/clickhouse");
 const STATEMENTS_TS = path.join(REPO, "packages/app/src/db/clickhouse-statements.ts");
 const ORIGIN_POLICY_TS = path.join(REPO, "packages/app/src/lib/public-ingest-keys.ts");
 const COLLECTOR_SRC = ["receiver", "extension", "processor", "connector", "exporter", "internal", "semconv", "config"];
@@ -330,27 +331,21 @@ async function chPost(r: Run, sql: string, params: Record<string, string> = {}, 
   }
 }
 
-/** Apply packages/app/clickhouse the way the app's startup runner does: tag filter, file order, its own splitter, bound params. */
+/** Apply the target's schema the way the app's startup runner does: its directories, file order, its own splitter, bound params. */
 async function applySchema(r: Run, target: Target): Promise<void> {
   const { sqlStatements } = (await import(pathToFileURL(STATEMENTS_TS).href)) as { sqlStatements: (sql: string) => string[] };
-  const params: Record<string, string> = {
-    collector_rw_password: CH_PASSWORD,
-    app_ro_password: CH_PASSWORD,
-    app_admin_password: CH_PASSWORD,
-    sql_api_username: "sql_api",
-    sql_api_password: CH_PASSWORD,
-  };
-  const files = readdirSync(SCHEMA_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .filter((f) => {
-      const tag = /^\d+-(cloud|self-hosted)-/.exec(f)?.[1];
-      return tag === undefined || tag === target;
-    })
-    .sort();
+  // The container's init script created the databases and users with the dev
+  // passwords, so no file takes a parameter today.
+  const params: Record<string, string> = {};
+  const dirs = [SCHEMA_DIR, target === "cloud" ? CLOUD_SCHEMA_DIR : path.join(SCHEMA_DIR, "self-hosted")];
+  const files = dirs
+    .flatMap((dir) => readdirSync(dir).filter((f) => f.endsWith(".sql")).map((f) => path.join(dir, f)))
+    .sort((a, b) => (path.basename(a) < path.basename(b) ? -1 : 1));
   const out = path.join(r.art, "schema.txt");
   writeFileSync(out, `target: ${target}\n`);
-  for (const f of files) {
-    const statements = sqlStatements(readFileSync(path.join(SCHEMA_DIR, f), "utf8"));
+  for (const file of files) {
+    const f = path.basename(file);
+    const statements = sqlStatements(readFileSync(file, "utf8"));
     for (const [i, statement] of statements.entries()) {
       const bound = Object.fromEntries([...statement.matchAll(/\{(\w+):\w+\}/g)].map(([, name]) => [name, params[name] ?? die(`${f} needs parameter ${name}`)]));
       const res = await chPost(r, statement, bound);
@@ -359,7 +354,7 @@ async function applySchema(r: Run, target: Target): Promise<void> {
         die(`schema ${f} statement ${i} failed; see ${out}; run 'verify-collector cleanup'`);
       }
     }
-    const seedFile = path.join(SCHEMA_DIR, f.replace(/\.sql$/, ".seed.ts"));
+    const seedFile = file.replace(/\.sql$/, ".seed.ts");
     const seeded = existsSync(seedFile);
     if (seeded) {
       // A string parameter with the escapes @clickhouse/client gives it.

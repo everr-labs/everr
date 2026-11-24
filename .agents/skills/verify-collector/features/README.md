@@ -4,7 +4,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 
 ## Baseline preconditions
 
-- One run per checkout, started with `$V launch [RUN_ID] [--profile cloud|app|deploy]` (default `cloud`). Launch rebuilds the distribution from this checkout, starts a throwaway ClickHouse from `scripts/dev/compose.yaml`, applies `packages/app/clickhouse`, starts the stub verifier, then the collector with the profile's config, unmodified.
+- One run per checkout, started with `$V launch [RUN_ID] [--profile cloud|app|deploy]` (default `cloud`). Launch rebuilds the distribution from this checkout, starts a throwaway ClickHouse from `scripts/dev/compose.yaml`, applies the profile's schema files, starts the stub verifier, then the collector with the profile's config, unmodified.
 - `$V doctor` ends with `COLLECTOR DOCTOR OK` before any recipe.
 - The ClickHouse server is new for each run, so it starts empty. Recipes still filter by a marker (`$V otlp` puts `<RUN_ID>-<label>` in the log body, span name and the `everr.verify.marker` attribute) or by tenant.
 - The stub's keys exist only in this run (`$V keys`): `secret` (tenant `verify-<RUN_ID>-a`, logs 7d, traces 14d, metrics 30d), `other` (tenant `verify-<RUN_ID>-b`, 90d each), `public` (tenant a, allowed origin `https://allowed.verify.test`), `apply-only` (no `ingest` scope).
@@ -49,7 +49,7 @@ Pick recipes from the paths a change touches (`git diff --name-only origin/main.
 | `scripts/dev/collector-cloud.yaml` | every feature with `--profile cloud` |
 | `scripts/dev/collector-app.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md`, `github-webhook.md` with `--profile app` |
 | `deploy/collector.yaml` | `otlp-ingest.md`, `ingest-auth.md`, `browser-cors.md` with `--profile deploy` |
-| `packages/app/clickhouse/**` | `otlp-ingest.md` with `--profile cloud` and `--profile deploy`, `usage-accounting.md`; reads through `app_ro` need [verify-web-app](../../verify-web-app/SKILL.md) |
+| `packages/app/clickhouse/**`, `packages/cloud/clickhouse/**` | `otlp-ingest.md` with `--profile cloud` and `--profile deploy`, `usage-accounting.md`; reads through `app_ro` need [verify-web-app](../../verify-web-app/SKILL.md) |
 | `collector/localcollector/**`, `collector/internal/localgateway/**`, `collector/exporter/chdbexporter/**` | [verify-cli](../../verify-cli/SKILL.md), not this map |
 | `packages/app/src/routes/api/internal/verify-key.ts`, `packages/app/src/lib/public-ingest-keys.ts` | [verify-web-app](../../verify-web-app/SKILL.md): the stub stands in for these here |
 | `collector/config.example.yml`, `collector/Dockerfile` | not covered (see SKILL.md) |

@@ -1,14 +1,23 @@
 import { createHash } from "node:crypto";
 
-/** The one directory whose top-level `*.sql` files are ClickHouse migrations. */
-export const CLICKHOUSE_MIGRATION_DIR = "packages/app/clickhouse";
+/**
+ * The directories whose top-level `*.sql` files are ClickHouse migrations:
+ * the shared files, the self-hosted ones and Cloud's. Their numbers form one
+ * sequence.
+ */
+export const CLICKHOUSE_MIGRATION_DIRS = [
+  "packages/app/clickhouse",
+  "packages/app/clickhouse/self-hosted",
+  "packages/cloud/clickhouse",
+] as const;
+
+const MIGRATION_DIRS: readonly string[] = CLICKHOUSE_MIGRATION_DIRS;
 
 const SEED_SUFFIX = ".seed.ts";
 
 function isTopLevel(path: string, suffix: string): boolean {
-  if (!path.startsWith(`${CLICKHOUSE_MIGRATION_DIR}/`)) return false;
-  const name = path.slice(CLICKHOUSE_MIGRATION_DIR.length + 1);
-  return name.endsWith(suffix) && !name.includes("/");
+  const dir = path.slice(0, path.lastIndexOf("/"));
+  return MIGRATION_DIRS.includes(dir) && path.endsWith(suffix);
 }
 
 /** A path the migration runner loads. Nested files are not. */

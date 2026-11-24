@@ -5,8 +5,7 @@ import { Session } from "chdb";
 
 import {
   byMigrationName,
-  clickHouseMigrations,
-  clickHouseMigrationTarget,
+  sharedClickHouseMigrations,
   sqlStatements,
 } from "#app/db/clickhouse-sql.ts";
 
@@ -28,18 +27,18 @@ export interface MigratedChdbStore {
 }
 
 /**
- * A chDB session on a temp directory holding the schema both products share:
- * the untagged migrations, with `app` as the current database.
+ * A chDB session on a temp directory holding the schema both products share,
+ * with `app` as the current database. The databases are created first, as
+ * each product's setup does.
  */
 export function openMigratedChdbStore(prefix: string): MigratedChdbStore {
   const dataDir = mkdtempSync(join(tmpdir(), prefix));
   const session = new Session(dataDir);
   const run = (sql: string) => String(session.query(sql, "JSONEachRow") ?? "").trim();
 
-  const shared = clickHouseMigrations
-    .filter(({ name }) => clickHouseMigrationTarget(name) === undefined)
-    .sort(byMigrationName);
-  for (const { sql } of shared) {
+  run("CREATE DATABASE IF NOT EXISTS otel");
+  run("CREATE DATABASE IF NOT EXISTS app");
+  for (const { sql } of [...sharedClickHouseMigrations].sort(byMigrationName)) {
     for (const statement of sqlStatements(sql)) {
       if (!isAccessControl(statement)) run(withoutTtl(statement));
     }

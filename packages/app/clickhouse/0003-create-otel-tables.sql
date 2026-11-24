@@ -218,3 +218,6 @@ CREATE TABLE IF NOT EXISTS otel.otel_metrics_summary (
     ),
     Flags UInt32
 ) ENGINE = Null;
+
+-- Collector writes raw telemetry into otel schema.
+GRANT SELECT, INSERT, CREATE TABLE, ALTER TABLE ON otel.* TO collector_rw;

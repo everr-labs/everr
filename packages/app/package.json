@@ -21,6 +21,7 @@
     "./data/product": "./src/data/product.ts",
     "./db/client": "./src/db/client.ts",
     "./db/clickhouse-migrations": "./src/db/clickhouse-migrations.ts",
+    "./db/clickhouse-sql": "./src/db/clickhouse-sql.ts",
     "./db/migrations": "./src/db/migrations.ts",
     "./db/schema": "./src/db/schema/index.ts",
     "./drizzle/config": "./drizzle.config.ts",

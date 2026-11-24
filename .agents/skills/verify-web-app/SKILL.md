@@ -1,6 +1,6 @@
 ---
 name: verify-web-app
-description: Drive Everr App and Cloud (`packages/app`, `packages/cloud`) the way a user does, in an isolated throwaway `pnpm dev` stack with the browser driven by `agent-browser`, and capture proof. Use when a change touches `packages/app`, `packages/cloud`, `packages/telemetry-explorer`, `packages/otel-web`, `packages/app/clickhouse` or the Postgres schema, or when you must prove web sign-up/sign-in, installation setup, API keys, Explore pages with seeded logs/traces/errors, dashboards and runbooks applied as code, the browser SDK `@everr/otel-web` against public ingest, or the GitHub connect boundary actually work.
+description: Drive Everr App and Cloud (`packages/app`, `packages/cloud`) the way a user does, in an isolated throwaway `pnpm dev` stack with the browser driven by `agent-browser`, and capture proof. Use when a change touches `packages/app`, `packages/cloud`, `packages/telemetry-explorer`, `packages/otel-web`, `packages/app/clickhouse`, `packages/cloud/clickhouse` or the Postgres schema, or when you must prove web sign-up/sign-in, installation setup, API keys, Explore pages with seeded logs/traces/errors, dashboards and runbooks applied as code, the browser SDK `@everr/otel-web` against public ingest, or the GitHub connect boundary actually work.
 user-invocable: true
 metadata:
   internal: true

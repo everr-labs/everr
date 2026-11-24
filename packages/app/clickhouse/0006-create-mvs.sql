@@ -529,3 +529,6 @@ FROM
     everrRetentionDays(ResourceAttributes) AS retention_days
   FROM otel.otel_metrics_summary
 );
+
+-- App reads only curated read-model tables.
+GRANT SELECT ON app.* TO app_ro;

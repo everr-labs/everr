@@ -9,8 +9,6 @@ import {
   type ClickHouseSeedContext,
   type ClickHouseSeedParams,
   type ClickHouseMigration,
-  type ClickHouseMigrationTarget,
-  clickHouseMigrationsFor,
   sqlStatements,
 } from "./clickhouse-sql";
 import { clickHouseMigrationHash } from "./clickhouse-statements.ts";
@@ -198,17 +196,16 @@ export function clickHouseMigrationSteps(
 }
 
 /**
- * Apply the files for `target` that the journal does not list: the untagged
- * files and the ones tagged for that product. The setup file takes the base
- * users' passwords from the environment; `productParams` are the parameters
- * the product's own files name. ClickHouse DDL is not transactional, so
- * statements and seeds must be safe to repeat: a migration that fails
- * partway runs again from its first statement. Run it under the PostgreSQL migration lock so
- * replicas apply it once.
+ * Apply the product's `migrations` that the journal does not list. `params`
+ * are the values for the `{name:Type}` placeholders its files name.
+ * ClickHouse DDL is not transactional, so statements and seeds must be safe
+ * to repeat: a migration that fails partway runs again from its first
+ * statement. Run it under the PostgreSQL migration lock so replicas apply it
+ * once.
  */
 export async function migrateClickHouse(
-  target: ClickHouseMigrationTarget,
-  productParams: Params = {},
+  migrations: readonly ClickHouseMigration[],
+  params: Params = {},
 ): Promise<void> {
   const { CLICKHOUSE_MIGRATION_USERNAME: username, CLICKHOUSE_MIGRATION_PASSWORD: password } =
     clickhouseMigrationEnv;
@@ -218,13 +215,6 @@ export async function migrateClickHouse(
     });
     return;
   }
-  const migrations = clickHouseMigrationsFor(target);
-  const params: Params = {
-    collector_rw_password: clickhouseMigrationEnv.CLICKHOUSE_COLLECTOR_PASSWORD,
-    app_ro_password: env.CLICKHOUSE_PASSWORD,
-    app_admin_password: env.CLICKHOUSE_ADMIN_PASSWORD,
-    ...productParams,
-  };
 
   // A statement can outlast the client's 30 s default. A `request_timeout` in
   // CLICKHOUSE_URL still wins over the 10 minutes below. ClickHouse keeps

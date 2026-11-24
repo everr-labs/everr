@@ -2,10 +2,12 @@
 # at the version deploy/compose.yaml pins.
 x-clickhouse: &clickhouse
   image: clickhouse/clickhouse-server:26.8.34.13
-  environment:
+  environment: &clickhouse-environment
     CLICKHOUSE_USER: default
     CLICKHOUSE_PASSWORD: dev
     CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    # Run the init script on every start, as deploy/compose.yaml does.
+    CLICKHOUSE_ALWAYS_RUN_INITDB_SCRIPTS: "1"
   ports:
     - target: 8123
       host_ip: 127.0.0.1
@@ -32,16 +34,26 @@ services:
       - ${DEV_ROOT}/scripts/dev/init-postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro,z
     labels:
       dev.checkout: ${DEV_ROOT}
+  # The databases and users come from the same script self-hosted installations
+  # use, with the dev passwords.
   clickhouse-app:
     <<: *clickhouse
+    environment:
+      <<: *clickhouse-environment
+      COLLECTOR_RW_PASSWORD: dev
+      APP_RO_PASSWORD: dev
+      WEB_APP_ADMIN_PASSWORD: dev
+      CLICKHOUSE_SQL_API_PASSWORD: dev
     volumes:
       - clickhouse-app:/var/lib/clickhouse
+      - ${DEV_ROOT}/deploy/clickhouse-init.sh:/docker-entrypoint-initdb.d/01-init.sh:ro,z
     labels:
       dev.checkout: ${DEV_ROOT}
   clickhouse-cloud:
     <<: *clickhouse
     volumes:
       - clickhouse-cloud:/var/lib/clickhouse
+      - ${DEV_ROOT}/scripts/dev/clickhouse-cloud-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro,z
     labels:
       dev.checkout: ${DEV_ROOT}
 volumes:
