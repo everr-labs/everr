@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { defineConfig, defineDocs, defineCollections } from "fumadocs-mdx/config";
+import { remarkMdxMermaid } from "fumadocs-core/mdx-plugins";
+import { applyMdxPreset, defineConfig, defineDocs, defineCollections } from "fumadocs-mdx/config";
 import { z } from "zod";
 import { checkBlogContent } from "./src/lib/blog-check";
 
@@ -44,8 +45,21 @@ export const blog = defineCollections({
   type: "doc",
   dir: "content/blog",
   postprocess: {
-    includeProcessedMarkdown: true,
+    // The Markdown and llms.txt copy of a post keeps the ```mermaid block, not its component
+    includeProcessedMarkdown: {
+      stringify(node) {
+        if (node.type !== "mdxJsxFlowElement" || node.name !== "Mermaid") return;
+        const chart = node.attributes.find(
+          (attribute) => attribute.type === "mdxJsxAttribute" && attribute.name === "chart",
+        );
+        return typeof chart?.value === "string"
+          ? `\`\`\`mermaid\n${chart.value}\n\`\`\``
+          : undefined;
+      },
+    },
   },
+  // Turns ```mermaid blocks into <Mermaid chart="..." />, which src/components/mermaid.tsx renders
+  mdxOptions: applyMdxPreset({ remarkPlugins: (plugins) => [...plugins, remarkMdxMermaid] }),
   schema: z.object({
     title: z.string(),
     description: z.string(),

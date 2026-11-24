@@ -30,6 +30,7 @@
     "fumadocs-mdx": "15.0.0",
     "fumadocs-ui": "16.8.8",
     "lucide-react": "catalog:",
+    "mermaid": "^12.3.0",
     "motion": "catalog:",
     "posthog-js": "^1.447.7",
     "react": "catalog:",

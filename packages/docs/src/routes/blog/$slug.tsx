@@ -5,6 +5,7 @@ import defaultMdxComponents from "fumadocs-ui/mdx";
 import { ArrowLeft } from "lucide-react";
 import { Suspense } from "react";
 import { Footer } from "@/components/footer";
+import { Mermaid } from "@/components/mermaid";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
 import { SITE_URL } from "@/constants";
 import { blogPost } from "@/lib/blog";
@@ -71,6 +72,7 @@ const clientLoader = browserCollections.blog.createClientLoader({
       <MDX
         components={{
           ...defaultMdxComponents,
+          Mermaid,
         }}
       />
     );
