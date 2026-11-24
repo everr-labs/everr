@@ -167,5 +167,8 @@
   "hero_notice_2_step_2": "Every one has a + in the email",
   "hero_notice_3_step_1": "Looked at the failed uploads",
   "hero_notice_3_step_2": "Compared their sizes",
-  "hero_fix_label": "Suggested fix"
+  "hero_fix_label": "Suggested fix",
+  "hero_demo_label": "Animation: Everr spots a slow checkout, failing sign-ups and failing photo uploads, finds the cause of each and suggests a fix.",
+  "tour_demo_label": "Demo of the Everr app answering the selected question",
+  "setup_demo_label": "Demo of an AI coding assistant setting up Everr, building a view of what matters and finding the cause of an alert"
 }

@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useRef } from "react";
+import { m } from "@/paraglide/messages";
 import { Chart, Roll, Stage, Window, type Act, type Playhead } from "./kit";
 import { AlertsView, type AlertState } from "../alerts-demo/AlertsView";
 import { RunbookView, type RunbookStep } from "../alerts-demo/RunbookView";
@@ -338,6 +339,7 @@ export function MonitoringDemo({
   }, [jump, playhead]);
   return (
     <Stage<S>
+      label={m.tour_demo_label()}
       width={880}
       height={560}
       compact={{ below: 640, width: 358, height: 560 }}

@@ -158,6 +158,7 @@ function Action({
 export function HeroWatch() {
   return (
     <Stage<S>
+      label={m.hero_demo_label()}
       width={760}
       height={540}
       compact={{ below: 470, width: 374, height: 428 }}

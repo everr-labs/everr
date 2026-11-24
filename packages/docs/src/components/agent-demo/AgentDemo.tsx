@@ -9,6 +9,7 @@ import {
   Stream,
   Window,
 } from "../monitoring-demo/kit";
+import { m } from "@/paraglide/messages";
 import "../monitoring-demo/monitoring-demo.css";
 import "./agent-demo.css";
 
@@ -335,6 +336,7 @@ export function AgentDemo({
   }, [jump, playhead]);
   return (
     <Stage<S>
+      label={m.setup_demo_label()}
       width={920}
       height={500}
       compact={{ below: 640, width: 358, height: 540 }}
