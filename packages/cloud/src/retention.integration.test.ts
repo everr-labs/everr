@@ -39,13 +39,14 @@ afterAll(async () => fixture?.close());
 // retention, so the billing query has to work against the real cloud schema.
 describe("cloud retention read from billing", () => {
   it.each([
-    ["hobby-org", 14, 14],
-    ["pro-org", 365, 30],
-  ])("resolves %s's retention", async (orgId, telemetryDays, evaluationDays) => {
+    ["hobby-org", 14, 14, 14],
+    ["pro-org", 365, 30, 30],
+  ])("resolves %s's retention", async (orgId, telemetryDays, profilesDays, evaluationDays) => {
     expect((await productPolicy.forOrganization(orgId)).retention).toEqual({
       tracesDays: telemetryDays,
       logsDays: telemetryDays,
       metricsDays: telemetryDays,
+      profilesDays,
       alertEvaluationDays: evaluationDays,
       alertLifecycleDays: telemetryDays,
     });
