@@ -121,6 +121,7 @@ type Key = {
   logsDays: number;
   tracesDays: number;
   metricsDays: number;
+  profilesDays: number;
   scopes: string[];
   allowedOrigins?: string[];
 };
@@ -237,8 +238,8 @@ function keysFor(id: string): Record<string, Key> {
   const key = () => `ek_${randomBytes(24).toString("base64url")}`;
   const tenantA = `verify-${id}-a`;
   return {
-    secret: { key: key(), keyId: "key-secret", tenant: tenantA, logsDays: 7, tracesDays: 14, metricsDays: 30, scopes: ["ingest"] },
-    other: { key: key(), keyId: "key-other", tenant: `verify-${id}-b`, logsDays: 90, tracesDays: 90, metricsDays: 90, scopes: ["ingest"] },
+    secret: { key: key(), keyId: "key-secret", tenant: tenantA, logsDays: 7, tracesDays: 14, metricsDays: 30, profilesDays: 21, scopes: ["ingest"] },
+    other: { key: key(), keyId: "key-other", tenant: `verify-${id}-b`, logsDays: 90, tracesDays: 90, metricsDays: 90, profilesDays: 90, scopes: ["ingest"] },
     public: {
       key: key(),
       keyId: "key-public",
@@ -246,10 +247,11 @@ function keysFor(id: string): Record<string, Key> {
       logsDays: 7,
       tracesDays: 14,
       metricsDays: 30,
+      profilesDays: 21,
       scopes: ["ingest"],
       allowedOrigins: ["https://allowed.verify.test"],
     },
-    "apply-only": { key: key(), keyId: "key-apply-only", tenant: tenantA, logsDays: 7, tracesDays: 14, metricsDays: 30, scopes: ["apply"] },
+    "apply-only": { key: key(), keyId: "key-apply-only", tenant: tenantA, logsDays: 7, tracesDays: 14, metricsDays: 30, profilesDays: 21, scopes: ["apply"] },
   };
 }
 
@@ -276,7 +278,7 @@ function verifyDecision(keys: Record<string, Key>, tenant: boolean, secret: stri
   return {
     status: 200,
     name,
-    body: { ...(tenant ? { tenantId: k.tenant } : {}), keyId: k.keyId, tracesDays: k.tracesDays, logsDays: k.logsDays, metricsDays: k.metricsDays },
+    body: { ...(tenant ? { tenantId: k.tenant } : {}), keyId: k.keyId, tracesDays: k.tracesDays, logsDays: k.logsDays, metricsDays: k.metricsDays, profilesDays: k.profilesDays },
   };
 }
 
@@ -407,7 +409,9 @@ function startProcess(r: Run, file: string, args: string[], env: Record<string, 
 
 function startCollector(r: Run): number {
   const p = PROFILES[r.profile];
-  const args = ["--config", path.join(REPO, p.config)];
+  // Every config has a profiles pipeline, which the service refuses without
+  // this gate. The image and process-compose.yaml pass it the same way.
+  const args = ["--config", path.join(REPO, p.config), "--feature-gates=service.profilesSupport"];
   if (p.overlay) {
     const overlay = path.join(r.dir, "listeners.overlay.yaml");
     writeFileSync(overlay, p.overlay(r));
@@ -526,7 +530,7 @@ async function cmdLaunch(args: string[]): Promise<number> {
 }
 
 const keyLine = (k: Key, p: Profile) =>
-  `tenant=${p.tenant ? k.tenant : "(omitted)"} key_id=${k.keyId} logs=${k.logsDays}d traces=${k.tracesDays}d metrics=${k.metricsDays}d scopes=${k.scopes.join(",")}${k.allowedOrigins ? ` public origins=${k.allowedOrigins.join(",")}` : " secret"}`;
+  `tenant=${p.tenant ? k.tenant : "(omitted)"} key_id=${k.keyId} logs=${k.logsDays}d traces=${k.tracesDays}d metrics=${k.metricsDays}d profiles=${k.profilesDays}d scopes=${k.scopes.join(",")}${k.allowedOrigins ? ` public origins=${k.allowedOrigins.join(",")}` : " secret"}`;
 
 function newestSource(after: number): string | undefined {
   const walk = (dir: string): string | undefined => {
