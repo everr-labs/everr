@@ -29,8 +29,9 @@ interface PlotLines {
    */
   extent: readonly [low: number, high: number];
   /**
-   * The lines to hand ECharts for a plot `width` CSS pixels wide on a canvas
-   * of `pixelRatio` device pixels to each, one per model series in model order.
+   * The lines to hand ECharts for a plot `width` CSS pixels wide, `left` CSS
+   * pixels from the canvas's left edge, on a canvas of `pixelRatio` device
+   * pixels to each, one per model series in model order.
    *
    * A line with more points than four to each column of device pixels keeps,
    * in every column, its first, last, lowest and highest point (M4, Jugel et
@@ -42,7 +43,7 @@ interface PlotLines {
    *
    * A plot with no width yet gets every point.
    */
-  forPlot(width: number, pixelRatio: number): DrawnLine[];
+  forPlot(plot: { left: number; width: number }, pixelRatio: number): DrawnLine[];
 }
 
 /**
@@ -66,8 +67,8 @@ function ownLines({ series, domain }: ChartModel): PlotLines {
   }
   return {
     extent: [low, high],
-    forPlot: (width, pixelRatio) => {
-      const columns = columnsAcross(width * pixelRatio, domain);
+    forPlot: ({ left, width }, pixelRatio) => {
+      const columns = columnsAcross(left * pixelRatio, width * pixelRatio, domain);
       return series.map(({ id, color, times, values }) => {
         const keep = columns && tooManyFor(times, columns) ? new Uint8Array(times.length) : null;
         if (keep && columns) markM4(times, values, columns, keep);
@@ -107,8 +108,8 @@ function stackedLines({ times, series, domain }: ChartModel): PlotLines {
   });
   return {
     extent: [low, high],
-    forPlot: (width, pixelRatio) => {
-      const columns = columnsAcross(width * pixelRatio, domain);
+    forPlot: ({ left, width }, pixelRatio) => {
+      const columns = columnsAcross(left * pixelRatio, width * pixelRatio, domain);
       // One set of timestamps for every band: all that any edge needs. More
       // points than an edge's own leave it drawn the same.
       const keep = columns && tooManyFor(times, columns) ? new Uint8Array(times.length) : null;
@@ -122,20 +123,27 @@ function stackedLines({ times, series, domain }: ChartModel): PlotLines {
   };
 }
 
-/** Columns of device pixels across a time domain: `time` falls in column
- * `floor((time - from) * perMs)`. */
+/** The canvas's columns of device pixels across a time domain: `time` falls
+ * in column `floor(left + (time - from) * perMs)`. At a fractional pixel ratio
+ * the plot can start and end partway into a pixel, so the columns are placed
+ * from where it starts on the canvas, at its exact scale. */
 interface Columns {
   count: number;
+  left: number;
   from: number;
   perMs: number;
 }
 
 /** Null when columns cannot be placed (a plot with no width, a domain with no
  * span): nothing is thinned then. */
-function columnsAcross(pixels: number, [from, to]: readonly [number, number]): Columns | null {
+function columnsAcross(
+  left: number,
+  pixels: number,
+  [from, to]: readonly [number, number],
+): Columns | null {
   const count = Math.ceil(pixels);
-  if (!(count >= 1 && Number.isFinite(count) && to > from)) return null;
-  return { count, from, perMs: count / (to - from) };
+  if (!(count >= 1 && Number.isFinite(count) && Number.isFinite(left) && to > from)) return null;
+  return { count, left, from, perMs: pixels / (to - from) };
 }
 
 function tooManyFor(times: Float64Array, columns: Columns): boolean {
@@ -151,7 +159,7 @@ function tooManyFor(times: Float64Array, columns: Columns): boolean {
 function markM4(
   times: Float64Array,
   values: Float64Array,
-  { from, perMs }: Columns,
+  { left, from, perMs }: Columns,
   keep: Uint8Array,
 ): void {
   let open = false;
@@ -172,7 +180,7 @@ function markM4(
     }
     // Not clamped: the bucket the model keeps left of the domain is a column
     // of its own, so the line still runs off the plot's edge as it did.
-    const at = Math.floor((times[i] - from) * perMs);
+    const at = Math.floor(left + (times[i] - from) * perMs);
     if (open && at === column) {
       last = i;
       if (value < lowValue) {
