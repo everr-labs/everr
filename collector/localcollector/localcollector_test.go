@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -526,4 +527,22 @@ func TestTheExporterWritesExactlyTheColumnsOfTheMigratedLandingTables(t *testing
 			require.Equal(t, migrated, written)
 		})
 	}
+}
+
+func TestABrowserMayPostGzippedLogsFromAnotherOrigin(t *testing.T) {
+	g := startGateway(t)
+
+	req, err := http.NewRequest(http.MethodOptions, g.otlp+"/v1/logs", nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	// Browsers list the requested headers lowercased and sorted.
+	req.Header.Set("Access-Control-Request-Headers", "content-encoding,content-type")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Less(t, resp.StatusCode, 300)
+	require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+	require.Contains(t, strings.ToLower(resp.Header.Get("Access-Control-Allow-Headers")), "content-encoding")
 }
