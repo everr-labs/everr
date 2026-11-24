@@ -133,10 +133,38 @@ var (
 		"ValueAtQuantiles.Value",
 		"Flags",
 	)}
+
+	// Upstream clickhouseexporter's profiles insert, in its column order.
+	Profiles = Table{Name: "otel.otel_profiles", Columns: []string{
+		"Timestamp",
+		"ProfileId",
+		"SampleType",
+		"SampleUnit",
+		"ServiceName",
+		"ResourceAttributes",
+		"ScopeName",
+		"ScopeVersion",
+		"ProfileAttributes",
+		"SampleAttributes",
+		"StackHash",
+		"Addresses",
+		"FunctionNames",
+		"FileNames",
+		"LineNumbers",
+		"MappingFileNames",
+		"Values",
+		"TimestampsUnixNano",
+		"DurationNano",
+		"Period",
+		"PeriodType",
+		"PeriodUnit",
+		"TraceId",
+		"SpanId",
+	}}
 )
 
 func Tables() []Table {
-	return []Table{Logs, Traces, MetricsGauge, MetricsSum, MetricsHistogram, MetricsExponentialHistogram, MetricsSummary}
+	return []Table{Logs, Traces, MetricsGauge, MetricsSum, MetricsHistogram, MetricsExponentialHistogram, MetricsSummary, Profiles}
 }
 
 func metricColumns(kind ...string) []string {

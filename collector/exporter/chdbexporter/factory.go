@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper"
+	"go.opentelemetry.io/collector/exporter/xexporter"
 
 	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/landing"
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
@@ -28,24 +30,29 @@ func LandingTables() []landing.Table {
 // be a store that already has the otel.* landing tables: the exporter creates
 // no table.
 func NewFactory(handle *chdb.Handle) exporter.Factory {
-	return exporter.NewFactory(
+	return xexporter.NewFactory(
 		componentType,
 		createDefaultConfig,
-		exporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
+		xexporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
 			c := cfg.(*Config)
 			exp := &logsExporter{handle: handle, retentionDays: retentionDays(c)}
 			return exporterhelper.NewLogs(ctx, set, cfg, exp.pushLogsData, options(c)...)
 		}, component.StabilityLevelBeta),
-		exporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
+		xexporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {
 			c := cfg.(*Config)
 			exp := &tracesExporter{handle: handle, retentionDays: retentionDays(c)}
 			return exporterhelper.NewTraces(ctx, set, cfg, exp.pushTraceData, options(c)...)
 		}, component.StabilityLevelBeta),
-		exporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
+		xexporter.WithMetrics(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Metrics, error) {
 			c := cfg.(*Config)
 			exp := &metricsExporter{handle: handle, retentionDays: retentionDays(c)}
 			return exporterhelper.NewMetrics(ctx, set, cfg, exp.pushMetricsData, options(c)...)
 		}, component.StabilityLevelAlpha),
+		xexporter.WithProfiles(func(ctx context.Context, set exporter.Settings, cfg component.Config) (xexporter.Profiles, error) {
+			c := cfg.(*Config)
+			exp := &profilesExporter{handle: handle, retentionDays: retentionDays(c)}
+			return xexporterhelper.NewProfiles(ctx, set, cfg, exp.pushProfilesData, options(c)...)
+		}, component.StabilityLevelDevelopment),
 	)
 }
 
