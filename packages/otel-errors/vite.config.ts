@@ -17,6 +17,7 @@ export default defineConfig({
     },
     format: ["esm", "cjs"],
     dts: true,
+    sourcemap: true,
     platform: "neutral",
     define: {
       __PACKAGE_VERSION__: JSON.stringify(packageVersion),

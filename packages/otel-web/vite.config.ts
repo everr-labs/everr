@@ -21,6 +21,7 @@ export default defineConfig({
     },
     format: ["esm"],
     dts: true,
+    sourcemap: true,
     platform: "browser",
     define: {
       __PACKAGE_VERSION__: JSON.stringify(packageVersion),

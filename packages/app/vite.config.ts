@@ -37,6 +37,9 @@ export function createAppConfig(
       publicDir: resolve(appDirectory, "public"),
       // Prerender fetches must reach the preview listener inside IPv4-only containers.
       preview: { host: "127.0.0.1" },
+      // The source is public, so the maps reveal nothing new. Browsers fetch them
+      // only when devtools is open, so stack traces become readable at no cost to users.
+      environments: { client: { build: { sourcemap: true } } },
       resolve: {
         tsconfigPaths: true,
         dedupe: [
