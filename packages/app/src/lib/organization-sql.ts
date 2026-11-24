@@ -1,5 +1,5 @@
 import { storage } from "@composition/storage";
-import { previewSqlApi, querySqlApi, querySqlApiWithMeta } from "./clickhouse";
+import { previewSqlApi, querySqlApi, querySqlApiColumns, querySqlApiWithMeta } from "./clickhouse";
 
 /** SQL API access for an organization whose storage is ready. */
 export function createOrganizationSql(organizationId: string, metadata: unknown) {
@@ -7,6 +7,8 @@ export function createOrganizationSql(organizationId: string, metadata: unknown)
   return {
     query: <T>(sql: string, params?: Record<string, unknown>) =>
       querySqlApi<T>(sql, organizationId, params),
+    queryColumns: (sql: string, params?: Record<string, unknown>) =>
+      querySqlApiColumns(sql, organizationId, params),
     queryWithMeta: <T>(sql: string) => querySqlApiWithMeta<T>(sql, organizationId),
     preview: (sql: string, maxRows: number) => previewSqlApi(sql, organizationId, maxRows),
   };

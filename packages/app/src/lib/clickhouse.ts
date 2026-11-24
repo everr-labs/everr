@@ -82,6 +82,23 @@ export async function querySqlApi<T>(
   return result.json<T>();
 }
 
+/** A SQL API query's result as ClickHouse's `JSONColumnsWithMetadata` text,
+ * unparsed. */
+export async function querySqlApiColumns(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+): Promise<string> {
+  if (!organizationId) throw new Error("Missing workspace context");
+  const result = await runSqlApiQuery(
+    query,
+    organizationId,
+    query_params,
+    "JSONColumnsWithMetadata",
+  );
+  return result.text();
+}
+
 export interface SqlApiResult<T> {
   rows: T[];
   columns: string[];

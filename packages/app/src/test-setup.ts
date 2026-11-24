@@ -72,10 +72,12 @@ vi.mock("@tanstack/react-start", () => ({
 vi.mock("#app/lib/clickhouse.ts", () => {
   const query = vi.fn();
   const querySqlApi = vi.fn();
+  const querySqlApiColumns = vi.fn();
 
   return {
     query,
     querySqlApi,
+    querySqlApiColumns,
     createClickhouseQuery: vi.fn(
       (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
         query(sql, params, tenantId),
@@ -89,7 +91,7 @@ vi.mock("#app/lib/clickhouse.ts", () => {
 // ---------------------------------------------------------------------------
 
 vi.mock("#app/lib/serverFn.ts", async () => {
-  const { query, querySqlApi } = await import("#app/lib/clickhouse.ts");
+  const { query, querySqlApi, querySqlApiColumns } = await import("#app/lib/clickhouse.ts");
   const { auth } = await import("#app/identity/server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
@@ -116,6 +118,8 @@ vi.mock("#app/lib/serverFn.ts", async () => {
                 sql: {
                   query: <T>(sql: string, params?: Record<string, unknown>) =>
                     querySqlApi<T>(sql, "test_org", params),
+                  queryColumns: (sql: string, params?: Record<string, unknown>) =>
+                    querySqlApiColumns(sql, "test_org", params),
                 },
               }
             : {}),
