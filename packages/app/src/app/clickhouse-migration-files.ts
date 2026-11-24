@@ -6,7 +6,8 @@ import {
 
 /**
  * What a self-hosted installation applies: the shared files, plus the
- * databases, service users and installation-wide SQL API access.
+ * installation-wide SQL API role and its grant to `sql_api`. The deployment
+ * creates the databases and users first.
  */
 export const selfHostedClickHouseMigrations: readonly ClickHouseMigration[] = [
   ...sharedClickHouseMigrations,
