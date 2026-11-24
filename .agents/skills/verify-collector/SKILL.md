@@ -1,6 +1,6 @@
 ---
 name: verify-collector
-description: Run the Everr collector distribution (`collector/`, built with OCB from `collector/config/manifest.*.yaml`) from this checkout against a throwaway ClickHouse with the repo's schema and a stub key verifier, drive its public OTLP and GitHub webhook listeners the way senders do, and capture proof. Use when a change touches `collector/` (other than the local collector and chDB exporter), `scripts/dev/collector-*.yaml`, `deploy/collector.yaml` or `packages/app/clickhouse`, or when you must prove authenticated OTLP ingest, key rejection, browser CORS, tenant and retention stamping, signed GitHub webhook ingest, or usage accounting.
+description: Run the Everr collector distribution (`collector/`, built with OCB from `collector/config/manifest.*.yaml`) from this checkout against a throwaway ClickHouse with the repo's schema and a stub key verifier, drive its public OTLP and GitHub webhook listeners the way senders do, and capture proof. Use when a change touches `collector/` (other than the local collector and chDB exporter), `scripts/dev/collector-*.yaml`, `deploy/collector.yaml`, `packages/app/clickhouse` or `packages/cloud/clickhouse`, or when you must prove authenticated OTLP ingest, key rejection, browser CORS, tenant and retention stamping, signed GitHub webhook ingest, or usage accounting.
 user-invocable: true
 metadata:
   internal: true
@@ -8,7 +8,7 @@ metadata:
 
 # Verify the Everr collector
 
-The collector distributions on their own: the Cloud and self-hosted builds of `collector/` with their custom components (API key auth extension, GitHub Actions receiver, usage processor, connector and extension), run with the repo's own configs. A run builds the binary from this checkout, starts one ClickHouse container with the schema from `packages/app/clickhouse`, starts a stub key verifier, starts the collector on free loopback ports, and reads what lands in ClickHouse. No application, Postgres, Portless or browser. Launch takes about 4s once the image and Go caches are warm.
+The collector distributions on their own: the Cloud and self-hosted builds of `collector/` with their custom components (API key auth extension, GitHub Actions receiver, usage processor, connector and extension), run with the repo's own configs. A run builds the binary from this checkout, starts one ClickHouse container with the schema from `packages/app/clickhouse` and the profile's own directory, starts a stub key verifier, starts the collector on free loopback ports, and reads what lands in ClickHouse. No application, Postgres, Portless or browser. Launch takes about 4s once the image and Go caches are warm.
 
 Other surfaces have their own skills: App and Cloud in [verify-web-app](../verify-web-app/SKILL.md) (which also runs both collectors inside the full `pnpm dev` stack with the real application verifying keys), the `everr` CLI with the local collector and chDB in [verify-cli](../verify-cli/SKILL.md), the docs and landing site in [verify-docs](../verify-docs/SKILL.md). Runs of different skills can coexist.
 
@@ -46,9 +46,9 @@ A profile picks the build, the config and the verifier's tenant behavior:
 
 | Profile | Binary (`make -C collector build EVERR_BUILD_TARGET=...`) | Config, run unmodified | Schema files | Stub `tenantId` | Listeners |
 | --- | --- | --- | --- | --- | --- |
-| `cloud` | `collector/build/cloud` | `scripts/dev/collector-cloud.yaml` | untagged + `*-cloud-*` | returned | OTLP HTTP, OTLP gRPC, GitHub, usage pipeline |
-| `app` | `collector/build/self-hosted` | `scripts/dev/collector-app.yaml` | untagged + `*-self-hosted-*` | returned (the development App does) | OTLP HTTP, OTLP gRPC, GitHub |
-| `deploy` | `collector/build/self-hosted` | `deploy/collector.yaml` plus a listener overlay | untagged + `*-self-hosted-*` | omitted (production self-hosted) | OTLP HTTP, OTLP gRPC, `health_check` |
+| `cloud` | `collector/build/cloud` | `scripts/dev/collector-cloud.yaml` | `packages/app/clickhouse` + `packages/cloud/clickhouse` | returned | OTLP HTTP, OTLP gRPC, GitHub, usage pipeline |
+| `app` | `collector/build/self-hosted` | `scripts/dev/collector-app.yaml` | `packages/app/clickhouse` + `self-hosted/` | returned (the development App does) | OTLP HTTP, OTLP gRPC, GitHub |
+| `deploy` | `collector/build/self-hosted` | `deploy/collector.yaml` plus a listener overlay | `packages/app/clickhouse` + `self-hosted/` | omitted (production self-hosted) | OTLP HTTP, OTLP gRPC, `health_check` |
 
 Launch, in order:
 
@@ -56,7 +56,7 @@ Launch, in order:
 2. Picks free loopback ports, generates the run's shared secret, webhook secret, a throwaway GitHub App private key (App id `1`) and four keys (`$V keys`).
 3. Runs `make -C collector build` for the profile's target (output in `build.log`), so the binary always matches the checkout.
 4. Starts the profile's ClickHouse service from `scripts/dev/compose.yaml` as Compose project `verify-everr-collector-<checkout hash>-<RUN_ID>` (the hash keeps the same run id in two checkouts apart), published on a Docker-chosen `127.0.0.1` port, and waits for `SELECT 1`.
-5. Applies `packages/app/clickhouse/*.sql` for the target in file-name order, statement by statement with the application's own `sqlStatements` (`packages/app/src/db/clickhouse-statements.ts`) and the passwords `process-compose.yaml` uses (`dev`). After a file's statements it runs the file's seed (`NNNN-<name>.seed.ts`), if it has one. Node runs the seed directly, so a seed that imports more than types from the application fails here. `schema.txt` lists each file.
+5. Applies the profile's schema files in file-name order, statement by statement with the application's own `sqlStatements` (`packages/app/src/db/clickhouse-statements.ts`). The container's init script has already created the databases and users with the passwords `process-compose.yaml` uses (`dev`). After a file's statements it runs the file's seed (`NNNN-<name>.seed.ts`), if it has one. Node runs the seed directly, so a seed that imports more than types from the application fails here. `schema.txt` lists each file.
 6. Starts the stub verifier (the helper itself, `_verify-stub`), then the collector with the config's environment variables only (no `OTEL_*` or developer settings leak in). `deploy/collector.yaml` binds `0.0.0.0` on fixed ports, so its run adds `listeners.overlay.yaml` as a second `--config` that moves the listeners to the run's loopback ports. (`--set` does not work: this distribution has no `yaml:` config provider.)
 7. Ready means the same probe as `process-compose.yaml`: unauthenticated `POST /v1/logs` is `401`, the GitHub listener answers an unsigned `GET` with `400`, plus both OTLP ports owned by the collector's pid and, for `deploy`, `health_check` `200`. Ready line:
 

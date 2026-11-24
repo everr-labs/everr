@@ -40,14 +40,16 @@ Open <http://localhost:3000> and create the workspace and its owner. The first
 person to complete setup becomes the owner. Setup closes once the workspace
 exists, and concurrent attempts cannot create another workspace.
 
-The self-hosted app applies its PostgreSQL and ClickHouse migrations during
-startup, so an upgrade only needs newer app and collector images, both at the
-same version. ClickHouse runs the stock
-`clickhouse/clickhouse-server` image. The app connects as `default` and applies the
-databases, base users, table definitions, and SQL query limits from
-`packages/app/clickhouse`, without the files tagged `cloud`. It creates `otel`
-landing tables, `app` read tables, and installation-wide users, without Cloud
+ClickHouse runs the stock `clickhouse/clickhouse-server` image. On every start,
+`clickhouse-init.sh` creates the `otel` and `app` databases and the
+`collector_rw`, `app_ro`, `app_admin` and `sql_api` users from the passwords in
+`.env`, if they are missing. It never changes an existing user's password. The
+app then connects as `default` and applies its PostgreSQL and ClickHouse
+migrations: the table definitions, the grants for those users, and SQL query
+limits from `packages/app/clickhouse` and its `self-hosted` directory, without
 tenant policies or per-organization provisioning privileges.
+An upgrade needs the release's `compose.yaml` and `clickhouse-init.sh` as well as
+its app and collector images, both at the same version. See Versions below.
 The collector starts after the app is healthy, because it reads the landing table
 columns when it starts. Run the app and collector images at the same version.
 Self-hosted telemetry does not stamp a tenant, and queries do not filter by tenant.
@@ -100,10 +102,8 @@ application and check its service in Everr's traces, logs, or metrics explorer.
 The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
 
-The SQL API uses one restricted ClickHouse user, configured by
-`CLICKHOUSE_SQL_API_USERNAME` (default `sql_api`). Its password is generated in
-`.env` as `CLICKHOUSE_SQL_API_PASSWORD`. Keep the username unchanged when reusing
-an existing ClickHouse volume. GitHub webhook ingestion is not configured by this
+The SQL API uses one restricted ClickHouse user, `sql_api`. Its password is
+generated in `.env` as `CLICKHOUSE_SQL_API_PASSWORD`. GitHub webhook ingestion is not configured by this
 Compose bundle. Retention defaults to 30 days;
 set `EVERR_RETENTION_DAYS` to a supported window in `.env` to change it.
 
@@ -173,9 +173,11 @@ EVERR_VERSION=0.10.2
 ```
 
 `EVERR_VERSION` sets both images, so the app and collector stay at the same
-version. To upgrade, change it (or update `compose.yaml`) and run:
+version. To upgrade, update this checkout to the release, so `compose.yaml` and
+`clickhouse-init.sh` match its images, then run:
 
 ```sh
+git pull
 docker compose pull
 docker compose up -d --wait
 ```

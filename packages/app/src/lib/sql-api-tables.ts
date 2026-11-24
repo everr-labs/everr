@@ -1,6 +1,5 @@
-// Explicit readable-table allowlist, shared with the restricted SQL role in
-// packages/app/clickhouse/0009-cloud-create-sql-api-role.sql. Row policies use this same
-// list. Keeping it separate from the client lets schema
+// Explicit readable-table allowlist, shared with the grants the migrations give
+// sql_api_role. Row policies use this same list. Keeping it separate from the client lets schema
 // discovery and MCP describe access without importing server credentials.
 export const SQL_API_TABLES = [
   "traces",

@@ -2,6 +2,7 @@ import type { DataFormat } from "@clickhouse/client";
 import { storage } from "@composition/storage";
 import { env } from "#app/env/index.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
+import { CLICKHOUSE_APP_DATABASE, CLICKHOUSE_READER_USER } from "#app/lib/clickhouse-names.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 
 const { appQuerySettings, sqlApiAccess } = storage;
@@ -13,9 +14,9 @@ const clickhouseKeepAlive = { idle_socket_ttl: 8000 } as const;
 
 const clickhouse = createClient({
   url: env.CLICKHOUSE_URL,
-  username: env.CLICKHOUSE_USERNAME,
+  username: CLICKHOUSE_READER_USER,
   password: env.CLICKHOUSE_PASSWORD,
-  database: env.CLICKHOUSE_DATABASE,
+  database: CLICKHOUSE_APP_DATABASE,
   keep_alive: clickhouseKeepAlive,
 });
 

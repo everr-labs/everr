@@ -1,10 +1,8 @@
-import { appEnv } from "#app/app/env.ts";
 import { migrateClickHouse } from "#app/db/clickhouse-migrations.ts";
+import { selfHostedClickHouseMigrations } from "./clickhouse-migration-files.ts";
 
-// Installation-wide users and one SQL API user, without tenant row policies.
+// Installation-wide SQL API access, without tenant row policies. The
+// deployment creates the databases and users first.
 export function migrateInstallationClickHouse() {
-  return migrateClickHouse("self-hosted", {
-    sql_api_username: appEnv.CLICKHOUSE_SQL_API_USERNAME,
-    sql_api_password: appEnv.CLICKHOUSE_SQL_API_PASSWORD,
-  });
+  return migrateClickHouse(selfHostedClickHouseMigrations);
 }

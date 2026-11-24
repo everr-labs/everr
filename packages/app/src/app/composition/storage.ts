@@ -1,4 +1,5 @@
 import type { ApplicationStorage } from "#app/composition/storage.ts";
+import { CLICKHOUSE_SQL_API_USER } from "#app/lib/clickhouse-names.ts";
 import { appEnv } from "../env";
 
 export const storage: ApplicationStorage = {
@@ -8,7 +9,7 @@ export const storage: ApplicationStorage = {
   sqlApiAccess() {
     return {
       auth: {
-        username: appEnv.CLICKHOUSE_SQL_API_USERNAME,
+        username: CLICKHOUSE_SQL_API_USER,
         password: appEnv.CLICKHOUSE_SQL_API_PASSWORD,
       },
     };

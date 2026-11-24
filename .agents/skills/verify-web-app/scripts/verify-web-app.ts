@@ -278,11 +278,12 @@ const rowPolicies = async (clickhouse: string) =>
 
 function expectedRowPolicies(product: string): string {
   if (product === "app") return "0";
-  const dir = path.join(REPO, "packages/app/clickhouse");
   let n = 0;
-  // Cloud applies the untagged files and its own. Only the self-hosted files are left out.
-  for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql") && !/^\d+-self-hosted-/.test(f))) {
-    n += readFileSync(path.join(dir, f), "utf8").split("\n").filter((l) => l.startsWith("CREATE ROW POLICY")).length;
+  // Cloud applies the shared files and its own.
+  for (const dir of [path.join(REPO, "packages/app/clickhouse"), path.join(REPO, "packages/cloud/clickhouse")]) {
+    for (const f of readdirSync(dir).filter((f) => f.endsWith(".sql"))) {
+      n += readFileSync(path.join(dir, f), "utf8").split("\n").filter((l) => l.startsWith("CREATE ROW POLICY")).length;
+    }
   }
   return String(n);
 }
@@ -436,8 +437,8 @@ async function cmdWebLaunch(argv: string[]): Promise<number> {
   console.log(`WEB READY run=${id} app=${product} url=${w.origin}`);
   return 0;
 }
-/** The ClickHouse reader a product's dev server is started with: process-compose.yaml's global
- * environment, overridden by that product's process environment. */
+/** The ClickHouse reader a product's dev server is started with: app_ro, with the password from
+ * process-compose.yaml's global environment, overridden by that product's process environment. */
 function appClickhouseReader(product: "app" | "cloud"): { user: string; password: string; database: string } {
   const yaml = createRequire(path.join(REPO, "packages/app/package.json"))("yaml");
   const config = yaml.parse(readFileSync(path.join(REPO, "process-compose.yaml"), "utf8"));
@@ -448,7 +449,7 @@ function appClickhouseReader(product: "app" | "cloud"): { user: string; password
       if (i > 0) env[entry.slice(0, i)] = entry.slice(i + 1);
     }
   }
-  return { user: env.CLICKHOUSE_USERNAME ?? "", password: env.CLICKHOUSE_PASSWORD ?? "", database: env.CLICKHOUSE_DATABASE ?? "app" };
+  return { user: "app_ro", password: env.CLICKHOUSE_PASSWORD ?? "", database: "app" };
 }
 
 async function cmdWebDoctor(): Promise<number> {

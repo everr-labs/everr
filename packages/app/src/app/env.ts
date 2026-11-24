@@ -7,10 +7,6 @@ const days = z.enum(["1", "7", "14", "30", "90", "180", "365"]).transform(Number
 export const appEnv = createEnv({
   skipValidation: process.env.SKIP_ENV_VALIDATION === "true",
   server: {
-    CLICKHOUSE_SQL_API_USERNAME: z
-      .string()
-      .regex(/^[a-zA-Z0-9_]+$/)
-      .default("sql_api"),
     CLICKHOUSE_SQL_API_PASSWORD: z.string().min(1),
     EVERR_PUBLIC_INGEST_URL: z
       .url()
@@ -33,7 +29,6 @@ export const appEnv = createEnv({
     EVERR_RETENTION_ALERT_LIFECYCLE_DAYS: days.optional(),
   },
   runtimeEnv: {
-    CLICKHOUSE_SQL_API_USERNAME: process.env.CLICKHOUSE_SQL_API_USERNAME,
     CLICKHOUSE_SQL_API_PASSWORD: process.env.CLICKHOUSE_SQL_API_PASSWORD,
     EVERR_PUBLIC_INGEST_URL: process.env.EVERR_PUBLIC_INGEST_URL,
     EVERR_RETENTION_DAYS: process.env.EVERR_RETENTION_DAYS,

@@ -86,7 +86,6 @@ Set these in `.env`, then run `docker compose up -d` to apply them.
 | `EMAIL_REPLY_TO`                  | Empty                           | Reply-to address.                                                                                                                                   |
 | `MCP_OAUTH_ALLOWED_REDIRECT_URIS` | Unset: the Everr Cloud list     | Callback URIs hosted MCP clients may use. Empty allows only apps on your computer. See [MCP Server](/docs/reference/mcp#which-clients-can-connect). |
 | `EVERR_RETENTION_DAYS`            | `30`                            | Telemetry retention: `1`, `7`, `14`, `30`, `90`, `180`, or `365` days.                                                                              |
-| `CLICKHOUSE_SQL_API_USERNAME`     | `sql_api`                       | ClickHouse user for the SQL API. Keep it unchanged when you reuse an existing ClickHouse volume.                                                    |
 
 - `configure.sh` also writes the database passwords, `BETTER_AUTH_SECRET`, `INGEST_VERIFY_SHARED_SECRET`, and `CLICKHOUSE_SQL_API_PASSWORD`. A changed database password in `.env` does not change the password in an initialized database.
 - Single-quote values that contain `$`.

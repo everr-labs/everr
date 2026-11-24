@@ -1,13 +1,14 @@
 import { storage } from "@composition/storage";
 import { env } from "#app/env/index.ts";
 import { createClient } from "#app/lib/clickhouse-client.ts";
+import { CLICKHOUSE_ADMIN_USER, CLICKHOUSE_APP_DATABASE } from "#app/lib/clickhouse-names.ts";
 import { instrumentClickhouseOperation } from "#app/telemetry/clickhouse.ts";
 
 const clickhouseAdmin = createClient({
   url: env.CLICKHOUSE_URL,
-  username: env.CLICKHOUSE_ADMIN_USERNAME,
+  username: CLICKHOUSE_ADMIN_USER,
   password: env.CLICKHOUSE_ADMIN_PASSWORD,
-  database: env.CLICKHOUSE_DATABASE,
+  database: CLICKHOUSE_APP_DATABASE,
   keep_alive: { idle_socket_ttl: 8000 },
 });
 

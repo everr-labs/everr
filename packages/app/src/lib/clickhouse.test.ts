@@ -32,10 +32,7 @@ vi.mock("@composition/storage", () => ({
 vi.mock("#app/env/index.ts", () => ({
   env: {
     CLICKHOUSE_URL: "http://localhost:8123",
-    CLICKHOUSE_USERNAME: "default",
     CLICKHOUSE_PASSWORD: "password",
-    CLICKHOUSE_DATABASE: "default",
-    CLICKHOUSE_ADMIN_USERNAME: "app_admin",
     CLICKHOUSE_ADMIN_PASSWORD: "web-app-admin-password",
   },
 }));

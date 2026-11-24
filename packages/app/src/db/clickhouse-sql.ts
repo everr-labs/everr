@@ -28,20 +28,6 @@ export interface ClickHouseMigration {
   readonly seed?: ClickHouseSeed;
 }
 
-const TARGETS = ["self-hosted", "cloud"] as const;
-
-/** The product a deployment runs as. Each has its own ClickHouse server. */
-export type ClickHouseMigrationTarget = (typeof TARGETS)[number];
-
-/**
- * The one product a file applies to, from the tag after its number
- * (`0012-cloud-apply-rls.sql`). A file without a tag applies to both.
- */
-export function clickHouseMigrationTarget(name: string): ClickHouseMigrationTarget | undefined {
-  const afterNumber = name.replace(/^\d+-/, "");
-  return TARGETS.find((target) => afterNumber.startsWith(`${target}-`));
-}
-
 const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
 const isClickHouseSeed = (exported: unknown): exported is ClickHouseSeed =>
@@ -74,32 +60,32 @@ export function withClickHouseSeeds(
   return joined;
 }
 
-/** Every migration file, for both products. */
-export const clickHouseMigrations: readonly ClickHouseMigration[] = withClickHouseSeeds(
-  Object.entries(
-    import.meta.glob<string>("../../clickhouse/*.sql", {
-      query: "?raw",
-      import: "default",
-      eager: true,
-    }),
-  ).map(([path, sql]) => ({ name: fileName(path), sql })),
-  Object.fromEntries(
-    Object.entries(
-      import.meta.glob("../../clickhouse/*.seed.ts", {
-        import: "default",
-        eager: true,
-      }),
-    ).map(([path, seed]) => [fileName(path), seed]),
-  ),
-);
-
-/** The files one product applies: the untagged ones and its own. */
-export function clickHouseMigrationsFor(
-  target: ClickHouseMigrationTarget,
-  migrations: readonly ClickHouseMigration[] = clickHouseMigrations,
+/**
+ * The migrations in one directory, from its `import.meta.glob` results:
+ * the `*.sql` files as raw text and the `*.seed.ts` default exports.
+ */
+export function clickHouseMigrationFiles(
+  sqlFiles: Readonly<Record<string, string>>,
+  seedFiles: Readonly<Record<string, unknown>>,
 ): ClickHouseMigration[] {
-  return migrations.filter(({ name }) => (clickHouseMigrationTarget(name) ?? target) === target);
+  return withClickHouseSeeds(
+    Object.entries(sqlFiles).map(([path, sql]) => ({ name: fileName(path), sql })),
+    Object.fromEntries(Object.entries(seedFiles).map(([path, seed]) => [fileName(path), seed])),
+  );
 }
+
+/**
+ * The files every product applies: the schema and the grants on it. They
+ * assume the `otel` and `app` databases and the service users exist.
+ */
+export const sharedClickHouseMigrations: readonly ClickHouseMigration[] = clickHouseMigrationFiles(
+  import.meta.glob<string>("../../clickhouse/*.sql", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }),
+  import.meta.glob("../../clickhouse/*.seed.ts", { import: "default", eager: true }),
+);
 
 export { sqlStatements } from "./clickhouse-statements.ts";
 

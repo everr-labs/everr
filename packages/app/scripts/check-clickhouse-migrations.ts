@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   changedClickHouseMigrationFiles,
-  CLICKHOUSE_MIGRATION_DIR,
+  CLICKHOUSE_MIGRATION_DIRS,
   droppedClickHouseSeedFiles,
   isClickHouseMigrationPath,
   lateClickHouseSeedFiles,
@@ -26,9 +26,11 @@ function git(args: readonly string[]): string {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" });
 }
 
-const listed = git(["ls-tree", "-r", "--name-only", ref, "--", CLICKHOUSE_MIGRATION_DIR]);
+const listed = git(["ls-tree", "-r", "--name-only", ref, "--", ...CLICKHOUSE_MIGRATION_DIRS])
+  .split("\n")
+  .filter(Boolean);
 const base = new Map<string, string>();
-for (const path of listed.split("\n")) {
+for (const path of listed) {
   if (!isClickHouseMigrationPath(path)) continue;
   base.set(path, git(["show", `${ref}:${path}`]));
 }
@@ -40,10 +42,12 @@ for (const path of base.keys()) {
   head.set(path, readFileSync(full, "utf8"));
 }
 
-const basePaths = new Set(listed.split("\n"));
+const basePaths = new Set(listed);
 const headPaths = new Set(
-  readdirSync(resolve(root, CLICKHOUSE_MIGRATION_DIR)).map(
-    (name) => `${CLICKHOUSE_MIGRATION_DIR}/${name}`,
+  CLICKHOUSE_MIGRATION_DIRS.flatMap((dir) =>
+    existsSync(resolve(root, dir))
+      ? readdirSync(resolve(root, dir)).map((name) => `${dir}/${name}`)
+      : [],
   ),
 );
 

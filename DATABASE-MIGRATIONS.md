@@ -30,16 +30,33 @@ baselines.
 
 ## ClickHouse
 
-Every migration is a file in `packages/app/clickhouse`. The tag after the number
-selects the product that applies it. A file without a tag applies to both.
+Every migration is a file in one of three directories. The directory selects
+the product that applies it.
 
-| File name                     | Owns                                     | Applied by |
-| ----------------------------- | ---------------------------------------- | ---------- |
-| `NNNN-<name>.sql`             | Databases, base users, tables, functions | App, Cloud |
-| `NNNN-self-hosted-<name>.sql` | Installation-wide SQL API role and user  | App        |
-| `NNNN-cloud-<name>.sql`       | Tenant row policies, provisioning grants | Cloud      |
+| Directory                             | Owns                                                       | Applied by |
+| ------------------------------------- | ---------------------------------------------------------- | ---------- |
+| `packages/app/clickhouse`             | Tables, views, functions, grants on them, SQL query limits | App, Cloud |
+| `packages/app/clickhouse/self-hosted` | Installation-wide SQL API role and its grant to `sql_api`  | App        |
+| `packages/cloud/clickhouse`           | Tenant row policies, per-organization provisioning grants  | Cloud      |
 
-The four-digit number is one sequence for all files, tagged or not. A number is
+Migrations never create a database or a user, and never set a password. The
+deployment creates them before the app first starts, from the passwords it
+generated, and the migrations grant each user its access:
+
+- Self-hosted: `deploy/clickhouse-init.sh` creates the `otel` and `app`
+  databases and the `collector_rw`, `app_ro`, `app_admin` and `sql_api` users.
+  The ClickHouse image runs it on every start, so a newer release can add a
+  user. It never changes an existing user's password. An installation that
+  brings its own ClickHouse creates the same databases and users with these
+  names.
+- Cloud: the infrastructure creates the databases and the `collector_rw`,
+  `app_ro` and `app_admin` users. Provisioning creates each organization's SQL
+  API user.
+
+The dev stack runs `deploy/clickhouse-init.sh` for the self-hosted server and
+`scripts/dev/clickhouse-cloud-init.sql` for the Cloud one.
+
+The four-digit number is one sequence across the three directories. A number is
 used once. A new file takes the next number.
 
 Each application applies its files in file-name order, after its PostgreSQL
@@ -66,9 +83,9 @@ Startup applies them only when `CLICKHOUSE_MIGRATION_PASSWORD` is set, connectin
 as `CLICKHOUSE_MIGRATION_USERNAME` (default `default`) with a 10-minute request
 timeout. A timed-out statement can still be running on the server. The retry
 sends the same query id with `replace_running_query`, so ClickHouse cancels
-that run before starting it again. Statements bind the other users' passwords
-as `{name:String}` parameters. `GRANT` does not accept parameters, so a
-parameterized user gets its role through `DEFAULT ROLE`.
+that run before starting it again. A statement can bind `{name:Type}`
+parameters from the values the product passes. `GRANT` does not accept
+parameters.
 `pnpm db:migrate` applies only the PostgreSQL histories.
 
 ### Seeds
@@ -129,15 +146,16 @@ the migration was written.
 ### Local store
 
 The CLI's local store (`everr local start`) has its own files, in
-`collector/localcollector/migrations`. Each is a copy of the file with the same
-name in `packages/app/clickhouse`, without the statements chDB cannot run:
-users, roles, grants, row policies, settings profiles and quotas. chDB has one
-implicit user. A file tagged `cloud-` or `self-hosted-`, or a file that holds
-only such statements, has no copy.
+`collector/localcollector/migrations`. `0001-setup.sql` creates its databases,
+as a deployment does for a server. Each other file is a copy of the file with
+the same name in `packages/app/clickhouse` or its `self-hosted` directory,
+without the statements chDB cannot run: users, roles, grants, row policies,
+settings profiles and quotas. chDB has one implicit user. A file that holds
+only such statements has no copy, and Cloud's files have none.
 
-When you add an untagged file to `packages/app/clickhouse`, copy it to
+When you add a file to `packages/app/clickhouse` or `self-hosted`, copy it to
 `collector/localcollector/migrations` and delete those statements from the
-copy. A test in `packages/app/src/db/clickhouse-migrations.test.ts` fails when
+copy. A test in `packages/app/src/app/clickhouse-migration-files.test.ts` fails when
 the two directories differ in any other way.
 
 The local store applies its files the way a server does: in file-name order,

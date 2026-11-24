@@ -1,6 +1,6 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vite-plus/test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import {
   applyClickHouseMigration,
   clickHouseMigrationHash,
@@ -10,6 +10,7 @@ import {
   statementParams,
 } from "./clickhouse-migrations";
 import {
+  CLICKHOUSE_MIGRATION_DIRS,
   changedClickHouseMigrationFiles,
   droppedClickHouseSeedFiles,
   isClickHouseMigrationPath,
@@ -18,13 +19,10 @@ import {
 import {
   type ClickHouseMigration,
   type ClickHouseSeed,
-  clickHouseMigrations,
-  clickHouseMigrationsFor,
-  clickHouseMigrationTarget,
+  sharedClickHouseMigrations,
   sqlStatements,
   withClickHouseSeeds,
 } from "./clickhouse-sql";
-import { isAccessControl } from "#app/testing/chdb-migrated-store.ts";
 
 const migration = (name: string, sql = `SELECT '${name}'`): ClickHouseMigration => ({ name, sql });
 const applied = (...migrations: ClickHouseMigration[]) =>
@@ -32,43 +30,23 @@ const applied = (...migrations: ClickHouseMigration[]) =>
 const names = (list: readonly { name: string }[]) => list.map(({ name }) => name);
 
 describe("ClickHouse migrations", () => {
-  it("bundles the migration files", () => {
-    expect(names(clickHouseMigrations)).toContain("0007-create-alert-events.sql");
-  });
-
-  it("gives every bundled file its own four-digit number", () => {
-    const numbers = names(clickHouseMigrations).map((name) => /^(\d{4})-/.exec(name)?.[1]);
+  it("numbers every file once across the shared, self-hosted and Cloud directories", () => {
+    const root = new URL("../../../../", import.meta.url);
+    const files = CLICKHOUSE_MIGRATION_DIRS.flatMap((dir) =>
+      readdirSync(new URL(`${dir}/`, root)).filter((name) => name.endsWith(".sql")),
+    );
+    const numbers = files.map((name) => /^(\d{4})-/.exec(name)?.[1]);
 
     expect(numbers).not.toContain(undefined);
     expect(new Set(numbers).size).toBe(numbers.length);
   });
 
-  it("gives a product the untagged files and the ones tagged for it", () => {
-    const files = [
-      migration("0001-setup.sql"),
-      migration("0015-cloud-role.sql"),
-      migration("0015-self-hosted-role.sql"),
-      migration("0012-cloud-apply-rls.sql"),
-    ];
+  it("leaves the databases and service users out of the shared files", () => {
+    const creates = sharedClickHouseMigrations.filter(({ sql }) =>
+      /^\s*CREATE\s+(DATABASE|USER)\b/im.test(sql),
+    );
 
-    expect(names(clickHouseMigrationsFor("self-hosted", files))).toEqual([
-      "0001-setup.sql",
-      "0015-self-hosted-role.sql",
-    ]);
-    expect(names(clickHouseMigrationsFor("cloud", files))).toEqual([
-      "0001-setup.sql",
-      "0015-cloud-role.sql",
-      "0012-cloud-apply-rls.sql",
-    ]);
-    // The tag sits right after the number. The word elsewhere is not a tag.
-    expect(clickHouseMigrationTarget("0030-create-cloud-usage.sql")).toBeUndefined();
-  });
-
-  it("keeps tenant row policies out of the self-hosted files", () => {
-    const selfHosted = clickHouseMigrationsFor("self-hosted");
-
-    expect(names(selfHosted.filter(({ sql }) => /^CREATE ROW POLICY/m.test(sql)))).toEqual([]);
-    expect(names(clickHouseMigrationsFor("cloud"))).toContain("0012-cloud-apply-rls.sql");
+    expect(names(creates)).toEqual([]);
   });
 
   it("orders migrations by file name and skips applied ones", () => {
@@ -107,28 +85,6 @@ describe("ClickHouse migrations", () => {
     );
   });
 
-  it("keeps the local store's files equal to these, without access control", () => {
-    const localDir = new URL("../../../../collector/localcollector/migrations/", import.meta.url);
-    const local = Object.fromEntries(
-      readdirSync(localDir)
-        .filter((name) => name.endsWith(".sql"))
-        .map((name) => [name, sqlStatements(readFileSync(new URL(name, localDir), "utf8"))]),
-    );
-    // chDB has one implicit user, so the local store has no copy of a tagged
-    // file or of a file that holds only access control.
-    const expected = Object.fromEntries(
-      clickHouseMigrations
-        .filter(({ name }) => clickHouseMigrationTarget(name) === undefined)
-        .map(({ name, sql }) => [
-          name,
-          sqlStatements(sql).filter((statement) => !isAccessControl(statement)),
-        ])
-        .filter(([, statements]) => statements.length > 0),
-    );
-
-    expect(local).toEqual(expected);
-  });
-
   it("splits statements after removing comments that contain semicolons", () => {
     expect(sqlStatements("-- one; two\nCREATE ROLE a;\n\nGRANT b TO a; -- done;\n")).toEqual([
       "CREATE ROLE a",
@@ -158,8 +114,11 @@ describe("ClickHouse migrations", () => {
     expect(changedClickHouseMigrationFiles(base, edited)).toEqual([path]);
     expect(changedClickHouseMigrationFiles(base, deleted)).toEqual([path]);
     expect(isClickHouseMigrationPath(path)).toBe(true);
+    expect(isClickHouseMigrationPath("packages/app/clickhouse/self-hosted/0010-role.sql")).toBe(
+      true,
+    );
+    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/0020-apply-rls.sql")).toBe(true);
     expect(isClickHouseMigrationPath("packages/app/clickhouse/repeatable/01.sql")).toBe(false);
-    expect(isClickHouseMigrationPath("packages/cloud/clickhouse/0020-apply-rls.sql")).toBe(false);
   });
 
   it("gives a migration the seed named after it", () => {
