@@ -71,7 +71,7 @@ function isWildcardSuffix(hostname: string): boolean {
 }
 
 /** An allowlist entry can be an exact origin or start with a single DNS wildcard. */
-export function normalizeAllowedOrigin(raw: string): string | null {
+function normalizeAllowedOrigin(raw: string): string | null {
   const entry = raw.trim();
   const withScheme = entry.startsWith("*.") ? `https://${entry}` : entry;
   const wildcard = /^(https?:\/\/)\*\.(.+)$/i.exec(withScheme);
