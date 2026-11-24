@@ -192,7 +192,7 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 
 ## Local
 
-`show` reads the remote installation you logged in to with `everr cloud login`, Everr Cloud or a self-hosted one, and never the local collector. Locally, the timeline, Find Clips, and the population queries work unchanged on `everr local query`.
+`show` reads the remote installation you logged in to with `everr cloud login`, Everr Cloud or a self-hosted one, and never the local collector. Locally, the timeline and the population queries work unchanged on `everr local query`. Find Clips does not: the local store keeps Segments as `logs` rows of up to 950 KB, so select `length(Body)` of a Segment, never its `Body`.
 
 ## Errors
 
