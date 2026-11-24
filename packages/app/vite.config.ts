@@ -108,6 +108,10 @@ export function createAppConfig(
         }),
         nitro({
           output: { dir: outputDirectory },
+          // Built assets never change, so they are compressed once here at full
+          // strength instead of on every request at the ingress, which sees the
+          // Content-Encoding and passes them through. Browsers get the .br file.
+          compressPublicAssets: { brotli: true, gzip: true },
           traceDeps: ["tslib*"],
           hooks: {
             "build:config": (nitro, { rollup, rolldown }) => {
