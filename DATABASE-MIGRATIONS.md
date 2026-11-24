@@ -126,6 +126,48 @@ the migration was written.
 - A seed sees the server once. Something the previous application version
   creates after that, during a rolling deploy, is not covered.
 
+### Local store
+
+The CLI's local store (`everr local start`) has its own files, in
+`collector/localcollector/migrations`. Each is a copy of the file with the same
+name in `packages/app/clickhouse`, without the statements chDB cannot run:
+users, roles, grants, row policies, settings profiles and quotas. chDB has one
+implicit user. A file tagged `cloud-` or `self-hosted-`, or a file that holds
+only such statements, has no copy.
+
+When you add an untagged file to `packages/app/clickhouse`, copy it to
+`collector/localcollector/migrations` and delete those statements from the
+copy. A test in `packages/app/src/db/clickhouse-migrations.test.ts` fails when
+the two directories differ in any other way.
+
+The local store applies its files the way a server does: in file-name order,
+with the same statement split, and each file once. It differs in three ways.
+
+- It never runs a seed. If the local store needs the result of a seed, write
+  that work as a repeatable SQL statement in the local file.
+- It records the applied files in `.everr-store.json` in the chDB directory,
+  not in `default.everr_clickhouse_migrations`.
+- If a statement of an applied file changed, the local store deletes its data
+  and applies every file again. It does not stop startup, because local
+  telemetry is a cache. The recorded hash covers the statements as the split
+  gives them, so a reworded comment does nothing. A comment line added or
+  removed inside a statement changes that statement.
+
+The parity test compares the same statements with the hosted file, and a hosted
+file never changes. A change to an existing local file that passes the test
+therefore cannot delete local data. Only a raised `Version` does that on
+purpose.
+
+A new file applies on the next `everr local start`, and the local data stays.
+To make every local store start empty, raise `Version` in
+`collector/localcollector/internal/store/version.go`. Do that when a store that
+an older CLI built must not be reused and no migration file shows why, for
+example after a chDB upgrade that cannot read the old files.
+
+`TestOpenBuildsTheSchemaFromTheEmbeddedMigrations` applies every local file to
+a real chDB. When chDB cannot run a statement, the test fails with the file
+name and the statement.
+
 ## Verification
 
 Use separate disposable PostgreSQL databases before changing an existing

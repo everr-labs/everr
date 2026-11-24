@@ -2,7 +2,6 @@ package config
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
@@ -23,7 +22,7 @@ func TestParseEndpointRequiresLocalHTTPURL(t *testing.T) {
 func TestStaticProviderReturnsGeneratedConfig(t *testing.T) {
 	raw := BuildCollectorConfigMap(CollectorConfig{
 		OTLPListenAddress: "127.0.0.1:54318",
-		TTL:               7 * 24 * time.Hour,
+		RetentionDays:     7,
 	})
 	factory := NewStaticProviderFactory(raw)
 	provider := factory.Create(confmap.ProviderSettings{})

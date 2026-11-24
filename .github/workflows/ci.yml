@@ -52,6 +52,7 @@ jobs:
               - '.dockerignore'
               - 'packages/**'
               - 'skills/**'
+              - 'collector/localcollector/migrations/**'
             app:
               - '.github/**'
               - '.node-version'

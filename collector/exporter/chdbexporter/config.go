@@ -4,368 +4,61 @@
 package chdbexporter // import "github.com/everr-labs/everr/collector/exporter/chdbexporter"
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"net/url"
 	"strings"
-	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configretry"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
-
-	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal"
-	"github.com/everr-labs/everr/collector/exporter/chdbexporter/internal/metrics"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-// Config defines configuration for clickhouse exporter.
-type Config struct {
-	// collectorVersion is the build version of the collector. This is overridden when an exporter is initialized.
-	collectorVersion string
-	// schema serialises the local schema-version check across the exporters
-	// that share this config, which is every signal of one exporter component.
-	// See ensureLocalSchema.
-	schema *schemaGuard
+const retentionAttribute = "everr.retention.days"
 
+// stampRetention sets the resource's everr.retention.days to the configured
+// days. A JSON column keeps the first of two values for one path, and a
+// client's nested spelling of the path sorts before the flat key, so every
+// spelling is removed before the stamp is written.
+func stampRetention(resource pcommon.Map, days string) {
+	removePath(resource, retentionAttribute)
+	resource.PutStr(retentionAttribute, days)
+}
+
+func removePath(attrs pcommon.Map, path string) {
+	attrs.RemoveIf(func(key string, value pcommon.Value) bool {
+		if key == path {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(path, key+"."); ok && value.Type() == pcommon.ValueTypeMap {
+			removePath(value.Map(), rest)
+		}
+		return false
+	})
+}
+
+type Config struct {
 	TimeoutSettings exporterhelper.TimeoutConfig                             `mapstructure:",squash"`
 	BackOffConfig   configretry.BackOffConfig                                `mapstructure:"retry_on_failure"`
 	QueueSettings   configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
 
-	// Endpoint is the clickhouse endpoint.
-	Endpoint string `mapstructure:"endpoint"`
-	// Username is the authentication username.
-	Username string `mapstructure:"username"`
-	// Password is the authentication password.
-	Password configopaque.String `mapstructure:"password"`
-	// Database is the database name to export.
-	Database string `mapstructure:"database"`
-	// DatabaseEngine is the database engine to use when creating the database. default is the server default.
-	DatabaseEngine DatabaseEngine `mapstructure:"database_engine"`
-	// TLS is the TLS config for connecting to ClickHouse.
-	TLS configtls.ClientConfig `mapstructure:"tls"`
-	// ConnectionParams is the extra connection parameters with map format. for example compression/dial_timeout
-	ConnectionParams map[string]string `mapstructure:"connection_params"`
-	// LogsTableName is the table name for logs. default is `otel_logs`.
-	LogsTableName string `mapstructure:"logs_table_name"`
-	// TracesTableName is the table name for traces. default is `otel_traces`.
-	TracesTableName string `mapstructure:"traces_table_name"`
-	// ProfilesTableName is the table name for profiles. default is `otel_profiles`.
-	ProfilesTableName string `mapstructure:"profiles_table_name"`
-	// MetricsTableName is the table name for metrics. default is `otel_metrics`.
-	//
-	// Deprecated: MetricsTableName exists for historical compatibility
-	// and should not be used. To set the metrics tables name,
-	// use the MetricsTables parameter instead.
-	MetricsTableName string `mapstructure:"metrics_table_name"`
-	// TTL is The data time-to-live example 30m, 48h. 0 means no ttl.
-	TTL time.Duration `mapstructure:"ttl"`
-	// TableEngine is the table engine to use. default is `MergeTree()`.
-	TableEngine TableEngine `mapstructure:"table_engine"`
-	// ClusterName if set will append `ON CLUSTER` with the provided name when creating the database and tables.
-	ClusterName string `mapstructure:"cluster_name"`
-	// CreateSchema if set to true will run the DDL for creating the database and tables. default is true.
-	CreateSchema bool `mapstructure:"create_schema"`
-	// Compress controls the compression algorithm. Valid options: `none` (disabled), `zstd`, `lz4` (default), `gzip`, `deflate`, `br`, `true` (lz4).
-	Compress string `mapstructure:"compress"`
-	// AsyncInsert if true will enable async inserts. Default is `true`.
-	// Ignored if async inserts are configured in the `endpoint` or `connection_params`.
-	// Async inserts may still be overridden server-side.
-	AsyncInsert bool `mapstructure:"async_insert"`
-	// JSON enables the JSON column type for attributes in logs and traces tables.
-	// When false (default), Map columns are used. When true, JSON columns are used.
-	// ClickHouse v25+ is recommended for reliable JSON support.
-	// You may also need to add `enable_json_type=1` to your endpoint or connection_params.
-	JSON bool `mapstructure:"json"`
-	// MetricsTables defines the table names for metric types.
-	MetricsTables MetricTablesConfig `mapstructure:"metrics_tables"`
+	// RetentionDays is how long the store keeps a row. The exporter writes it
+	// on every resource as everr.retention.days and replaces a value the
+	// client sent.
+	RetentionDays uint16 `mapstructure:"retention_days"`
 }
 
-type MetricTablesConfig struct {
-	// Gauge is the table name for gauge metric type. default is `otel_metrics_gauge`.
-	Gauge metrics.MetricTypeConfig `mapstructure:"gauge"`
-	// Sum is the table name for sum metric type. default is `otel_metrics_sum`.
-	Sum metrics.MetricTypeConfig `mapstructure:"sum"`
-	// Summary is the table name for summary metric type. default is `otel_metrics_summary`.
-	Summary metrics.MetricTypeConfig `mapstructure:"summary"`
-	// Histogram is the table name for histogram metric type. default is `otel_metrics_histogram`.
-	Histogram metrics.MetricTypeConfig `mapstructure:"histogram"`
-	// ExponentialHistogram is the table name for exponential histogram metric type. default is `otel_metrics_exponential_histogram`.
-	ExponentialHistogram metrics.MetricTypeConfig `mapstructure:"exponential_histogram"`
+func (c *Config) Validate() error {
+	if c.RetentionDays == 0 {
+		return errors.New("retention_days must be greater than zero")
+	}
+	return nil
 }
-
-// DatabaseEngine defines the ENGINE string value when creating the database.
-type DatabaseEngine struct {
-	Name   string `mapstructure:"name"`
-	Params string `mapstructure:"params"`
-}
-
-// TableEngine defines the ENGINE string value when creating the table.
-type TableEngine struct {
-	Name   string `mapstructure:"name"`
-	Params string `mapstructure:"params"`
-}
-
-const (
-	replicatedDatabaseEngine  = "Replicated"
-	defaultDatabase           = "default"
-	defaultTableEngineName    = "MergeTree"
-	defaultMetricTableName    = "otel_metrics"
-	defaultGaugeSuffix        = "_gauge"
-	defaultSumSuffix          = "_sum"
-	defaultSummarySuffix      = "_summary"
-	defaultHistogramSuffix    = "_histogram"
-	defaultExpHistogramSuffix = "_exponential_histogram"
-)
-
-var (
-	errConfigInvalidEndpoint = errors.New("endpoint must be url format")
-)
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		collectorVersion: "unknown",
-		schema:           &schemaGuard{},
-
-		TimeoutSettings:   exporterhelper.NewDefaultTimeoutConfig(),
-		QueueSettings:     configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
-		BackOffConfig:     configretry.NewDefaultBackOffConfig(),
-		ConnectionParams:  map[string]string{},
-		Database:          defaultDatabase,
-		LogsTableName:     "otel_logs",
-		TracesTableName:   "otel_traces",
-		ProfilesTableName: "otel_profiles",
-		TTL:               7 * 24 * time.Hour,
-		CreateSchema:      true,
-		AsyncInsert:       true,
-		MetricsTables: MetricTablesConfig{
-			Gauge:                metrics.MetricTypeConfig{Name: defaultMetricTableName + defaultGaugeSuffix},
-			Sum:                  metrics.MetricTypeConfig{Name: defaultMetricTableName + defaultSumSuffix},
-			Summary:              metrics.MetricTypeConfig{Name: defaultMetricTableName + defaultSummarySuffix},
-			Histogram:            metrics.MetricTypeConfig{Name: defaultMetricTableName + defaultHistogramSuffix},
-			ExponentialHistogram: metrics.MetricTypeConfig{Name: defaultMetricTableName + defaultExpHistogramSuffix},
-		},
+		TimeoutSettings: exporterhelper.NewDefaultTimeoutConfig(),
+		QueueSettings:   configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
+		BackOffConfig:   configretry.NewDefaultBackOffConfig(),
 	}
-}
-
-// Validate the ClickHouse server configuration.
-func (cfg *Config) Validate() (err error) {
-	cfg.buildMetricTableNames()
-
-	if cfg.Endpoint != "" {
-		dsn, e := cfg.buildDSN()
-		if e != nil {
-			err = errors.Join(err, e)
-		}
-
-		// Validate DSN with clickhouse driver.
-		// Last chance to catch invalid config.
-		if _, e := clickhouse.ParseDSN(dsn); e != nil {
-			err = errors.Join(err, e)
-		}
-	}
-
-	return err
-}
-
-func (cfg *Config) buildDSN() (string, error) {
-	dsnURL, err := url.Parse(cfg.Endpoint)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s", errConfigInvalidEndpoint, err.Error())
-	}
-
-	queryParams := dsnURL.Query()
-
-	// Add connection params to query params.
-	for k, v := range cfg.ConnectionParams {
-		queryParams.Set(k, v)
-	}
-
-	// Enable TLS if scheme is https. This flag is necessary to support https connections.
-	if dsnURL.Scheme == "https" {
-		queryParams.Set("secure", "true")
-	}
-
-	// Use async_insert from config if not specified in DSN.
-	if !queryParams.Has("async_insert") {
-		queryParams.Set("async_insert", fmt.Sprintf("%t", cfg.AsyncInsert))
-	}
-
-	if !queryParams.Has("compress") && (cfg.Compress == "" || cfg.Compress == "true") {
-		queryParams.Set("compress", "lz4")
-	} else if !queryParams.Has("compress") {
-		queryParams.Set("compress", cfg.Compress)
-	}
-
-	productInfo := queryParams.Get("client_info_product")
-	collectorProductInfo := fmt.Sprintf("%s/%s", "otelcol", cfg.collectorVersion)
-	if productInfo == "" {
-		productInfo = collectorProductInfo
-	} else {
-		productInfo = fmt.Sprintf("%s,%s", productInfo, collectorProductInfo)
-	}
-	queryParams.Set("client_info_product", productInfo)
-
-	// Override username and password if specified in config.
-	if cfg.Username != "" {
-		dsnURL.User = url.UserPassword(cfg.Username, string(cfg.Password))
-	}
-
-	dsnURL.RawQuery = queryParams.Encode()
-
-	return dsnURL.String(), nil
-}
-
-func (cfg *Config) buildClickHouseOptions() (*clickhouse.Options, error) {
-	dsn, err := cfg.buildDSN()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build DSN from config: %w", err)
-	}
-
-	opt, err := clickhouse.ParseDSN(dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse DSN: %w", err)
-	}
-
-	// Size the connection pool to match the number of queue consumers, unless set in the DSN or connection params.
-	if queueCfg := cfg.QueueSettings.Get(); queueCfg != nil && queueCfg.NumConsumers > 0 {
-		if opt.MaxOpenConns <= 0 {
-			opt.MaxOpenConns = queueCfg.NumConsumers
-		}
-		// Idle connections beyond MaxOpenConns can never be used.
-		if opt.MaxIdleConns <= 0 {
-			opt.MaxIdleConns = min(queueCfg.NumConsumers, opt.MaxOpenConns)
-		}
-	}
-
-	// Load TLS config if any TLS-related field is set (not just cert/key).
-	if cfg.TLS.CertFile != "" ||
-		cfg.TLS.KeyFile != "" ||
-		cfg.TLS.CAFile != "" ||
-		cfg.TLS.ServerName != "" ||
-		cfg.TLS.Insecure ||
-		cfg.TLS.InsecureSkipVerify {
-		opt.TLS, err = cfg.TLS.LoadTLSConfig(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("failed to load TLS config: %w", err)
-		}
-	}
-
-	return opt, nil
-}
-
-// shouldCreateSchema returns true if the exporter should run the DDL for creating database/tables.
-func (cfg *Config) shouldCreateSchema() bool {
-	return cfg.CreateSchema
-}
-
-func (cfg *Config) buildMetricTableNames() {
-	tableName := defaultMetricTableName
-
-	if cfg.MetricsTableName != "" && !cfg.areMetricTableNamesSet() {
-		tableName = cfg.MetricsTableName
-	}
-
-	if cfg.MetricsTables.Gauge.Name == "" {
-		cfg.MetricsTables.Gauge.Name = tableName + defaultGaugeSuffix
-	}
-	if cfg.MetricsTables.Sum.Name == "" {
-		cfg.MetricsTables.Sum.Name = tableName + defaultSumSuffix
-	}
-	if cfg.MetricsTables.Summary.Name == "" {
-		cfg.MetricsTables.Summary.Name = tableName + defaultSummarySuffix
-	}
-	if cfg.MetricsTables.Histogram.Name == "" {
-		cfg.MetricsTables.Histogram.Name = tableName + defaultHistogramSuffix
-	}
-	if cfg.MetricsTables.ExponentialHistogram.Name == "" {
-		cfg.MetricsTables.ExponentialHistogram.Name = tableName + defaultExpHistogramSuffix
-	}
-}
-
-func (cfg *Config) areMetricTableNamesSet() bool {
-	return cfg.MetricsTables.Gauge.Name != "" ||
-		cfg.MetricsTables.Sum.Name != "" ||
-		cfg.MetricsTables.Summary.Name != "" ||
-		cfg.MetricsTables.Histogram.Name != "" ||
-		cfg.MetricsTables.ExponentialHistogram.Name != ""
-}
-
-// tableEngineString generates the ENGINE string.
-func (cfg *Config) tableEngineString() string {
-	engine := cfg.TableEngine.Name
-	params := cfg.TableEngine.Params
-
-	if cfg.TableEngine.Name == "" {
-		engine = defaultTableEngineName
-		params = ""
-	}
-
-	return fmt.Sprintf("%s(%s)", engine, params)
-}
-
-// databaseEngineString generates the ENGINE clause for creating the database. Returns empty string if not set.
-func (cfg *Config) databaseEngineString() string {
-	if cfg.DatabaseEngine.Name == "" {
-		return ""
-	}
-
-	if cfg.DatabaseEngine.Params == "" {
-		return "ENGINE = " + cfg.DatabaseEngine.Name
-	}
-
-	return fmt.Sprintf("ENGINE = %s(%s)", cfg.DatabaseEngine.Name, cfg.DatabaseEngine.Params)
-}
-
-// database returns the preferred database for creating tables and inserting data.
-// The config option takes precedence over the DSN's settings.
-// Falls back to default if neither are set.
-// Assumes config has passed Validate.
-func (cfg *Config) database() string {
-	if cfg.Database != "" && cfg.Database != defaultDatabase {
-		return cfg.Database
-	}
-
-	if cfg.Endpoint == "" {
-		return defaultDatabase
-	}
-
-	dsn, err := cfg.buildDSN()
-	if err != nil {
-		return ""
-	}
-
-	dsnDB, err := internal.DatabaseFromDSN(dsn)
-	if err != nil {
-		return ""
-	}
-
-	if dsnDB != "" && dsnDB != defaultDatabase {
-		return dsnDB
-	}
-
-	return defaultDatabase
-}
-
-// clusterString generates the ON CLUSTER string. Returns empty string if not set.
-func (cfg *Config) clusterString() string {
-	if cfg.ClusterName == "" {
-		return ""
-	}
-	escaped := strings.ReplaceAll(cfg.ClusterName, "`", "``")
-	return fmt.Sprintf("ON CLUSTER `%s`", escaped)
-}
-
-// tableClusterString generates the ON CLUSTER string for table DDL.
-// Returns empty string for Replicated databases, since they replicate table DDL themselves and reject ON CLUSTER.
-func (cfg *Config) tableClusterString() string {
-	if cfg.DatabaseEngine.Name == replicatedDatabaseEngine && cfg.database() != defaultDatabase {
-		return ""
-	}
-
-	return cfg.clusterString()
 }

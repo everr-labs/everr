@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -210,5 +212,78 @@ func TestHandlerChdbErrorReturns500(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("column X not found")) {
 		t.Fatalf("body = %q, want runtime error in envelope", rec.Body.String())
+	}
+}
+
+type recordingSession struct {
+	mu      sync.Mutex
+	queries []string
+	failUse bool
+}
+
+type rowResult []byte
+
+func (r rowResult) Buf() []byte { return r }
+func (rowResult) Free()         {}
+
+func (s *recordingSession) Query(query string, _ ...string) (chdb.Result, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queries = append(s.queries, query)
+	if s.failUse && strings.HasPrefix(query, "USE ") {
+		return nil, errors.New("Database analytics does not exist")
+	}
+	return rowResult("{\"a\":1}\n"), nil
+}
+
+func (s *recordingSession) Close()       {}
+func (s *recordingSession) Path() string { return "" }
+
+func handlerOnSession(t *testing.T, session *recordingSession) *handler {
+	t.Helper()
+	chdb.ResetForTesting()
+	t.Cleanup(chdb.ResetForTesting)
+	handle, err := chdb.Open(t.TempDir(), chdb.WithSessionFactory(func(string) (chdb.Session, error) {
+		return session, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newTestHandler()
+	h.handle = handle
+	h.database = "analytics"
+	return h
+}
+
+func TestHandlerRunsEachStatementInTheServersDatabase(t *testing.T) {
+	session := &recordingSession{}
+	h := handlerOnSession(t, session)
+
+	for _, sql := range []string{"USE system", "SELECT 1"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/sql", strings.NewReader(sql)))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, body %s", sql, rec.Code, rec.Body)
+		}
+	}
+
+	want := []string{"USE analytics", "USE system", "USE analytics", "SELECT 1"}
+	if !slices.Equal(session.queries, want) {
+		t.Fatalf("queries = %q, want %q", session.queries, want)
+	}
+}
+
+func TestHandlerDoesNotRunTheStatementWhenTheDatabaseCannotBeSelected(t *testing.T) {
+	session := &recordingSession{failUse: true}
+	h := handlerOnSession(t, session)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/sql", strings.NewReader("SELECT 1")))
+
+	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "Database analytics does not exist") {
+		t.Fatalf("status = %d, body %s", rec.Code, rec.Body)
+	}
+	if want := []string{"USE analytics"}; !slices.Equal(session.queries, want) {
+		t.Fatalf("queries = %q, want %q", session.queries, want)
 	}
 }

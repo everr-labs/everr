@@ -4,6 +4,7 @@
 package internal
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -174,4 +175,40 @@ func BenchmarkUniqueFlattenedAttributes(b *testing.B) {
 	for b.Loop() {
 		_ = UniqueFlattenedAttributes(m)
 	}
+}
+
+func TestGetServiceName(t *testing.T) {
+	t.Run("should return empty string on unset service.name", func(t *testing.T) {
+		require.Empty(t, GetServiceName(pcommon.NewMap()))
+	})
+	t.Run("should return correct string from service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutStr("service.name", "test-service")
+		require.Equal(t, "test-service", GetServiceName(resAttr))
+	})
+	t.Run("should return empty string on empty service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutEmpty("service.name")
+		require.Empty(t, GetServiceName(resAttr))
+	})
+	t.Run("should return string from non-string service.name", func(t *testing.T) {
+		resAttr := pcommon.NewMap()
+		resAttr.PutBool("service.name", true)
+		require.Equal(t, "true", GetServiceName(resAttr))
+	})
+}
+
+func TestAttributesJSONStoresNonFiniteDoublesAsStrings(t *testing.T) {
+	m := pcommon.NewMap()
+	m.PutDouble("nan", math.NaN())
+	m.PutDouble("finite", 1.5)
+	m.PutEmptyMap("nested").PutDouble("inf", math.Inf(1))
+	list := m.PutEmptySlice("list")
+	list.AppendEmpty().SetDouble(math.Inf(-1))
+	list.AppendEmpty().SetInt(2)
+
+	doc, err := AttributesJSON(m)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"nan":"NaN","finite":1.5,"nested":{"inf":"+Inf"},"list":["-Inf",2]}`, string(doc))
 }

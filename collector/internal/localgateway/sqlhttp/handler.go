@@ -33,6 +33,7 @@ var errResultTooBig = errors.New("sqlhttp: result exceeded cap")
 
 type handler struct {
 	handle         *chdb.Handle
+	database       string
 	queryTimeout   time.Duration
 	enqueueTimeout time.Duration
 	maxBytes       int64
@@ -102,7 +103,16 @@ func (h *handler) execReal(ctx context.Context, sql string) ([]byte, error) {
 	enqueueCtx, cancel := context.WithTimeout(ctx, h.enqueueTimeout)
 	defer cancel()
 
+	// The exporter and every client share the session, so the database is
+	// selected in the same job as the statement and nothing runs in between.
 	done, err := h.handle.Enqueue(enqueueCtx, func(_ context.Context, s chdb.Session) error {
+		use, err := s.Query("USE "+h.database, "")
+		if use != nil {
+			use.Free()
+		}
+		if err != nil {
+			return fmt.Errorf("use database %s: %w", h.database, err)
+		}
 		result, err := s.Query(sql, "JSONEachRow")
 		if err != nil {
 			return err

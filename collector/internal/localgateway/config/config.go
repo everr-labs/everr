@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"time"
 )
 
 type CollectorConfig struct {
 	OTLPListenAddress string
-	TTL               time.Duration
+	RetentionDays     uint16
 }
 
 // ParseEndpoint validates a loopback HTTP origin and returns its host:port.
@@ -67,21 +66,7 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 						"min_size":      8192,
 					},
 				},
-				// The same JSON attribute columns as the cloud tables, so the
-				// shared explorer queries run unchanged.
-				"json": true,
-				"ttl":  cfg.TTL.String(),
-				// Local tables carry the same names as the cloud's query-facing
-				// tables so the shared explorer queries run unchanged.
-				"logs_table_name":   "logs",
-				"traces_table_name": "traces",
-				"metrics_tables": map[string]any{
-					"gauge":                 map[string]any{"name": "metrics_gauge"},
-					"sum":                   map[string]any{"name": "metrics_sum"},
-					"histogram":             map[string]any{"name": "metrics_histogram"},
-					"exponential_histogram": map[string]any{"name": "metrics_exponential_histogram"},
-					"summary":               map[string]any{"name": "metrics_summary"},
-				},
+				"retention_days": cfg.RetentionDays,
 			},
 		},
 		"service": map[string]any{

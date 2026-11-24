@@ -1,50 +1,22 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { TracesRepository } from "@everr/telemetry-explorer/traces";
-import { Session } from "chdb";
 import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
 
-let session: Session;
-let dataDir: string;
+import { type MigratedChdbStore, openMigratedChdbStore } from "#app/testing/chdb-migrated-store.ts";
+
+let store: MigratedChdbStore;
 
 function run(sql: string) {
-  return String(session.query(sql, "JSONEachRow") ?? "").trim();
-}
-
-function template(file: string, values: string[]) {
-  return readFileSync(
-    new URL(
-      `../../../../../collector/exporter/chdbexporter/internal/sqltemplates/${file}`,
-      import.meta.url,
-    ),
-    "utf8",
-  ).replace(/%[qs]/g, () => values.shift() ?? "");
+  return store.run(sql);
 }
 
 beforeAll(() => {
-  dataDir = mkdtempSync(join(tmpdir(), "everr-trace-lookup-"));
-  session = new Session(dataDir);
-  for (const table of ["traces", "otel_traces"]) {
-    run(template("traces_json_table.sql", ['"default"', `"${table}"`, "", "MergeTree()", ""]));
-    run(template("traces_id_ts_lookup_table.sql", ["default", table, "", "MergeTree()", ""]));
-    run(
-      template("traces_id_ts_lookup_mv.sql", [
-        "default",
-        table,
-        "",
-        "default",
-        table,
-        "default",
-        table,
-      ]),
-    );
-  }
+  store = openMigratedChdbStore("everr-trace-lookup-");
+  run("CREATE TABLE app.traces_local AS app.traces");
+  run("CREATE TABLE app.traces_local_trace_id_ts AS app.traces_trace_id_ts");
 });
 
 afterAll(() => {
-  session?.cleanup();
-  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  store?.close();
 });
 
 function repo(tableName = "traces") {
@@ -63,9 +35,9 @@ function repo(tableName = "traces") {
   );
 }
 
-function insert(table: string, traceId: string, spanId: string, timestamp: string) {
+function insert(traceId: string, spanId: string, timestamp: string) {
   run(
-    `INSERT INTO ${table} FORMAT JSONEachRow\n${JSON.stringify({
+    `INSERT INTO otel.otel_traces FORMAT JSONEachRow\n${JSON.stringify({
       TraceId: traceId,
       SpanId: spanId,
       Timestamp: timestamp,
@@ -73,7 +45,7 @@ function insert(table: string, traceId: string, spanId: string, timestamp: strin
       ServiceName: "api",
       Duration: 1000000,
       SpanAttributes: { "http.route": "/test" },
-      ResourceAttributes: { "service.name": "api" },
+      ResourceAttributes: { "service.name": "api", "everr.retention.days": "14" },
     })}`,
   );
 }
@@ -84,9 +56,9 @@ describe("trace ID lookup against ClickHouse", () => {
   });
 
   it("combines bounds from separate batches and includes the final fractional second", async () => {
-    insert("traces", "batches", "first", "2026-01-01 12:00:00.123456789");
-    insert("traces", "batches", "last", "2026-01-03 12:00:00.999999999");
-    insert("traces", "other", "unrelated", "2026-01-02 12:00:00.000000000");
+    insert("batches", "first", "2026-01-01 12:00:00.123456789");
+    insert("batches", "last", "2026-01-03 12:00:00.999999999");
+    insert("other", "unrelated", "2026-01-02 12:00:00.000000000");
     const spans = await repo().getTrace({ traceId: "batches" });
     expect(spans.map((span) => span.spanId)).toEqual(["first", "last"]);
     expect(spans[1]?.timestampNs).toBe("1767441600999999999");
@@ -94,13 +66,13 @@ describe("trace ID lookup against ClickHouse", () => {
   });
 
   it("resolves fresh bounds when more spans arrive", async () => {
-    insert("traces", "growing", "middle", "2026-01-02 12:00:00");
+    insert("growing", "middle", "2026-01-02 12:00:00");
     const repository = repo();
     expect((await repository.getTrace({ traceId: "growing" })).map((span) => span.spanId)).toEqual([
       "middle",
     ]);
-    insert("traces", "growing", "earlier", "2026-01-01 12:00:00");
-    insert("traces", "growing", "later", "2026-01-03 12:00:00");
+    insert("growing", "earlier", "2026-01-01 12:00:00");
+    insert("growing", "later", "2026-01-03 12:00:00");
     expect((await repository.getTrace({ traceId: "growing" })).map((span) => span.spanId)).toEqual([
       "earlier",
       "middle",
@@ -109,8 +81,26 @@ describe("trace ID lookup against ClickHouse", () => {
   });
 
   it("uses the matching lookup table for a configured local table", async () => {
-    insert("otel_traces", "local", "local-span", "2026-01-01 12:00:00.999999999");
-    const spans = await repo("default.otel_traces").getTrace({
+    run(
+      `INSERT INTO app.traces_local FORMAT JSONEachRow\n${JSON.stringify({
+        TraceId: "local",
+        SpanId: "local-span",
+        Timestamp: "2026-01-01 12:00:00.999999999",
+        SpanName: "local-span",
+        ServiceName: "api",
+        Duration: 1000000,
+        SpanAttributes: { "http.route": "/test" },
+        ResourceAttributes: { "service.name": "api" },
+      })}`,
+    );
+    run(
+      `INSERT INTO app.traces_local_trace_id_ts FORMAT JSONEachRow\n${JSON.stringify({
+        TraceId: "local",
+        Start: "2026-01-01 12:00:00",
+        End: "2026-01-01 12:00:00",
+      })}`,
+    );
+    const spans = await repo("app.traces_local").getTrace({
       traceId: "local",
     });
     expect(spans.map((span) => span.spanId)).toEqual(["local-span"]);

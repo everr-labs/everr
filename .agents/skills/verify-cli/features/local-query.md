@@ -1,6 +1,6 @@
 # Query local telemetry
 
-`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `traces` and the `metrics_*` family. Bad SQL fails with the ClickHouse error and exit 1.
+`everr local query "<SQL>"` runs SQL against the local chDB store behind the collector and prints rows as a table on a TTY, or `json`/`ndjson` on request. Tables are `logs`, `traces`, `traces_trace_id_ts` and the `metrics_*` family, built from the migrations in `collector/localcollector/migrations`. Bad SQL fails with the ClickHouse error and exit 1.
 
 ## Sub-features
 
@@ -36,4 +36,5 @@ Preconditions:
 - Observed on 2026-10-20 (HEAD a07183355): the INSERT exits `0` with empty stdout and stderr even though nothing is written. Prove read-only behavior with the second SELECT, never with the exit code. If a change makes it exit non-zero, update this step.
 - Without `--format`, output depends on whether stdout is a TTY; the helper captures to files, so the default there is ndjson.
 - Include `LIMIT` yourself; the CLI does not add one.
+- Queries run in the `app` database. `SHOW TABLES` also lists `alert_events`, which stays empty locally, and the `*_mv` materialized views that fill the tables.
 - JSON attribute columns use dot paths (`LogAttributes.everr.wrap.stream`), not map subscripts.

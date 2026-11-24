@@ -38,5 +38,6 @@ Preconditions:
 - Port and data-dir overrides (`EVERR_*_ORIGIN`) only work in debug builds. The release `everr` always uses 54418/54420/54421 and the real user data dir: never use it for verification.
 - `local start` refuses to start if any of its ports is held by something that is not a matching Everr instance ("port occupied by an unrecognized service").
 - One instance per telemetry dir: a second supervisor on the same `EVERR_TELEMETRY_DIR` fails on `local.lock`, and the log dir has its own lock (`use EVERR_LOCAL_LOG_DIR for a separate instance`).
+- The store keeps its telemetry across stop and start. It starts empty when `chdb/.everr-store.json` under the telemetry dir names another store version or a migration the binary does not have, and the log then says `Resetting the local store`.
 - Detached start waits up to 20s for readiness. On a cold box the first start includes extracting the embedded chDB library into the cache dir.
 - The UI server rejects requests whose `Host` is not exactly its origin; use `$V ui-get` instead of bare curl.

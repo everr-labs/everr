@@ -74,7 +74,7 @@ func TestOTLPSpanEventsAndLinksRoundTrip(t *testing.T) {
 	var lastBody string
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		response, err = client.Post(fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort), "text/plain", strings.NewReader(query))
+		response, err = postSQL(client, fmt.Sprintf("http://127.0.0.1:%d/sql", sqlPort), query)
 		if err != nil {
 			t.Fatal(err)
 		}

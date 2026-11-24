@@ -1,6 +1,6 @@
 import { ClickHouseError } from "@clickhouse/client";
 import { describe, expect, it } from "vite-plus/test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import {
   applyClickHouseMigration,
   clickHouseMigrationHash,
@@ -16,7 +16,6 @@ import {
   lateClickHouseSeedFiles,
 } from "./clickhouse-statements";
 import {
-  byMigrationName,
   type ClickHouseMigration,
   type ClickHouseSeed,
   clickHouseMigrations,
@@ -25,6 +24,7 @@ import {
   sqlStatements,
   withClickHouseSeeds,
 } from "./clickhouse-sql";
+import { isAccessControl } from "#app/testing/chdb-migrated-store.ts";
 
 const migration = (name: string, sql = `SELECT '${name}'`): ClickHouseMigration => ({ name, sql });
 const applied = (...migrations: ClickHouseMigration[]) =>
@@ -107,26 +107,26 @@ describe("ClickHouse migrations", () => {
     );
   });
 
-  it("gives the local collector's chDB the same errorFingerprint as App and Cloud", () => {
-    const collectorCopy = readFileSync(
-      new URL(
-        "../../../../collector/exporter/chdbexporter/internal/sqltemplates/create_error_fingerprint_function.sql",
-        import.meta.url,
-      ),
-      "utf8",
+  it("keeps the local store's files equal to these, without access control", () => {
+    const localDir = new URL("../../../../collector/localcollector/migrations/", import.meta.url);
+    const local = Object.fromEntries(
+      readdirSync(localDir)
+        .filter((name) => name.endsWith(".sql"))
+        .map((name) => [name, sqlStatements(readFileSync(new URL(name, localDir), "utf8"))]),
     );
-    const definitions = (sql: string) =>
-      sqlStatements(sql).filter((statement) =>
-        /^CREATE (OR REPLACE )?FUNCTION (IF NOT EXISTS )?errorFingerprint\b/.test(statement),
-      );
-    // A change to the function lands in a new file, so compare the latest definition.
-    const latest = [...clickHouseMigrations]
-      .sort(byMigrationName)
-      .flatMap(({ sql }) => definitions(sql))
-      .at(-1);
+    // chDB has one implicit user, so the local store has no copy of a tagged
+    // file or of a file that holds only access control.
+    const expected = Object.fromEntries(
+      clickHouseMigrations
+        .filter(({ name }) => clickHouseMigrationTarget(name) === undefined)
+        .map(({ name, sql }) => [
+          name,
+          sqlStatements(sql).filter((statement) => !isAccessControl(statement)),
+        ])
+        .filter(([, statements]) => statements.length > 0),
+    );
 
-    expect(latest).toBeDefined();
-    expect(definitions(collectorCopy)).toEqual([latest]);
+    expect(local).toEqual(expected);
   });
 
   it("splits statements after removing comments that contain semicolons", () => {

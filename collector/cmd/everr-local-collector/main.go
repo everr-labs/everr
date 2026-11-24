@@ -5,10 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -18,10 +17,10 @@ import (
 )
 
 const (
-	defaultOTLPEndpoint = "http://127.0.0.1:4318"
-	defaultSQLEndpoint  = "http://127.0.0.1:8080"
-	defaultChDBPath     = "./chdb"
-	defaultTTL          = 7 * 24 * time.Hour
+	defaultOTLPEndpoint  = "http://127.0.0.1:4318"
+	defaultSQLEndpoint   = "http://127.0.0.1:8080"
+	defaultChDBPath      = "./chdb"
+	defaultRetentionDays = 7
 )
 
 func main() {
@@ -35,49 +34,20 @@ func parseOptions(args []string) (localcollector.Options, error) {
 	fs := flag.NewFlagSet("everr-local-collector", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
-	opts := localcollector.Options{TTL: defaultTTL}
+	opts := localcollector.Options{}
+	var retentionDays uint
 	fs.StringVar(&opts.OTLPEndpoint, "otlp-http-endpoint", defaultOTLPEndpoint, "OTLP HTTP endpoint apps send telemetry to")
 	fs.StringVar(&opts.SQLEndpoint, "sql-http-endpoint", defaultSQLEndpoint, "SQL HTTP endpoint")
 	fs.StringVar(&opts.ChDBPath, "chdb-path", defaultChDBPath, "chDB database path")
-	fs.Var(ttlFlag{value: &opts.TTL}, "ttl", "local telemetry TTL")
+	fs.UintVar(&retentionDays, "retention-days", defaultRetentionDays, "days the store keeps telemetry")
 	if err := fs.Parse(args); err != nil {
 		return localcollector.Options{}, err
 	}
+	if retentionDays == 0 || retentionDays > math.MaxUint16 {
+		return localcollector.Options{}, fmt.Errorf("--retention-days must be between 1 and %d", math.MaxUint16)
+	}
+	opts.RetentionDays = uint16(retentionDays)
 	return opts, nil
-}
-
-type ttlFlag struct {
-	value *time.Duration
-}
-
-func (f ttlFlag) Set(raw string) error {
-	ttl, err := parseTTL(raw)
-	if err != nil {
-		return err
-	}
-	*f.value = ttl
-	return nil
-}
-
-func (f ttlFlag) String() string {
-	if f.value == nil {
-		return ""
-	}
-	if *f.value%(24*time.Hour) == 0 {
-		return fmt.Sprintf("%dd", *f.value/(24*time.Hour))
-	}
-	return f.value.String()
-}
-
-func parseTTL(raw string) (time.Duration, error) {
-	if strings.HasSuffix(raw, "d") {
-		days, err := strconv.Atoi(strings.TrimSuffix(raw, "d"))
-		if err != nil {
-			return 0, fmt.Errorf("parse ttl days: %w", err)
-		}
-		return time.Duration(days) * 24 * time.Hour, nil
-	}
-	return time.ParseDuration(raw)
 }
 
 func run(ctx context.Context, args []string) error {

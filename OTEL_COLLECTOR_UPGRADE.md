@@ -27,8 +27,7 @@ moved to, and what that meant for this repository. Use it to review the bump.
   removed upstream (contrib v0.162.0); it was only an indirect dependency and
   `go mod tidy` dropped it.
 - The chDB exporter fork (`collector/exporter/chdbexporter`) is merged up to
-  upstream `exporter/clickhouseexporter` v0.165.1. Details are below and in
-  `collector/exporter/chdbexporter/EVERR_CHANGES.md`.
+  upstream `exporter/clickhouseexporter` v0.165.1. Details are below.
 - The fork's table templates are unchanged: it does not take upstream's `ZSTD(3)`
   codec or the `EventName` index, so `localSchemaVersion` stays 2 and existing
   local stores keep their telemetry.
