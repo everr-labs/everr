@@ -91,7 +91,8 @@ vi.mock("#app/lib/clickhouse.ts", () => {
 // ---------------------------------------------------------------------------
 
 vi.mock("#app/lib/serverFn.ts", async () => {
-  const { query, querySqlApi, querySqlApiColumns } = await import("#app/lib/clickhouse.ts");
+  const clickhouse = await import("#app/lib/clickhouse.ts");
+  const { query, querySqlApi } = clickhouse;
   const { auth } = await import("#app/identity/server.ts");
 
   // requireOrgMiddleware: active org guaranteed + ClickHouse bound to it.
@@ -118,8 +119,10 @@ vi.mock("#app/lib/serverFn.ts", async () => {
                 sql: {
                   query: <T>(sql: string, params?: Record<string, unknown>) =>
                     querySqlApi<T>(sql, "test_org", params),
+                  // Read at call time: suites that mock the ClickHouse module
+                  // themselves export only what they use.
                   queryColumns: (sql: string, params?: Record<string, unknown>) =>
-                    querySqlApiColumns(sql, "test_org", params),
+                    clickhouse.querySqlApiColumns(sql, "test_org", params),
                 },
               }
             : {}),
