@@ -1,6 +1,6 @@
 import { appQueryOptions } from "@everr/ui/lib/query-options";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createApiKey, listApiKeys } from "#app/data/api-keys.ts";
+import { createApiKey, listApiKeys, updatePublicKeyOrigins } from "#app/data/api-keys.ts";
 import type { ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import { authClient } from "#app/lib/auth-client.ts";
 
@@ -59,5 +59,14 @@ export function useRevokeApiKey() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: apiKeysQueryKey });
     },
+  });
+}
+
+export function useUpdatePublicKeyOrigins() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { keyId: string; allowedOrigins: string[] }) =>
+      updatePublicKeyOrigins({ data }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: apiKeysQueryKey }),
   });
 }

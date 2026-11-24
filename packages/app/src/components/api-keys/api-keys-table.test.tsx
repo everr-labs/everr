@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vite-plus/test";
+import { updatePublicKeyOrigins } from "#app/data/api-keys.ts";
 import { ApiKeysSections } from "./api-keys-table";
 import type { ApiKey } from "./queries";
 
 vi.mock("#app/data/api-keys.ts", () => ({
   createApiKey: vi.fn(),
   listApiKeys: vi.fn(),
+  updatePublicKeyOrigins: vi.fn(),
 }));
 vi.mock("#app/lib/auth-client.ts", () => ({ authClient: { apiKey: {} } }));
 
@@ -55,6 +57,22 @@ it("lists every allowed origin from the +N", async () => {
   expect(screen.queryByText("https://docs.everr.dev")).toBeNull();
   await userEvent.setup().click(screen.getByRole("button", { name: "Show all 3 allowed origins" }));
   expect(await screen.findByText("https://docs.everr.dev")).toBeVisible();
+});
+
+it("edits the allowed origins on the existing public key", async () => {
+  renderSections([publicKey]);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /Edit origins/i }));
+  const field = await screen.findByRole("textbox", { name: "Allowed origins" });
+  expect(field).toHaveValue(origins.join("\n"));
+  await user.clear(field);
+  await user.type(field, "*.everr.dev");
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(updatePublicKeyOrigins).toHaveBeenCalledWith({
+      data: { keyId: publicKey.id, allowedOrigins: ["*.everr.dev"] },
+    }),
+  );
 });
 
 it("offers no reveal or copy for a public key created before keys could be shown", () => {

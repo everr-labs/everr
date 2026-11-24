@@ -4,7 +4,7 @@
  * origin-bound (allowlist) and browser-only: it never authenticates
  * server-to-server ingestion, and a secret key never authenticates a
  * browser (Origin-bearing) request. This module is the single home of that
- * policy; verify-key, the create server fn, and the UI all delegate here.
+ * policy; verification, key settings, and the UI all delegate here.
  */
 
 import type { ApiKeyScope } from "./api-key-scopes";
@@ -36,28 +36,50 @@ export const HASHED_KEY_CONFIG_ID = "ingest";
  */
 export const PUBLIC_KEY_CONFIG_ID = "public";
 
-/**
- * Parse `raw` as a web origin (`scheme://host[:port]`, http/https only) and
- * return its canonical form, or null when it isn't one. `URL#origin`
- * lowercases the host and drops default ports, which is exactly what
- * browsers send in the Origin header, so stored entries and incoming
- * headers normalize to the same string.
- */
-export function normalizeOrigin(raw: string): string | null {
+const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+function parseWebOrigin(raw: string): URL | null {
+  const origin = raw.trim();
+  // Check the original syntax before URL can repair an invalid authority
+  // or collapse a path such as /a/.. into a bare slash.
+  const authority = /^https?:\/\/([^/?#\\\s@]+)\/?$/i.exec(origin)?.[1];
+  if (!authority || authority.endsWith(":") || authority.includes("*")) return null;
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    url = new URL(origin);
   } catch {
     return null;
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  if (url.username || url.password) return null;
-  // A bare origin (with or without a trailing slash in the input) parses to
-  // pathname "/", so reject anything else: real paths, queries, fragments.
-  if (url.pathname !== "/" || url.search || url.hash) {
-    return null;
-  }
-  return url.origin;
+  // URL decodes percent escapes in hostnames, including an escaped asterisk.
+  return url.hostname.includes("*") ? null : url;
+}
+
+/** Canonicalize a concrete HTTP(S) origin as browsers serialize it. */
+export function normalizeOrigin(raw: string): string | null {
+  return parseWebOrigin(raw)?.origin ?? null;
+}
+
+function isWildcardSuffix(hostname: string): boolean {
+  const labels = hostname.split(".");
+  // A DNS suffix must leave room for the label matched by the wildcard.
+  return (
+    hostname.length <= 251 &&
+    labels.length >= 2 &&
+    labels.every((label) => DNS_LABEL.test(label)) &&
+    !/^\d+$/.test(labels[labels.length - 1])
+  );
+}
+
+/** An allowlist entry can be an exact origin or start with a single DNS wildcard. */
+export function normalizeAllowedOrigin(raw: string): string | null {
+  const entry = raw.trim();
+  const withScheme = entry.startsWith("*.") ? `https://${entry}` : entry;
+  const wildcard = /^(https?:\/\/)\*\.(.+)$/i.exec(withScheme);
+  if (!wildcard) return normalizeOrigin(withScheme);
+
+  const suffix = parseWebOrigin(`${wildcard[1]}${wildcard[2]}`);
+  if (!suffix || !isWildcardSuffix(suffix.hostname)) return null;
+  return `${suffix.protocol}//*.${suffix.host}`;
 }
 
 /**
@@ -93,9 +115,11 @@ export function publicKeyMetadataOf(metadata: unknown): PublicKeyMetadata | null
 export function buildPublicKeyMetadata(origins: readonly string[]): PublicKeyMetadata {
   return {
     public: true,
-    allowedOrigins: origins
-      .map(normalizeOrigin)
-      .filter((origin): origin is string => origin !== null),
+    allowedOrigins: [
+      ...new Set(
+        origins.map(normalizeAllowedOrigin).filter((origin): origin is string => origin !== null),
+      ),
+    ],
   };
 }
 
@@ -119,9 +143,30 @@ export function originPolicyAllows(
   if (key.configId === PUBLIC_KEY_CONFIG_ID && !publicMeta) return false;
   if (origin === null) return publicMeta === null;
   if (!publicMeta) return false;
-  const normalized = normalizeOrigin(origin);
-  if (!normalized) return false;
-  return publicMeta.allowedOrigins.includes(normalized);
+  const url = parseWebOrigin(origin);
+  if (!url) return false;
+  if (publicMeta.allowedOrigins.includes(url.origin)) return true;
+
+  const firstDot = url.hostname.indexOf(".");
+  if (
+    firstDot === -1 ||
+    url.hostname.length > 253 ||
+    !DNS_LABEL.test(url.hostname.slice(0, firstDot)) ||
+    !isWildcardSuffix(url.hostname.slice(firstDot + 1))
+  ) {
+    return false;
+  }
+  // Replace only the first label, keeping the scheme and port in the match.
+  return publicMeta.allowedOrigins.includes(`${url.protocol}//*${url.host.slice(firstDot)}`);
+}
+
+export function allowedOriginsInputError(origins: readonly string[]): string | null {
+  if (origins.length === 0) return "Public keys need at least one allowed origin";
+  if (origins.length > 32) return "At most 32 origins per key";
+  for (const origin of origins) {
+    if (!normalizeAllowedOrigin(origin)) return `Not a valid origin: ${origin}`;
+  }
+  return null;
 }
 
 /**
@@ -134,20 +179,15 @@ export function publicKeyInputError(input: {
   allowedOrigins?: readonly string[];
   scopes: readonly string[];
 }): string | null {
-  if (input.public) {
-    if (!input.allowedOrigins || input.allowedOrigins.length === 0) {
-      return "Public keys need at least one allowed origin";
-    }
-    if (input.scopes.length !== 1 || input.scopes[0] !== PUBLIC_KEY_SCOPE) {
-      return "Public keys can only send telemetry";
-    }
-  } else if (input.allowedOrigins && input.allowedOrigins.length > 0) {
-    return "Allowed origins require a public key";
+  if (!input.public) {
+    return input.allowedOrigins?.length ? "Allowed origins require a public key" : null;
   }
-  for (const origin of input.allowedOrigins ?? []) {
-    if (!normalizeOrigin(origin)) {
-      return `Not a valid origin: ${origin}`;
-    }
+
+  const originError = allowedOriginsInputError(input.allowedOrigins ?? []);
+  if (originError) return originError;
+  if (input.scopes.length !== 1 || input.scopes[0] !== PUBLIC_KEY_SCOPE) {
+    return "Public keys can only send telemetry";
   }
+
   return null;
 }

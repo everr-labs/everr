@@ -221,6 +221,10 @@ describe("/api/internal/verify-key browser origin policy", () => {
     referenceId: "org_42",
     permissions: { ingest: ["write"] },
   };
+  const wildcardKey = {
+    ...publicKey,
+    metadata: { public: true, allowedOrigins: ["https://*.example.com"] },
+  };
 
   it.each([
     {
@@ -251,6 +255,18 @@ describe("/api/internal/verify-key browser origin policy", () => {
       name: "public key + mismatched origin",
       key: publicKey,
       origin: "https://evil.example",
+      status: 403,
+    },
+    {
+      name: "public key + wildcard subdomain",
+      key: wildcardKey,
+      origin: "https://tenant.example.com",
+      status: 200,
+    },
+    {
+      name: "public key + wildcard apex",
+      key: wildcardKey,
+      origin: "https://example.com",
       status: 403,
     },
     {

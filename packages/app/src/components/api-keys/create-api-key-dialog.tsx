@@ -20,12 +20,15 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { Switch } from "@everr/ui/components/switch";
-import { Textarea } from "@everr/ui/components/textarea";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Globe, KeyRound, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  AllowedOriginsField,
+  parseAllowedOriginsText,
+} from "#app/components/api-keys/allowed-origins-field.tsx";
 import { useCreateApiKey } from "#app/components/api-keys/queries.ts";
 import { SCOPE_ICONS } from "#app/components/api-keys/scope-meta.tsx";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
@@ -116,16 +119,7 @@ export function CreateApiKeyDialog({
       return;
     }
     // The shared policy validates origins and capabilities on client and server.
-    const origins = isPublic
-      ? Array.from(
-          new Set(
-            originsText
-              .split(/\r?\n/)
-              .map((line) => line.trim())
-              .filter(Boolean),
-          ),
-        )
-      : [];
+    const origins = isPublic ? parseAllowedOriginsText(originsText) : [];
     const originError = publicKeyInputError({
       public: isPublic,
       allowedOrigins: origins,
@@ -257,20 +251,7 @@ export function CreateApiKeyDialog({
             </div>
 
             {isPublic ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="api-key-origins">Allowed origins</Label>
-                <Textarea
-                  id="api-key-origins"
-                  value={originsText}
-                  onChange={(e) => setOriginsText(e.target.value)}
-                  placeholder={"https://app.example.com\nhttp://localhost:5173"}
-                  rows={3}
-                  required
-                />
-                <p className="text-muted-foreground text-xs">
-                  One origin per line: scheme://host with an optional port, no paths.
-                </p>
-              </div>
+              <AllowedOriginsField value={originsText} onChange={setOriginsText} />
             ) : (
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Capabilities</legend>

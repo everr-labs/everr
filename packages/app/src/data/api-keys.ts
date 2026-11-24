@@ -6,10 +6,12 @@ import { apikey } from "#app/db/schema/index.ts";
 import { auth } from "#app/identity/server.ts";
 import { ALL_API_KEY_SCOPES, API_KEY_SCOPES, type ApiKeyScope } from "#app/lib/api-key-scopes.ts";
 import {
+  allowedOriginsInputError,
   buildPublicKeyMetadata,
   HASHED_KEY_CONFIG_ID,
   PUBLIC_KEY_CONFIG_ID,
   publicKeyInputError,
+  publicKeyMetadataOf,
 } from "#app/lib/public-ingest-keys.ts";
 import { createOrganizationAdminServerFn } from "#app/lib/serverFn.ts";
 
@@ -18,6 +20,7 @@ import type { ApiKey } from "./api-key-schemas";
 export type { ApiKey } from "./api-key-schemas";
 
 const SCOPE_INPUT = z.enum(ALL_API_KEY_SCOPES);
+const AllowedOriginsInput = z.array(z.string().trim().min(1));
 
 const CreateApiKeyInput = z
   .object({
@@ -25,10 +28,7 @@ const CreateApiKeyInput = z
     expiresInDays: z.number().int().positive("Expiry must be a positive number of days").optional(),
     scopes: z.array(SCOPE_INPUT).min(1, "Pick at least one capability for the key"),
     public: z.boolean().optional(),
-    allowedOrigins: z
-      .array(z.string().trim().min(1))
-      .max(32, "At most 32 origins per key")
-      .optional(),
+    allowedOrigins: AllowedOriginsInput.optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -41,6 +41,16 @@ const CreateApiKeyInput = z
       });
     }
   });
+
+const ApiKeyOriginsInputSchema = z
+  .object({
+    keyId: z.string().trim().min(1),
+    allowedOrigins: AllowedOriginsInput.superRefine((origins, ctx) => {
+      const error = allowedOriginsInputError(origins);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    }),
+  })
+  .strict();
 
 /**
  * Resolve the user's chosen scopes into the better-auth `permissions` map.
@@ -105,6 +115,46 @@ export const createApiKey = createOrganizationAdminServerFn({ method: "POST" })
       id: created.id,
       permissions: created.permissions ?? permissions,
     };
+  });
+
+export const updatePublicKeyOrigins = createOrganizationAdminServerFn({ method: "POST" })
+  .validator(ApiKeyOriginsInputSchema)
+  .handler(async ({ data, context: { session } }) => {
+    const [key] = await db
+      .select({ configId: apikey.configId, metadata: apikey.metadata })
+      .from(apikey)
+      .where(
+        and(
+          eq(apikey.id, data.keyId),
+          eq(apikey.referenceId, session.session.activeOrganizationId),
+        ),
+      )
+      .limit(1);
+    if (
+      !key ||
+      (key.configId !== PUBLIC_KEY_CONFIG_ID && key.configId !== HASHED_KEY_CONFIG_ID) ||
+      !publicKeyMetadataOf(key.metadata)
+    ) {
+      throw new Error("Public key not found");
+    }
+
+    const metadata = buildPublicKeyMetadata(data.allowedOrigins);
+    const updated = await auth.api.updateApiKey({
+      body: {
+        configId: key.configId,
+        keyId: data.keyId,
+        userId: session.user.id,
+        metadata,
+      },
+    });
+    // Better Auth can return the previous row if a concurrent revoke wins.
+    const savedOrigins = publicKeyMetadataOf(updated?.metadata)?.allowedOrigins;
+    if (
+      savedOrigins?.length !== metadata.allowedOrigins.length ||
+      metadata.allowedOrigins.some((origin, i) => savedOrigins[i] !== origin)
+    ) {
+      throw new Error("Could not save allowed origins");
+    }
   });
 
 export const listApiKeys = createOrganizationAdminServerFn({

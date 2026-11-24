@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  buildPublicKeyMetadata,
   normalizeOrigin,
   originPolicyAllows,
   publicKeyInputError,
@@ -121,6 +122,58 @@ describe("originPolicyAllows (the policy matrix)", () => {
     expect(
       originPolicyAllows({ configId: "public", metadata: publicMeta }, "https://app.example.com"),
     ).toBe(true);
+  });
+});
+
+describe("public-key origin wildcards", () => {
+  it("stores shorthand and explicit patterns in canonical form with exact origins", () => {
+    expect(
+      buildPublicKeyMetadata([
+        "*.Example.com",
+        "http://*.example.com:8080/",
+        "HTTPS://EXAMPLE.COM:443",
+      ]),
+    ).toEqual({
+      public: true,
+      allowedOrigins: ["https://*.example.com", "http://*.example.com:8080", "https://example.com"],
+    });
+  });
+
+  it.each([
+    ["https://tenant.example.com", true],
+    ["HTTPS://Tenant.Example.COM:443", true],
+    ["https://example.com", false],
+    ["https://app.tenant.example.com", false],
+    ["https://tenant.example.com.other.test", false],
+    ["https://tenant.notexample.com", false],
+    ["http://tenant.example.com", false],
+    ["https://tenant.example.com:8443", false],
+    ["http://tenant.example.com:8080", true],
+    ["http://tenant.example.com:8081", false],
+    ["https://*.example.com", false],
+    ["https://%2a.example.com", false],
+    ["null", false],
+    [null, false],
+  ])("matches %s as %s", (origin, allowed) => {
+    const metadata = buildPublicKeyMetadata(["*.example.com", "http://*.example.com:8080"]);
+    expect(originPolicyAllows({ metadata }, origin)).toBe(allowed);
+  });
+
+  it.each([
+    "*",
+    "https://*",
+    "https://tenant-*.example.com",
+    "https://*.*.example.com",
+    "https://example.*",
+    "https://%2a.example.com",
+    "https://*.example.com/path",
+    "https://*.example.com?query=1",
+    "https://*.example.com#fragment",
+    "https://*.example.com@other.test",
+  ])("rejects %s as an allowlist entry", (origin) => {
+    expect(
+      publicKeyInputError({ public: true, allowedOrigins: [origin], scopes: ["ingest"] }),
+    ).toMatch(/Not a valid origin/i);
   });
 });
 
