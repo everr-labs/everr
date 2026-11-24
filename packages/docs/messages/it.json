@@ -167,5 +167,8 @@
   "hero_notice_2_step_2": "Tutte hanno un + nell’indirizzo",
   "hero_notice_3_step_1": "Analizzati i caricamenti falliti",
   "hero_notice_3_step_2": "Confrontate le dimensioni dei file",
-  "hero_fix_label": "Fix proposto"
+  "hero_fix_label": "Fix proposto",
+  "hero_demo_label": "Animazione: Everr nota un checkout lento, iscrizioni che falliscono e caricamenti di foto non riusciti, ne trova la causa e propone un fix.",
+  "tour_demo_label": "Demo dell’app Everr che risponde alla domanda selezionata",
+  "setup_demo_label": "Demo di un assistente AI che configura Everr, costruisce una vista di ciò che conta e trova la causa di un alert"
 }

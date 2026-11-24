@@ -108,6 +108,8 @@ export interface StageProps<S> {
   /** A clock the script's waits and tweens follow. Pausing it pauses the script. */
   playhead?: Playhead;
   className?: string;
+  /** What the animation shows, for screen readers. The stage reads as one image, so its fake UI is not announced. */
+  label: string;
   /** A specimen sheet of parts (the kit's chrome, controls, phones sheets), not a product frame: film's composition checks (framing, ladders, voids) stand down. */
   specimen?: boolean;
   /** No framing, when the developer asks for it: no ground, and the product sits whole with room around it, floating on their page. Film's bleed and floating checks stand down; everything else still applies. */
@@ -124,6 +126,7 @@ export function Stage<S extends object>({
   initial = NONE as S,
   script,
   poster,
+  label,
   cursor,
   hover,
   play: playProp = "loop",
@@ -658,6 +661,8 @@ export function Stage<S extends object>({
   return (
     <div
       ref={fitRef}
+      role="img"
+      aria-label={label}
       className={`ss-fit${className ? ` ${className}` : ""}`}
       style={{ maxWidth: grows ? undefined : width, height: designH * scale }}
     >
