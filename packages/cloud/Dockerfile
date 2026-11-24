@@ -55,6 +55,19 @@ RUN set -eu; \
       done; \
     done
 
+# The server bundle embeds the ClickHouse migrations. Require the shared and
+# Cloud ones, and none of the self-hosted directory's.
+RUN set -eu; \
+    for file in packages/app/clickhouse/*.sql packages/app/clickhouse/*.seed.ts \
+      packages/cloud/clickhouse/*.sql packages/cloud/clickhouse/*.seed.ts; do \
+      [ -e "$file" ] || continue; \
+      grep -rqF "${file##*/}" packages/cloud/.output/server || { echo "missing ClickHouse migration ${file}" >&2; exit 1; }; \
+    done; \
+    for file in packages/app/clickhouse/self-hosted/*.sql; do \
+      [ -e "$file" ] || continue; \
+      ! grep -rqF "self-hosted/${file##*/}" packages/cloud/.output/server || { echo "self-hosted ClickHouse migration ${file} in the Cloud image" >&2; exit 1; }; \
+    done
+
 # Stage 3: production
 # Node 24.22.1, keep in sync with the builder and .node-version.
 FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8 AS runner
