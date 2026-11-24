@@ -35,7 +35,11 @@ func NewFactory(handle *chdb.Handle) exporter.Factory {
 		createDefaultConfig,
 		xexporter.WithLogs(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Logs, error) {
 			c := cfg.(*Config)
-			exp := &logsExporter{handle: handle, retentionDays: retentionDays(c)}
+			table := landing.Logs
+			if c.Recordings {
+				table = landing.Recordings
+			}
+			exp := &logsExporter{handle: handle, retentionDays: retentionDays(c), table: table}
 			return exporterhelper.NewLogs(ctx, set, cfg, exp.pushLogsData, options(c)...)
 		}, component.StabilityLevelBeta),
 		xexporter.WithTraces(func(ctx context.Context, set exporter.Settings, cfg component.Config) (exporter.Traces, error) {

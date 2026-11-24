@@ -2,6 +2,7 @@ package localcollector
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -518,6 +519,10 @@ func TestTheExporterWritesExactlyTheColumnsOfTheMigratedLandingTables(t *testing
 		t.Run(table.Name, func(t *testing.T) {
 			var migrated []string
 			for _, row := range g.query(t, "DESCRIBE TABLE "+table.Name) {
+				// An insert cannot name a column that the table computes.
+				if kind := row["default_type"]; kind == "MATERIALIZED" || kind == "ALIAS" {
+					continue
+				}
 				migrated = append(migrated, row["name"].(string))
 			}
 			require.NotEmpty(t, migrated)
@@ -545,4 +550,95 @@ func TestABrowserMayPostGzippedLogsFromAnotherOrigin(t *testing.T) {
 	require.Less(t, resp.StatusCode, 300)
 	require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
 	require.Contains(t, strings.ToLower(resp.Header.Get("Access-Control-Allow-Headers")), "content-encoding")
+}
+
+// sendGzipped posts one OTLP/HTTP JSON logs request, gzipped as the browser
+// SDK sends Segments.
+func (g *gateway) sendGzipped(t *testing.T, payload string) {
+	t.Helper()
+	var compressed bytes.Buffer
+	zw := gzip.NewWriter(&compressed)
+	_, err := zw.Write([]byte(payload))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	req, err := http.NewRequest(http.MethodPost, g.otlp+"/v1/logs", &compressed)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	out, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(out))
+}
+
+func TestRecordingSegmentsAreStoredInTheRecordingsTableAndNotInLogs(t *testing.T) {
+	g := startGateway(t)
+
+	now := time.Now().UnixNano()
+	segmentBody := "[" + strings.Repeat(`{"type":3}`, 95000) + "]" // about 950 KB
+	stringAttr := func(key, value string) string {
+		return fmt.Sprintf(`{"key":%q,"value":{"stringValue":%q}}`, key, value)
+	}
+	segment := func(offset int64, body string, attributes ...string) string {
+		return fmt.Sprintf(`{"timeUnixNano":"%d","eventName":"everr.browser.recording.segment","body":{"stringValue":%q},"attributes":[%s]}`,
+			now+offset, body, strings.Join(attributes, ","))
+	}
+	records := []string{
+		fmt.Sprintf(`{"timeUnixNano":"%d","body":{"stringValue":"ordinary log"}}`, now),
+		segment(1, segmentBody,
+			stringAttr("session.id", "session-1"),
+			stringAttr("everr.recording.stream.id", "stream-1"),
+			`{"key":"everr.recording.segment.index","value":{"intValue":"0"}}`,
+			`{"key":"everr.recording.segment.end","value":{"intValue":"1700000005250"}}`,
+			`{"key":"everr.recording.clip.start","value":{"intValue":"1700000000000"}}`,
+			stringAttr("everr.recording.clip.id", "clip-1"),
+			stringAttr("everr.recording.trigger", "error"),
+			stringAttr("everr.recording.clip.truncated", "true")),
+		segment(2, "malformed index",
+			stringAttr("everr.recording.stream.id", "stream-1"),
+			stringAttr("everr.recording.segment.index", "not a number"),
+			stringAttr("everr.recording.segment.end", "soon"),
+			`{"key":"everr.recording.clip.start","value":{"doubleValue":9e18}}`),
+		segment(3, "missing index", stringAttr("everr.recording.stream.id", "stream-2")),
+	}
+	g.sendGzipped(t, `{"resourceLogs":[{"resource":{"attributes":[`+stringAttr("service.name", "browser")+`]},`+
+		`"scopeLogs":[{"logRecords":[`+strings.Join(records, ",")+`]}]}]}`)
+
+	segments := g.waitRows(t,
+		"SELECT stream_id, segment_index, session_id, length(Body) AS bytes, retention_days, tenant_id FROM recordings ORDER BY Timestamp", 3)
+	require.Equal(t, "stream-1", segments[0]["stream_id"])
+	require.EqualValues(t, 0, segments[0]["segment_index"])
+	require.Equal(t, "session-1", segments[0]["session_id"])
+	require.EqualValues(t, len(segmentBody), segments[0]["bytes"])
+	require.EqualValues(t, retentionDays, segments[0]["retention_days"])
+	require.Equal(t, "", segments[0]["tenant_id"])
+	require.Equal(t, "stream-1", segments[1]["stream_id"])
+	require.EqualValues(t, 0, segments[1]["segment_index"], "a malformed index stores 0")
+	require.Equal(t, "stream-2", segments[2]["stream_id"])
+	require.EqualValues(t, 0, segments[2]["segment_index"], "a missing index stores 0")
+
+	// The Clip listing the shared reader runs, unchanged, on the same columns.
+	clips := g.query(t, `SELECT stream_id, toString(toUnixTimestamp64Milli(clip_start)) AS clip_start,
+		toString(toUnixTimestamp64Milli(max(segment_end))) AS clip_end,
+		argMinIf(clip_id, segment_index, clip_id != '') AS opened_id,
+		argMinIf(trigger, segment_index, clip_id != '') AS opened_trigger,
+		argMinIf(truncated, segment_index, clip_id != '') AS opened_truncated
+		FROM recordings WHERE Timestamp > now() - INTERVAL 1 HOUR
+		GROUP BY stream_id, recordings.clip_start ORDER BY stream_id, recordings.clip_start DESC`)
+	require.Len(t, clips, 3)
+	require.Equal(t, "stream-1", clips[0]["stream_id"])
+	require.Equal(t, "1700000000000", clips[0]["clip_start"])
+	require.Equal(t, "1700000005250", clips[0]["clip_end"])
+	require.Equal(t, "clip-1", clips[0]["opened_id"])
+	require.Equal(t, "error", clips[0]["opened_trigger"])
+	require.Equal(t, true, clips[0]["opened_truncated"])
+	require.Equal(t, "0", clips[1]["clip_start"], "a start past the DateTime64 range stores the epoch")
+	require.Equal(t, "0", clips[1]["clip_end"], "an end that is not a number stores the epoch")
+	require.Equal(t, "", clips[1]["opened_id"])
+
+	g.waitRows(t, "SELECT Body FROM logs WHERE Body = 'ordinary log'", 1)
+	require.Empty(t, g.query(t, "SELECT Body FROM logs WHERE EventName = 'everr.browser.recording.segment'"), "no Segment is stored as a log")
+	require.Empty(t, g.query(t, "SELECT Body FROM recordings WHERE Body = 'ordinary log'"))
 }

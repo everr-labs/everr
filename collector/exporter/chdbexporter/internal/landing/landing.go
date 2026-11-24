@@ -41,6 +41,11 @@ var (
 		"EventName",
 	}}
 
+	// Recordings is where the logs exporter writes when it receives only
+	// browser recording Segments. No view copies the rows: the Segments land in
+	// the table that queries read, as on a server installation.
+	Recordings = Table{Name: "app.recordings", Columns: Logs.Columns}
+
 	Traces = Table{Name: "otel.otel_traces", Columns: []string{
 		"Timestamp",
 		"TraceId",
@@ -164,7 +169,7 @@ var (
 )
 
 func Tables() []Table {
-	return []Table{Logs, Traces, MetricsGauge, MetricsSum, MetricsHistogram, MetricsExponentialHistogram, MetricsSummary, Profiles}
+	return []Table{Logs, Recordings, Traces, MetricsGauge, MetricsSum, MetricsHistogram, MetricsExponentialHistogram, MetricsSummary, Profiles}
 }
 
 func metricColumns(kind ...string) []string {

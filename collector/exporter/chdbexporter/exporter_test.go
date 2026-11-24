@@ -94,6 +94,32 @@ func TestLogsAreWrittenToTheLandingTableWithTheRetentionStamp(t *testing.T) {
 	}, session.Statements())
 }
 
+func TestRecordingsWritesLogsToTheRecordingsTableWithTheRetentionStamp(t *testing.T) {
+	factory, cfg, session := newExporters(t)
+	conf := confmap.NewFromStringMap(map[string]any{"recordings": true})
+	require.NoError(t, conf.Unmarshal(cfg))
+	exp, err := factory.CreateLogs(t.Context(), exportertest.NewNopSettings(factory.Type()), cfg)
+	require.NoError(t, err)
+	require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+	t.Cleanup(func() { _ = exp.Shutdown(t.Context()) })
+
+	ld := plog.NewLogs()
+	resourceLogs := ld.ResourceLogs().AppendEmpty()
+	resourceLogs.Resource().Attributes().PutStr("service.name", "web")
+	record := resourceLogs.ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	record.SetTimestamp(pcommon.NewTimestampFromTime(sentAt))
+	record.SetEventName("everr.browser.recording.segment")
+	record.Body().SetStr("[]")
+	record.Attributes().PutStr("everr.recording.stream.id", "s1")
+
+	require.NoError(t, exp.ConsumeLogs(t.Context(), ld))
+
+	require.Equal(t, []string{
+		"INSERT INTO app.recordings SETTINGS type_json_skip_duplicated_paths = 1 FORMAT JSONEachRow\n" +
+			`{"Timestamp":` + sentAtText + `,"TraceId":"","SpanId":"","TraceFlags":0,"SeverityText":"","SeverityNumber":0,"ServiceName":"web","Body":"[]","ResourceSchemaUrl":"","ResourceAttributes":{"everr.retention.days":"7","service.name":"web"},"ScopeSchemaUrl":"","ScopeName":"","ScopeVersion":"","ScopeAttributes":{},"LogAttributes":{"everr.recording.stream.id":"s1"},"ResourceAttributesKeys":["everr.retention.days","service.name"],"ScopeAttributesKeys":null,"LogAttributesKeys":["everr.recording.stream.id"],"EventName":"everr.browser.recording.segment"}` + "\n",
+	}, session.Statements())
+}
+
 func TestTracesAreWrittenToTheLandingTableWithEventsAndLinks(t *testing.T) {
 	factory, cfg, session := newExporters(t)
 	exp, err := factory.CreateTraces(t.Context(), exportertest.NewNopSettings(factory.Type()), cfg)

@@ -46,6 +46,11 @@ type Config struct {
 	// on every resource as everr.retention.days and replaces a value the
 	// client sent.
 	RetentionDays uint16 `mapstructure:"retention_days"`
+
+	// Recordings makes the logs exporter write to app.recordings, the table of
+	// browser recording Segments, instead of otel.otel_logs. The local gateway
+	// routes Segments to an exporter that sets it.
+	Recordings bool `mapstructure:"recordings"`
 }
 
 func (c *Config) Validate() error {
