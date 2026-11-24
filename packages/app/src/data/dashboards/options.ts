@@ -8,7 +8,7 @@ import type {
   ResolvedTimeRange,
 } from "#app/components/dashboards/visualizations/index.tsx";
 import { createLimiter } from "#app/lib/limiter.ts";
-import { rowsFromColumns } from "./columns";
+import { readPanelResponse } from "./columns";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   getDashboard,
@@ -83,7 +83,7 @@ export const panelQueryOptions = (
       if (source.kind === "none") return { rows: [] };
       // The server returns the window rounded to whole seconds, and aligned
       // for a panel drawn over time, which the panel's axis renders.
-      const { columns, timeRange } = await panelLimiter(signal, () =>
+      const response = await panelLimiter(signal, () =>
         runPanelQuery({
           data: {
             source,
@@ -94,10 +94,8 @@ export const panelQueryOptions = (
           },
         }),
       );
-      return {
-        rows: rowsFromColumns(columns),
-        timeRange: { from: new Date(timeRange.from), to: new Date(timeRange.to) },
-      };
+      const { rows, timeRange } = await readPanelResponse(response);
+      return { rows, timeRange: { from: new Date(timeRange.from), to: new Date(timeRange.to) } };
     },
     enabled:
       source.kind === "ClickHouseSQL" ? source.sql.trim().length > 0 : source.kind === "TestData",

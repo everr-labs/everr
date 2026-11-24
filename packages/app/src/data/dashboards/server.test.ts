@@ -86,7 +86,7 @@ import {
   runPanelQuery,
   runVariableOptionsQuery,
 } from "./server";
-import { rowsFromColumns } from "./columns";
+import { readPanelResponse } from "./columns";
 
 const mockedDb = vi.mocked(db);
 // 7 days at ~500 points is a 30-minute step.
@@ -206,7 +206,7 @@ describe("runPanelQuery – variable interpolation", () => {
   it("returns the exact window it queried so the panel axis matches the data", async () => {
     mockedPanelSql.mockResolvedValue('{"data":{}}');
 
-    const { timeRange } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
@@ -215,6 +215,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
+    const { timeRange } = await readPanelResponse(response);
     expect(timeRange).toEqual({
       from: "2026-06-10T00:00:00.000Z",
       to: "2026-06-10T00:10:01.000Z",
@@ -224,7 +225,7 @@ describe("runPanelQuery – variable interpolation", () => {
   it("starts a panel drawn over time on the step's grid and keeps its real end", async () => {
     mockedPanelSql.mockResolvedValue('{"data":{}}');
 
-    const { timeRange } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: true,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
@@ -233,6 +234,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
+    const { timeRange } = await readPanelResponse(response);
     expect(timeRange).toEqual({
       from: "2026-06-03T00:00:00.000Z",
       to: "2026-06-10T00:10:00.000Z",
@@ -507,7 +509,7 @@ describe("listDashboards (with project + folderPath)", () => {
 
 describe("runPanelQuery – TestData", () => {
   it("generates synthetic rows without touching ClickHouse", async () => {
-    const { columns } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         ...SEVEN_DAYS,
@@ -517,12 +519,12 @@ describe("runPanelQuery – TestData", () => {
         },
       },
     });
-    expect(rowsFromColumns(columns)).toEqual([{ a: "x", b: 1 }]);
+    expect((await readPanelResponse(response)).rows).toEqual([{ a: "x", b: 1 }]);
     expect(mockedPanelSql).not.toHaveBeenCalled();
   });
 
   it("spans the resolved time range for a random_walk scenario", async () => {
-    const { columns } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         source: {
@@ -533,7 +535,7 @@ describe("runPanelQuery – TestData", () => {
         to: "2026-06-10T00:10:00.000Z",
       },
     });
-    const rows = rowsFromColumns(columns);
+    const { rows } = await readPanelResponse(response);
     expect(rows.length).toBeGreaterThan(0);
     expect(Object.keys(rows[0])).toContain("ts");
     expect(Object.keys(rows[0])).toContain("v");
