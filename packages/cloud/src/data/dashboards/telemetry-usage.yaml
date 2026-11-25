@@ -36,11 +36,11 @@ document:
               calculation: sum
               valueFormat: { unit: By, scale: binary }
               sparkline: true
-              colors:
+              colors: &signal_colors
                 Logs: "#9355f6"
                 Traces: "#f6eb55"
                 Metrics: "#55cef6"
-                Profiles: "#f6559b"
+                Profiles: "#f69e55"
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -169,6 +169,7 @@ document:
               curveType: linear
               showLegend: true
               stacked: true
+              colors: *signal_colors
           queries:
             - kind: ClickHouseSQL
               spec:

@@ -66,7 +66,15 @@ export function TimeSeriesChartVisualization({
   onTimeRangeChange,
 }: VisualizationProps<TimeSeriesChartSpec>) {
   const formatter = useMemo(() => createValueFormatter(spec.valueFormat), [spec.valueFormat]);
-  const { showLegend, connectNulls, lineWidth, curveType, stacked, yAxis: yAxisSpec } = spec;
+  const {
+    showLegend,
+    connectNulls,
+    lineWidth,
+    curveType,
+    stacked,
+    yAxis: yAxisSpec,
+    colors,
+  } = spec;
 
   const chartElementRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +84,7 @@ export function TimeSeriesChartVisualization({
   );
 
   // Full resolution: hover, the tooltip and the legend read this.
-  const model = useMemo(() => buildChartModel(data ?? [], domain), [data, domain]);
+  const model = useMemo(() => buildChartModel(data ?? [], domain, colors), [data, domain, colors]);
   const { times, series: modelSeries } = model;
   const { activeSeries, toggleSeries, isOnLegend, gridBottom, legend } = useSeriesLegend(
     modelSeries,
