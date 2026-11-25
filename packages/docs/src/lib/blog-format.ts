@@ -12,3 +12,11 @@ export function formatBlogDate(date: string, locale: Locale, month: "short" | "l
     timeZone: "UTC",
   });
 }
+
+// Google shows about 60 characters of a title: past that, drop the suffix to keep the post's own
+const TITLE_LIMIT = 60;
+
+export function blogPageTitle(title: string, suffix: string) {
+  const full = `${title} - ${suffix}`;
+  return full.length <= TITLE_LIMIT ? full : title;
+}

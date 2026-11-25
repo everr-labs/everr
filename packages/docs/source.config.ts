@@ -64,6 +64,7 @@ export const blog = defineCollections({
     title: z.string(),
     description: z.string(),
     date: z.string().date(),
+    updated: z.string().date().optional(),
     author: z.string().optional(),
     draft: z.boolean().optional(),
   }),

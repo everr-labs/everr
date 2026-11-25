@@ -9,10 +9,11 @@ import { Mermaid } from "@/components/mermaid";
 import { sectionHeading, sectionLead, sectionWrap } from "@/components/ui/type";
 import { SITE_URL } from "@/constants";
 import { blogPost } from "@/lib/blog";
-import { formatBlogDate, OG_LOCALES } from "@/lib/blog-format";
+import { blogPageTitle, formatBlogDate, OG_LOCALES } from "@/lib/blog-format";
 import { pageHead } from "@/lib/page-head";
+import { blogPostingStructuredData, jsonLdScript } from "@/lib/structured-data";
 import { m } from "@/paraglide/messages";
-import { getLocale, isLocale, localizeHref } from "@/paraglide/runtime";
+import { getLocale, isLocale, localizeHref, locales } from "@/paraglide/runtime";
 
 export const Route = createFileRoute("/blog/$slug")({
   component: BlogPost,
@@ -27,13 +28,15 @@ export const Route = createFileRoute("/blog/$slug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};
-    const { slug, description, date } = loaderData;
+    const { slug, title, description, date, author } = loaderData;
+    const updated = loaderData.updated ?? date;
     const locale = getLocale();
+    const image = SITE_URL + localizeHref(`/api/og/blog/${slug}`, { locale });
     const head = pageHead(
       `/blog/${slug}`,
-      `${loaderData.title} - ${m.blog_title_suffix()}`,
+      blogPageTitle(title, m.blog_title_suffix()),
       description,
-      { type: "article", image: SITE_URL + localizeHref(`/api/og/blog/${slug}`, { locale }) },
+      { type: "article", image },
     );
     return {
       ...head,
@@ -41,7 +44,26 @@ export const Route = createFileRoute("/blog/$slug")({
         ...head.meta,
         { property: "og:image:alt", content: description },
         { property: "og:locale", content: OG_LOCALES[locale] },
+        ...locales
+          .filter((other) => other !== locale)
+          .map((other) => ({ property: "og:locale:alternate", content: OG_LOCALES[other] })),
         { property: "article:published_time", content: date },
+        { property: "article:modified_time", content: updated },
+        ...(author ? [{ property: "article:author", content: author }] : []),
+      ],
+      scripts: [
+        jsonLdScript(
+          blogPostingStructuredData({
+            url: SITE_URL + localizeHref(`/blog/${slug}`, { locale }),
+            headline: title,
+            description,
+            datePublished: date,
+            dateModified: updated,
+            author,
+            image,
+            inLanguage: locale,
+          }),
+        ),
       ],
     };
   },
@@ -62,6 +84,7 @@ const serverLoader = createServerFn({ method: "GET" })
       title: page.data.title,
       description: page.data.description,
       date: page.data.date,
+      updated: page.data.updated,
       author: page.data.author,
     };
   });

@@ -1,4 +1,5 @@
 import { Suspense, use, useSyncExternalStore } from "react";
+import { mermaidTitle } from "@/lib/mermaid-title";
 
 // One diagram per chart text, rendered once. The mermaid module loads on first use,
 // so it stays out of the entry chunk and out of pages without a diagram.
@@ -37,23 +38,29 @@ export function Mermaid({ chart }: { chart: string }) {
     () => true,
     () => false,
   );
-  if (!isClient) return <Placeholder />;
+  const title = mermaidTitle(chart);
+  if (!isClient) return <Placeholder title={title} />;
 
   return (
-    <Suspense fallback={<Placeholder />}>
-      <Diagram chart={chart} />
+    <Suspense fallback={<Placeholder title={title} />}>
+      <Diagram chart={chart} title={title} />
     </Suspense>
   );
 }
 
-function Placeholder() {
-  return <div className="my-8 min-h-48" aria-hidden />;
+// The title is the accessible name from the first server render, before the SVG exists
+function Placeholder({ title }: { title?: string }) {
+  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- A div labels the diagram, whose SVG is inlined markup.
+  return <div className="my-8 min-h-48" role="img" aria-label={title} />;
 }
 
-function Diagram({ chart }: { chart: string }) {
+function Diagram({ chart, title }: { chart: string; title?: string }) {
   const svg = use(renderChart(chart));
   return (
     <div
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- A div labels the diagram, whose SVG is inlined markup.
+      role="img"
+      aria-label={title}
       className="my-8 overflow-x-auto [&_svg]:h-auto [&_svg]:min-w-[48rem]"
       // oxlint-disable-next-line react/no-danger -- Mermaid sanitizes its SVG at securityLevel "strict".
       dangerouslySetInnerHTML={{ __html: svg }}
