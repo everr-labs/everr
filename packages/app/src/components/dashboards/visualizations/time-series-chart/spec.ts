@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { hexColorSpec } from "../hex-color-spec";
 import { valueFormatSpec } from "../value-format-spec";
 
 /**
@@ -25,6 +26,9 @@ export const timeSeriesChartSpec = z.looseObject({
       message: "must be greater than min",
     })
     .optional(),
+  /** Fixed series name → hex color mapping; unmapped series cycle the shared
+   * palette. Use it to keep a series the same color across panels. */
+  colors: z.record(z.string(), hexColorSpec).default({}),
 });
 
 export type TimeSeriesChartSpec = z.infer<typeof timeSeriesChartSpec>;

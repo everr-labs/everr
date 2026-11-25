@@ -237,11 +237,13 @@ function timeline(lines: Line[], [from, to]: readonly [number, number]): Float64
 /**
  * Builds a chart model from every query result set, on one time axis. Each
  * series keeps its own samples; rows of one series that share a time collapse
- * to the last one.
+ * to the last one. `colors` pins a series to a fixed color by name; the rest
+ * keep their palette slot, so pinning one series never reshuffles the others.
  */
 export function buildChartModel(
   dataSets: QueryResultRow[][],
   domain: readonly [number, number],
+  colors: Record<string, string> = {},
 ): ChartModel {
   const lines: Line[] = [];
   const series: ChartSeries[] = [];
@@ -269,7 +271,10 @@ export function buildChartModel(
         id: `s${series.length}`,
         identity: JSON.stringify([queryIndex, timeKey, groupKeys, name]),
         label: name,
-        color: SERIES_COLORS[series.length % SERIES_COLORS.length] ?? "hsl(263, 90%, 65%)",
+        color:
+          colors[name] ??
+          SERIES_COLORS[series.length % SERIES_COLORS.length] ??
+          "hsl(263, 90%, 65%)",
         ...drawnLine(line, domain),
       });
     }

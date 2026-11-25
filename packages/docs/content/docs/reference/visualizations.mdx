@@ -71,6 +71,8 @@ plugin:
     yAxis:
       min: 0
       max: auto
+    colors:
+      errors: "#ff6467"
     valueFormat:
       unit: ms
 ```
@@ -85,6 +87,7 @@ plugin:
 | `stacked`      | boolean          | `false`    | Stack series on top of each other as filled areas. A series with no sample at a timestamp contributes 0 there, and `connectNulls` has no effect. |
 | `yAxis.min`    | number or `auto` | `auto`     | Exact lower bound. Values below it are clipped. `auto` fits the data.                                                                            |
 | `yAxis.max`    | number or `auto` | `auto`     | Exact upper bound. Values above it are clipped. `auto` fits the data.                                                                            |
+| `colors`       | map              | `{}`       | Pin series to fixed colors by series name (e.g. `{ errors: "#ff6467" }`). Opaque hex only. Unmapped series cycle the shared palette.             |
 
 Omitting `yAxis` or either bound has the same effect as setting that bound to `auto`. With both bounds automatic, the axis fits the data with padding and readable ticks instead of forcing zero. Set only `min: 0` for a zero baseline on positive data. When both bounds are numeric, `min` must be less than `max`. Stacked charts include zero in their automatic range.
 

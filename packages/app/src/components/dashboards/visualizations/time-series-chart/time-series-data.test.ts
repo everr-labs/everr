@@ -92,6 +92,14 @@ describe("buildChartModel", () => {
     expect(model.series[0]?.color).not.toBe(model.series[1]?.color);
   });
 
+  it("pins named series to their configured color and keeps the palette for the rest", () => {
+    const rows = [{ time: "2026-06-07T00:00:00", logs: 1, traces: 2 }];
+    const unpinned = buildChartModel([rows], WIDE);
+    const pinned = buildChartModel([rows], WIDE, { logs: "#123456" });
+    expect(pinned.series[0]?.color).toBe("#123456");
+    expect(pinned.series[1]?.color).toBe(unpinned.series[1]?.color);
+  });
+
   it("returns an empty model for empty input", () => {
     expect(buildChartModel([], WIDE)).toEqual({
       times: new Float64Array(0),
