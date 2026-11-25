@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { VolumeHistogram } from "../../histogram/volume-histogram";
 import type { ProfileHistogramBucket, SampleTypeOption } from "../data/types";
 import { formatProfileValue } from "../model/format";
-import { sampleTypeTitle } from "./profile-filters";
+import { displayUnit } from "./profile-flamegraph";
 
 export function ProfileHistogram({
   buckets,
@@ -25,12 +25,13 @@ export function ProfileHistogram({
   onRangeSelect: (from: Date, to: Date) => void;
   onShowVolumeChange: (show: boolean) => void;
 }) {
-  const label = sampleTypeTitle(sampleType);
+  // Values carry their own unit (12 ms, 1,234 objects), so the stored one is left out.
+  const label = sampleType.sampleType;
   const stack = useMemo(
     () => [{ key: "value" as const, label, color: "var(--color-sky-500)" }],
     [label],
   );
-  const unit = sampleType.sampleUnit;
+  const unit = displayUnit(sampleType);
   const formatValue = useMemo(() => (value: number) => formatProfileValue(value, unit), [unit]);
   const highlight = baseline ? bucketSpan(buckets, baseline.from, baseline.to) : null;
 

@@ -32,24 +32,11 @@ export function formatProfileValue(value: number, unit: string): string {
   const normalized = unit.toLowerCase();
   const nsFactor = NANOSECONDS_PER[normalized];
   if (nsFactor !== undefined) return formatDuration(value * nsFactor);
-  if (isBytes(normalized)) return formatBytes(value);
+  if (normalized === "bytes" || normalized === "byte") return formatBytes(value);
   if (normalized === "count" || normalized === "") {
     return `${integer.format(value)} ${value === 1 ? "sample" : "samples"}`;
   }
   return `${integer.format(value)} ${unit}`;
-}
-
-/**
- * Whether formatted values pick their own unit (`12 ms`, `3.4 MiB`), so the
- * stored unit is no unit of what is shown.
- */
-export function formatterScalesUnit(unit: string): boolean {
-  const normalized = unit.toLowerCase();
-  return NANOSECONDS_PER[normalized] !== undefined || isBytes(normalized);
-}
-
-function isBytes(normalized: string): boolean {
-  return normalized === "bytes" || normalized === "byte";
 }
 
 function formatDuration(ns: number): string {
