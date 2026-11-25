@@ -4,6 +4,7 @@ export const SITE_URL = "https://everr.dev";
 export const BOOK_CALL_URL = "https://calendar.app.google/kgnoxBsk4QyoLywG8";
 export const GITHUB_ORG_URL = "https://github.com/everr-labs";
 export const GITHUB_URL = "https://github.com/everr-labs/everr";
+export const HOMEBREW_TAP_URL = "https://github.com/everr-labs/homebrew-tap";
 export const X_URL = "https://x.com/everrlabs";
 export const LINKEDIN_URL = "https://www.linkedin.com/company/everr-labs";
 export const CONTACT_EMAIL = "hello@everr.dev";

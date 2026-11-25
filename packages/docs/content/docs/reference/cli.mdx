@@ -5,6 +5,22 @@ description: Reference for all Everr CLI commands.
 
 The Everr CLI queries local telemetry and remote Cloud or self-hosted installations, manages bundled skills, and reconciles resources as code. Run `everr --help` or `everr <command> --help` for the help included with your installed version.
 
+## Install
+
+Install the CLI with Homebrew on macOS (Apple silicon) and Linux:
+
+```sh
+brew install everr-labs/tap/everr
+```
+
+Or run the install script, which supports macOS arm64 and Linux x86_64 and arm64:
+
+```sh
+curl -fsSL https://everr.dev/install.sh | sh
+```
+
+See [Installation](/docs/learn/install) for updating and removing the CLI under each method.
+
 ## Authentication and remote queries
 
 Authenticate with `everr cloud login` and sign out with `everr cloud logout`. See [Cloud](#cloud) for login options and remote commands.

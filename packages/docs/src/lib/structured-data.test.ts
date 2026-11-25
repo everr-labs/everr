@@ -15,6 +15,17 @@ describe("structured data", () => {
     });
   });
 
+  it("offers the CLI from the install script and the Homebrew tap", () => {
+    const software = siteStructuredData()["@graph"].find(
+      (node) => node["@type"] === "SoftwareApplication",
+    );
+
+    expect(software?.downloadUrl).toEqual([
+      "https://everr.dev/install.sh",
+      "https://github.com/everr-labs/homebrew-tap",
+    ]);
+  });
+
   it("cannot close its script element", () => {
     const script = jsonLdScript({ name: "</script><script>alert(1)</script>" });
 
