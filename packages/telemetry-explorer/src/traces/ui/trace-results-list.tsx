@@ -19,6 +19,9 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { showingAll } from "../../filters/ui/no-results";
+import { RefreshError } from "../../filters/ui/refresh-error";
+import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
+import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
 import { SpanName } from "./span-name";
@@ -39,6 +42,7 @@ type Props = {
   empty: ReactNode;
   /** Show the day with the start time: the list covers more than one day. */
   withDay?: boolean;
+  lastOpenedTraceId?: string;
 };
 
 export type TraceLinkRenderProps = {
@@ -59,6 +63,7 @@ export function TraceResultsList({
   onLoadMore,
   empty,
   withDay = false,
+  lastOpenedTraceId,
 }: Props) {
   const maxDuration = useMemo(() => {
     let max = 0n;
@@ -68,6 +73,8 @@ export function TraceResultsList({
     }
     return max;
   }, [rows]);
+
+  const ownScroll = useOwnScrollPosition();
 
   const endReached = useCallback(() => {
     if (hasMore && !isLoadingMore) onLoadMore();
@@ -80,9 +87,10 @@ export function TraceResultsList({
         maxDuration={maxDuration}
         renderTraceLink={renderTraceLink}
         withDay={withDay}
+        lastOpened={row.traceId === lastOpenedTraceId}
       />
     ),
-    [maxDuration, renderTraceLink, withDay],
+    [maxDuration, renderTraceLink, withDay, lastOpenedTraceId],
   );
 
   const components = useMemo(
@@ -97,7 +105,8 @@ export function TraceResultsList({
   );
 
   if (isPending) return <ResultsSkeleton withDay={withDay} />;
-  if (isError) {
+  // With rows loaded, a failed refresh shows above them instead (RefreshError).
+  if (isError && rows.length === 0) {
     return (
       <RetryError
         title="Failed to load traces"
@@ -113,8 +122,10 @@ export function TraceResultsList({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ResultsHeader withDay={withDay} />
+      {isError && <RefreshError noun="traces" error={error} onRetry={refetch} />}
       <Virtuoso
         className="min-h-0 flex-1"
+        scrollerRef={ownScroll}
         data={rows}
         initialItemCount={virtuosoInitialItemCount(rows.length)}
         increaseViewportBy={VIRTUOSO_OVERSCAN}
@@ -144,11 +155,13 @@ function TraceRow({
   maxDuration,
   renderTraceLink,
   withDay,
+  lastOpened,
 }: {
   row: TraceSummary;
   maxDuration: bigint;
   renderTraceLink: (props: TraceLinkRenderProps) => React.ReactNode;
   withDay: boolean;
+  lastOpened: boolean;
 }) {
   const started = parseTimestampAsUTC(row.startTs);
   // The link wraps only the name but its `after` pseudo-element stretches over
@@ -156,12 +169,19 @@ function TraceRow({
   // tooltips stay as siblings (lifted above the overlay with z-10) instead of
   // nested interactive elements inside the anchor.
   return (
-    <div className="hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight">
+    <div
+      data-last-opened={lastOpened || undefined}
+      className={cn(
+        "hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight",
+        focusRingRow,
+      )}
+    >
+      <RowFocusRing />
       <div className="flex min-w-0 flex-1 items-center gap-1.5 leading-tight">
         {renderTraceLink({
           traceId: row.traceId,
           className:
-            "flex min-w-0 items-center gap-1.5 font-medium after:absolute after:inset-0 after:content-['']",
+            "flex min-w-0 items-center gap-1.5 font-medium outline-none after:absolute after:inset-0 after:content-['']",
           children: (
             <SpanName
               name={row.rootName}

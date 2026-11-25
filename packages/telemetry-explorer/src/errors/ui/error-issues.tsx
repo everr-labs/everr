@@ -34,6 +34,8 @@ export type ErrorIssuesProps = {
   persistentFilters?: ReactNode;
   onSearchChange: (patch: Partial<ErrorIssuesSearchValue>) => void;
   renderIssueLink: RenderErrorIssueLink;
+  /** The error the reader opened last, marked so they find it again on return. */
+  lastOpenedFingerprint?: string;
 };
 
 export function ErrorIssues({
@@ -44,6 +46,7 @@ export function ErrorIssues({
   persistentFilters,
   onSearchChange,
   renderIssueLink,
+  lastOpenedFingerprint,
 }: ErrorIssuesProps) {
   const issuesQuery = useInfiniteQuery({
     ...errorIssuesInfiniteOptions(repo, {
@@ -104,6 +107,7 @@ export function ErrorIssues({
                 />
               }
               renderIssueLink={renderIssueLink}
+              lastOpenedFingerprint={lastOpenedFingerprint}
             />
           </main>
         </div>

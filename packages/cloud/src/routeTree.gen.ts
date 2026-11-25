@@ -75,8 +75,8 @@ import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewa
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/index'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId/route'
 import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './../../app/src/routes/api/cli/resources/$kind/$project/$slug/adopt'
-import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_.$fingerprint'
-import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_.$traceId'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors.$fingerprint'
+import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces.$traceId'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
 import { Route as AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRouteImport } from './../../app/src/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management'
@@ -534,22 +534,22 @@ const ApiCliResourcesKindProjectSlugAdoptRoute =
     path: '/adopt',
     getParentRoute: () => ApiCliResourcesKindProjectSlugRoute,
   } as any)
-const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute =
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRouteImport.update(
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRouteImport.update(
     {
-      id: '/errors_/$fingerprint',
-      path: '/errors/$fingerprint',
+      id: '/$fingerprint',
+      path: '/$fingerprint',
       getParentRoute: () =>
-        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute,
     } as any,
   )
-const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute =
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRouteImport.update(
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRouteImport.update(
     {
-      id: '/traces_/$traceId',
-      path: '/traces/$traceId',
+      id: '/$traceId',
+      path: '/$traceId',
       getParentRoute: () =>
-        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute,
+        AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
     } as any,
   )
 const AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute =
@@ -801,17 +801,17 @@ export interface FileRoutesByFullPath {
   '/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
   '/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
-  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
+  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
   '/metrics': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute
-  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
   '/alerts': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableAlertsRouteWithChildren
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
-  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
-  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
+  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute
+  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute
   '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
   '/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
@@ -873,16 +873,16 @@ export interface FileRoutesByTo {
   '/billing/suspended': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedBilling_DotsuspendedRoute
   '/checkout/success': typeof DotDotDotDotCloudSrcRoutesAuthenticatedOrganizationDashboardPaddedCheckoutDotsuccessRoute
   '/api/cli/resources/$kind/$project/$slug': typeof ApiCliResourcesKindProjectSlugRouteWithChildren
-  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
+  '/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
   '/metrics': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute
-  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren
   '/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/runs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
-  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
-  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
+  '/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute
+  '/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute
   '/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
   '/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
@@ -962,10 +962,10 @@ export interface FileRoutesById {
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/dashboards': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_previewable/runbooks': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPreviewableRunbooksRouteRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsTraceIdRouteRouteWithChildren
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/logs': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/metrics': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminRouteWithChildren
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/cost-analysis': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedCostAnalysisRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/repos': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedReposRoute
@@ -973,8 +973,8 @@ export interface FileRoutesById {
   '/api/cli/resources/$kind/$project/$slug/adopt': typeof ApiCliResourcesKindProjectSlugAdoptRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedIndexRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedRunsIndexRoute
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
-  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute
+  '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces/$traceId': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminApiKeysRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminGithubRoute
   '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management': typeof AuthenticatedOrganizationDashboardAppAccessProvisionedPaddedAdminUsersManagementRoute
@@ -1213,8 +1213,8 @@ export interface FileRouteTypes {
     | '/api/cli/resources/$kind/$project/$slug/adopt'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/runs/'
-    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint'
-    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint'
+    | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces/$traceId'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/github'
     | '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/users-management'
@@ -1723,19 +1723,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCliResourcesKindProjectSlugAdoptRouteImport
       parentRoute: typeof ApiCliResourcesKindProjectSlugRoute
     }
-    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint': {
-      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors_/$fingerprint'
-      path: '/errors/$fingerprint'
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/errors/$fingerprint'
+      path: '/$fingerprint'
       fullPath: '/errors/$fingerprint'
-      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRouteImport
-      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
     }
-    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId': {
-      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces_/$traceId'
-      path: '/traces/$traceId'
+    '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces/$traceId': {
+      id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/traces/$traceId'
+      path: '/$traceId'
       fullPath: '/traces/$traceId'
-      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRouteImport
-      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRoute
+      preLoaderRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRouteImport
+      parentRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
     }
     '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys': {
       id: '/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_padded/_admin/api-keys'
@@ -1931,29 +1931,53 @@ const routesAuthenticated_dashboardRouteWithChildren =
     routesAuthenticated_dashboardRouteChildren,
   )
 
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsDotfingerprintRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteChildren,
+  )
+
+interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteChildren {
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute
+}
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteChildren =
+  {
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute:
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesDottraceIdRoute,
+  }
+
+const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren =
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute._addFileChildren(
+    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteChildren,
+  )
+
 interface AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren {
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute
   AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute
-  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute
+  AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute: typeof AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren
 }
 
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren: AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteChildren =
   {
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRoute,
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrorsRouteWithChildren,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreLogsRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute:
       AuthenticatedOrganizationDashboardAppAccessProvisionedExploreMetricsRoute,
     AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRoute,
-    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreErrors_DotfingerprintRoute,
-    AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute:
-      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTraces_DottraceIdRoute,
+      AuthenticatedOrganizationDashboardAppAccessProvisionedExploreTracesRouteWithChildren,
   }
 
 const AuthenticatedOrganizationDashboardAppAccessProvisionedExploreRouteWithChildren =

@@ -39,6 +39,9 @@ const repo = {
     totalSeries: 1,
   }),
   exemplars: async () => [],
+  // The catalog stays mounted under an open metric, so it loads too.
+  catalog: async () => [],
+  kinds: async () => [],
   names: async () => [],
   summaryQuantiles: async () => [],
   attributeKeys: async () => [],

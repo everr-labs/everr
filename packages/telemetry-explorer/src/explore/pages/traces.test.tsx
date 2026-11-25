@@ -49,11 +49,10 @@ describe("/traces route", () => {
     renderExplore(url, fakeExploreBackend({ repos: { traces: { getTrace: async () => [] } } }))
       .router;
 
-  it("renders the trace as a full page, not the list, when its URL is opened directly", async () => {
+  it("renders the trace when its URL is opened directly", async () => {
     renderTracesRoute("/traces/trace-1");
 
     expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
   });
 
   it("opens a full-page trace and preserves list filters without adding trace timestamps", async () => {
@@ -61,7 +60,6 @@ describe("/traces route", () => {
     const router = renderTracesRoute("/traces?from=now-1h&to=now");
     await user.click(await screen.findByRole("link", { name: "Open trace trace-1" }));
     expect(await screen.findByText("Trace full page route")).toBeInTheDocument();
-    expect(screen.queryByText("Trace list page")).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/traces/trace-1");
     expect(router.state.location.search).toMatchObject({
       from: "now-1h",
@@ -72,18 +70,22 @@ describe("/traces route", () => {
     expect(router.state.location.maskedLocation).toBeUndefined();
   });
 
-  it("selects a span in the URL and goes back to the list with the list filters", async () => {
+  it("selects a span in the URL and goes back to the same list with the list filters", async () => {
     const user = userEvent.setup();
     const router = renderTracesRoute("/traces?from=now-1h&to=now&name=checkout");
-    await user.click(await screen.findByRole("link", { name: "Open trace trace-1" }));
+    const list = await screen.findByText("Trace list page");
+    await user.click(screen.getByRole("link", { name: "Open trace trace-1" }));
     expect(await screen.findByText("Selected none")).toBeInTheDocument();
+    expect(list.closest("[inert]")).not.toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Select child" }));
     expect(await screen.findByText("Selected child")).toBeInTheDocument();
     expect(router.state.location.search).toMatchObject({ span: "child" });
 
     await user.click(screen.getByRole("button", { name: "Back to trace list" }));
-    expect(await screen.findByText("Trace list page")).toBeInTheDocument();
+    // The list under the trace, not a new one: it kept its scroll position.
+    expect(screen.getByText("Trace list page")).toBe(list);
+    expect(list.closest("[inert]")).toBeNull();
     expect(router.state.location.pathname).toBe("/traces");
     expect(router.state.location.search).toMatchObject({
       from: "now-1h",
