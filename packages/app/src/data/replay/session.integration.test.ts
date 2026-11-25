@@ -118,7 +118,7 @@ beforeAll(() => {
   )?.[0];
   for (const statement of [
     retention ?? "",
-    ...statements(migration("0013-create-recordings.sql")).map((statement) =>
+    ...statements(migration("0016-create-recordings.sql")).map((statement) =>
       statement.replace("app.recordings", "recordings"),
     ),
   ]) {
