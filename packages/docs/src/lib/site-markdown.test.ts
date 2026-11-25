@@ -41,6 +41,11 @@ describe("llms.txt", () => {
     expect(text).toContain("[MCP server](/docs/reference/mcp.md)");
   });
 
+  it("offers the CLI through Homebrew", () => {
+    expect(text).toContain("`brew install everr-labs/tap/everr`");
+    expect(text).toContain("[Homebrew tap](https://github.com/everr-labs/homebrew-tap)");
+  });
+
   it("lists the devlog under Optional", () => {
     expect(text).toContain("## Optional");
     expect(text).toContain("- [First post](/devlog/first): What shipped.");

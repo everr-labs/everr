@@ -1,5 +1,5 @@
 import { PRICING_PLANS } from "@/components/pricing-cards";
-import { BOOK_CALL_URL, GITHUB_URL, SIGN_UP_URL, SITE_URL } from "@/constants";
+import { BOOK_CALL_URL, GITHUB_URL, HOMEBREW_TAP_URL, SIGN_UP_URL, SITE_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 import type { Locale } from "@/paraglide/runtime";
 import { stripHeadingIds } from "./heading-ids";
@@ -62,7 +62,7 @@ Everr is a fit for teams that want observability without running the tooling the
 
 **How an agent should use Everr:**
 
-1. Install the CLI (macOS arm64, Linux x86_64 and arm64): \`curl -fsSL ${SITE_URL}/install.sh | sh\`
+1. Install the CLI (macOS arm64, Linux x86_64 and arm64): \`brew install everr-labs/tap/everr\` with Homebrew, or \`curl -fsSL ${SITE_URL}/install.sh | sh\`
 2. Install the skills from the project root: \`everr skills install --all --project\`
 3. For local telemetry, run \`everr local start\` and query with \`everr local query "<SQL>"\`. No account is needed.
 4. For Everr Cloud or a self-hosted installation, a person runs \`everr cloud login\` once to approve the session in a browser. Then use \`everr cloud status --json\` for the OTLP ingest endpoint and \`everr cloud query "<SQL>"\` for read-only SQL.
@@ -80,6 +80,7 @@ Ask the user before publishing resources with \`everr apply\` or deleting them.
 - [Dashboard spec](/docs/reference/dashboard-spec.md): the dashboard file format
 - [AlertRule spec](/docs/reference/alert-spec.md): the alert rule file format
 - [Runbook spec](/docs/reference/runbook-spec.md): the runbook file format
+- [Homebrew tap](${HOMEBREW_TAP_URL}): \`brew install everr-labs/tap/everr\` installs the \`everr\` CLI
 - [Install script](${SITE_URL}/install.sh): installs the \`everr\` binary
 - [Source code](${GITHUB_URL}): the platform, CLI, collector, and this site
 

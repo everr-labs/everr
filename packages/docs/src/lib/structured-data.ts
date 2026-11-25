@@ -3,6 +3,7 @@ import {
   DISCORD_URL,
   GITHUB_ORG_URL,
   GITHUB_URL,
+  HOMEBREW_TAP_URL,
   LINKEDIN_URL,
   SIGN_UP_URL,
   SITE_URL,
@@ -55,7 +56,8 @@ export function siteStructuredData() {
         sameAs: [GITHUB_URL],
         softwareHelp: { "@type": "WebPage", url: `${SITE_URL}/docs` },
         installUrl: SIGN_UP_URL,
-        downloadUrl: `${SITE_URL}/install.sh`,
+        // The CLI: the install script, or the Homebrew tap (brew install everr-labs/tap/everr)
+        downloadUrl: [`${SITE_URL}/install.sh`, HOMEBREW_TAP_URL],
         publisher: { "@id": ORGANIZATION_ID },
       },
     ],
