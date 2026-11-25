@@ -8,14 +8,22 @@ export type TelemetrySignal = "traces" | "metrics" | "logs";
 
 export type TelemetryEnv = Partial<{
   DEPLOYMENT_ENVIRONMENT: string;
+  EVERR_PROFILING: string;
   EVERR_INGEST_ENDPOINT: string;
   EVERR_INGEST_KEY: string;
+  GITHUB_REPOSITORY: string;
+  GITHUB_SERVER_URL: string;
   GITHUB_SHA: string;
   NODE_ENV: string;
   OTEL_EXPORTER_OTLP_ENDPOINT: string;
   SERVICE_VERSION: string;
+  VCS_REF_HEAD_REVISION: string;
+  VCS_REPOSITORY_URL_FULL: string;
   VERCEL_ENV: string;
   VERCEL_GIT_COMMIT_SHA: string;
+  VERCEL_GIT_PROVIDER: string;
+  VERCEL_GIT_REPO_OWNER: string;
+  VERCEL_GIT_REPO_SLUG: string;
 }>;
 
 export type TelemetryConfig = {
@@ -72,13 +80,41 @@ export function telemetryResourceAttributes(env: TelemetryEnv, serviceInstanceId
     cleanEnvValue(env.VERCEL_ENV) ??
     cleanEnvValue(env.NODE_ENV);
 
+  const repositoryUrl = vcsRepositoryUrl(env);
+  const revision =
+    cleanEnvValue(env.VCS_REF_HEAD_REVISION) ??
+    cleanEnvValue(env.VERCEL_GIT_COMMIT_SHA) ??
+    cleanEnvValue(env.GITHUB_SHA);
+
   return {
     ...(deploymentEnvironment ? { "deployment.environment.name": deploymentEnvironment } : {}),
     "service.instance.id": serviceInstanceId,
     "service.name": TELEMETRY_SERVICE_NAME,
     "service.namespace": TELEMETRY_SERVICE_NAMESPACE,
     ...(serviceVersion ? { "service.version": serviceVersion } : {}),
+    ...(repositoryUrl ? { "vcs.repository.url.full": repositoryUrl } : {}),
+    ...(revision ? { "vcs.ref.head.revision": revision } : {}),
   };
+}
+
+const VERCEL_GIT_HOSTS: Record<string, string> = {
+  bitbucket: "https://bitbucket.org",
+  github: "https://github.com",
+  gitlab: "https://gitlab.com",
+};
+
+function vcsRepositoryUrl(env: TelemetryEnv) {
+  const explicit = cleanEnvValue(env.VCS_REPOSITORY_URL_FULL);
+  if (explicit) return explicit;
+  const githubRepository = cleanEnvValue(env.GITHUB_REPOSITORY);
+  if (githubRepository) {
+    const server = cleanEnvValue(env.GITHUB_SERVER_URL) ?? "https://github.com";
+    return `${normalizeBaseEndpoint(server)}/${githubRepository}`;
+  }
+  const owner = cleanEnvValue(env.VERCEL_GIT_REPO_OWNER);
+  const slug = cleanEnvValue(env.VERCEL_GIT_REPO_SLUG);
+  const host = VERCEL_GIT_HOSTS[cleanEnvValue(env.VERCEL_GIT_PROVIDER) ?? "github"];
+  return owner && slug && host ? `${host}/${owner}/${slug}` : undefined;
 }
 
 export function signalUrl(endpoint: string, signal: TelemetrySignal) {
@@ -90,6 +126,13 @@ export function signalUrl(endpoint: string, signal: TelemetrySignal) {
   }
 
   return `${normalized}/v1/${signal}`;
+}
+
+// Profiles need a collector with the `service.profilesSupport` gate, so they
+// stay opt-in outside local development.
+export function profilingEnabled(env: TelemetryEnv) {
+  const flag = cleanEnvValue(env.EVERR_PROFILING);
+  return flag ? flag === "true" : isLocalDevelopment(env);
 }
 
 function cleanEnvValue(value: string | undefined) {

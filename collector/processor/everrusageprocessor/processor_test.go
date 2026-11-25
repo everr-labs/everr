@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensiontest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/pprofile"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -126,4 +127,28 @@ func TestTraces(t *testing.T) {
 	marshaler := ptrace.ProtoMarshaler{}
 	require.Equal(t, int64(marshaler.TracesSize(expected)), sum(out))
 	require.Equal(t, 1, sink.SpanCount())
+}
+
+func TestProfilesCountTheSharedDictionaryPerTenant(t *testing.T) {
+	meter := newMeter(t)
+	sink := &consumertest.ProfilesSink{}
+	p := &metering{meter: meter, profiles: sink}
+	pd := pprofile.NewProfiles()
+	pd.Dictionary().StringTable().Append("", "main")
+	for _, id := range []string{"a", "b"} {
+		rp := pd.ResourceProfiles().AppendEmpty()
+		rp.Resource().Attributes().PutStr(everrusageextension.TenantKey, id)
+		rp.ScopeProfiles().AppendEmpty().Profiles().AppendEmpty().Samples().AppendEmpty()
+	}
+	expected := pprofile.NewProfiles()
+	pd.Dictionary().CopyTo(expected.Dictionary())
+	pd.ResourceProfiles().At(0).CopyTo(expected.ResourceProfiles().AppendEmpty())
+	stripRouting(expected.ResourceProfiles().At(0).Resource())
+
+	require.NoError(t, p.ConsumeProfiles(context.Background(), pd))
+	require.Equal(t, 2, sink.SampleCount())
+	out := meter.Drain()
+	require.Equal(t, 2, out.DataPointCount())
+	marshaler := pprofile.ProtoMarshaler{}
+	require.Equal(t, int64(2*marshaler.ProfilesSize(expected)), sum(out))
 }

@@ -19,7 +19,10 @@ import { mergeTelemetryIdentity } from "#app/telemetry/identity.ts";
 // The retention days come straight from TenantRetention. The collector stamps
 // them on every resource it ingests with this key and the views write them
 // into app.*, so this is the only place retention enters the pipeline.
-type VerifyKeyResponse = Pick<TenantRetention, "tracesDays" | "logsDays" | "metricsDays"> & {
+type VerifyKeyResponse = Pick<
+  TenantRetention,
+  "tracesDays" | "logsDays" | "metricsDays" | "profilesDays"
+> & {
   tenantId?: string;
   keyId: string;
 };
@@ -102,6 +105,7 @@ export const Route = createFileRoute("/api/internal/verify-key")({
           tracesDays: retention.tracesDays,
           logsDays: retention.logsDays,
           metricsDays: retention.metricsDays,
+          profilesDays: retention.profilesDays,
         };
 
         return Response.json(payload);

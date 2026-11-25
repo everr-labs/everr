@@ -100,7 +100,7 @@ describe("local app shell", () => {
       await router.navigate({ to: "/logs" });
     });
 
-    for (const name of ["Metrics", "Logs", "Traces", "Errors", "Settings"]) {
+    for (const name of ["Metrics", "Logs", "Traces", "Errors", "Profiles", "Settings"]) {
       expect(sidebarLink(name)).toBeInTheDocument();
     }
     const localCommands = new Set(["get_collector_status", "telemetry_sql_query"]);

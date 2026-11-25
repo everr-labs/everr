@@ -11,6 +11,7 @@
     "./src/histogram/**",
     "./src/logs/**",
     "./src/metrics/**",
+    "./src/profiles/**",
     "./src/runs/**",
     "./src/sql/**",
     "./src/traces/**"
@@ -20,6 +21,7 @@
     "./filters": "./src/filters/index.ts",
     "./logs": "./src/logs/index.ts",
     "./metrics": "./src/metrics/index.ts",
+    "./profiles": "./src/profiles/index.ts",
     "./runs": "./src/runs/index.ts",
     "./sql": "./src/sql/index.ts",
     "./traces": "./src/traces/index.ts",

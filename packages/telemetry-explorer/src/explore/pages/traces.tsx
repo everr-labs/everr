@@ -4,6 +4,7 @@ import {
   TracesSearch,
   toTraceListSearch,
 } from "../../traces";
+import { traceProfiles } from "../../profiles";
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { withTimeRange } from "@everr/ui/lib/time-range";
@@ -89,9 +90,14 @@ export function TraceDetailRoute() {
           resetScroll: false,
         })
       }
+      profiles={traceProfiles(repos.profiles, traceId, profilesLink)}
     />
   );
 }
+
+const profilesLink: Parameters<typeof traceProfiles>[2] = (search) => (
+  <Link to="/profiles" search={search} />
+);
 
 /**
  * Both the list and the trace use it: the trace is nested under the list, so a

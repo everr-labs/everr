@@ -62,7 +62,6 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.165.0 // indirect
 	go.opentelemetry.io/collector/component/componenttest v0.165.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.165.0 // indirect
-	go.opentelemetry.io/collector/connector/xconnector v0.165.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.165.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.165.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.165.0 // indirect
@@ -70,7 +69,6 @@ require (
 	go.opentelemetry.io/collector/internal/componentalias v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/fanoutconsumer v0.165.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.165.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.165.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.165.0 // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.165.0 // indirect
@@ -124,8 +122,10 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.165.1
 	go.opentelemetry.io/collector/connector/connectortest v0.165.0
 	go.opentelemetry.io/collector/connector/forwardconnector v0.165.0
+	go.opentelemetry.io/collector/connector/xconnector v0.165.0
 	go.opentelemetry.io/collector/exporter v1.71.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.165.0
+	go.opentelemetry.io/collector/pdata/pprofile v0.165.0
 	go.opentelemetry.io/collector/pipeline v1.71.0
 	go.opentelemetry.io/collector/processor v1.71.0
 	go.opentelemetry.io/collector/receiver v1.71.0

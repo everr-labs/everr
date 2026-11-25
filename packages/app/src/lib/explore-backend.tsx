@@ -6,6 +6,8 @@ import { FileSearch } from "lucide-react";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
 import { remoteMetricsRepo } from "#app/data/metrics/remote-repo.ts";
+import { remoteProfilesRepo } from "#app/data/profiles/remote-repo.ts";
+import { remoteRuntimeMetricsRepo } from "#app/data/profiles/runtime.ts";
 import { runJobsOptions, runSpansOptions } from "#app/data/runs/options.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
 
@@ -45,6 +47,8 @@ export function createExploreBackend(queryClient: QueryClient): ExploreBackend {
       traces: remoteTracesRepo,
       metrics: remoteMetricsRepo,
       errors: remoteErrorsRepo,
+      profiles: remoteProfilesRepo,
+      runtimeMetrics: remoteRuntimeMetricsRepo,
     },
     useErrorTraceSpans: useCiRunSpans,
     ciRunLinks: {

@@ -92,11 +92,12 @@ func TestOpenBuildsTheSchemaFromTheEmbeddedMigrations(t *testing.T) {
 		"alert_events", "logs", "logs_mv", "traces", "traces_mv", "traces_trace_id_ts", "traces_trace_id_ts_mv",
 		"metrics_gauge", "metrics_sum", "metrics_histogram", "metrics_exponential_histogram", "metrics_summary",
 		"metrics_gauge_mv", "metrics_sum_mv", "metrics_histogram_mv", "metrics_exponential_histogram_mv", "metrics_summary_mv",
+		"profiles", "profiles_mv",
 	} {
 		require.Contains(t, tables, want)
 	}
 	require.ElementsMatch(t,
-		[]string{"otel_traces", "otel_logs", "otel_metrics_gauge", "otel_metrics_sum", "otel_metrics_histogram", "otel_metrics_exponential_histogram", "otel_metrics_summary"},
+		[]string{"otel_traces", "otel_logs", "otel_metrics_gauge", "otel_metrics_sum", "otel_metrics_histogram", "otel_metrics_exponential_histogram", "otel_metrics_summary", "otel_profiles"},
 		column(t, handle, "SELECT name FROM system.tables WHERE database = 'otel' AND engine = 'Null'", "name"))
 	functions := column(t, handle, "SELECT name FROM system.functions WHERE origin = 'SQLUserDefined'", "name")
 	for _, want := range []string{"errorFingerprint", "everrRetentionDays", "everrStripRetention", "everrRetentionDaysJson", "everrStripRetentionKeys"} {

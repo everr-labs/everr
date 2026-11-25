@@ -20,6 +20,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
+	"go.opentelemetry.io/collector/pdata/pprofile"
+	"go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
@@ -110,8 +112,13 @@ func (g *gateway) runUntilReady(t *testing.T) (cancel func()) {
 
 func (g *gateway) send(t *testing.T, signal string, proto []byte, err error) {
 	t.Helper()
+	g.post(t, "/v1/"+signal, proto, err)
+}
+
+func (g *gateway) post(t *testing.T, path string, proto []byte, err error) {
+	t.Helper()
 	require.NoError(t, err)
-	resp, err := http.Post(g.otlp+"/v1/"+signal, "application/x-protobuf", bytes.NewReader(proto))
+	resp, err := http.Post(g.otlp+path, "application/x-protobuf", bytes.NewReader(proto))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -134,6 +141,13 @@ func (g *gateway) sendMetrics(t *testing.T, md pmetric.Metrics) {
 	t.Helper()
 	proto, err := pmetricotlp.NewExportRequestFromMetrics(md).MarshalProto()
 	g.send(t, "metrics", proto, err)
+}
+
+// The OTLP receiver serves profiles at their development-stage path.
+func (g *gateway) sendProfiles(t *testing.T, pd pprofile.Profiles) {
+	t.Helper()
+	proto, err := pprofileotlp.NewExportRequestFromProfiles(pd).MarshalProto()
+	g.post(t, "/v1development/profiles", proto, err)
 }
 
 // Numbers that do not fit a float come back as strings.
@@ -438,11 +452,67 @@ func TestEveryMetricKindStoresItsTimestampsAndTheConfiguredRetention(t *testing.
 	}
 }
 
+func TestProfileSamplesKeepTheirStackTheirSpanAndTheConfiguredRetention(t *testing.T) {
+	g := startGateway(t)
+
+	pd := pprofile.NewProfiles()
+	dic := pd.Dictionary()
+	dic.StringTable().Append("", "cpu", "nanoseconds", "handler", "server.go")
+	dic.FunctionTable().AppendEmpty()
+	fn := dic.FunctionTable().AppendEmpty()
+	fn.SetNameStrindex(3)
+	fn.SetFilenameStrindex(4)
+	dic.MappingTable().AppendEmpty()
+	dic.LocationTable().AppendEmpty()
+	line := dic.LocationTable().AppendEmpty().Lines().AppendEmpty()
+	line.SetFunctionIndex(1)
+	line.SetLine(12)
+	dic.StackTable().AppendEmpty()
+	dic.StackTable().AppendEmpty().LocationIndices().Append(1)
+	dic.LinkTable().AppendEmpty()
+	link := dic.LinkTable().AppendEmpty()
+	link.SetTraceID(pcommon.TraceID{1})
+	link.SetSpanID(pcommon.SpanID{2})
+	dic.AttributeTable().AppendEmpty()
+
+	resource := pd.ResourceProfiles().AppendEmpty()
+	resource.Resource().Attributes().PutStr("service.name", "profiles-round-trip")
+	resource.Resource().Attributes().PutInt("everr.retention.days", 0)
+	profile := resource.ScopeProfiles().AppendEmpty().Profiles().AppendEmpty()
+	profile.SetTime(pcommon.NewTimestampFromTime(sentAt))
+	profile.SampleType().SetTypeStrindex(1)
+	profile.SampleType().SetUnitStrindex(2)
+	sample := profile.Samples().AppendEmpty()
+	sample.SetStackIndex(1)
+	sample.SetLinkIndex(1)
+	sample.Values().Append(25_000_000)
+	g.sendProfiles(t, pd)
+
+	rows := g.waitRows(t,
+		"SELECT toString(toUnixTimestamp64Nano(Timestamp)) AS nanos, SampleType, SampleUnit,"+
+			" FunctionNames, FileNames, LineNumbers, Values, TraceId, SpanId,"+
+			" retention_days, tenant_id, toJSONString(ResourceAttributes) AS resource"+
+			" FROM profiles WHERE ServiceName = 'profiles-round-trip'", 1)
+	row := rows[0]
+	require.Equal(t, strconv.FormatInt(sentAt.UnixNano(), 10), row["nanos"])
+	require.Equal(t, "cpu", row["SampleType"])
+	require.Equal(t, "nanoseconds", row["SampleUnit"])
+	require.Equal(t, []any{"handler"}, row["FunctionNames"])
+	require.Equal(t, []any{"server.go"}, row["FileNames"])
+	require.Equal(t, []any{12.0}, row["LineNumbers"])
+	require.Equal(t, []any{25_000_000.0}, row["Values"])
+	require.Equal(t, "01000000000000000000000000000000", row["TraceId"])
+	require.Equal(t, "0200000000000000", row["SpanId"])
+	require.EqualValues(t, retentionDays, row["retention_days"])
+	require.Equal(t, "", row["tenant_id"])
+	require.JSONEq(t, `{"service.name":"profiles-round-trip"}`, row["resource"].(string), "the stamp is not stored as an attribute")
+}
+
 func TestTheExporterWritesExactlyTheColumnsOfTheMigratedLandingTables(t *testing.T) {
 	g := openGateway(t)
 
 	tables := chdbexporter.LandingTables()
-	require.Len(t, tables, 7)
+	require.Len(t, tables, 8)
 	for _, table := range tables {
 		t.Run(table.Name, func(t *testing.T) {
 			var migrated []string

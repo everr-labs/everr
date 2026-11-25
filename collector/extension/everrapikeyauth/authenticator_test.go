@@ -441,7 +441,7 @@ func TestAuthenticate_Success_StampsRetention(t *testing.T) {
 	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(verifyResponse{
 			TenantID: "org_42", KeyID: "ak_1",
-			LogsDays: 7, TracesDays: 14, MetricsDays: 21,
+			LogsDays: 7, TracesDays: 14, MetricsDays: 21, ProfilesDays: 3,
 		})
 	})
 	defer srv.Close()
@@ -453,9 +453,10 @@ func TestAuthenticate_Success_StampsRetention(t *testing.T) {
 	}
 	cl := client.FromContext(ctx)
 	for name, want := range map[string]string{
-		"retention_logs_days":    "7",
-		"retention_traces_days":  "14",
-		"retention_metrics_days": "21",
+		"retention_logs_days":     "7",
+		"retention_traces_days":   "14",
+		"retention_metrics_days":  "21",
+		"retention_profiles_days": "3",
 	} {
 		if got := cl.Auth.GetAttribute(name); got != want {
 			t.Errorf("%s: got %v want %s", name, got, want)
@@ -474,5 +475,26 @@ func TestAuthenticate_RejectsResponseWithoutRetention(t *testing.T) {
 
 	if _, err := e.Authenticate(context.Background(), authHeaders("good")); err == nil {
 		t.Fatal("expected error: a verify response without retention must not authenticate")
+	}
+}
+
+// An app deployed before profiles retention existed still authenticates the
+// other signals; profiles then carry no stamp and the retention view rejects them.
+func TestAuthenticate_OmitsProfilesRetentionWhenAbsent(t *testing.T) {
+	srv := fakeVerifyServer(t, func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(verifyResponse{
+			TenantID: "org_42", KeyID: "ak_1",
+			LogsDays: 7, TracesDays: 14, MetricsDays: 21,
+		})
+	})
+	defer srv.Close()
+	e := newTestExt(t, srv.URL)
+
+	ctx, err := e.Authenticate(context.Background(), authHeaders("good"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := client.FromContext(ctx).Auth.GetAttribute("retention_profiles_days"); got != nil {
+		t.Errorf("retention_profiles_days: got %v want nil", got)
 	}
 }

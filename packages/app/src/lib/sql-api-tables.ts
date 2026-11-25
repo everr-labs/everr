@@ -11,4 +11,5 @@ export const SQL_API_TABLES = [
   "metrics_summary",
   "alert_events",
   "traces_trace_id_ts",
+  "profiles",
 ] as const;

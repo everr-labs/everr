@@ -10,7 +10,7 @@ import { useExploreBackend } from "../backend";
  * Each Explore page puts this component in its rail. The component reads and
  * writes the `service` and `environment` search params, which are on the shell
  * layout route. The selection therefore stays set when the user moves between
- * Traces, Logs, Errors and Metrics. See the notes on the retain and strip
+ * Traces, Logs, Errors, Metrics and Profiles. See the notes on the retain and strip
  * middleware in `shellRouteOptions`.
  */
 export function ExplorePersistentFilters() {
@@ -31,6 +31,7 @@ export function ExplorePersistentFilters() {
       logsRepo={repos.logs}
       tracesRepo={repos.traces}
       metricsRepo={repos.metrics}
+      profilesRepo={repos.profiles}
       timeRange={timeRange}
       service={service}
       environment={environment}

@@ -2,6 +2,7 @@ import type { ExploreBackend } from "@everr/telemetry-explorer/explore/routes";
 import { ErrorsRepository } from "@everr/telemetry-explorer/errors";
 import { LogsRepository } from "@everr/telemetry-explorer/logs";
 import { MetricsRepository } from "@everr/telemetry-explorer/metrics";
+import { ProfilesRepository, RuntimeMetricsRepository } from "@everr/telemetry-explorer/profiles";
 import { getTraceOptions, TracesRepository } from "@everr/telemetry-explorer/traces";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { LocalTelemetryGate } from "@/features/local-telemetry/collector-status";
@@ -39,6 +40,8 @@ export const localExploreBackend: ExploreBackend = {
     traces: tracesRepo,
     metrics: new MetricsRepository(localSqlClient),
     errors: new ErrorsRepository(localSqlClient),
+    profiles: new ProfilesRepository(localSqlClient),
+    runtimeMetrics: new RuntimeMetricsRepository(localSqlClient),
   },
   Gate: LocalTelemetryGate,
   useErrorTraceSpans: useLocalErrorTraceSpans,
