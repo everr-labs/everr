@@ -40,6 +40,7 @@ document:
                 Logs: "#9355f6"
                 Traces: "#f6eb55"
                 Metrics: "#55cef6"
+                Profiles: "#f6559b"
           queries:
             - kind: ClickHouseSQL
               spec:
@@ -52,7 +53,8 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
                              toFloat64(sumIf(delta, signal = 'logs')) AS Logs,
                              toFloat64(sumIf(delta, signal = 'traces')) AS Traces,
-                             toFloat64(sumIf(delta, signal = 'metrics')) AS Metrics
+                             toFloat64(sumIf(delta, signal = 'metrics')) AS Metrics,
+                             toFloat64(sumIf(delta, signal = 'profiles')) AS Profiles
                       FROM (
                         SELECT TimeUnix,
                                signal,
@@ -79,7 +81,7 @@ document:
                             AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
                             AND notEmpty(ResourceAttributes['service.instance.id'])
                             AND notEmpty(Attributes['everr.usage.tenant.id'])
-                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics', 'profiles')
                             AND Value >= 0
                           WINDOW counter AS (
                             PARTITION BY Attributes['everr.usage.month'],
@@ -141,7 +143,7 @@ document:
                             AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
                             AND notEmpty(ResourceAttributes['service.instance.id'])
                             AND notEmpty(Attributes['everr.usage.tenant.id'])
-                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                            AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics', 'profiles')
                             AND Value >= 0
                           WINDOW counter AS (
                             PARTITION BY Attributes['everr.usage.month'],
@@ -159,7 +161,7 @@ document:
         spec:
           display:
             name: Ingestion volume by signal
-            description: Logs, traces, and metrics ingested in each interval of the selected time range.
+            description: Logs, traces, metrics, and profiles ingested in each interval of the selected time range.
           plugin:
             kind: TimeSeriesChart
             spec:
@@ -224,7 +226,7 @@ document:
                               AND ResourceAttributes['everr.tenant.id'] = Attributes['everr.usage.tenant.id']
                               AND notEmpty(ResourceAttributes['service.instance.id'])
                               AND notEmpty(Attributes['everr.usage.tenant.id'])
-                              AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics')
+                              AND Attributes['everr.ingestion.signal'] IN ('logs', 'traces', 'metrics', 'profiles')
                               AND Value >= 0
                             WINDOW counter AS (
                               PARTITION BY Attributes['everr.usage.month'],
