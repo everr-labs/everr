@@ -40,21 +40,21 @@ describe("/errors route", () => {
   it.each([
     "/errors/fp-1",
     "/errors/fp-1?from=2026-06-04%2018%3A45%3A10.869&to=2026-06-04%2018%3A55%3A10.869",
-  ])("renders the detail as a page for a direct or reloaded URL %s", async (url) => {
+  ])("renders the detail for a direct or reloaded URL %s", async (url) => {
     renderExplore(url);
 
     expect(await screen.findByText("Error detail page fp-1")).toBeInTheDocument();
-    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
   });
 
-  it("opens an error from the list as its own page, keeping the list filters", async () => {
+  it("opens an error over the list, keeping the list filters", async () => {
     const user = userEvent.setup();
     const { router } = renderExplore("/errors?q=timeout");
+    const list = await screen.findByText("Error list page");
 
-    await user.click(await screen.findByRole("link", { name: "Open error fp-1" }));
+    await user.click(screen.getByRole("link", { name: "Open error fp-1" }));
 
     expect(await screen.findByText("Error detail page fp-1")).toBeInTheDocument();
-    expect(screen.queryByText("Error list page")).not.toBeInTheDocument();
+    expect(list.closest("[inert]")).not.toBeNull();
     expect(router.state.location.pathname).toBe("/errors/fp-1");
     expect(router.state.location.search).toEqual({ q: "timeout" });
   });

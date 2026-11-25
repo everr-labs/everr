@@ -2,6 +2,7 @@ import { CLEAR_METRIC, MetricsExplorer, MetricsSearchSchema } from "../../metric
 import { withTimeRange } from "@everr/ui/lib/time-range";
 import { Link } from "@tanstack/react-router";
 import { useRouteSearch, useSearchPatch } from "../../shell/search-io";
+import { useLastOpened } from "../../shell/use-last-opened";
 import { useExploreBackend } from "../backend";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
@@ -11,6 +12,9 @@ export function MetricsRoute() {
   const patchSearch = useSearchPatch();
   const { timeRange, from, to } = withTimeRange(search);
   const { service = [], environment = [] } = search;
+  const lastOpenedMetric = useLastOpened(
+    search.metric && search.metricType ? `${search.metricType}:${search.metric}` : undefined,
+  );
 
   return (
     <MetricsExplorer
@@ -27,6 +31,7 @@ export function MetricsRoute() {
       onTimeRangeSelect={(from, to) =>
         patchSearch({ from: from.toISOString(), to: to.toISOString() })
       }
+      lastOpenedMetric={lastOpenedMetric}
       renderMetricLink={({ metric, type, className, children }) => (
         <Link
           to="/metrics"

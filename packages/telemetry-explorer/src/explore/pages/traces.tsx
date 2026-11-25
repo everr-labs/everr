@@ -7,10 +7,18 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@everr/ui/components/empty";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { type ErrorComponentProps, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import {
+  type ErrorComponentProps,
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from "@tanstack/react-router";
 import { useRouteParam, useRouteSearch, useSearchPatch } from "../../shell/search-io";
+import { useLastOpened } from "../../shell/use-last-opened";
 import { useExploreBackend } from "../backend";
 import { tracesRoute } from "../routes";
+import { DetailOverList } from "./detail-over-list";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
 export function TracesRoute() {
@@ -19,32 +27,38 @@ export function TracesRoute() {
   const patchSearch = useSearchPatch();
   const { timeRange } = withTimeRange(search);
   const { service = [], environment = [] } = search;
+  const lastOpenedTraceId = useLastOpened(useParams({ strict: false }).traceId);
 
   return (
-    <TracesSearch
-      repo={repos.traces}
-      timeRange={timeRange}
-      search={{
-        namespace: search.namespace,
-        service,
-        name: search.name,
-        minMs: search.minMs,
-        maxMs: search.maxMs,
-        status: search.status,
-        attributes: search.attributes,
-      }}
-      environment={environment}
-      persistentFilters={<ExplorePersistentFilters />}
-      onSearchChange={(patch) =>
-        // Push a history entry per change so Back undoes filter changes one at a
-        // time (including Clear all, which routes through this same handler).
-        patchSearch(patch)
+    <DetailOverList
+      list={
+        <TracesSearch
+          repo={repos.traces}
+          timeRange={timeRange}
+          search={{
+            namespace: search.namespace,
+            service,
+            name: search.name,
+            minMs: search.minMs,
+            maxMs: search.maxMs,
+            status: search.status,
+            attributes: search.attributes,
+          }}
+          environment={environment}
+          persistentFilters={<ExplorePersistentFilters />}
+          onSearchChange={(patch) =>
+            // Push a history entry per change so Back undoes filter changes one at a
+            // time (including Clear all, which routes through this same handler).
+            patchSearch(patch)
+          }
+          lastOpenedTraceId={lastOpenedTraceId}
+          renderTraceLink={({ traceId, className, children }) => (
+            <Link to="/traces/$traceId" params={{ traceId }} search className={className}>
+              {children}
+            </Link>
+          )}
+        />
       }
-      renderTraceLink={({ traceId, className, children }) => (
-        <Link to="/traces/$traceId" params={{ traceId }} search className={className}>
-          {children}
-        </Link>
-      )}
     />
   );
 }
@@ -79,13 +93,18 @@ export function TraceDetailRoute() {
   );
 }
 
-export function TraceDetailError({ error }: ErrorComponentProps) {
+/**
+ * Both the list and the trace use it: the trace is nested under the list, so a
+ * list filter the list cannot read fails before the trace does.
+ */
+export function TracesError({ error }: ErrorComponentProps) {
+  const { traceId } = useParams({ strict: false });
   // The search itself can be what failed, so it goes on the link only when it is valid.
   const search = TraceDetailParamsSchema.safeParse(useSearch({ strict: false }));
   return (
     <Empty>
       <EmptyHeader>
-        <EmptyTitle>Failed to load trace</EmptyTitle>
+        <EmptyTitle>{traceId ? "Failed to load trace" : "Failed to load traces"}</EmptyTitle>
         <EmptyDescription>
           {error instanceof Error ? error.message : String(error)}
         </EmptyDescription>

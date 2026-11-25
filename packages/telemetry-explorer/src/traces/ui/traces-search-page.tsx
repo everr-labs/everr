@@ -37,6 +37,8 @@ export type TracesSearchProps = {
   persistentFilters?: ReactNode;
   onSearchChange: (patch: Partial<TraceSearchValue>) => void;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
+  /** The trace the reader opened last, marked so they find it again on return. */
+  lastOpenedTraceId?: string;
 };
 
 export function TracesSearch({
@@ -47,6 +49,7 @@ export function TracesSearch({
   persistentFilters,
   onSearchChange,
   renderTraceLink,
+  lastOpenedTraceId,
 }: TracesSearchProps) {
   // Warms the read the namespace filter shares, so the picker opens loaded.
   useQuery(listServiceIdentitiesOptions(repo, { timeRange }));
@@ -108,6 +111,7 @@ export function TracesSearch({
               hasMore={hasNextPage}
               isLoadingMore={isFetchingNextPage}
               renderTraceLink={renderTraceLink}
+              lastOpenedTraceId={lastOpenedTraceId}
               // oxlint-disable-next-line typescript/no-misused-promises -- Preserve the existing async callback and its promise result; the caller already controls its use.
               onLoadMore={() => fetchNextPage()}
               empty={

@@ -1,5 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { cn } from "@everr/ui/lib/utils";
+import { lastOpenedRow } from "../../shell/use-last-opened";
 import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 import { CopyId } from "./copy-id";
@@ -16,11 +18,13 @@ export function ErrorIssueRow({
   issue,
   trendPeak,
   renderIssueLink,
+  lastOpened = false,
 }: {
   issue: ErrorIssueSummary;
   /** The busiest trend bucket in the list, so every row shades on one scale. */
   trendPeak?: number;
   renderIssueLink: RenderErrorIssueLink;
+  lastOpened?: boolean;
 }) {
   const type = issue.exceptionType || "Unknown exception";
   const message = issue.exceptionMessage || issue.body;
@@ -34,7 +38,13 @@ export function ErrorIssueRow({
   // of the anchor (lifted above the overlay with z-10) and not interactive
   // elements nested in it.
   return (
-    <div className="hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight">
+    <div
+      data-last-opened={lastOpened || undefined}
+      className={cn(
+        "hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight",
+        lastOpenedRow,
+      )}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {renderIssueLink({
           fingerprint: issue.fingerprint,

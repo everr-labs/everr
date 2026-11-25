@@ -1,4 +1,5 @@
 import { staleProps } from "@everr/ui/lib/stale";
+import { cn } from "@everr/ui/lib/utils";
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { useRefreshInstant } from "@everr/ui/lib/refresh-epoch";
 import { Label } from "@everr/ui/components/label";
@@ -80,6 +81,8 @@ export type MetricsExplorerProps = {
   onSearchChange: (patch: Partial<MetricsExplorerSearch>) => void;
   onTimeRangeSelect: (from: Date, to: Date) => void;
   renderMetricLink: (props: MetricLinkRenderProps) => ReactNode;
+  /** The metric the reader opened last, as `type:name`, marked so they find it again on return. */
+  lastOpenedMetric?: string;
   renderCatalogLink: (props: { className: string; children: ReactNode }) => ReactNode;
   renderTraceLink: (props: ExemplarLinkRenderProps) => ReactNode;
   renderLogsLink: (props: ExemplarLinkRenderProps) => ReactNode;
@@ -109,18 +112,45 @@ const METRIC_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 export function MetricsExplorer(props: MetricsExplorerProps) {
+  const { metric, metricType } = props.search;
+  const metricOpen = Boolean(metric && metricType);
+  // The metric opens over the catalog instead of replacing it, so the catalog
+  // keeps its scroll position for when the reader comes back.
   return (
-    <div className="min-h-0 flex-1 overflow-hidden">
-      <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
-          {props.search.metric && props.search.metricType ? (
-            <MetricPage {...props} metric={props.search.metric} type={props.search.metricType} />
-          ) : (
-            <CatalogPage {...props} />
-          )}
-        </div>
-      </section>
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <ExplorerGrid inert={metricOpen} className={cn(metricOpen && "invisible")}>
+        <CatalogPage {...props} />
+      </ExplorerGrid>
+      {metric && metricType && (
+        <ExplorerGrid className="absolute inset-0">
+          <MetricPage {...props} metric={metric} type={metricType} />
+        </ExplorerGrid>
+      )}
     </div>
+  );
+}
+
+function ExplorerGrid({
+  inert,
+  className,
+  children,
+}: {
+  inert?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      inert={inert}
+      className={cn(
+        "bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden",
+        className,
+      )}
+    >
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -133,6 +163,7 @@ function CatalogPage({
   persistentFilters,
   onSearchChange,
   renderMetricLink,
+  lastOpenedMetric,
 }: MetricsExplorerProps) {
   const query = useQuery(
     metricCatalogOptions(repo, {
@@ -193,6 +224,7 @@ function CatalogPage({
           error={query.error}
           onRetry={() => void query.refetch()}
           renderMetricLink={renderMetricLink}
+          lastOpenedMetric={lastOpenedMetric}
           empty={
             <NoResults
               noun="metrics"

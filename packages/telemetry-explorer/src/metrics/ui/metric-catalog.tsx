@@ -1,7 +1,10 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
+import { lastOpenedRow } from "../../shell/use-last-opened";
+import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import type { MetricType } from "../data/schemas";
 import { METRIC_LIST_LIMIT, type MetricCatalogEntry, metricKind } from "../data/types";
 import { formatCompact, formatCount, unitName } from "./format";
@@ -21,6 +24,7 @@ export function MetricCatalog({
   onRetry,
   empty,
   renderMetricLink,
+  lastOpenedMetric,
 }: {
   rows: MetricCatalogEntry[];
   isPending: boolean;
@@ -28,7 +32,9 @@ export function MetricCatalog({
   onRetry: () => void;
   empty: ReactNode;
   renderMetricLink: (props: MetricLinkRenderProps) => ReactNode;
+  lastOpenedMetric?: string;
 }) {
+  const ownScroll = useOwnScrollPosition();
   if (isPending) return <CatalogSkeleton />;
   if (error) {
     return <RetryError title="Couldn't load metrics" message={error.message} onRetry={onRetry} />;
@@ -36,15 +42,20 @@ export function MetricCatalog({
   if (rows.length === 0) return empty;
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div ref={ownScroll} className="min-h-0 flex-1 overflow-y-auto">
       {/* Borders on the cells: Safari paints a collapsed row border once per row
           it separates, so translucent lines came out twice as bright. */}
       <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
         <CatalogHead />
         <tbody>
           {rows.map((row) => {
+            const key = `${row.type}:${row.name}`;
             return (
-              <tr key={`${row.type}:${row.name}`} className="hover:bg-muted/50 relative">
+              <tr
+                key={key}
+                data-last-opened={key === lastOpenedMetric || undefined}
+                className={cn("hover:bg-muted/50 relative", lastOpenedRow)}
+              >
                 <td className="px-4 py-1.5">
                   <div className="flex min-w-0 flex-col">
                     {renderMetricLink({

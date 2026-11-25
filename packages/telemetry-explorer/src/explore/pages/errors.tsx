@@ -8,10 +8,12 @@ import {
 } from "../../errors";
 import { buttonVariants } from "@everr/ui/components/button";
 import { withTimeRange } from "@everr/ui/lib/time-range";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useRouteParam, useRouteSearch, useSearchPatch } from "../../shell/search-io";
+import { useLastOpened } from "../../shell/use-last-opened";
 import { useExploreBackend } from "../backend";
 import { errorsRoute } from "../routes";
+import { DetailOverList } from "./detail-over-list";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
 export function ErrorsRoute() {
@@ -20,30 +22,36 @@ export function ErrorsRoute() {
   const patchSearch = useSearchPatch();
   const { service = [], environment = [] } = search;
   const { timeRange, q, fingerprint, sort, attributes } = withTimeRange(search);
+  const lastOpenedFingerprint = useLastOpened(useParams({ strict: false }).fingerprint);
 
   return (
-    <ErrorIssues
-      repo={repos.errors}
-      timeRange={timeRange}
-      search={{ q, service, fingerprint, sort, attributes }}
-      environment={environment}
-      persistentFilters={<ExplorePersistentFilters />}
-      onSearchChange={(patch) =>
-        // Push a history entry per change so Back undoes filter changes one at a
-        // time (including Clear page filters, which routes through this same
-        // handler).
-        patchSearch(patch)
+    <DetailOverList
+      list={
+        <ErrorIssues
+          repo={repos.errors}
+          timeRange={timeRange}
+          search={{ q, service, fingerprint, sort, attributes }}
+          environment={environment}
+          persistentFilters={<ExplorePersistentFilters />}
+          onSearchChange={(patch) =>
+            // Push a history entry per change so Back undoes filter changes one at a
+            // time (including Clear page filters, which routes through this same
+            // handler).
+            patchSearch(patch)
+          }
+          lastOpenedFingerprint={lastOpenedFingerprint}
+          renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
+            <Link
+              to="/errors/$fingerprint"
+              params={{ fingerprint: issueFingerprint }}
+              search={{ ...search, occurrence: "" }}
+              className={className}
+            >
+              {children}
+            </Link>
+          )}
+        />
       }
-      renderIssueLink={({ fingerprint: issueFingerprint, className, children }) => (
-        <Link
-          to="/errors/$fingerprint"
-          params={{ fingerprint: issueFingerprint }}
-          search={{ ...search, occurrence: "" }}
-          className={className}
-        >
-          {children}
-        </Link>
-      )}
     />
   );
 }
