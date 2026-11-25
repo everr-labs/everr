@@ -74,9 +74,22 @@ describe("buildProfileWhere", () => {
 });
 
 describe("ProfilesRepository", () => {
-  it("offers a sample type whose samples are all idle", async () => {
+  it.each([
+    [
+      "sample types",
+      (repo: ProfilesRepository) => repo.listSampleTypes({ timeRange, attributes: [] }),
+    ],
+    ["services", (repo: ProfilesRepository) => repo.listServices({ timeRange })],
+    ["versions", (repo: ProfilesRepository) => repo.listVersions({ timeRange, attributes: [] })],
+    ["attribute keys", (repo: ProfilesRepository) => repo.attributeKeys({ timeRange })],
+    [
+      "attribute values",
+      (repo: ProfilesRepository) =>
+        repo.attributeValues({ timeRange, source: "sample", key: "thread.name" }),
+    ],
+  ])("offers %s that appear only on idle samples", async (_name, list) => {
     const { repo, execute } = repoReturning([]);
-    await repo.listSampleTypes({ timeRange, attributes: [] });
+    await list(repo);
     expect(execute.mock.calls[0]?.[0]).not.toContain("(idle)");
   });
 
