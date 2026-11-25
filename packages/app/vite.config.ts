@@ -8,6 +8,7 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite-plus";
 import svgr from "vite-plugin-svgr";
 import { migrationAssets } from "./build/migrations.ts";
+import { serverSourceMaps } from "./build/server-source-maps.ts";
 import {
   type AppComposition,
   appAliases,
@@ -118,6 +119,7 @@ export function createAppConfig(
           compressPublicAssets: { brotli: true, gzip: true },
           // The profiler maps sampled frames back to the TypeScript sources.
           sourcemap: true,
+          ...serverSourceMaps(),
           traceDeps: ["tslib*", "@datadog/pprof*"],
           hooks: {
             "build:config": (nitro, { rollup, rolldown }) => {

@@ -20,6 +20,8 @@ export const ProfilesSearchParamsSchema = TimeRangeSearchSchema.extend({
   spanId: z.string().optional().catch(undefined),
   attributes: attributesField(PROFILES_ATTRIBUTE_SOURCES).catch([]),
   showVolume: z.boolean().default(true).catch(true),
+  /** Includes the CPU the JavaScript thread uses while idle. */
+  showIdle: z.boolean().default(false).catch(false),
   /** The window to diff against; absent when not comparing. */
   compare: z.enum(BASELINES).optional().catch(undefined),
   /** The `custom` baseline window, picked by dragging on the histogram. */
@@ -57,6 +59,7 @@ const FilterShape = {
   spanId: z.string().min(1).optional(),
   q: z.string().default(""),
   attributes: AttributeFilterArraySchema,
+  showIdle: z.boolean().default(false),
 };
 
 export const ProfileFilterInputSchema = z.object(FilterShape);

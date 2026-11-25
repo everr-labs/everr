@@ -74,7 +74,7 @@ export class ProfilesRepository {
 
   /** Services with profiles in the range, for the shared Service filter. */
   async listServices(input: ProfileServicesInput): Promise<string[]> {
-    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [] });
+    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [], showIdle: true });
     const rows = await this.client.execute<{ serviceName: string }>(
       /* sql */ `
       SELECT DISTINCT ServiceName AS serviceName
@@ -88,7 +88,10 @@ export class ProfilesRepository {
   }
 
   async listSampleTypes(input: ProfileFilterInput): Promise<SampleTypeOption[]> {
-    const where = buildProfileWhere(input);
+    // Every list that fills a filter (sample types, services, versions,
+    // attribute keys and values) counts idle samples. Otherwise a range whose
+    // CPU samples are all idle would not offer `cpu`, or the switch that shows them.
+    const where = buildProfileWhere({ ...input, showIdle: true });
     return this.client.execute<SampleTypeOption>(
       /* sql */ `
       SELECT SampleType AS sampleType, SampleUnit AS sampleUnit
@@ -184,7 +187,7 @@ export class ProfilesRepository {
 
   /** `service.version` values, the most recently seen first. */
   async listVersions(input: ProfileFilterInput): Promise<ProfileVersion[]> {
-    const where = buildProfileWhere({ ...input, versions: [] });
+    const where = buildProfileWhere({ ...input, versions: [], showIdle: true });
     const rows = await this.client.execute<{
       version: string;
       firstSeen: string;
@@ -356,7 +359,7 @@ export class ProfilesRepository {
   }
 
   async attributeKeys(input: AttributeKeysInput): Promise<AttributeKey[]> {
-    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [] });
+    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [], showIdle: true });
     // One scan per source, each capped on its own, so a wide sample attribute
     // set cannot crowd out the resource keys.
     const selects = PROFILES_ATTRIBUTE_SOURCES.map(
@@ -374,7 +377,7 @@ export class ProfilesRepository {
   }
 
   async attributeValues(input: AttributeValuesInput): Promise<string[]> {
-    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [] });
+    const where = buildProfileWhere({ timeRange: input.timeRange, attributes: [], showIdle: true });
     const column = profileAttributeColumn(input.source);
     const search = input.search?.trim();
     const rows = await this.client.execute<{ value: string }>(

@@ -41,6 +41,15 @@ describe("buildProfileWhere", () => {
     });
   });
 
+  it("leaves out idle samples unless they are asked for", () => {
+    expect(buildProfileWhere({ timeRange, attributes: [] }).clause).toContain(
+      "FunctionNames[-1] != '(idle)'",
+    );
+    expect(buildProfileWhere({ timeRange, attributes: [], showIdle: true }).clause).not.toContain(
+      "(idle)",
+    );
+  });
+
   it("narrows to service versions only when some are given", () => {
     const { clause, params } = buildProfileWhere({
       timeRange,
@@ -65,6 +74,25 @@ describe("buildProfileWhere", () => {
 });
 
 describe("ProfilesRepository", () => {
+  it.each([
+    [
+      "sample types",
+      (repo: ProfilesRepository) => repo.listSampleTypes({ timeRange, attributes: [] }),
+    ],
+    ["services", (repo: ProfilesRepository) => repo.listServices({ timeRange })],
+    ["versions", (repo: ProfilesRepository) => repo.listVersions({ timeRange, attributes: [] })],
+    ["attribute keys", (repo: ProfilesRepository) => repo.attributeKeys({ timeRange })],
+    [
+      "attribute values",
+      (repo: ProfilesRepository) =>
+        repo.attributeValues({ timeRange, source: "sample", key: "thread.name" }),
+    ],
+  ])("offers %s that appear only on idle samples", async (_name, list) => {
+    const { repo, execute } = repoReturning([]);
+    await list(repo);
+    expect(execute.mock.calls[0]?.[0]).not.toContain("(idle)");
+  });
+
   it("returns root-first stacks with the totals before the limit", async () => {
     const { repo } = repoReturning([
       {

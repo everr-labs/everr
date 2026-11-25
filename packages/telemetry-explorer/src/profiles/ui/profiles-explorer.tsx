@@ -121,6 +121,7 @@ export function ProfilesExplorer({
       spanId: search.spanId,
       q: search.q,
       attributes: withEnvironment(search.attributes, environment),
+      showIdle: search.showIdle,
     }),
     [
       timeRange,
@@ -129,6 +130,7 @@ export function ProfilesExplorer({
       search.spanId,
       search.q,
       search.attributes,
+      search.showIdle,
       environment,
     ],
   );
@@ -481,7 +483,8 @@ function ProfileView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-xs">
-        <span className="font-medium">{sampleTypeLabel(sampleType)}</span>
+        {/* Values carry their own unit (12 ms, 1,234 objects), so the stored one is left out. */}
+        <span className="font-medium">{sampleType.sampleType}</span>
         <span className="text-muted-foreground tabular-nums">
           {formatProfileValue(total, unit)} in {data.stacks.length.toLocaleString("en-US")} stacks
         </span>

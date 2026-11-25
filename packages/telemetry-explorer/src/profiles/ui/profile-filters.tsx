@@ -1,5 +1,6 @@
 import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
+import { Switch } from "@everr/ui/components/switch";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { Gauge, Hash } from "lucide-react";
 import type { ReactNode } from "react";
@@ -15,7 +16,7 @@ import { sampleTypeKey } from "../model/selection";
 
 export type ProfileFilterValue = Pick<
   ProfilesSearchParams,
-  "q" | "sampleType" | "sampleUnit" | "traceId" | "spanId" | "attributes"
+  "q" | "sampleType" | "sampleUnit" | "traceId" | "spanId" | "attributes" | "showIdle"
 >;
 
 export type ProfileFilterPatch = Partial<ProfileFilterValue>;
@@ -117,6 +118,25 @@ export function ProfileFilters({
           searchPlaceholder="Search sample types..."
         />
       </div>
+
+      {sampleType?.sampleType === "cpu" ? (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="profiles-show-idle" className="text-muted-foreground text-xs">
+              Include idle
+            </Label>
+            <Switch
+              id="profiles-show-idle"
+              checked={value.showIdle}
+              onCheckedChange={(showIdle) => onChange({ showIdle })}
+            />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            CPU sampled while the JavaScript thread was idle: short tasks and event loop work that
+            finished between samples.
+          </p>
+        </div>
+      ) : null}
 
       <FilterSearchBar
         id="profiles-trace-id"
