@@ -37,6 +37,10 @@ export function createAppConfig(
       publicDir: resolve(appDirectory, "public"),
       // Prerender fetches must reach the preview listener inside IPv4-only containers.
       preview: { host: "127.0.0.1" },
+      // A native addon that finds its binary from __dirname, which a bundled
+      // ESM chunk does not have. It stays a runtime import, and Nitro's
+      // traceDeps copies it into the output's node_modules.
+      ssr: { external: ["@datadog/pprof"] },
       resolve: {
         tsconfigPaths: true,
         dedupe: [
@@ -114,7 +118,7 @@ export function createAppConfig(
           compressPublicAssets: { brotli: true, gzip: true },
           // The profiler maps sampled frames back to the TypeScript sources.
           sourcemap: true,
-          traceDeps: ["tslib*"],
+          traceDeps: ["tslib*", "@datadog/pprof*"],
           hooks: {
             "build:config": (nitro, { rollup, rolldown }) => {
               const config = rollup ?? rolldown;
