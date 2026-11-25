@@ -20,8 +20,8 @@ type SqlApiTable = (typeof SQL_API_TABLES)[number];
 // Columns the role is denied on a table it otherwise reads whole. For recordings
 // that is Body: raw rrweb, megabytes per row, with page text in it. The
 // migrations grant the table and then revoke exactly these columns
-// (0014-cloud-recordings-rls.sql, 0015-self-hosted-recordings-sql-api-grant.sql),
-// and sql-api-tables.test.ts keeps them equal. The grant is table-wide with a
+// (Cloud's 0017-recordings-rls.sql, self-hosted/0018-recordings-sql-api-grant.sql),
+// and tests in both packages keep them equal. The grant is table-wide with a
 // revoke, not a column list, because under a column grant ClickHouse refuses
 // JSON subcolumn reads such as LogAttributes.`url.path`.
 export const SQL_API_WITHHELD_COLUMNS = {

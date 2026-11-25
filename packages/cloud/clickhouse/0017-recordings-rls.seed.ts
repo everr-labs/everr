@@ -1,13 +1,13 @@
-import type { ClickHouseSeed } from "../src/db/clickhouse-sql.ts";
+import type { ClickHouseSeed } from "@everr/app/db/clickhouse-sql";
 
-// The default-deny policy in 0014 leaves an SQL API user without its own
+// The default-deny policy in 0017 leaves an SQL API user without its own
 // recordings policy at zero rows. Provisioning writes that policy for each
 // organization it creates from now on. This seed writes it for the ones that
-// exist when 0014 runs: the SQL API users ClickHouse already has. Provisioning
+// exist when 0017 runs: the SQL API users ClickHouse already has. Provisioning
 // creates the user before any policy, so the list holds every organization
 // that can query, and none that was deprovisioned.
 //
-// The names and the statement copy what provisioning wrote when 0014 was
+// The names and the statement copy what provisioning wrote when 0017 was
 // added, because a seed must not change when provisioning does.
 const USER_PREFIX = "sql_api_org_";
 // CREATE ROW POLICY takes no parameters, so the id goes into the statement,

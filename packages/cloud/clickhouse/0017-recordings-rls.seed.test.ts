@@ -1,14 +1,11 @@
 import { expect, it } from "vite-plus/test";
-import { clickHouseMigrations } from "./clickhouse-sql.ts";
+import seed from "./0017-recordings-rls.seed.ts";
 
 it("writes the recordings policy for each organization user ClickHouse has", async () => {
-  const seed = clickHouseMigrations.find(
-    ({ name }) => name === "0014-cloud-recordings-rls.sql",
-  )?.seed;
   const queries: unknown[] = [];
   const commands: string[] = [];
 
-  await seed?.({
+  await seed({
     query: async <Row>(sql: string, params?: unknown) => {
       queries.push([sql, params]);
       return [
@@ -23,7 +20,6 @@ it("writes the recordings policy for each organization user ClickHouse has", asy
     },
   });
 
-  expect(seed).toBeDefined();
   expect(queries).toEqual([
     [
       "SELECT name FROM system.users WHERE startsWith(name, {prefix:String}) ORDER BY name",

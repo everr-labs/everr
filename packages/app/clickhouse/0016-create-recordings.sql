@@ -1,10 +1,10 @@
 -- Browser recording Segments land here via the collector's
 -- clickhouse/recordings exporter (direct insert, create_schema: false).
 -- Both products create it. Cloud adds its row policies in
--- 0014-cloud-recordings-rls.sql. Self-hosted has none, and tenant_id is empty
--- when its collector stamps no tenant. The SQL API reads every column except
--- Body (0014 on Cloud, 0015-self-hosted-recordings-sql-api-grant.sql on
--- self-hosted): Body is raw rrweb, megabytes per row, and holds page text.
+-- packages/cloud/clickhouse/0017-recordings-rls.sql. Self-hosted has none, and
+-- tenant_id is empty when its collector stamps no tenant. The SQL API reads
+-- every column except Body (0017 on Cloud, self-hosted/0018-recordings-sql-api-grant.sql
+-- on self-hosted): Body is raw rrweb, megabytes per row, and holds page text.
 --
 -- This table is the only place that knows about recordings. There is no
 -- separate span: a Segment is one row, and it carries everything a reader

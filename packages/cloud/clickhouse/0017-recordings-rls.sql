@@ -1,4 +1,4 @@
--- Row policies for app.recordings (0013-create-recordings.sql). app_ro has
+-- Row policies for app.recordings (0016-create-recordings.sql). app_ro has
 -- SELECT ON app.*, so without the tenant filter its reads are cross-tenant.
 -- The table and this file apply in one startup, before the app serves a read.
 CREATE ROW POLICY OR REPLACE tenant_filter_recordings

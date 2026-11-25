@@ -1,19 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { clickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
+import { sharedClickHouseMigrations, sqlStatements } from "#app/db/clickhouse-sql.ts";
 import { SQL_API_TABLES, SQL_API_WITHHELD_COLUMNS } from "./sql-api-tables";
 
 const migration = (name: string) => {
-  const found = clickHouseMigrations.find((file) => file.name === name);
+  const found = sharedClickHouseMigrations.find((file) => file.name === name);
   if (!found) throw new Error(`missing migration ${name}`);
   return found.sql;
 };
-
-// The GRANT and REVOKE statements of one product's file, in file order.
-function accessStatements(name: string): string[] {
-  return sqlStatements(migration(name))
-    .map((statement) => statement.replace(/\s+/g, " "))
-    .filter((statement) => /^(GRANT|REVOKE) .* app\.recordings /.test(statement));
-}
 
 function tableColumns(sql: string, table: string): string[] {
   const create = sqlStatements(sql).find((statement) =>
@@ -31,36 +24,9 @@ describe("SQL API withheld columns", () => {
     }
   });
 
-  it.each(["0014-cloud-recordings-rls.sql", "0015-self-hosted-recordings-sql-api-grant.sql"])(
-    "%s grants the table, then revokes exactly the withheld columns",
-    (file) => {
-      expect(accessStatements(file)).toEqual([
-        "GRANT SELECT ON app.recordings TO sql_api_role",
-        `REVOKE SELECT(${SQL_API_WITHHELD_COLUMNS.recordings.join(", ")}) ON app.recordings FROM sql_api_role`,
-      ]);
-    },
-  );
-
-  it("denies by default before the Cloud grant", () => {
-    const statements = sqlStatements(migration("0014-cloud-recordings-rls.sql"));
-    const deny = statements.findIndex((s) =>
-      /^CREATE ROW POLICY .*sql_api_default_deny_recordings/s.test(s),
-    );
-    const grant = statements.findIndex((s) => s.startsWith("GRANT SELECT ON app.recordings"));
-
-    expect(deny).toBeGreaterThanOrEqual(0);
-    expect(deny).toBeLessThan(grant);
-  });
-
   it("withholds only columns the table has", () => {
-    const all = tableColumns(migration("0013-create-recordings.sql"), "recordings");
+    const all = tableColumns(migration("0016-create-recordings.sql"), "recordings");
 
     for (const column of SQL_API_WITHHELD_COLUMNS.recordings) expect(all).toContain(column);
-  });
-
-  it("never grants a column list on recordings", () => {
-    for (const { name, sql } of clickHouseMigrations) {
-      expect(sql, name).not.toMatch(/GRANT SELECT\s*\(/);
-    }
   });
 });
