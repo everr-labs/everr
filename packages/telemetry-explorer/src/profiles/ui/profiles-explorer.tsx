@@ -121,6 +121,7 @@ export function ProfilesExplorer({
       spanId: search.spanId,
       q: search.q,
       attributes: withEnvironment(search.attributes, environment),
+      showIdle: search.showIdle,
     }),
     [
       timeRange,
@@ -129,6 +130,7 @@ export function ProfilesExplorer({
       search.spanId,
       search.q,
       search.attributes,
+      search.showIdle,
       environment,
     ],
   );

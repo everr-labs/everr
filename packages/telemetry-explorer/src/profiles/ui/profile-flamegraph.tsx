@@ -19,6 +19,7 @@ import {
   stacksUnder,
 } from "../model/flame-tree";
 import { formatPercent, formatProfileValue } from "../model/format";
+import { runtimeFrameNote } from "../model/runtime-frames";
 import { sourceLink } from "../model/source-link";
 import { FrameMenuItems, useFunctionHighlight } from "./function-highlight";
 
@@ -186,9 +187,11 @@ export function FrameDetails({
   total: number;
 }) {
   const location = frame.file ? (frame.line > 0 ? `${frame.file}:${frame.line}` : frame.file) : "";
+  const note = runtimeFrameNote(frame.name);
   return (
     <>
       <div className="font-mono font-medium break-all">{frame.name}</div>
+      {note ? <p className="text-muted-foreground mt-1 max-w-80">{note}</p> : null}
       {location ? (
         <div className="text-muted-foreground mt-1 font-mono break-all">{location}</div>
       ) : null}

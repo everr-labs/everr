@@ -41,6 +41,15 @@ describe("buildProfileWhere", () => {
     });
   });
 
+  it("leaves out idle samples unless they are asked for", () => {
+    expect(buildProfileWhere({ timeRange, attributes: [] }).clause).toContain(
+      "FunctionNames[-1] != '(idle)'",
+    );
+    expect(buildProfileWhere({ timeRange, attributes: [], showIdle: true }).clause).not.toContain(
+      "(idle)",
+    );
+  });
+
   it("narrows to service versions only when some are given", () => {
     const { clause, params } = buildProfileWhere({
       timeRange,

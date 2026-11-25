@@ -22,6 +22,8 @@ export function profileAttributeColumn(source: AttributeSource): string {
 // Server-fn inputs arrive before zod fills `values` in.
 type ProfileAttributeFilter = NonNullable<ProfileFilterInput["attributes"]>[number];
 
+export const IDLE_FRAME = "(idle)";
+
 type BuiltWhere = { clause: string; params: Record<string, unknown> };
 
 /** The filters every profiles query shares; with a sample type, only samples of it. */
@@ -58,6 +60,11 @@ export function buildProfileWhere(
   if (input.spanId) {
     clauses.push("SpanId = {spanId:String}");
     params.spanId = input.spanId;
+  }
+  if (!input.showIdle) {
+    // Node's `(idle)` frame is a root of its own: CPU the JavaScript thread
+    // uses waiting on the event loop, which no function accounts for.
+    clauses.push(`FunctionNames[-1] != '${IDLE_FRAME}'`);
   }
   const q = input.q?.trim();
   if (q) {

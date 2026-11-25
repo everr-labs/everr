@@ -5,6 +5,7 @@ import { type FunctionDiff, formatShareDelta } from "../model/diff";
 import type { FunctionStat } from "../model/flame-tree";
 import type { FunctionRef } from "../model/sandwich";
 import { formatPercent, formatProfileValue } from "../model/format";
+import { runtimeFrameNote } from "../model/runtime-frames";
 import { frameColor } from "./frame-color";
 
 // Past a few hundred rows the tail is noise and only costs DOM nodes.
@@ -166,7 +167,9 @@ function FunctionCell({
         <button
           type="button"
           className="hover:text-foreground flex min-w-0 flex-1 items-center text-left hover:underline"
-          title={`${row.file ? `${row.name}\n${row.file}` : row.name}\n${activateHint}`}
+          title={[row.name, row.file, runtimeFrameNote(row.name), activateHint]
+            .filter(Boolean)
+            .join("\n")}
           aria-pressed={row.key === activeKey}
           onClick={() => onActivate({ key: row.key, name: row.name, file: row.file })}
         >
