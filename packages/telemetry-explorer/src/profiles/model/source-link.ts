@@ -6,8 +6,17 @@ export type ProfileSource = {
   revision: string;
 };
 
-// Directories a build or install creates, which are never committed.
-const UNCOMMITTED_DIRS = new Set(["node_modules", ".output", ".nitro"]);
+// Directories a package install or a framework build creates, which are never
+// committed: Nitro (TanStack Start, Nuxt, SolidStart), Next.js, SvelteKit, Vercel.
+const UNCOMMITTED_DIRS = new Set([
+  "node_modules",
+  ".output",
+  ".nitro",
+  ".nuxt",
+  ".next",
+  ".svelte-kit",
+  ".vercel",
+]);
 
 /**
  * A link to a file at the profiled revision, in the GitHub URL layout that

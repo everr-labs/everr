@@ -24,6 +24,7 @@ describe("sourceLink", () => {
     ["a Windows drive path", "C:\\app\\server.ts"],
     ["an installed dependency", "node_modules/.pnpm/srvx@0.8.0/node_modules/srvx/dist/node.mjs"],
     ["a build output file", "packages/cloud/.output/server/_runtime.mjs"],
+    ["a Next.js build file", ".next/server/app/page.js"],
     ["a bundler's virtual module", "packages/cloud/.output/server/virtual:#nitro/virtual/app"],
   ])("does not link %s", (_, file) => {
     expect(sourceLink(source, file, 1)).toBeUndefined();
