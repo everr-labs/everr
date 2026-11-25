@@ -152,28 +152,21 @@ class Dictionary {
     const durationNano = BigInt(profile.durationNanos);
     // pprof stamps the profile when it is collected, at the end of its window.
     const timeUnixNano = BigInt(profile.timeNanos) - durationNano;
-    const periodUnit = text(profile.periodType?.unit);
+    const periodType = profile.periodType && {
+      typeStrindex: this.strings.dedup(text(profile.periodType.type)),
+      unitStrindex: this.strings.dedup(text(profile.periodType.unit)),
+    };
 
     return profile.sampleType.flatMap((valueType, column) => {
       const type = text(valueType.type);
       if (!sampleTypes.includes(type)) return [];
       const typed = mergeSamples(samples, column);
       if (typed.length === 0) return [];
-      const unit = text(valueType.unit);
-      // pprof gives one period type per profile: the wall profiler's is `wall`
-      // for its `cpu` column too. A column in the period's unit is measured on
-      // that clock, so its period is named after it.
-      const periodType = profile.periodType && {
-        typeStrindex: this.strings.dedup(
-          unit === periodUnit ? type : text(profile.periodType.type),
-        ),
-        unitStrindex: this.strings.dedup(periodUnit),
-      };
       return [
         {
           sampleType: {
             typeStrindex: this.strings.dedup(type),
-            unitStrindex: this.strings.dedup(unit),
+            unitStrindex: this.strings.dedup(text(valueType.unit)),
           },
           periodType,
           period: profile.period,

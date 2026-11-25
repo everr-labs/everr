@@ -74,6 +74,12 @@ describe("buildProfileWhere", () => {
 });
 
 describe("ProfilesRepository", () => {
+  it("offers a sample type whose samples are all idle", async () => {
+    const { repo, execute } = repoReturning([]);
+    await repo.listSampleTypes({ timeRange, attributes: [] });
+    expect(execute.mock.calls[0]?.[0]).not.toContain("(idle)");
+  });
+
   it("returns root-first stacks with the totals before the limit", async () => {
     const { repo } = repoReturning([
       {

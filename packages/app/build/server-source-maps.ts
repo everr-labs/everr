@@ -20,20 +20,33 @@ type OutputBundle = Record<string, { source?: unknown }>;
  * profiler needs positions, not source text, and they would double the output.
  */
 export function serverSourceMaps() {
+  let chained = 0;
   return {
     name: "everr:server-source-maps",
     async load(id: string) {
       if (!SERVICE_OUTPUT.test(id) || !existsSync(`${id}.map`)) return null;
       const [code, map] = await Promise.all([readFile(id, "utf8"), readFile(`${id}.map`, "utf8")]);
+      chained++;
       return { code: code.replace(SOURCE_MAPPING_URL, "\n"), map };
     },
-    generateBundle(_options: unknown, bundle: OutputBundle) {
+    generateBundle(
+      this: { error(message: string): never },
+      _options: unknown,
+      bundle: OutputBundle,
+    ) {
       for (const [fileName, asset] of Object.entries(bundle)) {
         if (!fileName.endsWith(".map") || typeof asset.source !== "string") continue;
         const map = JSON.parse(asset.source);
         if (!("sourcesContent" in map)) continue;
         delete map.sourcesContent;
         asset.source = JSON.stringify(map);
+      }
+      // Nothing chained means Nitro moved its Vite output, and the maps would
+      // silently point at bundle files again.
+      if (chained === 0) {
+        this.error(
+          "No Vite SSR output was loaded with its source map, so server frames in profiles would point at bundle files. Check where Nitro writes its Vite output (EVE-102).",
+        );
       }
     },
   };

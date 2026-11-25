@@ -132,7 +132,8 @@ export function ProfileFilters({
             />
           </div>
           <p className="text-muted-foreground text-xs">
-            CPU the JavaScript thread uses while it waits for work. No function accounts for it.
+            CPU sampled while the JavaScript thread was idle: short tasks and event loop work that
+            finished between samples.
           </p>
         </div>
       ) : null}

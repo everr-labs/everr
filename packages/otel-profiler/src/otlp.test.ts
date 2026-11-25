@@ -47,7 +47,6 @@ function wallProfile() {
     stringTable: strings,
     timeNanos: 2_000_000_000n,
     durationNanos: 1_000_000_000n,
-    periodType: { type: s("wall"), unit: s("nanoseconds") },
     period: 10_000_000,
   });
 }
@@ -201,21 +200,5 @@ describe("relativeFileName", () => {
     expect(relativeFileName("/application/server.mjs", "/app")).toBe("/application/server.mjs");
     expect(relativeFileName("node:internal/timers", "/app")).toBe("node:internal/timers");
     expect(relativeFileName("file:///srv/server.mjs", undefined)).toBe("/srv/server.mjs");
-  });
-});
-
-describe("period type", () => {
-  it("names a column's period after it when it is measured on the period's clock", () => {
-    const request = pprofToOtlp([{ profile: wallProfile(), sampleTypes: ["wall", "cpu"] }], {});
-    const decoded = ExportProfilesServiceRequest.decode(request.encode());
-    const strings = decoded.dictionary!.stringTable.strings;
-    const periods = decoded.resourceProfiles[0].scopeProfiles[0].profiles.map((profile) => [
-      strings[profile.sampleType!.typeStrindex],
-      `${strings[profile.periodType!.typeStrindex]}/${strings[profile.periodType!.unitStrindex]}`,
-    ]);
-    expect(periods).toEqual([
-      ["wall", "wall/nanoseconds"],
-      ["cpu", "cpu/nanoseconds"],
-    ]);
   });
 });

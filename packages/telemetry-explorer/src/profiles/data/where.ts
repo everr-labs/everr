@@ -22,7 +22,7 @@ export function profileAttributeColumn(source: AttributeSource): string {
 // Server-fn inputs arrive before zod fills `values` in.
 type ProfileAttributeFilter = NonNullable<ProfileFilterInput["attributes"]>[number];
 
-export const IDLE_FRAME = "(idle)";
+const IDLE_FRAME = "(idle)";
 
 type BuiltWhere = { clause: string; params: Record<string, unknown> };
 
@@ -62,8 +62,8 @@ export function buildProfileWhere(
     params.spanId = input.spanId;
   }
   if (!input.showIdle) {
-    // Node's `(idle)` frame is a root of its own: CPU the JavaScript thread
-    // uses waiting on the event loop, which no function accounts for.
+    // Node's `(idle)` frame is a root of its own. Its CPU is what ran between
+    // samples that found the JavaScript thread idle, and no stack explains it.
     clauses.push(`FunctionNames[-1] != '${IDLE_FRAME}'`);
   }
   const q = input.q?.trim();

@@ -88,7 +88,9 @@ export class ProfilesRepository {
   }
 
   async listSampleTypes(input: ProfileFilterInput): Promise<SampleTypeOption[]> {
-    const where = buildProfileWhere(input);
+    // Idle samples count here, so a range whose CPU samples are all idle still
+    // offers `cpu`, and with it the switch that shows them.
+    const where = buildProfileWhere({ ...input, showIdle: true });
     return this.client.execute<SampleTypeOption>(
       /* sql */ `
       SELECT SampleType AS sampleType, SampleUnit AS sampleUnit
