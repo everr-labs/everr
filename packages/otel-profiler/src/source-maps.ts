@@ -18,17 +18,24 @@ export async function loadSourceMaps(
   // pprof turns an ES module's `file://` URL into a path by cutting the scheme
   // off without decoding it, while its maps are keyed by the path on disk. A
   // file whose name is escaped in its URL, such as a bundler's `+[...].mjs`
-  // chunk, would never find its map.
+  // chunk, would never find its map. A CommonJS path is no URL and may hold a
+  // literal `%`, so the path is tried as given first, decoded only as a fallback.
   const mappingInfo = mapper.mappingInfo.bind(mapper);
-  mapper.mappingInfo = (location) => mappingInfo({ ...location, file: decodePath(location.file) });
+  mapper.mappingInfo = (location) => {
+    if (mapper.hasMappingInfo(location.file)) return mappingInfo(location);
+    const decoded = decodePath(location.file);
+    return decoded !== undefined && mapper.hasMappingInfo(decoded)
+      ? mappingInfo({ ...location, file: decoded })
+      : mappingInfo(location);
+  };
   return mapper;
 }
 
-function decodePath(file: string): string {
-  if (!file.includes("%")) return file;
+function decodePath(file: string): string | undefined {
+  if (!file.includes("%")) return undefined;
   try {
     return decodeURIComponent(file);
   } catch {
-    return file;
+    return undefined;
   }
 }
