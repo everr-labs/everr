@@ -141,17 +141,29 @@ func run(ctx context.Context, argv []string) error {
 // exit code are still reported. SIGTERM and SIGHUP are always relayed. SIGINT
 // and SIGQUIT are relayed only when the child has its own process group; at a
 // terminal they come from the keyboard and already reached the child.
+//
+// A signal that arrives once the child is gone has nowhere to go, so stop
+// raises it on wrap itself after restoring the default handling.
 func relaySignals(process *os.Process, relayInterrupts bool) (stop func()) {
 	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGHUP)
+	var unrelayed []syscall.Signal
+	relay := func(sig os.Signal) {
+		if sig != syscall.SIGTERM && sig != syscall.SIGHUP && !relayInterrupts {
+			return
+		}
+		if errors.Is(process.Signal(sig), os.ErrProcessDone) {
+			unrelayed = append(unrelayed, sig.(syscall.Signal))
+		}
+	}
 	done := make(chan struct{})
+	finished := make(chan struct{})
 	go func() {
+		defer close(finished)
 		for {
 			select {
 			case sig := <-signals:
-				if sig == syscall.SIGTERM || sig == syscall.SIGHUP || relayInterrupts {
-					_ = process.Signal(sig)
-				}
+				relay(sig)
 			case <-done:
 				return
 			}
@@ -160,6 +172,13 @@ func relaySignals(process *os.Process, relayInterrupts bool) (stop func()) {
 	return func() {
 		signal.Stop(signals)
 		close(done)
+		<-finished
+		for len(signals) > 0 {
+			relay(<-signals)
+		}
+		for _, sig := range unrelayed {
+			_ = syscall.Kill(os.Getpid(), sig)
+		}
 	}
 }
 
