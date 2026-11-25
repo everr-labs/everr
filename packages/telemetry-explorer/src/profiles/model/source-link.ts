@@ -6,6 +6,9 @@ export type ProfileSource = {
   revision: string;
 };
 
+// Directories a build or install creates, which are never committed.
+const UNCOMMITTED_DIRS = new Set(["node_modules", ".output", ".nitro"]);
+
 /**
  * A link to a file at the profiled revision, in the GitHub URL layout that
  * GitHub, GitLab and Gitea all serve. Only for repo-relative paths: an absolute
@@ -24,12 +27,19 @@ export function sourceLink(
     return undefined;
   }
   if (repository.protocol !== "https:" && repository.protocol !== "http:") return undefined;
-  const path = file.replaceAll("\\", "/").replace(/^\.\//, "");
+  // A bundler's module id may carry a query, such as `server.ts?tss-serverfn-split`.
+  const path = file.replace(/\?.*$/, "").replaceAll("\\", "/").replace(/^\.\//, "");
   const segments = path.split("/");
   if (
     path.startsWith("/") ||
-    /^[a-z][a-z0-9+.-]*:/i.test(path) ||
-    segments.some((segment) => segment === ".." || segment === "")
+    segments.some(
+      (segment) =>
+        segment === ".." ||
+        segment === "" ||
+        // A scheme or a bundler's virtual module, such as `virtual:#nitro`.
+        segment.includes(":") ||
+        UNCOMMITTED_DIRS.has(segment),
+    )
   ) {
     return undefined;
   }
