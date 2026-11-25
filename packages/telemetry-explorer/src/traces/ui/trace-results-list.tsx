@@ -19,6 +19,7 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { showingAll } from "../../filters/ui/no-results";
+import { RefreshError } from "../../filters/ui/refresh-error";
 import { lastOpenedRow } from "../../shell/use-last-opened";
 import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import { DurationBar } from "./duration-bar";
@@ -104,7 +105,8 @@ export function TraceResultsList({
   );
 
   if (isPending) return <ResultsSkeleton withDay={withDay} />;
-  if (isError) {
+  // With rows loaded, a failed refresh shows above them instead (RefreshError).
+  if (isError && rows.length === 0) {
     return (
       <RetryError
         title="Failed to load traces"
@@ -120,6 +122,7 @@ export function TraceResultsList({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ResultsHeader withDay={withDay} />
+      {isError && <RefreshError noun="traces" error={error} onRetry={refetch} />}
       <Virtuoso
         className="min-h-0 flex-1"
         scrollerRef={ownScroll}

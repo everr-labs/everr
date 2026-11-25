@@ -171,6 +171,22 @@ describe("TraceResultsList", () => {
     expect(screen.getByText("Nothing here")).toBeInTheDocument();
   });
 
+  it("keeps the loaded rows when a refresh fails, with a retry above them", async () => {
+    const user = userEvent.setup();
+    const refetch = vi.fn();
+    const failed = { isError: true, error: new Error("ClickHouse is down"), refetch };
+    const { rerender } = renderList(failed);
+    expect(screen.getByText("Failed to load traces")).toBeInTheDocument();
+
+    rerender(list({ ...failed, rows: [row({ traceId: "a", rootName: "GET /a" })] }));
+    expect(screen.getByRole("link", { name: "GET /a" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't refresh traces: ClickHouse is down",
+    );
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
   it("fetches the next page at the end of the list only when one exists and none is loading", async () => {
     const user = userEvent.setup();
     const onLoadMore = vi.fn();

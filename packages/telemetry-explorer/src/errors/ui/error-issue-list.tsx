@@ -9,6 +9,7 @@ import { type ReactNode, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { ErrorIssueSummary } from "../data/types";
 import { showingAll } from "../../filters/ui/no-results";
+import { RefreshError } from "../../filters/ui/refresh-error";
 import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import { ErrorIssueRow, type RenderErrorIssueLink } from "./error-issue-row";
 import { errorTrendPeak } from "./error-trend";
@@ -86,7 +87,8 @@ export function ErrorIssueList({
   );
 
   if (isPending) return <ListSkeleton />;
-  if (isError) {
+  // With rows loaded, a failed refresh shows above them instead (RefreshError).
+  if (isError && issues.length === 0) {
     return (
       <RetryError
         title="Failed to load errors"
@@ -100,6 +102,7 @@ export function ErrorIssueList({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ListHeader />
+      {isError && <RefreshError noun="errors" error={error} onRetry={onRetry} />}
       <Virtuoso
         className="min-h-0 min-w-0 flex-1"
         scrollerRef={ownScroll}
