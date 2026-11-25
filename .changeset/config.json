@@ -6,6 +6,7 @@
     [
       "@everr/cli",
       "@everr/otel-errors",
+      "@everr/otel-profiler",
       "@everr/otel-web",
       "@everr/tanstack-start-otel",
       "@everr/action",
