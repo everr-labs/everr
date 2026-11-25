@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { VolumeHistogram } from "../../histogram/volume-histogram";
 import type { ProfileHistogramBucket, SampleTypeOption } from "../data/types";
 import { formatProfileValue } from "../model/format";
-import { sampleTypeLabel } from "./profile-filters";
+import { sampleTypeTitle } from "./profile-filters";
 
 export function ProfileHistogram({
   buckets,
@@ -25,7 +25,7 @@ export function ProfileHistogram({
   onRangeSelect: (from: Date, to: Date) => void;
   onShowVolumeChange: (show: boolean) => void;
 }) {
-  const label = sampleTypeLabel(sampleType);
+  const label = sampleTypeTitle(sampleType);
   const stack = useMemo(
     () => [{ key: "value" as const, label, color: "var(--color-sky-500)" }],
     [label],

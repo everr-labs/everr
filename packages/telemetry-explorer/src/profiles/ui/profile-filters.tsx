@@ -12,6 +12,7 @@ import { ExploreFilterSelect } from "../../filters/ui/explore-filter-select";
 import type { ProfilesRepositoryLike } from "../data/repository";
 import { PROFILES_ATTRIBUTE_SOURCES, type ProfilesSearchParams } from "../data/schemas";
 import type { SampleTypeOption } from "../data/types";
+import { formatterScalesUnit } from "../model/format";
 import { sampleTypeKey } from "../model/selection";
 
 export type ProfileFilterValue = Pick<
@@ -46,6 +47,14 @@ const PROFILES_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
 
 export function sampleTypeLabel(option: SampleTypeOption): string {
   return option.sampleUnit ? `${option.sampleType} (${option.sampleUnit})` : option.sampleType;
+}
+
+/**
+ * The sample type over formatted values. Their unit is shown with each value
+ * when the formatter scales it, so naming the stored unit would contradict it.
+ */
+export function sampleTypeTitle(option: SampleTypeOption): string {
+  return formatterScalesUnit(option.sampleUnit) ? option.sampleType : sampleTypeLabel(option);
 }
 
 /** The page zone counts every filter but the sample type, which always has a value. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { formatPercent, formatProfileValue } from "./format";
+import { formatPercent, formatProfileValue, formatterScalesUnit } from "./format";
 
 describe("formatProfileValue", () => {
   it.each([
@@ -24,5 +24,17 @@ describe("formatPercent", () => {
     expect(formatPercent(5, 5)).toBe("100%");
     expect(formatPercent(1, 1_000_000)).toBe("<0.01%");
     expect(formatPercent(1, 0)).toBe("0%");
+  });
+});
+
+describe("formatterScalesUnit", () => {
+  it("is true for units the values are shown in a scaled form of", () => {
+    expect(formatterScalesUnit("nanoseconds")).toBe(true);
+    expect(formatterScalesUnit("bytes")).toBe(true);
+  });
+
+  it("is false for units the values are shown in as stored", () => {
+    expect(formatterScalesUnit("count")).toBe(false);
+    expect(formatterScalesUnit("")).toBe(false);
   });
 });
