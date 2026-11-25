@@ -4,6 +4,7 @@ import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
 import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
+import { RefreshError } from "../../filters/ui/refresh-error";
 import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import type { MetricType } from "../data/schemas";
 import { METRIC_LIST_LIMIT, type MetricCatalogEntry, metricKind } from "../data/types";
@@ -36,81 +37,85 @@ export function MetricCatalog({
 }) {
   const ownScroll = useOwnScrollPosition();
   if (isPending) return <CatalogSkeleton />;
-  if (error) {
+  // With rows loaded, a failed refresh shows above them instead (RefreshError).
+  if (error && rows.length === 0) {
     return <RetryError title="Couldn't load metrics" message={error.message} onRetry={onRetry} />;
   }
   if (rows.length === 0) return empty;
 
   return (
-    <div ref={ownScroll} className="min-h-0 flex-1 overflow-y-auto">
-      {/* Borders on the cells: Safari paints a collapsed row border once per row
+    <>
+      {error && <RefreshError noun="metrics" error={error} onRetry={onRetry} />}
+      <div ref={ownScroll} className="min-h-0 flex-1 overflow-y-auto">
+        {/* Borders on the cells: Safari paints a collapsed row border once per row
           it separates, so translucent lines came out twice as bright. */}
-      <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
-        <CatalogHead />
-        <tbody>
-          {rows.map((row) => {
-            const key = `${row.type}:${row.name}`;
-            return (
-              <tr
-                key={key}
-                data-last-opened={key === lastOpenedMetric || undefined}
-                className={cn("hover:bg-muted/50 relative", focusRingRow)}
-              >
-                <td className="px-4 py-1.5">
-                  {/* In a cell, positioned against the row. */}
-                  <RowFocusRing />
-                  <div className="flex min-w-0 flex-col">
-                    {renderMetricLink({
-                      metric: row.name,
-                      type: row.type,
-                      // The link covers the row, so the whole row opens the metric.
-                      className:
-                        "truncate font-mono text-[13px] outline-none after:absolute after:inset-0",
-                      children: <MetricName name={row.name} />,
-                    })}
-                    {row.description ? (
-                      // Positioned, so it sits above the link's cover and
-                      // shows its title on hover.
-                      <span
-                        className="text-muted-foreground relative truncate text-xs"
-                        title={row.description}
-                      >
-                        {row.description}
+        <table className="w-full table-fixed border-separate border-spacing-0 [&_tr>*]:border-b text-sm">
+          <CatalogHead />
+          <tbody>
+            {rows.map((row) => {
+              const key = `${row.type}:${row.name}`;
+              return (
+                <tr
+                  key={key}
+                  data-last-opened={key === lastOpenedMetric || undefined}
+                  className={cn("hover:bg-muted/50 relative", focusRingRow)}
+                >
+                  <td className="px-4 py-1.5">
+                    {/* In a cell, positioned against the row. */}
+                    <RowFocusRing />
+                    <div className="flex min-w-0 flex-col">
+                      {renderMetricLink({
+                        metric: row.name,
+                        type: row.type,
+                        // The link covers the row, so the whole row opens the metric.
+                        className:
+                          "truncate font-mono text-[13px] outline-none after:absolute after:inset-0",
+                        children: <MetricName name={row.name} />,
+                      })}
+                      {row.description ? (
+                        // Positioned, so it sits above the link's cover and
+                        // shows its title on hover.
+                        <span
+                          className="text-muted-foreground relative truncate text-xs"
+                          title={row.description}
+                        >
+                          {row.description}
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-4 py-1.5">
+                    <MetricKindLabel kind={metricKind(row.type, row.isMonotonic)} />
+                  </td>
+                  <td className="text-muted-foreground hidden truncate px-4 py-1.5 text-xs xl:table-cell">
+                    {row.unit ? (
+                      <span className="relative" title={`UCUM unit: ${row.unit}`}>
+                        {unitName(row.unit)}
                       </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-4 py-1.5">
-                  <MetricKindLabel kind={metricKind(row.type, row.isMonotonic)} />
-                </td>
-                <td className="text-muted-foreground hidden truncate px-4 py-1.5 text-xs xl:table-cell">
-                  {row.unit ? (
-                    <span className="relative" title={`UCUM unit: ${row.unit}`}>
-                      {unitName(row.unit)}
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs tabular-nums sm:table-cell">
+                    <span className="relative" title={`${formatCount(row.points)} data points`}>
+                      {formatCompact(row.points)}
                     </span>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs tabular-nums sm:table-cell">
-                  <span className="relative" title={`${formatCount(row.points)} data points`}>
-                    {formatCompact(row.points)}
-                  </span>
-                </td>
-                <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs whitespace-nowrap lg:table-cell">
-                  {formatRelativeTime(row.lastSeen)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {rows.length >= METRIC_LIST_LIMIT ? (
-        <p className="text-muted-foreground px-4 py-3 text-xs">
-          {`Showing the first ${formatCount(METRIC_LIST_LIMIT)} metrics by name. Search to find the rest.`}
-        </p>
-      ) : null}
-    </div>
+                  </td>
+                  <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs whitespace-nowrap lg:table-cell">
+                    {formatRelativeTime(row.lastSeen)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {rows.length >= METRIC_LIST_LIMIT ? (
+          <p className="text-muted-foreground px-4 py-3 text-xs">
+            {`Showing the first ${formatCount(METRIC_LIST_LIMIT)} metrics by name. Search to find the rest.`}
+          </p>
+        ) : null}
+      </div>
+    </>
   );
 }
 
