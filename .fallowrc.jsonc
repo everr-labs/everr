@@ -67,6 +67,9 @@
     // size-limit resolves its preset from package.json at runtime; nothing
     // imports it.
     "@size-limit/preset-small-lib",
+    // Imported by @everr/otel-profiler. The app lists it so its build can
+    // resolve the addon and copy it, binaries included, into the output.
+    "@datadog/pprof",
     // React Email loads its preview UI through the email CLI.
     "@react-email/ui",
     "@opentelemetry/exporter-trace-otlp-http",
