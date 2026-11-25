@@ -1,8 +1,8 @@
-import { dirname } from "node:path";
-import { heap, SourceMapper, time } from "@datadog/pprof";
+import { heap, time } from "@datadog/pprof";
 import { context } from "@opentelemetry/api";
 import { parseKeyPairsIntoRecord, suppressTracing } from "@opentelemetry/core";
 import { pprofToOtlp } from "./otlp.js";
+import { loadSourceMaps } from "./source-maps.js";
 import { findSourceRoot } from "./source-root.js";
 import { LOW_CARDINALITY_LABELS, sampleLabels } from "./span-context.js";
 
@@ -115,15 +115,6 @@ function profilesUrl(endpoint: string | undefined) {
     .replace(/\/+$/, "")
     .replace(/\/v1\/(traces|metrics|logs)$/, "");
   return `${base}/v1development/profiles`;
-}
-
-// Bundled or compiled servers keep maps next to the entry script, and the maps
-// point back at the TypeScript sources. Without maps frames stay as they ran.
-async function loadSourceMaps(dirs: string[] | undefined): Promise<SourceMapper | undefined> {
-  const entry = process.argv[1];
-  const searchDirs = dirs ?? (entry ? [dirname(entry)] : []);
-  if (searchDirs.length === 0) return undefined;
-  return SourceMapper.create(searchDirs).catch(() => undefined);
 }
 
 async function post(url: string, headers: Record<string, string> | undefined, body: Uint8Array) {
