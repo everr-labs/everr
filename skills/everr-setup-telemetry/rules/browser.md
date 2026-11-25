@@ -4,7 +4,9 @@ Use this rule for web apps that send OpenTelemetry directly from the browser: SP
 
 ## Key Model
 
-If remote browser telemetry is selected and no public key exists, tell the user to mint one in the Everr dashboard: open `/api-keys` under the app `url` from [Remote setup](../references/remote-setup.md) and generate a new Public Key, adding every origin the app is served from (`scheme://host` with an optional port, no paths). Include the development origin when testing remote export locally. Origins cannot be edited later; changing them means minting a new key and rotating the value in the frontend config. Do not invent, print, or commit key values.
+If remote browser telemetry is selected and no public key exists, tell the user to open `/api-keys` under the app `url` from [Remote setup](../references/remote-setup.md) and select **New public key**. Add every origin the app is served from, one per line (`scheme://host` with an optional port, no paths). Include the development origin when testing remote export locally. Do not invent, print, or commit key values.
+
+To allow third-level domains such as `https://preview-123.example.com`, use `https://*.example.com` or its shorthand `*.example.com`. The wildcard matches exactly one DNS label, with the same scheme and port. Use **Edit origins** on an existing public key's row to update its allowlist and keep the same key. Changes usually take effect within 30 seconds.
 
 ## Endpoint And Gating
 

@@ -3,6 +3,7 @@ import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";
 import { describe, expect, it } from "vite-plus/test";
+import { buildPublicKeyMetadata, originPolicyAllows } from "#app/lib/public-ingest-keys.ts";
 import { API_KEY_CONFIGS } from "./api-key-configs";
 import { apiKeyServerOnlyWritesPlugin } from "./api-key-writes";
 
@@ -50,7 +51,7 @@ async function setup() {
     auth.api.createApiKey({
       body: { configId, name: configId, organizationId: org.id, userId },
     });
-  return { auth, tables, org, post, createOnServer };
+  return { auth, tables, org, userId, post, createOnServer };
 }
 
 describe("apiKeyServerOnlyWritesPlugin", () => {
@@ -74,6 +75,46 @@ describe("apiKeyServerOnlyWritesPlugin", () => {
 });
 
 describe("API key configs", () => {
+  it("verifies a new origin using the same public key after a server-side allowlist update", async () => {
+    const { auth, org, userId } = await setup();
+    const configId = "public";
+    const body = {
+      configId,
+      name: "browser",
+      organizationId: org.id,
+      userId,
+      expiresIn: 86_400,
+      permissions: { ingest: ["write"] },
+      metadata: buildPublicKeyMetadata(["https://old.example.com"]),
+    };
+    const { id: keyId, key } = await auth.api.createApiKey({ body });
+    const verify = async () => {
+      const { valid, key: verifiedKey } = await auth.api.verifyApiKey({ body: { configId, key } });
+      if (!valid || !verifiedKey) throw new Error("public key verification failed");
+      return verifiedKey;
+    };
+
+    const before = await verify();
+    expect(originPolicyAllows(before, "https://old.example.com")).toBe(true);
+    expect(originPolicyAllows(before, "https://tenant.customer.example.com")).toBe(false);
+
+    await auth.api.updateApiKey({
+      body: {
+        configId,
+        keyId,
+        userId,
+        metadata: buildPublicKeyMetadata(["*.customer.example.com"]),
+      },
+    });
+
+    const after = await verify();
+    expect(after.id).toBe(before.id);
+    expect(after.expiresAt).toEqual(before.expiresAt);
+    expect(after.permissions).toEqual(before.permissions);
+    expect(originPolicyAllows(after, "https://old.example.com")).toBe(false);
+    expect(originPolicyAllows(after, "https://tenant.customer.example.com")).toBe(true);
+  });
+
   it("stores public keys in plaintext and never matches a hashed key's stored value", async () => {
     const { auth, tables, createOnServer } = await setup();
     const publicKey = await createOnServer("public");

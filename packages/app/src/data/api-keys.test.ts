@@ -2,6 +2,8 @@ import { apiKey } from "@better-auth/api-key";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { organization } from "better-auth/plugins";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vite-plus/test";
 import { auth } from "#app/identity/server.ts";
 import {
@@ -9,6 +11,7 @@ import {
   createApiKey,
   listApiKeys,
   permissionsForScopes,
+  updatePublicKeyOrigins,
   type ApiKey,
 } from "./api-keys";
 
@@ -18,24 +21,34 @@ vi.mock("@tanstack/react-start/server", () => ({
 }));
 
 vi.mock("#app/identity/server.ts", () => ({
-  auth: { api: { createApiKey: vi.fn(), listApiKeys: vi.fn() } },
+  auth: { api: { createApiKey: vi.fn(), listApiKeys: vi.fn(), updateApiKey: vi.fn() } },
 }));
 
 // Stored public keys, as the `apikey` table returns them.
 const storedKeys = vi.hoisted(() => ({ rows: [] as { id: string; key: string }[] }));
+const findKeyForUpdate = vi.hoisted(() => vi.fn());
 vi.mock("#app/db/client.ts", () => ({
   db: {
-    select: () => ({ from: () => ({ where: async () => storedKeys.rows }) }),
+    select: (fields: object) => ({
+      from: () => ({
+        where: (condition: SQL) =>
+          "metadata" in fields
+            ? { limit: () => findKeyForUpdate(condition) }
+            : Promise.resolve(storedKeys.rows),
+      }),
+    }),
   },
 }));
 
 const createApiKeyMock = auth.api.createApiKey as unknown as Mock;
 const listApiKeysMock = vi.mocked(auth.api.listApiKeys);
+const updateApiKeyMock = vi.mocked(auth.api.updateApiKey, { partial: true });
 
 beforeEach(() => {
   vi.clearAllMocks();
   request.headers = {};
   storedKeys.rows = [];
+  findKeyForUpdate.mockReset();
 });
 
 describe("permissionsForScopes", () => {
@@ -166,13 +179,16 @@ describe("createApiKey (server fn)", () => {
         name: "web",
         scopes: ["ingest"],
         public: true,
-        allowedOrigins: ["https://app.example.com"],
+        allowedOrigins: ["https://app.example.com", "*.example.com"],
       },
     });
     const call = createApiKeyMock.mock.calls[0]?.[0] as { body: Record<string, unknown> };
     expect(call.body).toMatchObject({
       configId: "public",
-      metadata: { public: true, allowedOrigins: ["https://app.example.com"] },
+      metadata: {
+        public: true,
+        allowedOrigins: ["https://app.example.com", "https://*.example.com"],
+      },
     });
   });
 
@@ -233,6 +249,72 @@ describe("createApiKey (server fn)", () => {
         new Error("Server did not return a key"),
       );
     }
+  });
+});
+
+describe("updatePublicKeyOrigins (server fn)", () => {
+  const data = { keyId: "ak_public", allowedOrigins: ["*.Example.COM"] };
+
+  it("looks up the key in the active org and only replaces its allowed origins", async () => {
+    findKeyForUpdate.mockResolvedValueOnce([
+      {
+        configId: "public",
+        metadata: '{"public":true,"allowedOrigins":["https://old.example.com"]}',
+      },
+    ]);
+    updateApiKeyMock.mockResolvedValueOnce({
+      metadata: { public: true, allowedOrigins: ["https://*.example.com"] },
+    });
+
+    await updatePublicKeyOrigins({ data });
+
+    const [where] = findKeyForUpdate.mock.calls[0] ?? [];
+    expect(new PgDialect().sqlToQuery(where)).toMatchObject({
+      sql: expect.stringMatching(/"id" = \$1.*"reference_id" = \$2/),
+      params: ["ak_public", "test_org"],
+    });
+    expect(updateApiKeyMock).toHaveBeenCalledWith({
+      body: {
+        keyId: "ak_public",
+        userId: "test_user",
+        configId: "public",
+        metadata: { public: true, allowedOrigins: ["https://*.example.com"] },
+      },
+    });
+  });
+
+  it("rejects when Better Auth returns the previous allowlist after a concurrent revoke", async () => {
+    const metadata = { public: true, allowedOrigins: ["https://old.example.com"] };
+    findKeyForUpdate.mockResolvedValueOnce([{ configId: "public", metadata }]);
+    updateApiKeyMock.mockResolvedValueOnce({ metadata });
+
+    await expect(updatePublicKeyOrigins({ data })).rejects.toThrow(
+      "Could not save allowed origins",
+    );
+  });
+
+  it("rejects keys outside the active org and secret keys", async () => {
+    findKeyForUpdate.mockResolvedValueOnce([]);
+    await expect(updatePublicKeyOrigins({ data })).rejects.toThrow();
+
+    findKeyForUpdate.mockResolvedValueOnce([{ configId: "ingest", metadata: null }]);
+    await expect(updatePublicKeyOrigins({ data })).rejects.toThrow();
+    expect(updateApiKeyMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "empty", allowedOrigins: [] },
+    { name: "global wildcard", allowedOrigins: ["*"] },
+    {
+      name: "over the limit",
+      allowedOrigins: Array.from({ length: 33 }, (_, i) => `https://${i}.example.com`),
+    },
+  ])("rejects an allowlist that is $name before looking up the key", async ({ allowedOrigins }) => {
+    await expect(
+      updatePublicKeyOrigins({ data: { keyId: data.keyId, allowedOrigins } }),
+    ).rejects.toThrow();
+    expect(findKeyForUpdate).not.toHaveBeenCalled();
+    expect(updateApiKeyMock).not.toHaveBeenCalled();
   });
 });
 

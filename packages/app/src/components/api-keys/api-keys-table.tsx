@@ -28,6 +28,7 @@ import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
+import { EditKeyOriginsDialog } from "#app/components/api-keys/edit-key-origins-dialog.tsx";
 import { formatDate } from "#app/components/users-management/format-date.ts";
 import {
   API_KEY_SCOPES,
@@ -367,6 +368,7 @@ function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
     (row) => (
       <>
         <CopyPublicKey row={row} />
+        <EditKeyOriginsDialog row={row} />
         <RevokeAction row={row} kind="public" onRevoke={onRevoke} />
       </>
     ),
