@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * The item open now, or the one open last, for the list to mark its row. It
@@ -15,6 +15,18 @@ export function useLastOpened(opened: string | undefined) {
   return current ?? last;
 }
 
-/** The last opened row's mark: an inset bar, so the columns stay aligned. */
-export const lastOpenedRow =
-  "data-last-opened:bg-muted/70 data-last-opened:shadow-[inset_2px_0_0_var(--primary)]";
+/**
+ * A ref for the list under a detail. When the detail closes, it gives focus
+ * back to the row the reader opened, as a dialog gives it back to its opener.
+ * Without it, focus falls to the page and a keyboard reader starts over.
+ */
+export function useFocusLastOpened<T extends HTMLElement = HTMLElement>(detailOpen: boolean) {
+  const listRef = useRef<T>(null);
+  useEffect(() => {
+    if (detailOpen) return;
+    listRef.current
+      ?.querySelector<HTMLElement>("[data-last-opened] a")
+      ?.focus({ preventScroll: true });
+  }, [detailOpen]);
+  return listRef;
+}

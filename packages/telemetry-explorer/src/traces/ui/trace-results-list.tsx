@@ -20,7 +20,7 @@ import { Virtuoso } from "react-virtuoso";
 import type { TraceSummary } from "../data/types";
 import { showingAll } from "../../filters/ui/no-results";
 import { RefreshError } from "../../filters/ui/refresh-error";
-import { lastOpenedRow } from "../../shell/use-last-opened";
+import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
 import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import { DurationBar } from "./duration-bar";
 import { serviceColor } from "./shared/service-color";
@@ -173,14 +173,15 @@ function TraceRow({
       data-last-opened={lastOpened || undefined}
       className={cn(
         "hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight",
-        lastOpenedRow,
+        focusRingRow,
       )}
     >
+      <RowFocusRing />
       <div className="flex min-w-0 flex-1 items-center gap-1.5 leading-tight">
         {renderTraceLink({
           traceId: row.traceId,
           className:
-            "flex min-w-0 items-center gap-1.5 font-medium after:absolute after:inset-0 after:content-['']",
+            "flex min-w-0 items-center gap-1.5 font-medium outline-none after:absolute after:inset-0 after:content-['']",
           children: (
             <SpanName
               name={row.rootName}

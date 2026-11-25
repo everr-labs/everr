@@ -3,7 +3,7 @@ import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
-import { lastOpenedRow } from "../../shell/use-last-opened";
+import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
 import { useOwnScrollPosition } from "../../shell/use-own-scroll-position";
 import type { MetricType } from "../data/schemas";
 import { METRIC_LIST_LIMIT, type MetricCatalogEntry, metricKind } from "../data/types";
@@ -54,16 +54,18 @@ export function MetricCatalog({
               <tr
                 key={key}
                 data-last-opened={key === lastOpenedMetric || undefined}
-                className={cn("hover:bg-muted/50 relative", lastOpenedRow)}
+                className={cn("hover:bg-muted/50 relative", focusRingRow)}
               >
                 <td className="px-4 py-1.5">
+                  {/* In a cell, positioned against the row. */}
+                  <RowFocusRing />
                   <div className="flex min-w-0 flex-col">
                     {renderMetricLink({
                       metric: row.name,
                       type: row.type,
                       // The link covers the row, so the whole row opens the metric.
                       className:
-                        "truncate font-mono text-[13px] focus-visible:underline focus-visible:outline-none after:absolute after:inset-0",
+                        "truncate font-mono text-[13px] outline-none after:absolute after:inset-0",
                       children: <MetricName name={row.name} />,
                     })}
                     {row.description ? (

@@ -6,7 +6,7 @@ import { Label } from "@everr/ui/components/label";
 import { Shapes } from "lucide-react";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AttributeRepositoryLike } from "../../attribute-filter/repository";
 import type { AttributeFilter } from "../../attribute-filter/schemas";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
@@ -53,6 +53,7 @@ import { MetricCatalog, type MetricLinkRenderProps } from "./metric-catalog";
 import { AddMetricButton, type ChartLine, lineId, MetricView, seriesLabel } from "./metric-view";
 import type { MetricPickerProps } from "./metric-picker";
 import { useDistinctQueries } from "./use-distinct-queries";
+import { useFocusLastOpened } from "../../shell/use-last-opened";
 import { useLastLoaded } from "./use-last-loaded";
 
 export type { ExemplarLinkRenderProps, MetricLinkRenderProps };
@@ -114,11 +115,12 @@ const METRIC_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
 export function MetricsExplorer(props: MetricsExplorerProps) {
   const { metric, metricType } = props.search;
   const metricOpen = Boolean(metric && metricType);
+  const catalogRef = useFocusLastOpened(metricOpen);
   // The metric opens over the catalog instead of replacing it, so the catalog
   // keeps its scroll position for when the reader comes back.
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden">
-      <ExplorerGrid inert={metricOpen} className={cn(metricOpen && "invisible")}>
+      <ExplorerGrid ref={catalogRef} inert={metricOpen} className={cn(metricOpen && "invisible")}>
         <CatalogPage {...props} />
       </ExplorerGrid>
       {metric && metricType && (
@@ -131,16 +133,19 @@ export function MetricsExplorer(props: MetricsExplorerProps) {
 }
 
 function ExplorerGrid({
+  ref,
   inert,
   className,
   children,
 }: {
+  ref?: Ref<HTMLElement>;
   inert?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <section
+      ref={ref}
       inert={inert}
       className={cn(
         "bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden",

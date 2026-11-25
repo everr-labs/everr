@@ -1,7 +1,7 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
-import { lastOpenedRow } from "../../shell/use-last-opened";
+import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
 import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
 import { CopyId } from "./copy-id";
@@ -42,14 +42,15 @@ export function ErrorIssueRow({
       data-last-opened={lastOpened || undefined}
       className={cn(
         "hover:bg-muted/50 relative flex h-10 items-center gap-2 border-b px-3 text-sm leading-tight",
-        lastOpenedRow,
+        focusRingRow,
       )}
     >
+      <RowFocusRing />
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {renderIssueLink({
           fingerprint: issue.fingerprint,
           className:
-            "flex min-w-0 items-baseline gap-2 text-foreground no-underline after:absolute after:inset-0 after:content-['']",
+            "flex min-w-0 items-baseline gap-2 text-foreground no-underline outline-none after:absolute after:inset-0 after:content-['']",
           children: (
             <>
               <span className="max-w-[60%] shrink-0 truncate font-medium">{type}</span>
