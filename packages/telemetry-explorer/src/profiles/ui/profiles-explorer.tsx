@@ -353,7 +353,9 @@ export function ProfilesExplorer({
             persistentFilterCount={countPersistentFilters(search.service, environment)}
             onChange={changeFilters}
           />
-          <main className="flex min-h-0 min-w-0 flex-col">
+          {/* Narrow screens scroll the whole page, so the flame graph and the table
+              each get a usable height instead of splitting the space left over. */}
+          <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto lg:overflow-visible">
             {sampleType ? (
               <ProfileHistogram
                 buckets={histogramQuery.data ?? []}
@@ -481,7 +483,7 @@ function ProfileView({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex flex-1 flex-col lg:min-h-0">
       <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-xs">
         {/* Values carry their own unit (12 ms, 1,234 objects), so the stored one is left out. */}
         <span className="font-medium">{sampleType.sampleType}</span>
@@ -524,13 +526,18 @@ function ProfileView({
               </Button>
             ) : (
               <span className="text-muted-foreground">
-                Click a frame to zoom in, right-click for more
+                <span className="pointer-coarse:hidden">
+                  Click a frame to zoom in, right-click for more
+                </span>
+                <span className="hidden pointer-coarse:inline">
+                  Tap a frame to zoom in, long-press for more
+                </span>
               </span>
             )}
           </span>
         )}
       </div>
-      <div className="flex min-h-0 flex-[3] flex-col lg:flex-row">
+      <div className="flex h-[70svh] shrink-0 flex-col lg:h-auto lg:min-h-0 lg:flex-[3] lg:flex-row">
         {fn && sandwich ? (
           <>
             <SandwichView
@@ -576,7 +583,7 @@ function ProfileView({
           </div>
         )}
       </div>
-      <div className="min-h-0 flex-[2] overflow-y-auto border-t">
+      <div className="border-t lg:min-h-0 lg:flex-[2] lg:overflow-y-auto">
         {tablePath ? <ScopedTableCaption frame={focus} /> : null}
         {functionDiffs ? (
           <DiffFunctionsTable

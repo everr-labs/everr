@@ -103,16 +103,16 @@ export function DiffFunctionsTable({
           <th scope="col" className="px-3 py-1.5 font-medium">
             Function
           </th>
-          <th scope="col" className="w-44 px-3 py-1.5 text-right font-medium">
+          <th scope="col" className="w-24 px-3 py-1.5 text-right font-medium sm:w-44">
             Baseline self
           </th>
-          <th scope="col" className="w-44 px-3 py-1.5 text-right font-medium">
+          <th scope="col" className="w-24 px-3 py-1.5 text-right font-medium sm:w-44">
             Self
           </th>
           <th
             scope="col"
             aria-sort="descending"
-            className="text-foreground w-28 px-3 py-1.5 text-right font-medium"
+            className="text-foreground w-20 px-3 py-1.5 text-right font-medium sm:w-28"
           >
             Change
           </th>
@@ -224,7 +224,7 @@ function SortHeader({
     <th
       scope="col"
       aria-sort={isActive ? "descending" : "none"}
-      className="w-44 px-3 py-1.5 text-right font-medium"
+      className="w-24 px-3 py-1.5 text-right font-medium sm:w-44"
     >
       <button
         type="button"
@@ -245,7 +245,8 @@ function ValueCell({ value, unit, total }: { value: number; unit: string; total:
   return (
     <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
       {formatProfileValue(value, unit)}
-      <span className="text-muted-foreground ml-1.5 inline-block w-14">
+      {/* Under the value on narrow screens, so the function names keep their room. */}
+      <span className="text-muted-foreground block sm:ml-1.5 sm:inline-block sm:w-14">
         {formatPercent(value, total)}
       </span>
     </td>
