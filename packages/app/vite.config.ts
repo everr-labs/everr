@@ -7,8 +7,8 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite-plus";
 import svgr from "vite-plugin-svgr";
-import { serverSourceMaps } from "./build/server-source-maps.ts";
 import { migrationAssets } from "./build/migrations.ts";
+import { serverSourceMaps } from "./build/server-source-maps.ts";
 import {
   type AppComposition,
   appAliases,
@@ -119,15 +119,12 @@ export function createAppConfig(
           compressPublicAssets: { brotli: true, gzip: true },
           // The profiler maps sampled frames back to the TypeScript sources.
           sourcemap: true,
-          // Off: it empties library maps. serverSourceMaps slims them instead.
-          experimental: { sourcemapMinify: false },
+          ...serverSourceMaps(),
           traceDeps: ["tslib*", "@datadog/pprof*"],
           hooks: {
             "build:config": (nitro, { rollup, rolldown }) => {
               const config = rollup ?? rolldown;
-              if (!config || nitro.options.dev) return;
-              config.plugins = [serverSourceMaps(), ...[config.plugins ?? []].flat()];
-              if (!composition.serverEntries) return;
+              if (!config || !composition.serverEntries || nitro.options.dev) return;
               config.input = {
                 index: nitro.options.entry,
                 ...composition.serverEntries,
