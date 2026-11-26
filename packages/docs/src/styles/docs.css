@@ -74,6 +74,46 @@
   }
 }
 
+/* Entrances run in CSS rather than script, so a page read without JavaScript
+   (crawlers, agents, reader modes) still ends on its final state */
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 var(--rise, 16px);
+  }
+}
+
+@keyframes reveal {
+  from {
+    translate: 0 110%;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+
+@keyframes grow-x {
+  from {
+    scale: 0 1;
+  }
+}
+
+/* Rises on load like any entrance. A script may hold it back with [data-waiting]
+   while it is below the fold, and lets it go once it scrolls into view. */
+.rise-in-view {
+  --rise: 24px;
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+[data-waiting] .rise-in-view {
+  animation: none;
+  opacity: 0;
+}
+
 @layer base {
   *::selection {
     background-color: var(--primary);

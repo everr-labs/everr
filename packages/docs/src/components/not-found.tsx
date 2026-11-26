@@ -1,11 +1,8 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link, useLocation } from "@tanstack/react-router";
-import { motion } from "motion/react";
 import { Footer } from "@/components/footer";
 import { Mascot } from "@/components/mascot";
 import { Button } from "@/components/ui/button";
-
-const ease = [0.16, 1, 0.3, 1] as const;
 
 // The request as a trace: the lookup finds nothing, so the render never starts
 const SPANS: Span[] = [
@@ -52,19 +49,8 @@ export function NotFound() {
               aria-hidden="true"
               className="display mt-10 flex items-center text-[clamp(7rem,30vw,22rem)] leading-[0.8] select-none lg:text-[min(14vw,16rem)]"
             >
-              <motion.span
-                initial={{ y: "40%", opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, ease }}
-              >
-                4
-              </motion.span>
-              <motion.span
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 1, delay: 0.12, ease }}
-                className="mr-[-0.12em] ml-[0.02em] inline-flex"
-              >
+              <span className="animate-[rise_0.9s_var(--ease-out-expo)_both] [--rise:40%]">4</span>
+              <span className="mr-[-0.12em] ml-[0.02em] inline-flex animate-[pop_1s_var(--ease-out-expo)_0.12s_both]">
                 <Mascot
                   glow
                   reach={60}
@@ -72,22 +58,13 @@ export function NotFound() {
                   raysClassName="fill-primary"
                   className="size-[0.82em]"
                 />
-              </motion.span>
-              <motion.span
-                initial={{ y: "40%", opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, delay: 0.08, ease }}
-              >
+              </span>
+              <span className="animate-[rise_0.9s_var(--ease-out-expo)_0.08s_both] [--rise:40%]">
                 4
-              </motion.span>
+              </span>
             </div>
 
-            <motion.div
-              className="mt-10 md:mt-12"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.3, ease }}
-            >
+            <div className="mt-10 animate-[rise_0.8s_var(--ease-out-expo)_0.3s_both] md:mt-12">
               <h1 className="display text-[clamp(2.25rem,5vw,4.25rem)]">
                 <span className="sr-only">404: </span>Nothing to observe here.
               </h1>
@@ -121,7 +98,7 @@ export function NotFound() {
                 </a>
                 .
               </p>
-            </motion.div>
+            </div>
           </div>
 
           {/* Decoration: phones get the page without it */}
@@ -137,12 +114,7 @@ export function NotFound() {
 // service and status
 function TraceListRow({ pathname, id }: { pathname: string; id: string }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, ease }}
-      className="flex max-w-xl items-center gap-2 rounded-lg border border-fd-border bg-fd-card/70 px-3 py-2 text-sm leading-tight backdrop-blur"
-    >
+    <div className="flex max-w-xl animate-[rise_0.6s_var(--ease-out-expo)_both] [--rise:-8px] items-center gap-2 rounded-lg border border-fd-border bg-fd-card/70 px-3 py-2 text-sm leading-tight backdrop-blur">
       <span className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1 font-mono text-xs tracking-wide text-sky-400">
         GET
       </span>
@@ -155,19 +127,16 @@ function TraceListRow({ pathname, id }: { pathname: string; id: string }) {
       <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/10 max-sm:ml-auto px-1.5 font-mono text-xs text-emerald-400">
         404
       </span>
-    </motion.div>
+    </div>
   );
 }
 
 function TraceCard({ pathname, id }: { pathname: string; id: string }) {
   const rows: Span[] = [{ name: `GET ${pathname}`, start: 0, width: 100, root: true }, ...SPANS];
   return (
-    <motion.figure
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.9, delay: 0.45, ease }}
+    <figure
       aria-label="The trace of this request, which ends without a page"
-      className="overflow-hidden rounded-2xl border border-fd-border bg-fd-card/80 font-mono text-xs shadow-2xl shadow-black/40 backdrop-blur max-md:hidden"
+      className="animate-[rise_0.9s_var(--ease-out-expo)_0.45s_both] [--rise:24px] overflow-hidden rounded-2xl border border-fd-border bg-fd-card/80 font-mono text-xs shadow-2xl shadow-black/40 backdrop-blur max-md:hidden"
     >
       <figcaption className="flex items-center gap-3 px-5 pt-5 text-fd-muted-foreground">
         <span>trace {id.slice(0, 8)}</span>
@@ -201,7 +170,7 @@ function TraceCard({ pathname, id }: { pathname: string; id: string }) {
           /docs
         </Link>
       </div>
-    </motion.figure>
+    </figure>
   );
 }
 
@@ -219,13 +188,10 @@ function SpanRow({ span, delay }: { span: Span; delay: number }) {
         {name}
       </span>
       <div className="relative h-4">
-        <motion.div
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ duration: 0.6, delay, ease }}
-          style={{ left: `${start}%`, width: `${width}%` }}
+        <div
+          style={{ left: `${start}%`, width: `${width}%`, animationDelay: `${delay}s` }}
           className={cn(
-            "absolute inset-y-0 origin-left rounded-full",
+            "absolute inset-y-0 origin-left animate-[grow-x_0.6s_var(--ease-out-expo)_both] rounded-full",
             missing
               ? "border border-dashed border-red-400/60"
               : root
@@ -241,7 +207,7 @@ function SpanRow({ span, delay }: { span: Span; delay: number }) {
               never started
             </span>
           )}
-        </motion.div>
+        </div>
       </div>
     </div>
   );
