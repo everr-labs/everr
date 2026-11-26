@@ -3,6 +3,7 @@ import { Button } from "@everr/ui/components/button";
 import { keepPreviousData, type QueryClient, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
+import { useFilterOptionsCache } from "#app/lib/filter-options-cache.ts";
 import { remoteErrorsRepo } from "#app/data/errors/remote-repo.ts";
 import { remoteRepo } from "#app/data/logs-explorer/remote-repo.ts";
 import { remoteMetricsRepo } from "#app/data/metrics/remote-repo.ts";
@@ -51,6 +52,7 @@ export function createExploreBackend(queryClient: QueryClient): ExploreBackend {
       runtimeMetrics: remoteRuntimeMetricsRepo,
     },
     useErrorTraceSpans: useCiRunSpans,
+    useFilterOptionsCache,
     ciRunLinks: {
       resolveJobId: ({ traceId, jobName }) => {
         const cached = queryClient.getQueryData(runJobsOptions(traceId).queryKey);

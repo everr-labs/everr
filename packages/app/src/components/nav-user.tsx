@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
+import { clearFilterOptionsCache } from "#app/lib/filter-options-cache.ts";
 import { isOrganizationAdmin } from "#app/lib/organization-role.ts";
 import { useOpenConsentSettings } from "#app/telemetry/consent-gate.tsx";
 
@@ -148,6 +149,7 @@ export function UserMenu({ organizationSwitcher, organizationItems }: UserMenuPr
                 void authClient.signOut({
                   fetchOptions: {
                     onSuccess: () => {
+                      clearFilterOptionsCache();
                       window.location.href = "/";
                     },
                   },
