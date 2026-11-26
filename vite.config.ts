@@ -1,5 +1,5 @@
 import { defineConfig } from "vite-plus";
-import boundaries from "./oxlint.boundaries.mts";
+import boundaries, { noGroupHas } from "./oxlint.boundaries.mts";
 
 const ignorePatterns = [
   "**/routeTree.gen.ts",
@@ -34,17 +34,6 @@ const ignorePatterns = [
   // Vendored demo animation kit, kept as upstream ships it.
   "packages/docs/src/components/monitoring-demo/kit/**",
 ];
-
-// Tailwind compiles `group-has-*` to a `:has()` that styles any descendant,
-// `*`. With one such rule in the global stylesheet, Chrome restyles the whole
-// page whenever an element is added anywhere, about 20ms on a busy page.
-// Overrides that set `eslint-js/no-restricted-syntax` replace its options, so
-// they list this entry again. The `[s]` keeps the pattern from matching itself.
-const noGroupHas = {
-  selector: "Literal[value=/group-ha[s]-/], TemplateElement[value.raw=/group-ha[s]-/]",
-  message:
-    "Tailwind's group-has variants make every DOM change restyle the whole page. Target the element itself: [[data-slot=x]:has(...)_&]:class.",
-};
 
 export default defineConfig({
   fmt: { ignorePatterns },
