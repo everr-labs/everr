@@ -35,13 +35,23 @@ function readChartTheme(element: HTMLElement): ChartTheme {
  */
 export function resolveCssColor(element: HTMLElement, color: string): string {
   if (!color.includes("var(")) return color;
+  // Each probe forces a style recalculation of the whole page, tens of
+  // milliseconds on a busy one, and a few charts mounting at once ask for
+  // dozens. Keyed by the root's classes, so a theme switch resolves again.
+  const key = `${document.documentElement.className}\n${color}`;
+  const cached = resolvedColors.get(key);
+  if (cached) return cached;
   const probe = document.createElement("span");
   probe.style.color = color;
   element.appendChild(probe);
   const resolved = getComputedStyle(probe).color;
   probe.remove();
-  return resolved || color;
+  if (!resolved) return color;
+  resolvedColors.set(key, resolved);
+  return resolved;
 }
+
+const resolvedColors = new Map<string, string>();
 
 /** Canvas pixels a chart may use: under iOS Safari's ~16.7M limit, past which
  * a canvas renders blank. */

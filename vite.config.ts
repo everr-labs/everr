@@ -53,6 +53,7 @@ export default defineConfig({
       // router-setup + test overrides below until the upstream fix is released:
       // https://github.com/TanStack/router/issues/8673
       { name: "router", specifier: "@tanstack/eslint-plugin-router" },
+      { name: "tailwind", specifier: "./oxlint.tailwind.mts" },
     ],
     rules: {
       // Ref access, purity, and immutability diagnostics still need separate review.
@@ -67,6 +68,7 @@ export default defineConfig({
         { propNamePattern: "{render*,cell,formatter,tick,background,itemContent}" },
       ],
       "preserve-caught-error": "error",
+      "tailwind/no-group-has": "error",
       "vite-plus/prefer-vite-plus-imports": "error",
       "router/create-route-property-order": "error",
       "router/route-param-names": "error",
