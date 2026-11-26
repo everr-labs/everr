@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { type ComponentProps, useState } from "react";
 import { useFilterOptionsCache } from "../../filters/data/filter-options-cache";
+import { usePrefetchOnIntent } from "../../filters/ui/use-prefetch-on-intent";
 import { attributeKeysOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeKey, AttributeSource } from "../schemas";
@@ -56,10 +57,9 @@ export function AttributeKeyPicker({
 }) {
   const [open, setOpen] = useState(false);
   const cache = useFilterOptionsCache();
-  const { data: keys = [], isLoading } = useQuery({
-    ...attributeKeysOptions(repo, { timeRange }, { domain }, cache),
-    enabled: open,
-  });
+  const keysOptions = attributeKeysOptions(repo, { timeRange }, { domain }, cache);
+  const { data: keys = [], isLoading } = useQuery({ ...keysOptions, enabled: open });
+  const prefetchProps = usePrefetchOnIntent(keysOptions);
 
   const promotedKeySet = new Set(promotedAttributes.map((p) => filterKey(p.source, p.key)));
 
@@ -127,6 +127,7 @@ export function AttributeKeyPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        {...prefetchProps}
         render={
           <Button
             id={triggerId}

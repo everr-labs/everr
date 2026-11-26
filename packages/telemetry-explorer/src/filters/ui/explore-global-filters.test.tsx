@@ -106,3 +106,57 @@ describe("ExploreGlobalFilters last known options", () => {
     expect(await screen.findByText("batch")).toBeInTheDocument();
   });
 });
+
+describe("ExploreGlobalFilters prefetch on intent", () => {
+  function countingRepos() {
+    const filterOptions = vi.fn(async () => ({ services: ["checkout"] }));
+    return {
+      filterOptions,
+      repos: {
+        ...reposFor(Promise.resolve([])),
+        logsRepo: { filterOptions } as unknown as LogsRepositoryLike,
+      },
+    };
+  }
+
+  function renderPlain(repos: ReturnType<typeof countingRepos>["repos"]) {
+    // The app's default, so a just-prefetched list counts as fresh on open.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ExploreGlobalFilters
+          {...repos}
+          timeRange={hourAgo}
+          service={[]}
+          environment={[]}
+          onServiceChange={vi.fn()}
+          onEnvironmentChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("requests the services when the pointer reaches the trigger, before any click", async () => {
+    const { filterOptions, repos } = countingRepos();
+    renderPlain(repos);
+    expect(filterOptions).not.toHaveBeenCalled();
+
+    await userEvent.hover(screen.getByRole("combobox", { name: /Service/ }));
+
+    expect(filterOptions).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("checkout")).toBeNull();
+  });
+
+  it("requests the services when the trigger takes focus, and reuses them on open", async () => {
+    const { filterOptions, repos } = countingRepos();
+    renderPlain(repos);
+
+    await userEvent.tab();
+    expect(screen.getByRole("combobox", { name: /Service/ })).toHaveFocus();
+    expect(filterOptions).toHaveBeenCalledTimes(1);
+
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByText("checkout")).toBeTruthy();
+    expect(filterOptions).toHaveBeenCalledTimes(1);
+  });
+});
