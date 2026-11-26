@@ -9,6 +9,8 @@ import { attachGraphileWorkerEventLogging } from "./events";
 import { managedWorker } from "./managed-worker";
 import { combineWorkerTasks } from "./task-registration";
 
+const CONCURRENCY = 2;
+
 /** Product capabilities available to both self-hosted and cloud installations. */
 export const productWorker = managedWorker({
   name: "everrGeneralWorker",
@@ -25,11 +27,13 @@ export const productWorker = managedWorker({
     // in the context that client's socket was opened in. A pool shared with
     // request and startup code could hand it a connection opened inside a
     // span, and every job it wakes would then join that trace.
-    const pool = new Pool({ ...databasePoolConfig, max: 4 });
+    // Tasks query through the app's `db`. Graphile itself needs one client per
+    // worker plus the LISTEN client and one for cron and maintenance.
+    const pool = new Pool({ ...databasePoolConfig, max: CONCURRENCY + 2 });
     try {
       const runner = await run({
         ...tasks,
-        concurrency: 2,
+        concurrency: CONCURRENCY,
         events,
         noHandleSignals: true,
         pgPool: pool,
