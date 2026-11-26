@@ -279,7 +279,7 @@ describe("resolveApplyAuth", () => {
 });
 
 describe("buildApplyContext", () => {
-  const sql = { query: vi.fn(), queryWithMeta: vi.fn(), preview: vi.fn() };
+  const sql = { query: vi.fn(), queryColumns: vi.fn(), queryWithMeta: vi.fn(), preview: vi.fn() };
   it("exposes the resolved org as active org and in context.organization", () => {
     const ctx = buildApplyContext({
       organizationId: "org-k",

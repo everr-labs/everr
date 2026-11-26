@@ -19,6 +19,7 @@ import {
   type CapabilityRow,
   decodeCapabilityRows,
 } from "./built-in/capabilities";
+import { columnsBody, panelResponse } from "./columns";
 import { interpolateVariables } from "./interpolate";
 import { dashboardFromResource } from "./normalize";
 import type { DashboardResource } from "./schema";
@@ -222,8 +223,6 @@ export const getTelemetryCapabilities = createAuthenticatedServerFn({
     return decodeCapabilityRows(rows);
   });
 
-type QueryRow = Record<string, string | number | boolean | null>;
-
 const querySource = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ClickHouseSQL"), sql: z.string().min(1) }),
   z.object({
@@ -261,7 +260,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
       // can pass the raw plugin spec. A malformed spec throws → surfaces as a
       // panel query error; the gallery's specs are validated at apply time.
       const spec = testDataSpec.parse(source.spec);
-      return { rows: generateTestData(spec, params), timeRange: window };
+      return panelResponse(columnsBody(generateTestData(spec, params)), window);
     }
 
     const interpolated = variables
@@ -270,8 +269,7 @@ export const runPanelQuery = createAuthenticatedServerFn({
     // User-supplied SQL: run it through the per-org SQL API user, whose tenant
     // filter is a row policy bound to the user — not a `SETTINGS`-based filter
     // a malicious query could override to read another tenant's rows.
-    const rows = await context.sql.query<QueryRow>(interpolated, params);
-    return { rows, timeRange: window };
+    return panelResponse(await context.sql.queryColumns(interpolated, params), window);
   });
 
 // Hard-capped by the SQL API profile's `max_result_rows` (packages/app/clickhouse/

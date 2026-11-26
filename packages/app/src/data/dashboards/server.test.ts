@@ -2,7 +2,7 @@ import { isNotFound } from "@tanstack/react-router";
 import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "#app/db/client.ts";
-import { querySqlApi } from "#app/lib/clickhouse.ts";
+import { querySqlApi, runSqlApiQuery } from "#app/lib/clickhouse.ts";
 
 // Spy on `eq`/`isNull` while keeping every other drizzle-orm export real, so
 // the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
@@ -86,11 +86,16 @@ import {
   runPanelQuery,
   runVariableOptionsQuery,
 } from "./server";
+import { readPanelResponse } from "./columns";
 
 const mockedDb = vi.mocked(db);
 // 7 days at ~500 points is a 30-minute step.
 const SEVEN_DAYS = { from: "2026-06-03T00:00:00.000Z", to: "2026-06-10T00:00:00.000Z" };
 const mockedClickhouse = vi.mocked(querySqlApi);
+const mockedPanelSql = vi.mocked(runSqlApiQuery);
+const emptyColumns = { text: async () => '{"data":{}}' } as Awaited<
+  ReturnType<typeof runSqlApiQuery>
+>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -106,7 +111,7 @@ beforeEach(() => {
 
 describe("runPanelQuery – variable interpolation", () => {
   it("interpolates variables into the SQL before executing", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -120,17 +125,17 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    expect(mockedClickhouse).toHaveBeenCalledTimes(1);
-    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
+    expect(mockedPanelSql).toHaveBeenCalledTimes(1);
+    expect(mockedPanelSql.mock.calls[0]![0]).toBe(
       "SELECT * FROM logs WHERE service = 'api' AND env IN ('prod','staging')",
     );
     // User SQL must run through the per-org SQL API user (row-policy tenant
     // isolation), scoped to the active org — not the SETTINGS-based app path.
-    expect(mockedClickhouse.mock.calls[0]![1]).toBe("test_org");
+    expect(mockedPanelSql.mock.calls[0]![1]).toBe("test_org");
   });
 
   it("expands the All sentinel using variableMeta options", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -145,13 +150,13 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    expect(mockedClickhouse.mock.calls[0]![0]).toBe(
+    expect(mockedPanelSql.mock.calls[0]![0]).toBe(
       "SELECT * FROM logs WHERE env IN ('prod','staging')",
     );
   });
 
   it("runs the SQL unchanged when no variables are provided", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -161,11 +166,11 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    expect(mockedClickhouse.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
+    expect(mockedPanelSql.mock.calls[0]![0]).toBe("SELECT $notavar FROM logs");
   });
 
   it("binds from/to and an adaptive {step} bucket as query params", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -175,7 +180,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
+    const params = mockedPanelSql.mock.calls[0]![2] as Record<string, unknown>;
     expect(params.from).toBe("2026-06-03 00:00:00");
     expect(params.to).toBe("2026-06-10 00:00:00");
     // 604800s / 500 = 1209.6 → snapped to 30m.
@@ -185,7 +190,7 @@ describe("runPanelQuery – variable interpolation", () => {
   it("binds whole-second bounds, start rounded down and end rounded up", async () => {
     // The metrics tables keep TimeUnix as DateTime, which refuses a fractional
     // literal in a comparison, and a dashboard compares {from}/{to} directly.
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -196,15 +201,15 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
-    const params = mockedClickhouse.mock.calls[0]![2] as Record<string, unknown>;
+    const params = mockedPanelSql.mock.calls[0]![2] as Record<string, unknown>;
     expect(params.from).toBe("2026-06-10 00:00:00");
     expect(params.to).toBe("2026-06-10 00:10:01");
   });
 
   it("returns the exact window it queried so the panel axis matches the data", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
-    const { timeRange } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
@@ -213,6 +218,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
+    const { timeRange } = await readPanelResponse(response);
     expect(timeRange).toEqual({
       from: "2026-06-10T00:00:00.000Z",
       to: "2026-06-10T00:10:01.000Z",
@@ -220,9 +226,9 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("starts a panel drawn over time on the step's grid and keeps its real end", async () => {
-    mockedClickhouse.mockResolvedValue([]);
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
-    const { timeRange } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: true,
         source: { kind: "ClickHouseSQL", sql: "SELECT 1" },
@@ -231,6 +237,7 @@ describe("runPanelQuery – variable interpolation", () => {
       },
     });
 
+    const { timeRange } = await readPanelResponse(response);
     expect(timeRange).toEqual({
       from: "2026-06-03T00:00:00.000Z",
       to: "2026-06-10T00:10:00.000Z",
@@ -505,7 +512,7 @@ describe("listDashboards (with project + folderPath)", () => {
 
 describe("runPanelQuery – TestData", () => {
   it("generates synthetic rows without touching ClickHouse", async () => {
-    const { rows } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         ...SEVEN_DAYS,
@@ -515,12 +522,12 @@ describe("runPanelQuery – TestData", () => {
         },
       },
     });
-    expect(rows).toEqual([{ a: "x", b: 1 }]);
-    expect(mockedClickhouse).not.toHaveBeenCalled();
+    expect((await readPanelResponse(response)).rows).toEqual([{ a: "x", b: 1 }]);
+    expect(mockedPanelSql).not.toHaveBeenCalled();
   });
 
   it("spans the resolved time range for a random_walk scenario", async () => {
-    const { rows } = await runPanelQuery({
+    const response = await runPanelQuery({
       data: {
         alignToStep: false,
         source: {
@@ -531,6 +538,7 @@ describe("runPanelQuery – TestData", () => {
         to: "2026-06-10T00:10:00.000Z",
       },
     });
+    const { rows } = await readPanelResponse(response);
     expect(rows.length).toBeGreaterThan(0);
     expect(Object.keys(rows[0])).toContain("ts");
     expect(Object.keys(rows[0])).toContain("v");
